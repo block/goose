@@ -271,9 +271,23 @@ impl ClaudeCodeProvider {
 
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
+        // Always log the exact command being executed for debugging
+        let args: Vec<&str> = cmd.as_std().get_args().map(|s| s.to_str().unwrap_or("<invalid>")).collect();
+        tracing::info!("=== CLAUDE CODE COMMAND EXECUTION ===");
+        tracing::info!("Command: {}", &self.command);
+        tracing::info!("Full command: {} {}", &self.command, args.join(" "));
+        tracing::info!("Working directory: {:?}", std::env::current_dir().unwrap_or_else(|_| "unknown".into()));
+        tracing::info!("Environment PATH: {}", std::env::var("PATH").unwrap_or_else(|_| "not set".to_string()));
+        tracing::info!("=========================================");
+
         let mut child = cmd
             .spawn()
-            .map_err(|e| ProviderError::RequestFailed(format!("Failed to spawn command: {}", e)))?;
+            .map_err(|e| {
+                tracing::error!("Failed to spawn claude command '{}': {}", &self.command, e);
+                tracing::error!("This likely means the claude CLI is not installed or not in PATH");
+                tracing::error!("Install claude CLI: https://claude.ai/cli");
+                ProviderError::RequestFailed(format!("Failed to spawn command '{}': {}. Make sure claude CLI is installed and in PATH.", &self.command, e))
+            })?;
 
         let stdout = child
             .stdout

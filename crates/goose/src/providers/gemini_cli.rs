@@ -5,7 +5,7 @@ use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
-use super::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::utils::emit_debug_trace;
 use crate::message::{Message, MessageContent};
@@ -34,7 +34,10 @@ impl Default for GeminiCliProvider {
 
 impl GeminiCliProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
-        let command = "gemini".to_string(); // Fixed command, no configuration needed
+        let config = crate::config::Config::global();
+        let command: String = config
+            .get_param("GEMINI_CLI_COMMAND")
+            .unwrap_or_else(|_| "gemini".to_string());
 
         Ok(Self { command, model })
     }
@@ -242,7 +245,12 @@ impl Provider for GeminiCliProvider {
             GEMINI_CLI_DEFAULT_MODEL,
             GEMINI_CLI_KNOWN_MODELS.to_vec(),
             GEMINI_CLI_DOC_URL,
-            vec![], // No configuration needed
+            vec![ConfigKey::new(
+                "GEMINI_CLI_COMMAND",
+                false,
+                false,
+                Some("gemini"),
+            )],
         )
     }
 

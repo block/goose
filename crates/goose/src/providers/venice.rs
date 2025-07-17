@@ -405,7 +405,7 @@ impl Provider for VeniceProvider {
                                     "type": "function",
                                     "function": {
                                         "name": tool_call.name,
-                                        "arguments": tool_call.arguments.to_string()
+                                        "arguments": tool_call.arguments
                                     }
                                 }))
                             } else {

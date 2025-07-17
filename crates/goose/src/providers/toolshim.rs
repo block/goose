@@ -326,7 +326,7 @@ pub fn convert_tool_messages_to_text(messages: &[Message]) -> Vec<Message> {
                                 tool_call.name,
                                 tool_call.name,
                                 serde_json::to_string_pretty(&tool_call.arguments)
-                                    .unwrap_or_default()
+                                    .unwrap_or_else(|_| "{}".to_string())
                             )
                         } else {
                             "Tool request failed".to_string()

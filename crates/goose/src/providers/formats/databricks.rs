@@ -98,7 +98,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                                 "type": "function",
                                 "function": {
                                     "name": sanitized_name,
-                                    "arguments": tool_call.arguments.to_string(),
+                                    "arguments": tool_call.arguments,
                                 }
                             }));
                         }

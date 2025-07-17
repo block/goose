@@ -65,4 +65,16 @@
         "models": ["grok-3"],
         "required_keys": ["XAI_API_KEY"]
     },
+    "claude-code": {
+        "name": "Claude Code",
+        "description": "Execute Claude models via claude CLI tool",
+        "models": ["default"],
+        "required_keys": ["CLAUDE_CODE_COMMAND"]
+    },
+    "gemini-cli": {
+        "name": "Gemini CLI",
+        "description": "Execute Gemini models via gemini CLI tool",
+        "models": ["default"],
+        "required_keys": ["GEMINI_CLI_COMMAND"]
+    }
 }

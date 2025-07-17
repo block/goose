@@ -72,7 +72,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                             "type": "function",
                             "function": {
                                 "name": sanitized_name,
-                                "arguments": tool_call.arguments.to_string(),
+                                "arguments": serde_json::to_string(&tool_call.arguments).unwrap_or_else(|_| "{}".to_string()),
                             }
                         }));
                     }
@@ -171,7 +171,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                             "type": "function",
                             "function": {
                                 "name": sanitized_name,
-                                "arguments": tool_call.arguments.to_string(),
+                                "arguments": serde_json::to_string(&tool_call.arguments).unwrap_or_else(|_| "{}".to_string()),
                             }
                         }));
                     }
@@ -246,6 +246,20 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
                 if arguments.is_empty() {
                     arguments = "{}".to_string();
                 }
+                
+                // Trim whitespace and validate JSON structure to prevent trailing characters
+                arguments = arguments.trim().to_string();
+                
+                // Quick validation: ensure it starts with { and ends with }
+                if !arguments.starts_with('{') || !arguments.ends_with('}') {
+                    if !arguments.starts_with('[') || !arguments.ends_with(']') {
+                        log::warn!("Tool call arguments for id {} don't appear to be valid JSON object or array: '{}'", id, arguments);
+                        // Try to parse as a string value
+                        if !arguments.starts_with('"') || !arguments.ends_with('"') {
+                            arguments = format!("\"{}\"", arguments.replace('"', "\\\""));
+                        }
+                    }
+                }
 
                 if !is_valid_function_name(&function_name) {
                     let error = ToolError::NotFound(format!(
@@ -254,6 +268,9 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
                     ));
                     content.push(MessageContent::tool_request(id, Err(error)));
                 } else {
+                    // Log raw JSON payload for debugging
+                    log::debug!("Parsing tool call arguments for id {}: raw JSON = '{}'", id, arguments);
+                    
                     match serde_json::from_str::<Value>(&arguments) {
                         Ok(params) => {
                             content.push(MessageContent::tool_request(
@@ -262,6 +279,7 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
                             ));
                         }
                         Err(e) => {
+                            log::error!("JSON parsing failed for tool call id {}: raw JSON = '{}', error: {}", id, arguments, e);
                             let error = ToolError::InvalidParameters(format!(
                                 "Could not interpret tool use parameters for id {}: {}",
                                 id, e

@@ -50,6 +50,11 @@ pub struct ConfigKeyQuery {
     pub is_secret: bool,
 }
 
+#[derive(Deserialize, ToSchema)]
+pub struct DebugConfigQuery {
+    pub enabled: bool,
+}
+
 #[derive(Serialize, ToSchema)]
 pub struct ConfigResponse {
     pub config: HashMap<String, Value>,
@@ -632,6 +637,68 @@ pub async fn get_current_model(
     })))
 }
 
+#[utoipa::path(
+    post,
+    path = "/config/debug/claude-code",
+    request_body = DebugConfigQuery,
+    responses(
+        (status = 200, description = "Claude Code debug setting updated successfully", body = String),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn set_claude_code_debug(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(query): Json<DebugConfigQuery>,
+) -> Result<Json<Value>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
+    let config = Config::global();
+    let env_var = if query.enabled { "1".to_string() } else { "".to_string() };
+    
+    // Set the environment variable for this process
+    std::env::set_var("GOOSE_CLAUDE_CODE_DEBUG", &env_var);
+    
+    // Also save to config for persistence
+    let result = config.set("GOOSE_CLAUDE_CODE_DEBUG", Value::String(env_var), false);
+
+    match result {
+        Ok(_) => Ok(Json(Value::String(format!("Claude Code debug {}", if query.enabled { "enabled" } else { "disabled" })))),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
+#[utoipa::path(
+    post,
+    path = "/config/debug/gemini-cli",
+    request_body = DebugConfigQuery,
+    responses(
+        (status = 200, description = "Gemini CLI debug setting updated successfully", body = String),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn set_gemini_cli_debug(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(query): Json<DebugConfigQuery>,
+) -> Result<Json<Value>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
+    let config = Config::global();
+    let env_var = if query.enabled { "1".to_string() } else { "".to_string() };
+    
+    // Set the environment variable for this process
+    std::env::set_var("GOOSE_GEMINI_CLI_DEBUG", &env_var);
+    
+    // Also save to config for persistence
+    let result = config.set("GOOSE_GEMINI_CLI_DEBUG", Value::String(env_var), false);
+
+    match result {
+        Ok(_) => Ok(Json(Value::String(format!("Gemini CLI debug {}", if query.enabled { "enabled" } else { "disabled" })))),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/config", get(read_all_config))
@@ -649,6 +716,8 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/validate", get(validate_config))
         .route("/config/permissions", post(upsert_permissions))
         .route("/config/current-model", get(get_current_model))
+        .route("/config/debug/claude-code", post(set_claude_code_debug))
+        .route("/config/debug/gemini-cli", post(set_gemini_cli_debug))
         .with_state(state)
 }
 
