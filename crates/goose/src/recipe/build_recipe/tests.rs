@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::recipe::build_recipe::build_recipe_from_template;
+    use crate::recipe::build_recipe::{build_recipe_from_template, RecipeError};
     use crate::recipe::read_recipe_file_content::RecipeFile;
     use crate::recipe::{RecipeParameterInputType, RecipeParameterRequirement};
     use tempfile::TempDir;
@@ -75,10 +75,7 @@ mod tests {
         let (_temp_dir, recipe_file) = setup_recipe_file(instructions_and_parameters);
 
         let params = vec![("my_name".to_string(), "value".to_string())];
-        let (recipe_opt, missing_params) =
-            build_recipe_from_template(recipe_file, params, NO_USER_PROMPT).unwrap();
-        assert!(missing_params.is_empty());
-        let recipe = recipe_opt.unwrap();
+        let recipe = build_recipe_from_template(recipe_file, params, NO_USER_PROMPT).unwrap();
 
         assert_eq!(recipe.title, "Test Recipe");
         assert_eq!(recipe.description, "A test recipe");
@@ -112,10 +109,7 @@ mod tests {
         let (_temp_dir, recipe_file) = setup_recipe_file(instructions_and_parameters);
 
         let params = vec![("my_name".to_string(), "value".to_string())];
-        let (recipe_opt, missing_params) =
-            build_recipe_from_template(recipe_file, params, NO_USER_PROMPT).unwrap();
-        assert!(missing_params.is_empty());
-        let recipe = recipe_opt.unwrap();
+        let recipe = build_recipe_from_template(recipe_file, params, NO_USER_PROMPT).unwrap();
 
         assert_eq!(recipe.title, "Test Recipe");
         assert_eq!(recipe.description, "A test recipe");
@@ -150,14 +144,17 @@ mod tests {
         assert!(build_recipe_result.is_err());
         let err = build_recipe_result.unwrap_err();
         println!("{}", err.to_string());
-        assert!(err
-            .to_string()
-            .contains("Unnecessary parameter definitions: wrong_param_key."));
-        assert!(err
-            .to_string()
-            .contains("Missing definitions for parameters in the recipe file:"));
-        assert!(err.to_string().contains("expected_param1"));
-        assert!(err.to_string().contains("expected_param2"));
+
+        match err {
+            RecipeError::TemplateRendering { source } => {
+                let err_str = source.to_string();
+                assert!(err_str.contains("Unnecessary parameter definitions: wrong_param_key."));
+                assert!(err_str.contains("Missing definitions for parameters in the recipe file:"));
+                assert!(err_str.contains("expected_param1"));
+                assert!(err_str.contains("expected_param2"));
+            }
+            _ => panic!("Expected TemplateRendering error"),
+        }
     }
 
     #[test]
@@ -182,10 +179,7 @@ mod tests {
         let (_temp_dir, recipe_file) = setup_recipe_file(instructions_and_parameters);
         let params = vec![("param_without_default".to_string(), "value1".to_string())];
 
-        let (recipe_opt, missing_params) =
-            build_recipe_from_template(recipe_file, params, NO_USER_PROMPT).unwrap();
-        assert!(missing_params.is_empty());
-        let recipe = recipe_opt.unwrap();
+        let recipe = build_recipe_from_template(recipe_file, params, NO_USER_PROMPT).unwrap();
 
         assert_eq!(recipe.title, "Test Recipe");
         assert_eq!(recipe.description, "A test recipe");
@@ -211,10 +205,7 @@ mod tests {
                 ]"#;
         let (_temp_dir, recipe_file) = setup_recipe_file(instructions_and_parameters);
 
-        let (recipe_opt, missing_params) =
-            build_recipe_from_template(recipe_file, Vec::new(), NO_USER_PROMPT).unwrap();
-        assert!(missing_params.is_empty());
-        let recipe = recipe_opt.unwrap();
+        let recipe = build_recipe_from_template(recipe_file, Vec::new(), NO_USER_PROMPT).unwrap();
         assert_eq!(recipe.title, "Test Recipe");
         assert_eq!(recipe.description, "A test recipe");
         assert_eq!(recipe.instructions.unwrap(), "Test instructions with ");
@@ -239,7 +230,12 @@ mod tests {
         assert!(build_recipe_result.is_err());
         let err = build_recipe_result.unwrap_err();
         println!("{}", err.to_string());
-        assert!(err.to_string().to_lowercase().contains("missing"));
+        match err {
+            RecipeError::TemplateRendering { source } => {
+                assert!(source.to_string().to_lowercase().contains("missing"));
+            }
+            _ => panic!("Expected TemplateRendering error"),
+        }
     }
 
     #[test]
@@ -260,9 +256,14 @@ mod tests {
         let build_recipe_result = build_recipe_from_template(recipe_file, params, NO_USER_PROMPT);
         assert!(build_recipe_result.is_err());
         let err = build_recipe_result.unwrap_err();
-        let err_msg = err.to_string();
-        eprint!("Error: {}", err_msg);
-        assert!(err_msg.contains("unknown variant `some_invalid_type`"));
+        match err {
+            RecipeError::TemplateRendering { source } => {
+                let err_msg = source.to_string();
+                eprint!("Error: {}", err_msg);
+                assert!(err_msg.contains("unknown variant `some_invalid_type`"));
+            }
+            _ => panic!("Expected TemplateRendering error, got: {:?}", err),
+        }
     }
 
     #[test]
@@ -272,10 +273,7 @@ mod tests {
                 "#;
         let (_temp_dir, recipe_file) = setup_recipe_file(instructions_and_parameters);
 
-        let (recipe_opt, missing_params) =
-            build_recipe_from_template(recipe_file, Vec::new(), NO_USER_PROMPT).unwrap();
-        assert!(missing_params.is_empty());
-        let recipe = recipe_opt.unwrap();
+        let recipe = build_recipe_from_template(recipe_file, Vec::new(), NO_USER_PROMPT).unwrap();
         assert_eq!(recipe.instructions.unwrap(), "Test instructions");
         assert!(recipe.parameters.is_none());
     }
@@ -322,12 +320,8 @@ mod tests {
             ("is_enabled".to_string(), "true".to_string()),
         ];
 
-        let parent_result =
-            build_recipe_from_template(parent_recipe_file, params.clone(), NO_USER_PROMPT);
-        assert!(parent_result.is_ok());
-        let (parent_recipe_opt, parent_missing_params) = parent_result.unwrap();
-        assert!(parent_missing_params.is_empty());
-        let parent_recipe = parent_recipe_opt.unwrap();
+        let parent_recipe =
+            build_recipe_from_template(parent_recipe_file, params.clone(), NO_USER_PROMPT).unwrap();
         assert_eq!(parent_recipe.description, "Parent recipe");
         assert_eq!(
             parent_recipe.prompt.unwrap(),
@@ -340,11 +334,8 @@ mod tests {
             "is_enabled"
         );
 
-        let child_result = build_recipe_from_template(child_recipe_file, params, NO_USER_PROMPT);
-        assert!(child_result.is_ok());
-        let (child_recipe_opt, child_missing_params) = child_result.unwrap();
-        assert!(child_missing_params.is_empty());
-        let child_recipe = child_recipe_opt.unwrap();
+        let child_recipe =
+            build_recipe_from_template(child_recipe_file, params, NO_USER_PROMPT).unwrap();
         assert_eq!(child_recipe.title, "Parent");
         assert_eq!(child_recipe.description, "Parent recipe");
         assert_eq!(

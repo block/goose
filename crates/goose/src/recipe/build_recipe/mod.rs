@@ -6,6 +6,16 @@ use crate::recipe::{
 use anyhow::Result;
 use std::collections::{HashMap, HashSet};
 
+#[derive(Debug, thiserror::Error)]
+pub enum RecipeError {
+    #[error("Missing required parameters: {parameters:?}")]
+    MissingParams { parameters: Vec<String> },
+    #[error("Template rendering failed: {source}")]
+    TemplateRendering { source: anyhow::Error },
+    #[error("Recipe parsing failed: {source}")]
+    RecipeParsing { source: anyhow::Error },
+}
+
 pub fn render_recipe_template<F>(
     recipe_file: RecipeFile,
     params: Vec<(String, String)>,
@@ -52,17 +62,23 @@ pub fn build_recipe_from_template<F>(
     recipe_file: RecipeFile,
     params: Vec<(String, String)>,
     user_prompt_fn: Option<F>,
-) -> Result<(Option<Recipe>, Vec<String>)>
+) -> Result<Recipe, RecipeError>
 where
     F: Fn(&str, &str) -> Result<String, anyhow::Error>,
 {
     let (rendered_content, missing_params) =
-        render_recipe_template(recipe_file, params.clone(), user_prompt_fn)?;
-    if missing_params.is_empty() {
-        let recipe = Recipe::from_content(&rendered_content)?;
-        return Ok((Some(recipe), missing_params));
+        render_recipe_template(recipe_file, params.clone(), user_prompt_fn)
+            .map_err(|source| RecipeError::TemplateRendering { source })?;
+
+    if !missing_params.is_empty() {
+        return Err(RecipeError::MissingParams {
+            parameters: missing_params,
+        });
     }
-    Ok((None, missing_params))
+
+    let recipe = Recipe::from_content(&rendered_content)
+        .map_err(|source| RecipeError::RecipeParsing { source })?;
+    Ok(recipe)
 }
 
 fn validate_parameters_in_template(

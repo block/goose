@@ -5,7 +5,7 @@ use crate::recipes::print_recipe::{
 use crate::recipes::search_recipe::retrieve_recipe_file;
 use anyhow::Result;
 use goose::recipe::build_recipe::{
-    apply_values_to_parameters, build_recipe_from_template, validate_recipe_parameters,
+    apply_values_to_parameters, build_recipe_from_template, validate_recipe_parameters, RecipeError,
 };
 use goose::recipe::read_recipe_file_content::RecipeFile;
 use goose::recipe::template_recipe::render_recipe_for_preview;
@@ -34,17 +34,14 @@ fn load_recipe_file_with_dir(recipe_name: &str) -> Result<(RecipeFile, String)> 
 
 pub fn load_recipe(recipe_name: &str, params: Vec<(String, String)>) -> Result<Recipe> {
     let recipe_file = retrieve_recipe_file(recipe_name)?;
-    let (recipe_opt, missing_params) =
-        build_recipe_from_template(recipe_file, params, Some(create_user_prompt_callback()))?;
-
-    if !missing_params.is_empty() {
-        return Err(anyhow::anyhow!(
+    match build_recipe_from_template(recipe_file, params, Some(create_user_prompt_callback())) {
+        Ok(recipe) => Ok(recipe),
+        Err(RecipeError::MissingParams { parameters }) => Err(anyhow::anyhow!(
             "Please provide the following parameters in the command line: {}",
-            missing_parameters_command_line(missing_params)
-        ));
+            missing_parameters_command_line(parameters)
+        )),
+        Err(e) => Err(anyhow::anyhow!(e.to_string())),
     }
-
-    recipe_opt.ok_or_else(|| anyhow::anyhow!("Failed to build recipe"))
 }
 
 pub fn render_recipe_as_yaml(recipe_name: &str, params: Vec<(String, String)>) -> Result<()> {
