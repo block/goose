@@ -49,6 +49,7 @@ import {
   getUpdateAvailable,
 } from './utils/autoUpdater';
 import { UPDATES_ENABLED } from './updates';
+import { Recipe, decodeRecipe } from './recipe';
 
 // Updater functions (moved here to keep updates.ts minimal for release replacement)
 function shouldSetupUpdater(): boolean {
@@ -171,31 +172,36 @@ if (process.platform === 'win32') {
 
         // If it's a bot/recipe URL, handle it directly by creating a new window
         if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
-          app.whenReady().then(() => {
+          app.whenReady().then(async () => {
             const recentDirs = loadRecentDirs();
             const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
-            let recipeConfig = null;
+            let recipe = null;
             const configParam = parsedUrl.searchParams.get('config');
             if (configParam) {
               try {
-                recipeConfig = JSON.parse(
-                  Buffer.from(decodeURIComponent(configParam), 'base64').toString('utf-8')
-                );
+                recipe = await decodeRecipe(configParam);
 
                 // Check if this is a scheduled job
                 const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
                 if (scheduledJobId) {
                   console.log(`[main] Opening scheduled job: ${scheduledJobId}`);
-                  recipeConfig.scheduledJobId = scheduledJobId;
-                  recipeConfig.isScheduledExecution = true;
+                  recipe.scheduledJobId = scheduledJobId;
+                  recipe.isScheduledExecution = true;
                 }
               } catch (e) {
                 console.error('Failed to parse bot config:', e);
               }
             }
 
-            createChat(app, undefined, openDir || undefined, undefined, undefined, recipeConfig);
+            createChat(
+              app,
+              undefined,
+              openDir || undefined,
+              undefined,
+              undefined,
+              recipe || undefined
+            );
           });
           return; // Skip the rest of the handler
         }
@@ -244,7 +250,7 @@ async function handleProtocolUrl(url: string) {
       existingWindows.length > 0
         ? existingWindows[0]
         : await createChat(app, undefined, openDir || undefined);
-    processProtocolUrl(parsedUrl, targetWindow);
+    await processProtocolUrl(parsedUrl, targetWindow);
   } else {
     // For other URL types, reuse existing window if available
     const existingWindows = BrowserWindow.getAllWindows();
@@ -261,17 +267,17 @@ async function handleProtocolUrl(url: string) {
     if (firstOpenWindow) {
       const webContents = firstOpenWindow.webContents;
       if (webContents.isLoadingMainFrame()) {
-        webContents.once('did-finish-load', () => {
-          processProtocolUrl(parsedUrl, firstOpenWindow);
+        webContents.once('did-finish-load', async () => {
+          await processProtocolUrl(parsedUrl, firstOpenWindow);
         });
       } else {
-        processProtocolUrl(parsedUrl, firstOpenWindow);
+        await processProtocolUrl(parsedUrl, firstOpenWindow);
       }
     }
   }
 }
 
-function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
+async function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
   const recentDirs = loadRecentDirs();
   const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
@@ -280,27 +286,25 @@ function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
   } else if (parsedUrl.hostname === 'sessions') {
     window.webContents.send('open-shared-session', pendingDeepLink);
   } else if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
-    let recipeConfig = null;
+    let recipe = null;
     const configParam = parsedUrl.searchParams.get('config');
     if (configParam) {
       try {
-        recipeConfig = JSON.parse(
-          Buffer.from(decodeURIComponent(configParam), 'base64').toString('utf-8')
-        );
+        recipe = await decodeRecipe(configParam);
 
         // Check if this is a scheduled job
         const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
         if (scheduledJobId) {
           console.log(`[main] Opening scheduled job: ${scheduledJobId}`);
-          recipeConfig.scheduledJobId = scheduledJobId;
-          recipeConfig.isScheduledExecution = true;
+          recipe.scheduledJobId = scheduledJobId;
+          recipe.isScheduledExecution = true;
         }
       } catch (e) {
         console.error('Failed to parse bot config:', e);
       }
     }
     // Create a new window and ignore the passed-in window
-    createChat(app, undefined, openDir || undefined, undefined, undefined, recipeConfig);
+    createChat(app, undefined, openDir || undefined, undefined, undefined, recipe || undefined);
   }
   pendingDeepLink = null;
 }
@@ -313,19 +317,18 @@ app.on('open-url', async (_event, url) => {
 
     // Handle bot/recipe URLs by directly creating a new window
     if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
-      let recipeConfig = null;
+      let recipe = null;
       const configParam = parsedUrl.searchParams.get('config');
-      const base64 = decodeURIComponent(configParam || '');
       if (configParam) {
         try {
-          recipeConfig = JSON.parse(Buffer.from(base64, 'base64').toString('utf-8'));
+          recipe = await decodeRecipe(configParam);
 
           // Check if this is a scheduled job
           const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
           if (scheduledJobId) {
             console.log(`[main] Opening scheduled job: ${scheduledJobId}`);
-            recipeConfig.scheduledJobId = scheduledJobId;
-            recipeConfig.isScheduledExecution = true;
+            recipe.scheduledJobId = scheduledJobId;
+            recipe.isScheduledExecution = true;
           }
         } catch (e) {
           console.error('Failed to parse bot config:', e);
@@ -333,7 +336,14 @@ app.on('open-url', async (_event, url) => {
       }
 
       // Create a new window directly
-      await createChat(app, undefined, openDir || undefined, undefined, undefined, recipeConfig);
+      await createChat(
+        app,
+        undefined,
+        openDir || undefined,
+        undefined,
+        undefined,
+        recipe || undefined
+      );
       return; // Skip the rest of the handler
     }
 
@@ -497,22 +507,13 @@ const windowMap = new Map<number, BrowserWindow>();
 // Track power save blocker ID globally
 let powerSaveBlockerId: number | null = null;
 
-interface RecipeConfig {
-  id: string;
-  title: string;
-  description: string;
-  instructions: string;
-  activities: string[];
-  prompt: string;
-}
-
 const createChat = async (
   app: App,
   query?: string,
   dir?: string,
   _version?: string,
   resumeSessionId?: string,
-  recipeConfig?: RecipeConfig, // Bot configuration
+  recipe?: Recipe, // Recipe configuration
   viewType?: string // View type
 ) => {
   // Initialize variables for process and configuration
@@ -594,7 +595,7 @@ const createChat = async (
           REQUEST_DIR: dir,
           GOOSE_BASE_URL_SHARE: sharingUrl,
           GOOSE_VERSION: gooseVersion,
-          recipeConfig: recipeConfig,
+          recipe: recipe,
         }),
       ],
       partition: 'persist:goose', // Add this line to ensure persistence
@@ -648,7 +649,7 @@ const createChat = async (
     GOOSE_WORKING_DIR: working_dir,
     REQUEST_DIR: dir,
     GOOSE_BASE_URL_SHARE: sharingUrl,
-    recipeConfig: recipeConfig,
+    recipe: recipe,
   };
 
   // We need to wait for the window to load before we can access localStorage
@@ -1839,21 +1840,18 @@ app.whenReady().then(async () => {
     }
   });
 
-  ipcMain.on(
-    'create-chat-window',
-    (_, query, dir, version, resumeSessionId, recipeConfig, viewType) => {
-      if (!dir?.trim()) {
-        const recentDirs = loadRecentDirs();
-        dir = recentDirs.length > 0 ? recentDirs[0] : null;
-      }
-
-      // Log the recipeConfig for debugging
-      console.log('Creating chat window with recipeConfig:', recipeConfig);
-
-      // Pass recipeConfig as part of viewOptions when viewType is recipeEditor
-      createChat(app, query, dir, version, resumeSessionId, recipeConfig, viewType);
+  ipcMain.on('create-chat-window', (_, query, dir, version, resumeSessionId, recipe, viewType) => {
+    if (!dir?.trim()) {
+      const recentDirs = loadRecentDirs();
+      dir = recentDirs.length > 0 ? recentDirs[0] : undefined;
     }
-  );
+
+    // Log the recipe for debugging
+    console.log('Creating chat window with recipe:', recipe);
+
+    // Pass recipe as part of viewOptions when viewType is recipeEditor
+    createChat(app, query, dir, version, resumeSessionId, recipe, viewType);
+  });
 
   ipcMain.on('notify', (_event, data) => {
     try {

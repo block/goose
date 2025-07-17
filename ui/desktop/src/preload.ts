@@ -1,9 +1,6 @@
 import Electron, { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { Recipe } from './recipe';
 
-// RecipeConfig is used for window creation and should match Recipe interface
-type RecipeConfig = Recipe;
-
 interface NotificationData {
   title: string;
   body: string;
@@ -55,7 +52,7 @@ type ElectronAPI = {
     dir?: string,
     version?: string,
     resumeSessionId?: string,
-    recipeConfig?: RecipeConfig,
+    recipe?: Recipe,
     viewType?: string
   ) => void;
   logInfo: (txt: string) => void;
@@ -139,18 +136,10 @@ const electronAPI: ElectronAPI = {
     dir?: string,
     version?: string,
     resumeSessionId?: string,
-    recipeConfig?: RecipeConfig,
+    recipe?: Recipe,
     viewType?: string
   ) =>
-    ipcRenderer.send(
-      'create-chat-window',
-      query,
-      dir,
-      version,
-      resumeSessionId,
-      recipeConfig,
-      viewType
-    ),
+    ipcRenderer.send('create-chat-window', query, dir, version, resumeSessionId, recipe, viewType),
   logInfo: (txt: string) => ipcRenderer.send('logInfo', txt),
   showNotification: (data: NotificationData) => ipcRenderer.send('notify', data),
   showMessageBox: (options: MessageBoxOptions) => ipcRenderer.invoke('show-message-box', options),

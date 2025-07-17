@@ -197,16 +197,6 @@ export const useRecipeManager = (messages: Message[], locationState?: LocationSt
           throw new Error('No recipe data received');
         }
 
-        // Create a new window for the recipe editor
-        const recipeConfig = {
-          id: response.recipe.title || 'untitled',
-          title: response.recipe.title || 'Untitled Recipe',
-          description: response.recipe.description || '',
-          instructions: response.recipe.instructions || '',
-          activities: response.recipe.activities || [],
-          prompt: response.recipe.prompt || '',
-        };
-
         // Set a flag to prevent the current window from reacting to recipe config changes
         // This prevents navigation conflicts when creating new windows
         window.sessionStorage.setItem('ignoreRecipeConfigChanges', 'true');
@@ -217,7 +207,7 @@ export const useRecipeManager = (messages: Message[], locationState?: LocationSt
           undefined, // dir
           undefined, // version
           undefined, // resumeSessionId
-          recipeConfig, // recipe config
+          response.recipe, // recipe config
           'recipeEditor' // view type
         );
 

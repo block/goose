@@ -21,8 +21,7 @@ import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Skeleton } from './ui/skeleton';
 import { MainPanelLayout } from './Layout/MainPanelLayout';
-import { Recipe } from '../recipe';
-import { Buffer } from 'buffer';
+import { Recipe, decodeRecipe } from '../recipe';
 import { toastSuccess, toastError } from '../toasts';
 
 interface RecipesViewProps {
@@ -143,8 +142,8 @@ export default function RecipesView({ onLoadRecipe }: RecipesViewProps = {}) {
     setShowPreview(true);
   };
 
-  // Function to parse deeplink and extract recipe
-  const parseDeeplink = (deeplink: string): Recipe | null => {
+  // Function to parse deeplink and extract recipe using centralized decoder
+  const parseDeeplink = async (deeplink: string): Promise<Recipe | null> => {
     try {
       const cleanLink = deeplink.trim();
 
@@ -152,15 +151,12 @@ export default function RecipesView({ onLoadRecipe }: RecipesViewProps = {}) {
         throw new Error('Invalid deeplink format. Expected: goose://recipe?config=...');
       }
 
-      // Extract and decode the base64 config
-      const configBase64 = cleanLink.replace('goose://recipe?config=', '');
+      const configEncoded = cleanLink.replace('goose://recipe?config=', '');
 
-      if (!configBase64) {
+      if (!configEncoded) {
         throw new Error('No recipe configuration found in deeplink');
       }
-      const urlDecoded = decodeURIComponent(configBase64);
-      const configJson = Buffer.from(urlDecoded, 'base64').toString('utf-8');
-      const recipe = JSON.parse(configJson) as Recipe;
+      const recipe = await decodeRecipe(configEncoded);
 
       if (!recipe.title || !recipe.description || !recipe.instructions) {
         throw new Error('Recipe is missing required fields (title, description, instructions)');
@@ -180,7 +176,7 @@ export default function RecipesView({ onLoadRecipe }: RecipesViewProps = {}) {
 
     setImporting(true);
     try {
-      const recipe = parseDeeplink(importDeeplink.trim());
+      const recipe = await parseDeeplink(importDeeplink.trim());
 
       if (!recipe) {
         throw new Error('Invalid deeplink or recipe format');
@@ -223,14 +219,19 @@ export default function RecipesView({ onLoadRecipe }: RecipesViewProps = {}) {
   };
 
   // Auto-generate recipe name when deeplink changes
-  const handleDeeplinkChange = (value: string) => {
+  const handleDeeplinkChange = async (value: string) => {
     setImportDeeplink(value);
 
     if (value.trim()) {
-      const recipe = parseDeeplink(value.trim());
-      if (recipe && recipe.title) {
-        const suggestedName = generateRecipeFilename(recipe);
-        setImportRecipeName(suggestedName);
+      try {
+        const recipe = await parseDeeplink(value.trim());
+        if (recipe && recipe.title) {
+          const suggestedName = generateRecipeFilename(recipe);
+          setImportRecipeName(suggestedName);
+        }
+      } catch (error) {
+        // Silently handle parsing errors during auto-suggest
+        console.log('Could not parse deeplink for auto-suggest:', error);
       }
     }
   };
