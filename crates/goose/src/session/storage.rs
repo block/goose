@@ -1087,7 +1087,7 @@ pub async fn persist_messages_with_schedule_id(
     match provider {
         Some(provider) if user_message_count < 4 => {
             //generate_description is responsible for writing the messages
-            generate_description_with_schedule_id_and_working_dir(
+            generate_description_with_schedule_id(
                 &secure_path,
                 messages,
                 provider,
@@ -1253,95 +1253,9 @@ pub async fn generate_description(
     session_file: &Path,
     messages: &[Message],
     provider: Arc<dyn Provider>,
+    working_dir: Option<PathBuf>,
 ) -> Result<()> {
-    generate_description_with_schedule_id(session_file, messages, provider, None).await
-}
-
-/// Generate a description for the session using the provider, including an optional scheduled job ID
-///
-/// This function is called when appropriate to generate a short description
-/// of the session based on the conversation history.
-///
-/// Security features:
-/// - Validates file paths to prevent directory traversal
-/// - Limits context size to prevent resource exhaustion
-/// - Uses secure file operations for saving
-pub async fn generate_description_with_schedule_id(
-    session_file: &Path,
-    messages: &[Message],
-    provider: Arc<dyn Provider>,
-    schedule_id: Option<String>,
-) -> Result<()> {
-    // Validate the path for security
-    let secure_path = get_path(Identifier::Path(session_file.to_path_buf()))?;
-
-    // Security check: message count limit
-    if messages.len() > MAX_MESSAGE_COUNT {
-        tracing::warn!(
-            "Message count exceeds limit during description generation: {}",
-            messages.len()
-        );
-        return Err(anyhow::anyhow!(
-            "Too many messages for description generation"
-        ));
-    }
-
-    // Create a special message asking for a 3-word description
-    let mut description_prompt = "Based on the conversation so far, provide a concise description of this session in 4 words or less. This will be used for finding the session later in a UI with limited space - reply *ONLY* with the description".to_string();
-
-    // get context from messages so far, limiting each message to 300 chars for security
-    let context: Vec<String> = messages
-        .iter()
-        .filter(|m| m.role == mcp_core::role::Role::User)
-        .take(3) // Use up to first 3 user messages for context
-        .map(|m| {
-            let text = m.as_concat_text();
-            safe_truncate(&text, 300)
-        })
-        .collect();
-
-    if !context.is_empty() {
-        description_prompt = format!(
-            "Here are the first few user messages:\n{}\n\n{}",
-            context.join("\n"),
-            description_prompt
-        );
-    }
-
-    // Generate the description with error handling
-    let message = Message::user().with_text(&description_prompt);
-    let result = provider
-        .complete(
-            "Reply with only a description in four words or less",
-            &[message],
-            &[],
-        )
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to generate session description: {}", e);
-            anyhow::anyhow!("Failed to generate session description")
-        })?;
-
-    let description = result.0.as_concat_text();
-
-    // Validate description length for security
-    let sanitized_description = if description.chars().count() > 100 {
-        tracing::warn!("Generated description too long, truncating");
-        safe_truncate(&description, 100)
-    } else {
-        description
-    };
-
-    let mut metadata = read_metadata(&secure_path)?;
-
-    // Update description and schedule_id
-    metadata.description = sanitized_description;
-    if schedule_id.is_some() {
-        metadata.schedule_id = schedule_id;
-    }
-
-    // Update the file with the new metadata and existing messages
-    save_messages_with_metadata(&secure_path, &metadata, messages)
+    generate_description_with_schedule_id(session_file, messages, provider, None, working_dir).await
 }
 
 /// Generate a description for the session using the provider, including an optional scheduled job ID and working directory
@@ -1353,7 +1267,7 @@ pub async fn generate_description_with_schedule_id(
 /// - Validates file paths to prevent directory traversal
 /// - Limits context size to prevent resource exhaustion
 /// - Uses secure file operations for saving
-async fn generate_description_with_schedule_id_and_working_dir(
+pub async fn generate_description_with_schedule_id(
     session_file: &Path,
     messages: &[Message],
     provider: Arc<dyn Provider>,

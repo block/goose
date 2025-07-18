@@ -370,10 +370,17 @@ impl Session {
         // Persist messages with provider for automatic description generation
         if let Some(session_file) = &self.session_file {
             let working_dir = Some(
-                std::env::current_dir().expect("failed to get current session working directory"),
+                std::env::current_dir().unwrap_or_else(|e| panic!("current_dir failed: {}", e)),
             );
-            session::persist_messages(session_file, &self.messages, Some(provider), working_dir)
-                .await?;
+
+            session::persist_messages_with_schedule_id(
+                session_file,
+                &self.messages,
+                Some(provider),
+                self.scheduled_job_id.clone(),
+                working_dir,
+            )
+            .await?;
         }
 
         // Track the current directory and last instruction in projects.json
@@ -489,14 +496,18 @@ impl Session {
 
                             // Persist messages with provider for automatic description generation
                             if let Some(session_file) = &self.session_file {
-                                let working_dir = Some(
-                                    std::env::current_dir()
-                                        .expect("failed to get current session working directory"),
-                                );
-                                session::persist_messages(
+                                let working_dir =
+                                    Some(std::env::current_dir().unwrap_or_else(|e| {
+                                        panic!(
+                                            "Failed to get current session working directory: {}",
+                                            e
+                                        )
+                                    }));
+                                session::persist_messages_with_schedule_id(
                                     session_file,
                                     &self.messages,
                                     Some(provider),
+                                    self.scheduled_job_id.clone(),
                                     working_dir,
                                 )
                                 .await?;
