@@ -113,7 +113,7 @@ const step3Content = appendToStep3
             <li>{step3Content}</li>
             <li>Click <code>Add Extension</code></li>
           </>
-
+    )}
         <li>Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar</li>
         <li>Navigate to the chat</li>
       </ol>
