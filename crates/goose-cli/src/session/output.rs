@@ -219,6 +219,7 @@ fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
         Ok(call) => match call.name.as_str() {
             "developer__text_editor" => render_text_editor_request(call, debug),
             "developer__shell" => render_shell_request(call, debug),
+            "dynamic_task" => render_dynamic_task_request(call, debug),
             _ => render_default_request(call, debug),
         },
         Err(e) => print_markdown(&e.to_string(), theme),
@@ -392,6 +393,27 @@ fn render_shell_request(call: &ToolCall, debug: bool) {
     }
 }
 
+fn render_dynamic_task_request(call: &ToolCall, debug: bool) {
+    print_tool_header(call);
+
+    // Print the task name
+    if let Some(Value::String(task_name)) = call.arguments.get("task_name") {
+        println!("{}: {}", style("task_name").dim(), style(task_name).green());
+    }
+
+    // Print other arguments normally
+    if let Some(args) = call.arguments.as_object() {
+        let mut other_args = serde_json::Map::new();
+        for (k, v) in args {
+            if k != "task_name" {
+                other_args.insert(k.clone(), v.clone());
+            }
+        }
+        print_params(&Value::Object(other_args), 0, debug);
+    }
+    println!();
+}
+
 fn render_default_request(call: &ToolCall, debug: bool) {
     print_tool_header(call);
     print_params(&call.arguments, 0, debug);
@@ -463,26 +485,10 @@ fn print_params(value: &Value, depth: usize, debug: bool) {
                         }
                     }
                     Value::String(s) => {
-                        // Special handling for text_instruction to show more content
-                        let max_length = if key == "text_instruction" {
-                            200 // Allow longer display for text instructions
-                        } else {
-                            get_tool_params_max_length()
-                        };
+                        let max_length = get_tool_params_max_length();
 
                         if !debug && s.len() > max_length {
-                            // For text instructions, show a preview instead of just "..."
-                            if key == "text_instruction" {
-                                let preview = &s[..max_length.saturating_sub(3)];
-                                println!(
-                                    "{}{}: {}",
-                                    indent,
-                                    style(key).dim(),
-                                    style(format!("{}...", preview)).green()
-                                );
-                            } else {
-                                println!("{}{}: {}", indent, style(key).dim(), style("...").dim());
-                            }
+                            println!("{}{}: {}", indent, style(key).dim(), style("...").dim());
                         } else {
                             println!("{}{}: {}", indent, style(key).dim(), style(s).green());
                         }

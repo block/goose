@@ -69,28 +69,10 @@ async fn handle_text_instruction_task(
     // Start tracking the task
     task_execution_tracker.start_task(&task.id).await;
 
-    // Create arguments for the subagent task
-    let task_arguments = serde_json::json!({
-        "text_instruction": text_instruction,
-        // "instructions": "You are a helpful assistant. Execute the given task and provide a clear, concise response.",
-    });
-
-    match run_complete_subagent_task(task_arguments, task_config).await {
-        Ok(contents) => {
-            // Extract the text content from the result
-            let result_text = contents
-                .into_iter()
-                .filter_map(|content| match content {
-                    mcp_core::Content::Text(text) => Some(text.text),
-                    _ => None,
-                })
-                .collect::<Vec<_>>()
-                .join("\n");
-
-            Ok(serde_json::json!({
-                "result": result_text
-            }))
-        }
+    match run_complete_subagent_task(text_instruction.to_string(), task_config).await {
+        Ok(result_text) => Ok(serde_json::json!({
+            "result": result_text
+        })),
         Err(e) => {
             let error_msg = format!("Subagent execution failed: {}", e);
             Err(error_msg)
