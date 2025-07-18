@@ -1,6 +1,7 @@
 ---
 title: Cloudflare MCP Server
 description: Add Cloudflare MCP Servers as Goose Extensions
+unlisted: true
 ---
 
 import Tabs from '@theme/Tabs';
