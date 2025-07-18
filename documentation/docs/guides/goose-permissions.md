@@ -6,6 +6,7 @@ sidebar_label: Goose Permissions
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import { PanelLeft } from 'lucide-react';
 
 Goose’s permissions determine how much autonomy it has when modifying files, using extensions, and performing automated actions. By selecting a permission mode, you have full control over how Goose interacts with your development environment.
 
@@ -49,9 +50,10 @@ Here's how to configure:
       Click the Goose Mode option from the bottom menu. 
       </TabItem>
       <TabItem value="settings" label="From Settings">
-        1. Click the `Settings` button on the left sidebar.
-        2. Click `Chat`
-        3. Under `Mode`, choose the mode you'd like
+        1. Click the <PanelLeft className="inline" size={16} /> button on the top-left to open the sidebar.
+        2. Click the `Settings` button on the sidebar.
+        3. Click `Chat`.
+        4. Under `Mode`, choose the mode you'd like.
       </TabItem>
     </Tabs>   
   </TabItem>
