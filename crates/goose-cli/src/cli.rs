@@ -839,47 +839,15 @@ pub async fn cli() -> Result<()> {
             model,
         }) => {
             let recipe_info = match (instructions, input_text, recipe) {
-                    (Some(file), _, _) if file == "-" => {
-                        let mut input = String::new();
-                        std::io::stdin()
-                            .read_to_string(&mut input)
-                            .expect("Failed to read from stdin");
+                (Some(file), _, _) if file == "-" => {
+                    let mut input = String::new();
+                    std::io::stdin()
+                        .read_to_string(&mut input)
+                        .expect("Failed to read from stdin");
 
-                        RecipeInfo {
-                            input_config: InputConfig {
-                                contents: Some(input),
-                                extensions_override: None,
-                                additional_system_prompt: system,
-                            },
-                            session_settings: None,
-                            sub_recipes: None,
-                            final_output_response: None,
-                            retry_config: None,
-                        }
-                    }
-                    (Some(file), _, _) => {
-                        let contents = std::fs::read_to_string(&file).unwrap_or_else(|err| {
-                        eprintln!(
-                            "Instruction file not found — did you mean to use goose run --text?\n{}",
-                            err
-                        );
-                        std::process::exit(1);
-                    });
-                        RecipeInfo {
-                            input_config: InputConfig {
-                                contents: Some(contents),
-                                extensions_override: None,
-                                additional_system_prompt: None,
-                            },
-                            session_settings: None,
-                            sub_recipes: None,
-                            final_output_response: None,
-                            retry_config: None,
-                        }
-                    }
-                    (_, Some(text), _) => RecipeInfo {
+                    RecipeInfo {
                         input_config: InputConfig {
-                            contents: Some(text),
+                            contents: Some(input),
                             extensions_override: None,
                             additional_system_prompt: system,
                         },
@@ -887,30 +855,58 @@ pub async fn cli() -> Result<()> {
                         sub_recipes: None,
                         final_output_response: None,
                         retry_config: None,
-                    },
-                    (_, _, Some(recipe_name)) => {
-                        if explain {
-                            explain_recipe(&recipe_name, params)?;
-                            return Ok(());
-                        }
-                        if render_recipe {
-                            if let Err(err) = render_recipe_as_yaml(&recipe_name, params) {
-                                eprintln!("{}: {}", console::style("Error").red().bold(), err);
-                                std::process::exit(1);
-                            }
-                            return Ok(());
-                        }
-                        extract_recipe_info_from_cli(
-                            recipe_name,
-                            params,
-                            additional_sub_recipes,
-                        )?
                     }
-                    (None, None, None) => {
-                        eprintln!("Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin.");
+                }
+                (Some(file), _, _) => {
+                    let contents = std::fs::read_to_string(&file).unwrap_or_else(|err| {
+                        eprintln!(
+                            "Instruction file not found — did you mean to use goose run --text?\n{}",
+                            err
+                        );
                         std::process::exit(1);
+                    });
+                    RecipeInfo {
+                        input_config: InputConfig {
+                            contents: Some(contents),
+                            extensions_override: None,
+                            additional_system_prompt: None,
+                        },
+                        session_settings: None,
+                        sub_recipes: None,
+                        final_output_response: None,
+                        retry_config: None,
                     }
-                };
+                }
+                (_, Some(text), _) => RecipeInfo {
+                    input_config: InputConfig {
+                        contents: Some(text),
+                        extensions_override: None,
+                        additional_system_prompt: system,
+                    },
+                    session_settings: None,
+                    sub_recipes: None,
+                    final_output_response: None,
+                    retry_config: None,
+                },
+                (_, _, Some(recipe_name)) => {
+                    if explain {
+                        explain_recipe(&recipe_name, params)?;
+                        return Ok(());
+                    }
+                    if render_recipe {
+                        if let Err(err) = render_recipe_as_yaml(&recipe_name, params) {
+                            eprintln!("{}: {}", console::style("Error").red().bold(), err);
+                            std::process::exit(1);
+                        }
+                        return Ok(());
+                    }
+                    extract_recipe_info_from_cli(recipe_name, params, additional_sub_recipes)?
+                }
+                (None, None, None) => {
+                    eprintln!("Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin.");
+                    std::process::exit(1);
+                }
+            };
 
             let mut session = build_session(SessionBuilderConfig {
                 identifier: identifier.map(extract_identifier),

@@ -179,7 +179,7 @@ impl Agent {
     pub async fn reset_retry_attempts(&self) {
         let mut retry_attempts = self.retry_attempts.lock().await;
         *retry_attempts = 0;
-        
+
         // Also reset the tool monitor when resetting retry attempts
         if let Some(monitor) = self.tool_monitor.lock().await.as_mut() {
             monitor.reset();

@@ -282,29 +282,30 @@ impl Recipe {
         }
     }
     pub fn from_content(content: &str) -> Result<Self> {
-        let recipe: Recipe = if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(content) {
-            if let Some(nested_recipe) = json_value.get("recipe") {
-                serde_json::from_value(nested_recipe.clone())?
+        let recipe: Recipe =
+            if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(content) {
+                if let Some(nested_recipe) = json_value.get("recipe") {
+                    serde_json::from_value(nested_recipe.clone())?
+                } else {
+                    serde_json::from_str(content)?
+                }
+            } else if let Ok(yaml_value) = serde_yaml::from_str::<serde_yaml::Value>(content) {
+                if let Some(nested_recipe) = yaml_value.get("recipe") {
+                    serde_yaml::from_value(nested_recipe.clone())?
+                } else {
+                    serde_yaml::from_str(content)?
+                }
             } else {
-                serde_json::from_str(content)?
-            }
-        } else if let Ok(yaml_value) = serde_yaml::from_str::<serde_yaml::Value>(content) {
-            if let Some(nested_recipe) = yaml_value.get("recipe") {
-                serde_yaml::from_value(nested_recipe.clone())?
-            } else {
-                serde_yaml::from_str(content)?
-            }
-        } else {
-            return Err(anyhow::anyhow!(
-                "Unsupported format. Expected JSON or YAML."
-            ));
-        };
+                return Err(anyhow::anyhow!(
+                    "Unsupported format. Expected JSON or YAML."
+                ));
+            };
 
         // Validate retry configuration if present
         if let Some(ref retry_config) = recipe.retry {
             if let Err(validation_error) = retry_config.validate() {
                 return Err(anyhow::anyhow!(
-                    "Invalid retry configuration: {}", 
+                    "Invalid retry configuration: {}",
                     validation_error
                 ));
             }

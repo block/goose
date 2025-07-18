@@ -50,7 +50,9 @@ impl RetryConfig {
 
         if let Some(cleanup_timeout) = self.cleanup_timeout_seconds {
             if cleanup_timeout == 0 {
-                return Err("cleanup_timeout_seconds must be greater than 0 if specified".to_string());
+                return Err(
+                    "cleanup_timeout_seconds must be greater than 0 if specified".to_string(),
+                );
             }
         }
 

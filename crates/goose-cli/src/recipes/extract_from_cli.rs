@@ -6,7 +6,10 @@ use goose::recipe::SubRecipe;
 use crate::recipes::print_recipe::print_recipe_info;
 use crate::recipes::recipe::load_recipe;
 use crate::recipes::search_recipe::retrieve_recipe_file;
-use crate::{cli::{InputConfig, RecipeInfo}, session::SessionSettings};
+use crate::{
+    cli::{InputConfig, RecipeInfo},
+    session::SessionSettings,
+};
 
 pub fn extract_recipe_info_from_cli(
     recipe_name: String,
@@ -147,7 +150,8 @@ mod tests {
             sub_recipe2_path.to_string_lossy().to_string(),
         ];
 
-        let recipe_info = extract_recipe_info_from_cli(recipe_name, params, additional_sub_recipes).unwrap();
+        let recipe_info =
+            extract_recipe_info_from_cli(recipe_name, params, additional_sub_recipes).unwrap();
         let input_config = recipe_info.input_config;
         let settings = recipe_info.session_settings;
         let sub_recipes = recipe_info.sub_recipes;
