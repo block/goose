@@ -4,6 +4,7 @@ mod shell;
 
 use anyhow::Result;
 use base64::Engine;
+use chrono::Utc;
 use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::formatdoc;
 use serde_json::{json, Value};
@@ -13,6 +14,7 @@ use std::{
     io::Cursor,
     path::{Path, PathBuf},
     pin::Pin,
+    sync::{Arc, Mutex},
 };
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
@@ -42,7 +44,6 @@ use self::editor_models::{create_editor_model, EditorModel};
 use self::shell::{expand_path, get_shell_config, is_absolute_path, normalize_line_endings};
 use indoc::indoc;
 use std::process::Stdio;
-use std::sync::{Arc, Mutex};
 use xcap::{Monitor, Window};
 
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
@@ -100,6 +101,8 @@ pub struct DeveloperRouter {
     file_history: Arc<Mutex<HashMap<PathBuf, Vec<String>>>>,
     ignore_patterns: Arc<Gitignore>,
     editor_model: Option<EditorModel>,
+    checkpoint_dir: PathBuf,
+    checkpoint_index: Arc<Mutex<HashMap<PathBuf, Vec<PathBuf>>>>,
 }
 
 impl Default for DeveloperRouter {
@@ -109,6 +112,14 @@ impl Default for DeveloperRouter {
 }
 
 impl DeveloperRouter {
+    // Helper function to get the checkpoints directory
+    fn get_checkpoints_dir() -> PathBuf {
+        choose_app_strategy(crate::APP_STRATEGY.clone())
+            .expect("goose requires a home dir")
+            .data_dir()
+            .join("checkpoints")
+    }
+
     pub fn new() -> Self {
         // TODO consider rust native search tools, we could use
         // https://docs.rs/ignore/latest/ignore/
@@ -425,6 +436,54 @@ impl DeveloperRouter {
             }),
         );
 
+        let list_checkpoints_tool = Tool::new(
+            "list_checkpoints",
+            "Return checkpoints for a file",
+            json!({
+                "type": "object",
+                "required": ["path"],
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Absolute path to the file to list checkpoints for"
+                    }
+                }
+            }),
+            Some(ToolAnnotations {
+                title: Some("List file checkpoints".to_string()),
+                read_only_hint: true,
+                destructive_hint: false,
+                idempotent_hint: true,
+                open_world_hint: false,
+            }),
+        );
+
+        let restore_checkpoint_tool = Tool::new(
+            "restore_checkpoint",
+            "Restore a file from a specific checkpoint",
+            json!({
+                "type": "object",
+                "required": ["path", "checkpoint_path"],
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Absolute path to the file to restore"
+                    },
+                    "checkpoint_path": {
+                        "type": "string",
+                        "description": "Path to the checkpoint file to restore from"
+                    }
+                }
+            }),
+            Some(ToolAnnotations {
+                title: Some("Restore from checkpoint".to_string()),
+                read_only_hint: false,
+                destructive_hint: true,
+                idempotent_hint: false,
+                open_world_hint: false,
+            }),
+        );
+
         // Get base instructions and working directory
         let cwd = std::env::current_dir().expect("should have a current working dir");
         let os = std::env::consts::OS;
@@ -561,6 +620,9 @@ impl DeveloperRouter {
 
         let ignore_patterns = builder.build().expect("Failed to build ignore patterns");
 
+        let chk = Self::get_checkpoints_dir();
+        std::fs::create_dir_all(&chk).ok();
+
         Self {
             tools: vec![
                 bash_tool,
@@ -570,12 +632,16 @@ impl DeveloperRouter {
                 list_windows_tool,
                 screen_capture_tool,
                 image_processor_tool,
+                list_checkpoints_tool,
+                restore_checkpoint_tool,
             ],
             prompts: Arc::new(load_prompt_files()),
             instructions,
             file_history: Arc::new(Mutex::new(HashMap::new())),
             ignore_patterns: Arc::new(ignore_patterns),
             editor_model,
+            checkpoint_dir: chk,
+            checkpoint_index: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -600,6 +666,308 @@ impl DeveloperRouter {
                 suggestion.to_string_lossy(),
             ))),
         }
+    }
+
+    // Helper function to create a checkpoint of a file
+    fn create_checkpoint(&self, file: &Path) -> Result<(PathBuf, String), ToolError> {
+        if !file.exists() {
+            return Err(ToolError::NotFound(format!(
+                "{} does not exist",
+                file.display()
+            )));
+        }
+        let ts = Utc::now().format("%Y%m%dT%H%M%S%3f").to_string();
+        let rel = file
+            .strip_prefix(std::env::current_dir().unwrap())
+            .unwrap_or(file);
+        let dest = self.checkpoint_dir.join(&ts).join(rel);
+        if let Some(p) = dest.parent() {
+            std::fs::create_dir_all(p).map_err(|e| {
+                ToolError::ExecutionError(format!("Failed to create checkpoint directory: {}", e))
+            })?;
+        }
+        std::fs::copy(file, &dest).map_err(|e| {
+            ToolError::ExecutionError(format!("Failed to copy file to checkpoint: {}", e))
+        })?;
+        self.checkpoint_index
+            .lock()
+            .unwrap()
+            .entry(file.to_path_buf())
+            .or_default()
+            .push(dest.clone());
+        Ok((dest, ts))
+    }
+
+    // Helper function to generate diff string with intelligent hunk splitting
+    fn diff_string(&self, old_txt: &str, new_txt: &str, file_path: &Path) -> String {
+        use similar::{ChangeTag, TextDiff};
+
+        let diff = TextDiff::from_lines(old_txt, new_txt);
+        let mut result = String::new();
+
+        // Use relative path from current directory if possible, otherwise use full path
+        let cwd = std::env::current_dir().unwrap_or_default();
+        let display_path = file_path
+            .strip_prefix(&cwd)
+            .unwrap_or(file_path)
+            .to_string_lossy();
+
+        result.push_str(&format!("--- a/{}\n", display_path));
+        result.push_str(&format!("+++ b/{}\n", display_path));
+
+        // Use intelligent hunk grouping based on file type and content
+        let groups = self.smart_group_ops(&diff, file_path);
+
+        for (idx, group) in groups.iter().enumerate() {
+            if idx > 0 {
+                result.push('\n'); // Separate hunks with newline
+            }
+
+            // Calculate hunk header
+            let first = group[0];
+            let last = group[group.len() - 1];
+            let old_range = (last.old_range().end - first.old_range().start) as i32;
+            let new_range = (last.new_range().end - first.new_range().start) as i32;
+
+            result.push_str(&format!(
+                "@@ -{},{} +{},{} @@\n",
+                first.old_range().start + 1,
+                old_range,
+                first.new_range().start + 1,
+                new_range
+            ));
+
+            for op in group {
+                for change in diff.iter_changes(op) {
+                    match change.tag() {
+                        ChangeTag::Delete => {
+                            result.push_str(&format!("-{}", change.value()));
+                            if !change.value().ends_with('\n') {
+                                result.push('\n');
+                            }
+                        }
+                        ChangeTag::Insert => {
+                            result.push_str(&format!("+{}", change.value()));
+                            if !change.value().ends_with('\n') {
+                                result.push('\n');
+                            }
+                        }
+                        ChangeTag::Equal => {
+                            result.push_str(&format!(" {}", change.value()));
+                            if !change.value().ends_with('\n') {
+                                result.push('\n');
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        result
+    }
+
+    // Smart hunk grouping that considers file type and content structure
+    fn smart_group_ops(
+        &self,
+        diff: &similar::TextDiff<str>,
+        file_path: &Path,
+    ) -> Vec<Vec<similar::DiffOp>> {
+        use similar::DiffOp;
+
+        // Get file extension to determine context strategy
+        let extension = file_path.extension().and_then(|s| s.to_str()).unwrap_or("");
+
+        // Determine context size based on file type
+        let context_lines = match extension {
+            // Code files - use more context to capture function boundaries
+            "rs" | "py" | "js" | "ts" | "tsx" | "jsx" | "java" | "cpp" | "c" | "h" => 5,
+            // Markup files - moderate context for section boundaries
+            "md" | "html" | "xml" => 4,
+            // Config files - less context needed
+            "json" | "yaml" | "yml" | "toml" | "ini" => 3,
+            // Default for other files
+            _ => 3,
+        };
+
+        let ops = diff.ops();
+        if ops.is_empty() {
+            return vec![];
+        }
+
+        // First, try the standard grouping with increased context
+        let standard_groups: Vec<Vec<DiffOp>> = diff.grouped_ops(context_lines);
+
+        // If we only have one group and it's very large, try to split it intelligently
+        if standard_groups.len() == 1 && self.should_split_large_group(&standard_groups[0]) {
+            self.split_large_group_intelligently(&standard_groups[0])
+        } else {
+            standard_groups
+        }
+    }
+
+    // Check if a group is too large and should be split
+    fn should_split_large_group(&self, group: &[similar::DiffOp]) -> bool {
+        // Count total lines in the group
+        let total_lines: usize = group
+            .iter()
+            .map(|op| {
+                (op.old_range().end - op.old_range().start)
+                    .max(op.new_range().end - op.new_range().start)
+            })
+            .sum();
+
+        // Split if more than 50 lines or more than 20 changed lines
+        let changed_lines: usize = group
+            .iter()
+            .filter_map(|op| match op.tag() {
+                similar::DiffTag::Delete | similar::DiffTag::Insert => Some(
+                    (op.old_range().end - op.old_range().start)
+                        .max(op.new_range().end - op.new_range().start),
+                ),
+                _ => None,
+            })
+            .sum();
+
+        total_lines > 50 || changed_lines > 20
+    }
+
+    // Split a large group into smaller logical chunks
+    fn split_large_group_intelligently(
+        &self,
+        group: &[similar::DiffOp],
+    ) -> Vec<Vec<similar::DiffOp>> {
+        // Implement a simple splitting strategy based on line count
+        let mut result = Vec::new();
+        let mut current_group = Vec::new();
+        let mut lines_in_group = 0;
+        const MAX_LINES_PER_GROUP: usize = 30;
+
+        for op in group {
+            let op_lines = (op.old_range().end - op.old_range().start)
+                .max(op.new_range().end - op.new_range().start);
+
+            // If adding this op would make the group too large, start a new group
+            if lines_in_group > 0
+                && lines_in_group + op_lines > MAX_LINES_PER_GROUP
+                && !current_group.is_empty()
+            {
+                result.push(current_group.clone());
+                current_group.clear();
+                lines_in_group = 0;
+            }
+
+            current_group.push(*op);
+            lines_in_group += op_lines;
+        }
+
+        if !current_group.is_empty() {
+            result.push(current_group);
+        }
+
+        // If we couldn't split it effectively, return the original group
+        if result.len() <= 1 {
+            vec![group.to_vec()]
+        } else {
+            result
+        }
+    }
+
+    // List checkpoints for a file
+    async fn list_checkpoints(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        let path_str = params
+            .get("path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidParameters("Missing 'path' parameter".into()))?;
+
+        let file = self.resolve_path(path_str)?;
+        let list = self
+            .checkpoint_index
+            .lock()
+            .unwrap()
+            .get(&file)
+            .cloned()
+            .unwrap_or_default();
+
+        Ok(vec![
+            Content::text(format!(
+                "Found {} checkpoints for {}",
+                list.len(),
+                file.display()
+            ))
+            .with_audience(vec![Role::Assistant]),
+            Content::text(serde_json::to_string_pretty(&json!({ "checkpoints": list })).unwrap())
+                .with_audience(vec![Role::User])
+                .with_priority(0.0),
+        ])
+    }
+
+    // Restore a file from a checkpoint
+    async fn restore_checkpoint(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        let path_str = params
+            .get("path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidParameters("Missing 'path' parameter".into()))?;
+
+        let checkpoint_path_str = params
+            .get("checkpoint_path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| {
+                ToolError::InvalidParameters("Missing 'checkpoint_path' parameter".into())
+            })?;
+
+        let file = self.resolve_path(path_str)?;
+        let checkpoint_path = Path::new(checkpoint_path_str);
+
+        // Check if checkpoint exists
+        if !checkpoint_path.exists() {
+            return Err(ToolError::NotFound(format!(
+                "Checkpoint {} does not exist",
+                checkpoint_path.display()
+            )));
+        }
+
+        // Read checkpoint content
+        let checkpoint_content = std::fs::read_to_string(checkpoint_path)
+            .map_err(|e| ToolError::ExecutionError(format!("Failed to read checkpoint: {}", e)))?;
+
+        // Create new checkpoint of current state before restore
+        let (new_ckpt_path, ts) = self.create_checkpoint(&file)?;
+
+        // Read current content for diff
+        let current_content = std::fs::read_to_string(&file).unwrap_or_default();
+
+        // Restore from checkpoint
+        std::fs::write(&file, &checkpoint_content)
+            .map_err(|e| ToolError::ExecutionError(format!("Failed to restore file: {}", e)))?;
+
+        // Generate diff and create payload
+        let diff = self.diff_string(&current_content, &checkpoint_content, &file);
+        let payload = json!({
+            "file": file,
+            "checkpoint": new_ckpt_path,
+            "timestamp": ts,
+            "diff": diff,
+            "action": "restore"
+        });
+
+        Ok(vec![
+            Content::text(format!(
+                "Restored {} from checkpoint {}",
+                file.display(),
+                checkpoint_path.display()
+            ))
+            .with_audience(vec![Role::Assistant]),
+            Content::text(format!(
+                "File {} has been restored from checkpoint",
+                file.display()
+            ))
+            .with_audience(vec![Role::User]),
+            Content::embedded_text(
+                "goose://checkpoint",
+                serde_json::to_string(&payload).unwrap(),
+            )
+            .with_audience(vec![Role::Assistant]),
+        ])
     }
 
     // Shell command execution with platform-specific handling
@@ -1049,12 +1417,36 @@ impl DeveloperRouter {
             normalized_text.push('\n');
         }
 
+        // Create checkpoint if file exists, before overwriting
+        let (ckpt_path, ts) = if path.exists() {
+            self.create_checkpoint(path)?
+        } else {
+            (PathBuf::new(), String::new()) // new file => no checkpoint
+        };
+
         // Write to the file
         std::fs::write(path, &normalized_text) // Write the potentially modified text
             .map_err(|e| ToolError::ExecutionError(format!("Failed to write file: {}", e)))?;
 
         // Try to detect the language from the file extension
         let language = lang::get_language_identifier(path);
+
+        // Generate diff (empty old content for new files)
+        let old_content = if ckpt_path.as_os_str().is_empty() {
+            ""
+        } else {
+            &std::fs::read_to_string(&ckpt_path).map_err(|e| {
+                ToolError::ExecutionError(format!("Failed to read checkpoint: {}", e))
+            })?
+        };
+        let diff = self.diff_string(old_content, &normalized_text, path);
+
+        let payload = json!({
+            "file": path,
+            "checkpoint": ckpt_path,  // may be empty for brand-new file
+            "timestamp": ts,
+            "diff": diff
+        });
 
         // The assistant output does not show the file again because the content is already in the tool request
         // but we do show it to the user here, using the final written content
@@ -1074,6 +1466,11 @@ impl DeveloperRouter {
             })
             .with_audience(vec![Role::User])
             .with_priority(0.2),
+            Content::embedded_text(
+                "goose://checkpoint",
+                serde_json::to_string(&payload).unwrap(),
+            )
+            .with_audience(vec![Role::Assistant]),
         ])
     }
 
@@ -1097,8 +1494,9 @@ impl DeveloperRouter {
 
         // Check if Editor API is configured and use it as the primary path
         if let Some(ref editor) = self.editor_model {
-            // Editor API path - save history then call API directly
+            // Editor API path - save history and create checkpoint then call API directly
             self.save_file_history(path)?;
+            let (ckpt_path, ts) = self.create_checkpoint(path)?;
 
             match editor.edit_code(&content, old_str, new_str).await {
                 Ok(updated_content) => {
@@ -1108,6 +1506,15 @@ impl DeveloperRouter {
                         ToolError::ExecutionError(format!("Failed to write file: {}", e))
                     })?;
 
+                    // Generate diff and create checkpoint payload
+                    let diff = self.diff_string(&content, &normalized_content, path);
+                    let payload = json!({
+                        "file": path,
+                        "checkpoint": ckpt_path,
+                        "timestamp": ts,
+                        "diff": diff
+                    });
+
                     // Simple success message for Editor API
                     return Ok(vec![
                         Content::text(format!("Successfully edited {}", path.display()))
@@ -1115,6 +1522,11 @@ impl DeveloperRouter {
                         Content::text(format!("File {} has been edited", path.display()))
                             .with_audience(vec![Role::User])
                             .with_priority(0.2),
+                        Content::embedded_text(
+                            "goose://checkpoint",
+                            serde_json::to_string(&payload).unwrap(),
+                        )
+                        .with_audience(vec![Role::Assistant]),
                     ]);
                 }
                 Err(e) => {
@@ -1141,8 +1553,9 @@ impl DeveloperRouter {
             ));
         }
 
-        // Save history for undo (original behavior - after validation)
+        // Save history and create checkpoint for undo (original behavior - after validation)
         self.save_file_history(path)?;
+        let (ckpt_path, ts) = self.create_checkpoint(path)?;
 
         let new_content = content.replace(old_str, new_str);
         let normalized_content = normalize_line_endings(&new_content);
@@ -1195,11 +1608,25 @@ impl DeveloperRouter {
             output
         };
 
+        // Generate diff and create checkpoint payload
+        let diff = self.diff_string(&content, &normalized_content, path);
+        let payload = json!({
+            "file": path,
+            "checkpoint": ckpt_path,
+            "timestamp": ts,
+            "diff": diff
+        });
+
         Ok(vec![
             Content::text(success_message).with_audience(vec![Role::Assistant]),
             Content::text(output)
                 .with_audience(vec![Role::User])
                 .with_priority(0.2),
+            Content::embedded_text(
+                "goose://checkpoint",
+                serde_json::to_string(&payload).unwrap(),
+            )
+            .with_audience(vec![Role::Assistant]),
         ])
     }
 
@@ -1590,6 +2017,8 @@ impl Router for DeveloperRouter {
                 "list_windows" => this.list_windows(arguments).await,
                 "screen_capture" => this.screen_capture(arguments).await,
                 "image_processor" => this.image_processor(arguments).await,
+                "list_checkpoints" => this.list_checkpoints(arguments).await,
+                "restore_checkpoint" => this.restore_checkpoint(arguments).await,
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
         })
@@ -1648,6 +2077,8 @@ impl Clone for DeveloperRouter {
             file_history: Arc::clone(&self.file_history),
             ignore_patterns: Arc::clone(&self.ignore_patterns),
             editor_model: create_editor_model(), // Recreate the editor model since it's not Clone
+            checkpoint_dir: self.checkpoint_dir.clone(),
+            checkpoint_index: Arc::clone(&self.checkpoint_index),
         }
     }
 }
@@ -2078,6 +2509,8 @@ mod tests {
             file_history: Arc::new(Mutex::new(HashMap::new())),
             ignore_patterns: Arc::new(ignore_patterns),
             editor_model: None,
+            checkpoint_dir: DeveloperRouter::get_checkpoints_dir(),
+            checkpoint_index: Arc::new(Mutex::new(HashMap::new())),
         };
 
         // Test basic file matching
@@ -2129,6 +2562,8 @@ mod tests {
             file_history: Arc::new(Mutex::new(HashMap::new())),
             ignore_patterns: Arc::new(ignore_patterns),
             editor_model: None,
+            checkpoint_dir: DeveloperRouter::get_checkpoints_dir(),
+            checkpoint_index: Arc::new(Mutex::new(HashMap::new())),
         };
 
         // Try to write to an ignored file
@@ -2189,6 +2624,8 @@ mod tests {
             file_history: Arc::new(Mutex::new(HashMap::new())),
             ignore_patterns: Arc::new(ignore_patterns),
             editor_model: None,
+            checkpoint_dir: DeveloperRouter::get_checkpoints_dir(),
+            checkpoint_index: Arc::new(Mutex::new(HashMap::new())),
         };
 
         // Create an ignored file

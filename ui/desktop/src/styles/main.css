@@ -578,6 +578,10 @@ p > code.bg-inline-code {
   background-color: var(--color-neutral-300);
 }
 
+.sidecar-button {
+  right: calc(0% - calc(var(--spacing) * 17));
+}
+
 /* Ensure virtualized items don't have margin/padding that could break layout */
 .virtualized-list > div {
   outline: none;

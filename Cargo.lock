@@ -3657,6 +3657,7 @@ dependencies = [
  "serde_with",
  "serial_test",
  "shellexpand",
+ "similar",
  "sysinfo 0.32.1",
  "tempfile",
  "thiserror 1.0.69",
@@ -7788,6 +7789,12 @@ checksum = "95890f873bec569a0362c235787f3aca6e1e887302ba4840839bcc6459c42da6"
 dependencies = [
  "quote",
 ]
+
+[[package]]
+name = "similar"
+version = "2.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbbb5d9659141646ae647b42fe094daf6c6192d1620870b449d9557f748b2daa"
 
 [[package]]
 name = "simple_asn1"

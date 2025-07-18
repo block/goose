@@ -68,6 +68,7 @@ type ElectronAPI = {
   selectFileOrDirectory: () => Promise<string | null>;
   startPowerSaveBlocker: () => Promise<number>;
   stopPowerSaveBlocker: () => Promise<void>;
+  resizeWindow: (widthPercentage: number) => Promise<boolean>;
   getBinaryPath: (binaryName: string) => Promise<string>;
   readFile: (directory: string) => Promise<FileResponse>;
   writeFile: (directory: string, content: string) => Promise<boolean>;
@@ -100,6 +101,25 @@ type ElectronAPI = {
   deleteTempFile: (filePath: string) => void;
   // Function to serve temp images
   getTempImage: (filePath: string) => Promise<string | null>;
+  // Penpot API integration
+  penpotApiCall: (options: {
+    url: string;
+    method?: string;
+    headers?: Record<string, string>;
+    body?: string;
+  }) => Promise<{
+    ok: boolean;
+    status: number;
+    statusText: string;
+    data: unknown;
+  }>;
+  // Docker command integration
+  dockerCommand: (command: string) => Promise<{
+    success: boolean;
+    output?: string;
+    error?: string;
+    exitCode?: number;
+  }>;
   // Update-related functions
   getVersion: () => string;
   checkForUpdates: () => Promise<{ updateInfo: unknown; error: string | null }>;
@@ -161,6 +181,7 @@ const electronAPI: ElectronAPI = {
   selectFileOrDirectory: () => ipcRenderer.invoke('select-file-or-directory'),
   startPowerSaveBlocker: () => ipcRenderer.invoke('start-power-save-blocker'),
   stopPowerSaveBlocker: () => ipcRenderer.invoke('stop-power-save-blocker'),
+  resizeWindow: (widthPercentage: number) => ipcRenderer.invoke('resize-window', widthPercentage),
   getBinaryPath: (binaryName: string) => ipcRenderer.invoke('get-binary-path', binaryName),
   readFile: (filePath: string) => ipcRenderer.invoke('read-file', filePath),
   writeFile: (filePath: string, content: string) =>
@@ -204,6 +225,17 @@ const electronAPI: ElectronAPI = {
   },
   getTempImage: (filePath: string): Promise<string | null> => {
     return ipcRenderer.invoke('get-temp-image', filePath);
+  },
+  penpotApiCall: (options: {
+    url: string;
+    method?: string;
+    headers?: Record<string, string>;
+    body?: string;
+  }) => {
+    return ipcRenderer.invoke('penpot-api-call', options);
+  },
+  dockerCommand: (command: string) => {
+    return ipcRenderer.invoke('docker-command', command);
   },
   getVersion: (): string => {
     return config.GOOSE_VERSION || ipcRenderer.sendSync('get-app-version') || '';
