@@ -198,7 +198,6 @@ export default function ViewRecipeModal({ isOpen, onClose, config }: ViewRecipeM
     );
   };
 
-  // State for deeplink generation
   const [deeplink, setDeeplink] = useState('');
   const [isGeneratingDeeplink, setIsGeneratingDeeplink] = useState(false);
 

@@ -105,7 +105,7 @@ const checkboxInputClassName =
 type SourceType = 'file' | 'deeplink';
 type ExecutionMode = 'background' | 'foreground';
 
-// Function to parse deep link and extract recipe config using centralized decoder
+// Function to parse deep link and extract recipe config
 async function parseDeepLink(deepLink: string): Promise<Recipe | null> {
   try {
     const url = new URL(deepLink);
@@ -118,7 +118,6 @@ async function parseDeepLink(deepLink: string): Promise<Recipe | null> {
       return null;
     }
 
-    // Use centralized decoder
     return await decodeRecipe(configParam);
   } catch (error) {
     console.error('Failed to parse deep link:', error);
@@ -312,7 +311,7 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
         } catch (error) {
           setParsedRecipe(null);
           setInternalValidationError(
-            'Failed to parse deep link. Please check the format and try again.'
+            'Failed to parse deep link. Please ensure using a goose://bot or goose://recipe link and try again.'
           );
         }
       } else {

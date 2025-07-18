@@ -50,7 +50,6 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
     setValue: (value: string) => void;
   } | null>(null);
 
-  // State for deeplink generation
   const [deeplink, setDeeplink] = useState('');
   const [isGeneratingDeeplink, setIsGeneratingDeeplink] = useState(false);
 

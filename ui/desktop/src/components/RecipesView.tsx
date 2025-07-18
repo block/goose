@@ -142,7 +142,7 @@ export default function RecipesView({ onLoadRecipe }: RecipesViewProps = {}) {
     setShowPreview(true);
   };
 
-  // Function to parse deeplink and extract recipe using centralized decoder
+  // Function to parse deeplink and extract recipe
   const parseDeeplink = async (deeplink: string): Promise<Recipe | null> => {
     try {
       const cleanLink = deeplink.trim();

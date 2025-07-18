@@ -28,21 +28,7 @@ export const ScheduleFromRecipeModal: React.FC<ScheduleFromRecipeModalProps> = (
     const generateLink = async () => {
       if (isOpen && recipe) {
         try {
-          // Convert Recipe to the format expected by generateDeepLink
-          const recipeConfig = {
-            id: recipe.title?.toLowerCase().replace(/[^a-z0-9-]/g, '-') || 'recipe',
-            title: recipe.title,
-            description: recipe.description,
-            instructions: recipe.instructions,
-            activities: recipe.activities || [],
-            prompt: recipe.prompt,
-            extensions: recipe.extensions,
-            goosehints: recipe.goosehints,
-            context: recipe.context,
-            profile: recipe.profile,
-            author: recipe.author,
-          };
-          const link = await generateDeepLink(recipeConfig);
+          const link = await generateDeepLink(recipe);
           if (!isCancelled) {
             setDeepLink(link);
           }

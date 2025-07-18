@@ -191,7 +191,6 @@ response:
         assert!(result.is_ok());
         let url = result.unwrap();
         assert!(url.starts_with("goose://recipe?config="));
-        // The encoded part should be URL-safe base64 without padding
         let encoded_part = url.strip_prefix("goose://recipe?config=").unwrap();
         assert!(encoded_part.len() > 0);
     }

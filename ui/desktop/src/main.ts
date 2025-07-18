@@ -52,9 +52,9 @@ import { UPDATES_ENABLED } from './updates';
 import { Recipe } from './recipe';
 
 // API URL constructor for main process before window is ready
-function getApiUrlMain(endpoint: string, dynamicPort?: number): string {
-  const host = process.env.GOOSE_API_HOST || 'http://localhost';
-  const port = dynamicPort || process.env.GOOSE_PORT || '8000';
+function getApiUrlMain(endpoint: string, dynamicPort: number): string {
+  const host = process.env.GOOSE_API_HOST || 'http://127.0.0.1';
+  const port = dynamicPort || process.env.GOOSE_PORT;
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   return `${host}:${port}${cleanEndpoint}`;
 }
@@ -203,7 +203,7 @@ if (process.platform === 'win32') {
             const recentDirs = loadRecentDirs();
             const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
-            const configParam = parsedUrl.searchParams.get('config');
+            const recipeDeeplink = parsedUrl.searchParams.get('config');
             const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
 
             createChat(
@@ -212,10 +212,10 @@ if (process.platform === 'win32') {
               openDir || undefined,
               undefined,
               undefined,
-              undefined, // recipe - will be decoded after server starts
-              undefined, // viewType
-              configParam || undefined, // recipeDeeplink
-              scheduledJobId || undefined // scheduledJobId
+              undefined,
+              undefined,
+              recipeDeeplink || undefined,
+              scheduledJobId || undefined
             );
           });
           return; // Skip the rest of the handler
@@ -301,7 +301,7 @@ async function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
   } else if (parsedUrl.hostname === 'sessions') {
     window.webContents.send('open-shared-session', pendingDeepLink);
   } else if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
-    const configParam = parsedUrl.searchParams.get('config');
+    const recipeDeeplink = parsedUrl.searchParams.get('config');
     const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
 
     // Create a new window and ignore the passed-in window
@@ -311,10 +311,10 @@ async function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
       openDir || undefined,
       undefined,
       undefined,
-      undefined, // recipe - will be decoded after server starts
-      undefined, // viewType
-      configParam || undefined, // recipeDeeplink
-      scheduledJobId || undefined // scheduledJobId
+      undefined,
+      undefined,
+      recipeDeeplink || undefined,
+      scheduledJobId || undefined
     );
   }
   pendingDeepLink = null;
@@ -330,7 +330,7 @@ app.on('open-url', async (_event, url) => {
     console.log('[Main] Received open-url event:', url);
     if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
       console.log('[Main] Detected bot/recipe URL, creating new chat window');
-      const configParam = parsedUrl.searchParams.get('config');
+      const recipeDeeplink = parsedUrl.searchParams.get('config');
       const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
 
       // Create a new window directly
@@ -340,10 +340,10 @@ app.on('open-url', async (_event, url) => {
         openDir || undefined,
         undefined,
         undefined,
-        undefined, // recipe - will be decoded after server starts
-        undefined, // viewType
-        configParam || undefined, // recipeDeeplink
-        scheduledJobId || undefined // scheduledJobId
+        undefined,
+        undefined,
+        recipeDeeplink || undefined,
+        scheduledJobId || undefined
       );
       return; // Skip the rest of the handler
     }
@@ -514,9 +514,9 @@ const createChat = async (
   dir?: string,
   _version?: string,
   resumeSessionId?: string,
-  recipe?: Recipe, // Recipe configuration
-  viewType?: string, // View type
-  recipeDeeplink?: string, // Raw deeplink to decode after server starts
+  recipe?: Recipe, // Recipe configuration when already loaded, takes precedence over deeplink
+  viewType?: string,
+  recipeDeeplink?: string, // Raw deeplink used as a fallback when recipe is not loaded. Required on new windows as we need to wait for the window to load before decoding.
   scheduledJobId?: string // Scheduled job ID if applicable
 ) => {
   // Initialize variables for process and configuration
