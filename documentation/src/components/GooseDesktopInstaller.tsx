@@ -108,8 +108,12 @@ const step3Content = appendToStep3
           <a href={buildGooseUrl()}>Launch the installer</a>
         </li>
         <li>Click <code>OK</code> to confirm the installation</li>
-        {hasConfiguration && <li>{step3Content}</li>}
-        {hasConfiguration && <li>Click <code>Add Extension</code></li>}
+        {hasConfiguration && (
+          <>
+            <li>{step3Content}</li>
+            <li>Click <code>Add Extension</code></li>
+          </>
+
         <li>Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar</li>
         <li>Navigate to the chat</li>
       </ol>
