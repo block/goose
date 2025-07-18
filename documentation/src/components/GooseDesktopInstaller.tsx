@@ -88,18 +88,18 @@ export default function GooseDesktopInstaller({
   };
 
   const content = getStep3Content();
-const step3Content = appendToStep3
-  ? (
-      <>
-        {content}
-        {content ? <br /> : null}
-        {appendToStep3}
-      </>
-    )
-  : content;
+  const step3Content = appendToStep3
+    ? (
+        <>
+          {content}
+          {content ? <br /> : null}
+          {appendToStep3}
+        </>
+      )
+    : content;
   
-  // Use explicit hasEnvVars if provided, otherwise fall back to checking step3Content
-  const hasConfiguration = hasEnvVars !== undefined ? hasEnvVars : step3Content !== null;
+  const hasConfigurationContent = step3Content !== null;
+  const shouldShowConfigurationSteps = hasEnvVars ?? hasConfigurationContent;
 
   return (
     <div>
@@ -108,7 +108,7 @@ const step3Content = appendToStep3
           <a href={buildGooseUrl()}>Launch the installer</a>
         </li>
         <li>Click <code>OK</code> to confirm the installation</li>
-        {hasConfiguration && (
+        {shouldShowConfigurationSteps && (
           <>
             <li>{step3Content}</li>
             <li>Click <code>Add Extension</code></li>
