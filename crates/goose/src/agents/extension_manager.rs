@@ -692,7 +692,10 @@ impl ExtensionManager {
             };
             
             result
-                .map(|call| call.content)
+                .map(|call| {
+                    // Post-process content to detect UI resources that were returned as text
+                    Self::process_potential_ui_content(call.content)
+                })
                 .map_err(|e| ToolError::ExecutionError(e.to_string()))
         };
 
@@ -851,6 +854,63 @@ impl ExtensionManager {
         }
 
         Ok(vec![Content::text(output_parts.join("\n"))])
+    }
+
+    /// Process tool response content to detect UI resources that were incorrectly returned as text
+    fn process_potential_ui_content(content: Vec<Content>) -> Vec<Content> {
+        content.into_iter().map(|item| {
+            match &item {
+                Content::Text(text_content) => {
+                    // Check if this text content looks like a UI resource
+                    if Self::looks_like_ui_resource(&text_content.text) {
+                        // Convert to proper resource structure
+                        Self::convert_text_to_ui_resource(text_content)
+                    } else {
+                        item
+                    }
+                }
+                _ => item
+            }
+        }).collect()
+    }
+
+    /// Check if text content looks like a UI resource that was flattened
+    fn looks_like_ui_resource(text: &str) -> bool {
+        // Strong indicators that this should be a UI resource
+        (text.contains("Remote DOM") && text.contains("document.createElement")) ||
+        (text.contains("ui://") && text.contains("mimeType")) ||
+        (text.contains("application/vnd.mcp-ui.")) ||
+        // Large JavaScript/HTML content that should be interactive
+        (text.len() > 1000 && (
+            text.contains("document.createElement") ||
+            text.contains("<!DOCTYPE html>") ||
+            (text.contains("const") && text.contains("appendChild"))
+        ))
+    }
+
+    /// Convert text content to proper UI resource structure
+    fn convert_text_to_ui_resource(text_content: &mcp_core::content::TextContent) -> Content {
+        use mcp_core::content::EmbeddedResource;
+        use mcp_core::resource::ResourceContents;
+
+        // Try to extract UI information from the text
+        let (uri, mime_type) = if text_content.text.contains("Remote DOM") {
+            ("ui://mcp-server/dynamic-ui/response".to_string(), "application/vnd.mcp-ui.remote-dom+javascript".to_string())
+        } else if text_content.text.contains("<!DOCTYPE html>") {
+            ("ui://mcp-server/html-ui/response".to_string(), "text/html".to_string())
+        } else {
+            ("ui://mcp-server/interactive-content/response".to_string(), "text/html".to_string())
+        };
+
+        // Create proper resource structure
+        Content::Resource(EmbeddedResource {
+            resource: ResourceContents::TextResourceContents {
+                uri,
+                mime_type: Some(mime_type),
+                text: text_content.text.clone(),
+            },
+            annotations: text_content.annotations.clone(),
+        })
     }
 }
 

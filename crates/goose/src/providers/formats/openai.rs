@@ -153,18 +153,70 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                                             "content": [convert_image(&image, image_format)]
                                         }));
                                     }
-                                    Content::Resource(resource) => {
-                                        tool_content.push(Content::text(resource.get_text()));
+                                    Content::Resource(ref resource) => {
+                                        // Check if this is a UI resource that should be preserved
+                                        let is_ui_resource = match &resource.resource {
+                                            mcp_core::resource::ResourceContents::TextResourceContents { uri, mime_type, .. } => {
+                                                let has_ui_scheme = uri.starts_with("ui://");
+                                                let has_ui_mimetype = mime_type.as_ref().map_or(false, |mt| 
+                                                    mt.starts_with("application/vnd.mcp-ui.") || 
+                                                    mt == "text/html" || 
+                                                    mt == "text/uri-list"
+                                                );
+                                                has_ui_scheme || has_ui_mimetype
+                                            },
+                                            mcp_core::resource::ResourceContents::BlobResourceContents { uri, mime_type, .. } => {
+                                                let has_ui_scheme = uri.starts_with("ui://");
+                                                let has_ui_mimetype = mime_type.as_ref().map_or(false, |mt| 
+                                                    mt.starts_with("application/vnd.mcp-ui.") || 
+                                                    mt == "text/html" || 
+                                                    mt == "text/uri-list"
+                                                );
+                                                has_ui_scheme || has_ui_mimetype
+                                            },
+                                        };
+                                        
+                                        if is_ui_resource {
+                                            // Preserve UI resources as-is for frontend
+                                            tool_content.push(Content::Resource(resource.clone()));
+                                        } else {
+                                            // Flatten non-UI resources to text
+                                            tool_content.push(Content::text(resource.get_text()));
+                                        }
                                     }
                                     _ => {
                                         tool_content.push(content);
                                     }
                                 }
                             }
+                            // For OpenAI API: create text summary that includes UI resource info
+                            // For Frontend: we'll preserve the original UI resources in the message
                             let tool_response_content: Value = json!(tool_content
                                 .iter()
                                 .map(|content| match content {
                                     Content::Text(text) => text.text.clone(),
+                                    Content::Resource(resource) => {
+                                        // For UI resources, provide descriptive text to OpenAI
+                                        match &resource.resource {
+                                            mcp_core::resource::ResourceContents::TextResourceContents { uri, mime_type, .. } => {
+                                                let has_ui_scheme = uri.starts_with("ui://");
+                                                let has_ui_mimetype = mime_type.as_ref().map_or(false, |mt| 
+                                                    mt.starts_with("application/vnd.mcp-ui.") || 
+                                                    mt == "text/html" || 
+                                                    mt == "text/uri-list"
+                                                );
+                                                
+                                                if has_ui_scheme || has_ui_mimetype {
+                                                    format!("[Interactive UI Component: {} - {}]", 
+                                                            uri, 
+                                                            mime_type.as_ref().unwrap_or(&"text/html".to_string()))
+                                                } else {
+                                                    resource.get_text()
+                                                }
+                                            },
+                                            _ => resource.get_text()
+                                        }
+                                    },
                                     _ => String::new(),
                                 })
                                 .collect::<Vec<String>>()

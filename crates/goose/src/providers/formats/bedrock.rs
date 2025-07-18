@@ -119,7 +119,7 @@ pub fn to_bedrock_tool_result_content_block(
     Ok(match content {
         Content::Text(text) => bedrock::ToolResultContentBlock::Text(text.text.to_string()),
         Content::Image(image) => bedrock::ToolResultContentBlock::Image(to_bedrock_image(image)?),
-        Content::Resource(resource) => match &resource.resource {
+        Content::Resource(ref resource) => match &resource.resource {
             ResourceContents::TextResourceContents { text, .. } => {
                 match to_bedrock_document(tool_use_id, &resource.resource)? {
                     Some(doc) => bedrock::ToolResultContentBlock::Document(doc),

@@ -335,17 +335,53 @@ pub fn convert_tool_messages_to_text(messages: &[Message]) -> Vec<Message> {
                     }
                     MessageContent::ToolResponse(res) => {
                         has_tool_content = true;
-                        // Convert tool response to text format
+                        // Convert tool response to text format, but preserve UI resources
                         let text = match &res.tool_result {
                             Ok(contents) => {
-                                let text_contents: Vec<String> = contents
-                                    .iter()
-                                    .filter_map(|c| match c {
-                                        Content::Text(t) => Some(t.text.clone()),
-                                        _ => None,
-                                    })
-                                    .collect();
-                                format!("Tool result:\n{}", text_contents.join("\n"))
+                                let mut text_parts = Vec::new();
+                                let mut has_ui_resources = false;
+                                
+                                for content in contents {
+                                    match content {
+                                        Content::Text(t) => text_parts.push(t.text.clone()),
+                                        Content::Resource(r) => {
+                                            // Check if this is a UI resource
+                                            let is_ui_resource = match &r.resource {
+                                                mcp_core::resource::ResourceContents::TextResourceContents { uri, mime_type, .. } => {
+                                                    uri.starts_with("ui://") || 
+                                                    mime_type.as_ref().map_or(false, |mt| 
+                                                        mt.starts_with("application/vnd.mcp-ui.") ||
+                                                        mt == "text/html" || 
+                                                        mt == "text/uri-list"
+                                                    )
+                                                }
+                                                _ => false,
+                                            };
+
+                                            if is_ui_resource {
+                                                has_ui_resources = true;
+                                                // For toolshim mode, indicate that UI resource exists but can't be displayed
+                                                let uri = match &r.resource {
+                                                    mcp_core::resource::ResourceContents::TextResourceContents { uri, .. } => uri,
+                                                    mcp_core::resource::ResourceContents::BlobResourceContents { uri, .. } => uri,
+                                                };
+                                                text_parts.push(format!("[Interactive UI Component: {}]", uri));
+                                            } else {
+                                                // Flatten non-UI resources to text
+                                                text_parts.push(r.get_text());
+                                            }
+                                        }
+                                        _ => {
+                                            // Handle other content types
+                                        }
+                                    }
+                                }
+                                
+                                let mut result = format!("Tool result:\n{}", text_parts.join("\n"));
+                                if has_ui_resources {
+                                    result.push_str("\n\n[Note: This tool returned interactive UI components that cannot be displayed in text mode]");
+                                }
+                                result
                             }
                             Err(e) => format!("Tool error: {}", e),
                         };

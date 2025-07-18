@@ -145,8 +145,43 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                                             "content": [convert_image(&image, image_format)]
                                         }));
                                     }
-                                    Content::Resource(resource) => {
+                                    Content::Resource(ref resource) => {
+                                        println!("=== DATABRICKS PROVIDER DEBUG ===");
+                                        println!("Processing Resource: {:?}", resource);
+                                        
+                                        // Check if this is a UI resource that should be preserved
+                                        let is_ui_resource = match &resource.resource {
+                                            mcp_core::resource::ResourceContents::TextResourceContents { uri, mime_type, .. } => {
+                                                let has_ui_scheme = uri.starts_with("ui://");
+                                                let has_ui_mimetype = mime_type.as_ref().map_or(false, |mt| 
+                                                    mt.starts_with("application/vnd.mcp-ui.") || 
+                                                    mt == "text/html" || 
+                                                    mt == "text/uri-list"
+                                                );
+                                                println!("UI scheme: {}, UI mimetype: {}", has_ui_scheme, has_ui_mimetype);
+                                                has_ui_scheme || has_ui_mimetype
+                                            },
+                                            mcp_core::resource::ResourceContents::BlobResourceContents { uri, mime_type, .. } => {
+                                                let has_ui_scheme = uri.starts_with("ui://");
+                                                let has_ui_mimetype = mime_type.as_ref().map_or(false, |mt| 
+                                                    mt.starts_with("application/vnd.mcp-ui.") || 
+                                                    mt == "text/html" || 
+                                                    mt == "text/uri-list"
+                                                );
+                                                println!("UI scheme: {}, UI mimetype: {}", has_ui_scheme, has_ui_mimetype);
+                                                has_ui_scheme || has_ui_mimetype
+                                            },
+                                        };
+                                        
+                                        if is_ui_resource {
+                                            println!("PRESERVING UI RESOURCE: {:?}", resource);
+                                            // Preserve UI resources as-is
+                                            tool_content.push(content.clone());
+                                        } else {
+                                            println!("FLATTENING NON-UI RESOURCE TO TEXT");
+                                            // Flatten non-UI resources to text
                                         tool_content.push(Content::text(resource.get_text()));
+                                        }
                                     }
                                     _ => {
                                         tool_content.push(content);
