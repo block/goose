@@ -763,6 +763,34 @@ export default function App() {
     // Check for session resume first - this takes priority over other navigation
     if (resumeSessionId) {
       console.log('Session resume detected, letting useChat hook handle navigation');
+
+      // Even when resuming a session, we need to initialize the system
+      const initializeForSessionResume = async () => {
+        try {
+          await initConfig();
+          await readAllConfig({ throwOnError: true });
+
+          const config = window.electron.getConfig();
+          const provider = (await read('GOOSE_PROVIDER', false)) ?? config.GOOSE_DEFAULT_PROVIDER;
+          const model = (await read('GOOSE_MODEL', false)) ?? config.GOOSE_DEFAULT_MODEL;
+
+          if (provider && model) {
+            await initializeSystem(provider as string, model as string, {
+              getExtensions,
+              addExtension,
+            });
+          } else {
+            throw new Error('No provider/model configured for session resume');
+          }
+        } catch (error) {
+          console.error('Failed to initialize system for session resume:', error);
+          setFatalError(
+            `Failed to initialize system for session resume: ${error instanceof Error ? error.message : 'Unknown error'}`
+          );
+        }
+      };
+
+      initializeForSessionResume();
       return;
     }
 

@@ -364,11 +364,16 @@ impl Session {
 
         // Persist messages with provider for automatic description generation
         if let Some(session_file) = &self.session_file {
+            let working_dir = Some(
+                std::env::current_dir().expect("failed to get current session working directory"),
+            );
+
             session::persist_messages_with_schedule_id(
                 session_file,
                 &self.messages,
                 Some(provider),
                 self.scheduled_job_id.clone(),
+                working_dir,
             )
             .await?;
         }
@@ -486,11 +491,17 @@ impl Session {
 
                             // Persist messages with provider for automatic description generation
                             if let Some(session_file) = &self.session_file {
+                                let working_dir = Some(
+                                    std::env::current_dir()
+                                        .expect("failed to get current session working directory"),
+                                );
+
                                 session::persist_messages_with_schedule_id(
                                     session_file,
                                     &self.messages,
                                     Some(provider),
                                     self.scheduled_job_id.clone(),
+                                    working_dir,
                                 )
                                 .await?;
                             }
@@ -702,11 +713,13 @@ impl Session {
 
                         // Persist the summarized messages
                         if let Some(session_file) = &self.session_file {
+                            let working_dir = std::env::current_dir().ok();
                             session::persist_messages_with_schedule_id(
                                 session_file,
                                 &self.messages,
                                 Some(provider),
                                 self.scheduled_job_id.clone(),
+                                working_dir,
                             )
                             .await?;
                         }
@@ -886,11 +899,13 @@ impl Session {
                                     ));
                                     push_message(&mut self.messages, response_message);
                                     if let Some(session_file) = &self.session_file {
+                                        let working_dir = std::env::current_dir().ok();
                                         session::persist_messages_with_schedule_id(
                                             session_file,
                                             &self.messages,
                                             None,
                                             self.scheduled_job_id.clone(),
+                                            working_dir,
                                         )
                                         .await?;
                                     }
@@ -985,11 +1000,13 @@ impl Session {
 
                                 // No need to update description on assistant messages
                                 if let Some(session_file) = &self.session_file {
+                                    let working_dir = std::env::current_dir().ok();
                                     session::persist_messages_with_schedule_id(
                                         session_file,
                                         &self.messages,
                                         None,
                                         self.scheduled_job_id.clone(),
+                                        working_dir,
                                     )
                                     .await?;
                                 }
@@ -1188,11 +1205,13 @@ impl Session {
 
             // No need for description update here
             if let Some(session_file) = &self.session_file {
+                let working_dir = std::env::current_dir().ok();
                 session::persist_messages_with_schedule_id(
                     session_file,
                     &self.messages,
                     None,
                     self.scheduled_job_id.clone(),
+                    working_dir,
                 )
                 .await?;
             }
@@ -1205,11 +1224,13 @@ impl Session {
 
             // No need for description update here
             if let Some(session_file) = &self.session_file {
+                let working_dir = std::env::current_dir().ok();
                 session::persist_messages_with_schedule_id(
                     session_file,
                     &self.messages,
                     None,
                     self.scheduled_job_id.clone(),
+                    working_dir,
                 )
                 .await?;
             }
@@ -1227,11 +1248,13 @@ impl Session {
 
                             // No need for description update here
                             if let Some(session_file) = &self.session_file {
+                                let working_dir = std::env::current_dir().ok();
                                 session::persist_messages_with_schedule_id(
                                     session_file,
                                     &self.messages,
                                     None,
                                     self.scheduled_job_id.clone(),
+                                    working_dir,
                                 )
                                 .await?;
                             }

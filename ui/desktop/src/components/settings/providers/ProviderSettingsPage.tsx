@@ -73,15 +73,25 @@ export default function ProviderSettings({ onClose, isOnboarding }: ProviderSett
           getExtensions,
           addExtension,
         });
+
+        toastService.configure({ silent: false });
+        toastService.success({
+          title: 'Success!',
+          msg: `Started goose with ${model} by ${provider.metadata.display_name}. You can change the model via the lower right corner.`,
+        });
+
+        onClose();
       } catch (error) {
         console.error(`Failed to initialize with provider ${provider_name}:`, error);
+
+        // Show error toast
+        toastService.configure({ silent: false });
+        toastService.error({
+          title: 'Initialization Failed',
+          msg: `Failed to initialize with ${provider.metadata.display_name}: ${error instanceof Error ? error.message : String(error)}`,
+          traceback: error instanceof Error ? error.stack || '' : '',
+        });
       }
-      toastService.configure({ silent: false });
-      toastService.success({
-        title: 'Success!',
-        msg: `Started goose with ${model} by ${provider.metadata.display_name}. You can change the model via the lower right corner.`,
-      });
-      onClose();
     },
     [onClose, upsert, getExtensions, addExtension]
   );

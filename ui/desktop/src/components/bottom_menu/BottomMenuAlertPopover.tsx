@@ -16,6 +16,7 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [wasAutoShown, setWasAutoShown] = useState(false);
   const [popoverPosition, setPopoverPosition] = useState({ top: 0, left: 0 });
+  const [shouldShowIndicator, setShouldShowIndicator] = useState(false); // Stable indicator state
   const previousAlertsRef = useRef<Alert[]>([]);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -91,9 +92,18 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
     }, duration);
   }, []);
 
+  // Manage stable indicator visibility - once we have alerts, keep showing until explicitly cleared
+  useEffect(() => {
+    if (alerts.length > 0) {
+      setShouldShowIndicator(true);
+    }
+  }, [alerts.length]);
+
   // Handle initial show and new alerts
   useEffect(() => {
-    if (alerts.length === 0) return;
+    if (alerts.length === 0) {
+      return;
+    }
 
     // Find new or changed alerts
     const changedAlerts = alerts.filter((alert, index) => {
@@ -144,14 +154,17 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
     };
   }, [isOpen]);
 
-  if (alerts.length === 0) return null;
+  // Use shouldShowIndicator instead of alerts.length for rendering decision
+  if (!shouldShowIndicator) {
+    return null;
+  }
 
-  // Determine the icon and styling based on the alerts
+  // Determine the icon and styling based on the alerts (use current alerts if available, or default to info)
   const hasError = alerts.some((alert) => alert.type === AlertType.Error);
   const hasInfo = alerts.some((alert) => alert.type === AlertType.Info);
   const triggerColor = hasError
     ? 'text-[#d7040e]' // Red color for error alerts
-    : hasInfo
+    : hasInfo || alerts.length === 0 // Default to green for context info when no alerts
       ? 'text-[#00b300]' // Green color for info alerts
       : 'text-[#cc4b03]'; // Orange color for warning alerts
 
