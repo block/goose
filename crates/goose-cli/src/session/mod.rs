@@ -370,7 +370,7 @@ impl Session {
         // Persist messages with provider for automatic description generation
         if let Some(session_file) = &self.session_file {
             let working_dir = Some(
-                std::env::current_dir().unwrap_or_else(|e| panic!("current_dir failed: {}", e)),
+                std::env::current_dir().expect("failed to get current session working directory"),
             );
 
             session::persist_messages_with_schedule_id(
@@ -496,13 +496,11 @@ impl Session {
 
                             // Persist messages with provider for automatic description generation
                             if let Some(session_file) = &self.session_file {
-                                let working_dir =
-                                    Some(std::env::current_dir().unwrap_or_else(|e| {
-                                        panic!(
-                                            "Failed to get current session working directory: {}",
-                                            e
-                                        )
-                                    }));
+                                let working_dir = Some(
+                                    std::env::current_dir()
+                                        .expect("failed to get current session working directory"),
+                                );
+
                                 session::persist_messages_with_schedule_id(
                                     session_file,
                                     &self.messages,

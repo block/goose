@@ -480,7 +480,7 @@ async fn process_message_streaming(
         &session_file,
         &messages,
         Some(provider.clone()),
-        working_dir,
+        working_dir.clone(),
     )
     .await?;
 
@@ -510,8 +510,13 @@ async fn process_message_streaming(
                             let session_msgs = session_messages.lock().await;
                             session_msgs.clone()
                         };
-                        session::persist_messages(&session_file, &current_messages, None, None)
-                            .await?;
+                        session::persist_messages(
+                            &session_file,
+                            &current_messages,
+                            None,
+                            working_dir.clone(),
+                        )
+                        .await?;
                         // Handle different message content types
                         for content in &message.content {
                             match content {
