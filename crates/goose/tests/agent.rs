@@ -799,13 +799,11 @@ mod retry_tests {
             let count = self.call_count.fetch_add(1, Ordering::SeqCst);
 
             if count < self.fail_until {
-                // Simulate failing task
                 Ok((
                     Message::assistant().with_text("Task failed - will retry."),
                     ProviderUsage::new("mock".to_string(), Usage::default()),
                 ))
             } else {
-                // Simulate successful task
                 Ok((
                     Message::assistant().with_text("Task completed successfully."),
                     ProviderUsage::new("mock".to_string(), Usage::default()),
@@ -822,11 +820,10 @@ mod retry_tests {
         let mock_provider = Arc::new(MockRetryProvider {
             model_config,
             call_count: Arc::new(AtomicUsize::new(0)),
-            fail_until: 0, // Never fail
+            fail_until: 0,
         });
         agent.update_provider(mock_provider.clone()).await?;
 
-        // Create valid retry config
         let retry_config = RetryConfig {
             max_retries: 3,
             checks: vec![SuccessCheck {
@@ -838,7 +835,6 @@ mod retry_tests {
             cleanup_timeout_seconds: Some(60),
         };
 
-        // Validate the config
         assert!(
             retry_config.validate().is_ok(),
             "Valid config should pass validation"
@@ -855,7 +851,6 @@ mod retry_tests {
 
         let initial_messages = vec![Message::user().with_text("Complete this task")];
 
-        // Test that session can be created with valid retry config
         let reply_stream = agent.reply(&initial_messages, Some(session_config)).await?;
         tokio::pin!(reply_stream);
 
@@ -868,7 +863,6 @@ mod retry_tests {
             }
         }
 
-        // Basic verification that the agent ran
         assert!(!responses.is_empty(), "Should have received responses");
 
         Ok(())
@@ -886,7 +880,6 @@ mod retry_tests {
             cleanup_timeout_seconds: Some(60),
         };
 
-        // Test successful checks
         let success_checks = vec![SuccessCheck {
             check_type: SuccessCheckType::Shell,
             command: "echo 'test'".to_string(),
@@ -896,7 +889,6 @@ mod retry_tests {
         assert!(result.is_ok(), "Success check should pass");
         assert!(result.unwrap(), "Command should succeed");
 
-        // Test failing checks
         let fail_checks = vec![SuccessCheck {
             check_type: SuccessCheckType::Shell,
             command: "false".to_string(),
@@ -911,12 +903,11 @@ mod retry_tests {
 
     #[tokio::test]
     async fn test_retry_logic_with_validation_errors() -> Result<()> {
-        // Test that invalid retry config is caught
         let invalid_retry_config = RetryConfig {
-            max_retries: 0, // Invalid - should be > 0
+            max_retries: 0,
             checks: vec![],
             on_failure: None,
-            timeout_seconds: Some(0), // Invalid - should be > 0
+            timeout_seconds: Some(0),
             cleanup_timeout_seconds: None,
         };
 
@@ -936,16 +927,13 @@ mod retry_tests {
     async fn test_retry_attempts_counter_reset() -> Result<()> {
         let agent = Agent::new();
 
-        // Test that retry attempts are properly reset
         agent.reset_retry_attempts().await;
         let initial_attempts = agent.get_retry_attempts().await;
         assert_eq!(initial_attempts, 0);
 
-        // Increment and verify
         let new_attempts = agent.increment_retry_attempts().await;
         assert_eq!(new_attempts, 1);
 
-        // Reset and verify
         agent.reset_retry_attempts().await;
         let reset_attempts = agent.get_retry_attempts().await;
         assert_eq!(reset_attempts, 0);

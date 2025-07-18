@@ -75,7 +75,6 @@ pub async fn execute_success_checks(
 }
 
 /// Execute a shell command with cross-platform compatibility and mandatory timeout
-/// Uses the same approach as other parts of the goose codebase
 pub async fn execute_shell_command(
     command: &str,
     timeout: std::time::Duration,
@@ -87,7 +86,6 @@ pub async fn execute_shell_command(
 
     let future = async {
         let output = if cfg!(target_os = "windows") {
-            // Use cmd on Windows
             Command::new("cmd")
                 .args(["/C", command])
                 .stdout(Stdio::piped())
@@ -97,7 +95,6 @@ pub async fn execute_shell_command(
                 .output()
                 .await?
         } else {
-            // Use sh -c on Unix-like systems (including macOS)
             Command::new("sh")
                 .args(["-c", command])
                 .stdout(Stdio::piped())
@@ -139,7 +136,6 @@ pub async fn execute_on_failure_command(command: &str, retry_config: &RetryConfi
     let output = match execute_shell_command(command, timeout).await {
         Ok(output) => output,
         Err(e) => {
-            // Check if this was a timeout error
             if e.to_string().contains("timed out") {
                 let error_msg = format!(
                     "On_failure command timed out after {:?}: {}",
@@ -148,7 +144,6 @@ pub async fn execute_on_failure_command(command: &str, retry_config: &RetryConfi
                 warn!("{}", error_msg);
                 return Err(anyhow::anyhow!(error_msg));
             } else {
-                // Other execution error
                 warn!("On_failure command execution error: {}", e);
                 return Err(e);
             }
@@ -176,7 +171,6 @@ mod tests {
     use super::*;
     use crate::agents::types::{SuccessCheck, SuccessCheckType};
 
-    // Helper function to create a test retry config
     fn create_test_retry_config() -> RetryConfig {
         RetryConfig {
             max_retries: 3,
@@ -222,7 +216,7 @@ mod tests {
 
         let result = execute_success_checks(&checks, &retry_config).await;
         assert!(result.is_ok());
-        assert!(!result.unwrap()); // result is false
+        assert!(!result.unwrap());
     }
 
     #[tokio::test]
@@ -251,7 +245,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_execute_on_failure_command_failure() {
-        // This should now error if the command fails (changed behavior)
         let retry_config = create_test_retry_config();
         let result = execute_on_failure_command("false", &retry_config).await;
         assert!(result.is_err());
@@ -266,7 +259,6 @@ mod tests {
             execute_shell_command("sleep 1", timeout).await
         };
 
-        // Should timeout and return an error
         assert!(result.is_err());
     }
 
@@ -276,7 +268,7 @@ mod tests {
             max_retries: 1,
             checks: vec![],
             on_failure: None,
-            timeout_seconds: None, // No timeout specified
+            timeout_seconds: None,
             cleanup_timeout_seconds: None,
         };
 
@@ -290,7 +282,7 @@ mod tests {
             max_retries: 1,
             checks: vec![],
             on_failure: None,
-            timeout_seconds: Some(120), // 2 minutes
+            timeout_seconds: Some(120),
             cleanup_timeout_seconds: None,
         };
 
@@ -322,7 +314,7 @@ mod tests {
             checks: vec![],
             on_failure: None,
             timeout_seconds: None,
-            cleanup_timeout_seconds: Some(900), // 15 minutes
+            cleanup_timeout_seconds: Some(900),
         };
 
         let timeout = get_cleanup_timeout(&retry_config);
@@ -336,7 +328,7 @@ mod tests {
             checks: vec![],
             on_failure: None,
             timeout_seconds: Some(60),
-            cleanup_timeout_seconds: Some(300), // 5 minutes for cleanup
+            cleanup_timeout_seconds: Some(300),
         };
 
         let retry_timeout = get_retry_timeout(&retry_config);
