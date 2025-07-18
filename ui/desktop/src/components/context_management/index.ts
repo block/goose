@@ -124,14 +124,17 @@ function mapApiContentToFrontendMessageContent(
   }
 
   // Handle resource content (including UI resources) - cast to any due to generated types limitation
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   if ((apiContent as any).type === 'resource') {
     return {
       type: 'resource',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       resource: (apiContent as any).resource,
     };
   }
 
   // For types that exist in API but not in frontend, either skip or convert
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   console.warn(`Skipping unsupported content type: ${(apiContent as any).type}`);
   return null;
 }
