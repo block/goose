@@ -39,7 +39,7 @@ use crate::agents::platform_tools::{
     PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
 };
 use crate::agents::prompt_manager::PromptManager;
-use crate::agents::retry::{execute_cleanup_command, execute_success_checks};
+use crate::agents::retry::{execute_on_failure_command, execute_success_checks};
 use crate::agents::router_tool_selector::{
     create_tool_selector, RouterToolSelectionStrategy, RouterToolSelector,
 };
@@ -179,6 +179,11 @@ impl Agent {
     pub async fn reset_retry_attempts(&self) {
         let mut retry_attempts = self.retry_attempts.lock().await;
         *retry_attempts = 0;
+        
+        // Also reset the tool monitor when resetting retry attempts
+        if let Some(monitor) = self.tool_monitor.lock().await.as_mut() {
+            monitor.reset();
+        }
     }
 
     /// Increment the retry attempts counter and return the new value
@@ -229,11 +234,9 @@ impl Agent {
             return Ok(false);
         }
 
-        if let Some(cleanup_cmd) = &retry_config.on_failure {
-            info!("Executing cleanup command: {}", cleanup_cmd);
-            if let Err(e) = execute_cleanup_command(cleanup_cmd, retry_config).await {
-                warn!("Cleanup command failed: {}", e);
-            }
+        if let Some(on_failure_cmd) = &retry_config.on_failure {
+            info!("Executing on_failure command: {}", on_failure_cmd);
+            execute_on_failure_command(on_failure_cmd, retry_config).await?;
         }
 
         messages.clear();

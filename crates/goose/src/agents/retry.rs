@@ -118,28 +118,57 @@ pub async fn execute_shell_command(
         Ok(output)
     };
 
-    tokio::time::timeout(timeout, future).await?
+    match tokio::time::timeout(timeout, future).await {
+        Ok(result) => result,
+        Err(_) => {
+            let error_msg = format!(
+                "Shell command timed out after {:?}: {}",
+                timeout, command
+            );
+            warn!("{}", error_msg);
+            Err(anyhow::anyhow!("{}", error_msg))
+        }
+    }
 }
 
-/// Execute a cleanup command and log warnings if it fails
-pub async fn execute_cleanup_command(command: &str, retry_config: &RetryConfig) -> Result<()> {
+/// Execute an on_failure command and return an error if it fails
+pub async fn execute_on_failure_command(command: &str, retry_config: &RetryConfig) -> Result<()> {
     let timeout = get_cleanup_timeout(retry_config);
     info!(
-        "Executing cleanup command with timeout {:?}: {}",
+        "Executing on_failure command with timeout {:?}: {}",
         timeout, command
     );
 
-    let output = execute_shell_command(command, timeout).await?;
+    let output = match execute_shell_command(command, timeout).await {
+        Ok(output) => output,
+        Err(e) => {
+            // Check if this was a timeout error
+            if e.to_string().contains("timed out") {
+                let error_msg = format!(
+                    "On_failure command timed out after {:?}: {}",
+                    timeout, command
+                );
+                warn!("{}", error_msg);
+                return Err(anyhow::anyhow!(error_msg));
+            } else {
+                // Other execution error
+                warn!("On_failure command execution error: {}", e);
+                return Err(e);
+            }
+        }
+    };
 
     if !output.status.success() {
-        warn!(
-            "Cleanup command failed: command '{}' exited with status {}, stderr: {}",
+        let error_msg = format!(
+            "On_failure command failed: command '{}' exited with status {}, stderr: {}",
             command,
             output.status,
             String::from_utf8_lossy(&output.stderr)
         );
+        warn!("{}", error_msg);
+        return Err(anyhow::anyhow!(error_msg));
     } else {
-        info!("Cleanup command completed successfully: {}", command);
+        info!("On_failure command completed successfully: {}", command);
     }
 
     Ok(())
@@ -217,18 +246,18 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_execute_cleanup_command_success() {
+    async fn test_execute_on_failure_command_success() {
         let retry_config = create_test_retry_config();
-        let result = execute_cleanup_command("echo 'cleanup'", &retry_config).await;
+        let result = execute_on_failure_command("echo 'cleanup'", &retry_config).await;
         assert!(result.is_ok());
     }
 
     #[tokio::test]
-    async fn test_execute_cleanup_command_failure() {
-        // This should not error even if the command fails
+    async fn test_execute_on_failure_command_failure() {
+        // This should now error if the command fails (changed behavior)
         let retry_config = create_test_retry_config();
-        let result = execute_cleanup_command("false", &retry_config).await;
-        assert!(result.is_ok());
+        let result = execute_on_failure_command("false", &retry_config).await;
+        assert!(result.is_err());
     }
 
     #[tokio::test]

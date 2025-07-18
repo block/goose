@@ -35,6 +35,29 @@ pub struct RetryConfig {
     pub cleanup_timeout_seconds: Option<u64>,
 }
 
+impl RetryConfig {
+    /// Validates the retry configuration values
+    pub fn validate(&self) -> Result<(), String> {
+        if self.max_retries == 0 {
+            return Err("max_retries must be greater than 0".to_string());
+        }
+
+        if let Some(timeout) = self.timeout_seconds {
+            if timeout == 0 {
+                return Err("timeout_seconds must be greater than 0 if specified".to_string());
+            }
+        }
+
+        if let Some(cleanup_timeout) = self.cleanup_timeout_seconds {
+            if cleanup_timeout == 0 {
+                return Err("cleanup_timeout_seconds must be greater than 0 if specified".to_string());
+            }
+        }
+
+        Ok(())
+    }
+}
+
 /// A single success check to validate recipe completion
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SuccessCheck {
