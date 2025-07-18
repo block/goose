@@ -11,8 +11,8 @@ import TabItem from '@theme/TabItem';
 Response Styles customize how tool interactions are displayed in the Goose Desktop chat window. 
 
 To change this setting:
-1. Click the menu icon in the top right corner.
-2. Select `Advanced Settings` from the menu.
+1. Click the `Settings` button on the left sidebar.
+2. Click `Chat`.
 3. Under `Response Styles`, select either `Detailed` or `Concise`.
 
 - **Concise** (Default)

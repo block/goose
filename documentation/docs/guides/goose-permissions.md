@@ -49,9 +49,9 @@ Here's how to configure:
       Click the Goose Mode option from the bottom menu. 
       </TabItem>
       <TabItem value="settings" label="From Settings">
-        1. Click `...` in the upper right corner
-        2. Click `Settings`
-        3. Under `Mode Selection`, choose the mode you'd like
+        1. Click the `Settings` button on the left sidebar.
+        2. Click `Chat`
+        3. Under `Mode`, choose the mode you'd like
       </TabItem>
     </Tabs>   
   </TabItem>
