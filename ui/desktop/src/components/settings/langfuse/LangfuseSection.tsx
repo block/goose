@@ -127,7 +127,7 @@ export default function LangfuseSection() {
   };
 
   const handleBlurKeys = () => {
-    saveKeys('LANGFUSE_SECRET_KEY', langfuseConfig.secretKey, true);
+    saveKeys('LANGFUSE_SECRET_KEY', langfuseConfig.secretKey);
     saveKeys('LANGFUSE_PUBLIC_KEY', langfuseConfig.publicKey);
     saveKeys('LANGFUSE_URL', langfuseConfig.langfuseUrl);
   };
