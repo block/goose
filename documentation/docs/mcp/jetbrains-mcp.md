@@ -6,6 +6,7 @@ description: Use JetBrains MCP Server as a Goose Extension
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/1fP5elf9qQM" />
 
@@ -21,9 +22,10 @@ This tutorial covers how to enable and use the JetBrains MCP Server as a built-i
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  1. Click `...` in the upper right corner
-  2. Click `Advanced Settings`
-  3. Under `Extensions`, toggle `Jetbrains` to on.
+  <GooseBuiltinInstaller
+    extensionName="Jetbrains"
+    description="Integrate Goose with any JetBrains IDE"
+  />
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
 
