@@ -497,8 +497,8 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
     <div className="h-screen w-full flex flex-col bg-background-default text-text-default">
       <div className="px-8 pt-6 pb-4 border-b border-border-subtle flex-shrink-0">
         <BackButton onClick={onNavigateBack} />
-        <h1 className="text-3xl font-medium text-text-prominent mt-1">Schedule Details</h1>
-        <p className="text-sm text-text-subtle mt-1">Viewing Schedule ID: {scheduleId}</p>
+        <h1 className="text-4xl font-light mt-1 mb-1 pt-8">Schedule Details</h1>
+        <p className="text-sm text-text-muted mb-1">Viewing Schedule ID: {scheduleId}</p>
       </div>
 
       <ScrollArea className="flex-grow">

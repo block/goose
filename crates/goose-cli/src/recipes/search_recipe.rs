@@ -1,7 +1,10 @@
 use anyhow::{anyhow, Result};
 use goose::config::Config;
+use goose::recipe::read_recipe_file_content::{read_recipe_file, RecipeFile};
+use goose::recipe::template_recipe::parse_recipe_content;
+use std::env;
+use std::fs;
 use std::path::{Path, PathBuf};
-use std::{env, fs};
 
 use crate::recipes::recipe::RECIPE_FILE_EXTENSIONS;
 
@@ -11,12 +14,6 @@ use super::github_recipe::{
 };
 
 const GOOSE_RECIPE_PATH_ENV_VAR: &str = "GOOSE_RECIPE_PATH";
-
-pub struct RecipeFile {
-    pub content: String,
-    pub parent_dir: PathBuf,
-    pub file_path: PathBuf,
-}
 
 pub fn retrieve_recipe_file(recipe_name: &str) -> Result<RecipeFile> {
     if RECIPE_FILE_EXTENSIONS
@@ -103,43 +100,6 @@ fn configured_github_recipe_repo() -> Option<String> {
     }
 }
 
-fn convert_path_with_tilde_expansion(path: &Path) -> PathBuf {
-    if let Some(path_str) = path.to_str() {
-        if let Some(stripped) = path_str.strip_prefix("~/") {
-            if let Some(home_dir) = dirs::home_dir() {
-                return home_dir.join(stripped);
-            }
-        }
-    }
-    PathBuf::from(path)
-}
-
-fn read_recipe_file<P: AsRef<Path>>(recipe_path: P) -> Result<RecipeFile> {
-    let raw_path = recipe_path.as_ref();
-    let path = convert_path_with_tilde_expansion(raw_path);
-
-    let content = fs::read_to_string(&path)
-        .map_err(|e| anyhow!("Failed to read recipe file {}: {}", path.display(), e))?;
-    let canonical = path.canonicalize().map_err(|e| {
-        anyhow!(
-            "Failed to resolve absolute path for {}: {}",
-            path.display(),
-            e
-        )
-    })?;
-
-    let parent_dir = canonical
-        .parent()
-        .ok_or_else(|| anyhow!("Resolved path has no parent: {}", canonical.display()))?
-        .to_path_buf();
-
-    Ok(RecipeFile {
-        content,
-        parent_dir,
-        file_path: canonical,
-    })
-}
-
 /// Lists all available recipes from local paths and GitHub repositories
 pub fn list_available_recipes() -> Result<Vec<RecipeInfo>> {
     let mut recipes = Vec::new();
@@ -214,7 +174,7 @@ fn create_local_recipe_info(path: &Path) -> Result<RecipeInfo> {
         .unwrap_or_else(|| Path::new("."))
         .to_string_lossy()
         .to_string();
-    let (recipe, _) = crate::recipes::template_recipe::parse_recipe_content(&content, recipe_dir)?;
+    let (recipe, _) = parse_recipe_content(&content, recipe_dir)?;
 
     let name = path
         .file_stem()

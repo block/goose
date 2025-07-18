@@ -287,12 +287,12 @@ export function useMessageStream({
                           : parsedEvent.message.sendToLLM,
                     };
 
-                    // Message streaming debug (reduced logging)
+                    // Debug tool responses for MCP-UI development
                     if (newMessage.content.some(c => c.type === 'toolResponse')) {
                       console.log('✅ Tool response received');
                     }
                     
-                    // Debug tool responses specifically
+                    // Debug tool responses specifically for resource detection
                     newMessage.content.forEach((content, index) => {
                       if (content.type === 'toolResponse') {
                         console.log(`=== TOOL RESPONSE ${index} DEBUG ===`);
@@ -309,9 +309,7 @@ export function useMessageStream({
                         }
                       }
                     });
-
                     // Update messages with the new message
-
                     if (
                       newMessage.id &&
                       currentMessages.length > 0 &&
@@ -360,8 +358,45 @@ export function useMessageStream({
                     break;
                   }
 
-                  case 'Error':
-                    throw new Error(parsedEvent.error);
+                  case 'Error': {
+                    // Check if this is a token limit error (more specific detection)
+                    const errorMessage = parsedEvent.error;
+                    const isTokenLimitError =
+                      errorMessage &&
+                      ((errorMessage.toLowerCase().includes('token') &&
+                        errorMessage.toLowerCase().includes('limit')) ||
+                        (errorMessage.toLowerCase().includes('context') &&
+                          errorMessage.toLowerCase().includes('length') &&
+                          errorMessage.toLowerCase().includes('exceeded')));
+
+                    // If this is a token limit error, create a contextLengthExceeded message instead of throwing
+                    if (isTokenLimitError) {
+                      const contextMessage: Message = {
+                        id: `context-${Date.now()}`,
+                        role: 'assistant',
+                        created: Math.floor(Date.now() / 1000),
+                        content: [
+                          {
+                            type: 'contextLengthExceeded',
+                            msg: errorMessage,
+                          },
+                        ],
+                        display: true,
+                        sendToLLM: false,
+                      };
+
+                      currentMessages = [...currentMessages, contextMessage];
+                      mutate(currentMessages, false);
+
+                      // Clear any existing error state since we handled this as a context message
+                      setError(undefined);
+                      break; // Don't throw error, just add the message
+                    }
+
+                    // For non-token-limit errors, still throw the error
+                    const error = new Error(parsedEvent.error);
+                    throw error;
+                  }
 
                   case 'Finish': {
                     // Call onFinish with the last message if available
@@ -408,6 +443,11 @@ export function useMessageStream({
                 if (onError && e instanceof Error) {
                   onError(e);
                 }
+                // Don't re-throw here, let the error be handled by the outer catch
+                // Instead, set the error state directly
+                if (e instanceof Error) {
+                  setError(e);
+                }
               }
             }
           }
@@ -418,6 +458,8 @@ export function useMessageStream({
           if (onError) {
             onError(e);
           }
+          // Re-throw the error so it gets caught by sendRequest and sets the error state
+          throw e;
         }
       } finally {
         reader.releaseLock();
@@ -425,7 +467,7 @@ export function useMessageStream({
 
       return currentMessages;
     },
-    [mutate, onFinish, onError, forceUpdate]
+    [mutate, onFinish, onError, forceUpdate, setError]
   );
 
   // Send a request to the server

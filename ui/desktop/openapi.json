@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.0.35"
+    "version": "1.1.0"
   },
   "paths": {
     "/agent/tools": {
@@ -1611,6 +1611,27 @@
                     "type": "string",
                     "enum": [
                       "image"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EmbeddedResource"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "embeddedResource"
                     ]
                   }
                 }

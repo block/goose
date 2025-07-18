@@ -108,6 +108,23 @@ export const useChatEngine = ({
 
       onMessageStreamFinish?.();
     },
+    onError: (error) => {
+      console.log(
+        'CHAT ENGINE RECEIVED ERROR FROM MESSAGE STREAM:',
+        JSON.stringify(
+          {
+            errorMessage: error.message,
+            errorName: error.name,
+            isTokenLimitError: (error as Error & { isTokenLimitError?: boolean }).isTokenLimitError,
+            errorStack: error.stack,
+            timestamp: new Date().toISOString(),
+            chatId: chat.id,
+          },
+          null,
+          2
+        )
+      );
+    },
   });
 
   // Wrap append to store messages in global history (if enabled)
@@ -120,7 +137,6 @@ export const useChatEngine = ({
       // If this is the first message in a new session, trigger a refresh immediately
       // Only trigger if we're starting a completely new session (no existing messages)
       if (messages.length === 0 && chat.messages.length === 0) {
-        console.log('ChatEngine: New session detected, emitting session-created event');
         // Emit event to indicate a new session is being created
         window.dispatchEvent(new CustomEvent('session-created'));
       }
@@ -310,7 +326,6 @@ export const useChatEngine = ({
     }
   }, [stop, messages, _setInput, setMessages]);
 
-  // Filter out standalone tool response messages for rendering
   const filteredMessages = useMemo(() => {
     return [...ancestorMessages, ...messages].filter((message) => {
       // Only filter out when display is explicitly false

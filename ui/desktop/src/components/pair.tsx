@@ -199,7 +199,7 @@ export default function Pair({
         onMessageStreamFinish={handleMessageStreamFinish}
         renderBeforeMessages={renderBeforeMessages}
         customChatInputProps={customChatInputProps}
-        contentClassName={cn('pr-1', (isMobile || sidebarState === 'collapsed') && 'pt-11')} // Use dynamic content class with mobile margin and sidebar state
+        contentClassName={cn('pr-1 pb-10', (isMobile || sidebarState === 'collapsed') && 'pt-11')} // Use dynamic content class with mobile margin and sidebar state
         showPopularTopics={!isTransitioningFromHub} // Don't show popular topics while transitioning from Hub
         suppressEmptyState={isTransitioningFromHub} // Suppress all empty state content while transitioning from Hub
       />

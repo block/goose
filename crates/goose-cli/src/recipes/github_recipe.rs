@@ -1,9 +1,10 @@
 use anyhow::{anyhow, Result};
 use console::style;
+use goose::recipe::template_recipe::parse_recipe_content;
 use serde::{Deserialize, Serialize};
 
 use crate::recipes::recipe::RECIPE_FILE_EXTENSIONS;
-use crate::recipes::search_recipe::RecipeFile;
+use goose::recipe::read_recipe_file_content::RecipeFile;
 use std::env;
 use std::fs;
 use std::path::Path;
@@ -330,10 +331,7 @@ fn get_github_recipe_info(repo: &str, dir_name: &str, recipe_filename: &str) -> 
             .map_err(|e| anyhow!("Failed to convert content to string: {}", e))?;
 
         // Parse the recipe content
-        let (recipe, _) = crate::recipes::template_recipe::parse_recipe_content(
-            &content,
-            format!("{}/{}", repo, dir_name),
-        )?;
+        let (recipe, _) = parse_recipe_content(&content, format!("{}/{}", repo, dir_name))?;
 
         return Ok(RecipeInfo {
             name: dir_name.to_string(),

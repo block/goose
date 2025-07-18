@@ -2,12 +2,49 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Button } from './ui/button';
 import { ToolCallArguments, ToolCallArgumentValue } from './ToolCallArguments';
 import MarkdownContent from './MarkdownContent';
-import { Content, ToolRequestMessageContent, ToolResponseMessageContent } from '../types/message';
+import {
+  Content,
+  ToolRequestMessageContent,
+  ToolResponseMessageContent,
+  ResourceContent,
+} from '../types/message';
 import { cn, snakeToTitleCase } from '../utils';
 import Dot, { LoadingStatus } from './ui/Dot';
 import { NotificationEvent } from '../hooks/useMessageStream';
 import { ChevronRight, LoaderCircle } from 'lucide-react';
 import { UIResourceRenderer, isUIResource, extractUIResource } from './UIResourceRenderer';
+import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
+
+// Extend the Window interface to include our custom property
+declare global {
+  interface Window {
+    pendingDiffContent?: string;
+  }
+}
+
+// Helper function to extract diff content from tool response
+export function extractDiffContent(toolResponse?: ToolResponseMessageContent): string | null {
+  if (!toolResponse) return null;
+
+  const result = toolResponse.toolResult.value || [];
+  const resourceContents = result.filter((item) => item.type === 'resource') as ResourceContent[];
+  const checkpoint = resourceContents.find((item) => item.resource.uri === 'goose://checkpoint');
+  
+  if (!checkpoint) return null;
+  
+  // Handle TextResourceContents (checkpoint resources are always text-based)
+  if ('text' in checkpoint.resource) {
+    const diffContent = JSON.parse((checkpoint.resource as any).text || '{}').diff;
+    return diffContent !== undefined ? diffContent : null;
+  }
+  
+  return null;
+}
+
+// Helper function to check if tool response has diff content
+export function hasDiffContent(toolResponse?: ToolResponseMessageContent): boolean {
+  return extractDiffContent(toolResponse) !== null;
+}
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
@@ -122,6 +159,17 @@ const logToString = (logMessage: NotificationEvent) => {
 const notificationToProgress = (notification: NotificationEvent): Progress =>
   notification.message.params as unknown as Progress;
 
+// Helper function to extract extension name for tooltip
+const getExtensionTooltip = (toolCallName: string): string | null => {
+  const lastIndex = toolCallName.lastIndexOf('__');
+  if (lastIndex === -1) return null;
+
+  const extensionName = toolCallName.substring(0, lastIndex);
+  if (!extensionName) return null;
+
+  return `${extensionName} extension`;
+};
+
 function ToolCallView({
   isCancelledMessage,
   toolCall,
@@ -158,6 +206,15 @@ function ToolCallView({
         return true;
     }
   })();
+
+  //extract resource content if present
+  const result = toolResponse?.toolResult.value || [];
+  const resourceContents = result.filter((item) => item.type === 'resource') as ResourceContent[];
+  const checkpoint = resourceContents.find((item) => item.resource.uri === 'goose://checkpoint');
+  const diffContent = JSON.parse((checkpoint?.resource as any).text || '{}').diff;
+  console.log(resourceContents);
+  console.log(checkpoint);
+  console.log(diffContent);
 
   const isToolDetails = Object.entries(toolCall?.arguments).length > 0;
 
@@ -375,7 +432,7 @@ function ToolCallView({
         if (args.window_title) {
           return `capturing window "${truncate(getStringValue(args.window_title))}"`;
         }
-        return 'capturing screen';
+        return `capturing screen`;
 
       case 'automation_script':
         if (args.language) {
@@ -387,53 +444,77 @@ function ToolCallView({
         return 'final output';
 
       case 'computer_control':
-        return 'poking around...';
+        return `poking around...`;
 
       default: {
-        // Fallback to showing key parameters for unknown tools
+        // Generic fallback for unknown tools: ToolName + CompactArguments
+        // This ensures any MCP tool works without explicit handling
+        const toolDisplayName = snakeToTitleCase(toolName);
         const entries = Object.entries(args);
-        if (entries.length === 0) return null;
+
+        if (entries.length === 0) {
+          return `${toolDisplayName}`;
+        }
 
         // For a single parameter, show key and truncated value
         if (entries.length === 1) {
           const [key, value] = entries[0];
           const stringValue = getStringValue(value);
           const truncatedValue = truncate(stringValue, 30);
-          return `${key}: ${truncatedValue}`;
+          return `${toolDisplayName} ${key}: ${truncatedValue}`;
         }
 
-        // For multiple parameters, just show the keys
-        return entries.map(([key]) => key).join(', ');
+        // For multiple parameters, show tool name and keys
+        const keys = entries.map(([key]) => key).join(', ');
+        return `${toolDisplayName} ${keys}`;
       }
     }
 
     return null;
   };
 
+  // Get extension tooltip for the current tool
+  const extensionTooltip = getExtensionTooltip(toolCall.name);
+
+  // Extract tool label content to avoid duplication
+  const getToolLabelContent = () => {
+    const description = getToolDescription();
+    if (description) {
+      return description;
+    }
+    // Fallback tool name formatting
+    return snakeToTitleCase(toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2));
+  };
+
+  const toolLabel = (
+    <span className={cn('ml-2', extensionTooltip && 'cursor-pointer hover:opacity-80')}>
+      {getToolLabelContent()}
+    </span>
+  );
+
   return (
     <ToolCallExpandable
       isStartExpanded={isRenderingProgress}
       isForceExpand={isShouldExpand}
       label={
-        <>
-          <div className="w-2 flex items-center justify-center">
-            {loadingStatus === 'loading' ? (
-              <LoaderCircle className="animate-spin text-text-muted" size={3} />
+        <div className="flex items-center justify-between w-full pr-2">
+          <div className="flex items-center">
+            <div className="w-2 flex items-center justify-center">
+              {loadingStatus === 'loading' ? (
+                <LoaderCircle className="animate-spin text-text-muted" size={3} />
+              ) : (
+                <Dot size={2} loadingStatus={loadingStatus} />
+              )}
+            </div>
+            {extensionTooltip ? (
+              <TooltipWrapper tooltipContent={extensionTooltip} side="top" align="start">
+                {toolLabel}
+              </TooltipWrapper>
             ) : (
-              <Dot size={2} loadingStatus={loadingStatus} />
+              toolLabel
             )}
           </div>
-          <span className="ml-2">
-            {(() => {
-              const description = getToolDescription();
-              if (description) {
-                return description;
-              }
-              // Fallback to the original tool name formatting
-              return snakeToTitleCase(toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2));
-            })()}
-          </span>
-        </>
+        </div>
       }
     >
       {/* Tool Details */}

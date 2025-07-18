@@ -494,6 +494,9 @@ let appConfig = {
 let windowCounter = 0;
 const windowMap = new Map<number, BrowserWindow>();
 
+// Track power save blocker ID globally
+let powerSaveBlockerId: number | null = null;
+
 interface RecipeConfig {
   id: string;
   title: string;
@@ -517,8 +520,8 @@ const createChat = async (
   let working_dir = '';
   let goosedProcess: import('child_process').ChildProcess | null = null;
 
-  if (viewType === 'recipeEditor') {
-    // For recipeEditor, get the port from existing windows' config
+  if (viewType === 'recipeEditor' || viewType === 'diffViewer') {
+    // For recipeEditor and diffViewer, get the port from existing windows' config
     const existingWindows = BrowserWindow.getAllWindows();
     if (existingWindows.length > 0) {
       // Get the config from localStorage through an existing window
@@ -534,9 +537,14 @@ const createChat = async (
         console.error('Failed to get config from localStorage:', e);
       }
     }
-    if (port === 0) {
+    if (port === 0 && viewType === 'recipeEditor') {
       console.error('No existing Goose process found for recipeEditor');
       throw new Error('Cannot create recipeEditor window: No existing Goose process found');
+    }
+    // For diffViewer, we don't need a Goose process, so we can set dummy values
+    if (port === 0 && viewType === 'diffViewer') {
+      port = 1; // Dummy port
+      working_dir = process.cwd(); // Use current working directory
     }
   } else {
     // Apply current environment settings before creating chat
@@ -592,6 +600,10 @@ const createChat = async (
           GOOSE_BASE_URL_SHARE: sharingUrl,
           GOOSE_VERSION: gooseVersion,
           recipeConfig: recipeConfig,
+          // For diffViewer, extract diffContent from recipeConfig and add it as a separate field
+          ...(viewType === 'diffViewer' && recipeConfig && 'diffContent' in recipeConfig
+            ? { diffContent: recipeConfig.diffContent }
+            : {}),
         }),
       ],
       partition: 'persist:goose', // Add this line to ensure persistence
@@ -646,14 +658,48 @@ const createChat = async (
     REQUEST_DIR: dir,
     GOOSE_BASE_URL_SHARE: sharingUrl,
     recipeConfig: recipeConfig,
+    // For diffViewer, extract diffContent from recipeConfig and add it as a separate field
+    ...(viewType === 'diffViewer' && recipeConfig && 'diffContent' in recipeConfig
+      ? { diffContent: recipeConfig.diffContent }
+      : {}),
   };
 
   // We need to wait for the window to load before we can access localStorage
   mainWindow.webContents.on('did-finish-load', () => {
     const configStr = JSON.stringify(windowConfig).replace(/'/g, "\\'");
-    mainWindow.webContents.executeJavaScript(`
-      localStorage.setItem('gooseConfig', '${configStr}')
-    `);
+    // Add error handling and retry logic for localStorage access
+    mainWindow.webContents
+      .executeJavaScript(
+        `
+      try {
+        if (typeof Storage !== 'undefined' && window.localStorage) {
+          localStorage.setItem('gooseConfig', '${configStr}');
+        } else {
+          console.warn('localStorage not available, retrying in 100ms');
+          setTimeout(() => {
+            try {
+              localStorage.setItem('gooseConfig', '${configStr}');
+            } catch (e) {
+              console.error('Failed to set localStorage after retry:', e);
+            }
+          }, 100);
+        }
+      } catch (e) {
+        console.error('Failed to access localStorage:', e);
+        // Retry after a short delay
+        setTimeout(() => {
+          try {
+            localStorage.setItem('gooseConfig', '${configStr}');
+          } catch (retryError) {
+            console.error('Failed to set localStorage after retry:', retryError);
+          }
+        }, 100);
+      }
+    `
+      )
+      .catch((error) => {
+        console.error('Failed to execute localStorage script:', error);
+      });
   });
 
   // Handle new window creation for links
@@ -846,9 +892,43 @@ const openDirectoryDialog = async (
 
     addRecentDir(dirToAdd);
     const currentWindow = BrowserWindow.getFocusedWindow();
-    await createChat(app, undefined, dirToAdd);
+
     if (replaceWindow && currentWindow) {
+      // Replace current window with new one
+      await createChat(app, undefined, dirToAdd);
       currentWindow.close();
+    } else {
+      // Update the working directory in the current window's localStorage
+      if (currentWindow) {
+        try {
+          const updateConfigScript = `
+            try {
+              const currentConfig = JSON.parse(localStorage.getItem('gooseConfig') || '{}');
+              const updatedConfig = {
+                ...currentConfig,
+                GOOSE_WORKING_DIR: '${dirToAdd.replace(/'/g, "\\'")}',
+              };
+              localStorage.setItem('gooseConfig', JSON.stringify(updatedConfig));
+              
+              // Trigger a config update event so the UI can refresh
+              window.dispatchEvent(new CustomEvent('goose-config-updated', { 
+                detail: { GOOSE_WORKING_DIR: '${dirToAdd.replace(/'/g, "\\'")}' } 
+              }));
+            } catch (e) {
+              console.error('Failed to update working directory in localStorage:', e);
+            }
+          `;
+          await currentWindow.webContents.executeJavaScript(updateConfigScript);
+          console.log(`Updated working directory to: ${dirToAdd}`);
+        } catch (error) {
+          console.error('Failed to update working directory:', error);
+          // Fallback: create new window
+          await createChat(app, undefined, dirToAdd);
+        }
+      } else {
+        // No current window, create new one
+        await createChat(app, undefined, dirToAdd);
+      }
     }
   }
   return result;
@@ -1062,6 +1142,36 @@ ipcMain.handle('get-quit-confirmation-state', () => {
   } catch (error) {
     console.error('Error getting quit confirmation state:', error);
     return true;
+  }
+});
+
+// Handle wakelock setting
+ipcMain.handle('set-wakelock', async (_event, enable: boolean) => {
+  try {
+    const settings = loadSettings();
+    settings.enableWakelock = enable;
+    saveSettings(settings);
+
+    // Stop any existing power save blocker when disabling the setting
+    if (!enable && powerSaveBlockerId !== null) {
+      powerSaveBlocker.stop(powerSaveBlockerId);
+      powerSaveBlockerId = null;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error setting wakelock:', error);
+    return false;
+  }
+});
+
+ipcMain.handle('get-wakelock-state', () => {
+  try {
+    const settings = loadSettings();
+    return settings.enableWakelock ?? false;
+  } catch (error) {
+    console.error('Error getting wakelock state:', error);
+    return false;
   }
 });
 
@@ -1871,24 +1981,19 @@ app.whenReady().then(async () => {
     }
   });
 
-  let powerSaveBlockerId: number | null = null;
-
   ipcMain.handle('start-power-save-blocker', () => {
-    log.info('Starting power save blocker...');
     if (powerSaveBlockerId === null) {
-      powerSaveBlockerId = powerSaveBlocker.start('prevent-display-sleep');
-      log.info('Started power save blocker');
+      powerSaveBlockerId = powerSaveBlocker.start('prevent-app-suspension');
       return true;
     }
+
     return false;
   });
 
   ipcMain.handle('stop-power-save-blocker', () => {
-    log.info('Stopping power save blocker...');
     if (powerSaveBlockerId !== null) {
       powerSaveBlocker.stop(powerSaveBlockerId);
       powerSaveBlockerId = null;
-      log.info('Stopped power save blocker');
       return true;
     }
     return false;

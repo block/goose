@@ -6,18 +6,23 @@ import { extractUrls } from '../utils/urlUtils';
 import { extractImagePaths, removeImagePathsFromText } from '../utils/imageUtils';
 import { formatMessageTimestamp } from '../utils/timeUtils';
 import MarkdownContent from './MarkdownContent';
-import ToolCallWithResponse from './ToolCallWithResponse';
+import ToolCallWithResponse, { hasDiffContent, extractDiffContent } from './ToolCallWithResponse';
+import CheckpointActions from './CheckpointActions';
 import {
   Message,
   getTextContent,
   getToolRequests,
   getToolResponses,
   getToolConfirmationContent,
+  getCheckpointContent,
   createToolErrorResponseMessage,
 } from '../types/message';
 import ToolCallConfirmation from './ToolCallConfirmation';
 import MessageCopyLink from './MessageCopyLink';
 import { NotificationEvent } from '../hooks/useMessageStream';
+import { FileDiff } from 'lucide-react';
+import { useSidecar } from './SidecarLayout';
+import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
 
 interface GooseMessageProps {
   // messages up to this index are presumed to be "history" from a resumed session, this is used to track older tool confirmation requests
@@ -91,6 +96,9 @@ export default function GooseMessage({
   const toolConfirmationContent = getToolConfirmationContent(message);
   const hasToolConfirmation = toolConfirmationContent !== undefined;
 
+  // Get checkpoint content if present
+  const checkpointContent = getCheckpointContent(message);
+
   // Find tool responses that correspond to the tool requests in this message
   const toolResponsesMap = useMemo(() => {
     const responseMap = new Map();
@@ -156,6 +164,14 @@ export default function GooseMessage({
     messages,
     appendMessage,
   ]);
+
+  // Get sidecar context
+  const sidecar = useSidecar();
+
+  // Check if this message has diff content
+  const hasDiff = toolRequests.some((toolRequest) =>
+    hasDiffContent(toolResponsesMap.get(toolRequest.id))
+  );
 
   return (
     <div className="goose-message flex w-[90%] justify-start">
@@ -238,6 +254,46 @@ export default function GooseMessage({
           />
         )}
       </div>
+
+      {/* Render checkpoint actions if checkpoint content is present */}
+      {checkpointContent && <CheckpointActions checkpointContent={checkpointContent} />}
+
+      {hasDiff && sidecar && (
+        <div className="absolute top-2 sidecar-button z-50">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => {
+                  // Find the first tool request with diff content and show its diff
+                  const toolRequestWithDiff = toolRequests.find((toolRequest) =>
+                    hasDiffContent(toolResponsesMap.get(toolRequest.id))
+                  );
+                  if (toolRequestWithDiff) {
+                    const diffContent = extractDiffContent(
+                      toolResponsesMap.get(toolRequestWithDiff.id)
+                    );
+                    if (diffContent) {
+                      // Extract filename from tool arguments if available
+                      const toolCall =
+                        toolRequestWithDiff.toolCall.status === 'success'
+                          ? toolRequestWithDiff.toolCall.value
+                          : null;
+                      const args = toolCall?.arguments as Record<string, never>;
+                      const fileName = args?.path ? String(args.path) : 'File';
+
+                      sidecar.showDiffViewer(diffContent, fileName);
+                    }
+                  }
+                }}
+                className="p-2 bg-background-muted hover:bg-background-subtle border border-borderSubtle rounded-lg transition-all duration-200 hover:scale-105 text-textSubtle hover:text-primary cursor-pointer focus:outline-none focus:ring-1 focus:ring-borderProminent"
+              >
+                <FileDiff size={16} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top">View diff</TooltipContent>
+          </Tooltip>
+        </div>
+      )}
 
       {/* TODO(alexhancock): Re-enable link previews once styled well again */}
       {false && urls.length > 0 && (

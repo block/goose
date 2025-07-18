@@ -177,6 +177,13 @@ run-server:
     @echo "Running server..."
     cargo run -p goose-server
 
+# Generate OpenAPI specification without starting the UI
+generate-openapi:
+    @echo "Generating OpenAPI schema..."
+    cargo run -p goose-server --bin generate_schema
+    @echo "Generating frontend API..."
+    cd ui/desktop && npm run generate-api
+
 # make GUI with latest binary
 lint-ui:
     cd ui/desktop && npm run lint:check
@@ -274,12 +281,11 @@ install-deps:
     cd ui/desktop && npm install
     cd documentation && yarn
 
-# ensure the current branch is "main" or error
-ensure-main:
+ensure-release-branch:
     #!/usr/bin/env bash
     branch=$(git rev-parse --abbrev-ref HEAD); \
-    if [ "$branch" != "main" ]; then \
-        echo "Error: You are not on the main branch (current: $branch)"; \
+    if [[ ! "$branch" == release/* ]]; then \
+        echo "Error: You are not on a release branch (current: $branch)"; \
         exit 1; \
     fi
 
@@ -287,7 +293,7 @@ ensure-main:
     git fetch
     # @{u} refers to upstream branch of current branch
     if [ "$(git rev-parse HEAD)" != "$(git rev-parse @{u})" ]; then \
-        echo "Error: Your branch is not up to date with the upstream main branch"; \
+        echo "Error: Your branch is not up to date with the upstream branch"; \
         echo "  ensure your branch is up to date (git pull)"; \
         exit 1; \
     fi
@@ -309,7 +315,7 @@ validate version:
     fi
 
 # set cargo and app versions, must be semver
-release version: ensure-main
+prepare-release version:
     @just validate {{ version }} || exit 1
 
     @git switch -c "release/{{ version }}"
@@ -327,8 +333,8 @@ release version: ensure-main
 get-tag-version:
     @uvx --from=toml-cli toml get --toml-path=Cargo.toml "workspace.package.version"
 
-# create the git tag from Cargo.toml, must be on main
-tag: ensure-main
+# create the git tag from Cargo.toml, checking we're on a release branch
+tag: ensure-release-branch
     git tag v$(just get-tag-version)
 
 # create tag and push to origin (use this when release branch is merged to main)
@@ -337,9 +343,9 @@ tag-push: tag
     git push origin tag v$(just get-tag-version)
 
 # generate release notes from git commits
-release-notes:
+release-notes old:
     #!/usr/bin/env bash
-    git log --pretty=format:"- %s" v$(just get-tag-version)..HEAD
+    git log --pretty=format:"- %s" {{ old }}..v$(just get-tag-version)
 
 ### s = file seperator based on OS
 s := if os() == "windows" { "\\" } else { "/" }

@@ -10,7 +10,6 @@ import {
   Target,
   LoaderCircle,
   AlertCircle,
-  ChevronLeft,
   ExternalLink,
 } from 'lucide-react';
 import { type SessionDetails } from '../../sessions';
@@ -32,6 +31,7 @@ import ProgressiveMessageList from '../ProgressiveMessageList';
 import { SearchView } from '../conversation/SearchView';
 import { ChatContextManagerProvider } from '../context_management/ChatContextManager';
 import { Message } from '../../types/message';
+import BackButton from '../ui/BackButton';
 
 // Helper function to determine if a message is a user message (same as useChatEngine)
 const isUserMessage = (message: Message): boolean => {
@@ -44,29 +44,8 @@ const isUserMessage = (message: Message): boolean => {
   return true;
 };
 
-// Filter messages for display (same logic as useChatEngine)
 const filterMessagesForDisplay = (messages: Message[]): Message[] => {
-  return messages.filter((message) => {
-    // Only filter out when display is explicitly false
-    if (message.display === false) return false;
-
-    // Keep all assistant messages and user messages that aren't just tool responses
-    if (message.role === 'assistant') return true;
-
-    // For user messages, check if they're only tool responses
-    if (message.role === 'user') {
-      const hasOnlyToolResponses = message.content.every((c) => c.type === 'toolResponse');
-      const hasTextContent = message.content.some((c) => c.type === 'text');
-      const hasToolConfirmation = message.content.every(
-        (c) => c.type === 'toolConfirmationRequest'
-      );
-
-      // Keep the message if it has text content or tool confirmation or is not just tool responses
-      return hasTextContent || !hasOnlyToolResponses || hasToolConfirmation;
-    }
-
-    return true;
-  });
+  return messages.filter((message) => message.display);
 };
 
 interface SessionHistoryViewProps {
@@ -88,13 +67,10 @@ const SessionHeader: React.FC<{
 }> = ({ onBack, children, title, actionButtons }) => {
   return (
     <div className="flex flex-col pb-8 border-b">
-      <div className="flex items-center pt-13 pb-2">
-        <Button onClick={onBack} size="xs" variant="outline">
-          <ChevronLeft />
-          Back
-        </Button>
+      <div className="flex items-center pt-0 mb-1">
+        <BackButton onClick={onBack} />
       </div>
-      <h1 className="text-4xl font-light mb-4">{title}</h1>
+      <h1 className="text-4xl font-light mb-4 pt-6">{title}</h1>
       <div className="flex items-center">{children}</div>
       {actionButtons && <div className="flex items-center space-x-3 mt-4">{actionButtons}</div>}
     </div>
@@ -372,12 +348,12 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
           </DialogHeader>
 
           <div className="py-4">
-            <div className="relative rounded-lg border border-borderSubtle px-3 py-2 flex items-center bg-gray-100 dark:bg-gray-600">
+            <div className="relative rounded-full border border-borderSubtle px-3 py-2 flex items-center bg-gray-100 dark:bg-gray-600">
               <code className="text-sm text-textStandard dark:text-textStandardInverse overflow-x-hidden break-all pr-8 w-full">
                 {shareLink}
               </code>
               <Button
-                shape="round"
+                shape="pill"
                 variant="ghost"
                 className="absolute right-2 top-1/2 -translate-y-1/2"
                 onClick={handleCopyLink}
