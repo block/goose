@@ -449,12 +449,6 @@ export function useMessageStream({
         // Filter out messages where sendToLLM is explicitly false
         const filteredMessages = requestMessages.filter((message) => message.sendToLLM !== false);
 
-        // Log request details for debugging
-        console.log('Request details:', {
-          messages: filteredMessages,
-          body: extraMetadataRef.current.body,
-        });
-
         // Send request to the server
         const response = await fetch(api, {
           method: 'POST',
@@ -528,8 +522,6 @@ export function useMessageStream({
     async (message: Message | string) => {
       // If a string is passed, convert it to a Message object
       const messageToAppend = typeof message === 'string' ? createUserMessage(message) : message;
-
-      console.log('Appending message:', JSON.stringify(messageToAppend, null, 2));
 
       const currentMessages = [...messagesRef.current, messageToAppend];
       mutate(currentMessages, false);

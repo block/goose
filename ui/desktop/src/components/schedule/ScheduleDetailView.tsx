@@ -449,21 +449,6 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
     loadAndShowSessionDetails(sessionIdFromCard);
   };
 
-  const handleResumeViewedSession = () => {
-    if (selectedSessionDetails) {
-      const { session_id, metadata } = selectedSessionDetails;
-      if (metadata.working_dir) {
-        console.log(
-          `Resuming session ID ${session_id} in new chat window. Dir: ${metadata.working_dir}`
-        );
-        window.electron.createChatWindow(undefined, metadata.working_dir, undefined, session_id);
-      } else {
-        console.error('Cannot resume session: working directory is missing.');
-        toastError({ title: 'Cannot Resume Session', msg: 'Working directory is missing.' });
-      }
-    }
-  };
-
   if (selectedSessionDetails) {
     return (
       <SessionHistoryView
@@ -474,7 +459,6 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
           setSelectedSessionDetails(null);
           setSessionDetailsError(null);
         }}
-        onResume={handleResumeViewedSession}
         onRetry={() => loadAndShowSessionDetails(selectedSessionDetails.session_id)}
         showActionButtons={true}
       />
