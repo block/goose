@@ -1,7 +1,22 @@
 import React, { useState, createContext, useContext, useEffect } from 'react';
-import { X, FileDiff, SquareSplitHorizontal, BetweenHorizontalStart } from 'lucide-react';
+import { X, FileDiff, SquareSplitHorizontal, BetweenHorizontalStart, Monitor } from 'lucide-react';
 import { Button } from './ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
+import { UIResourceRenderer } from './UIResourceRenderer';
+import type { UIActionResult } from '@mcp-ui/client';
+
+// Resource interface compatible with @mcp-ui/client
+interface Resource {
+  uri: string;
+  mimeType: string;
+  text?: string;
+  blob?: string;
+  name?: string;
+  title?: string;
+  description?: string;
+  _meta?: { [x: string]: unknown };
+  [x: string]: unknown;
+}
 
 interface SidecarView {
   id: string;
@@ -18,6 +33,8 @@ interface SidecarContextType {
   hideView: () => void;
   showDiffViewer: (diffContent: string, fileName?: string) => void;
   hideDiffViewer: () => void;
+  showUIResource: (resource: Resource, title?: string) => void;
+  hideUIResource: () => void;
 }
 
 const SidecarContext = createContext<SidecarContextType | null>(null);
@@ -31,6 +48,106 @@ export const useSidecar = () => {
 interface SidecarProviderProps {
   children: React.ReactNode;
   showSidecar?: boolean; // Control whether sidecar should be visible
+}
+
+// UI Resource Viewer Component
+function UIResourceViewer({ resource }: { resource: Resource }) {
+  // Inject CSS for proper iframe styling
+  useEffect(() => {
+    const styleId = 'sidecar-iframe-styles';
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.textContent = `
+        .ui-resource-renderer iframe {
+          width: 100% !important;
+          height: 100% !important;
+          border: none !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          display: block !important;
+          box-sizing: border-box !important;
+          min-height: 500px !important;
+        }
+        .ui-resource-renderer {
+          width: 100% !important;
+          height: 100% !important;
+          display: block !important;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    return () => {
+      // Cleanup when component unmounts
+      const existingStyle = document.getElementById(styleId);
+      if (existingStyle) {
+        existingStyle.remove();
+      }
+    };
+  }, []);
+
+  const handleUIAction = async (action: UIActionResult): Promise<unknown> => {
+    console.log('UI Action received in sidecar:', action);
+
+    // Default handling for common action types
+    if (action.type === 'link' && 'url' in action.payload) {
+      console.log('Opening link:', action.payload.url);
+      if (window.electron?.openInChrome) {
+        window.electron.openInChrome(action.payload.url as string);
+      } else {
+        window.open(action.payload.url as string, '_blank');
+      }
+      return { status: 'handled' };
+    }
+
+    return { status: 'unhandled' };
+  };
+
+  return (
+    <div className="h-full flex flex-col bg-background-default">
+      {/* Full-height container with no padding for iframe to use all space */}
+      <div className="flex-1 relative overflow-hidden">
+        <div
+          className="absolute inset-0 w-full h-full"
+          style={{
+            // Ensure child iframes get proper sizing
+            display: 'block',
+            lineHeight: 0, // Remove any text line-height interference
+          }}
+        >
+          <UIResourceRenderer
+            resource={resource}
+            onUIAction={handleUIAction}
+            className="w-full h-full block"
+            htmlProps={{
+              style: {
+                width: '100%',
+                height: '100%',
+                border: 'none',
+                margin: 0,
+                padding: 0,
+                display: 'block',
+                borderRadius: '0',
+                backgroundColor: 'white', // Provide clean background
+                boxSizing: 'border-box',
+              },
+            }}
+            supportedContentTypes={['rawHtml', 'remoteDom']}
+            remoteDomProps={{
+              style: {
+                width: '100%',
+                height: '100%',
+                overflow: 'auto',
+                border: 'none',
+                outline: 'none',
+              },
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // Monaco Editor Diff Component
@@ -334,6 +451,23 @@ export function SidecarProvider({ children, showSidecar = true }: SidecarProvide
     }
   };
 
+  const showUIResource = (resource: Resource, title?: string) => {
+    const resourceView: SidecarView = {
+      id: 'resource',
+      title: title || resource.name || resource.uri,
+      icon: <Monitor size={16} />,
+      content: <UIResourceViewer resource={resource} />,
+    };
+    showView(resourceView);
+  };
+
+  const hideUIResource = () => {
+    setViews((prev) => prev.filter((v) => v.id !== 'resource'));
+    if (activeView === 'resource') {
+      setActiveView(null);
+    }
+  };
+
   const contextValue: SidecarContextType = {
     activeView,
     views,
@@ -341,6 +475,8 @@ export function SidecarProvider({ children, showSidecar = true }: SidecarProvide
     hideView,
     showDiffViewer,
     hideDiffViewer,
+    showUIResource,
+    hideUIResource,
   };
 
   // Don't render sidecar if showSidecar is false
@@ -400,7 +536,8 @@ export function Sidecar({ className = '' }: { className?: string }) {
 
   return (
     <div
-      className={`bg-background-default overflow-hidden rounded-2xl flex flex-col m-5 ${className}`}
+      className={`bg-background-default overflow-hidden rounded-2xl flex flex-col m-5 min-w-0 ${className}`}
+      style={{ minHeight: '600px', width: '100%' }}
     >
       {currentView && (
         <>
@@ -480,7 +617,7 @@ export function Sidecar({ className = '' }: { className?: string }) {
           </div>
 
           {/* Sidecar Content */}
-          <div className="flex-1  border-4 overflow-hidden border-background-default border-t-0 rounded-b-2xl">
+          <div className="flex-1 overflow-hidden border-background-default border-t-0 rounded-b-2xl">
             {currentView.content}
           </div>
         </>

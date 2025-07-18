@@ -33,6 +33,16 @@ export interface BlobResourceContents {
 
 export type ResourceContents = TextResourceContents | BlobResourceContents;
 
+// Type guard to check if resource is text-based
+export function isTextResource(resource: ResourceContents): resource is TextResourceContents {
+  return 'text' in resource && typeof (resource as TextResourceContents).text === 'string';
+}
+
+// Safe helper to extract text from ResourceContents
+export function getResourceText(resource: ResourceContents): string | null {
+  return isTextResource(resource) ? resource.text : null;
+}
+
 // EmbeddedResource - matches backend structure exactly
 export interface ResourceContent {
   type: 'resource';

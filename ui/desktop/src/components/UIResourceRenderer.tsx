@@ -1,7 +1,7 @@
 /// <reference lib="dom" />
 import { UIResourceRenderer as McpUIResourceRenderer } from '@mcp-ui/client';
 import type { UIActionResult } from '@mcp-ui/client';
-import { Content } from '../types/message';
+import { Content, getResourceText } from '../types/message';
 import React from 'react';
 
 // Resource interface compatible with @mcp-ui/client
@@ -142,14 +142,23 @@ export function isUIResource(content: Content): boolean {
   if (content.type === 'resource' && content.resource) {
     const resource = content.resource;
 
+    // Ensure resource has required properties
+    if (!resource || typeof resource !== 'object') {
+      console.log('❌ Resource is not a valid object');
+      return false;
+    }
+
     // Must have ui:// scheme as per mcp-ui spec
-    const hasUIScheme = Boolean(resource.uri?.startsWith('ui://'));
+    const hasUIScheme = Boolean(
+      resource.uri && typeof resource.uri === 'string' && resource.uri.startsWith('ui://')
+    );
 
     // Must have valid mimeType as per mcp-ui spec - handle both camelCase and snake_case
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const mimeType = (resource as any).mimeType || resource.mime_type;
     const hasValidMimeType = Boolean(
       mimeType &&
+        typeof mimeType === 'string' &&
         (mimeType === 'text/html' ||
           mimeType === 'text/uri-list' ||
           mimeType.startsWith('application/vnd.mcp-ui.'))
@@ -215,15 +224,21 @@ export function extractUIResource(content: Content): Resource | null {
 
     // Check if it's a valid UI resource according to mcp-ui spec
     if (isUIResource(content)) {
-      // Extract text content from resource based on its type
-      const textContent = 'text' in resource ? resource.text : undefined;
+      // Safely extract text content from resource using type-safe helper
+      const textContent = getResourceText(resource);
       const blobContent = 'blob' in resource ? resource.blob : undefined;
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const mimeType = (resource as any).mimeType || resource.mime_type;
+
+      if (!resource.uri || !mimeType) {
+        console.error('Resource missing required fields:', { uri: resource.uri, mimeType });
+        return null;
+      }
+
       const extractedResource: Resource = {
-        uri: resource.uri!,
-        mimeType: mimeType!,
+        uri: resource.uri,
+        mimeType: mimeType,
         ...(textContent && { text: textContent }),
         ...(blobContent && { blob: blobContent }),
       };

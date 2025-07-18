@@ -7,19 +7,34 @@ import {
   ToolRequestMessageContent,
   ToolResponseMessageContent,
   ResourceContent,
+  getResourceText,
 } from '../types/message';
 import { cn, snakeToTitleCase } from '../utils';
 import Dot, { LoadingStatus } from './ui/Dot';
 import { NotificationEvent } from '../hooks/useMessageStream';
-import { ChevronRight, LoaderCircle } from 'lucide-react';
-import { UIResourceRenderer, isUIResource, extractUIResource } from './UIResourceRenderer';
+import { ChevronRight, LoaderCircle, Monitor, ExternalLink } from 'lucide-react';
+import { isUIResource, extractUIResource } from './UIResourceRenderer';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
+import { useSidecar } from './SidecarLayout';
 
 // Extend the Window interface to include our custom property
 declare global {
   interface Window {
     pendingDiffContent?: string;
   }
+}
+
+// Resource interface compatible with @mcp-ui/client
+interface Resource {
+  uri: string;
+  mimeType: string;
+  text?: string;
+  blob?: string;
+  name?: string;
+  title?: string;
+  description?: string;
+  _meta?: { [x: string]: unknown };
+  [x: string]: unknown;
 }
 
 // Helper function to extract diff content from tool response
@@ -29,16 +44,20 @@ export function extractDiffContent(toolResponse?: ToolResponseMessageContent): s
   const result = toolResponse.toolResult.value || [];
   const resourceContents = result.filter((item) => item.type === 'resource') as ResourceContent[];
   const checkpoint = resourceContents.find((item) => item.resource.uri === 'goose://checkpoint');
-  
+
   if (!checkpoint) return null;
-  
-  // Handle TextResourceContents (checkpoint resources are always text-based)
-  if ('text' in checkpoint.resource) {
-    const diffContent = JSON.parse((checkpoint.resource as any).text || '{}').diff;
-    return diffContent !== undefined ? diffContent : null;
+
+  // Safely extract text from checkpoint resource
+  const resourceText = getResourceText(checkpoint.resource);
+  if (!resourceText) return null;
+
+  try {
+    const checkpointData = JSON.parse(resourceText);
+    return checkpointData.diff !== undefined ? checkpointData.diff : null;
+  } catch (e) {
+    console.error('Failed to parse checkpoint data:', e);
+    return null;
   }
-  
-  return null;
 }
 
 // Helper function to check if tool response has diff content
@@ -211,7 +230,15 @@ function ToolCallView({
   const result = toolResponse?.toolResult.value || [];
   const resourceContents = result.filter((item) => item.type === 'resource') as ResourceContent[];
   const checkpoint = resourceContents.find((item) => item.resource.uri === 'goose://checkpoint');
-  const diffContent = JSON.parse((checkpoint?.resource as any).text || '{}').diff;
+  const checkpointText = checkpoint ? getResourceText(checkpoint.resource) : null;
+  let diffContent = null;
+  if (checkpointText) {
+    try {
+      diffContent = JSON.parse(checkpointText).diff;
+    } catch (e) {
+      console.error('Failed to parse checkpoint content:', e);
+    }
+  }
   console.log(resourceContents);
   console.log(checkpoint);
   console.log(diffContent);
@@ -594,28 +621,49 @@ interface ToolResultViewProps {
 }
 
 function ToolResultView({ result, isStartExpanded, toolCall }: ToolResultViewProps) {
-  // Handle UI resources directly
+  const sidecar = useSidecar();
+  const hasShownInSidecar = useRef(false);
+
+  // Helper function to show UI resource in sidecar only once
+  const showInSidecarOnce = (resource: Resource, title: string) => {
+    if (sidecar && !hasShownInSidecar.current) {
+      sidecar.showUIResource(resource, title);
+      hasShownInSidecar.current = true;
+      return true;
+    }
+    return false;
+  };
+
+  // Handle UI resources by showing them in the sidecar
   if (result.type === 'resource' && isUIResource(result)) {
-    console.log('✅ Processing UI resource in ToolResultView');
+    console.log('✅ Processing UI resource in ToolResultView - moving to sidecar');
     const uiResource = extractUIResource(result);
     if (uiResource) {
-      return (
-        <ToolCallExpandable
-          label={<span className="pl-4 py-1 font-medium">Interactive Output</span>}
-          isStartExpanded={isStartExpanded}
-        >
-          <div className="pl-4 pr-4 py-4">
-            <UIResourceRenderer
-              resource={uiResource}
-              onUIAction={async (action) => {
-                console.log('UI Action from resource:', action);
-                return { status: 'handled' };
-              }}
-              className="mt-2"
-            />
-          </div>
-        </ToolCallExpandable>
-      );
+      const title = uiResource.name || 'Interactive Component';
+      if (showInSidecarOnce(uiResource, title)) {
+        // Return a placeholder in the chat that indicates the UI has been moved to sidecar
+        return (
+          <ToolCallExpandable
+            label={<span className="pl-4 py-1 font-medium">Interactive Output</span>}
+            isStartExpanded={isStartExpanded}
+          >
+            <div className="pl-4 pr-4 py-4">
+              <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center space-x-3">
+                  <Monitor className="text-blue-600" size={20} />
+                  <div>
+                    <p className="font-medium text-blue-900">Interactive UI Component</p>
+                    <p className="text-sm text-blue-600">
+                      {uiResource.name || 'Opened in side panel'}
+                    </p>
+                  </div>
+                </div>
+                <ExternalLink className="text-blue-500" size={16} />
+              </div>
+            </div>
+          </ToolCallExpandable>
+        );
+      }
     }
   }
 
@@ -698,28 +746,25 @@ function ToolResultView({ result, isStartExpanded, toolCall }: ToolResultViewPro
                 if (parsed && typeof parsed === 'object') {
                   // Check if it's already a properly structured UI resource
                   if (parsed.uri && parsed.uri.startsWith('ui://') && parsed.mimeType) {
-                    console.log('✅ Found structured UI resource in JSON!');
-                    return (
-                      <div>
-                        <UIResourceRenderer
-                          resource={parsed}
-                          onUIAction={async (action) => {
-                            console.log('UI Action from structured resource:', action);
-                            return { status: 'handled' };
-                          }}
-                          className="mt-2"
-                        />
-                        <details className="mt-2">
-                          <summary className="cursor-pointer text-sm text-gray-600">
-                            Raw Response
-                          </summary>
-                          <MarkdownContent
-                            content={textContent.text}
-                            className="whitespace-pre-wrap max-w-full overflow-x-auto mt-2"
-                          />
-                        </details>
-                      </div>
-                    );
+                    console.log('✅ Found structured UI resource in JSON - moving to sidecar!');
+
+                    const title = parsed.name || 'Interactive Content';
+                    if (showInSidecarOnce(parsed, title)) {
+                      return (
+                        <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg mt-2">
+                          <div className="flex items-center space-x-3">
+                            <Monitor className="text-blue-600" size={20} />
+                            <div>
+                              <p className="font-medium text-blue-900">Interactive UI Component</p>
+                              <p className="text-sm text-blue-600">
+                                {parsed.name || 'Opened in side panel'}
+                              </p>
+                            </div>
+                          </div>
+                          <ExternalLink className="text-blue-500" size={16} />
+                        </div>
+                      );
+                    }
                   }
 
                   // Check if it contains UI resource information that needs to be restructured
@@ -737,28 +782,25 @@ function ToolResultView({ result, isStartExpanded, toolCall }: ToolResultViewPro
                       text: parsed.text,
                     };
 
-                    console.log('✅ Extracted UI resource from parsed JSON!');
-                    return (
-                      <div>
-                        <UIResourceRenderer
-                          resource={uiResource}
-                          onUIAction={async (action) => {
-                            console.log('UI Action from extracted resource:', action);
-                            return { status: 'handled' };
-                          }}
-                          className="mt-2"
-                        />
-                        <details className="mt-2">
-                          <summary className="cursor-pointer text-sm text-gray-600">
-                            Raw Response
-                          </summary>
-                          <MarkdownContent
-                            content={textContent.text}
-                            className="whitespace-pre-wrap max-w-full overflow-x-auto mt-2"
-                          />
-                        </details>
-                      </div>
-                    );
+                    console.log('✅ Extracted UI resource from parsed JSON - moving to sidecar!');
+
+                    const title = uiResource.name || 'Interactive Content';
+                    if (showInSidecarOnce(uiResource, title)) {
+                      return (
+                        <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg mt-2">
+                          <div className="flex items-center space-x-3">
+                            <Monitor className="text-blue-600" size={20} />
+                            <div>
+                              <p className="font-medium text-blue-900">Interactive UI Component</p>
+                              <p className="text-sm text-blue-600">
+                                {uiResource.name || 'Opened in side panel'}
+                              </p>
+                            </div>
+                          </div>
+                          <ExternalLink className="text-blue-500" size={16} />
+                        </div>
+                      );
+                    }
                   }
                 }
               } catch (e) {
@@ -776,28 +818,25 @@ function ToolResultView({ result, isStartExpanded, toolCall }: ToolResultViewPro
                   text: textContent.text,
                 };
 
-                console.log('✅ Rendering UI from extracted URI!');
-                return (
-                  <div>
-                    <UIResourceRenderer
-                      resource={mockResource}
-                      onUIAction={async (action) => {
-                        console.log('UI Action from extracted resource:', action);
-                        return { status: 'handled' };
-                      }}
-                      className="mt-2"
-                    />
-                    <details className="mt-2">
-                      <summary className="cursor-pointer text-sm text-gray-600">
-                        Raw Response
-                      </summary>
-                      <MarkdownContent
-                        content={textContent.text}
-                        className="whitespace-pre-wrap max-w-full overflow-x-auto mt-2"
-                      />
-                    </details>
-                  </div>
-                );
+                console.log('✅ Rendering UI from extracted URI - moving to sidecar!');
+
+                const title = 'MCP UI Resource';
+                if (showInSidecarOnce(mockResource, title)) {
+                  return (
+                    <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg mt-2">
+                      <div className="flex items-center space-x-3">
+                        <Monitor className="text-blue-600" size={20} />
+                        <div>
+                          <p className="font-medium text-blue-900">Interactive UI Component</p>
+                          <p className="text-sm text-blue-600">
+                            {mockResource.name || 'Opened in side panel'}
+                          </p>
+                        </div>
+                      </div>
+                      <ExternalLink className="text-blue-500" size={16} />
+                    </div>
+                  );
+                }
               }
 
               // Check if it's JavaScript content that should be executed
@@ -816,28 +855,25 @@ function ToolResultView({ result, isStartExpanded, toolCall }: ToolResultViewPro
                   text: textContent.text,
                 };
 
-                console.log('✅ Rendering JavaScript UI resource with proper mime type!');
-                return (
-                  <div>
-                    <UIResourceRenderer
-                      resource={jsResource}
-                      onUIAction={async (action) => {
-                        console.log('UI Action from JavaScript resource:', action);
-                        return { status: 'handled' };
-                      }}
-                      className="mt-2"
-                    />
-                    <details className="mt-2">
-                      <summary className="cursor-pointer text-sm text-gray-600">
-                        JavaScript Source
-                      </summary>
-                      <pre className="text-xs bg-gray-100 p-2 rounded overflow-auto max-h-40 mt-2">
-                        {textContent.text.substring(0, 1000)}
-                        {textContent.text.length > 1000 && '...'}
-                      </pre>
-                    </details>
-                  </div>
-                );
+                console.log('✅ Rendering JavaScript UI resource - moving to sidecar!');
+
+                const title = 'Interactive JavaScript Component';
+                if (showInSidecarOnce(jsResource, title)) {
+                  return (
+                    <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg mt-2">
+                      <div className="flex items-center space-x-3">
+                        <Monitor className="text-blue-600" size={20} />
+                        <div>
+                          <p className="font-medium text-blue-900">
+                            Interactive JavaScript Component
+                          </p>
+                          <p className="text-sm text-blue-600">Opened in side panel</p>
+                        </div>
+                      </div>
+                      <ExternalLink className="text-blue-500" size={16} />
+                    </div>
+                  );
+                }
               }
 
               // Check if it contains HTML content
@@ -850,27 +886,21 @@ function ToolResultView({ result, isStartExpanded, toolCall }: ToolResultViewPro
                   text: textContent.text,
                 };
 
-                return (
-                  <div>
-                    <UIResourceRenderer
-                      resource={htmlResource}
-                      onUIAction={async (action) => {
-                        console.log('UI Action from HTML resource:', action);
-                        return { status: 'handled' };
-                      }}
-                      className="mt-2"
-                    />
-                    <details className="mt-2">
-                      <summary className="cursor-pointer text-sm text-gray-600">
-                        HTML Source
-                      </summary>
-                      <pre className="text-xs bg-gray-100 p-2 rounded overflow-auto max-h-40 mt-2">
-                        {textContent.text.substring(0, 1000)}
-                        {textContent.text.length > 1000 && '...'}
-                      </pre>
-                    </details>
-                  </div>
-                );
+                const title = 'HTML Content';
+                if (showInSidecarOnce(htmlResource, title)) {
+                  return (
+                    <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg mt-2">
+                      <div className="flex items-center space-x-3">
+                        <Monitor className="text-blue-600" size={20} />
+                        <div>
+                          <p className="font-medium text-blue-900">HTML Content</p>
+                          <p className="text-sm text-blue-600">Opened in side panel</p>
+                        </div>
+                      </div>
+                      <ExternalLink className="text-blue-500" size={16} />
+                    </div>
+                  );
+                }
               }
 
               // Fallback: if we detected UI indicators but can't parse the content,
@@ -910,25 +940,23 @@ function ToolResultView({ result, isStartExpanded, toolCall }: ToolResultViewPro
 </html>`,
               };
 
-              return (
-                <div>
-                  <UIResourceRenderer
-                    resource={fallbackResource}
-                    onUIAction={async (action) => {
-                      console.log('UI Action from fallback resource:', action);
-                      return { status: 'handled' };
-                    }}
-                    className="mt-2"
-                  />
-                  <details className="mt-2">
-                    <summary className="cursor-pointer text-sm text-gray-600">Raw Response</summary>
-                    <MarkdownContent
-                      content={textContent.text}
-                      className="whitespace-pre-wrap max-w-full overflow-x-auto mt-2"
-                    />
-                  </details>
-                </div>
-              );
+              const title = isProductTool ? 'Product Information' : 'Interactive Content';
+              if (showInSidecarOnce(fallbackResource, title)) {
+                return (
+                  <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg mt-2">
+                    <div className="flex items-center space-x-3">
+                      <Monitor className="text-blue-600" size={20} />
+                      <div>
+                        <p className="font-medium text-blue-900">
+                          {isProductTool ? 'Product Information' : 'Interactive Content'}
+                        </p>
+                        <p className="text-sm text-blue-600">Opened in side panel</p>
+                      </div>
+                    </div>
+                    <ExternalLink className="text-blue-500" size={16} />
+                  </div>
+                );
+              }
             }
 
             // Normal text rendering

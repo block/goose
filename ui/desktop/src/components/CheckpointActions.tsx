@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ResourceContent } from '../types/message';
+import { ResourceContent, getResourceText } from '../types/message';
 
 interface CheckpointActionsProps {
   checkpointContent: ResourceContent;
@@ -15,10 +15,15 @@ export default function CheckpointActions({ checkpointContent }: CheckpointActio
     checkpoint?: string;
     diff?: string;
   } = {};
+
+  const resourceText = getResourceText(checkpointContent.resource);
+  if (!resourceText) {
+    console.error('Checkpoint resource does not contain text');
+    return null;
+  }
+
   try {
-    if ('text' in checkpointContent.resource) {
-      checkpointData = JSON.parse(checkpointContent.resource.text);
-    }
+    checkpointData = JSON.parse(resourceText);
   } catch (e) {
     console.error('Failed to parse checkpoint data:', e);
     return null;

@@ -1,4 +1,9 @@
-import { Message, ResourceContent, ToolResponseMessageContent } from '../types/message';
+import {
+  Message,
+  ResourceContent,
+  ToolResponseMessageContent,
+  getResourceText,
+} from '../types/message';
 import { History } from './icons';
 import { useChatContext } from '../contexts/ChatContext';
 
@@ -55,20 +60,23 @@ export default function MessageRestoreLink({ message, onRestore }: MessageRestor
             const checkpoint = resourceContents.find(
               (item) => item.resource.uri === 'goose://checkpoint'
             );
-            if (checkpoint && 'text' in checkpoint.resource) {
-              try {
-                const payload = JSON.parse(checkpoint.resource.text) as CheckpointPayload;
-                console.log('Found checkpoint payload:', payload);
+            if (checkpoint) {
+              const resourceText = getResourceText(checkpoint.resource);
+              if (resourceText) {
+                try {
+                  const payload = JSON.parse(resourceText) as CheckpointPayload;
+                  console.log('Found checkpoint payload:', payload);
 
-                // Only keep the earliest checkpoint for each file
-                if (!checkpoints.has(payload.file)) {
-                  checkpoints.set(payload.file, {
-                    checkpoint: payload.checkpoint,
-                    timestamp: payload.timestamp,
-                  });
+                  // Only keep the earliest checkpoint for each file
+                  if (!checkpoints.has(payload.file)) {
+                    checkpoints.set(payload.file, {
+                      checkpoint: payload.checkpoint,
+                      timestamp: payload.timestamp,
+                    });
+                  }
+                } catch (e) {
+                  console.error('Failed to parse checkpoint payload:', e);
                 }
-              } catch (e) {
-                console.error('Failed to parse checkpoint payload:', e);
               }
             }
           }
