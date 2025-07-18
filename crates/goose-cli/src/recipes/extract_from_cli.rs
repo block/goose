@@ -1,26 +1,18 @@
 use std::path::PathBuf;
 
 use anyhow::{anyhow, Result};
-use goose::agents::types::RetryConfig;
-use goose::recipe::{Response, SubRecipe};
+use goose::recipe::SubRecipe;
 
 use crate::recipes::print_recipe::print_recipe_info;
 use crate::recipes::recipe::load_recipe;
 use crate::recipes::search_recipe::retrieve_recipe_file;
-use crate::{cli::InputConfig, session::SessionSettings};
+use crate::{cli::{InputConfig, RecipeInfo}, session::SessionSettings};
 
-#[allow(clippy::type_complexity)]
 pub fn extract_recipe_info_from_cli(
     recipe_name: String,
     params: Vec<(String, String)>,
     additional_sub_recipes: Vec<String>,
-) -> Result<(
-    InputConfig,
-    Option<SessionSettings>,
-    Option<Vec<SubRecipe>>,
-    Option<Response>,
-    Option<RetryConfig>,
-)> {
+) -> Result<RecipeInfo> {
     let recipe = load_recipe(&recipe_name, params.clone()).unwrap_or_else(|err| {
         eprintln!("{}: {}", console::style("Error").red().bold(), err);
         std::process::exit(1);
@@ -51,21 +43,21 @@ pub fn extract_recipe_info_from_cli(
             }
         }
     }
-    Ok((
-        InputConfig {
+    Ok(RecipeInfo {
+        input_config: InputConfig {
             contents: recipe.prompt.filter(|s| !s.trim().is_empty()),
             extensions_override: recipe.extensions,
             additional_system_prompt: recipe.instructions,
         },
-        recipe.settings.map(|s| SessionSettings {
+        session_settings: recipe.settings.map(|s| SessionSettings {
             goose_provider: s.goose_provider,
             goose_model: s.goose_model,
             temperature: s.temperature,
         }),
-        Some(all_sub_recipes),
-        recipe.response,
-        recipe.retry,
-    ))
+        sub_recipes: Some(all_sub_recipes),
+        final_output_response: recipe.response,
+        retry_config: recipe.retry,
+    })
 }
 
 fn extract_recipe_name(recipe_identifier: &str) -> String {
@@ -96,8 +88,11 @@ mod tests {
         let params = vec![("name".to_string(), "my_value".to_string())];
         let recipe_name = recipe_path.to_str().unwrap().to_string();
 
-        let (input_config, settings, sub_recipes, response, _retry_config) =
-            extract_recipe_info_from_cli(recipe_name, params, Vec::new()).unwrap();
+        let recipe_info = extract_recipe_info_from_cli(recipe_name, params, Vec::new()).unwrap();
+        let input_config = recipe_info.input_config;
+        let settings = recipe_info.session_settings;
+        let sub_recipes = recipe_info.sub_recipes;
+        let response = recipe_info.final_output_response;
 
         assert_eq!(input_config.contents, Some("test_prompt".to_string()));
         assert_eq!(
@@ -152,8 +147,11 @@ mod tests {
             sub_recipe2_path.to_string_lossy().to_string(),
         ];
 
-        let (input_config, settings, sub_recipes, response, _retry_config) =
-            extract_recipe_info_from_cli(recipe_name, params, additional_sub_recipes).unwrap();
+        let recipe_info = extract_recipe_info_from_cli(recipe_name, params, additional_sub_recipes).unwrap();
+        let input_config = recipe_info.input_config;
+        let settings = recipe_info.session_settings;
+        let sub_recipes = recipe_info.sub_recipes;
+        let response = recipe_info.final_output_response;
 
         assert_eq!(input_config.contents, Some("test_prompt".to_string()));
         assert_eq!(
