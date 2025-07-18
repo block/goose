@@ -12,8 +12,8 @@ pub type ToolResultReceiver = Arc<Mutex<mpsc::Receiver<(String, ToolResult<Vec<C
 /// Default timeout for retry operations (5 minutes)
 pub const DEFAULT_RETRY_TIMEOUT_SECONDS: u64 = 300;
 
-/// Default timeout for cleanup operations (10 minutes - longer for cleanup tasks)
-pub const DEFAULT_CLEANUP_TIMEOUT_SECONDS: u64 = 600;
+/// Default timeout for on_failure operations (10 minutes - longer for on_failure tasks)
+pub const DEFAULT_ON_FAILURE_TIMEOUT_SECONDS: u64 = 600;
 
 /// Configuration for retry logic in recipe execution
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,9 +28,9 @@ pub struct RetryConfig {
     /// Timeout in seconds for individual shell commands (default: 300 seconds)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timeout_seconds: Option<u64>,
-    /// Timeout in seconds for cleanup commands (default: 600 seconds)
+    /// Timeout in seconds for on_failure commands (default: 600 seconds)
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub cleanup_timeout_seconds: Option<u64>,
+    pub on_failure_timeout_seconds: Option<u64>,
 }
 
 impl RetryConfig {
@@ -46,10 +46,10 @@ impl RetryConfig {
             }
         }
 
-        if let Some(cleanup_timeout) = self.cleanup_timeout_seconds {
-            if cleanup_timeout == 0 {
+        if let Some(on_failure_timeout) = self.on_failure_timeout_seconds {
+            if on_failure_timeout == 0 {
                 return Err(
-                    "cleanup_timeout_seconds must be greater than 0 if specified".to_string(),
+                    "on_failure_timeout_seconds must be greater than 0 if specified".to_string(),
                 );
             }
         }

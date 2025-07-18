@@ -5,15 +5,15 @@ use tokio::process::Command;
 use tracing::{debug, info, warn};
 
 use crate::agents::types::{
-    RetryConfig, SuccessCheck, DEFAULT_CLEANUP_TIMEOUT_SECONDS, DEFAULT_RETRY_TIMEOUT_SECONDS,
+    RetryConfig, SuccessCheck, DEFAULT_ON_FAILURE_TIMEOUT_SECONDS, DEFAULT_RETRY_TIMEOUT_SECONDS,
 };
 use crate::config::Config;
 
 /// Environment variable for configuring retry timeout globally
 const GOOSE_RECIPE_RETRY_TIMEOUT_SECONDS: &str = "GOOSE_RECIPE_RETRY_TIMEOUT_SECONDS";
 
-/// Environment variable for configuring cleanup timeout globally
-const GOOSE_RECIPE_CLEANUP_TIMEOUT_SECONDS: &str = "GOOSE_RECIPE_CLEANUP_TIMEOUT_SECONDS";
+/// Environment variable for configuring on_failure timeout globally
+const GOOSE_RECIPE_ON_FAILURE_TIMEOUT_SECONDS: &str = "GOOSE_RECIPE_ON_FAILURE_TIMEOUT_SECONDS";
 
 /// Get the configured timeout duration for retry operations
 /// retry_config.timeout_seconds -> env var -> default
@@ -29,16 +29,18 @@ fn get_retry_timeout(retry_config: &RetryConfig) -> Duration {
     Duration::from_secs(timeout_seconds)
 }
 
-/// Get the configured timeout duration for cleanup operations
-/// retry_config.cleanup_timeout_seconds -> env var -> default
-fn get_cleanup_timeout(retry_config: &RetryConfig) -> Duration {
+/// Get the configured timeout duration for on_failure operations
+/// retry_config.on_failure_timeout_seconds -> env var -> default
+fn get_on_failure_timeout(retry_config: &RetryConfig) -> Duration {
     let timeout_seconds = retry_config
-        .cleanup_timeout_seconds
+        .on_failure_timeout_seconds
         .or_else(|| {
             let config = Config::global();
-            config.get_param(GOOSE_RECIPE_CLEANUP_TIMEOUT_SECONDS).ok()
+            config
+                .get_param(GOOSE_RECIPE_ON_FAILURE_TIMEOUT_SECONDS)
+                .ok()
         })
-        .unwrap_or(DEFAULT_CLEANUP_TIMEOUT_SECONDS);
+        .unwrap_or(DEFAULT_ON_FAILURE_TIMEOUT_SECONDS);
 
     Duration::from_secs(timeout_seconds)
 }
@@ -126,7 +128,7 @@ pub async fn execute_shell_command(
 
 /// Execute an on_failure command and return an error if it fails
 pub async fn execute_on_failure_command(command: &str, retry_config: &RetryConfig) -> Result<()> {
-    let timeout = get_cleanup_timeout(retry_config);
+    let timeout = get_on_failure_timeout(retry_config);
     info!(
         "Executing on_failure command with timeout {:?}: {}",
         timeout, command
@@ -176,7 +178,7 @@ mod tests {
             checks: vec![],
             on_failure: None,
             timeout_seconds: Some(60),
-            cleanup_timeout_seconds: Some(120),
+            on_failure_timeout_seconds: Some(120),
         }
     }
 
@@ -264,7 +266,7 @@ mod tests {
             checks: vec![],
             on_failure: None,
             timeout_seconds: None,
-            cleanup_timeout_seconds: None,
+            on_failure_timeout_seconds: None,
         };
 
         let timeout = get_retry_timeout(&retry_config);
@@ -278,7 +280,7 @@ mod tests {
             checks: vec![],
             on_failure: None,
             timeout_seconds: Some(120),
-            cleanup_timeout_seconds: None,
+            on_failure_timeout_seconds: None,
         };
 
         let timeout = get_retry_timeout(&retry_config);
@@ -286,51 +288,51 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_cleanup_timeout_uses_config_default() {
+    async fn test_get_on_failure_timeout_uses_config_default() {
         let retry_config = RetryConfig {
             max_retries: 1,
             checks: vec![],
             on_failure: None,
             timeout_seconds: None,
-            cleanup_timeout_seconds: None,
+            on_failure_timeout_seconds: None,
         };
 
-        let timeout = get_cleanup_timeout(&retry_config);
+        let timeout = get_on_failure_timeout(&retry_config);
         assert_eq!(
             timeout,
-            Duration::from_secs(DEFAULT_CLEANUP_TIMEOUT_SECONDS)
+            Duration::from_secs(DEFAULT_ON_FAILURE_TIMEOUT_SECONDS)
         );
     }
 
     #[tokio::test]
-    async fn test_get_cleanup_timeout_uses_retry_config() {
+    async fn test_get_on_failure_timeout_uses_retry_config() {
         let retry_config = RetryConfig {
             max_retries: 1,
             checks: vec![],
             on_failure: None,
             timeout_seconds: None,
-            cleanup_timeout_seconds: Some(900),
+            on_failure_timeout_seconds: Some(900),
         };
 
-        let timeout = get_cleanup_timeout(&retry_config);
+        let timeout = get_on_failure_timeout(&retry_config);
         assert_eq!(timeout, Duration::from_secs(900));
     }
 
     #[tokio::test]
-    async fn test_cleanup_timeout_different_from_retry_timeout() {
+    async fn test_on_failure_timeout_different_from_retry_timeout() {
         let retry_config = RetryConfig {
             max_retries: 1,
             checks: vec![],
             on_failure: None,
             timeout_seconds: Some(60),
-            cleanup_timeout_seconds: Some(300),
+            on_failure_timeout_seconds: Some(300),
         };
 
         let retry_timeout = get_retry_timeout(&retry_config);
-        let cleanup_timeout = get_cleanup_timeout(&retry_config);
+        let on_failure_timeout = get_on_failure_timeout(&retry_config);
 
         assert_eq!(retry_timeout, Duration::from_secs(60));
-        assert_eq!(cleanup_timeout, Duration::from_secs(300));
-        assert_ne!(retry_timeout, cleanup_timeout);
+        assert_eq!(on_failure_timeout, Duration::from_secs(300));
+        assert_ne!(retry_timeout, on_failure_timeout);
     }
 }

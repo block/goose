@@ -831,7 +831,7 @@ mod retry_tests {
             }],
             on_failure: Some("echo 'cleanup executed'".to_string()),
             timeout_seconds: Some(30),
-            cleanup_timeout_seconds: Some(60),
+            on_failure_timeout_seconds: Some(60),
         };
 
         assert!(
@@ -876,7 +876,7 @@ mod retry_tests {
             checks: vec![],
             on_failure: None,
             timeout_seconds: Some(30),
-            cleanup_timeout_seconds: Some(60),
+            on_failure_timeout_seconds: Some(60),
         };
 
         let success_checks = vec![SuccessCheck::Shell {
@@ -905,7 +905,7 @@ mod retry_tests {
             checks: vec![],
             on_failure: None,
             timeout_seconds: Some(0),
-            cleanup_timeout_seconds: None,
+            on_failure_timeout_seconds: None,
         };
 
         let validation_result = invalid_retry_config.validate();

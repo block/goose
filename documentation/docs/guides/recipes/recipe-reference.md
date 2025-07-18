@@ -147,7 +147,7 @@ The `retry` field enables recipes to automatically retry execution if success cr
 |-------|------|-------------|
 | `max_retries` | Number | Maximum number of retry attempts (required) |
 | `timeout_seconds` | Number | (Optional) Timeout for success check commands (default: 300 seconds) |
-| `cleanup_timeout_seconds` | Number | (Optional) Timeout for cleanup commands (default: 600 seconds) |
+| `on_failure_timeout_seconds` | Number | (Optional) Timeout for on_failure commands (default: 600 seconds) |
 | `checks` | Array | List of success check configurations (required) |
 | `on_failure` | String | (Optional) Shell command to run when a retry attempt fails |
 
@@ -165,7 +165,7 @@ Each success check in the `checks` array has the following structure:
 1. **Recipe Execution**: The recipe runs normally with the provided instructions
 2. **Success Validation**: After completion, all success checks are executed in order
 3. **Retry Decision**: If any success check fails and retry attempts remain:
-   - Execute the cleanup command (if configured)
+   - Execute the on_failure command (if configured)
    - Reset the agent's message history to initial state
    - Increment retry counter and restart execution
 4. **Completion**: Process stops when either:
@@ -200,7 +200,7 @@ prompt: "Start the web service and verify it responds to health checks"
 retry:
   max_retries: 3
   timeout_seconds: 30
-  cleanup_timeout_seconds: 60
+  on_failure_timeout_seconds: 60
   checks:
     - type: shell
       command: "curl -f http://localhost:8080/health"
@@ -214,7 +214,7 @@ retry:
 You can configure retry behavior globally using environment variables:
 
 - `GOOSE_RECIPE_RETRY_TIMEOUT_SECONDS`: Global timeout for success check commands
-- `GOOSE_RECIPE_CLEANUP_TIMEOUT_SECONDS`: Global timeout for cleanup commands
+- `GOOSE_RECIPE_ON_FAILURE_TIMEOUT_SECONDS`: Global timeout for on_failure commands
 
 These environment variables are overridden by recipe-specific timeout configurations.
 
@@ -410,7 +410,7 @@ When these occur, Goose will provide helpful error messages indicating what need
 ### Retry-Specific Errors
 
 - **Invalid success checks**: Shell commands that cannot be executed or have syntax errors
-- **Timeout errors**: Success checks or cleanup commands that exceed their timeout limits
+- **Timeout errors**: Success checks or on_failure commands that exceed their timeout limits
 - **Max retries exceeded**: When all retry attempts are exhausted without success
 - **Missing required retry fields**: When `max_retries` or `checks` are not specified
 
