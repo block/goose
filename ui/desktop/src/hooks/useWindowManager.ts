@@ -177,12 +177,6 @@ export function useWindowManager(options: WindowManagerOptions = {}): WindowMana
       return;
     }
 
-    // Don't resize if window is already expanded
-    if (windowState.isExpanded) {
-      console.log('Window is already expanded, skipping resize operation');
-      return;
-    }
-
     try {
       resizeInProgressRef.current = true;
 
@@ -191,33 +185,52 @@ export function useWindowManager(options: WindowManagerOptions = {}): WindowMana
         isTransitioning: true,
       }));
 
-      // Only expanding logic remains since we skip when already expanded
-      if (!canExpand) {
-        console.log('Window too wide for expansion, skipping resize');
-        setWindowState((prev) => ({
-          ...prev,
-          isTransitioning: false,
-        }));
-        // Still mount the component even if we don't resize
-        setIsComponentMounted(true);
-        return;
-      }
+      if (windowState.isExpanded) {
+        // Collapse the window back to original size
+        console.log('Window is expanded, collapsing back to original size');
 
-      const success = await window.electron.resizeWindow(opts.expandPercentage);
+        const success = await window.electron.resizeWindow(0); // 0 means reset to original size
 
-      if (success) {
-        const newWidth = Math.floor(windowState.currentWidth * (1 + opts.expandPercentage / 100));
-
-        setWindowState((prev) => ({
-          ...prev,
-          isExpanded: true,
-          currentWidth: newWidth,
-          isTransitioning: false,
-        }));
-
-        // Component will be mounted by the useEffect above
+        if (success) {
+          setWindowState((prev) => ({
+            ...prev,
+            isExpanded: false,
+            currentWidth: prev.originalWidth,
+            isTransitioning: false,
+          }));
+        } else {
+          throw new Error('Failed to resize window for collapse');
+        }
       } else {
-        throw new Error('Failed to resize window for expansion');
+        // Expand the window
+        if (!canExpand) {
+          console.log('Window too wide for expansion, skipping resize but showing sidecar');
+          setWindowState((prev) => ({
+            ...prev,
+            isExpanded: true, // Mark as expanded even though we didn't resize
+            isTransitioning: false,
+          }));
+          // Still mount the component even if we don't resize
+          setIsComponentMounted(true);
+          return;
+        }
+
+        const success = await window.electron.resizeWindow(opts.expandPercentage);
+
+        if (success) {
+          const newWidth = Math.floor(windowState.currentWidth * (1 + opts.expandPercentage / 100));
+
+          setWindowState((prev) => ({
+            ...prev,
+            isExpanded: true,
+            currentWidth: newWidth,
+            isTransitioning: false,
+          }));
+
+          // Component will be mounted by the useEffect above
+        } else {
+          throw new Error('Failed to resize window for expansion');
+        }
       }
     } catch (error) {
       console.error('Error during window toggle:', error);
