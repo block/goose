@@ -1,4 +1,4 @@
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, ChildProcess, execSync } from 'child_process';
 import { createServer } from 'net';
 import os from 'node:os';
 import path from 'node:path';
@@ -59,8 +59,46 @@ const checkServerStatus = async (
   return false;
 };
 
+const connectToExternalBackend = async (
+  workingDir: string,
+  port: number = 3000
+): Promise<[number, string, ChildProcess]> => {
+  log.info(`Using external goosed backend on port ${port}`);
+
+  const isReady = await checkServerStatus(port);
+  if (!isReady) {
+    throw new Error(`External goosed server not accessible on port ${port}`);
+  }
+
+  if (process.platform === 'win32') {
+    throw new Error('External backend process discovery not supported on Windows');
+  }
+
+  let pid: number;
+  try {
+    const stdout = execSync(`lsof -ti:${port}`, { encoding: 'utf8' });
+    const parsedPid = parseInt(stdout.trim());
+    if (isNaN(parsedPid)) {
+      throw new Error('Could not parse PID from lsof output');
+    }
+    pid = parsedPid;
+  } catch (error) {
+    throw new Error(`Could not find process for external backend on port ${port}: ${error}`);
+  }
+
+  const mockProcess = {
+    pid,
+    kill: () => {
+      log.info(`Not killing external process ${pid} - managed externally`);
+    },
+  } as ChildProcess;
+
+  return [port, workingDir, mockProcess];
+};
+
 interface GooseProcessEnv {
   [key: string]: string | undefined;
+
   HOME: string;
   USERPROFILE: string;
   APPDATA: string;
@@ -75,17 +113,18 @@ export const startGoosed = async (
   dir: string | null = null,
   env: Partial<GooseProcessEnv> = {}
 ): Promise<[number, string, ChildProcess]> => {
-  // we default to running goosed in home dir - if not specified
   const homeDir = os.homedir();
   const isWindows = process.platform === 'win32';
 
-  // Ensure dir is properly normalized for the platform and validate it
   if (!dir) {
     dir = homeDir;
   }
 
-  // Sanitize and validate the directory path
   dir = path.resolve(path.normalize(dir));
+
+  if (process.env.GOOSE_EXTERNAL_BACKEND) {
+    return connectToExternalBackend(dir, 3000);
+  }
 
   // Validate that the directory actually exists and is a directory
   try {

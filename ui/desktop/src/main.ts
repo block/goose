@@ -452,7 +452,7 @@ const getGooseProvider = () => {
 };
 
 const generateSecretKey = () => {
-  const key = crypto.randomBytes(32).toString('hex');
+  const key = process.env.GOOSE_EXTERNAL_BACKEND ? 'test' : crypto.randomBytes(32).toString('hex');
   process.env.GOOSE_SERVER__SECRET_KEY = key;
   return key;
 };
@@ -2028,11 +2028,11 @@ app.whenReady().then(async () => {
  *
  ```yaml:
  extensions:
-  - id: slack
-    command: uvx mcp_slack
-  - id: knowledge_graph_memory
-    command: npx -y @modelcontextprotocol/server-memory
-  ```
+ - id: slack
+ command: uvx mcp_slack
+ - id: knowledge_graph_memory
+ command: npx -y @modelcontextprotocol/server-memory
+ ```
  *
  * @returns A promise that resolves to an array of extension commands that are allowed.
  */
