@@ -287,28 +287,6 @@ export function useMessageStream({
                           : parsedEvent.message.sendToLLM,
                     };
 
-                    // Debug tool responses for MCP-UI development
-                    if (newMessage.content.some(c => c.type === 'toolResponse')) {
-                      console.log('✅ Tool response received');
-                    }
-                    
-                    // Debug tool responses specifically for resource detection
-                    newMessage.content.forEach((content, index) => {
-                      if (content.type === 'toolResponse') {
-                        console.log(`=== TOOL RESPONSE ${index} DEBUG ===`);
-                        console.log('Tool response:', content);
-                        console.log('Tool result value:', content.toolResult?.value);
-                        if (Array.isArray(content.toolResult?.value)) {
-                          content.toolResult.value.forEach((item, itemIndex) => {
-                            console.log(`Tool result item ${itemIndex}:`, item);
-                            console.log(`Item type: ${item.type}`);
-                            if (item.type === 'resource') {
-                              console.log('FOUND RESOURCE IN TOOL RESULT:', item);
-                            }
-                          });
-                        }
-                      }
-                    });
                     // Update messages with the new message
                     if (
                       newMessage.id &&
@@ -317,18 +295,12 @@ export function useMessageStream({
                     ) {
                       // If the last message has the same ID, update it instead of adding a new one
                       const lastMessage = currentMessages[currentMessages.length - 1];
-                      
+
                       // CRITICAL: Don't merge if roles are different - tool responses should be separate messages
                       if (lastMessage.role !== newMessage.role) {
-                        console.log('🚨 ROLE MISMATCH - Creating separate message instead of merging:', {
-                          lastRole: lastMessage.role,
-                          newRole: newMessage.role,
-                          messageId: newMessage.id
-                        });
                         currentMessages = [...currentMessages, newMessage];
                       } else {
                         // Safe to merge - same role
-                        console.log('✅ Merging content for same role:', newMessage.role, newMessage.id);
                         lastMessage.content = [...lastMessage.content, ...newMessage.content];
                         forceUpdate();
                       }
@@ -484,12 +456,6 @@ export function useMessageStream({
         // Filter out messages where sendToLLM is explicitly false
         const filteredMessages = requestMessages.filter((message) => message.sendToLLM !== false);
 
-        // Log request details for debugging
-        console.log('Request details:', {
-          messages: filteredMessages,
-          body: extraMetadataRef.current.body,
-        });
-
         // Send request to the server
         const response = await fetch(api, {
           method: 'POST',
@@ -565,8 +531,6 @@ export function useMessageStream({
     async (message: Message | string) => {
       // If a string is passed, convert it to a Message object
       const messageToAppend = typeof message === 'string' ? createUserMessage(message) : message;
-
-      console.log('Appending message:', JSON.stringify(messageToAppend, null, 2));
 
       const currentMessages = [...messagesRef.current, messageToAppend];
       mutate(currentMessages, false);

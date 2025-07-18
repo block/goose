@@ -10,7 +10,6 @@ import {
   Target,
   LoaderCircle,
   AlertCircle,
-  ExternalLink,
 } from 'lucide-react';
 import { type SessionDetails } from '../../sessions';
 import { Button } from '../ui/button';
@@ -53,7 +52,6 @@ interface SessionHistoryViewProps {
   isLoading: boolean;
   error: string | null;
   onBack: () => void;
-  onResume: () => void;
   onRetry: () => void;
   showActionButtons?: boolean;
 }
@@ -148,7 +146,6 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
   isLoading,
   error,
   onBack,
-  onResume,
   onRetry,
   showActionButtons = true,
 }) => {
@@ -271,13 +268,9 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
           </>
         )}
       </Button>
-      <Button onClick={onResume} size="sm" variant="outline">
+      <Button onClick={handleLaunchInNewWindow} size="sm" variant="outline">
         <Sparkles className="w-4 h-4" />
         Resume
-      </Button>
-      <Button onClick={handleLaunchInNewWindow} size="sm" variant="outline">
-        <ExternalLink className="w-4 h-4" />
-        New Window
       </Button>
     </>
   ) : null;

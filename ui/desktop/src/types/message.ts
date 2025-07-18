@@ -21,19 +21,18 @@ export interface ImageContent {
 // Resource contents - matches ResourceContents enum from backend
 export interface TextResourceContents {
   uri: string;
-  mime_type?: string;
   text: string;
+  mime_type?: string;
 }
 
 export interface BlobResourceContents {
   uri: string;
-  mime_type?: string;
   blob: string;
+  mime_type?: string;
 }
 
 export type ResourceContents = TextResourceContents | BlobResourceContents;
 
-// Type guard to check if resource is text-based
 export function isTextResource(resource: ResourceContents): resource is TextResourceContents {
   return 'text' in resource && typeof (resource as TextResourceContents).text === 'string';
 }
@@ -43,19 +42,12 @@ export function getResourceText(resource: ResourceContents): string | null {
   return isTextResource(resource) ? resource.text : null;
 }
 
-// EmbeddedResource - matches backend structure exactly
 export interface ResourceContent {
   type: 'resource';
   resource: ResourceContents;
   annotations?: Record<string, unknown>;
 }
 
-// Compatibility interface for simpler resource usage
-export interface Resource {
-  uri: string;
-  text: string;
-  mimeType?: string;
-}
 export type Content = TextContent | ImageContent | ResourceContent;
 
 export interface ToolCall {

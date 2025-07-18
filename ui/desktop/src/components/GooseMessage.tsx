@@ -248,7 +248,7 @@ export default function GooseMessage({
         {hasToolConfirmation && (
           <ToolCallConfirmation
             isCancelledMessage={messageIndex == messageHistoryIndex - 1}
-            isClicked={messageIndex < messageHistoryIndex - 1}
+            isClicked={messageIndex < messageHistoryIndex}
             toolConfirmationId={toolConfirmationContent.id}
             toolName={toolConfirmationContent.toolName}
           />
@@ -314,4 +314,3 @@ export default function GooseMessage({
     </div>
   );
 }
-

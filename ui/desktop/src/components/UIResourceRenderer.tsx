@@ -5,7 +5,7 @@ import { Content, getResourceText } from '../types/message';
 import React from 'react';
 
 // Resource interface compatible with @mcp-ui/client
-interface Resource {
+export interface Resource {
   uri: string;
   mimeType: string;
   text?: string;

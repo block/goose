@@ -5,8 +5,8 @@ use anyhow::Result;
 use mcp_core::tool::{Tool, ToolAnnotations};
 use serde_json::{json, Map, Value};
 
-use crate::agents::sub_recipe_execution_tool::lib::{ExecutionMode, Task};
-use crate::agents::sub_recipe_execution_tool::tasks_manager::TasksManager;
+use crate::agents::subagent_execution_tool::lib::{ExecutionMode, Task};
+use crate::agents::subagent_execution_tool::tasks_manager::TasksManager;
 use crate::recipe::{Recipe, RecipeParameter, RecipeParameterRequirement, SubRecipe};
 
 use super::param_utils::prepare_command_params;

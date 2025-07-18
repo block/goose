@@ -13,6 +13,9 @@ description = "An AI agent"
 [workspace.lints.clippy]
 uninlined_format_args = "allow"
 
+[workspace.dependencies]
+rmcp = "0.2.1"
+
 # Patch for Windows cross-compilation issue with crunchy
 [patch.crates-io]
 crunchy = { git = "https://github.com/nmathewson/crunchy", branch = "cross-compilation-fix" }

@@ -2,68 +2,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Button } from './ui/button';
 import { ToolCallArguments, ToolCallArgumentValue } from './ToolCallArguments';
 import MarkdownContent from './MarkdownContent';
-import {
-  Content,
-  ToolRequestMessageContent,
-  ToolResponseMessageContent,
-  ResourceContent,
-  getResourceText,
-} from '../types/message';
+import { Content, ToolRequestMessageContent, ToolResponseMessageContent } from '../types/message';
 import { cn, snakeToTitleCase } from '../utils';
 import Dot, { LoadingStatus } from './ui/Dot';
 import { NotificationEvent } from '../hooks/useMessageStream';
 import { ChevronRight, LoaderCircle, Monitor, ExternalLink } from 'lucide-react';
-import { isUIResource, extractUIResource } from './UIResourceRenderer';
-import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
+import { isUIResource, extractUIResource, Resource } from './UIResourceRenderer';
 import { useSidecar } from './SidecarLayout';
-
-// Extend the Window interface to include our custom property
-declare global {
-  interface Window {
-    pendingDiffContent?: string;
-  }
-}
-
-// Resource interface compatible with @mcp-ui/client
-interface Resource {
-  uri: string;
-  mimeType: string;
-  text?: string;
-  blob?: string;
-  name?: string;
-  title?: string;
-  description?: string;
-  _meta?: { [x: string]: unknown };
-  [x: string]: unknown;
-}
-
-// Helper function to extract diff content from tool response
-export function extractDiffContent(toolResponse?: ToolResponseMessageContent): string | null {
-  if (!toolResponse) return null;
-
-  const result = toolResponse.toolResult.value || [];
-  const resourceContents = result.filter((item) => item.type === 'resource') as ResourceContent[];
-  const checkpoint = resourceContents.find((item) => item.resource.uri === 'goose://checkpoint');
-
-  if (!checkpoint) return null;
-
-  // Safely extract text from checkpoint resource
-  const resourceText = getResourceText(checkpoint.resource);
-  if (!resourceText) return null;
-
-  try {
-    const checkpointData = JSON.parse(resourceText);
-    return checkpointData.diff !== undefined ? checkpointData.diff : null;
-  } catch (e) {
-    console.error('Failed to parse checkpoint data:', e);
-    return null;
-  }
-}
-
-// Helper function to check if tool response has diff content
-export function hasDiffContent(toolResponse?: ToolResponseMessageContent): boolean {
-  return extractDiffContent(toolResponse) !== null;
-}
+import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
@@ -225,23 +171,6 @@ function ToolCallView({
         return true;
     }
   })();
-
-  //extract resource content if present
-  const result = toolResponse?.toolResult.value || [];
-  const resourceContents = result.filter((item) => item.type === 'resource') as ResourceContent[];
-  const checkpoint = resourceContents.find((item) => item.resource.uri === 'goose://checkpoint');
-  const checkpointText = checkpoint ? getResourceText(checkpoint.resource) : null;
-  let diffContent = null;
-  if (checkpointText) {
-    try {
-      diffContent = JSON.parse(checkpointText).diff;
-    } catch (e) {
-      console.error('Failed to parse checkpoint content:', e);
-    }
-  }
-  console.log(resourceContents);
-  console.log(checkpoint);
-  console.log(diffContent);
 
   const isToolDetails = Object.entries(toolCall?.arguments).length > 0;
 
@@ -981,14 +910,11 @@ function ToolResultView({ result, isStartExpanded, toolCall }: ToolResultViewPro
         {result.type === 'resource' && !isUIResource(result) && (
           <div className="bg-gray-50 p-3 rounded border">
             <p className="text-sm text-gray-600 mb-2">
-              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-              <strong>Resource:</strong> {(result.resource as any).uri}
+              <strong>Resource:</strong> {result.resource.uri}
             </p>
-            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-            {(result.resource as any).text && (
+            {'text' in result.resource && result.resource.text && (
               <pre className="text-xs bg-white p-2 rounded border max-h-40 overflow-auto">
-                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                {(result.resource as any).text}
+                {result.resource.text}
               </pre>
             )}
           </div>
@@ -1070,3 +996,51 @@ const ProgressBar = ({ progress, total, message }: Omit<Progress, 'progressToken
     </div>
   );
 };
+
+// Export utility functions for diff content detection and extraction
+export function hasDiffContent(toolResponse?: ToolResponseMessageContent): boolean {
+  if (!toolResponse || toolResponse.toolResult.status !== 'success') {
+    return false;
+  }
+
+  const results = Array.isArray(toolResponse.toolResult.value) ? toolResponse.toolResult.value : [];
+
+  return results.some((result) => {
+    if (result.type === 'text') {
+      const textContent = result as { type: 'text'; text: string };
+      return (
+        textContent.text.includes('diff --git') ||
+        textContent.text.includes('+++') ||
+        textContent.text.includes('---') ||
+        textContent.text.includes('@@ ')
+      );
+    }
+    return false;
+  });
+}
+
+export function extractDiffContent(toolResponse?: ToolResponseMessageContent): string | null {
+  if (!hasDiffContent(toolResponse)) {
+    return null;
+  }
+
+  const results = Array.isArray(toolResponse!.toolResult.value)
+    ? toolResponse!.toolResult.value
+    : [];
+
+  for (const result of results) {
+    if (result.type === 'text') {
+      const textContent = result as { type: 'text'; text: string };
+      if (
+        textContent.text.includes('diff --git') ||
+        textContent.text.includes('+++') ||
+        textContent.text.includes('---') ||
+        textContent.text.includes('@@ ')
+      ) {
+        return textContent.text;
+      }
+    }
+  }
+
+  return null;
+}
