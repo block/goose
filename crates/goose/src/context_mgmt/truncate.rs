@@ -1,7 +1,8 @@
 use crate::message::{Message, MessageContent};
 use crate::utils::safe_truncate;
 use anyhow::{anyhow, Result};
-use mcp_core::{Content, ResourceContents, Role};
+use mcp_core::{Content, ResourceContents};
+use rmcp::model::Role;
 use std::collections::HashSet;
 use tracing::{debug, warn};
 

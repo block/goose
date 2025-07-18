@@ -1998,6 +1998,7 @@
       },
       "Role": {
         "type": "string",
+        "description": "A wrapper around rmcp::model::Role that implements ToSchema for utoipa",
         "enum": [
           "user",
           "assistant"

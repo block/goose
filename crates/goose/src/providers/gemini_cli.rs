@@ -12,7 +12,7 @@ use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use mcp_core::content::TextContent;
 use mcp_core::tool::Tool;
-use mcp_core::Role;
+use rmcp::model::Role;
 
 pub const GEMINI_CLI_DEFAULT_MODEL: &str = "default";
 pub const GEMINI_CLI_KNOWN_MODELS: &[&str] = &["default"];

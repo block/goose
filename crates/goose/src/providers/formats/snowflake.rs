@@ -4,8 +4,8 @@ use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
 use anyhow::{anyhow, Result};
 use mcp_core::content::Content;
-use mcp_core::role::Role;
 use mcp_core::tool::{Tool, ToolCall};
+use rmcp::model::Role;
 use serde_json::{json, Value};
 use std::collections::HashSet;
 

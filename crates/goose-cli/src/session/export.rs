@@ -2,7 +2,7 @@ use goose::message::{Message, MessageContent, ToolRequest, ToolResponse};
 use goose::utils::safe_truncate;
 use mcp_core::content::Content as McpContent;
 use mcp_core::resource::ResourceContents;
-use mcp_core::role::Role;
+use rmcp::model::Role;
 use serde_json::Value;
 
 const MAX_STRING_LENGTH_MD_EXPORT: usize = 4096; // Generous limit for export
