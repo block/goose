@@ -765,7 +765,7 @@ mod final_output_tool_tests {
 mod retry_tests {
     use super::*;
     use async_trait::async_trait;
-    use goose::agents::types::{RetryConfig, SessionConfig, SuccessCheck, SuccessCheckType};
+    use goose::agents::types::{RetryConfig, SessionConfig, SuccessCheck};
     use goose::model::ModelConfig;
     use goose::providers::base::{Provider, ProviderUsage, Usage};
     use goose::providers::errors::ProviderError;
@@ -826,8 +826,7 @@ mod retry_tests {
 
         let retry_config = RetryConfig {
             max_retries: 3,
-            checks: vec![SuccessCheck {
-                check_type: SuccessCheckType::Shell,
+            checks: vec![SuccessCheck::Shell {
                 command: "echo 'success check'".to_string(),
             }],
             on_failure: Some("echo 'cleanup executed'".to_string()),
@@ -880,8 +879,7 @@ mod retry_tests {
             cleanup_timeout_seconds: Some(60),
         };
 
-        let success_checks = vec![SuccessCheck {
-            check_type: SuccessCheckType::Shell,
+        let success_checks = vec![SuccessCheck::Shell {
             command: "echo 'test'".to_string(),
         }];
 
@@ -889,8 +887,7 @@ mod retry_tests {
         assert!(result.is_ok(), "Success check should pass");
         assert!(result.unwrap(), "Command should succeed");
 
-        let fail_checks = vec![SuccessCheck {
-            check_type: SuccessCheckType::Shell,
+        let fail_checks = vec![SuccessCheck::Shell {
             command: "false".to_string(),
         }];
 
