@@ -1042,7 +1042,6 @@ pub fn read_metadata(session_file: &Path) -> Result<SessionMetadata> {
 ///
 /// Security features:
 /// - Validates file paths to prevent directory traversal
-/// - Uses secure file operations via save_messages_with_metadata
 pub async fn persist_messages(
     session_file: &Path,
     messages: &[Message],
