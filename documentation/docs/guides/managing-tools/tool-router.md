@@ -7,7 +7,7 @@ description: Configure smart tool selection to load only relevant tools, improvi
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import { PanelLeft, Settings } from 'lucide-react';
+import { PanelLeft } from 'lucide-react';
 
 :::info Preview Feature
 The Tool Selection Strategy is currently in preview. The Vector selection strategy is currently limited to Claude models served on Databricks.
