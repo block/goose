@@ -64,7 +64,8 @@ export type View =
   | 'loading'
   | 'recipeEditor'
   | 'recipes'
-  | 'permission';
+  | 'permission'
+  | 'diffViewer';
 // | 'projects';
 
 export type ViewOptions = {
@@ -799,6 +800,9 @@ export default function App() {
         // Handle recipe editor deep link - use hash routing
         window.location.hash = '#/recipe-editor';
         window.history.replaceState({ config: recipeConfig }, '', '#/recipe-editor');
+      } else if (viewType === 'diffViewer' && window.appConfig.get('diffContent')) {
+        console.log('Setting view to diffViewer with diff content');
+        setView('diffViewer', { diffContent: window.appConfig.get('diffContent') });
       } else {
         // Handle other deep links by redirecting to appropriate route
         const routeMap: Record<string, string> = {
@@ -1165,6 +1169,12 @@ export default function App() {
           '',
           `/recipe-editor?${new URLSearchParams(initialViewOptions).toString()}`
         );
+      } else if (viewFromUrl === 'diffViewer') {
+        const initialViewOptions = {
+          diffContent: windowConfig?.diffContent,
+          view: viewFromUrl,
+        };
+        setView(viewFromUrl, initialViewOptions);
       } else {
         window.history.replaceState({}, '', `/${viewFromUrl}`);
       }
