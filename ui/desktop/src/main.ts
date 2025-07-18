@@ -49,7 +49,34 @@ import {
   getUpdateAvailable,
 } from './utils/autoUpdater';
 import { UPDATES_ENABLED } from './updates';
-import { Recipe, decodeRecipe } from './recipe';
+import { Recipe } from './recipe';
+
+// API URL constructor for main process before window is ready
+function getApiUrlMain(endpoint: string, dynamicPort?: number): string {
+  const host = process.env.GOOSE_API_HOST || 'http://localhost';
+  const port = dynamicPort || process.env.GOOSE_PORT || '8000';
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  return `${host}:${port}${cleanEndpoint}`;
+}
+
+// When opening the app with a deeplink, the window is still initializing so we have to duplicate some window dependant logic here.
+async function decodeRecipeMain(deeplink: string, port: number): Promise<Recipe | null> {
+  try {
+    const response = await fetch(getApiUrlMain('/recipes/decode', port), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deeplink }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      return data.recipe;
+    }
+  } catch (error) {
+    console.error('Failed to decode recipe:', error);
+  }
+  return null;
+}
 
 // Updater functions (moved here to keep updates.ts minimal for release replacement)
 function shouldSetupUpdater(): boolean {
@@ -176,23 +203,8 @@ if (process.platform === 'win32') {
             const recentDirs = loadRecentDirs();
             const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
-            let recipe = null;
             const configParam = parsedUrl.searchParams.get('config');
-            if (configParam) {
-              try {
-                recipe = await decodeRecipe(configParam);
-
-                // Check if this is a scheduled job
-                const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
-                if (scheduledJobId) {
-                  console.log(`[main] Opening scheduled job: ${scheduledJobId}`);
-                  recipe.scheduledJobId = scheduledJobId;
-                  recipe.isScheduledExecution = true;
-                }
-              } catch (e) {
-                console.error('Failed to parse bot config:', e);
-              }
-            }
+            const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
 
             createChat(
               app,
@@ -200,7 +212,10 @@ if (process.platform === 'win32') {
               openDir || undefined,
               undefined,
               undefined,
-              recipe || undefined
+              undefined, // recipe - will be decoded after server starts
+              undefined, // viewType
+              configParam || undefined, // recipeDeeplink
+              scheduledJobId || undefined // scheduledJobId
             );
           });
           return; // Skip the rest of the handler
@@ -286,25 +301,21 @@ async function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
   } else if (parsedUrl.hostname === 'sessions') {
     window.webContents.send('open-shared-session', pendingDeepLink);
   } else if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
-    let recipe = null;
     const configParam = parsedUrl.searchParams.get('config');
-    if (configParam) {
-      try {
-        recipe = await decodeRecipe(configParam);
+    const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
 
-        // Check if this is a scheduled job
-        const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
-        if (scheduledJobId) {
-          console.log(`[main] Opening scheduled job: ${scheduledJobId}`);
-          recipe.scheduledJobId = scheduledJobId;
-          recipe.isScheduledExecution = true;
-        }
-      } catch (e) {
-        console.error('Failed to parse bot config:', e);
-      }
-    }
     // Create a new window and ignore the passed-in window
-    createChat(app, undefined, openDir || undefined, undefined, undefined, recipe || undefined);
+    createChat(
+      app,
+      undefined,
+      openDir || undefined,
+      undefined,
+      undefined,
+      undefined, // recipe - will be decoded after server starts
+      undefined, // viewType
+      configParam || undefined, // recipeDeeplink
+      scheduledJobId || undefined // scheduledJobId
+    );
   }
   pendingDeepLink = null;
 }
@@ -316,24 +327,11 @@ app.on('open-url', async (_event, url) => {
     const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
     // Handle bot/recipe URLs by directly creating a new window
+    console.log('[Main] Received open-url event:', url);
     if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
-      let recipe = null;
+      console.log('[Main] Detected bot/recipe URL, creating new chat window');
       const configParam = parsedUrl.searchParams.get('config');
-      if (configParam) {
-        try {
-          recipe = await decodeRecipe(configParam);
-
-          // Check if this is a scheduled job
-          const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
-          if (scheduledJobId) {
-            console.log(`[main] Opening scheduled job: ${scheduledJobId}`);
-            recipe.scheduledJobId = scheduledJobId;
-            recipe.isScheduledExecution = true;
-          }
-        } catch (e) {
-          console.error('Failed to parse bot config:', e);
-        }
-      }
+      const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
 
       // Create a new window directly
       await createChat(
@@ -342,7 +340,10 @@ app.on('open-url', async (_event, url) => {
         openDir || undefined,
         undefined,
         undefined,
-        recipe || undefined
+        undefined, // recipe - will be decoded after server starts
+        undefined, // viewType
+        configParam || undefined, // recipeDeeplink
+        scheduledJobId || undefined // scheduledJobId
       );
       return; // Skip the rest of the handler
     }
@@ -514,7 +515,9 @@ const createChat = async (
   _version?: string,
   resumeSessionId?: string,
   recipe?: Recipe, // Recipe configuration
-  viewType?: string // View type
+  viewType?: string, // View type
+  recipeDeeplink?: string, // Raw deeplink to decode after server starts
+  scheduledJobId?: string // Scheduled job ID if applicable
 ) => {
   // Initialize variables for process and configuration
   let port = 0;
@@ -559,6 +562,20 @@ const createChat = async (
     port = newPort;
     working_dir = newWorkingDir;
     goosedProcess = newGoosedProcess;
+  }
+
+  // Decode recipe from deeplink if needed
+  if (!recipe && recipeDeeplink) {
+    const decodedRecipe = await decodeRecipeMain(recipeDeeplink, port);
+    if (decodedRecipe) {
+      recipe = decodedRecipe;
+
+      // Handle scheduled job parameters if present
+      if (scheduledJobId) {
+        recipe.scheduledJobId = scheduledJobId;
+        recipe.isScheduledExecution = true;
+      }
+    }
   }
 
   // Load and manage window state

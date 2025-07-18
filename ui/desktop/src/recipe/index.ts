@@ -111,6 +111,7 @@ export async function encodeRecipe(recipe: Recipe): Promise<string> {
 export async function decodeRecipe(deeplink: string): Promise<Recipe> {
   const url = getApiUrl('/recipes/decode');
 
+  console.log('Decoding recipe from deeplink:', deeplink);
   const response = await fetch(url, {
     method: 'POST',
     headers: {
@@ -120,10 +121,18 @@ export async function decodeRecipe(deeplink: string): Promise<Recipe> {
   });
 
   if (!response.ok) {
+    console.error('Failed to decode deeplink:', {
+      status: response.status,
+      statusText: response.statusText,
+    });
     throw new Error(`Failed to decode deeplink: ${response.status} ${response.statusText}`);
   }
 
   const data: DecodeRecipeResponse = await response.json();
+  if (!data.recipe) {
+    console.error('Decoded recipe is null:', data);
+    throw new Error('Decoded recipe is null');
+  }
   return data.recipe;
 }
 
