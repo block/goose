@@ -96,6 +96,7 @@ impl SpanTracker {
 
 #[derive(Clone)]
 pub struct ObservationLayer {
+    pub name: String,
     pub batch_manager: Arc<Mutex<dyn BatchManager>>,
     pub span_tracker: Arc<Mutex<SpanTracker>>,
 }
@@ -118,7 +119,9 @@ impl ObservationLayer {
         };
 
         let trace_id = self.ensure_trace_id().await;
-
+        let mut session_id = self.name.clone();
+        session_id.push_str("-");
+        session_id.push_str(trace_id.clone().as_str());
         // Create the span observation
         let mut batch = self.batch_manager.lock().await;
         batch.add_event(
@@ -126,6 +129,7 @@ impl ObservationLayer {
             json!({
                 "id": observation_id,
                 "traceId": trace_id,
+                "sessionId": session_id,
                 "type": "SPAN",
                 "name": span_data.name,
                 "startTime": span_data.start_time,
@@ -144,6 +148,9 @@ impl ObservationLayer {
 
         if let Some(observation_id) = observation_id {
             let trace_id = self.ensure_trace_id().await;
+            let mut session_id = self.name.clone();
+            session_id.push_str("-");
+            session_id.push_str(trace_id.clone().as_str());
             let mut batch = self.batch_manager.lock().await;
             batch.add_event(
                 "observation-update",
@@ -151,6 +158,7 @@ impl ObservationLayer {
                     "id": observation_id,
                     "type": "SPAN",
                     "traceId": trace_id,
+                    "sessionId": session_id,
                     "endTime": Utc::now().to_rfc3339()
                 }),
             );
@@ -166,11 +174,15 @@ impl ObservationLayer {
         let trace_id = Uuid::new_v4().to_string();
         spans.current_trace_id = Some(trace_id.clone());
 
+        let mut session_id = self.name.clone();
+        session_id.push_str("-");
+        session_id.push_str(trace_id.clone().as_str());
         let mut batch = self.batch_manager.lock().await;
         batch.add_event(
             "trace-create",
             json!({
                 "id": trace_id,
+                "sessionId": session_id,
                 "name": Utc::now().timestamp().to_string(),
                 "timestamp": Utc::now().to_rfc3339(),
                 "input": {},
@@ -192,9 +204,13 @@ impl ObservationLayer {
         if let Some(observation_id) = observation_id {
             let trace_id = self.ensure_trace_id().await;
 
+            let mut session_id = self.name.clone();
+            session_id.push_str("-");
+            session_id.push_str(trace_id.clone().as_str());
             let mut update = json!({
                 "id": observation_id,
                 "traceId": trace_id,
+                "sessionId": session_id,
                 "type": "SPAN"
             });
 
@@ -362,6 +378,7 @@ mod tests {
             let mock_manager = MockBatchManager::new(events.clone());
 
             let layer = ObservationLayer {
+                name: "test".to_string(),
                 batch_manager: Arc::new(Mutex::new(mock_manager)),
                 span_tracker: Arc::new(Mutex::new(SpanTracker::new())),
             };
