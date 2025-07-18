@@ -385,7 +385,8 @@ mod tests {
         // If we found images, verify they exist
         if text.text.contains("Saved image to:") {
             // Extract the file path from the output
-            let file_path = text.text
+            let file_path = text
+                .text
                 .lines()
                 .find(|line| line.contains("Saved image to:"))
                 .and_then(|line| line.split(": ").nth(1))

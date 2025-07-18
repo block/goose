@@ -66,7 +66,7 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                                             audience.contains(&Role::Assistant)
                                         })
                                     })
-                                    .map(|content| content.raw.clone())
+                                    .map(|content| &content.raw.clone())
                                     .collect();
 
                                 let mut tool_content = Vec::new();

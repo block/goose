@@ -28,13 +28,13 @@ use mcp_core::{
     resource::Resource,
     tool::Tool,
 };
-use rmcp::model::Content;
 use mcp_core::{
     prompt::{Prompt, PromptArgument, PromptTemplate},
     tool::ToolAnnotations,
 };
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
+use rmcp::model::Content;
 
 use rmcp::model::Role;
 
@@ -1940,7 +1940,9 @@ mod tests {
             .as_text()
             .unwrap();
 
-        assert!(text.text.contains("has been edited, and the section now reads"));
+        assert!(text
+            .text
+            .contains("has been edited, and the section now reads"));
 
         // View the file to verify the change
         let view_result = router

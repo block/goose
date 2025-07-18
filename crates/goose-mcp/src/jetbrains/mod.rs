@@ -1,7 +1,6 @@
 mod proxy;
 
 use anyhow::Result;
-use rmcp::model::Content;
 use mcp_core::{
     handler::{PromptError, ResourceError, ToolError},
     prompt::Prompt,
@@ -12,6 +11,7 @@ use mcp_core::{
 };
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
+use rmcp::model::Content;
 use serde_json::Value;
 use std::future::Future;
 use std::pin::Pin;

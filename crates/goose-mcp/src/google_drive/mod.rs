@@ -3,7 +3,6 @@ mod oauth_pkce;
 pub mod storage;
 
 use anyhow::{Context, Error};
-use rmcp::model::Content;
 use base64::Engine;
 use chrono::NaiveDate;
 use indoc::indoc;
@@ -12,6 +11,7 @@ use mcp_core::protocol::JsonRpcMessage;
 use mcp_core::tool::ToolAnnotations;
 use oauth_pkce::PkceOAuth2Client;
 use regex::Regex;
+use rmcp::model::Content;
 use serde_json::{json, Value};
 use std::io::Cursor;
 use std::{env, fs, future::Future, path::Path, pin::Pin, sync::Arc};
@@ -1845,7 +1845,12 @@ impl GoogleDriveRouter {
             .map(|contents| {
                 contents
                     .into_iter()
-                    .map(|content| content.as_text().map(|text| text.text.clone()).unwrap_or_default())
+                    .map(|content| {
+                        content
+                            .as_text()
+                            .map(|text| text.text.clone())
+                            .unwrap_or_default()
+                    })
                     .collect::<Vec<_>>()
                     .join("\n")
             })

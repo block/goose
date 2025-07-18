@@ -6,15 +6,15 @@ use crate::providers::utils::{
     sanitize_function_name, ImageFormat,
 };
 use anyhow::{anyhow, Error};
-use std::ops::Deref;
 use async_stream::try_stream;
 use futures::Stream;
 use mcp_core::ToolError;
 use mcp_core::{Tool, ToolCall};
-use rmcp::model::{Content, RawContent, ResourceContents, AnnotateAble};
 use rmcp::model::Role;
+use rmcp::model::{AnnotateAble, Content, RawContent, ResourceContents};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::ops::Deref;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct DeltaToolCallFunction {
@@ -153,12 +153,14 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                                         // Create a separate image message
                                         image_messages.push(json!({
                                             "role": "user",
-                                            "content": [convert_image(&image.clone().no_annotation(), image_format)]
+                                            "content": [convert_image(&image.no_annotation(), image_format)]
                                         }));
                                     }
                                     RawContent::Resource(resource) => {
                                         let text = match &resource.resource {
-                                            ResourceContents::TextResourceContents { text, .. } => text.clone(),
+                                            ResourceContents::TextResourceContents {
+                                                text, ..
+                                            } => text.clone(),
                                             _ => String::new(),
                                         };
                                         tool_content.push(Content::text(text));

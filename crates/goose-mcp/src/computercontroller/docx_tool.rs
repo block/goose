@@ -860,7 +860,10 @@ mod tests {
         );
 
         // Check for new content
-        assert!(text.text.contains("New content"), "Should contain new content");
+        assert!(
+            text.text.contains("New content"),
+            "Should contain new content"
+        );
         assert!(
             text.text.contains("additional paragraph"),
             "Should contain appended paragraph"

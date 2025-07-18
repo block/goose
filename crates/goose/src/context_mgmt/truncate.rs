@@ -142,21 +142,20 @@ fn estimate_message_tokens(message: &Message, estimate_fn: &dyn Fn(&str) -> usiz
             MessageContent::ToolResponse(tool_response) => {
                 if let Ok(ref result) = tool_response.tool_result {
                     for content_item in result {
-                        match content_item.as_text() {
-                            Some(text_content) => {
+                        match &content_item.raw {
+                            RawContent::Text(text_content) => {
                                 total_tokens += estimate_fn(&text_content.text);
                             }
-                            None => {
-                                if let Some(resource_content) = content_item.as_resource() {
-                                    match &resource_content.resource {
-                                        ResourceContents::TextResourceContents { text, .. } => {
-                                            total_tokens += estimate_fn(text);
-                                        }
-                                        _ => total_tokens += 5, // Small overhead for other resource types
+                            RawContent::Resource(resource) => {
+                                match &resource.resource {
+                                    ResourceContents::TextResourceContents { text, .. } => {
+                                        total_tokens += estimate_fn(text);
                                     }
-                                } else {
-                                    total_tokens += 5; // Small overhead for other content types
+                                    _ => total_tokens += 5, // Small overhead for other resource types
                                 }
+                            }
+                            _ => {
+                                total_tokens += 5; // Small overhead for other content types
                             }
                         }
                     }

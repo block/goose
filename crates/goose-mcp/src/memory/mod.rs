@@ -19,9 +19,9 @@ use mcp_core::{
     resource::Resource,
     tool::{Tool, ToolAnnotations, ToolCall},
 };
-use rmcp::model::Content;
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
+use rmcp::model::Content;
 
 // MemoryRouter implementation
 #[derive(Clone)]

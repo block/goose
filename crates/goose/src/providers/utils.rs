@@ -2,10 +2,10 @@ use super::base::Usage;
 use super::errors::GoogleErrorCode;
 use crate::model::ModelConfig;
 use anyhow::Result;
-use rmcp::model::{ImageContent, RawImageContent, AnnotateAble};
 use base64::Engine;
 use regex::Regex;
 use reqwest::{Response, StatusCode};
+use rmcp::model::{AnnotateAble, ImageContent, RawImageContent};
 use serde::{Deserialize, Serialize};
 use serde_json::{from_value, json, Map, Value};
 use std::io::Read;
@@ -295,7 +295,8 @@ pub fn load_image_file(path: &str) -> Result<ImageContent, ProviderError> {
     Ok(RawImageContent {
         mime_type: mime_type.to_string(),
         data,
-    }.no_annotation())
+    }
+    .no_annotation())
 }
 
 pub fn unescape_json_values(value: &Value) -> Value {

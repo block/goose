@@ -1,7 +1,7 @@
 use anyhow::Result;
-use rmcp::model::Content;
 use include_dir::{include_dir, Dir};
 use indoc::formatdoc;
+use rmcp::model::Content;
 use serde_json::{json, Value};
 use std::{future::Future, pin::Pin};
 use tokio::sync::mpsc;

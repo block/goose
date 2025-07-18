@@ -1,6 +1,6 @@
 use anyhow::Result;
-use std::ops::Deref;
 use async_trait::async_trait;
+use std::ops::Deref;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -457,7 +457,7 @@ mod tests {
     use crate::message::MessageContent;
     use crate::providers::base::{ProviderMetadata, ProviderUsage, Usage};
     use chrono::Utc;
-    use rmcp::model::{Role, RawTextContent, AnnotateAble};
+    use rmcp::model::{AnnotateAble, RawTextContent, Role};
 
     #[derive(Clone)]
     struct MockProvider {
@@ -485,9 +485,12 @@ mod tests {
                 Message::new(
                     Role::Assistant,
                     Utc::now().timestamp(),
-                    vec![MessageContent::Text(RawTextContent {
-                        text: format!("Response from {}", self.name),
-                    }.no_annotation())],
+                    vec![MessageContent::Text(
+                        RawTextContent {
+                            text: format!("Response from {}", self.name),
+                        }
+                        .no_annotation(),
+                    )],
                 ),
                 ProviderUsage::new(self.name.clone(), Usage::default()),
             ))
@@ -647,9 +650,12 @@ mod tests {
                     Message::new(
                         Role::Assistant,
                         Utc::now().timestamp(),
-                        vec![MessageContent::Text(RawTextContent {
-                            text: format!("Response from {}", self.name),
-                        }.no_annotation())],
+                        vec![MessageContent::Text(
+                            RawTextContent {
+                                text: format!("Response from {}", self.name),
+                            }
+                            .no_annotation(),
+                        )],
                     ),
                     ProviderUsage::new(self.name.clone(), Usage::default()),
                 ))

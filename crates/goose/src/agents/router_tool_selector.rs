@@ -289,9 +289,7 @@ impl RouterToolSelector for LLMToolSelector {
             let tool_entries: Vec<Content> = text
                 .split("\n\n")
                 .filter(|entry| entry.trim().starts_with("Tool:"))
-                .map(|entry| {
-                    Content::text(entry.trim().to_string())
-                })
+                .map(|entry| Content::text(entry.trim().to_string()))
                 .collect();
 
             Ok(tool_entries)

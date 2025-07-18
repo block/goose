@@ -274,7 +274,9 @@ impl From<Content> for MessageContent {
                 };
                 MessageContent::text(text)
             }
-            RawContent::Audio(_) => todo!(),
+            RawContent::Audio(_) => {
+                MessageContent::text("[Audio content: not supported]".to_string())
+            }
         }
     }
 }
