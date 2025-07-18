@@ -10,9 +10,7 @@ description.workspace = true
 [lints]
 workspace = true
 
-[[bin]]
-name = "goose"
-path = "src/main.rs"
+
 
 [dependencies]
 goose = { path = "../goose" }
@@ -47,6 +45,8 @@ reqwest = { version = "0.12.9", features = [
         "http2",
         "stream"
     ], default-features = false }
+walkdir = "2.5"
+ignore = "0.4"
 rand = "0.8.5"
 rustyline = "15.0.0"
 tracing = "0.1"
@@ -62,6 +62,7 @@ minijinja = { version = "2.10.2", features = ["loader"] }
 nix = { version = "0.30.1", features = ["process", "signal"] }
 tar = "0.4"
 dirs = "5.0"
+
 # Web server dependencies
 axum = { version = "0.8.1", features = ["ws", "macros"] }
 tower-http = { version = "0.5", features = ["cors", "fs"] }
@@ -70,15 +71,31 @@ bytes = "1.5"
 http = "1.0"
 webbrowser = "1.0"
 
+# Tree-sitter language grammars (runtime dependencies)
+tree-sitter = "0.20.10"
+tree-sitter-c-sharp = "0.20.0"
+tree-sitter-cpp = "0.20.0"
+tree-sitter-go = "0.20.0"
+tree-sitter-java = "0.20.0"
+tree-sitter-javascript = "0.20.0"
+tree-sitter-python = "0.20.0"
+tree-sitter-rust = "0.20.0"
+tree-sitter-swift = "0.2.0"
+tree-sitter-typescript = "0.20.0"
+# Add more language grammars as needed
+
 indicatif = "0.17.11"
 urlencoding = "2"
-
-[target.'cfg(target_os = "windows")'.dependencies]
-winapi = { version = "0.3", features = ["wincred"] }
-
 
 [dev-dependencies]
 tempfile = "3"
 temp-env = { version = "0.3.6", features = ["async_closure"] }
 test-case = "3.3"
 tokio = { version = "1.43", features = ["rt", "macros"] }
+
+[[bin]]
+name = "goose"
+path = "src/main.rs"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+winapi = { version = "0.3", features = ["wincred"] }

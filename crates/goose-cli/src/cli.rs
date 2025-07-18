@@ -29,10 +29,12 @@ use goose_bench::runners::model_runner::ModelRunner;
 use std::io::Read;
 use std::path::PathBuf;
 
+use crate::commands::repo;
+
 #[derive(Parser)]
 #[command(author, version, display_name = "", about, long_about = None)]
 struct Cli {
-    #[command(subcommand)]
+    #[clap(subcommand)]
     command: Option<Command>,
 }
 
@@ -270,6 +272,30 @@ enum RecipeCommand {
 }
 
 #[derive(Subcommand)]
+enum RepoCommand {
+    #[command(about = "Index the repository and generate/update the repo map using Tree-sitter")]
+    Index {
+        /// Path to the root of the repository to index (default: current directory)
+        #[arg(
+            long,
+            value_name = "PATH",
+            help = "Path to the root of the repository to index",
+            default_value = "."
+        )]
+        path: String,
+
+        /// Output file name (default: .goose-repo-index.jsonl)
+        #[arg(
+            long,
+            value_name = "FILE",
+            help = "Output file name",
+            default_value = ".goose-repo-index.jsonl"
+        )]
+        output: String,
+    },
+}
+
+#[derive(Subcommand)]
 enum Command {
     /// Configure Goose settings
     #[command(about = "Configure Goose settings")]
@@ -390,6 +416,13 @@ enum Command {
     /// List recent project directories
     #[command(about = "List recent project directories", visible_alias = "ps")]
     Projects,
+
+    /// Repository indexing and analysis
+    #[command(about = "Repository indexing and analysis tools")]
+    Repo {
+        #[command(subcommand)]
+        command: Option<RepoCommand>,
+    },
 
     /// Execute commands from an instruction file
     #[command(about = "Execute commands from an instruction file or stdin")]
@@ -1067,6 +1100,16 @@ pub async fn cli() -> Result<()> {
                 Ok(())
             };
         }
+        Some(Command::Repo { command }) => match command {
+            Some(RepoCommand::Index { path, output }) => {
+                repo::index_repository_with_args(&path, &output)?;
+                return Ok(());
+            }
+            None => {
+                eprintln!("No repo subcommand specified");
+                return Ok(());
+            }
+        },
     }
     Ok(())
 }
