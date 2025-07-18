@@ -5,6 +5,7 @@ description: Learn how to use Goose's built-in Tutorial extension for guided lea
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
 
 The Tutorial extension is a built-in feature of Goose that provides interactive, step-by-step guidance for learning various aspects of Goose and its capabilities. It's designed to help users get comfortable with Goose's features through hands-on practice.
 
@@ -19,9 +20,9 @@ The Tutorial extension serves as an interactive learning tool that:
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  1. Click `...` in the upper right corner
-  2. Click `Advanced Settings`
-  3. Under `Extensions`, toggle `Tutorial` to on.
+  <GooseBuiltinInstaller
+    extensionName="Tutorial"
+  />
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
 
