@@ -105,12 +105,22 @@ export function UIResourceRenderer({
 
   try {
     return (
-      <div className={`ui-resource-renderer ${className}`}>
+      <div className={`ui-resource-renderer h-full w-full ${className}`}>
         <McpUIResourceRenderer
           resource={resource}
           onUIAction={handleUIAction}
           supportedContentTypes={supportedContentTypes}
-          htmlProps={htmlProps}
+          htmlProps={{
+            style: {
+              height: '100%',
+              width: '100%',
+              minHeight: '400px',
+              border: 'none',
+              borderRadius: '0.5rem',
+              ...htmlProps?.style,
+            },
+            ...htmlProps,
+          }}
           remoteDomProps={remoteDomProps}
         />
       </div>
