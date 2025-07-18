@@ -18,12 +18,25 @@ export interface ImageContent {
   annotations?: Record<string, unknown>;
 }
 
+// Resource contents - matches ResourceContents enum from backend
+export interface TextResourceContents {
+  uri: string;
+  mime_type?: string;
+  text: string;
+}
+
+export interface BlobResourceContents {
+  uri: string;
+  mime_type?: string;
+  blob: string;
+}
+
+export type ResourceContents = TextResourceContents | BlobResourceContents;
+
+// EmbeddedResource - matches backend structure exactly
 export interface ResourceContent {
   type: 'resource';
-  uri?: string;
-  mimeType?: string;
-  text?: string;
-  name?: string;
+  resource: ResourceContents;
   annotations?: Record<string, unknown>;
 }
 
