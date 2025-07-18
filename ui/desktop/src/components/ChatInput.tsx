@@ -1179,7 +1179,7 @@ export default function ChatInput({
         )}
 
         {/* Secondary actions and controls row below input */}
-        <div className="flex flex-row items-center gap-1 p-2 relative">
+        <div className="flex flex-wrap flex-row items-center gap-x-1 gap-y-2 p-2 relative">
           {/* Directory path */}
           <DirSwitcher hasMessages={messages.length > 0} className="mr-0" />
           <div className="w-px h-4 bg-border-default mx-2" />

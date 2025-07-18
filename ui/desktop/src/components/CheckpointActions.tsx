@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ResourceContent } from '../types/message';
+import { useSidecar } from './SidecarLayout';
 
 interface CheckpointActionsProps {
   checkpointContent: ResourceContent;
@@ -7,6 +8,7 @@ interface CheckpointActionsProps {
 
 export default function CheckpointActions({ checkpointContent }: CheckpointActionsProps) {
   const [showDiff, setShowDiff] = useState(false);
+  const sidecar = useSidecar();
 
   // Parse the checkpoint payload
   let checkpointData: {
@@ -23,7 +25,21 @@ export default function CheckpointActions({ checkpointContent }: CheckpointActio
   }
 
   const handleViewDiff = () => {
-    setShowDiff(!showDiff);
+    if (sidecar && checkpointData.diff) {
+      // Check if diff viewer is already active
+      if (sidecar.activeView === 'diff') {
+        // If diff viewer is open, close it
+        sidecar.hideDiffViewer();
+        setShowDiff(false);
+      } else {
+        // Show diff in sidecar
+        sidecar.showDiffViewer(checkpointData.diff, checkpointData.file || 'File');
+        setShowDiff(true);
+      }
+    } else {
+      // Fallback to inline diff display
+      setShowDiff(!showDiff);
+    }
   };
 
   const handleRestore = async () => {
@@ -62,7 +78,7 @@ export default function CheckpointActions({ checkpointContent }: CheckpointActio
           onClick={handleViewDiff}
           className="text-xs px-2 py-1 bg-bgStandard hover:bg-bgSubtle border border-borderSubtle rounded transition-colors"
         >
-          {showDiff ? 'Hide Diff' : 'View Diff'}
+          {sidecar && sidecar.activeView === 'diff' ? 'Hide Diff' : 'View Diff'}
         </button>
         {checkpointData.checkpoint && (
           <button

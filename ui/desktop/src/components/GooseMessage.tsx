@@ -252,24 +252,30 @@ export default function GooseMessage({
             <TooltipTrigger asChild>
               <button
                 onClick={() => {
-                  // Find the first tool request with diff content and show its diff
-                  const toolRequestWithDiff = toolRequests.find((toolRequest) =>
-                    hasDiffContent(toolResponsesMap.get(toolRequest.id))
-                  );
-                  if (toolRequestWithDiff) {
-                    const diffContent = extractDiffContent(
-                      toolResponsesMap.get(toolRequestWithDiff.id)
+                  // Check if diff viewer is already active
+                  if (sidecar.activeView === 'diff') {
+                    // If diff viewer is open, close it
+                    sidecar.hideDiffViewer();
+                  } else {
+                    // Find the first tool request with diff content and show its diff
+                    const toolRequestWithDiff = toolRequests.find((toolRequest) =>
+                      hasDiffContent(toolResponsesMap.get(toolRequest.id))
                     );
-                    if (diffContent) {
-                      // Extract filename from tool arguments if available
-                      const toolCall =
-                        toolRequestWithDiff.toolCall.status === 'success'
-                          ? toolRequestWithDiff.toolCall.value
-                          : null;
-                      const args = toolCall?.arguments as Record<string, never>;
-                      const fileName = args?.path ? String(args.path) : 'File';
+                    if (toolRequestWithDiff) {
+                      const diffContent = extractDiffContent(
+                        toolResponsesMap.get(toolRequestWithDiff.id)
+                      );
+                      if (diffContent) {
+                        // Extract filename from tool arguments if available
+                        const toolCall =
+                          toolRequestWithDiff.toolCall.status === 'success'
+                            ? toolRequestWithDiff.toolCall.value
+                            : null;
+                        const args = toolCall?.arguments as Record<string, never>;
+                        const fileName = args?.path ? String(args.path) : 'File';
 
-                      sidecar.showDiffViewer(diffContent, fileName);
+                        sidecar.showDiffViewer(diffContent, fileName);
+                      }
                     }
                   }
                 }}
@@ -278,7 +284,9 @@ export default function GooseMessage({
                 <FileDiff size={16} />
               </button>
             </TooltipTrigger>
-            <TooltipContent side="top">View diff</TooltipContent>
+            <TooltipContent side="top">
+              {sidecar.activeView === 'diff' ? 'Hide diff' : 'View diff'}
+            </TooltipContent>
           </Tooltip>
         </div>
       )}
