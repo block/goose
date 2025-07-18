@@ -27,7 +27,7 @@ Goose supports two types of hint files:
 You can use both global and local hints at the same time. When both exist, Goose will consider both your global preferences and project-specific requirements. If the instructions in your local hints file conflict with your global preferences, Goose will prioritize the local hints.
 :::
 
-<Tabs>
+<Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
 
     #### Global hints file

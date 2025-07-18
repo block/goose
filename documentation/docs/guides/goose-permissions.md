@@ -45,8 +45,9 @@ Here's how to configure:
 
     You can change modes before or during a session and it will take effect immediately.
 
-     <Tabs>
+     <Tabs groupId="method">
       <TabItem value="session" label="In Session" default>
+
       Click the Goose Mode option from the bottom menu. 
       </TabItem>
       <TabItem value="settings" label="From Settings">
@@ -59,7 +60,7 @@ Here's how to configure:
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
 
-    <Tabs>
+    <Tabs groupId="method">
       <TabItem value="session" label="In Session" default>
         To change modes mid-session, use the `/mode` command.
 
