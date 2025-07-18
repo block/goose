@@ -180,7 +180,6 @@ impl Agent {
         let mut retry_attempts = self.retry_attempts.lock().await;
         *retry_attempts = 0;
 
-        // Also reset the tool monitor when resetting retry attempts
         if let Some(monitor) = self.tool_monitor.lock().await.as_mut() {
             monitor.reset();
         }
@@ -762,10 +761,9 @@ impl Agent {
         session: Option<SessionConfig>,
     ) -> anyhow::Result<BoxStream<'_, anyhow::Result<AgentEvent>>> {
         let mut messages = messages.to_vec();
-        let initial_messages = messages.clone(); // Preserve initial state for retry
+        let initial_messages = messages.clone();
         let reply_span = tracing::Span::current();
 
-        // Reset retry attempts at the start of each reply session
         self.reset_retry_attempts().await;
 
         // Load settings from config
@@ -1127,12 +1125,11 @@ impl Agent {
                         }
                     }
 
-                    // Execute retry logic if configured
                     match self.handle_retry_logic(&mut messages, &session, &initial_messages).await {
                         Ok(should_retry) => {
                             if should_retry {
                                 info!("Retry logic triggered, restarting agent loop");
-                                continue; // Restart the main loop
+                                continue;
                             }
                         }
                         Err(e) => {

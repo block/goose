@@ -39,7 +39,6 @@ fn default_version() -> String {
 /// * `parameters` - Additional parameters for the Recipe
 /// * `response` - Response configuration including JSON schema validation
 /// * `retry` - Retry configuration for automated validation and recovery
-///
 /// # Example
 ///
 ///
@@ -114,7 +113,7 @@ pub struct Recipe {
     pub sub_recipes: Option<Vec<SubRecipe>>, // sub-recipes for the recipe
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub retry: Option<RetryConfig>, // retry configuration for automated validation and recovery
+    pub retry: Option<RetryConfig>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
@@ -301,7 +300,6 @@ impl Recipe {
                 ));
             };
 
-        // Validate retry configuration if present
         if let Some(ref retry_config) = recipe.retry {
             if let Err(validation_error) = retry_config.validate() {
                 return Err(anyhow::anyhow!(

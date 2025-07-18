@@ -26,11 +26,9 @@ pub struct RetryConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub on_failure: Option<String>,
     /// Timeout in seconds for individual shell commands (default: 300 seconds)
-    /// Can also be configured globally via GOOSE_RECIPE_RETRY_TIMEOUT_SECONDS environment variable
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timeout_seconds: Option<u64>,
     /// Timeout in seconds for cleanup commands (default: 600 seconds)
-    /// Can also be configured globally via GOOSE_RECIPE_CLEANUP_TIMEOUT_SECONDS environment variable
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cleanup_timeout_seconds: Option<u64>,
 }
