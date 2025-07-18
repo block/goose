@@ -9,7 +9,8 @@ use anyhow::{anyhow, Error};
 use async_stream::try_stream;
 use futures::Stream;
 use mcp_core::ToolError;
-use mcp_core::{Content, Role, Tool, ToolCall};
+use mcp_core::{Content, Tool, ToolCall};
+use rmcp::model::Role;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 

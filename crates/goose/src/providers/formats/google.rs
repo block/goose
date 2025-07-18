@@ -5,9 +5,9 @@ use crate::providers::errors::ProviderError;
 use crate::providers::utils::{is_valid_function_name, sanitize_function_name};
 use anyhow::Result;
 use mcp_core::content::Content;
-use mcp_core::role::Role;
 use mcp_core::tool::{Tool, ToolCall};
 use rand::{distributions::Alphanumeric, Rng};
+use rmcp::model::Role;
 use serde_json::{json, Map, Value};
 
 /// Convert internal Message format to Google's API message specification

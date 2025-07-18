@@ -1219,7 +1219,7 @@ async fn run_scheduled_job_internal(
 
                     match message_result {
                         Ok(AgentEvent::Message(msg)) => {
-                            if msg.role == mcp_core::role::Role::Assistant {
+                            if msg.role == rmcp::model::Role::Assistant {
                                 tracing::info!("[Job {}] Assistant: {:?}", job.id, msg.content);
                             }
                             all_session_messages.push(msg);
@@ -1331,7 +1331,8 @@ mod tests {
         providers::base::{ProviderMetadata, ProviderUsage, Usage},
         providers::errors::ProviderError,
     };
-    use mcp_core::{content::TextContent, tool::Tool, Role};
+    use mcp_core::{content::TextContent, tool::Tool};
+    use rmcp::model::Role;
     // Removed: use crate::session::storage::{get_most_recent_session, read_metadata};
     // `read_metadata` is still used by the test itself, so keep it or its module.
     use crate::session::storage::read_metadata;

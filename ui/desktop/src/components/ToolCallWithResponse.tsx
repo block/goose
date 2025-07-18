@@ -2,7 +2,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Button } from './ui/button';
 import { ToolCallArguments, ToolCallArgumentValue } from './ToolCallArguments';
 import MarkdownContent from './MarkdownContent';
-import { Content, ToolRequestMessageContent, ToolResponseMessageContent } from '../types/message';
+import {
+  Content,
+  ToolRequestMessageContent,
+  ToolResponseMessageContent,
+  ResourceContent,
+  getResourceText,
+} from '../types/message';
 import { cn, snakeToTitleCase } from '../utils';
 import Dot, { LoadingStatus } from './ui/Dot';
 import { NotificationEvent } from '../hooks/useMessageStream';
@@ -10,6 +16,15 @@ import { ChevronRight, LoaderCircle, Monitor, ExternalLink } from 'lucide-react'
 import { isUIResource, extractUIResource, Resource } from './UIResourceRenderer';
 import { useSidecar } from './SidecarLayout';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
+
+// Extend the Window interface to include our custom property
+declare global {
+  interface Window {
+    pendingDiffContent?: string;
+  }
+}
+
+// Helper functions for diff content detection are defined at the end of the file
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
@@ -171,6 +186,15 @@ function ToolCallView({
         return true;
     }
   })();
+
+  //extract resource content if present
+  const result = toolResponse?.toolResult.value || [];
+  const resourceContents = result.filter((item) => item.type === 'resource') as ResourceContent[];
+  const checkpoint = resourceContents.find((item) => item.resource.uri === 'goose://checkpoint');
+  const diffContent = JSON.parse(checkpoint ? getResourceText(checkpoint.resource) || '{}' : '{}').diff;
+  console.log(resourceContents);
+  console.log(checkpoint);
+  console.log(diffContent);
 
   const isToolDetails = Object.entries(toolCall?.arguments).length > 0;
 
@@ -912,9 +936,9 @@ function ToolResultView({ result, isStartExpanded, toolCall }: ToolResultViewPro
             <p className="text-sm text-gray-600 mb-2">
               <strong>Resource:</strong> {result.resource.uri}
             </p>
-            {'text' in result.resource && result.resource.text && (
+            {getResourceText(result.resource) && (
               <pre className="text-xs bg-white p-2 rounded border max-h-40 overflow-auto">
-                {result.resource.text}
+                {getResourceText(result.resource)}
               </pre>
             )}
           </div>

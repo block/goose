@@ -4,8 +4,8 @@ use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
 use anyhow::{anyhow, Result};
 use mcp_core::content::Content;
-use mcp_core::role::Role;
 use mcp_core::tool::{Tool, ToolCall};
+use rmcp::model::Role;
 use serde_json::{json, Value};
 use std::collections::HashSet;
 
@@ -542,7 +542,7 @@ where
 
                                 // Yield partial text message
                                 let message = Message::new(
-                                    mcp_core::role::Role::Assistant,
+                                    Role::Assistant,
                                     chrono::Utc::now().timestamp(),
                                     vec![MessageContent::text(text)],
                                 );
@@ -577,7 +577,7 @@ where
                                             format!("Could not parse tool arguments: {}", args)
                                         );
                                         let message = Message::new(
-                                            mcp_core::role::Role::Assistant,
+                                            Role::Assistant,
                                             chrono::Utc::now().timestamp(),
                                             vec![MessageContent::tool_request(tool_id, Err(error))],
                                         );
@@ -589,7 +589,7 @@ where
 
                             let tool_call = ToolCall::new(&name, parsed_args);
                             let message = Message::new(
-                                mcp_core::role::Role::Assistant,
+                                rmcp::model::Role::Assistant,
                                 chrono::Utc::now().timestamp(),
                                 vec![MessageContent::tool_request(tool_id, Ok(tool_call))],
                             );
