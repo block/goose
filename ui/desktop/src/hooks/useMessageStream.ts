@@ -295,8 +295,15 @@ export function useMessageStream({
                     ) {
                       // If the last message has the same ID, update it instead of adding a new one
                       const lastMessage = currentMessages[currentMessages.length - 1];
-                      lastMessage.content = [...lastMessage.content, ...newMessage.content];
-                      forceUpdate();
+
+                      // CRITICAL: Don't merge if roles are different - tool responses should be separate messages
+                      if (lastMessage.role !== newMessage.role) {
+                        currentMessages = [...currentMessages, newMessage];
+                      } else {
+                        // Safe to merge - same role
+                        lastMessage.content = [...lastMessage.content, ...newMessage.content];
+                        forceUpdate();
+                      }
                     } else {
                       currentMessages = [...currentMessages, newMessage];
                     }
@@ -454,6 +461,8 @@ export function useMessageStream({
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            Accept:
+              'application/json, text/html, text/uri-list, application/vnd.mcp-ui.remote-dom+javascript',
             'X-Secret-Key': getSecretKey(),
             ...extraMetadataRef.current.headers,
           },

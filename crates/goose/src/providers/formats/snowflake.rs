@@ -41,6 +41,32 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                             .iter()
                             .filter_map(|c| match c {
                                 Content::Text(t) => Some(t.text.clone()),
+                                Content::Resource(r) => {
+                                    // Check if this is a UI resource that should be preserved
+                                    let is_ui_resource = match &r.resource {
+                                        mcp_core::resource::ResourceContents::TextResourceContents { uri, mime_type, .. } => {
+                                            uri.starts_with("ui://") || 
+                                            mime_type.as_ref().map_or(false, |mt| 
+                                                mt.starts_with("application/vnd.mcp-ui.") ||
+                                                mt == "text/html" || 
+                                                mt == "text/uri-list"
+                                            )
+                                        }
+                                        _ => false,
+                                    };
+
+                                    if is_ui_resource {
+                                        // For Snowflake, indicate that UI resource exists but can't be displayed in text mode
+                                        let uri = match &r.resource {
+                                            mcp_core::resource::ResourceContents::TextResourceContents { uri, .. } => uri,
+                                            mcp_core::resource::ResourceContents::BlobResourceContents { uri, .. } => uri,
+                                        };
+                                        Some(format!("[Interactive UI Component: {}]", uri))
+                                    } else {
+                                        // Flatten non-UI resources to text for Snowflake compatibility
+                                        Some(r.get_text())
+                                    }
+                                }
                                 _ => None,
                             })
                             .collect::<Vec<_>>()

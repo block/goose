@@ -7,11 +7,14 @@ import {
   ToolRequestMessageContent,
   ToolResponseMessageContent,
   ResourceContent,
+  getResourceText,
 } from '../types/message';
 import { cn, snakeToTitleCase } from '../utils';
 import Dot, { LoadingStatus } from './ui/Dot';
 import { NotificationEvent } from '../hooks/useMessageStream';
-import { ChevronRight, LoaderCircle } from 'lucide-react';
+import { ChevronRight, LoaderCircle, Monitor, ExternalLink } from 'lucide-react';
+import { isUIResource, extractUIResource, Resource } from './UIResourceRenderer';
+import { useSidecar } from './SidecarLayout';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
 
 // Extend the Window interface to include our custom property
@@ -21,22 +24,7 @@ declare global {
   }
 }
 
-// Helper function to extract diff content from tool response
-export function extractDiffContent(toolResponse?: ToolResponseMessageContent): string | null {
-  if (!toolResponse) return null;
-
-  const result = toolResponse.toolResult.value || [];
-  const resourceContents = result.filter((item) => item.type === 'resource') as ResourceContent[];
-  const checkpoint = resourceContents.find((item) => item.resource.uri === 'goose://checkpoint');
-  const diffContent = JSON.parse(checkpoint?.resource.text || '{}').diff;
-
-  return diffContent !== undefined ? diffContent : null;
-}
-
-// Helper function to check if tool response has diff content
-export function hasDiffContent(toolResponse?: ToolResponseMessageContent): boolean {
-  return extractDiffContent(toolResponse) !== null;
-}
+// Helper functions for diff content detection are defined at the end of the file
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
@@ -203,7 +191,7 @@ function ToolCallView({
   const result = toolResponse?.toolResult.value || [];
   const resourceContents = result.filter((item) => item.type === 'resource') as ResourceContent[];
   const checkpoint = resourceContents.find((item) => item.resource.uri === 'goose://checkpoint');
-  const diffContent = JSON.parse(checkpoint?.resource.text || '{}').diff;
+  const diffContent = JSON.parse(checkpoint ? getResourceText(checkpoint.resource) || '{}' : '{}').diff;
   console.log(resourceContents);
   console.log(checkpoint);
   console.log(diffContent);
@@ -233,12 +221,36 @@ function ToolCallView({
 
   const toolResults: { result: Content; isExpandToolResults: boolean }[] =
     loadingStatus === 'success' && Array.isArray(toolResponse?.toolResult.value)
-      ? toolResponse!.toolResult.value
-          .filter((item) => {
+      ? (() => {
+          console.log('🔍 DEBUGGING: Tool response processing');
+          console.log('loadingStatus:', loadingStatus);
+          console.log('toolResponse?.toolResult.value:', toolResponse?.toolResult.value);
+
+          const rawResults = toolResponse!.toolResult.value;
+          console.log('Raw tool results:', rawResults);
+
+          const hasUIResources = rawResults.some((item) => {
+            const isUI = item.type === 'resource' && isUIResource(item);
+            console.log(`Item type: ${item.type}, isUIResource: ${isUI}`, item);
+            return isUI;
+          });
+
+          if (hasUIResources) {
+            console.log('✅ Tool result contains UI resources');
+          } else {
+            console.log('❌ No UI resources found in tool results');
+          }
+
+          const filteredResults = rawResults.filter((item) => {
             const audience = item.annotations?.audience as string[] | undefined;
-            return !audience || audience.includes('user');
-          })
-          .map((item) => {
+            const shouldInclude = !audience || audience.includes('user');
+            console.log(`Audience filter: ${audience} -> include: ${shouldInclude}`, item);
+            return shouldInclude;
+          });
+
+          console.log('Filtered results:', filteredResults);
+
+          const mappedResults = filteredResults.map((item) => {
             // Use user preference for detailed/concise, but still respect high priority items
             const priority = (item.annotations?.priority as number | undefined) ?? -1;
             const isHighPriority = priority >= 0.5;
@@ -248,7 +260,11 @@ function ToolCallView({
               result: item,
               isExpandToolResults: isHighPriority || shouldExpandBasedOnStyle,
             };
-          })
+          });
+
+          console.log('Final mapped results:', mappedResults);
+          return mappedResults;
+        })()
       : [];
 
   const logs = notifications
@@ -514,7 +530,11 @@ function ToolCallView({
           {toolResults.map(({ result, isExpandToolResults }, index) => {
             return (
               <div key={index} className={cn('border-t border-borderSubtle')}>
-                <ToolResultView result={result} isStartExpanded={isExpandToolResults} />
+                <ToolResultView
+                  result={result}
+                  isStartExpanded={isExpandToolResults}
+                  toolCall={toolCall}
+                />
               </div>
             );
           })}
@@ -550,21 +570,356 @@ function ToolDetailsView({ toolCall, isStartExpanded }: ToolDetailsViewProps) {
 interface ToolResultViewProps {
   result: Content;
   isStartExpanded: boolean;
+  toolCall: { name?: string } | null; // Tool call object for generating fallback UI
 }
 
-function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
+function ToolResultView({ result, isStartExpanded, toolCall }: ToolResultViewProps) {
+  const sidecar = useSidecar();
+  const hasShownInSidecar = useRef(false);
+
+  // Helper function to show UI resource in sidecar only once
+  const showInSidecarOnce = (resource: Resource, title: string) => {
+    if (sidecar && !hasShownInSidecar.current) {
+      sidecar.showUIResource(resource, title);
+      hasShownInSidecar.current = true;
+      return true;
+    }
+    return false;
+  };
+
+  // Handle UI resources by showing them in the sidecar
+  if (result.type === 'resource' && isUIResource(result)) {
+    console.log('✅ Processing UI resource in ToolResultView - moving to sidecar');
+    const uiResource = extractUIResource(result);
+    if (uiResource) {
+      const title = uiResource.name || 'Interactive Component';
+      if (showInSidecarOnce(uiResource, title)) {
+        // Return a placeholder in the chat that indicates the UI has been moved to sidecar
+        return (
+          <ToolCallExpandable
+            label={<span className="pl-4 py-1 font-medium">Interactive Output</span>}
+            isStartExpanded={isStartExpanded}
+          >
+            <div className="pl-4 pr-4 py-4">
+              <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center space-x-3">
+                  <Monitor className="text-blue-600" size={20} />
+                  <div>
+                    <p className="font-medium text-blue-900">Interactive UI Component</p>
+                    <p className="text-sm text-blue-600">
+                      {uiResource.name || 'Opened in side panel'}
+                    </p>
+                  </div>
+                </div>
+                <ExternalLink className="text-blue-500" size={16} />
+              </div>
+            </div>
+          </ToolCallExpandable>
+        );
+      }
+    }
+  }
+
   return (
     <ToolCallExpandable
       label={<span className="pl-4 py-1 font-medium">Output</span>}
       isStartExpanded={isStartExpanded}
     >
       <div className="pl-4 pr-4 py-4">
-        {result.type === 'text' && result.text && (
-          <MarkdownContent
-            content={result.text}
-            className="whitespace-pre-wrap max-w-full overflow-x-auto"
-          />
-        )}
+        {result.type === 'text' &&
+          (() => {
+            const textContent = result as { type: 'text'; text: string };
+            if (!textContent.text) return null;
+
+            // Only trigger fallback for STRONG evidence that UI content was flattened to text
+
+            // Technical patterns that indicate a UI resource was converted to text
+            const hasTechnicalUIIndicator =
+              textContent.text.includes('[Interactive UI Component:') ||
+              textContent.text.includes('ui://') ||
+              textContent.text.includes('application/vnd.mcp-ui.') ||
+              textContent.text.includes('Remote DOM') ||
+              textContent.text.includes('mimeType') ||
+              // Pattern: JSON-like structure with UI fields
+              (textContent.text.includes('"uri"') && textContent.text.includes('"mimeType"')) ||
+              // Pattern: Resource object that got stringified
+              (textContent.text.includes('{"name"') && textContent.text.includes('text/html')) ||
+              // Pattern: MCP resource object structure
+              (textContent.text.includes('{"resource"') && textContent.text.includes('ui://'));
+
+            // Semantic patterns that indicate product or recommendation content
+            const hasSemanticUIIndicator =
+              // Product-related patterns
+              ((textContent.text.includes('product') ||
+                textContent.text.includes('catalog') ||
+                textContent.text.includes('recommendation') ||
+                textContent.text.includes('item')) &&
+                // AND technical indicators
+                (textContent.text.includes('USD') ||
+                  textContent.text.includes('$') ||
+                  textContent.text.includes('price') ||
+                  textContent.text.includes('category') ||
+                  textContent.text.includes('description'))) ||
+              // List/array patterns with multiple items
+              (textContent.text.includes('[') &&
+                textContent.text.includes(']') &&
+                textContent.text.split('\n').length > 5);
+
+            // Obvious UI content patterns
+            const hasObviousUIContent =
+              textContent.text.includes('document.createElement') ||
+              textContent.text.includes('<div') ||
+              textContent.text.includes('<html') ||
+              textContent.text.includes('innerHTML') ||
+              textContent.text.includes('onclick') ||
+              textContent.text.includes('JavaScript');
+
+            // Combined UI indicator
+            const hasUIIndicator =
+              hasTechnicalUIIndicator || hasSemanticUIIndicator || hasObviousUIContent;
+
+            const toolName = toolCall?.name || 'unknown';
+            const isProductTool =
+              toolName.toLowerCase().includes('product') ||
+              toolName.toLowerCase().includes('catalog') ||
+              toolName.toLowerCase().includes('list');
+
+            if (hasUIIndicator) {
+              console.log('🎯 Detected potential UI content in text response:', {
+                technical: hasTechnicalUIIndicator,
+                semantic: hasSemanticUIIndicator,
+                obvious: hasObviousUIContent,
+                toolName,
+                textLength: textContent.text.length,
+              });
+
+              // Try to parse the text content as JSON first to see if it's a structured UI resource
+              try {
+                const parsed = JSON.parse(textContent.text);
+                if (parsed && typeof parsed === 'object') {
+                  // Check if it's already a properly structured UI resource
+                  if (parsed.uri && parsed.uri.startsWith('ui://') && parsed.mimeType) {
+                    console.log('✅ Found structured UI resource in JSON - moving to sidecar!');
+
+                    const title = parsed.name || 'Interactive Content';
+                    if (showInSidecarOnce(parsed, title)) {
+                      return (
+                        <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg mt-2">
+                          <div className="flex items-center space-x-3">
+                            <Monitor className="text-blue-600" size={20} />
+                            <div>
+                              <p className="font-medium text-blue-900">Interactive UI Component</p>
+                              <p className="text-sm text-blue-600">
+                                {parsed.name || 'Opened in side panel'}
+                              </p>
+                            </div>
+                          </div>
+                          <ExternalLink className="text-blue-500" size={16} />
+                        </div>
+                      );
+                    }
+                  }
+
+                  // Check if it contains UI resource information that needs to be restructured
+                  if (
+                    parsed.text &&
+                    (parsed.text.includes('ui://') ||
+                      parsed.text.includes('document.createElement'))
+                  ) {
+                    const uiResource = {
+                      uri: `ui://mcp-server/extracted-content/${Date.now()}`,
+                      mimeType: parsed.text.includes('document.createElement')
+                        ? 'application/vnd.mcp-ui.remote-dom+javascript'
+                        : 'text/html',
+                      name: parsed.name || 'Interactive Content',
+                      text: parsed.text,
+                    };
+
+                    console.log('✅ Extracted UI resource from parsed JSON - moving to sidecar!');
+
+                    const title = uiResource.name || 'Interactive Content';
+                    if (showInSidecarOnce(uiResource, title)) {
+                      return (
+                        <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg mt-2">
+                          <div className="flex items-center space-x-3">
+                            <Monitor className="text-blue-600" size={20} />
+                            <div>
+                              <p className="font-medium text-blue-900">Interactive UI Component</p>
+                              <p className="text-sm text-blue-600">
+                                {uiResource.name || 'Opened in side panel'}
+                              </p>
+                            </div>
+                          </div>
+                          <ExternalLink className="text-blue-500" size={16} />
+                        </div>
+                      );
+                    }
+                  }
+                }
+              } catch (e) {
+                // Not valid JSON, continue with other detection methods
+                console.log('Content is not valid JSON, trying other detection methods');
+              }
+
+              // Try to extract UI resource information from the text using regex patterns
+              const uriMatch = textContent.text.match(/ui:\/\/[^\s\]"'\n]+/);
+              if (uriMatch) {
+                const mockResource = {
+                  uri: uriMatch[0],
+                  mimeType: 'text/html',
+                  name: 'MCP UI Resource',
+                  text: textContent.text,
+                };
+
+                console.log('✅ Rendering UI from extracted URI - moving to sidecar!');
+
+                const title = 'MCP UI Resource';
+                if (showInSidecarOnce(mockResource, title)) {
+                  return (
+                    <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg mt-2">
+                      <div className="flex items-center space-x-3">
+                        <Monitor className="text-blue-600" size={20} />
+                        <div>
+                          <p className="font-medium text-blue-900">Interactive UI Component</p>
+                          <p className="text-sm text-blue-600">
+                            {mockResource.name || 'Opened in side panel'}
+                          </p>
+                        </div>
+                      </div>
+                      <ExternalLink className="text-blue-500" size={16} />
+                    </div>
+                  );
+                }
+              }
+
+              // Check if it's JavaScript content that should be executed
+              const hasJavaScript =
+                textContent.text.includes('document.createElement') ||
+                textContent.text.includes('const ') ||
+                textContent.text.includes('appendChild') ||
+                textContent.text.includes('innerHTML');
+
+              if (hasJavaScript) {
+                console.log('✅ Detected JavaScript UI content - creating executable resource');
+                const jsResource = {
+                  uri: `ui://mcp-server/remote-dom/${Date.now()}`,
+                  mimeType: 'application/vnd.mcp-ui.remote-dom+javascript',
+                  name: 'Interactive JavaScript Component',
+                  text: textContent.text,
+                };
+
+                console.log('✅ Rendering JavaScript UI resource - moving to sidecar!');
+
+                const title = 'Interactive JavaScript Component';
+                if (showInSidecarOnce(jsResource, title)) {
+                  return (
+                    <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg mt-2">
+                      <div className="flex items-center space-x-3">
+                        <Monitor className="text-blue-600" size={20} />
+                        <div>
+                          <p className="font-medium text-blue-900">
+                            Interactive JavaScript Component
+                          </p>
+                          <p className="text-sm text-blue-600">Opened in side panel</p>
+                        </div>
+                      </div>
+                      <ExternalLink className="text-blue-500" size={16} />
+                    </div>
+                  );
+                }
+              }
+
+              // Check if it contains HTML content
+              if (textContent.text.includes('<') && textContent.text.includes('>')) {
+                console.log('✅ Detected HTML content - creating HTML resource');
+                const htmlResource = {
+                  uri: `ui://mcp-server/html-content/${Date.now()}`,
+                  mimeType: 'text/html',
+                  name: 'HTML Content',
+                  text: textContent.text,
+                };
+
+                const title = 'HTML Content';
+                if (showInSidecarOnce(htmlResource, title)) {
+                  return (
+                    <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg mt-2">
+                      <div className="flex items-center space-x-3">
+                        <Monitor className="text-blue-600" size={20} />
+                        <div>
+                          <p className="font-medium text-blue-900">HTML Content</p>
+                          <p className="text-sm text-blue-600">Opened in side panel</p>
+                        </div>
+                      </div>
+                      <ExternalLink className="text-blue-500" size={16} />
+                    </div>
+                  );
+                }
+              }
+
+              // Fallback: if we detected UI indicators but can't parse the content,
+              // create a simple HTML wrapper for the content
+              console.log('🔄 Creating fallback HTML wrapper for detected UI content');
+              const fallbackResource = {
+                uri: `ui://mcp-server/fallback-content/${Date.now()}`,
+                mimeType: 'text/html',
+                name: isProductTool ? 'Product Information' : 'Interactive Content',
+                text: `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>${isProductTool ? 'Product Information' : 'Content Display'}</title>
+  <style>
+    body { 
+      font-family: system-ui, -apple-system, sans-serif; 
+      padding: 20px; 
+      line-height: 1.6;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .content { 
+      background: #f8f9fa; 
+      padding: 20px; 
+      border-radius: 8px; 
+      border: 1px solid #e9ecef;
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+    }
+  </style>
+</head>
+<body>
+  <h2>${isProductTool ? '🛍️ Product Information' : '📄 Content'}</h2>
+  <div class="content">${textContent.text.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+</body>
+</html>`,
+              };
+
+              const title = isProductTool ? 'Product Information' : 'Interactive Content';
+              if (showInSidecarOnce(fallbackResource, title)) {
+                return (
+                  <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg mt-2">
+                    <div className="flex items-center space-x-3">
+                      <Monitor className="text-blue-600" size={20} />
+                      <div>
+                        <p className="font-medium text-blue-900">
+                          {isProductTool ? 'Product Information' : 'Interactive Content'}
+                        </p>
+                        <p className="text-sm text-blue-600">Opened in side panel</p>
+                      </div>
+                    </div>
+                    <ExternalLink className="text-blue-500" size={16} />
+                  </div>
+                );
+              }
+            }
+
+            // Normal text rendering
+            return (
+              <MarkdownContent
+                content={textContent.text}
+                className="whitespace-pre-wrap max-w-full overflow-x-auto"
+              />
+            );
+          })()}
         {result.type === 'image' && (
           <img
             src={`data:${result.mimeType};base64,${result.data}`}
@@ -575,6 +930,18 @@ function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
               e.currentTarget.style.display = 'none';
             }}
           />
+        )}
+        {result.type === 'resource' && !isUIResource(result) && (
+          <div className="bg-gray-50 p-3 rounded border">
+            <p className="text-sm text-gray-600 mb-2">
+              <strong>Resource:</strong> {result.resource.uri}
+            </p>
+            {getResourceText(result.resource) && (
+              <pre className="text-xs bg-white p-2 rounded border max-h-40 overflow-auto">
+                {getResourceText(result.resource)}
+              </pre>
+            )}
+          </div>
         )}
       </div>
     </ToolCallExpandable>
@@ -653,3 +1020,51 @@ const ProgressBar = ({ progress, total, message }: Omit<Progress, 'progressToken
     </div>
   );
 };
+
+// Export utility functions for diff content detection and extraction
+export function hasDiffContent(toolResponse?: ToolResponseMessageContent): boolean {
+  if (!toolResponse || toolResponse.toolResult.status !== 'success') {
+    return false;
+  }
+
+  const results = Array.isArray(toolResponse.toolResult.value) ? toolResponse.toolResult.value : [];
+
+  return results.some((result) => {
+    if (result.type === 'text') {
+      const textContent = result as { type: 'text'; text: string };
+      return (
+        textContent.text.includes('diff --git') ||
+        textContent.text.includes('+++') ||
+        textContent.text.includes('---') ||
+        textContent.text.includes('@@ ')
+      );
+    }
+    return false;
+  });
+}
+
+export function extractDiffContent(toolResponse?: ToolResponseMessageContent): string | null {
+  if (!hasDiffContent(toolResponse)) {
+    return null;
+  }
+
+  const results = Array.isArray(toolResponse!.toolResult.value)
+    ? toolResponse!.toolResult.value
+    : [];
+
+  for (const result of results) {
+    if (result.type === 'text') {
+      const textContent = result as { type: 'text'; text: string };
+      if (
+        textContent.text.includes('diff --git') ||
+        textContent.text.includes('+++') ||
+        textContent.text.includes('---') ||
+        textContent.text.includes('@@ ')
+      ) {
+        return textContent.text;
+      }
+    }
+  }
+
+  return null;
+}

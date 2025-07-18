@@ -157,7 +157,7 @@ export const startGoosed = async (
     LOCALAPPDATA: process.env.LOCALAPPDATA || path.join(homeDir, 'AppData', 'Local'),
     // Set PATH to include the binary directory
     PATH: `${path.dirname(resolvedGoosedPath)}${path.delimiter}${process.env.PATH || ''}`,
-    // start with the port specified
+    // start with the port specified (using correct environment variable name)
     GOOSE_PORT: String(port),
     GOOSE_SERVER__SECRET_KEY: process.env.GOOSE_SERVER__SECRET_KEY,
     // Add any additional environment variables passed in

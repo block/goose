@@ -129,7 +129,7 @@ impl StreamableHttpActor {
             .http_client
             .post(&self.mcp_endpoint)
             .header("Content-Type", "application/json")
-            .header("Accept", "application/json, text/event-stream")
+            .header("Accept", "application/json, application/vnd.mcp-ui.remote-dom+javascript, text/event-stream")
             .header("MCP-Protocol-Version", "2025-06-18") // Required protocol version header
             .body(message_str.to_string());
 
@@ -355,7 +355,7 @@ impl StreamableHttpTransportHandle {
         let mut request = self
             .http_client
             .get(&self.mcp_endpoint)
-            .header("Accept", "text/event-stream")
+            .header("Accept", "text/event-stream, application/vnd.mcp-ui.remote-dom+javascript")
             .header("MCP-Protocol-Version", "2025-06-18"); // Required protocol version header
 
         // Add session ID header if we have one

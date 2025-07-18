@@ -733,3 +733,25 @@ p > code.bg-inline-code {
 [data-state='collapsed'] [data-slot='sidebar-gap'] {
   will-change: width;
 }
+
+/* UI Resource Renderer Styles */
+.ui-resource-renderer {
+  height: 100%;
+  width: 100%;
+}
+
+.ui-resource-renderer iframe {
+  height: 100% !important;
+  width: 100% !important;
+  min-height: 400px;
+  border: none !important;
+  border-radius: 0.75rem;
+  box-shadow:
+    0 1px 3px 0 rgba(0, 0, 0, 0.1),
+    0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+
+.ui-resource-renderer .mcp-ui-renderer {
+  height: 100%;
+  width: 100%;
+}

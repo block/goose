@@ -34,6 +34,8 @@ pub struct ExtensionManager {
     clients: HashMap<String, McpClientBox>,
     instructions: HashMap<String, String>,
     resource_capable_extensions: HashSet<String>,
+    /// Extensions that support UI resources
+    ui_capable_extensions: HashSet<String>,
 }
 
 /// A flattened representation of a resource used by the agent to prepare inference
@@ -104,11 +106,22 @@ impl ExtensionManager {
             clients: HashMap::new(),
             instructions: HashMap::new(),
             resource_capable_extensions: HashSet::new(),
+            ui_capable_extensions: HashSet::new(),
         }
     }
 
     pub fn supports_resources(&self) -> bool {
         !self.resource_capable_extensions.is_empty()
+    }
+
+    /// Check if any extensions support UI resources
+    pub fn supports_ui(&self) -> bool {
+        !self.ui_capable_extensions.is_empty()
+    }
+
+    /// Check if a specific extension supports UI resources
+    pub fn extension_supports_ui(&self, extension_name: &str) -> bool {
+        self.ui_capable_extensions.contains(extension_name)
     }
 
     /// Add a new MCP extension based on the provided client type
@@ -288,6 +301,14 @@ impl ExtensionManager {
         if init_result.capabilities.resources.is_some() {
             self.resource_capable_extensions
                 .insert(sanitized_name.clone());
+        }
+
+        // Check if server supports UI resources
+        if let Some(ui_caps) = &init_result.capabilities.ui {
+            if ui_caps.supports_ui {
+                self.ui_capable_extensions
+                    .insert(sanitized_name.clone());
+            }
         }
 
         self.clients
@@ -656,13 +677,25 @@ impl ExtensionManager {
         let arguments = tool_call.arguments.clone();
         let client = client.clone();
         let notifications_receiver = client.lock().await.subscribe().await;
+        
+        // Check if this extension supports UI resources
+        let supports_ui = self.extension_supports_ui(client_name);
 
         let fut = async move {
             let client_guard = client.lock().await;
-            client_guard
-                .call_tool(&tool_name, arguments)
-                .await
-                .map(|call| call.content)
+            
+            // Use UI-aware tool calling if the extension supports UI
+            let result = if supports_ui {
+                client_guard.call_tool_with_ui(&tool_name, arguments).await
+            } else {
+                client_guard.call_tool(&tool_name, arguments).await
+            };
+            
+            result
+                .map(|call| {
+                    // Post-process content to detect UI resources that were returned as text
+                    Self::process_potential_ui_content(call.content)
+                })
                 .map_err(|e| ToolError::ExecutionError(e.to_string()))
         };
 
@@ -821,6 +854,63 @@ impl ExtensionManager {
         }
 
         Ok(vec![Content::text(output_parts.join("\n"))])
+    }
+
+    /// Process tool response content to detect UI resources that were incorrectly returned as text
+    fn process_potential_ui_content(content: Vec<Content>) -> Vec<Content> {
+        content.into_iter().map(|item| {
+            match &item {
+                Content::Text(text_content) => {
+                    // Check if this text content looks like a UI resource
+                    if Self::looks_like_ui_resource(&text_content.text) {
+                        // Convert to proper resource structure
+                        Self::convert_text_to_ui_resource(text_content)
+                    } else {
+                        item
+                    }
+                }
+                _ => item
+            }
+        }).collect()
+    }
+
+    /// Check if text content looks like a UI resource that was flattened
+    fn looks_like_ui_resource(text: &str) -> bool {
+        // Strong indicators that this should be a UI resource
+        (text.contains("Remote DOM") && text.contains("document.createElement")) ||
+        (text.contains("ui://") && text.contains("mimeType")) ||
+        (text.contains("application/vnd.mcp-ui.")) ||
+        // Large JavaScript/HTML content that should be interactive
+        (text.len() > 1000 && (
+            text.contains("document.createElement") ||
+            text.contains("<!DOCTYPE html>") ||
+            (text.contains("const") && text.contains("appendChild"))
+        ))
+    }
+
+    /// Convert text content to proper UI resource structure
+    fn convert_text_to_ui_resource(text_content: &mcp_core::content::TextContent) -> Content {
+        use mcp_core::content::EmbeddedResource;
+        use mcp_core::resource::ResourceContents;
+
+        // Try to extract UI information from the text
+        let (uri, mime_type) = if text_content.text.contains("Remote DOM") {
+            ("ui://mcp-server/dynamic-ui/response".to_string(), "application/vnd.mcp-ui.remote-dom+javascript".to_string())
+        } else if text_content.text.contains("<!DOCTYPE html>") {
+            ("ui://mcp-server/html-ui/response".to_string(), "text/html".to_string())
+        } else {
+            ("ui://mcp-server/interactive-content/response".to_string(), "text/html".to_string())
+        };
+
+        // Create proper resource structure
+        Content::Resource(EmbeddedResource {
+            resource: ResourceContents::TextResourceContents {
+                uri,
+                mime_type: Some(mime_type),
+                text: text_content.text.clone(),
+            },
+            annotations: text_content.annotations.clone(),
+        })
     }
 }
 
