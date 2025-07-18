@@ -28,4 +28,4 @@ pub use extension_manager::ExtensionManager;
 pub use prompt_manager::PromptManager;
 pub use subagent::{SubAgent, SubAgentProgress, SubAgentStatus};
 pub use subagent_task_config::TaskConfig;
-pub use types::{FrontendTool, RetryConfig, SessionConfig, SuccessCheck, SuccessCheckType};
+pub use types::{FrontendTool, RetryConfig, SessionConfig, SuccessCheck};

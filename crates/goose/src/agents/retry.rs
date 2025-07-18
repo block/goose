@@ -5,8 +5,7 @@ use tokio::process::Command;
 use tracing::{debug, info, warn};
 
 use crate::agents::types::{
-    RetryConfig, SuccessCheck, SuccessCheckType, DEFAULT_CLEANUP_TIMEOUT_SECONDS,
-    DEFAULT_RETRY_TIMEOUT_SECONDS,
+    RetryConfig, SuccessCheck, DEFAULT_CLEANUP_TIMEOUT_SECONDS, DEFAULT_RETRY_TIMEOUT_SECONDS,
 };
 use crate::config::Config;
 
@@ -52,13 +51,13 @@ pub async fn execute_success_checks(
     let timeout = get_retry_timeout(retry_config);
 
     for check in checks {
-        match check.check_type {
-            SuccessCheckType::Shell => {
-                let result = execute_shell_command(&check.command, timeout).await?;
+        match check {
+            SuccessCheck::Shell { command } => {
+                let result = execute_shell_command(command, timeout).await?;
                 if !result.status.success() {
                     warn!(
                         "Success check failed: command '{}' exited with status {}, stderr: {}",
-                        check.command,
+                        command,
                         result.status,
                         String::from_utf8_lossy(&result.stderr)
                     );
@@ -66,7 +65,7 @@ pub async fn execute_success_checks(
                 }
                 info!(
                     "Success check passed: command '{}' completed successfully",
-                    check.command
+                    command
                 );
             }
         }
@@ -169,7 +168,7 @@ pub async fn execute_on_failure_command(command: &str, retry_config: &RetryConfi
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agents::types::{SuccessCheck, SuccessCheckType};
+    use crate::agents::types::SuccessCheck;
 
     fn create_test_retry_config() -> RetryConfig {
         RetryConfig {
@@ -184,12 +183,10 @@ mod tests {
     #[tokio::test]
     async fn test_execute_success_checks_all_pass() {
         let checks = vec![
-            SuccessCheck {
-                check_type: SuccessCheckType::Shell,
+            SuccessCheck::Shell {
                 command: "echo 'test'".to_string(),
             },
-            SuccessCheck {
-                check_type: SuccessCheckType::Shell,
+            SuccessCheck::Shell {
                 command: "true".to_string(),
             },
         ];
@@ -203,12 +200,10 @@ mod tests {
     #[tokio::test]
     async fn test_execute_success_checks_one_fails() {
         let checks = vec![
-            SuccessCheck {
-                check_type: SuccessCheckType::Shell,
+            SuccessCheck::Shell {
                 command: "echo 'test'".to_string(),
             },
-            SuccessCheck {
-                check_type: SuccessCheckType::Shell,
+            SuccessCheck::Shell {
                 command: "false".to_string(),
             },
         ];

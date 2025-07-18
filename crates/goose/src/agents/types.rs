@@ -60,20 +60,14 @@ impl RetryConfig {
 
 /// A single success check to validate recipe completion
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SuccessCheck {
-    /// The type of success check to perform
-    #[serde(rename = "type")]
-    pub check_type: SuccessCheckType,
-    /// The command or instruction for the success check
-    pub command: String,
-}
-
-/// Types of success checks that can be performed
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum SuccessCheckType {
+#[serde(tag = "type")]
+pub enum SuccessCheck {
     /// Execute a shell command and check its exit status
     #[serde(alias = "shell")]
-    Shell,
+    Shell {
+        /// The shell command to execute
+        command: String,
+    },
 }
 
 /// A frontend tool that will be executed by the frontend rather than an extension
