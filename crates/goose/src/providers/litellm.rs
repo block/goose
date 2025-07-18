@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 use url::Url;
 
-use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsage};
 use super::embedding::EmbeddingCapable;
 use super::errors::ProviderError;
 use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
@@ -199,14 +199,7 @@ impl Provider for LiteLLMProvider {
         let response = self.post(payload.clone()).await?;
 
         let message = super::formats::openai::response_to_message(response.clone())?;
-        let usage = match super::formats::openai::get_usage(&response) {
-            Ok(usage) => usage,
-            Err(ProviderError::UsageError(e)) => {
-                tracing::debug!("Failed to get usage data: {}", e);
-                Usage::default()
-            }
-            Err(e) => return Err(e),
-        };
+        let usage = super::formats::openai::get_usage(&response);
         let model = get_model(&response);
         emit_debug_trace(&self.model, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(model, usage)))
