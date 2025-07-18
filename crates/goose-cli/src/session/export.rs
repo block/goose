@@ -297,9 +297,9 @@ pub fn tool_response_to_markdown(resp: &ToolResponse, export_all_content: bool) 
                             }
                         }
                     }
-                    RawContent::Audio(_) => md.push_str(
-                        "Error: Goose does not support audio content in Markdown export.",
-                    ),
+                    RawContent::Audio(_) => {
+                        md.push_str("[audio content not displayed in Markdown export]\n\n")
+                    }
                 }
             }
         }
