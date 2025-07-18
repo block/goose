@@ -2,6 +2,7 @@ import React, { useState, createContext, useContext, useEffect } from 'react';
 import { X, FileDiff, SquareSplitHorizontal, BetweenHorizontalStart } from 'lucide-react';
 import { Button } from './ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
+import { useWindowManager } from '../hooks/useWindowManager';
 
 interface SidecarView {
   id: string;
@@ -301,7 +302,14 @@ export function SidecarProvider({ children, showSidecar = true }: SidecarProvide
   const [activeView, setActiveView] = useState<string | null>(null);
   const [views, setViews] = useState<SidecarView[]>([]);
 
-  const showView = (view: SidecarView) => {
+  // Import and use the window manager hook
+  const { toggleWindow } = useWindowManager({
+    expandPercentage: 100,
+    maxWidthForExpansion: 2200,
+    transitionDuration: 300,
+  });
+
+  const showView = async (view: SidecarView) => {
     setViews((prev) => {
       const existing = prev.find((v) => v.id === view.id);
       if (existing) {
@@ -309,6 +317,9 @@ export function SidecarProvider({ children, showSidecar = true }: SidecarProvide
       }
       return [...prev, view];
     });
+
+    // Expand window when showing sidecar
+    await toggleWindow();
     setActiveView(view.id);
   };
 

@@ -1987,6 +1987,90 @@ app.whenReady().then(async () => {
     return false;
   });
 
+  ipcMain.handle('resize-window', async (_event, widthPercentage: number) => {
+    try {
+      const focusedWindow = BrowserWindow.getFocusedWindow();
+      if (!focusedWindow) {
+        console.error('No focused window found for resize operation');
+        return false;
+      }
+
+      // Add window state tracking
+      const windowWithState = focusedWindow as BrowserWindow & {
+        originalWidth?: number;
+        isResizing?: boolean;
+        resizePromise?: Promise<void>;
+      };
+
+      // Prevent concurrent resize operations on the same window
+      if (windowWithState.isResizing) {
+        console.log('Window resize already in progress, waiting...');
+        if (windowWithState.resizePromise) {
+          await windowWithState.resizePromise;
+        }
+        return true;
+      }
+
+      // Mark window as being resized
+      windowWithState.isResizing = true;
+
+      const resizePromise = new Promise<void>((resolve, reject) => {
+        try {
+          const [currentWidth, currentHeight] = focusedWindow.getSize();
+
+          if (widthPercentage === 0) {
+            // Reset to original size
+            const originalWidth = windowWithState.originalWidth || currentWidth;
+            console.log(`Resizing window from ${currentWidth}px to original ${originalWidth}px`);
+
+            focusedWindow.setSize(originalWidth, currentHeight, true); // animate = true
+
+            // Clear the stored original width since we're back to original
+            delete windowWithState.originalWidth;
+          } else {
+            // Store original width if not already stored
+            if (!windowWithState.originalWidth) {
+              windowWithState.originalWidth = currentWidth;
+              console.log(`Storing original window width: ${currentWidth}px`);
+            }
+
+            // Calculate new width
+            const newWidth = Math.floor(currentWidth * (1 + widthPercentage / 100));
+            console.log(
+              `Expanding window from ${currentWidth}px to ${newWidth}px (${widthPercentage}% increase)`
+            );
+
+            focusedWindow.setSize(newWidth, currentHeight, true); // animate = true
+          }
+
+          // Give the window time to resize before resolving
+          setTimeout(() => {
+            resolve();
+          }, 100);
+        } catch (error) {
+          reject(error);
+        }
+      });
+
+      windowWithState.resizePromise = resizePromise;
+
+      try {
+        await resizePromise;
+        return true;
+      } catch (error) {
+        console.error('Error during window resize:', error);
+        return false;
+      } finally {
+        // Clean up resize state
+        windowWithState.isResizing = false;
+        delete windowWithState.resizePromise;
+      }
+    } catch (error) {
+      console.error('Error in resize-window handler:', error);
+      return false;
+    }
+  });
+
   // Handle metadata fetching from main process
   ipcMain.handle('fetch-metadata', async (_event, url) => {
     try {
