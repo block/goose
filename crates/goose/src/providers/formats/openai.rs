@@ -153,7 +153,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                                         // Create a separate image message
                                         image_messages.push(json!({
                                             "role": "user",
-                                            "content": [convert_image(&image.no_annotation(), image_format)]
+                                            "content": [convert_image(&image.clone().no_annotation(), image_format)]
                                         }));
                                     }
                                     RawContent::Resource(resource) => {

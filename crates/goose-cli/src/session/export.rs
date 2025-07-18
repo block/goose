@@ -1,6 +1,6 @@
 use goose::message::{Message, MessageContent, ToolRequest, ToolResponse};
 use goose::utils::safe_truncate;
-use rmcp::model::{RawContent, ResourceContents, Role, TextContent};
+use rmcp::model::{RawContent, ResourceContents, Role};
 use serde_json::Value;
 
 const MAX_STRING_LENGTH_MD_EXPORT: usize = 4096; // Generous limit for export
