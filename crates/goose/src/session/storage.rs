@@ -15,6 +15,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::{self, BufRead, Write};
+use std::ops::DerefMut;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use utoipa::ToSchema;
@@ -679,7 +680,7 @@ fn parse_message_with_truncation(
 /// Truncate content within a message in place
 fn truncate_message_content_in_place(message: &mut Message, max_content_size: usize) {
     use crate::message::MessageContent;
-    use mcp_core::{Content, ResourceContents};
+    use rmcp::model::{RawContent, ResourceContents};
 
     for content in &mut message.content {
         match content {
@@ -697,8 +698,8 @@ fn truncate_message_content_in_place(message: &mut Message, max_content_size: us
             MessageContent::ToolResponse(tool_response) => {
                 if let Ok(ref mut result) = tool_response.tool_result {
                     for content_item in result {
-                        match content_item {
-                            Content::Text(ref mut text_content) => {
+                        match content_item.deref_mut() {
+                            RawContent::Text(ref mut text_content) => {
                                 if text_content.text.chars().count() > max_content_size {
                                     let truncated = format!(
                                         "{}\n\n[... tool response truncated during session loading from {} to {} characters ...]",
@@ -709,7 +710,7 @@ fn truncate_message_content_in_place(message: &mut Message, max_content_size: us
                                     text_content.text = truncated;
                                 }
                             }
-                            Content::Resource(ref mut resource_content) => {
+                            RawContent::Resource(ref mut resource_content) => {
                                 if let ResourceContents::TextResourceContents { text, .. } =
                                     &mut resource_content.resource
                                 {

@@ -177,8 +177,7 @@ mod tests {
     use crate::message::{Message, MessageContent};
     use crate::providers::base::{ProviderMetadata, ProviderUsage, Usage};
     use chrono::Utc;
-    use mcp_core::content::TextContent;
-    use rmcp::model::Role;
+    use rmcp::model::{AnnotateAble, RawTextContent, Role};
     use std::env;
 
     #[allow(dead_code)]
@@ -216,13 +215,15 @@ mod tests {
                 Message::new(
                     Role::Assistant,
                     Utc::now().timestamp(),
-                    vec![MessageContent::Text(TextContent {
-                        text: format!(
-                            "Response from {} with model {}",
-                            self.name, self.model_config.model_name
-                        ),
-                        annotations: None,
-                    })],
+                    vec![MessageContent::Text(
+                        RawTextContent {
+                            text: format!(
+                                "Response from {} with model {}",
+                                self.name, self.model_config.model_name
+                            ),
+                        }
+                        .no_annotation(),
+                    )],
                 ),
                 ProviderUsage::new(self.model_config.model_name.clone(), Usage::default()),
             ))

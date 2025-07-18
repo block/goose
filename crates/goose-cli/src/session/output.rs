@@ -252,7 +252,7 @@ fn render_tool_response(resp: &ToolResponse, theme: Theme, debug: bool) {
 
                 if debug {
                     println!("{:#?}", content);
-                } else if let mcp_core::content::Content::Text(text) = content {
+                } else if let Some(text) = content.as_text() {
                     print_markdown(&text.text, theme);
                 }
             }

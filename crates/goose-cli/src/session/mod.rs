@@ -35,9 +35,9 @@ use goose::providers::pricing::initialize_pricing_cache;
 use goose::session;
 use input::InputResult;
 use mcp_core::handler::ToolError;
-use mcp_core::prompt::PromptMessage;
 use mcp_core::protocol::JsonRpcMessage;
 use mcp_core::protocol::JsonRpcNotification;
+use rmcp::model::PromptMessage;
 
 use rand::{distributions::Alphanumeric, Rng};
 use rustyline::EditMode;
@@ -359,7 +359,33 @@ impl Session {
 
     pub async fn get_prompt(&mut self, name: &str, arguments: Value) -> Result<Vec<PromptMessage>> {
         let result = self.agent.get_prompt(name, arguments).await?;
-        Ok(result.messages)
+        // Convert mcp_core::prompt::PromptMessage to rmcp::model::PromptMessage
+        let converted_messages = result
+            .messages
+            .into_iter()
+            .map(|msg| rmcp::model::PromptMessage {
+                role: match msg.role {
+                    mcp_core::prompt::PromptMessageRole::User => {
+                        rmcp::model::PromptMessageRole::User
+                    }
+                    mcp_core::prompt::PromptMessageRole::Assistant => {
+                        rmcp::model::PromptMessageRole::Assistant
+                    }
+                },
+                content: match msg.content {
+                    mcp_core::prompt::PromptMessageContent::Text { text } => {
+                        rmcp::model::PromptMessageContent::Text { text }
+                    }
+                    mcp_core::prompt::PromptMessageContent::Image { image } => {
+                        rmcp::model::PromptMessageContent::Image { image }
+                    }
+                    mcp_core::prompt::PromptMessageContent::Resource { resource } => {
+                        rmcp::model::PromptMessageContent::Resource { resource }
+                    }
+                },
+            })
+            .collect();
+        Ok(converted_messages)
     }
 
     /// Process a single message and get the response

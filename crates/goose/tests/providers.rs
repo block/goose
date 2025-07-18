@@ -6,8 +6,8 @@ use goose::providers::errors::ProviderError;
 use goose::providers::{
     anthropic, azure, bedrock, databricks, google, groq, ollama, openai, openrouter, snowflake, xai,
 };
-use mcp_core::content::Content;
 use mcp_core::tool::Tool;
+use rmcp::model::{AnnotateAble, Content, RawImageContent};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -256,7 +256,6 @@ impl ProviderTester {
 
     async fn test_image_content_support(&self) -> Result<()> {
         use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-        use mcp_core::content::ImageContent;
         use std::fs;
 
         // Try to read the test image
@@ -273,11 +272,11 @@ impl ProviderTester {
         };
 
         let base64_image = BASE64.encode(image_data);
-        let image_content = ImageContent {
+        let image_content = RawImageContent {
             data: base64_image,
             mime_type: "image/png".to_string(),
-            annotations: None,
-        };
+        }
+        .no_annotation();
 
         // Test 1: Direct image message
         let message_with_image =
@@ -324,8 +323,13 @@ impl ProviderTester {
                 serde_json::json!({}),
             )),
         );
-        let tool_response =
-            Message::user().with_tool_response("test_id", Ok(vec![Content::Image(image_content)]));
+        let tool_response = Message::user().with_tool_response(
+            "test_id",
+            Ok(vec![Content::image(
+                image_content.data.clone(),
+                image_content.mime_type.clone(),
+            )]),
+        );
 
         let result2 = self
             .provider

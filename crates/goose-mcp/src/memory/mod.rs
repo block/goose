@@ -18,10 +18,10 @@ use mcp_core::{
     protocol::{JsonRpcMessage, ServerCapabilities},
     resource::Resource,
     tool::{Tool, ToolAnnotations, ToolCall},
-    Content,
 };
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
+use rmcp::model::Content;
 
 // MemoryRouter implementation
 #[derive(Clone)]

@@ -1,7 +1,8 @@
 use crate::agents::subagent::SubAgent;
 use crate::agents::subagent_task_config::TaskConfig;
 use anyhow::Result;
-use mcp_core::{Content, ToolError};
+use mcp_core::ToolError;
+use rmcp::model::Content;
 use serde_json::Value;
 
 /// Standalone function to run a complete subagent task

@@ -1,6 +1,7 @@
 use docx_rs::*;
 use image::{self, ImageFormat};
-use mcp_core::{Content, ToolError};
+use mcp_core::ToolError;
+use rmcp::model::Content;
 use std::{fs, io::Cursor};
 
 #[derive(Debug)]
@@ -568,9 +569,9 @@ mod tests {
         let content = result.unwrap();
         assert!(!content.is_empty(), "Extracted text should not be empty");
         let text = content[0].as_text().unwrap();
-        println!("Extracted text:\n{}", text);
+        println!("Extracted text:\n{}", text.text);
         assert!(
-            !text.trim().is_empty(),
+            !text.text.trim().is_empty(),
             "Extracted text should not be empty"
         );
     }
@@ -609,11 +610,11 @@ mod tests {
         let content = result.unwrap();
         let text = content[0].as_text().unwrap();
         assert!(
-            text.contains("Test Heading"),
+            text.text.contains("Test Heading"),
             "Should contain written content"
         );
         assert!(
-            text.contains("test paragraph"),
+            text.text.contains("test paragraph"),
             "Should contain written content"
         );
 
@@ -700,15 +701,15 @@ mod tests {
         let content = result.unwrap();
         let text = content[0].as_text().unwrap();
         assert!(
-            text.contains("New content here"),
+            text.text.contains("New content here"),
             "Should contain new content"
         );
         assert!(
-            text.contains("Keep this text"),
+            text.text.contains("Keep this text"),
             "Should keep unmodified content"
         );
         assert!(
-            !text.contains("This should be replaced"),
+            !text.text.contains("This should be replaced"),
             "Should not contain replaced text"
         );
 
@@ -846,22 +847,25 @@ mod tests {
 
         // Check for initial content
         assert!(
-            text.contains("Initial content"),
+            text.text.contains("Initial content"),
             "Should contain initial content"
         );
         assert!(
-            text.contains("first paragraph"),
+            text.text.contains("first paragraph"),
             "Should contain first paragraph"
         );
         assert!(
-            text.contains("should stay in the document"),
+            text.text.contains("should stay in the document"),
             "Should preserve existing content"
         );
 
         // Check for new content
-        assert!(text.contains("New content"), "Should contain new content");
         assert!(
-            text.contains("additional paragraph"),
+            text.text.contains("New content"),
+            "Should contain new content"
+        );
+        assert!(
+            text.text.contains("additional paragraph"),
             "Should contain appended paragraph"
         );
 

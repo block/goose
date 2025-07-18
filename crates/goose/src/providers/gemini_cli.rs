@@ -10,7 +10,6 @@ use super::errors::ProviderError;
 use super::utils::emit_debug_trace;
 use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
-use mcp_core::content::TextContent;
 use mcp_core::tool::Tool;
 use rmcp::model::Role;
 
@@ -172,10 +171,7 @@ impl GeminiCliProvider {
         let message = Message::new(
             Role::Assistant,
             chrono::Utc::now().timestamp(),
-            vec![MessageContent::Text(TextContent {
-                text: response_text,
-                annotations: None,
-            })],
+            vec![MessageContent::text(response_text)],
         );
 
         let usage = Usage::default(); // No usage info available for gemini CLI
@@ -217,10 +213,7 @@ impl GeminiCliProvider {
         let message = Message::new(
             Role::Assistant,
             chrono::Utc::now().timestamp(),
-            vec![MessageContent::Text(TextContent {
-                text: description.clone(),
-                annotations: None,
-            })],
+            vec![MessageContent::text(description.clone())],
         );
 
         let usage = Usage::default();

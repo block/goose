@@ -5,7 +5,8 @@
 use crate::agents::subagent_execution_tool::tasks_manager::TasksManager;
 use crate::agents::subagent_execution_tool::{lib::ExecutionMode, task_types::Task};
 use crate::agents::tool_execution::ToolCallResult;
-use mcp_core::{tool::ToolAnnotations, Content, Tool, ToolError};
+use mcp_core::{tool::ToolAnnotations, Tool, ToolError};
+use rmcp::model::Content;
 use serde_json::{json, Value};
 
 pub const DYNAMIC_TASK_TOOL_NAME_PREFIX: &str = "dynamic_task__create_task";

@@ -5,8 +5,8 @@ use crate::message::{Message, MessageContent, ToolRequest};
 use crate::providers::base::Provider;
 use chrono::Utc;
 use indoc::indoc;
+use mcp_core::tool::Tool;
 use mcp_core::tool::ToolAnnotations;
-use mcp_core::{tool::Tool, TextContent};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashSet;
@@ -84,8 +84,7 @@ fn create_check_messages(tool_requests: Vec<&ToolRequest>) -> Vec<Message> {
     check_messages.push(Message::new(
         rmcp::model::Role::User,
         Utc::now().timestamp(),
-        vec![MessageContent::Text(TextContent {
-            text: format!(
+        vec![MessageContent::text(format!(
                 "Here are the tool requests: {:?}\n\nAnalyze the tool requests and list the tools that perform read-only operations. \
                 \n\nGuidelines for Read-Only Operations: \
                 \n- Read-only operations do not modify any data or state. \
@@ -93,9 +92,7 @@ fn create_check_messages(tool_requests: Vec<&ToolRequest>) -> Vec<Message> {
                 \n- Write operations include INSERT, UPDATE, DELETE, and file writing. \
                 \n\nPlease provide a list of tool names that qualify as read-only:",
                 tool_names.join(", "),
-            ),
-            annotations: None,
-        })],
+            ))],
     ));
     check_messages
 }

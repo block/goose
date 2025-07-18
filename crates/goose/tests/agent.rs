@@ -613,9 +613,9 @@ mod final_output_tool_tests {
         let content = final_result.unwrap();
         let text = content.first().unwrap().as_text().unwrap();
         assert!(
-            text.contains("Final output successfully collected."),
+            text.text.contains("Final output successfully collected."),
             "Tool result missing expected content: {}",
-            text
+            text.text
         );
 
         // Simulate the reply stream continuing after the final output tool call.
