@@ -1523,8 +1523,10 @@ app.whenReady().then(async () => {
           "connect-src 'self' http://127.0.0.1:* https://api.github.com https://github.com https://objects.githubusercontent.com" +
           // Don't allow any plugins
           "object-src 'none';" +
-          // Don't allow any frames
-          "frame-src 'none';" +
+          // Allow sandboxed iframes for MCP-UI components with security restrictions
+          "frame-src 'self' data: blob: ui:;" +
+          // Child source for isolated contexts
+          "child-src 'self' data: blob:;" +
           // Font sources - allow self, data URLs, and external fonts
           "font-src 'self' data: https:;" +
           // Media sources - allow microphone

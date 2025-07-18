@@ -327,8 +327,8 @@ export const useChatEngine = ({
           (c) => c.type === 'toolConfirmationRequest'
         );
 
-        // Keep the message if it has text content or tool confirmation or is not just tool responses
-        return hasTextContent || !hasOnlyToolResponses || hasToolConfirmation;
+        // Keep the message if it has text content, tool confirmation, OR is tool responses (needed for matching)
+        return hasTextContent || hasToolConfirmation || hasOnlyToolResponses;
       }
 
       return true;

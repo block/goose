@@ -95,21 +95,33 @@ export default function GooseMessage({
   const toolResponsesMap = useMemo(() => {
     const responseMap = new Map();
 
+    // Tool response mapping (reduced logging)
+    if (toolRequests.length > 0) {
+      console.log(`🔍 Mapping ${toolRequests.length} tool requests`);
+    }
+
     // Look for tool responses in subsequent messages
     if (messageIndex !== undefined && messageIndex >= 0) {
       for (let i = messageIndex + 1; i < messages.length; i++) {
         const responses = getToolResponses(messages[i]);
+        if (responses.length > 0) {
+          console.log(`✅ Found ${responses.length} tool responses in message ${i}`);
+        }
 
         for (const response of responses) {
           // Check if this response matches any of our tool requests
           const matchingRequest = toolRequests.find((req) => req.id === response.id);
           if (matchingRequest) {
+            console.log(`✅ Matched tool response ${response.id}`);
             responseMap.set(response.id, response);
           }
         }
       }
     }
 
+    if (responseMap.size > 0) {
+      console.log(`✅ Mapped ${responseMap.size} tool responses`);
+    }
     return responseMap;
   }, [messages, messageIndex, toolRequests]);
 
@@ -246,3 +258,4 @@ export default function GooseMessage({
     </div>
   );
 }
+

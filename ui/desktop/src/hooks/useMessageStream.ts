@@ -287,7 +287,28 @@ export function useMessageStream({
                           : parsedEvent.message.sendToLLM,
                     };
 
-                    console.log('New message:', JSON.stringify(newMessage, null, 2));
+                    // Message streaming debug (reduced logging)
+                    if (newMessage.content.some(c => c.type === 'toolResponse')) {
+                      console.log('✅ Tool response received');
+                    }
+                    
+                    // Debug tool responses specifically
+                    newMessage.content.forEach((content, index) => {
+                      if (content.type === 'toolResponse') {
+                        console.log(`=== TOOL RESPONSE ${index} DEBUG ===`);
+                        console.log('Tool response:', content);
+                        console.log('Tool result value:', content.toolResult?.value);
+                        if (Array.isArray(content.toolResult?.value)) {
+                          content.toolResult.value.forEach((item, itemIndex) => {
+                            console.log(`Tool result item ${itemIndex}:`, item);
+                            console.log(`Item type: ${item.type}`);
+                            if (item.type === 'resource') {
+                              console.log('FOUND RESOURCE IN TOOL RESULT:', item);
+                            }
+                          });
+                        }
+                      }
+                    });
 
                     // Update messages with the new message
 
@@ -298,8 +319,21 @@ export function useMessageStream({
                     ) {
                       // If the last message has the same ID, update it instead of adding a new one
                       const lastMessage = currentMessages[currentMessages.length - 1];
-                      lastMessage.content = [...lastMessage.content, ...newMessage.content];
-                      forceUpdate();
+                      
+                      // CRITICAL: Don't merge if roles are different - tool responses should be separate messages
+                      if (lastMessage.role !== newMessage.role) {
+                        console.log('🚨 ROLE MISMATCH - Creating separate message instead of merging:', {
+                          lastRole: lastMessage.role,
+                          newRole: newMessage.role,
+                          messageId: newMessage.id
+                        });
+                        currentMessages = [...currentMessages, newMessage];
+                      } else {
+                        // Safe to merge - same role
+                        console.log('✅ Merging content for same role:', newMessage.role, newMessage.id);
+                        lastMessage.content = [...lastMessage.content, ...newMessage.content];
+                        forceUpdate();
+                      }
                     } else {
                       currentMessages = [...currentMessages, newMessage];
                     }

@@ -123,8 +123,16 @@ function mapApiContentToFrontendMessageContent(
     };
   }
 
+  // Handle resource content (including UI resources) - cast to any due to generated types limitation
+  if ((apiContent as any).type === 'resource') {
+    return {
+      type: 'resource',
+      resource: (apiContent as any).resource,
+    };
+  }
+
   // For types that exist in API but not in frontend, either skip or convert
-  console.warn(`Skipping unsupported content type: ${apiContent.type}`);
+  console.warn(`Skipping unsupported content type: ${(apiContent as any).type}`);
   return null;
 }
 
