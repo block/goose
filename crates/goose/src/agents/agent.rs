@@ -9,11 +9,14 @@ use futures::{stream, FutureExt, Stream, StreamExt, TryStreamExt};
 use mcp_core::protocol::JsonRpcMessage;
 
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
-use crate::agents::sub_recipe_execution_tool::sub_recipe_execute_task_tool::{
-    self, SUB_RECIPE_EXECUTE_TASK_TOOL_NAME,
+use crate::agents::recipe_tools::dynamic_task_tools::{
+    create_dynamic_task, create_dynamic_task_tool, DYNAMIC_TASK_TOOL_NAME_PREFIX,
 };
-use crate::agents::sub_recipe_execution_tool::tasks_manager::TasksManager;
 use crate::agents::sub_recipe_manager::SubRecipeManager;
+use crate::agents::subagent_execution_tool::subagent_execute_task_tool::{
+    self, SUBAGENT_EXECUTE_TASK_TOOL_NAME,
+};
+use crate::agents::subagent_execution_tool::tasks_manager::TasksManager;
 use crate::config::{Config, ExtensionConfigManager, PermissionManager};
 use crate::message::{push_message, Message};
 use crate::permission::permission_judge::check_tool_permissions;
@@ -48,21 +51,18 @@ use mcp_core::{
     prompt::Prompt, protocol::GetPromptResult, tool::Tool, Content, ToolError, ToolResult,
 };
 
-use crate::agents::subagent_tools::SUBAGENT_RUN_TASK_TOOL_NAME;
-
 use super::final_output_tool::FinalOutputTool;
 use super::platform_tools;
 use super::router_tools;
-use super::subagent_manager::SubAgentManager;
-use super::subagent_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
+use crate::agents::subagent_task_config::TaskConfig;
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 
 /// The main goose Agent
 pub struct Agent {
     pub(super) provider: Mutex<Option<Arc<dyn Provider>>>,
-    pub(super) extension_manager: RwLock<ExtensionManager>,
+    pub(super) extension_manager: Arc<RwLock<ExtensionManager>>,
     pub(super) sub_recipe_manager: Mutex<SubRecipeManager>,
     pub(super) tasks_manager: TasksManager,
     pub(super) final_output_tool: Mutex<Option<FinalOutputTool>>,
@@ -76,7 +76,7 @@ pub struct Agent {
     pub(super) tool_monitor: Mutex<Option<ToolMonitor>>,
     pub(super) router_tool_selector: Mutex<Option<Arc<Box<dyn RouterToolSelector>>>>,
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
-    pub(super) subagent_manager: Mutex<Option<SubAgentManager>>,
+    pub(super) mcp_tx: Mutex<mpsc::Sender<JsonRpcMessage>>,
     pub(super) mcp_notification_rx: Arc<Mutex<mpsc::Receiver<JsonRpcMessage>>>,
 }
 
@@ -137,7 +137,7 @@ impl Agent {
 
         Self {
             provider: Mutex::new(None),
-            extension_manager: RwLock::new(ExtensionManager::new()),
+            extension_manager: Arc::new(RwLock::new(ExtensionManager::new())),
             sub_recipe_manager: Mutex::new(SubRecipeManager::new()),
             tasks_manager: TasksManager::new(),
             final_output_tool: Mutex::new(None),
@@ -152,7 +152,7 @@ impl Agent {
             router_tool_selector: Mutex::new(None),
             scheduler_service: Mutex::new(None),
             // Initialize with MCP notification support
-            subagent_manager: Mutex::new(Some(SubAgentManager::new(mcp_tx))),
+            mcp_tx: Mutex::new(mcp_tx),
             mcp_notification_rx: Arc::new(Mutex::new(mcp_rx)),
         }
     }
@@ -300,12 +300,20 @@ impl Agent {
                     &self.tasks_manager,
                 )
                 .await
-        } else if tool_call.name == SUB_RECIPE_EXECUTE_TASK_TOOL_NAME {
-            sub_recipe_execute_task_tool::run_tasks(
+        } else if tool_call.name == SUBAGENT_EXECUTE_TASK_TOOL_NAME {
+            let provider = self.provider().await.ok();
+            let mcp_tx = self.mcp_tx.lock().await.clone();
+
+            let task_config =
+                TaskConfig::new(provider, Some(Arc::clone(&self.extension_manager)), mcp_tx);
+            subagent_execute_task_tool::run_tasks(
                 tool_call.arguments.clone(),
+                task_config,
                 &self.tasks_manager,
             )
             .await
+        } else if tool_call.name == DYNAMIC_TASK_TOOL_NAME_PREFIX {
+            create_dynamic_task(tool_call.arguments.clone(), &self.tasks_manager).await
         } else if tool_call.name == PLATFORM_READ_RESOURCE_TOOL_NAME {
             // Check if the tool is read_resource and handle it separately
             ToolCallResult::from(
@@ -321,11 +329,6 @@ impl Agent {
             )
         } else if tool_call.name == PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME {
             ToolCallResult::from(extension_manager.search_available_extensions().await)
-        } else if tool_call.name == SUBAGENT_RUN_TASK_TOOL_NAME {
-            ToolCallResult::from(
-                self.handle_run_subagent_task(tool_call.arguments.clone())
-                    .await,
-            )
         } else if self.is_frontend_tool(&tool_call.name).await {
             // For frontend tools, return an error indicating we need frontend execution
             ToolCallResult::from(Err(ToolError::ExecutionError(
@@ -567,11 +570,8 @@ impl Agent {
                 platform_tools::manage_schedule_tool(),
             ]);
 
-            // Add subagent tool (only if ALPHA_FEATURES is enabled)
-            let config = Config::global();
-            if config.get_param::<bool>("ALPHA_FEATURES").unwrap_or(false) {
-                prefixed_tools.push(subagent_tools::run_task_subagent_tool());
-            }
+            // Dynamic task tool
+            prefixed_tools.push(create_dynamic_task_tool());
 
             // Add resource tools if supported
             if extension_manager.supports_resources() {
@@ -589,8 +589,7 @@ impl Agent {
             if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
                 prefixed_tools.push(final_output_tool.tool());
             }
-            prefixed_tools
-                .push(sub_recipe_execute_task_tool::create_sub_recipe_execute_task_tool());
+            prefixed_tools.push(subagent_execute_task_tool::create_subagent_execute_task_tool());
         }
 
         prefixed_tools
@@ -1073,15 +1072,6 @@ impl Agent {
     pub async fn update_provider(&self, provider: Arc<dyn Provider>) -> Result<()> {
         let mut current_provider = self.provider.lock().await;
         *current_provider = Some(provider.clone());
-
-        // Initialize subagent manager with MCP notification support
-        // Need to recreate the MCP channel since we're replacing the manager
-        let (mcp_tx, mcp_rx) = mpsc::channel(100);
-        {
-            let mut rx_guard = self.mcp_notification_rx.lock().await;
-            *rx_guard = mcp_rx;
-        }
-        *self.subagent_manager.lock().await = Some(SubAgentManager::new(mcp_tx));
 
         self.update_router_tool_selector(Some(provider), None)
             .await?;

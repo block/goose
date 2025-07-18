@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
-use crate::agents::sub_recipe_execution_tool::task_execution_tracker::TaskExecutionTracker;
+use crate::agents::subagent_execution_tool::task_execution_tracker::TaskExecutionTracker;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "lowercase")]
@@ -28,16 +28,16 @@ impl Task {
             .flatten()
     }
 
-    pub fn get_sequential_when_repeated(&self) -> bool {
-        self.get_sub_recipe()
-            .and_then(|sr| sr.get("sequential_when_repeated").and_then(|v| v.as_bool()))
-            .unwrap_or_default()
-    }
-
     pub fn get_command_parameters(&self) -> Option<&Map<String, Value>> {
         self.get_sub_recipe()
             .and_then(|sr| sr.get("command_parameters"))
             .and_then(|cp| cp.as_object())
+    }
+
+    pub fn get_sequential_when_repeated(&self) -> bool {
+        self.get_sub_recipe()
+            .and_then(|sr| sr.get("sequential_when_repeated").and_then(|v| v.as_bool()))
+            .unwrap_or_default()
     }
 
     pub fn get_sub_recipe_name(&self) -> Option<&str> {

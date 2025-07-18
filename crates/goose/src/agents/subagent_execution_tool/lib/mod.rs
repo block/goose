@@ -1,14 +1,11 @@
-use crate::agents::sub_recipe_execution_tool::executor::{
-    execute_single_task, execute_tasks_in_parallel,
-};
-pub use crate::agents::sub_recipe_execution_tool::task_types::{
+pub use crate::agents::subagent_execution_tool::task_types::{
     ExecutionMode, ExecutionResponse, ExecutionStats, SharedState, Task, TaskResult, TaskStatus,
 };
-use crate::agents::sub_recipe_execution_tool::tasks_manager::TasksManager;
-
-#[cfg(test)]
-mod tests;
-
+use crate::agents::subagent_execution_tool::{
+    executor::{execute_single_task, execute_tasks_in_parallel},
+    tasks_manager::TasksManager,
+};
+use crate::agents::subagent_task_config::TaskConfig;
 use mcp_core::protocol::JsonRpcMessage;
 use serde_json::{json, Value};
 use tokio::sync::mpsc;
@@ -17,6 +14,7 @@ pub async fn execute_tasks(
     input: Value,
     execution_mode: ExecutionMode,
     notifier: mpsc::Sender<JsonRpcMessage>,
+    task_config: TaskConfig,
     tasks_manager: &TasksManager,
 ) -> Result<Value, String> {
     let task_ids: Vec<String> = serde_json::from_value(
@@ -44,13 +42,12 @@ pub async fn execute_tasks(
     match execution_mode {
         ExecutionMode::Sequential => {
             if task_count == 1 {
-                let response = execute_single_task(&tasks[0], notifier).await;
+                let response = execute_single_task(&tasks[0], notifier, task_config).await;
                 handle_response(response)
             } else {
                 Err("Sequential execution mode requires exactly one task".to_string())
             }
         }
-
         ExecutionMode::Parallel => {
             if tasks.iter().any(|task| task.get_sequential_when_repeated()) {
                 Ok(json!(
@@ -62,7 +59,7 @@ pub async fn execute_tasks(
                 ))
             } else {
                 let response: ExecutionResponse =
-                    execute_tasks_in_parallel(tasks, notifier.clone()).await;
+                    execute_tasks_in_parallel(tasks, notifier.clone(), task_config).await;
                 handle_response(response)
             }
         }

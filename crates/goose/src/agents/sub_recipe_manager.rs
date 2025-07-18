@@ -7,7 +7,7 @@ use crate::{
         recipe_tools::sub_recipe_tools::{
             create_sub_recipe_task, create_sub_recipe_task_tool, SUB_RECIPE_TASK_TOOL_NAME_PREFIX,
         },
-        sub_recipe_execution_tool::tasks_manager::TasksManager,
+        subagent_execution_tool::tasks_manager::TasksManager,
         tool_execution::ToolCallResult,
     },
     recipe::SubRecipe,

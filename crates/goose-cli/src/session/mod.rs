@@ -7,7 +7,10 @@ mod prompt;
 mod task_execution_display;
 mod thinking;
 
-use crate::session::task_execution_display::TASK_EXECUTION_NOTIFICATION_TYPE;
+use crate::session::task_execution_display::{
+    format_task_execution_notification, TASK_EXECUTION_NOTIFICATION_TYPE,
+};
+use std::io::Write;
 
 pub use self::export::message_to_markdown;
 pub use builder::{build_session, SessionBuilderConfig, SessionSettings};
@@ -20,8 +23,6 @@ use goose::permission::PermissionConfirmation;
 use goose::providers::base::Provider;
 pub use goose::session::Identifier;
 use goose::utils::safe_truncate;
-use std::io::Write;
-use task_execution_display::format_task_execution_notification;
 
 use anyhow::{Context, Result};
 use completion::GooseCompleter;
@@ -1077,7 +1078,7 @@ impl Session {
 
                                         // Handle subagent notifications - show immediately
                                         if let Some(_id) = subagent_id {
-                                            // Show subagent notifications immediately (no buffering) with compact spacing
+                                            // TODO: proper display for subagent notifications
                                             if interactive {
                                                 let _ = progress_bars.hide();
                                                 println!("{}", console::style(&formatted_message).green().dim());

@@ -4,14 +4,17 @@ use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
-use crate::agents::sub_recipe_execution_tool::task_execution_tracker::TaskExecutionTracker;
-use crate::agents::sub_recipe_execution_tool::task_types::{Task, TaskResult, TaskStatus};
+use crate::agents::subagent_execution_tool::task_execution_tracker::TaskExecutionTracker;
+use crate::agents::subagent_execution_tool::task_types::{Task, TaskResult, TaskStatus};
+use crate::agents::subagent_handler::run_complete_subagent_task;
+use crate::agents::subagent_task_config::TaskConfig;
 
 pub async fn process_task(
     task: &Task,
     task_execution_tracker: Arc<TaskExecutionTracker>,
+    task_config: TaskConfig,
 ) -> TaskResult {
-    match get_task_result(task.clone(), task_execution_tracker).await {
+    match get_task_result(task.clone(), task_execution_tracker, task_config).await {
         Ok(data) => TaskResult {
             task_id: task.id.clone(),
             status: TaskStatus::Completed,
@@ -30,28 +33,75 @@ pub async fn process_task(
 async fn get_task_result(
     task: Task,
     task_execution_tracker: Arc<TaskExecutionTracker>,
+    task_config: TaskConfig,
 ) -> Result<Value, String> {
-    let (command, output_identifier) = build_command(&task)?;
-    let (stdout_output, stderr_output, success) = run_command(
-        command,
-        &output_identifier,
-        &task.id,
-        task_execution_tracker,
-    )
-    .await?;
-
-    if success {
-        process_output(stdout_output)
+    if task.task_type == "text_instruction" {
+        // Handle text_instruction tasks using subagent system
+        handle_text_instruction_task(task, task_execution_tracker, task_config).await
     } else {
-        Err(format!("Command failed:\n{}", stderr_output))
+        // Handle sub_recipe tasks using command execution
+        let (command, output_identifier) = build_command(&task)?;
+        let (stdout_output, stderr_output, success) = run_command(
+            command,
+            &output_identifier,
+            &task.id,
+            task_execution_tracker,
+        )
+        .await?;
+
+        if success {
+            process_output(stdout_output)
+        } else {
+            Err(format!("Command failed:\n{}", stderr_output))
+        }
+    }
+}
+
+async fn handle_text_instruction_task(
+    task: Task,
+    task_execution_tracker: Arc<TaskExecutionTracker>,
+    task_config: TaskConfig,
+) -> Result<Value, String> {
+    let text_instruction = task
+        .get_text_instruction()
+        .ok_or_else(|| format!("Task {}: Missing text_instruction", task.id))?;
+
+    // Start tracking the task
+    task_execution_tracker.start_task(&task.id).await;
+
+    // Create arguments for the subagent task
+    let task_arguments = serde_json::json!({
+        "text_instruction": text_instruction,
+        // "instructions": "You are a helpful assistant. Execute the given task and provide a clear, concise response.",
+    });
+
+    match run_complete_subagent_task(task_arguments, task_config).await {
+        Ok(contents) => {
+            // Extract the text content from the result
+            let result_text = contents
+                .into_iter()
+                .filter_map(|content| match content {
+                    mcp_core::Content::Text(text) => Some(text.text),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+
+            Ok(serde_json::json!({
+                "result": result_text
+            }))
+        }
+        Err(e) => {
+            let error_msg = format!("Subagent execution failed: {}", e);
+            Err(error_msg)
+        }
     }
 }
 
 fn build_command(task: &Task) -> Result<(Command, String), String> {
     let task_error = |field: &str| format!("Task {}: Missing {}", task.id, field);
 
-    let mut output_identifier = task.id.clone();
-    let mut command = if task.task_type == "sub_recipe" {
+    let (mut command, output_identifier) = if task.task_type == "sub_recipe" {
         let sub_recipe_name = task
             .get_sub_recipe_name()
             .ok_or_else(|| task_error("sub_recipe name"))?;
@@ -62,7 +112,6 @@ fn build_command(task: &Task) -> Result<(Command, String), String> {
             .get_command_parameters()
             .ok_or_else(|| task_error("command_parameters"))?;
 
-        output_identifier = format!("sub-recipe {}", sub_recipe_name);
         let mut cmd = Command::new("goose");
         cmd.arg("run").arg("--recipe").arg(path).arg("--no-session");
 
@@ -72,14 +121,11 @@ fn build_command(task: &Task) -> Result<(Command, String), String> {
             cmd.arg("--params")
                 .arg(format!("{}={}", key_str, value_str));
         }
-        cmd
+        (cmd, format!("sub-recipe {}", sub_recipe_name))
     } else {
-        let text = task
-            .get_text_instruction()
-            .ok_or_else(|| task_error("text_instruction"))?;
-        let mut cmd = Command::new("goose");
-        cmd.arg("run").arg("--text").arg(text);
-        cmd
+        // This branch should not be reached for text_instruction tasks anymore
+        // as they are handled in handle_text_instruction_task
+        return Err("Text instruction tasks are handled separately".to_string());
     };
 
     command.stdout(Stdio::piped());
@@ -183,4 +229,3 @@ fn process_output(stdout_output: String) -> Result<Value, String> {
         Ok(Value::String(stdout_output))
     }
 }
-

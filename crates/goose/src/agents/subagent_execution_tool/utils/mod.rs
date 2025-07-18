@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::agents::sub_recipe_execution_tool::task_types::{TaskInfo, TaskStatus};
+use crate::agents::subagent_execution_tool::task_types::{TaskInfo, TaskStatus};
 
 pub fn get_task_name(task_info: &TaskInfo) -> &str {
     task_info
