@@ -121,10 +121,7 @@ pub async fn execute_shell_command(
     match tokio::time::timeout(timeout, future).await {
         Ok(result) => result,
         Err(_) => {
-            let error_msg = format!(
-                "Shell command timed out after {:?}: {}",
-                timeout, command
-            );
+            let error_msg = format!("Shell command timed out after {:?}: {}", timeout, command);
             warn!("{}", error_msg);
             Err(anyhow::anyhow!("{}", error_msg))
         }
