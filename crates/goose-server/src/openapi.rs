@@ -25,22 +25,20 @@ use utoipa::openapi::schema::{
 use utoipa::openapi::{AllOfBuilder, Ref, RefOr};
 
 macro_rules! derive_utoipa {
-    ($inner_type:ident) => {
-        paste::paste! {
-            struct [<Schema $inner_type>] {}
+    ($inner_type:ident as $schema_name:ident) => {
+        struct $schema_name {}
 
-            impl<'__s> ToSchema<'__s> for [<Schema $inner_type>] {
-                fn schema() -> (&'__s str, utoipa::openapi::RefOr<utoipa::openapi::Schema>) {
-                    let settings = rmcp::schemars::gen::SchemaSettings::openapi3();
-                    let generator = settings.into_generator();
-                    let schema = generator.into_root_schema_for::<$inner_type>();
-                    let schema = convert_schemars_to_utoipa(schema);
-                    (stringify!($inner_type), schema)
-                }
+        impl<'__s> ToSchema<'__s> for $schema_name {
+            fn schema() -> (&'__s str, utoipa::openapi::RefOr<utoipa::openapi::Schema>) {
+                let settings = rmcp::schemars::gen::SchemaSettings::openapi3();
+                let generator = settings.into_generator();
+                let schema = generator.into_root_schema_for::<$inner_type>();
+                let schema = convert_schemars_to_utoipa(schema);
+                (stringify!($inner_type), schema)
+            }
 
-                fn aliases() -> Vec<(&'__s str, utoipa::openapi::schema::Schema)> {
-                    Vec::new()
-                }
+            fn aliases() -> Vec<(&'__s str, utoipa::openapi::schema::Schema)> {
+                Vec::new()
             }
         }
     };
@@ -282,12 +280,12 @@ fn convert_single_instance_type(
     }
 }
 
-derive_utoipa!(Role);
-derive_utoipa!(Content);
-derive_utoipa!(EmbeddedResource);
-derive_utoipa!(ImageContent);
-derive_utoipa!(TextContent);
-derive_utoipa!(Annotations);
+derive_utoipa!(Role as RoleSchema);
+derive_utoipa!(Content as ContentSchema);
+derive_utoipa!(EmbeddedResource as EmbeddedResourceSchema);
+derive_utoipa!(ImageContent as ImageContentSchema);
+derive_utoipa!(TextContent as TextContentSchema);
+derive_utoipa!(Annotations as AnnotationsSchema);
 
 #[allow(dead_code)] // Used by utoipa for OpenAPI generation
 #[derive(OpenApi)]
@@ -339,11 +337,11 @@ derive_utoipa!(Annotations);
         super::routes::session::SessionHistoryResponse,
         Message,
         MessageContent,
-        SchemaContent,
-        SchemaEmbeddedResource,
-        SchemaImageContent,
-        SchemaAnnotations,
-        SchemaTextContent,
+        ContentSchema,
+        EmbeddedResourceSchema,
+        ImageContentSchema,
+        AnnotationsSchema,
+        TextContentSchema,
         ToolResponse,
         ToolRequest,
         ToolResultSchema,
@@ -354,7 +352,7 @@ derive_utoipa!(Annotations);
         ResourceContents,
         ContextLengthExceeded,
         SummarizationRequested,
-        SchemaRole,
+        RoleSchema,
         ProviderMetadata,
         ExtensionEntry,
         ExtensionConfig,

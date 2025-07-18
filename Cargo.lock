@@ -3695,7 +3695,6 @@ dependencies = [
  "mcp-core",
  "mcp-server",
  "once_cell",
- "paste",
  "reqwest 0.12.12",
  "rmcp",
  "serde",
