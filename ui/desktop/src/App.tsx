@@ -432,7 +432,7 @@ const RecipeEditorRoute = () => {
 
   if (!config) {
     const electronConfig = window.electron.getConfig();
-    config = electronConfig.recipeConfig;
+    config = electronConfig.recipe;
   }
 
   return <RecipeEditor config={config} />;
