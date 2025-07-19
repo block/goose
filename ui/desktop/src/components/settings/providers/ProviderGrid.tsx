@@ -36,10 +36,13 @@ const ProviderCards = memo(function ProviderCards({
             refreshProviders();
           }
         },
-        formProps: {},
+        formProps: {
+          isOnboarding,
+          onProviderLaunch,
+        },
       });
     },
-    [openModal, refreshProviders]
+    [openModal, refreshProviders, isOnboarding, onProviderLaunch]
   );
 
   const deleteProviderConfigViaModal = useCallback(

@@ -116,6 +116,11 @@ pub fn check_provider_configured(metadata: &ProviderMetadata) -> bool {
         .filter(|key| key.required)
         .collect();
 
+    // If there are no required keys at all, the provider is considered configured
+    if required_keys.is_empty() {
+        return true;
+    }
+
     // Special case: If a provider has exactly one required key and that key
     // has a default value, check if it's explicitly set
     if required_keys.len() == 1 && required_keys[0].default.is_some() {
@@ -153,4 +158,109 @@ pub fn check_provider_configured(metadata: &ProviderMetadata) -> bool {
 
         is_set_in_env || is_set_in_config
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use goose::providers::base::{ConfigKey, Provider, ProviderMetadata};
+
+    #[test]
+    fn test_check_provider_configured_no_required_keys() {
+        // Test provider with no required keys (like gemini-cli)
+        let metadata = ProviderMetadata::new(
+            "test-provider",
+            "Test Provider",
+            "A test provider with no required keys",
+            "default",
+            vec!["default"],
+            "https://example.com",
+            vec![], // No config keys at all
+        );
+
+        assert!(check_provider_configured(&metadata));
+    }
+
+    #[test]
+    fn test_check_provider_configured_optional_key_with_default() {
+        // Test provider with one optional key that has a default (like claude-code)
+        let metadata = ProviderMetadata::new(
+            "test-provider",
+            "Test Provider",
+            "A test provider with optional key with default",
+            "default",
+            vec!["default"],
+            "https://example.com",
+            vec![ConfigKey::new(
+                "TEST_COMMAND",
+                false,
+                false,
+                Some("default_cmd"),
+            )],
+        );
+
+        // Should be considered configured because it has no required keys
+        assert!(check_provider_configured(&metadata));
+    }
+
+    #[test]
+    fn test_check_provider_configured_required_key_with_default_not_set() {
+        // Test provider with one required key that has a default but is not set
+        let metadata = ProviderMetadata::new(
+            "test-provider",
+            "Test Provider",
+            "A test provider with required key with default",
+            "default",
+            vec!["default"],
+            "https://example.com",
+            vec![ConfigKey::new(
+                "TEST_COMMAND",
+                true,
+                false,
+                Some("default_cmd"),
+            )], // required=true, secret=false
+        );
+
+        // Should NOT be considered configured because the required key is not explicitly set
+        // even though it has a default value
+        assert!(!check_provider_configured(&metadata));
+    }
+
+    #[test]
+    fn test_check_provider_configured_required_key_without_default() {
+        // Test provider with required key without default
+        let metadata = ProviderMetadata::new(
+            "test-provider",
+            "Test Provider",
+            "A test provider with required key without default",
+            "default",
+            vec!["default"],
+            "https://example.com",
+            vec![ConfigKey::new("TEST_API_KEY", true, true, None)], // required=true, secret=true
+        );
+
+        // Should NOT be considered configured
+        assert!(!check_provider_configured(&metadata));
+    }
+
+    #[test]
+    fn test_check_provider_configured_real_gemini_cli() {
+        // Test the actual gemini-cli provider metadata
+        use goose::providers::gemini_cli::GeminiCliProvider;
+        let metadata = GeminiCliProvider::metadata();
+
+        // Should be considered configured because it has no required keys
+        assert!(check_provider_configured(&metadata));
+    }
+
+    #[test]
+    fn test_check_provider_configured_real_claude_code() {
+        // Test the actual claude-code provider metadata
+        use goose::providers::claude_code::ClaudeCodeProvider;
+        let metadata = ClaudeCodeProvider::metadata();
+
+        // Should be considered configured because it has no required keys
+        // (CLAUDE_CODE_COMMAND is optional with a default)
+        assert!(check_provider_configured(&metadata));
+    }
 }

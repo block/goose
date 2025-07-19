@@ -110,6 +110,17 @@ export default function ProviderConfigurationModal() {
       // Wait for the submission to complete
       await SubmitHandler(upsert, currentProvider, configValues);
 
+      // Check if this provider has no required configuration and we're in onboarding mode
+      const hasNoRequiredConfig = parameters.filter(p => p.required).length === 0;
+      const isOnboardingMode = modalProps.formProps?.isOnboarding;
+      const onProviderLaunch = modalProps.formProps?.onProviderLaunch;
+
+      // If it's onboarding mode, has no required config, and we have a launch function, launch the provider
+      if (isOnboardingMode && hasNoRequiredConfig && onProviderLaunch) {
+        console.log('Launching provider after configuration:', currentProvider.name);
+        await onProviderLaunch(currentProvider);
+      }
+
       // Close the modal before triggering refreshes to avoid UI issues
       closeModal();
 

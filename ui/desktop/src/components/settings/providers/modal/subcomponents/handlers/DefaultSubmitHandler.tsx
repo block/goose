@@ -47,6 +47,18 @@ export const DefaultSubmitHandler = async (
     }
   );
 
+  // For providers with no required configuration, save optional parameters with defaults
+  // This ensures something gets saved to mark the provider as configured
+  if (parameters.length > 0 && parameters.every(p => !p.required)) {
+    parameters.forEach((parameter) => {
+      if (parameter.default !== undefined && parameter.default !== null) {
+        const configKey = `${parameter.name}`;
+        const isSecret = parameter.secret === true;
+        upsertPromises.push(upsertFn(configKey, parameter.default, isSecret));
+      }
+    });
+  }
+
   // Wait for all upsert operations to complete
   return Promise.all(upsertPromises);
 };

@@ -12,6 +12,8 @@ interface DefaultProviderSetupFormProps {
   setConfigValues: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   provider: ProviderDetails;
   validationErrors: ValidationErrors;
+  isOnboarding?: boolean;
+  onProviderLaunch?: (provider: ProviderDetails) => void;
 }
 
 export default function DefaultProviderSetupForm({
@@ -19,6 +21,8 @@ export default function DefaultProviderSetupForm({
   setConfigValues,
   provider,
   validationErrors = {},
+  isOnboarding,
+  onProviderLaunch,
 }: DefaultProviderSetupFormProps) {
   const parameters = useMemo(
     () => provider.metadata.config_keys || [],
