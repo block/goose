@@ -147,6 +147,13 @@ run-ui-only:
     @echo "Running UI..."
     cd ui/desktop && npm install && npm run start-gui
 
+debug-ui:
+	@echo "🚀 Starting Goose frontend in external backend mode"
+	cd ui/desktop && \
+	export GOOSE_EXTERNAL_BACKEND=true && \
+	export GOOSE_EXTERNAL_PORT=3000 && \
+	npm install && \
+	npm run start-gui
 
 # Run UI with alpha changes
 run-ui-alpha temporal="true":
@@ -453,3 +460,4 @@ kotlin-example:
       -Djna.library.path=$HOME/Development/goose/target/debug \
       -classpath "example.jar:libs/kotlin-stdlib-1.9.0.jar:libs/kotlinx-coroutines-core-jvm-1.7.3.jar:libs/jna-5.13.0.jar" \
       UsageKt
+
