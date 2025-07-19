@@ -9,7 +9,10 @@ use url::Url;
 use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsage};
 use super::embedding::EmbeddingCapable;
 use super::errors::ProviderError;
-use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
+use super::utils::{
+    build_http_client, emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat,
+    MutualTlsConfig,
+};
 use crate::message::Message;
 use crate::model::ModelConfig;
 use mcp_core::tool::Tool;
@@ -53,9 +56,13 @@ impl LiteLLMProvider {
             .ok()
             .map(parse_custom_headers);
         let timeout_secs: u64 = config.get_param("LITELLM_TIMEOUT").unwrap_or(600);
-        let client = Client::builder()
-            .timeout(Duration::from_secs(timeout_secs))
-            .build()?;
+        let mtls_config = MutualTlsConfig {
+            client_cert_path: config.get_param("LITELLM_CLIENT_CERT_PATH").ok(),
+            client_key_path: config.get_param("LITELLM_CLIENT_KEY_PATH").ok(),
+            ca_cert_path: config.get_param("LITELLM_CA_CERT_PATH").ok(),
+        };
+
+        let client = build_http_client(timeout_secs, Some(&mtls_config))?;
 
         Ok(Self {
             client,
@@ -169,6 +176,9 @@ impl Provider for LiteLLMProvider {
                 ),
                 ConfigKey::new("LITELLM_CUSTOM_HEADERS", false, true, None),
                 ConfigKey::new("LITELLM_TIMEOUT", false, false, Some("600")),
+                ConfigKey::new("LITELLM_CLIENT_CERT_PATH", false, false, None),
+                ConfigKey::new("LITELLM_CLIENT_KEY_PATH", false, false, None),
+                ConfigKey::new("LITELLM_CA_CERT_PATH", false, false, None),
             ],
         )
     }
