@@ -2062,10 +2062,10 @@ app.whenReady().then(async () => {
  *
  ```yaml:
  extensions:
- - id: slack
-   command: uvx mcp_slack
- - id: knowledge_graph_memory
-   command: npx -y @modelcontextprotocol/server-memory
+  - id: slack
+    command: uvx mcp_slack
+  - id: knowledge_graph_memory
+    command: npx -y @modelcontextprotocol/server-memory
  ```
  *
  * @returns A promise that resolves to an array of extension commands that are allowed.
