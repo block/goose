@@ -13,6 +13,7 @@ use std::sync::Arc;
 
 use super::output;
 use super::Session;
+use crate::plan_manager::{PlanManager, Plan};
 
 /// Configuration for building a new Goose session
 ///
@@ -161,6 +162,131 @@ async fn offer_extension_debugging_help(
     let _ = std::fs::remove_file(temp_session_file);
 
     Ok(())
+}
+
+/// Configure extensions based on plan.yaml detection
+/// 
+/// If a plan.yaml file is found in the current working directory:
+/// - Enable the builder extension
+/// - Disable the developer extension
+/// - Add plan behaviors as system prompt
+/// 
+/// Returns (extensions_to_run, additional_system_prompt)
+fn configure_extensions_for_plan() -> (Vec<ExtensionConfig>, Option<String>) {
+    // Check if plan.yaml exists in current directory
+    if !PlanManager::plan_exists_in_current_dir() {
+        // No plan.yaml found, use default extension configuration
+        let extensions_to_run: Vec<_> = ExtensionConfigManager::get_all()
+            .expect("should load extensions")
+            .into_iter()
+            .filter(|ext| ext.enabled)
+            .map(|ext| ext.config)
+            .collect();
+        
+        return (extensions_to_run, None);
+    }
+
+    // Plan.yaml found - load it and configure extensions accordingly
+    match PlanManager::load_plan_from_current_dir() {
+        Ok(plan) => {
+            println!(
+                "{}",
+                style(format!(
+                    "📋 Found plan.yaml - \"{}\" ({}) - enabling builder mode with plan-based behaviors",
+                    plan.project.title,
+                    plan.project.language
+                ))
+                .green()
+                .bold()
+            );
+
+            // Get all available extensions
+            let all_extensions = ExtensionConfigManager::get_all()
+                .expect("should load extensions");
+
+            let mut extensions_to_run = Vec::new();
+            let mut builder_found = false;
+
+            // Enable all extensions except developer, and ensure builder is enabled
+            for ext_wrapper in all_extensions {
+                let ext_name = ext_wrapper.config.name();
+                
+                if ext_name == "developer" {
+                    // Skip developer extension when plan.yaml is present
+                    println!(
+                        "{}",
+                        style("  ↳ Disabling developer extension (replaced by builder)")
+                            .yellow()
+                    );
+                    continue;
+                } else if ext_name == "builder" {
+                    // Always enable builder extension when plan.yaml is present
+                    builder_found = true;
+                    extensions_to_run.push(ext_wrapper.config);
+                    println!(
+                        "{}",
+                        style("  ↳ Enabling builder extension for plan-based development")
+                            .green()
+                    );
+                } else if ext_wrapper.enabled {
+                    // Keep other enabled extensions as they are
+                    extensions_to_run.push(ext_wrapper.config);
+                }
+            }
+
+            // If builder extension wasn't found in config, create it as a builtin
+            if !builder_found {
+                let builder_config = ExtensionConfig::Builtin {
+                    name: "builder".to_string(),
+                    display_name: Some("Builder Extension".to_string()),
+                    timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+                    bundled: None,
+                };
+                extensions_to_run.push(builder_config);
+                println!(
+                    "{}",
+                    style("  ↳ Adding builder extension (builtin)")
+                        .green()
+                );
+            }
+
+            // Generate system prompt from plan behaviors
+            let plan_prompt = PlanManager::generate_system_prompt(&plan);
+            
+            println!(
+                "{}",
+                style(format!("  ↳ Loaded {} behaviors from plan.yaml", plan.behaviors.len()))
+                    .green()
+            );
+
+            (extensions_to_run, Some(plan_prompt))
+        }
+        Err(e) => {
+            // Plan.yaml exists but couldn't be loaded - warn and use defaults
+            eprintln!(
+                "{}",
+                style(format!(
+                    "Warning: Found plan.yaml but failed to load it: {}",
+                    e
+                ))
+                .yellow()
+            );
+            eprintln!(
+                "{}",
+                style("Continuing with default extension configuration")
+                    .yellow()
+            );
+
+            let extensions_to_run: Vec<_> = ExtensionConfigManager::get_all()
+                .expect("should load extensions")
+                .into_iter()
+                .filter(|ext| ext.enabled)
+                .map(|ext| ext.config)
+                .collect();
+            
+            (extensions_to_run, None)
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -337,15 +463,11 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     // Setup extensions for the agent
     // Extensions need to be added after the session is created because we change directory when resuming a session
     // If we get extensions_override, only run those extensions and none other
-    let extensions_to_run: Vec<_> = if let Some(extensions) = session_config.extensions_override {
-        extensions.into_iter().collect()
+    let (extensions_to_run, plan_system_prompt): (Vec<_>, Option<String>) = if let Some(extensions) = session_config.extensions_override {
+        (extensions.into_iter().collect(), None)
     } else {
-        ExtensionConfigManager::get_all()
-            .expect("should load extensions")
-            .into_iter()
-            .filter(|ext| ext.enabled)
-            .map(|ext| ext.config)
-            .collect()
+        // Use plan-based extension configuration
+        configure_extensions_for_plan()
     };
 
     for extension in extensions_to_run {
@@ -549,6 +671,11 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         .agent
         .extend_system_prompt(super::prompt::get_cli_prompt())
         .await;
+
+    // Add plan-based system prompt if available
+    if let Some(plan_prompt) = plan_system_prompt {
+        session.agent.extend_system_prompt(plan_prompt).await;
+    }
 
     if let Some(additional_prompt) = session_config.additional_system_prompt {
         session.agent.extend_system_prompt(additional_prompt).await;

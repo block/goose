@@ -52,5 +52,16 @@
     "type": "builtin",
     "env_keys": [],
     "bundled": true
+  },
+  {
+    "id": "builder",
+    "name": "builder",
+    "display_name": "Builder",
+    "description": "Behavior-driven application building tools",
+    "enabled": false,
+    "type": "builtin",
+    "env_keys": [],
+    "timeout": 300,
+    "bundled": true
   }
 ]
