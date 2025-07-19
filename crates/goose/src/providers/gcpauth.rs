@@ -1,3 +1,4 @@
+use crate::providers::utils::build_http_client;
 use async_trait::async_trait;
 use jsonwebtoken::{encode, EncodingKey, Header};
 use serde::{Deserialize, Serialize};
@@ -354,9 +355,11 @@ impl GcpAuth {
     /// # Returns
     /// * `Result<Self, AuthError>` - A new GcpAuth instance or an error if initialization fails
     pub async fn new() -> Result<Self, AuthError> {
+        let client = build_http_client(600, None)
+            .map_err(|e| AuthError::Credentials(format!("Failed to build HTTP client: {}", e)))?;
         Ok(Self {
             credentials: AdcCredentials::load().await?,
-            client: reqwest::Client::new(),
+            client,
             cached_token: Arc::new(RwLock::new(None)),
         })
     }

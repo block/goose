@@ -3,13 +3,14 @@ use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use std::time::Duration;
 use url::Url;
 
 use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsage};
 use super::embedding::EmbeddingCapable;
 use super::errors::ProviderError;
-use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
+use super::utils::{
+    build_http_client, emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat,
+};
 use crate::impl_provider_default;
 use crate::message::Message;
 use crate::model::ModelConfig;
@@ -49,9 +50,8 @@ impl LiteLLMProvider {
             .ok()
             .map(parse_custom_headers);
         let timeout_secs: u64 = config.get_param("LITELLM_TIMEOUT").unwrap_or(600);
-        let client = Client::builder()
-            .timeout(Duration::from_secs(timeout_secs))
-            .build()?;
+
+        let client = build_http_client(timeout_secs, None)?;
 
         Ok(Self {
             client,
@@ -165,6 +165,9 @@ impl Provider for LiteLLMProvider {
                 ),
                 ConfigKey::new("LITELLM_CUSTOM_HEADERS", false, true, None),
                 ConfigKey::new("LITELLM_TIMEOUT", false, false, Some("600")),
+                ConfigKey::new("LITELLM_CLIENT_CERT_PATH", false, false, None),
+                ConfigKey::new("LITELLM_CLIENT_KEY_PATH", false, false, None),
+                ConfigKey::new("LITELLM_CA_CERT_PATH", false, false, None),
             ],
         )
     }

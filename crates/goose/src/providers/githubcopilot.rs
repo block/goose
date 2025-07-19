@@ -1,3 +1,4 @@
+use crate::providers::utils::build_http_client;
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use axum::http;
@@ -9,7 +10,6 @@ use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::time::Duration;
 
 use super::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
@@ -120,9 +120,7 @@ impl_provider_default!(GithubCopilotProvider);
 
 impl GithubCopilotProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
-        let client = Client::builder()
-            .timeout(Duration::from_secs(600))
-            .build()?;
+        let client = build_http_client(600, None)?;
         let cache = DiskCache::new();
         let mu = tokio::sync::Mutex::new(RefCell::new(None));
         Ok(Self {
