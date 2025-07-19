@@ -15,7 +15,9 @@
   "paths": {
     "/agent/tools": {
       "get": {
-        "tags": ["super::routes::agent"],
+        "tags": [
+          "super::routes::agent"
+        ],
         "operationId": "get_tools",
         "parameters": [
           {
@@ -57,7 +59,9 @@
     },
     "/config": {
       "get": {
-        "tags": ["super::routes::config_management"],
+        "tags": [
+          "super::routes::config_management"
+        ],
         "operationId": "read_all_config",
         "responses": {
           "200": {
@@ -75,7 +79,9 @@
     },
     "/config/backup": {
       "post": {
-        "tags": ["super::routes::config_management"],
+        "tags": [
+          "super::routes::config_management"
+        ],
         "operationId": "backup_config",
         "responses": {
           "200": {
@@ -96,7 +102,9 @@
     },
     "/config/extensions": {
       "get": {
-        "tags": ["super::routes::config_management"],
+        "tags": [
+          "super::routes::config_management"
+        ],
         "operationId": "get_extensions",
         "responses": {
           "200": {
@@ -115,7 +123,9 @@
         }
       },
       "post": {
-        "tags": ["super::routes::config_management"],
+        "tags": [
+          "super::routes::config_management"
+        ],
         "operationId": "add_extension",
         "requestBody": {
           "content": {
@@ -152,7 +162,9 @@
     },
     "/config/extensions/{name}": {
       "delete": {
-        "tags": ["super::routes::config_management"],
+        "tags": [
+          "super::routes::config_management"
+        ],
         "operationId": "remove_extension",
         "parameters": [
           {
@@ -186,7 +198,9 @@
     },
     "/config/init": {
       "post": {
-        "tags": ["super::routes::config_management"],
+        "tags": [
+          "super::routes::config_management"
+        ],
         "operationId": "init_config",
         "responses": {
           "200": {
@@ -207,7 +221,9 @@
     },
     "/config/permissions": {
       "post": {
-        "tags": ["super::routes::config_management"],
+        "tags": [
+          "super::routes::config_management"
+        ],
         "operationId": "upsert_permissions",
         "requestBody": {
           "content": {
@@ -238,7 +254,9 @@
     },
     "/config/providers": {
       "get": {
-        "tags": ["super::routes::config_management"],
+        "tags": [
+          "super::routes::config_management"
+        ],
         "operationId": "providers",
         "responses": {
           "200": {
@@ -259,7 +277,9 @@
     },
     "/config/read": {
       "post": {
-        "tags": ["super::routes::config_management"],
+        "tags": [
+          "super::routes::config_management"
+        ],
         "operationId": "read_config",
         "requestBody": {
           "content": {
@@ -288,7 +308,9 @@
     },
     "/config/recover": {
       "post": {
-        "tags": ["super::routes::config_management"],
+        "tags": [
+          "super::routes::config_management"
+        ],
         "operationId": "recover_config",
         "responses": {
           "200": {
@@ -309,7 +331,9 @@
     },
     "/config/remove": {
       "post": {
-        "tags": ["super::routes::config_management"],
+        "tags": [
+          "super::routes::config_management"
+        ],
         "operationId": "remove_config",
         "requestBody": {
           "content": {
@@ -343,7 +367,9 @@
     },
     "/config/upsert": {
       "post": {
-        "tags": ["super::routes::config_management"],
+        "tags": [
+          "super::routes::config_management"
+        ],
         "operationId": "upsert_config",
         "requestBody": {
           "content": {
@@ -374,7 +400,9 @@
     },
     "/config/validate": {
       "get": {
-        "tags": ["super::routes::config_management"],
+        "tags": [
+          "super::routes::config_management"
+        ],
         "operationId": "validate_config",
         "responses": {
           "200": {
@@ -395,7 +423,9 @@
     },
     "/confirm": {
       "post": {
-        "tags": ["super::routes::reply"],
+        "tags": [
+          "super::routes::reply"
+        ],
         "operationId": "confirm_permission",
         "requestBody": {
           "content": {
@@ -427,7 +457,9 @@
     },
     "/context/manage": {
       "post": {
-        "tags": ["Context Management"],
+        "tags": [
+          "Context Management"
+        ],
         "operationId": "manage_context",
         "requestBody": {
           "content": {
@@ -469,7 +501,9 @@
     },
     "/schedule/create": {
       "post": {
-        "tags": ["schedule"],
+        "tags": [
+          "schedule"
+        ],
         "operationId": "create_schedule",
         "requestBody": {
           "content": {
@@ -506,7 +540,9 @@
     },
     "/schedule/delete/{id}": {
       "delete": {
-        "tags": ["schedule"],
+        "tags": [
+          "schedule"
+        ],
         "operationId": "delete_schedule",
         "parameters": [
           {
@@ -534,7 +570,9 @@
     },
     "/schedule/list": {
       "get": {
-        "tags": ["schedule"],
+        "tags": [
+          "schedule"
+        ],
         "operationId": "list_schedules",
         "responses": {
           "200": {
@@ -555,7 +593,9 @@
     },
     "/schedule/{id}": {
       "put": {
-        "tags": ["schedule"],
+        "tags": [
+          "schedule"
+        ],
         "operationId": "update_schedule",
         "parameters": [
           {
@@ -603,7 +643,9 @@
     },
     "/schedule/{id}/inspect": {
       "get": {
-        "tags": ["schedule"],
+        "tags": [
+          "schedule"
+        ],
         "operationId": "inspect_running_job",
         "parameters": [
           {
@@ -638,7 +680,9 @@
     },
     "/schedule/{id}/kill": {
       "post": {
-        "tags": ["schedule"],
+        "tags": [
+          "schedule"
+        ],
         "operationId": "kill_running_job",
         "parameters": [
           {
@@ -659,7 +703,9 @@
     },
     "/schedule/{id}/pause": {
       "post": {
-        "tags": ["schedule"],
+        "tags": [
+          "schedule"
+        ],
         "operationId": "pause_schedule",
         "parameters": [
           {
@@ -690,7 +736,9 @@
     },
     "/schedule/{id}/run_now": {
       "post": {
-        "tags": ["schedule"],
+        "tags": [
+          "schedule"
+        ],
         "operationId": "run_now_handler",
         "parameters": [
           {
@@ -725,7 +773,9 @@
     },
     "/schedule/{id}/sessions": {
       "get": {
-        "tags": ["schedule"],
+        "tags": [
+          "schedule"
+        ],
         "operationId": "sessions_handler",
         "parameters": [
           {
@@ -770,7 +820,9 @@
     },
     "/schedule/{id}/unpause": {
       "post": {
-        "tags": ["schedule"],
+        "tags": [
+          "schedule"
+        ],
         "operationId": "unpause_schedule",
         "parameters": [
           {
@@ -798,7 +850,9 @@
     },
     "/sessions": {
       "get": {
-        "tags": ["Session Management"],
+        "tags": [
+          "Session Management"
+        ],
         "operationId": "list_sessions",
         "responses": {
           "200": {
@@ -827,7 +881,9 @@
     },
     "/sessions/{session_id}": {
       "get": {
-        "tags": ["Session Management"],
+        "tags": [
+          "Session Management"
+        ],
         "operationId": "get_session_history",
         "parameters": [
           {
@@ -891,7 +947,11 @@
       },
       "ConfigKey": {
         "type": "object",
-        "required": ["name", "required", "secret"],
+        "required": [
+          "name",
+          "required",
+          "secret"
+        ],
         "properties": {
           "default": {
             "type": "string",
@@ -910,7 +970,10 @@
       },
       "ConfigKeyQuery": {
         "type": "object",
-        "required": ["key", "is_secret"],
+        "required": [
+          "key",
+          "is_secret"
+        ],
         "properties": {
           "is_secret": {
             "type": "boolean"
@@ -922,7 +985,9 @@
       },
       "ConfigResponse": {
         "type": "object",
-        "required": ["config"],
+        "required": [
+          "config"
+        ],
         "properties": {
           "config": {
             "type": "object",
@@ -934,7 +999,10 @@
         "oneOf": [
           {
             "type": "object",
-            "required": ["text", "type"],
+            "required": [
+              "text",
+              "type"
+            ],
             "properties": {
               "text": {
                 "type": "string"
@@ -946,7 +1014,11 @@
           },
           {
             "type": "object",
-            "required": ["data", "mimeType", "type"],
+            "required": [
+              "data",
+              "mimeType",
+              "type"
+            ],
             "properties": {
               "data": {
                 "type": "string"
@@ -961,7 +1033,10 @@
           },
           {
             "type": "object",
-            "required": ["resource", "type"],
+            "required": [
+              "resource",
+              "type"
+            ],
             "properties": {
               "resource": {
                 "$ref": "#/components/schemas/ResourceContents"
@@ -973,7 +1048,11 @@
           },
           {
             "type": "object",
-            "required": ["data", "mimeType", "type"],
+            "required": [
+              "data",
+              "mimeType",
+              "type"
+            ],
             "properties": {
               "annotations": {
                 "allOf": [
@@ -997,7 +1076,9 @@
       },
       "ContextLengthExceeded": {
         "type": "object",
-        "required": ["msg"],
+        "required": [
+          "msg"
+        ],
         "properties": {
           "msg": {
             "type": "string"
@@ -1007,7 +1088,10 @@
       "ContextManageRequest": {
         "type": "object",
         "description": "Request payload for context management operations",
-        "required": ["messages", "manageAction"],
+        "required": [
+          "messages",
+          "manageAction"
+        ],
         "properties": {
           "manageAction": {
             "type": "string",
@@ -1025,7 +1109,10 @@
       "ContextManageResponse": {
         "type": "object",
         "description": "Response from context management operations",
-        "required": ["messages", "tokenCounts"],
+        "required": [
+          "messages",
+          "tokenCounts"
+        ],
         "properties": {
           "messages": {
             "type": "array",
@@ -1046,7 +1133,11 @@
       },
       "CreateScheduleRequest": {
         "type": "object",
-        "required": ["id", "recipe_source", "cron"],
+        "required": [
+          "id",
+          "recipe_source",
+          "cron"
+        ],
         "properties": {
           "cron": {
             "type": "string"
@@ -1065,7 +1156,9 @@
       },
       "EmbeddedResource": {
         "type": "object",
-        "required": ["resource"],
+        "required": [
+          "resource"
+        ],
         "properties": {
           "annotations": {
             "allOf": [
@@ -1091,7 +1184,11 @@
           {
             "type": "object",
             "description": "Server-sent events client with a URI endpoint",
-            "required": ["name", "uri", "type"],
+            "required": [
+              "name",
+              "uri",
+              "type"
+            ],
             "properties": {
               "bundled": {
                 "type": "boolean",
@@ -1123,7 +1220,9 @@
               },
               "type": {
                 "type": "string",
-                "enum": ["sse"]
+                "enum": [
+                  "sse"
+                ]
               },
               "uri": {
                 "type": "string"
@@ -1133,7 +1232,12 @@
           {
             "type": "object",
             "description": "Standard I/O client with command and arguments",
-            "required": ["name", "cmd", "args", "type"],
+            "required": [
+              "name",
+              "cmd",
+              "args",
+              "type"
+            ],
             "properties": {
               "args": {
                 "type": "array",
@@ -1174,14 +1278,19 @@
               },
               "type": {
                 "type": "string",
-                "enum": ["stdio"]
+                "enum": [
+                  "stdio"
+                ]
               }
             }
           },
           {
             "type": "object",
             "description": "Built-in extension that is part of the goose binary",
-            "required": ["name", "type"],
+            "required": [
+              "name",
+              "type"
+            ],
             "properties": {
               "bundled": {
                 "type": "boolean",
@@ -1204,14 +1313,20 @@
               },
               "type": {
                 "type": "string",
-                "enum": ["builtin"]
+                "enum": [
+                  "builtin"
+                ]
               }
             }
           },
           {
             "type": "object",
             "description": "Streamable HTTP client with a URI endpoint using MCP Streamable HTTP specification",
-            "required": ["name", "uri", "type"],
+            "required": [
+              "name",
+              "uri",
+              "type"
+            ],
             "properties": {
               "bundled": {
                 "type": "boolean",
@@ -1249,7 +1364,9 @@
               },
               "type": {
                 "type": "string",
-                "enum": ["streamable_http"]
+                "enum": [
+                  "streamable_http"
+                ]
               },
               "uri": {
                 "type": "string"
@@ -1259,7 +1376,11 @@
           {
             "type": "object",
             "description": "Frontend-provided tools that will be called through the frontend",
-            "required": ["name", "tools", "type"],
+            "required": [
+              "name",
+              "tools",
+              "type"
+            ],
             "properties": {
               "bundled": {
                 "type": "boolean",
@@ -1284,7 +1405,9 @@
               },
               "type": {
                 "type": "string",
-                "enum": ["frontend"]
+                "enum": [
+                  "frontend"
+                ]
               }
             }
           }
@@ -1301,7 +1424,9 @@
           },
           {
             "type": "object",
-            "required": ["enabled"],
+            "required": [
+              "enabled"
+            ],
             "properties": {
               "enabled": {
                 "type": "boolean"
@@ -1312,7 +1437,11 @@
       },
       "ExtensionQuery": {
         "type": "object",
-        "required": ["name", "config", "enabled"],
+        "required": [
+          "name",
+          "config",
+          "enabled"
+        ],
         "properties": {
           "config": {
             "$ref": "#/components/schemas/ExtensionConfig"
@@ -1327,7 +1456,9 @@
       },
       "ExtensionResponse": {
         "type": "object",
-        "required": ["extensions"],
+        "required": [
+          "extensions"
+        ],
         "properties": {
           "extensions": {
             "type": "array",
@@ -1339,7 +1470,10 @@
       },
       "FrontendToolRequest": {
         "type": "object",
-        "required": ["id", "toolCall"],
+        "required": [
+          "id",
+          "toolCall"
+        ],
         "properties": {
           "id": {
             "type": "string"
@@ -1351,7 +1485,10 @@
       },
       "ImageContent": {
         "type": "object",
-        "required": ["data", "mimeType"],
+        "required": [
+          "data",
+          "mimeType"
+        ],
         "properties": {
           "annotations": {
             "allOf": [
@@ -1388,7 +1525,9 @@
       },
       "KillJobResponse": {
         "type": "object",
-        "required": ["message"],
+        "required": [
+          "message"
+        ],
         "properties": {
           "message": {
             "type": "string"
@@ -1397,7 +1536,9 @@
       },
       "ListSchedulesResponse": {
         "type": "object",
-        "required": ["jobs"],
+        "required": [
+          "jobs"
+        ],
         "properties": {
           "jobs": {
             "type": "array",
@@ -1410,7 +1551,11 @@
       "Message": {
         "type": "object",
         "description": "A message to or from an LLM",
-        "required": ["role", "created", "content"],
+        "required": [
+          "role",
+          "created",
+          "content"
+        ],
         "properties": {
           "content": {
             "type": "array",
@@ -1440,11 +1585,15 @@
               },
               {
                 "type": "object",
-                "required": ["type"],
+                "required": [
+                  "type"
+                ],
                 "properties": {
                   "type": {
                     "type": "string",
-                    "enum": ["text"]
+                    "enum": [
+                      "text"
+                    ]
                   }
                 }
               }
@@ -1457,11 +1606,15 @@
               },
               {
                 "type": "object",
-                "required": ["type"],
+                "required": [
+                  "type"
+                ],
                 "properties": {
                   "type": {
                     "type": "string",
-                    "enum": ["image"]
+                    "enum": [
+                      "image"
+                    ]
                   }
                 }
               }
@@ -1474,11 +1627,15 @@
               },
               {
                 "type": "object",
-                "required": ["type"],
+                "required": [
+                  "type"
+                ],
                 "properties": {
                   "type": {
                     "type": "string",
-                    "enum": ["toolRequest"]
+                    "enum": [
+                      "toolRequest"
+                    ]
                   }
                 }
               }
@@ -1491,11 +1648,15 @@
               },
               {
                 "type": "object",
-                "required": ["type"],
+                "required": [
+                  "type"
+                ],
                 "properties": {
                   "type": {
                     "type": "string",
-                    "enum": ["toolResponse"]
+                    "enum": [
+                      "toolResponse"
+                    ]
                   }
                 }
               }
@@ -1508,11 +1669,15 @@
               },
               {
                 "type": "object",
-                "required": ["type"],
+                "required": [
+                  "type"
+                ],
                 "properties": {
                   "type": {
                     "type": "string",
-                    "enum": ["toolConfirmationRequest"]
+                    "enum": [
+                      "toolConfirmationRequest"
+                    ]
                   }
                 }
               }
@@ -1525,11 +1690,15 @@
               },
               {
                 "type": "object",
-                "required": ["type"],
+                "required": [
+                  "type"
+                ],
                 "properties": {
                   "type": {
                     "type": "string",
-                    "enum": ["frontendToolRequest"]
+                    "enum": [
+                      "frontendToolRequest"
+                    ]
                   }
                 }
               }
@@ -1542,11 +1711,15 @@
               },
               {
                 "type": "object",
-                "required": ["type"],
+                "required": [
+                  "type"
+                ],
                 "properties": {
                   "type": {
                     "type": "string",
-                    "enum": ["thinking"]
+                    "enum": [
+                      "thinking"
+                    ]
                   }
                 }
               }
@@ -1559,11 +1732,15 @@
               },
               {
                 "type": "object",
-                "required": ["type"],
+                "required": [
+                  "type"
+                ],
                 "properties": {
                   "type": {
                     "type": "string",
-                    "enum": ["redactedThinking"]
+                    "enum": [
+                      "redactedThinking"
+                    ]
                   }
                 }
               }
@@ -1576,11 +1753,15 @@
               },
               {
                 "type": "object",
-                "required": ["type"],
+                "required": [
+                  "type"
+                ],
                 "properties": {
                   "type": {
                     "type": "string",
-                    "enum": ["contextLengthExceeded"]
+                    "enum": [
+                      "contextLengthExceeded"
+                    ]
                   }
                 }
               }
@@ -1593,11 +1774,15 @@
               },
               {
                 "type": "object",
-                "required": ["type"],
+                "required": [
+                  "type"
+                ],
                 "properties": {
                   "type": {
                     "type": "string",
-                    "enum": ["summarizationRequested"]
+                    "enum": [
+                      "summarizationRequested"
+                    ]
                   }
                 }
               }
@@ -1612,7 +1797,10 @@
       "ModelInfo": {
         "type": "object",
         "description": "Information about a model's capabilities",
-        "required": ["name", "context_limit"],
+        "required": [
+          "name",
+          "context_limit"
+        ],
         "properties": {
           "context_limit": {
             "type": "integer",
@@ -1639,12 +1827,20 @@
             "format": "double",
             "description": "Cost per token for output (optional)",
             "nullable": true
+          },
+          "supports_cache_control": {
+            "type": "boolean",
+            "description": "Whether this model supports cache control",
+            "nullable": true
           }
         }
       },
       "PermissionConfirmationRequest": {
         "type": "object",
-        "required": ["id", "action"],
+        "required": [
+          "id",
+          "action"
+        ],
         "properties": {
           "action": {
             "type": "string"
@@ -1660,15 +1856,26 @@
       "PermissionLevel": {
         "type": "string",
         "description": "Enum representing the possible permission levels for a tool.",
-        "enum": ["always_allow", "ask_before", "never_allow"]
+        "enum": [
+          "always_allow",
+          "ask_before",
+          "never_allow"
+        ]
       },
       "PrincipalType": {
         "type": "string",
-        "enum": ["Extension", "Tool"]
+        "enum": [
+          "Extension",
+          "Tool"
+        ]
       },
       "ProviderDetails": {
         "type": "object",
-        "required": ["name", "metadata", "is_configured"],
+        "required": [
+          "name",
+          "metadata",
+          "is_configured"
+        ],
         "properties": {
           "is_configured": {
             "type": "boolean"
@@ -1732,7 +1939,9 @@
       },
       "ProvidersResponse": {
         "type": "object",
-        "required": ["providers"],
+        "required": [
+          "providers"
+        ],
         "properties": {
           "providers": {
             "type": "array",
@@ -1744,7 +1953,9 @@
       },
       "RedactedThinkingContent": {
         "type": "object",
-        "required": ["data"],
+        "required": [
+          "data"
+        ],
         "properties": {
           "data": {
             "type": "string"
@@ -1755,7 +1966,10 @@
         "oneOf": [
           {
             "type": "object",
-            "required": ["uri", "text"],
+            "required": [
+              "uri",
+              "text"
+            ],
             "properties": {
               "mime_type": {
                 "type": "string",
@@ -1771,7 +1985,10 @@
           },
           {
             "type": "object",
-            "required": ["uri", "blob"],
+            "required": [
+              "uri",
+              "blob"
+            ],
             "properties": {
               "blob": {
                 "type": "string"
@@ -1799,7 +2016,9 @@
       },
       "RunNowResponse": {
         "type": "object",
-        "required": ["session_id"],
+        "required": [
+          "session_id"
+        ],
         "properties": {
           "session_id": {
             "type": "string"
@@ -1808,7 +2027,11 @@
       },
       "ScheduledJob": {
         "type": "object",
-        "required": ["id", "source", "cron"],
+        "required": [
+          "id",
+          "source",
+          "cron"
+        ],
         "properties": {
           "cron": {
             "type": "string"
@@ -1847,7 +2070,13 @@
       },
       "SessionDisplayInfo": {
         "type": "object",
-        "required": ["id", "name", "createdAt", "workingDir", "messageCount"],
+        "required": [
+          "id",
+          "name",
+          "createdAt",
+          "workingDir",
+          "messageCount"
+        ],
         "properties": {
           "accumulatedInputTokens": {
             "type": "integer",
@@ -1903,7 +2132,11 @@
       },
       "SessionHistoryResponse": {
         "type": "object",
-        "required": ["sessionId", "metadata", "messages"],
+        "required": [
+          "sessionId",
+          "metadata",
+          "messages"
+        ],
         "properties": {
           "messages": {
             "type": "array",
@@ -1923,7 +2156,12 @@
       },
       "SessionInfo": {
         "type": "object",
-        "required": ["id", "path", "modified", "metadata"],
+        "required": [
+          "id",
+          "path",
+          "modified",
+          "metadata"
+        ],
         "properties": {
           "id": {
             "type": "string"
@@ -1941,7 +2179,9 @@
       },
       "SessionListResponse": {
         "type": "object",
-        "required": ["sessions"],
+        "required": [
+          "sessions"
+        ],
         "properties": {
           "sessions": {
             "type": "array",
@@ -1955,7 +2195,11 @@
       "SessionMetadata": {
         "type": "object",
         "description": "Metadata for a session, stored as the first line in the session file",
-        "required": ["working_dir", "description", "message_count"],
+        "required": [
+          "working_dir",
+          "description",
+          "message_count"
+        ],
         "properties": {
           "accumulated_input_tokens": {
             "type": "integer",
@@ -2031,7 +2275,9 @@
       },
       "SummarizationRequested": {
         "type": "object",
-        "required": ["msg"],
+        "required": [
+          "msg"
+        ],
         "properties": {
           "msg": {
             "type": "string"
@@ -2040,7 +2286,9 @@
       },
       "TextContent": {
         "type": "object",
-        "required": ["text"],
+        "required": [
+          "text"
+        ],
         "properties": {
           "annotations": {
             "allOf": [
@@ -2056,7 +2304,10 @@
       },
       "ThinkingContent": {
         "type": "object",
-        "required": ["thinking", "signature"],
+        "required": [
+          "thinking",
+          "signature"
+        ],
         "properties": {
           "signature": {
             "type": "string"
@@ -2069,7 +2320,11 @@
       "Tool": {
         "type": "object",
         "description": "A tool that can be used by a model.",
-        "required": ["name", "description", "inputSchema"],
+        "required": [
+          "name",
+          "description",
+          "inputSchema"
+        ],
         "properties": {
           "annotations": {
             "allOf": [
@@ -2121,7 +2376,11 @@
       },
       "ToolConfirmationRequest": {
         "type": "object",
-        "required": ["id", "toolName", "arguments"],
+        "required": [
+          "id",
+          "toolName",
+          "arguments"
+        ],
         "properties": {
           "arguments": {},
           "id": {
@@ -2139,7 +2398,11 @@
       "ToolInfo": {
         "type": "object",
         "description": "Information about the tool used for building prompts",
-        "required": ["name", "description", "parameters"],
+        "required": [
+          "name",
+          "description",
+          "parameters"
+        ],
         "properties": {
           "description": {
             "type": "string"
@@ -2165,7 +2428,10 @@
       },
       "ToolPermission": {
         "type": "object",
-        "required": ["tool_name", "permission"],
+        "required": [
+          "tool_name",
+          "permission"
+        ],
         "properties": {
           "permission": {
             "$ref": "#/components/schemas/PermissionLevel"
@@ -2177,7 +2443,10 @@
       },
       "ToolRequest": {
         "type": "object",
-        "required": ["id", "toolCall"],
+        "required": [
+          "id",
+          "toolCall"
+        ],
         "properties": {
           "id": {
             "type": "string"
@@ -2189,7 +2458,10 @@
       },
       "ToolResponse": {
         "type": "object",
-        "required": ["id", "toolResult"],
+        "required": [
+          "id",
+          "toolResult"
+        ],
         "properties": {
           "id": {
             "type": "string"
@@ -2201,7 +2473,10 @@
       },
       "ToolResultSchema": {
         "type": "object",
-        "required": ["success", "data"],
+        "required": [
+          "success",
+          "data"
+        ],
         "properties": {
           "data": {
             "type": "object"
@@ -2223,7 +2498,9 @@
       },
       "UpdateScheduleRequest": {
         "type": "object",
-        "required": ["cron"],
+        "required": [
+          "cron"
+        ],
         "properties": {
           "cron": {
             "type": "string"
@@ -2232,7 +2509,11 @@
       },
       "UpsertConfigQuery": {
         "type": "object",
-        "required": ["key", "value", "is_secret"],
+        "required": [
+          "key",
+          "value",
+          "is_secret"
+        ],
         "properties": {
           "is_secret": {
             "type": "boolean"
@@ -2245,7 +2526,9 @@
       },
       "UpsertPermissionsQuery": {
         "type": "object",
-        "required": ["tool_permissions"],
+        "required": [
+          "tool_permissions"
+        ],
         "properties": {
           "tool_permissions": {
             "type": "array",
