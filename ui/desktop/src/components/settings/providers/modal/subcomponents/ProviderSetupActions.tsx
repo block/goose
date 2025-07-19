@@ -116,14 +116,24 @@ export default function ProviderSetupActions({
           </Button>
         </>
       ) : (
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={onCancel}
-          className="w-full h-[60px] rounded-none border-t border-borderSubtle hover:text-textStandard text-textSubtle hover:bg-bgSubtle text-md font-regular"
-        >
-          Close
-        </Button>
+        <>
+          <Button
+            type="submit"
+            variant="ghost"
+            onClick={onSubmit}
+            className="w-full h-[60px] rounded-none border-t border-borderSubtle text-md hover:bg-bgSubtle text-textProminent font-medium"
+          >
+            Enable Provider
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onCancel}
+            className="w-full h-[60px] rounded-none border-t border-borderSubtle hover:text-textStandard text-textSubtle hover:bg-bgSubtle text-md font-regular"
+          >
+            Cancel
+          </Button>
+        </>
       )}
     </div>
   );

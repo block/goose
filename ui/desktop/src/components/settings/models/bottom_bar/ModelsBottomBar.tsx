@@ -13,6 +13,7 @@ import {
 } from '../../../ui/dropdown-menu';
 import { useCurrentModelInfo } from '../../../BaseChat';
 import { useConfig } from '../../../ConfigContext';
+import { getProviderMetadata } from '../modelInterface';
 import { Alert } from '../../../alerts';
 import BottomMenuAlertPopover from '../../../bottom_menu/BottomMenuAlertPopover';
 import { Recipe } from '../../../../recipe';
@@ -42,12 +43,13 @@ export default function ModelsBottomBar({
     getCurrentProviderDisplayName,
   } = useModelAndProvider();
   const currentModelInfo = useCurrentModelInfo();
-  const { read } = useConfig();
+  const { read, getProviders } = useConfig();
   const [displayProvider, setDisplayProvider] = useState<string | null>(null);
   const [displayModelName, setDisplayModelName] = useState<string>('Select Model');
   const [isAddModelModalOpen, setIsAddModelModalOpen] = useState(false);
   const [isLeadWorkerModalOpen, setIsLeadWorkerModalOpen] = useState(false);
   const [isLeadWorkerActive, setIsLeadWorkerActive] = useState(false);
+  const [providerDefaultModel, setProviderDefaultModel] = useState<string | null>(null);
 
   // Save recipe dialog state (like in RecipeEditor.tsx)
   const [showSaveDialog, setShowSaveDialog] = useState(false);
@@ -91,10 +93,6 @@ export default function ModelsBottomBar({
     checkLeadWorker();
   };
 
-  // Determine which model to display - activeModel takes priority when lead/worker is active
-  const displayModel =
-    isLeadWorkerActive && currentModelInfo?.model ? currentModelInfo.model : displayModelName;
-
   // Since currentModelInfo.mode is not working, let's determine mode differently
   // We'll need to get the lead model and compare it with the current model
   const [leadModelName, setLeadModelName] = useState<string>('');
@@ -122,6 +120,12 @@ export default function ModelsBottomBar({
       : 'worker'
     : undefined;
 
+  // Determine which model to display - activeModel takes priority when lead/worker is active
+  const displayModel =
+    isLeadWorkerActive && currentModelInfo?.model
+      ? currentModelInfo.model
+      : currentModel || providerDefaultModel || displayModelName;
+
   // Update display provider when current provider changes
   useEffect(() => {
     if (currentProvider) {
@@ -136,6 +140,24 @@ export default function ModelsBottomBar({
       })();
     }
   }, [currentProvider, getCurrentProviderDisplayName, getCurrentModelAndProviderForDisplay]);
+
+  // Fetch provider default model when provider changes and no current model
+  useEffect(() => {
+    if (currentProvider && !currentModel) {
+      (async () => {
+        try {
+          const metadata = await getProviderMetadata(currentProvider, getProviders);
+          setProviderDefaultModel(metadata.default_model);
+        } catch (error) {
+          console.error('Failed to get provider default model:', error);
+          setProviderDefaultModel(null);
+        }
+      })();
+    } else if (currentModel) {
+      // Clear provider default when we have a current model
+      setProviderDefaultModel(null);
+    }
+  }, [currentProvider, currentModel, getProviders]);
 
   // Update display model name when current model changes
   useEffect(() => {
