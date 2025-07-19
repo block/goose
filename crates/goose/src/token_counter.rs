@@ -371,8 +371,8 @@ pub async fn create_async_token_counter() -> Result<AsyncTokenCounter, String> {
 mod tests {
     use super::*;
     use crate::message::{Message, MessageContent};
-    use mcp_core::role::Role;
     use mcp_core::tool::Tool;
+    use rmcp::model::Role;
     use serde_json::json;
 
     #[test]

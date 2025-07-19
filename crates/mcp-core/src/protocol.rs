@@ -1,11 +1,11 @@
 /// The protocol messages exchanged between client and server
 use crate::{
-    content::Content,
     prompt::{Prompt, PromptMessage},
     resource::Resource,
     resource::ResourceContents,
     tool::Tool,
 };
+use rmcp::model::Content;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 

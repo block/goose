@@ -1219,7 +1219,7 @@ async fn run_scheduled_job_internal(
 
                     match message_result {
                         Ok(AgentEvent::Message(msg)) => {
-                            if msg.role == mcp_core::role::Role::Assistant {
+                            if msg.role == rmcp::model::Role::Assistant {
                                 tracing::info!("[Job {}] Assistant: {:?}", job.id, msg.content);
                             }
                             all_session_messages.push(msg);
@@ -1331,7 +1331,8 @@ mod tests {
         providers::base::{ProviderMetadata, ProviderUsage, Usage},
         providers::errors::ProviderError,
     };
-    use mcp_core::{content::TextContent, tool::Tool, Role};
+    use mcp_core::tool::Tool;
+    use rmcp::model::{AnnotateAble, RawTextContent, Role};
     // Removed: use crate::session::storage::{get_most_recent_session, read_metadata};
     // `read_metadata` is still used by the test itself, so keep it or its module.
     use crate::session::storage::read_metadata;
@@ -1374,10 +1375,12 @@ mod tests {
                 Message::new(
                     Role::Assistant,
                     Utc::now().timestamp(),
-                    vec![MessageContent::Text(TextContent {
-                        text: "Mocked scheduled response".to_string(),
-                        annotations: None,
-                    })],
+                    vec![MessageContent::Text(
+                        RawTextContent {
+                            text: "Mocked scheduled response".to_string(),
+                        }
+                        .no_annotation(),
+                    )],
                 ),
                 ProviderUsage::new("mock-scheduler-test".to_string(), Usage::default()),
             ))

@@ -5,13 +5,13 @@ use anyhow::Result;
 use base64::Engine;
 use regex::Regex;
 use reqwest::{Response, StatusCode};
+use rmcp::model::{AnnotateAble, ImageContent, RawImageContent};
 use serde::{Deserialize, Serialize};
 use serde_json::{from_value, json, Map, Value};
 use std::io::Read;
 use std::path::Path;
 
 use crate::providers::errors::{OpenAIError, ProviderError};
-use mcp_core::content::ImageContent;
 
 #[derive(serde::Deserialize)]
 struct OpenAIErrorResponse {
@@ -292,11 +292,11 @@ pub fn load_image_file(path: &str) -> Result<ImageContent, ProviderError> {
     // Convert to base64
     let data = base64::prelude::BASE64_STANDARD.encode(&bytes);
 
-    Ok(ImageContent {
+    Ok(RawImageContent {
         mime_type: mime_type.to_string(),
         data,
-        annotations: None,
-    })
+    }
+    .no_annotation())
 }
 
 pub fn unescape_json_values(value: &Value) -> Value {

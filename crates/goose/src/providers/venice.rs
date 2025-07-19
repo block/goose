@@ -10,7 +10,8 @@ use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
-use mcp_core::{tool::Tool, Role, ToolCall, ToolResult};
+use mcp_core::{tool::Tool, ToolCall, ToolResult};
+use rmcp::model::Role;
 
 // ---------- Capability Flags ----------
 #[derive(Debug)]

@@ -3,8 +3,9 @@ use crate::recipe::Response;
 use indoc::formatdoc;
 use mcp_core::{
     tool::{Tool, ToolAnnotations},
-    Content, ToolCall, ToolError,
+    ToolCall, ToolError,
 };
+use rmcp::model::Content;
 use serde_json::Value;
 
 pub const FINAL_OUTPUT_TOOL_NAME: &str = "recipe__final_output";

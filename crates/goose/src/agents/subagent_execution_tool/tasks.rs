@@ -1,4 +1,5 @@
 use serde_json::Value;
+use std::ops::Deref;
 use std::process::Stdio;
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -80,8 +81,10 @@ async fn handle_text_instruction_task(
             // Extract the text content from the result
             let result_text = contents
                 .into_iter()
-                .filter_map(|content| match content {
-                    mcp_core::Content::Text(text) => Some(text.text),
+                .filter_map(|content| match content.deref() {
+                    rmcp::model::RawContent::Text(raw_text_content) => {
+                        Some(raw_text_content.text.clone())
+                    }
                     _ => None,
                 })
                 .collect::<Vec<_>>()

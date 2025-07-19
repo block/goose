@@ -35,9 +35,9 @@ use goose::providers::pricing::initialize_pricing_cache;
 use goose::session;
 use input::InputResult;
 use mcp_core::handler::ToolError;
-use mcp_core::prompt::PromptMessage;
 use mcp_core::protocol::JsonRpcMessage;
 use mcp_core::protocol::JsonRpcNotification;
+use rmcp::model::PromptMessage;
 
 use rand::{distributions::Alphanumeric, Rng};
 use rustyline::EditMode;
@@ -359,7 +359,33 @@ impl Session {
 
     pub async fn get_prompt(&mut self, name: &str, arguments: Value) -> Result<Vec<PromptMessage>> {
         let result = self.agent.get_prompt(name, arguments).await?;
-        Ok(result.messages)
+        // Convert mcp_core::prompt::PromptMessage to rmcp::model::PromptMessage
+        let converted_messages = result
+            .messages
+            .into_iter()
+            .map(|msg| rmcp::model::PromptMessage {
+                role: match msg.role {
+                    mcp_core::prompt::PromptMessageRole::User => {
+                        rmcp::model::PromptMessageRole::User
+                    }
+                    mcp_core::prompt::PromptMessageRole::Assistant => {
+                        rmcp::model::PromptMessageRole::Assistant
+                    }
+                },
+                content: match msg.content {
+                    mcp_core::prompt::PromptMessageContent::Text { text } => {
+                        rmcp::model::PromptMessageContent::Text { text }
+                    }
+                    mcp_core::prompt::PromptMessageContent::Image { image } => {
+                        rmcp::model::PromptMessageContent::Image { image }
+                    }
+                    mcp_core::prompt::PromptMessageContent::Resource { resource } => {
+                        rmcp::model::PromptMessageContent::Resource { resource }
+                    }
+                },
+            })
+            .collect();
+        Ok(converted_messages)
     }
 
     /// Process a single message and get the response
@@ -1187,7 +1213,7 @@ impl Session {
         let tool_requests = self
             .messages
             .last()
-            .filter(|msg| msg.role == mcp_core::role::Role::Assistant)
+            .filter(|msg| msg.role == rmcp::model::Role::Assistant)
             .map_or(Vec::new(), |msg| {
                 msg.content
                     .iter()
@@ -1259,7 +1285,7 @@ impl Session {
         } else {
             // An interruption occurred outside of a tool request-response.
             if let Some(last_msg) = self.messages.last() {
-                if last_msg.role == mcp_core::role::Role::User {
+                if last_msg.role == rmcp::model::Role::User {
                     match last_msg.content.first() {
                         Some(MessageContent::ToolResponse(_)) => {
                             // Interruption occurred after a tool had completed but not assistant reply
@@ -1464,9 +1490,9 @@ impl Session {
                         let msg = Message::from(prompt_message);
                         // ensure we get a User - Assistant - User type pattern
                         let expected_role = if i % 2 == 0 {
-                            mcp_core::Role::User
+                            rmcp::model::Role::User
                         } else {
-                            mcp_core::Role::Assistant
+                            rmcp::model::Role::Assistant
                         };
 
                         if msg.role != expected_role {
@@ -1480,7 +1506,7 @@ impl Session {
                             break;
                         }
 
-                        if msg.role == mcp_core::Role::User {
+                        if msg.role == rmcp::model::Role::User {
                             output::render_message(&msg, self.debug);
                         }
                         self.push_message(msg);

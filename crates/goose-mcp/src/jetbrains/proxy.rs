@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
-use mcp_core::{Content, Tool};
+use mcp_core::Tool;
 use reqwest::Client;
+use rmcp::model::Content;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::env;

@@ -17,10 +17,10 @@ use mcp_core::{
     protocol::{JsonRpcMessage, ServerCapabilities},
     resource::Resource,
     tool::{Tool, ToolAnnotations},
-    Content,
 };
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
+use rmcp::model::Content;
 
 mod docx_tool;
 mod pdf_tool;

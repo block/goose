@@ -327,7 +327,7 @@ export const useChatEngine = ({
   }, [stop, messages, _setInput, setMessages]);
 
   const filteredMessages = useMemo(() => {
-    return [...ancestorMessages, ...messages].filter((message) => message.display);
+    return [...ancestorMessages, ...messages].filter((message) => message.display ?? true);
   }, [ancestorMessages, messages]);
 
   // Generate command history from filtered messages

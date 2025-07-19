@@ -1,4 +1,5 @@
-use mcp_core::{tool::ToolAnnotations, Content, Tool, ToolError};
+use mcp_core::{tool::ToolAnnotations, Tool, ToolError};
+use rmcp::model::Content;
 use serde_json::Value;
 
 use crate::agents::subagent_task_config::TaskConfig;

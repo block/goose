@@ -15,6 +15,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::{self, BufRead, Write};
+use std::ops::DerefMut;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use utoipa::ToSchema;
@@ -679,7 +680,7 @@ fn parse_message_with_truncation(
 /// Truncate content within a message in place
 fn truncate_message_content_in_place(message: &mut Message, max_content_size: usize) {
     use crate::message::MessageContent;
-    use mcp_core::{Content, ResourceContents};
+    use rmcp::model::{RawContent, ResourceContents};
 
     for content in &mut message.content {
         match content {
@@ -697,8 +698,8 @@ fn truncate_message_content_in_place(message: &mut Message, max_content_size: us
             MessageContent::ToolResponse(tool_response) => {
                 if let Ok(ref mut result) = tool_response.tool_result {
                     for content_item in result {
-                        match content_item {
-                            Content::Text(ref mut text_content) => {
+                        match content_item.deref_mut() {
+                            RawContent::Text(ref mut text_content) => {
                                 if text_content.text.chars().count() > max_content_size {
                                     let truncated = format!(
                                         "{}\n\n[... tool response truncated during session loading from {} to {} characters ...]",
@@ -709,7 +710,7 @@ fn truncate_message_content_in_place(message: &mut Message, max_content_size: us
                                     text_content.text = truncated;
                                 }
                             }
-                            Content::Resource(ref mut resource_content) => {
+                            RawContent::Resource(ref mut resource_content) => {
                                 if let ResourceContents::TextResourceContents { text, .. } =
                                     &mut resource_content.resource
                                 {
@@ -862,11 +863,11 @@ fn try_extract_partial_message(json_str: &str) -> Result<Message> {
 
     // Try to extract role
     let role = if json_str.contains("\"role\":\"user\"") {
-        mcp_core::role::Role::User
+        rmcp::model::Role::User
     } else if json_str.contains("\"role\":\"assistant\"") {
-        mcp_core::role::Role::Assistant
+        rmcp::model::Role::Assistant
     } else {
-        mcp_core::role::Role::User // Default fallback
+        rmcp::model::Role::User // Default fallback
     };
 
     // Try to extract text content
@@ -901,8 +902,8 @@ fn try_extract_partial_message(json_str: &str) -> Result<Message> {
 
     if !extracted_text.is_empty() {
         let message = match role {
-            mcp_core::role::Role::User => Message::user(),
-            mcp_core::role::Role::Assistant => Message::assistant(),
+            rmcp::model::Role::User => Message::user(),
+            rmcp::model::Role::Assistant => Message::assistant(),
         };
 
         return Ok(message.with_text(format!("[PARTIALLY RECOVERED] {}", extracted_text)));
@@ -1079,7 +1080,7 @@ pub async fn persist_messages_with_schedule_id(
     // Count user messages
     let user_message_count = messages
         .iter()
-        .filter(|m| m.role == mcp_core::role::Role::User && !m.as_concat_text().trim().is_empty())
+        .filter(|m| m.role == rmcp::model::Role::User && !m.as_concat_text().trim().is_empty())
         .count();
 
     // Check if we need to update the description (after 1st or 3rd user message)
@@ -1293,7 +1294,7 @@ pub async fn generate_description_with_schedule_id(
     // get context from messages so far, limiting each message to 300 chars for security
     let context: Vec<String> = messages
         .iter()
-        .filter(|m| m.role == mcp_core::role::Role::User)
+        .filter(|m| m.role == rmcp::model::Role::User)
         .take(3) // Use up to first 3 user messages for context
         .map(|m| {
             let text = m.as_concat_text();
