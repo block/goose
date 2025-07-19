@@ -4,7 +4,8 @@ use goose::message::{Message, MessageContent};
 use goose::providers::base::Provider;
 use goose::providers::errors::ProviderError;
 use goose::providers::{
-    anthropic, azure, bedrock, databricks, google, groq, ollama, openai, openrouter, snowflake, xai,
+    anthropic, azure, bedrock, databricks, google, groq, litellm, ollama, openai, openrouter,
+    snowflake, xai,
 };
 use mcp_core::tool::Tool;
 use rmcp::model::{AnnotateAble, Content, RawImageContent};
@@ -158,7 +159,7 @@ impl ProviderTester {
             .content
             .iter()
             .filter_map(|message| message.as_tool_request())
-            .last()
+            .next_back()
             .expect("got tool request")
             .id;
 
@@ -592,6 +593,28 @@ async fn test_sagemaker_tgi_provider() -> Result<()> {
         &["SAGEMAKER_ENDPOINT_NAME"],
         None,
         goose::providers::sagemaker_tgi::SageMakerTgiProvider::default,
+    )
+    .await
+}
+
+#[tokio::test]
+async fn test_litellm_provider() -> Result<()> {
+    if std::env::var("LITELLM_HOST").is_err() {
+        println!("LITELLM_HOST not set, skipping test");
+        TEST_REPORT.record_skip("LiteLLM");
+        return Ok(());
+    }
+
+    let env_mods = HashMap::from_iter([
+        ("LITELLM_HOST", Some("http://localhost:4000".to_string())),
+        ("LITELLM_API_KEY", Some("".to_string())),
+    ]);
+
+    test_provider(
+        "LiteLLM",
+        &[], // No required environment variables
+        Some(env_mods),
+        litellm::LiteLLMProvider::default,
     )
     .await
 }
