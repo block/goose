@@ -113,7 +113,7 @@ impl OpenAiProvider {
         request
     }
 
-    async fn post(&self, payload: Value) -> Result<Response, ProviderError> {
+    async fn post(&self, payload: &Value) -> Result<Response, ProviderError> {
         let base_url = url::Url::parse(&self.host)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
         let url = base_url.join(&self.base_path).map_err(|e| {
@@ -178,10 +178,10 @@ impl Provider for OpenAiProvider {
         let payload = create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi)?;
 
         // Make request
-        let response = handle_response_openai_compat(self.post(payload.clone()).await?).await?;
+        let response = handle_response_openai_compat(self.post(&payload).await?).await?;
 
         // Parse response
-        let message = response_to_message(response.clone())?;
+        let message = response_to_message(&response)?;
         let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
             tracing::debug!("Failed to get usage data");
             Usage::default()
@@ -258,7 +258,7 @@ impl Provider for OpenAiProvider {
             "include_usage": true,
         });
 
-        let response = handle_status_openai_compat(self.post(payload.clone()).await?).await?;
+        let response = handle_status_openai_compat(self.post(&payload).await?).await?;
 
         let stream = response.bytes_stream().map_err(io::Error::other);
 

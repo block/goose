@@ -198,7 +198,7 @@ pub fn parse_streaming_response(sse_data: &str) -> Result<Message> {
 }
 
 /// Convert Snowflake's API response to internal Message format
-pub fn response_to_message(response: Value) -> Result<Message> {
+pub fn response_to_message(response: &Value) -> Result<Message> {
     let mut message = Message::assistant();
 
     let content_list = response.get("content_list").and_then(|cl| cl.as_array());
@@ -380,7 +380,7 @@ mod tests {
             }
         });
 
-        let message = response_to_message(response.clone())?;
+        let message = response_to_message(&response)?;
         let usage = get_usage(&response)?;
 
         if let MessageContent::Text(text) = &message.content[0] {
@@ -417,7 +417,7 @@ mod tests {
             }
         });
 
-        let message = response_to_message(response.clone())?;
+        let message = response_to_message(&response)?;
         let usage = get_usage(&response)?;
 
         if let MessageContent::ToolRequest(tool_request) = &message.content[0] {
@@ -625,7 +625,7 @@ data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-3-5-sonnet","
             }
         });
 
-        let message = response_to_message(response.clone())?;
+        let message = response_to_message(&response)?;
 
         // Should have both text and tool request content
         assert_eq!(message.content.len(), 2);
