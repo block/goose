@@ -1,4 +1,5 @@
 import { getApiUrl, getSecretKey } from '../config';
+import { safeJsonParse } from './jsonUtils';
 
 const getQuestionClassifierPrompt = (messageContent: string): string => `
 You are a simple classifier that takes content and decides if it is asking for input 
@@ -167,7 +168,7 @@ export async function ask(prompt: string): Promise<string> {
     throw new Error('Failed to get response');
   }
 
-  const data = await response.json();
+  const data = await safeJsonParse<{ response: string }>(response, 'Failed to get AI response');
   return data.response;
 }
 

@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { useConfig } from '../components/ConfigContext';
 import { getApiUrl, getSecretKey } from '../config';
 import { useDictationSettings } from './useDictationSettings';
+import { safeJsonParse } from '../utils/jsonUtils';
 
 interface UseWhisperOptions {
   onTranscription?: (text: string) => void;
@@ -151,13 +152,18 @@ export const useWhisper = ({ onTranscription, onError, onSizeWarning }: UseWhisp
           } else if (response.status === 402) {
             throw new Error('API quota exceeded. Please check your account limits.');
           }
-          const errorData = await response
-            .json()
-            .catch(() => ({ error: { message: 'Transcription failed' } }));
+          const errorData = await safeJsonParse<{
+            error: { message: string };
+          }>(response, 'Failed to parse error response').catch(() => ({
+            error: { message: 'Transcription failed' },
+          }));
           throw new Error(errorData.error?.message || 'Transcription failed');
         }
 
-        const data = await response.json();
+        const data = await safeJsonParse<{ text: string }>(
+          response,
+          'Failed to parse transcription response'
+        );
         if (data.text) {
           onTranscription?.(data.text);
         }
