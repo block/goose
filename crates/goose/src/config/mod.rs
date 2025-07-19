@@ -2,6 +2,7 @@ pub mod base;
 mod experiments;
 pub mod extensions;
 pub mod permission;
+pub mod signup_openrouter;
 
 pub use crate::agents::ExtensionConfig;
 pub use base::{Config, ConfigError, APP_STRATEGY};

@@ -2,6 +2,9 @@ use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
 
 use goose::config::{Config, ExtensionConfig};
+use goose::message::Message;
+use goose::providers::create;
+use serde_json::Value;
 
 use crate::commands::bench::agent_generator;
 use crate::commands::configure::handle_configure;
@@ -669,6 +672,13 @@ enum Command {
         #[arg(long, help = "Open browser automatically when server starts")]
         open: bool,
     },
+
+    /// Authenticate with external services
+    #[command(about = "Authenticate with external services")]
+    Auth {
+        /// Service to authenticate with
+        service: String,
+    },
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -1022,6 +1032,80 @@ pub async fn cli() -> Result<()> {
         }
         Some(Command::Web { port, host, open }) => {
             crate::commands::web::handle_web(port, host, open).await?;
+            return Ok(());
+        }
+        Some(Command::Auth { service }) => {
+            if service == "openrouter" {
+                let mut auth_flow = goose::config::signup_openrouter::OpenRouterAuth::new()?;
+                match auth_flow.complete_flow().await {
+                    Ok(api_key) => {
+                        println!("\nAuthentication complete! Your API key is:");
+                        println!("{}", api_key);
+                        
+                        // Automatically configure everything
+                        println!("\nConfiguring OpenRouter...");
+                        let config = Config::global();
+                        
+                        // Store API key securely
+                        config.set_secret("OPENROUTER_API_KEY", Value::String(api_key.clone()))?;
+                        println!("✓ API key stored securely");
+                        
+                        // Set provider
+                        config.set_param("GOOSE_PROVIDER", Value::String("openrouter".to_string()))?;
+                        println!("✓ Provider set to OpenRouter");
+                        
+                        // Set main model
+                        config.set_param("GOOSE_MODEL", Value::String("moonshotai/kimi-k2".to_string()))?;
+                        println!("✓ Model set to moonshotai/kimi-k2");
+                        
+                        // Set lead model for lead/worker pattern
+                        config.set_param("GOOSE_LEAD_MODEL", Value::String("anthropic/claude-3.5-sonnet".to_string()))?;
+                        config.set_param("GOOSE_LEAD_PROVIDER", Value::String("openrouter".to_string()))?;
+                        println!("✓ Lead model configured (anthropic/claude-3.5-sonnet)");
+                        
+                        // Set editor model
+                        config.set_param("GOOSE_EDITOR_MODEL", Value::String("anthropic/claude-3.5-sonnet".to_string()))?;
+                        config.set_param("GOOSE_EDITOR_PROVIDER", Value::String("openrouter".to_string()))?;
+                        println!("✓ Editor model configured (anthropic/claude-3.5-sonnet)");
+                        
+                        // Test configuration
+                        println!("\nTesting configuration...");
+                        let model_config = goose::model::ModelConfig::new("moonshotai/kimi-k2".to_string());
+                        match create("openrouter", model_config) {
+                            Ok(provider) => {
+                                // Simple test request
+                                let test_result = provider.complete(
+                                    "You are Goose, an AI assistant.",
+                                    &[Message::user().with_text("Say 'Configuration test successful!'")],
+                                    &[]
+                                ).await;
+                                
+                                match test_result {
+                                    Ok(_) => {
+                                        println!("✓ Configuration test passed!");
+                                        println!("\nOpenRouter setup complete! You can now use Goose.");
+                                    }
+                                    Err(e) => {
+                                        eprintln!("⚠️  Configuration test failed: {}", e);
+                                        eprintln!("Your settings have been saved, but there may be an issue with the connection.");
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("⚠️  Failed to create provider for testing: {}", e);
+                                eprintln!("Your settings have been saved. Please check your configuration.");
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Authentication failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            } else {
+                eprintln!("Unknown service: {}. Currently only 'openrouter' is supported.", service);
+                std::process::exit(1);
+            }
             return Ok(());
         }
         None => {

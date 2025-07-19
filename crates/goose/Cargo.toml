@@ -65,6 +65,8 @@ etcetera = "0.8.0"
 rand = "0.8.5"
 utoipa = { version = "4.1", features = ["chrono"] }
 tokio-cron-scheduler = "0.14.0"
+urlencoding = "2.1"
+html-escape = "0.2"
 
 # For Bedrock provider
 aws-config = { version = "1.5.16", features = ["behavior-version-latest"] }
