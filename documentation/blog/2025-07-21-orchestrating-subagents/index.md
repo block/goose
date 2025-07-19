@@ -93,7 +93,7 @@ That confirmed a hunch I had. When tasks are interdependent, running subagents i
 
 ## A Better Prompt Strategy
 
-This time, I took a different approach. I asked Goose to analyze the existing UI and generate a shared design plan. Then I told Goose to use that plan to span new subagents and assign them tasks based on the plan.
+This time, I took a different approach. I asked Goose to analyze the existing UI and generate a shared design plan. Then I told Goose to use that plan to spawn new subagents and assign them tasks based on the plan.
 
 The result was a much more consistent interface. This felt super meta and futuristic for me that I could have Goose instruct the subagents.
 
