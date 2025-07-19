@@ -7,6 +7,7 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import CLIStreamExtensionInstructions from '@site/src/components/CLIStreamExtensionInstructions';
+import { PanelLeft } from 'lucide-react';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/TbmQDv3SQOE" />
 
@@ -38,9 +39,9 @@ These steps configure the Remote MCP Server. For other deployment options, see t
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
     1. Obtain a [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens)
-    2. Click the gear icon `⚙️` in the top right corner
-    3. Click `Advanced settings`
-    4. Under `Extensions`, click `Add custom extension`
+    2. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+    3. Click `Extensions`
+    4. Click `Add custom extension`
     5. On the `Add custom extension` modal, enter the following:
        - **Extension Name**: GitHub
        - **Type**: Streamable HTTP
@@ -50,6 +51,7 @@ These steps configure the Remote MCP Server. For other deployment options, see t
          - **Value**: `Bearer <YOUR_GITHUB_PERSONAL_ACCESS_TOKEN>` 
     6. Click `+ Add` to save the header
     7. Click `Add Extension` to save the extension
+    8. Navigate to the chat
 
   </TabItem>
   <TabItem value="cli" label="Goose CLI">

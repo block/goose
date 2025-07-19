@@ -6,6 +6,7 @@ description: Add Speech MCP Server as a Goose Extension
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 <YouTubeShortEmbed videoUrl="https://youtube.com/embed/rurAp_WzOiY" />
 
@@ -19,7 +20,7 @@ This tutorial covers how to add the [Speech MCP Server](https://github.com/Kvadr
 :::tip TLDR
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=uvx&&arg=-p&arg=3.10.14&arg=speech-mcp@latest&id=speech_mcp&name=Speech%20Interface&description=Voice%20interaction%20with%20audio%20visualization%20for%20Goose)
+  [Launch the installer](goose://extension?cmd=uvx&arg=-p&arg=3.10.14&arg=speech-mcp@latest&id=speech_mcp&name=Speech%20Interface&description=Voice%20interaction%20with%20audio%20visualization%20for%20Goose)
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
   **Command**
@@ -40,10 +41,13 @@ Before adding this extension, make sure [PortAudio](https://github.com/GoogleClo
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  1. [Launch the installer](goose://extension?cmd=uvx&&arg=-p&arg=3.10.14&arg=speech-mcp@latest&id=speech_mcp&name=Speech%20Interface&description=Voice%20interaction%20with%20audio%20visualization%20for%20Goose)
-  2. Press `Yes` to confirm the installation
-  3. Click `Save Configuration`
-  4. Scroll to the top and click `Exit` from the upper left corner
+  <GooseDesktopInstaller
+    extensionId="speech_mcp"
+    extensionName="Speech Interface"
+    description="Voice interaction with audio visualization for Goose"
+    command="uvx"
+    args={["-p", "3.10.14", "speech-mcp@latest"]}
+  />
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:

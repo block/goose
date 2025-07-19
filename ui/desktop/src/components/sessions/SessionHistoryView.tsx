@@ -10,7 +10,6 @@ import {
   Target,
   LoaderCircle,
   AlertCircle,
-  ExternalLink,
 } from 'lucide-react';
 import { type SessionDetails } from '../../sessions';
 import { Button } from '../ui/button';
@@ -44,29 +43,8 @@ const isUserMessage = (message: Message): boolean => {
   return true;
 };
 
-// Filter messages for display (same logic as useChatEngine)
 const filterMessagesForDisplay = (messages: Message[]): Message[] => {
-  return messages.filter((message) => {
-    // Only filter out when display is explicitly false
-    if (message.display === false) return false;
-
-    // Keep all assistant messages and user messages that aren't just tool responses
-    if (message.role === 'assistant') return true;
-
-    // For user messages, check if they're only tool responses
-    if (message.role === 'user') {
-      const hasOnlyToolResponses = message.content.every((c) => c.type === 'toolResponse');
-      const hasTextContent = message.content.some((c) => c.type === 'text');
-      const hasToolConfirmation = message.content.every(
-        (c) => c.type === 'toolConfirmationRequest'
-      );
-
-      // Keep the message if it has text content or tool confirmation or is not just tool responses
-      return hasTextContent || !hasOnlyToolResponses || hasToolConfirmation;
-    }
-
-    return true;
-  });
+  return messages.filter((message) => message.display ?? true);
 };
 
 interface SessionHistoryViewProps {
@@ -74,7 +52,6 @@ interface SessionHistoryViewProps {
   isLoading: boolean;
   error: string | null;
   onBack: () => void;
-  onResume: () => void;
   onRetry: () => void;
   showActionButtons?: boolean;
 }
@@ -169,7 +146,6 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
   isLoading,
   error,
   onBack,
-  onResume,
   onRetry,
   showActionButtons = true,
 }) => {
@@ -292,13 +268,9 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
           </>
         )}
       </Button>
-      <Button onClick={onResume} size="sm" variant="outline">
+      <Button onClick={handleLaunchInNewWindow} size="sm" variant="outline">
         <Sparkles className="w-4 h-4" />
         Resume
-      </Button>
-      <Button onClick={handleLaunchInNewWindow} size="sm" variant="outline">
-        <ExternalLink className="w-4 h-4" />
-        New Window
       </Button>
     </>
   ) : null;

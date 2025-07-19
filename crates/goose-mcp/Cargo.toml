@@ -13,6 +13,7 @@ workspace = true
 [dependencies]
 mcp-core = { path = "../mcp-core" }
 mcp-server = { path = "../mcp-server" }
+rmcp = { workspace = true }
 anyhow = "1.0.94"
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"

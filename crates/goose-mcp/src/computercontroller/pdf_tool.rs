@@ -1,5 +1,6 @@
 use lopdf::{content::Content as PdfContent, Document, Object};
-use mcp_core::{Content, ToolError};
+use mcp_core::ToolError;
+use rmcp::model::Content;
 use std::{fs, path::Path};
 
 pub async fn pdf_tool(
@@ -341,10 +342,10 @@ mod tests {
         let content = result.unwrap();
         assert!(!content.is_empty(), "Extracted text should not be empty");
         let text = content[0].as_text().unwrap();
-        println!("Extracted text:\n{}", text);
-        assert!(text.contains("Page 1"), "Should contain page marker");
+        println!("Extracted text:\n{}", text.text);
+        assert!(text.text.contains("Page 1"), "Should contain page marker");
         assert!(
-            text.contains("This is a test PDF"),
+            text.text.contains("This is a test PDF"),
             "Should contain expected test content"
         );
     }
@@ -373,18 +374,19 @@ mod tests {
             "Image extraction result should not be empty"
         );
         let text = content[0].as_text().unwrap();
-        println!("Extracted content: {}", text);
+        println!("Extracted content: {}", text.text);
 
         // Should either find images or explicitly state none were found
         assert!(
-            text.contains("Saved image to:") || text.contains("No images found"),
+            text.text.contains("Saved image to:") || text.text.contains("No images found"),
             "Should either save images or report none found"
         );
 
         // If we found images, verify they exist
-        if text.contains("Saved image to:") {
+        if text.text.contains("Saved image to:") {
             // Extract the file path from the output
             let file_path = text
+                .text
                 .lines()
                 .find(|line| line.contains("Saved image to:"))
                 .and_then(|line| line.split(": ").nth(1))

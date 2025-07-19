@@ -19,7 +19,8 @@ use crate::config::{Config, ExtensionConfigManager};
 use crate::prompt_template;
 use mcp_client::client::{ClientCapabilities, ClientInfo, McpClient, McpClientTrait};
 use mcp_client::transport::{SseTransport, StdioTransport, StreamableHttpTransport, Transport};
-use mcp_core::{prompt::Prompt, Content, Tool, ToolCall, ToolError};
+use mcp_core::{prompt::Prompt, Tool, ToolCall, ToolError};
+use rmcp::model::Content;
 use serde_json::Value;
 
 // By default, we set it to Jan 1, 2020 if the resource does not have a timestamp

@@ -2,7 +2,6 @@ mod proxy;
 
 use anyhow::Result;
 use mcp_core::{
-    content::Content,
     handler::{PromptError, ResourceError, ToolError},
     prompt::Prompt,
     protocol::{JsonRpcMessage, ServerCapabilities},
@@ -12,6 +11,7 @@ use mcp_core::{
 };
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
+use rmcp::model::Content;
 use serde_json::Value;
 use std::future::Future;
 use std::pin::Pin;

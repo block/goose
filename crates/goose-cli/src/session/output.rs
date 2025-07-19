@@ -232,7 +232,7 @@ fn render_tool_response(resp: &ToolResponse, theme: Theme, debug: bool) {
         Ok(contents) => {
             for content in contents {
                 if let Some(audience) = content.audience() {
-                    if !audience.contains(&mcp_core::role::Role::User) {
+                    if !audience.contains(&rmcp::model::Role::User) {
                         continue;
                     }
                 }
@@ -252,7 +252,7 @@ fn render_tool_response(resp: &ToolResponse, theme: Theme, debug: bool) {
 
                 if debug {
                     println!("{:#?}", content);
-                } else if let mcp_core::content::Content::Text(text) = content {
+                } else if let Some(text) = content.as_text() {
                     print_markdown(&text.text, theme);
                 }
             }
@@ -463,8 +463,26 @@ fn print_params(value: &Value, depth: usize, debug: bool) {
                         }
                     }
                     Value::String(s) => {
-                        if !debug && s.len() > get_tool_params_max_length() {
-                            println!("{}{}: {}", indent, style(key).dim(), style("...").dim());
+                        // Special handling for text_instruction to show more content
+                        let max_length = if key == "text_instruction" {
+                            200 // Allow longer display for text instructions
+                        } else {
+                            get_tool_params_max_length()
+                        };
+
+                        if !debug && s.len() > max_length {
+                            // For text instructions, show a preview instead of just "..."
+                            if key == "text_instruction" {
+                                let preview = &s[..max_length.saturating_sub(3)];
+                                println!(
+                                    "{}{}: {}",
+                                    indent,
+                                    style(key).dim(),
+                                    style(format!("{}...", preview)).green()
+                                );
+                            } else {
+                                println!("{}{}: {}", indent, style(key).dim(), style("...").dim());
+                            }
                         } else {
                             println!("{}{}: {}", indent, style(key).dim(), style(s).green());
                         }

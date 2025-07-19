@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use crate::agents::sub_recipe_execution_tool::task_types::Task;
+use crate::agents::subagent_execution_tool::task_types::Task;
 
 #[derive(Debug, Clone)]
 pub struct TasksManager {

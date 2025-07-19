@@ -237,7 +237,6 @@ function BaseChatContent({
   });
 
   useEffect(() => {
-    // Log all messages when the component first mounts
     window.electron.logInfo(
       'Initial messages when resuming session: ' + JSON.stringify(chat.messages, null, 2)
     );
@@ -414,28 +413,60 @@ function BaseChatContent({
                     </SearchView>
                   )}
 
-                  {error && (
-                    <div className="flex flex-col items-center justify-center p-4">
-                      <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-3 rounded-lg mb-2">
-                        {error.message || 'Honk! Goose experienced an error while responding'}
-                      </div>
-                      <div
-                        className="px-3 py-2 mt-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
-                        onClick={async () => {
-                          // Find the last user message
-                          const lastUserMessage = messages.reduceRight(
-                            (found, m) => found || (m.role === 'user' ? m : null),
-                            null as Message | null
-                          );
-                          if (lastUserMessage) {
-                            append(lastUserMessage);
-                          }
-                        }}
-                      >
-                        Retry Last Message
-                      </div>
-                    </div>
-                  )}
+                  {error &&
+                    !(error as Error & { isTokenLimitError?: boolean }).isTokenLimitError && (
+                      <>
+                        <div className="flex flex-col items-center justify-center p-4">
+                          <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-3 rounded-lg mb-2">
+                            {error.message || 'Honk! Goose experienced an error while responding'}
+                          </div>
+
+                          {/* Expandable Error Details */}
+                          <details className="w-full max-w-2xl mb-2">
+                            <summary className="text-xs text-textSubtle cursor-pointer hover:text-textStandard transition-colors">
+                              Error details
+                            </summary>
+                            <div className="mt-2 p-3 bg-bgSubtle border border-borderSubtle rounded-lg text-xs font-mono text-textStandard">
+                              <div className="mb-2">
+                                <strong>Error Type:</strong> {error.name || 'Unknown'}
+                              </div>
+                              <div className="mb-2">
+                                <strong>Message:</strong> {error.message || 'No message'}
+                              </div>
+                              {error.stack && (
+                                <div>
+                                  <strong>Stack Trace:</strong>
+                                  <pre className="mt-1 whitespace-pre-wrap text-xs overflow-x-auto">
+                                    {error.stack}
+                                  </pre>
+                                </div>
+                              )}
+                            </div>
+                          </details>
+
+                          {/* Regular retry button for non-token-limit errors */}
+                          <div
+                            className="px-3 py-2 mt-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
+                            onClick={async () => {
+                              // Find the last user message
+                              const lastUserMessage = messages.reduceRight(
+                                (found, m) => found || (m.role === 'user' ? m : null),
+                                null as Message | null
+                              );
+                              if (lastUserMessage) {
+                                append(lastUserMessage);
+                              }
+                            }}
+                          >
+                            Retry Last Message
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                  {/* Token limit errors should be handled by ContextHandler, not shown here */}
+                  {error &&
+                    (error as Error & { isTokenLimitError?: boolean }).isTokenLimitError && <></>}
                   <div className="block h-8" />
                 </>
               ) : showPopularTopics ? (

@@ -29,7 +29,8 @@ interface RecipesViewProps {
   onLoadRecipe?: (recipe: Recipe) => void;
 }
 
-export default function RecipesView({ onLoadRecipe }: RecipesViewProps = {}) {
+// @ts-expect-error until we make onLoadRecipe work for loading recipes in the same window
+export default function RecipesView({ _onLoadRecipe }: RecipesViewProps = {}) {
   const [savedRecipes, setSavedRecipes] = useState<SavedRecipe[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSkeleton, setShowSkeleton] = useState(true);
@@ -93,20 +94,24 @@ export default function RecipesView({ onLoadRecipe }: RecipesViewProps = {}) {
 
   const handleLoadRecipe = async (savedRecipe: SavedRecipe) => {
     try {
-      if (onLoadRecipe) {
-        // Use the callback to navigate within the same window
-        onLoadRecipe(savedRecipe.recipe);
-      } else {
-        // Fallback to creating a new window (for backwards compatibility)
-        window.electron.createChatWindow(
-          undefined, // query
-          undefined, // dir
-          undefined, // version
-          undefined, // resumeSessionId
-          savedRecipe.recipe, // recipe config
-          undefined // view type
-        );
-      }
+      // onLoadRecipe is not working for loading recipes. It looks correct
+      // but the instructions are not flowing through to the server.
+      // Needs a fix but commenting out to get prod back up and running.
+      //
+      // if (onLoadRecipe) {
+      //   // Use the callback to navigate within the same window
+      //   onLoadRecipe(savedRecipe.recipe);
+      // } else {
+      // Fallback to creating a new window (for backwards compatibility)
+      window.electron.createChatWindow(
+        undefined, // query
+        undefined, // dir
+        undefined, // version
+        undefined, // resumeSessionId
+        savedRecipe.recipe, // recipe config
+        undefined // view type
+      );
+      // }
     } catch (err) {
       console.error('Failed to load recipe:', err);
       setError(err instanceof Error ? err.message : 'Failed to load recipe');
@@ -158,7 +163,8 @@ export default function RecipesView({ onLoadRecipe }: RecipesViewProps = {}) {
       if (!configBase64) {
         throw new Error('No recipe configuration found in deeplink');
       }
-      const configJson = Buffer.from(configBase64, 'base64').toString('utf-8');
+      const urlDecoded = decodeURIComponent(configBase64);
+      const configJson = Buffer.from(urlDecoded, 'base64').toString('utf-8');
       const recipe = JSON.parse(configJson) as Recipe;
 
       if (!recipe.title || !recipe.description || !recipe.instructions) {

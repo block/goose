@@ -6,7 +6,8 @@
 use std::sync::Arc;
 
 use chrono::Utc;
-use mcp_core::{Content, ToolError, ToolResult};
+use mcp_core::{ToolError, ToolResult};
+use rmcp::model::Content;
 
 use crate::recipe::Recipe;
 use crate::scheduler_trait::SchedulerTrait;

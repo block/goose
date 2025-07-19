@@ -7,7 +7,6 @@ use std::{
 type PromptFuture = Pin<Box<dyn Future<Output = Result<String, PromptError>> + Send + 'static>>;
 
 use mcp_core::{
-    content::Content,
     handler::{PromptError, ResourceError, ToolError},
     prompt::{Prompt, PromptMessage, PromptMessageRole},
     protocol::{
@@ -18,6 +17,7 @@ use mcp_core::{
     },
     ResourceContents,
 };
+use rmcp::model::Content;
 use serde_json::Value;
 use tokio::sync::mpsc;
 use tower_service::Service;

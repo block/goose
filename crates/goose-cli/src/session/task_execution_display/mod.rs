@@ -1,5 +1,5 @@
-use goose::agents::sub_recipe_execution_tool::lib::TaskStatus;
-use goose::agents::sub_recipe_execution_tool::notification_events::{
+use goose::agents::subagent_execution_tool::lib::TaskStatus;
+use goose::agents::subagent_execution_tool::notification_events::{
     TaskExecutionNotificationEvent, TaskInfo,
 };
 use serde_json::Value;

@@ -275,6 +275,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_model_config_context_limit_env_vars() {
         use temp_env::with_vars;
 

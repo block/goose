@@ -7,6 +7,7 @@ import { cn, snakeToTitleCase } from '../utils';
 import Dot, { LoadingStatus } from './ui/Dot';
 import { NotificationEvent } from '../hooks/useMessageStream';
 import { ChevronRight, LoaderCircle } from 'lucide-react';
+import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
@@ -120,6 +121,17 @@ const logToString = (logMessage: NotificationEvent) => {
 
 const notificationToProgress = (notification: NotificationEvent): Progress =>
   notification.message.params as unknown as Progress;
+
+// Helper function to extract extension name for tooltip
+const getExtensionTooltip = (toolCallName: string): string | null => {
+  const lastIndex = toolCallName.lastIndexOf('__');
+  if (lastIndex === -1) return null;
+  
+  const extensionName = toolCallName.substring(0, lastIndex);
+  if (!extensionName) return null;
+  
+  return `${extensionName} extension`;
+};
 
 function ToolCallView({
   isCancelledMessage,
@@ -387,6 +399,25 @@ function ToolCallView({
     return null;
   };
 
+  // Get extension tooltip for the current tool
+  const extensionTooltip = getExtensionTooltip(toolCall.name);
+
+  // Extract tool label content to avoid duplication
+  const getToolLabelContent = () => {
+    const description = getToolDescription();
+    if (description) {
+      return description;
+    }
+    // Fallback tool name formatting
+    return snakeToTitleCase(toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2));
+  };
+
+  const toolLabel = (
+    <span className={cn("ml-2", extensionTooltip && "cursor-pointer hover:opacity-80")}>
+      {getToolLabelContent()}
+    </span>
+  );
+
   return (
     <ToolCallExpandable
       isStartExpanded={isRenderingProgress}
@@ -400,16 +431,13 @@ function ToolCallView({
               <Dot size={2} loadingStatus={loadingStatus} />
             )}
           </div>
-          <span className="ml-2">
-            {(() => {
-              const description = getToolDescription();
-              if (description) {
-                return description;
-              }
-              // Fallback tool name formatting
-              return snakeToTitleCase(toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2));
-            })()}
-          </span>
+          {extensionTooltip ? (
+            <TooltipWrapper tooltipContent={extensionTooltip} side="top" align="start">
+              {toolLabel}
+            </TooltipWrapper>
+          ) : (
+            toolLabel
+          )}
         </>
       }
     >

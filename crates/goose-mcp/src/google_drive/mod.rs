@@ -11,13 +11,13 @@ use mcp_core::protocol::JsonRpcMessage;
 use mcp_core::tool::ToolAnnotations;
 use oauth_pkce::PkceOAuth2Client;
 use regex::Regex;
+use rmcp::model::Content;
 use serde_json::{json, Value};
 use std::io::Cursor;
 use std::{env, fs, future::Future, path::Path, pin::Pin, sync::Arc};
 use storage::CredentialsManager;
 use tokio::sync::mpsc;
 
-use mcp_core::content::Content;
 use mcp_core::{
     handler::{PromptError, ResourceError, ToolError},
     prompt::Prompt,
@@ -1845,7 +1845,12 @@ impl GoogleDriveRouter {
             .map(|contents| {
                 contents
                     .into_iter()
-                    .map(|content| content.as_text().unwrap_or_default().to_string())
+                    .map(|content| {
+                        content
+                            .as_text()
+                            .map(|text| text.text.clone())
+                            .unwrap_or_default()
+                    })
                     .collect::<Vec<_>>()
                     .join("\n")
             })
