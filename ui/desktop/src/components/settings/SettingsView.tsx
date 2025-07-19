@@ -9,6 +9,7 @@ import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { Bot, Share2, Monitor, MessageSquare } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import ChatSettingsSection from './chat/ChatSettingsSection';
+import LangfuseSection from './langfuse/LangfuseSection';
 
 export type SettingsViewOptions = {
   deepLinkConfig?: ExtensionConfig;
@@ -118,6 +119,7 @@ export default function SettingsView({
                   className="mt-0 focus-visible:outline-none focus-visible:ring-0"
                 >
                   <SessionSharingSection />
+                  <LangfuseSection />
                 </TabsContent>
 
                 <TabsContent
