@@ -28,6 +28,7 @@ use anyhow::{Context, Result};
 use completion::GooseCompleter;
 use etcetera::{choose_app_strategy, AppStrategy};
 use goose::agents::extension::{Envs, ExtensionConfig};
+use goose::agents::types::RetryConfig;
 use goose::agents::{Agent, SessionConfig};
 use goose::config::Config;
 use goose::message::{Message, MessageContent};
@@ -64,6 +65,7 @@ pub struct Session {
     scheduled_job_id: Option<String>, // ID of the scheduled job that triggered this session
     max_turns: Option<u32>,
     edit_mode: Option<EditMode>,
+    retry_config: Option<RetryConfig>,
 }
 
 // Cache structure for completion data
@@ -127,6 +129,7 @@ impl Session {
         scheduled_job_id: Option<String>,
         max_turns: Option<u32>,
         edit_mode: Option<EditMode>,
+        retry_config: Option<RetryConfig>,
     ) -> Self {
         let messages = if let Some(session_file) = &session_file {
             match session::read_messages(session_file) {
@@ -151,6 +154,7 @@ impl Session {
             scheduled_job_id,
             max_turns,
             edit_mode,
+            retry_config,
         }
     }
 
@@ -879,6 +883,7 @@ impl Session {
                 schedule_id: self.scheduled_job_id.clone(),
                 execution_mode: None,
                 max_turns: self.max_turns,
+                retry_config: self.retry_config.clone(),
             }
         });
         let mut stream = self

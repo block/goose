@@ -38,6 +38,7 @@ After creating recipe files, you can use [`goose` CLI commands](/docs/guides/goo
 | `extensions` | Array | List of extension configurations |
 | `sub_recipes` | Array | List of sub-recipes |
 | `response` | Object | Configuration for structured output validation |
+| `retry` | Object | Configuration for automated retry logic with success validation |
 
 ## Parameters
 
@@ -135,6 +136,87 @@ sub_recipes:
   - name: "quality_check"
     path: "./sub-recipes/quality-analysis.yaml"
 ```
+
+## Automated Retry with Success Validation
+
+The `retry` field enables recipes to automatically retry execution if success criteria are not met. This is useful for recipes that might need multiple attempts to achieve their goal, or for implementing automated validation and recovery workflows.
+
+### Retry Configuration Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `max_retries` | Number | Maximum number of retry attempts (required) |
+| `timeout_seconds` | Number | (Optional) Timeout for success check commands (default: 300 seconds) |
+| `on_failure_timeout_seconds` | Number | (Optional) Timeout for on_failure commands (default: 600 seconds) |
+| `checks` | Array | List of success check configurations (required) |
+| `on_failure` | String | (Optional) Shell command to run when a retry attempt fails |
+
+### Success Check Configuration
+
+Each success check in the `checks` array has the following structure:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `type` | String | Type of check - currently only "shell" is supported |
+| `command` | String | Shell command to execute for validation (must exit with code 0 for success) |
+
+### How Retry Logic Works
+
+1. **Recipe Execution**: The recipe runs normally with the provided instructions
+2. **Success Validation**: After completion, all success checks are executed in order
+3. **Retry Decision**: If any success check fails and retry attempts remain:
+   - Execute the on_failure command (if configured)
+   - Reset the agent's message history to initial state
+   - Increment retry counter and restart execution
+4. **Completion**: Process stops when either:
+   - All success checks pass (success)
+   - Maximum retry attempts are reached (failure)
+
+### Basic Retry Example
+
+```yaml
+version: "1.0.0"
+title: "Counter Increment Task"
+description: "Increment a counter until it reaches target value"
+prompt: "Increment the counter value in /tmp/counter.txt by 1."
+
+retry:
+  max_retries: 5
+  timeout_seconds: 10
+  checks:
+    - type: shell
+      command: "test $(cat /tmp/counter.txt 2>/dev/null || echo 0) -ge 3"
+  on_failure: "echo 'Counter is at:' $(cat /tmp/counter.txt 2>/dev/null || echo 0) '(need 3 to succeed)'"
+```
+
+### Advanced Retry Example
+
+```yaml
+version: "1.0.0"
+title: "Service Health Check"
+description: "Start service and verify it's running properly"
+prompt: "Start the web service and verify it responds to health checks"
+
+retry:
+  max_retries: 3
+  timeout_seconds: 30
+  on_failure_timeout_seconds: 60
+  checks:
+    - type: shell
+      command: "curl -f http://localhost:8080/health"
+    - type: shell  
+      command: "pgrep -f 'web-service' > /dev/null"
+  on_failure: "systemctl stop web-service || killall web-service"
+```
+
+### Environment Variables
+
+You can configure retry behavior globally using environment variables:
+
+- `GOOSE_RECIPE_RETRY_TIMEOUT_SECONDS`: Global timeout for success check commands
+- `GOOSE_RECIPE_ON_FAILURE_TIMEOUT_SECONDS`: Global timeout for on_failure commands
+
+These environment variables are overridden by recipe-specific timeout configurations.
 
 ## Structured Output with `response`
 
@@ -243,6 +325,14 @@ extensions:
     bundled: true
     description: "Query codesearch directly from goose"
 
+retry:
+  max_retries: 3
+  timeout_seconds: 30
+  checks:
+    - type: shell
+      command: "echo 'Task validation check passed'"
+  on_failure: "echo 'Retry attempt failed, cleaning up...'"
+
 response:
   json_schema:
     type: object
@@ -313,8 +403,16 @@ Common errors to watch for:
 - Invalid YAML/JSON syntax
 - Missing required fields
 - Invalid extension configurations
+- Invalid retry configuration (missing required fields, invalid shell commands)
 
 When these occur, Goose will provide helpful error messages indicating what needs to be fixed.
+
+### Retry-Specific Errors
+
+- **Invalid success checks**: Shell commands that cannot be executed or have syntax errors
+- **Timeout errors**: Success checks or on_failure commands that exceed their timeout limits
+- **Max retries exceeded**: When all retry attempts are exhausted without success
+- **Missing required retry fields**: When `max_retries` or `checks` are not specified
 
 ## Learn More
 Check out the [Goose Recipes](/docs/guides/recipes) guide for more docs, tools, and resources to help you master Goose recipes.

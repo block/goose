@@ -186,6 +186,7 @@ async fn handler(
                     schedule_id: request.scheduled_job_id.clone(),
                     execution_mode: None,
                     max_turns: None,
+                    retry_config: None,
                 }),
             )
             .await
@@ -368,6 +369,7 @@ async fn ask_handler(
                 schedule_id: request.scheduled_job_id.clone(),
                 execution_mode: None,
                 max_turns: None,
+                retry_config: None,
             }),
         )
         .await
