@@ -15,6 +15,7 @@ use goose::session;
 use serde::{Deserialize, Serialize};
 use std::{net::SocketAddr, sync::Arc};
 use tokio::sync::{Mutex, RwLock};
+use tokio_util::sync::CancellationToken;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::error;
 
@@ -209,7 +210,7 @@ async fn serve_static(axum::extract::Path(path): axum::extract::Path<String>) ->
             include_bytes!("../../../../documentation/static/img/logo_light.png").to_vec(),
         )
             .into_response(),
-        _ => (axum::http::StatusCode::NOT_FOUND, "Not found").into_response(),
+        _ => (http::StatusCode::NOT_FOUND, "Not found").into_response(),
     }
 }
 
@@ -477,7 +478,9 @@ async fn process_message_streaming(
     let provider = provider.unwrap();
     session::persist_messages(&session_file, &messages, Some(provider.clone())).await?;
 
-    // Create a session config
+    let cancel_token = CancellationToken::new();
+    let task_cancel = cancel_token.clone();
+
     let session_config = SessionConfig {
         id: session::Identifier::Path(session_file.clone()),
         working_dir: std::env::current_dir()?,
@@ -486,8 +489,10 @@ async fn process_message_streaming(
         max_turns: None,
     };
 
-    // Get response from agent
-    match agent.reply(&messages, Some(session_config)).await {
+    match agent
+        .reply(&messages, Some(session_config), task_cancel)
+        .await
+    {
         Ok(mut stream) => {
             while let Some(result) = stream.next().await {
                 match result {

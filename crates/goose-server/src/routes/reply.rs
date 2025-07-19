@@ -33,6 +33,7 @@ use std::{
 use tokio::sync::mpsc;
 use tokio::time::timeout;
 use tokio_stream::wrappers::ReceiverStream;
+use tokio_util::sync::CancellationToken;
 use utoipa::ToSchema;
 
 #[derive(Debug, Deserialize)]
@@ -112,7 +113,7 @@ async fn stream_event(
     tx.send(format!("data: {}\n\n", json)).await
 }
 
-async fn handler(
+async fn reply_handler(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(request): Json<ChatRequest>,
@@ -121,72 +122,54 @@ async fn handler(
 
     let (tx, rx) = mpsc::channel(100);
     let stream = ReceiverStream::new(rx);
+    let cancel_token = CancellationToken::new();
 
     let messages = request.messages;
     let session_working_dir = request.session_working_dir;
-
     let session_id = request
         .session_id
         .unwrap_or_else(session::generate_session_id);
 
-    tokio::spawn(async move {
-        let agent = state.get_agent().await;
-        let agent = match agent {
-            Ok(agent) => {
-                let provider = agent.provider().await;
-                match provider {
-                    Ok(_) => agent,
-                    Err(_) => {
-                        let _ = stream_event(
-                            MessageEvent::Error {
-                                error: "No provider configured".to_string(),
-                            },
-                            &tx,
-                        )
-                        .await;
-                        let _ = stream_event(
-                            MessageEvent::Finish {
-                                reason: "error".to_string(),
-                            },
-                            &tx,
-                        )
-                        .await;
-                        return;
-                    }
+    let task_cancel = cancel_token.clone();
+    let task_tx = tx.clone();
+
+    let handle = tokio::spawn(async move {
+        let agent = match state.get_agent().await {
+            Ok(agent) => match agent.provider().await {
+                Ok(_) => agent,
+                Err(_) => {
+                    let _ = stream_event(
+                        MessageEvent::Error {
+                            error: "No provider configured".to_string(),
+                        },
+                        &task_tx,
+                    )
+                    .await;
+                    return;
                 }
-            }
+            },
             Err(_) => {
                 let _ = stream_event(
                     MessageEvent::Error {
                         error: "No agent configured".to_string(),
                     },
-                    &tx,
-                )
-                .await;
-                let _ = stream_event(
-                    MessageEvent::Finish {
-                        reason: "error".to_string(),
-                    },
-                    &tx,
+                    &task_tx,
                 )
                 .await;
                 return;
             }
         };
 
-        let provider = agent.provider().await;
+        let session_config = SessionConfig {
+            id: session::Identifier::Name(session_id.clone()),
+            working_dir: PathBuf::from(session_working_dir),
+            schedule_id: request.scheduled_job_id.clone(),
+            execution_mode: None,
+            max_turns: None,
+        };
 
         let mut stream = match agent
-            .reply(
-                &messages,
-                Some(SessionConfig {
-                    id: session::Identifier::Name(session_id.clone()),
-                    working_dir: PathBuf::from(session_working_dir),
-                    schedule_id: request.scheduled_job_id.clone(),
-                    execution_mode: None,
-                    max_turns: None,
-                }),
-            )
+            .reply(&messages, Some(session_config), task_cancel.clone())
             .await
         {
             Ok(stream) => stream,
@@ -196,14 +179,7 @@ async fn handler(
                     MessageEvent::Error {
                         error: e.to_string(),
                     },
-                    &tx,
-                )
-                .await;
-                let _ = stream_event(
-                    MessageEvent::Finish {
-                        reason: "error".to_string(),
-                    },
-                    &tx,
+                    &task_tx,
                 )
                 .await;
                 return;
@@ -219,7 +195,7 @@ async fn handler(
                     MessageEvent::Error {
                         error: format!("Failed to get session path: {}", e),
                     },
-                    &tx,
+                    &task_tx,
                 )
                 .await;
                 return;
@@ -229,62 +205,44 @@ async fn handler(
 
         loop {
             tokio::select! {
+                _ = task_cancel.cancelled() => {
+                    tracing::info!("Agent task cancelled");
+                    break;
+                }
                 response = timeout(Duration::from_millis(500), stream.next()) => {
                     match response {
                         Ok(Some(Ok(AgentEvent::Message(message)))) => {
                             push_message(&mut all_messages, message.clone());
-                            if let Err(e) = stream_event(MessageEvent::Message { message }, &tx).await {
-                                tracing::error!("Error sending message through channel: {}", e);
-                                let _ = stream_event(
-                                    MessageEvent::Error {
-                                        error: e.to_string(),
-                                    },
-                                    &tx,
-                                ).await;
+                            if let Err(_) = stream_event(MessageEvent::Message { message }, &task_tx).await {
                                 break;
                             }
                         }
                         Ok(Some(Ok(AgentEvent::ModelChange { model, mode }))) => {
-                            if let Err(e) = stream_event(MessageEvent::ModelChange { model, mode }, &tx).await {
-                                tracing::error!("Error sending model change through channel: {}", e);
-                                let _ = stream_event(
-                                    MessageEvent::Error {
-                                        error: e.to_string(),
-                                    },
-                                    &tx,
-                                ).await;
+                            if let Err(_) = stream_event(MessageEvent::ModelChange { model, mode }, &task_tx).await {
+                                break;
                             }
                         }
                         Ok(Some(Ok(AgentEvent::McpNotification((request_id, n))))) => {
-                            if let Err(e) = stream_event(MessageEvent::Notification{
+                            if let Err(_) = stream_event(MessageEvent::Notification{
                                 request_id: request_id.clone(),
                                 message: n,
-                            }, &tx).await {
-                                tracing::error!("Error sending message through channel: {}", e);
-                                let _ = stream_event(
-                                    MessageEvent::Error {
-                                        error: e.to_string(),
-                                    },
-                                    &tx,
-                                ).await;
+                            }, &task_tx).await {
+                                break;
                             }
                         }
-
                         Ok(Some(Err(e))) => {
                             tracing::error!("Error processing message: {}", e);
                             let _ = stream_event(
-                                MessageEvent::Error {
-                                    error: e.to_string(),
-                                },
-                                &tx,
+                                MessageEvent::Error { error: e.to_string() },
+                                &task_tx,
                             ).await;
                             break;
                         }
                         Ok(None) => {
                             break;
                         }
-                        Err(_) => { // Heartbeat, used to detect disconnected clients
-                            if tx.is_closed() {
+                        Err(_) => {
+                            if task_tx.is_closed() {
                                 break;
                             }
                             continue;
@@ -295,26 +253,57 @@ async fn handler(
         }
 
         if all_messages.len() > saved_message_count {
-            let provider = Arc::clone(provider.as_ref().unwrap());
-            tokio::spawn(async move {
-                if let Err(e) =
-                    session::persist_messages(&session_path, &all_messages, Some(provider)).await
-                {
-                    tracing::error!("Failed to store session history: {:?}", e);
-                }
-            });
+            let provider = agent
+                .provider()
+                .await
+                .ok()
+                .and_then(|p| p.as_ref().map(Arc::clone));
+            if let Some(provider) = provider {
+                tokio::spawn(async move {
+                    if let Err(e) =
+                        session::persist_messages(&session_path, &all_messages, Some(provider))
+                            .await
+                    {
+                        tracing::error!("Failed to store session history: {:?}", e);
+                    }
+                });
+            }
         }
 
         let _ = stream_event(
             MessageEvent::Finish {
                 reason: "stop".to_string(),
             },
-            &tx,
+            &task_tx,
         )
         .await;
     });
 
+    // Create a guard that cancels the task when dropped
+    let _cancel_guard = CancelGuard::new(cancel_token, handle);
+
     Ok(SseResponse::new(stream))
+}
+
+struct CancelGuard {
+    cancel_token: CancellationToken,
+    handle: tokio::task::JoinHandle<()>,
+}
+
+impl CancelGuard {
+    fn new(cancel_token: CancellationToken, handle: tokio::task::JoinHandle<()>) -> Self {
+        Self {
+            cancel_token,
+            handle,
+        }
+    }
+}
+
+impl Drop for CancelGuard {
+    fn drop(&mut self) {
+        self.cancel_token.cancel();
+        self.handle.abort();
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -352,20 +341,18 @@ async fn ask_handler(
 
     let messages = vec![Message::user().with_text(request.prompt)];
 
+    let cancel_token = CancellationToken::new();
+    let task_cancel = cancel_token.clone();
+
     let mut response_text = String::new();
-    let mut stream = match agent
-        .reply(
-            &messages,
-            Some(SessionConfig {
-                id: session::Identifier::Name(session_id.clone()),
-                working_dir: PathBuf::from(session_working_dir),
-                schedule_id: request.scheduled_job_id.clone(),
-                execution_mode: None,
-                max_turns: None,
-            }),
-        )
-        .await
-    {
+    let config = SessionConfig {
+        id: session::Identifier::Name(session_id.clone()),
+        working_dir: PathBuf::from(session_working_dir),
+        schedule_id: request.scheduled_job_id.clone(),
+        execution_mode: None,
+        max_turns: None,
+    };
+    let mut stream = match agent.reply(&messages, Some(config), task_cancel).await {
         Ok(stream) => stream,
         Err(e) => {
             tracing::error!("Failed to start reply stream: {:?}", e);
@@ -495,7 +482,7 @@ struct ToolResultRequest {
 async fn submit_tool_result(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-    raw: axum::extract::Json<serde_json::Value>,
+    raw: Json<Value>,
 ) -> Result<Json<Value>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
@@ -526,7 +513,7 @@ async fn submit_tool_result(
 
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
-        .route("/reply", post(handler))
+        .route("/reply", post(reply_handler))
         .route("/ask", post(ask_handler))
         .route("/confirm", post(confirm_permission))
         .route("/tool_result", post(submit_tool_result))
@@ -557,10 +544,6 @@ mod tests {
             goose::providers::base::ProviderMetadata::empty()
         }
 
-        fn get_model_config(&self) -> ModelConfig {
-            self.model_config.clone()
-        }
-
         async fn complete(
             &self,
             _system: &str,
@@ -571,6 +554,10 @@ mod tests {
                 Message::assistant().with_text("Mock response"),
                 ProviderUsage::new("mock".to_string(), Usage::default()),
             ))
+        }
+
+        fn get_model_config(&self) -> ModelConfig {
+            self.model_config.clone()
         }
     }
 
