@@ -27,6 +27,7 @@ impl EditorModelImpl for MorphLLMEditor {
         original_code: &str,
         _old_str: &str,
         update_snippet: &str,
+        instruction: &str,
     ) -> Result<String, String> {
         eprintln!("Calling MorphLLM Editor API");
 
@@ -42,10 +43,10 @@ impl EditorModelImpl for MorphLLMEditor {
         // Create the client
         let client = Client::new();
 
-        // Format the prompt as specified in the Python example
+        // Format the prompt according to MorphLLM's new format with instruction
         let user_prompt = format!(
-            "<code>{}</code>\n<update>{}</update>",
-            original_code, update_snippet
+            "<instruction>{}</instruction>\n<code>{}</code>\n<update>{}</update>",
+            instruction, original_code, update_snippet
         );
 
         // Prepare the request body for OpenAI-compatible API
@@ -98,6 +99,7 @@ impl EditorModelImpl for MorphLLMEditor {
 
     fn get_str_replace_description(&self) -> &'static str {
         "Use the edit_file to propose an edit to an existing file.
+        
         This will be read by a less intelligent model, which will quickly apply the edit. You should make it clear what the edit is, while also minimizing the unchanged code you write.
         When writing the edit, you should specify each edit in sequence, with the special comment // ... existing code ... to represent unchanged code in between edited lines.
 
@@ -113,7 +115,17 @@ impl EditorModelImpl for MorphLLMEditor {
         You should bias towards repeating as few lines of the original file as possible to convey the change.
         Each edit should contain sufficient context of unchanged lines around the code you're editing to resolve ambiguity.
         If you plan on deleting a section, you must provide surrounding context to indicate the deletion.
-        DO NOT omit spans of pre-existing code without using the // ... existing code ... comment to indicate its absence.        
+        DO NOT omit spans of pre-existing code without using the // ... existing code ... comment to indicate its absence.
+        
+        **IMPORTANT**: You must also provide an `instruction` parameter - a single sentence written in the first person describing what you are going to do for the sketched edit. This instruction helps the less intelligent model understand and apply your edit correctly. 
+        
+        Examples of good instructions:
+        - \"I am adding error handling to the user authentication function and removing the old authentication method\"
+        - \"I am refactoring the database connection logic to use async/await\"
+        - \"I am fixing the bug in the validation logic by updating the regex pattern\"
+        - \"I am adding a new method to handle user preferences and updating the constructor\"
+        
+        The instruction should be specific enough to disambiguate any uncertainty in your edit.
         "
     }
 }
