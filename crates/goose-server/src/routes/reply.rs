@@ -253,11 +253,7 @@ async fn reply_handler(
         }
 
         if all_messages.len() > saved_message_count {
-            let provider = agent
-                .provider()
-                .await
-                .ok()
-                .and_then(|p| p.as_ref().map(Arc::clone));
+            let provider = agent.provider().await.ok();
             if let Some(provider) = provider {
                 tokio::spawn(async move {
                     if let Err(e) =

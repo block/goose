@@ -784,7 +784,7 @@ impl Agent {
                     }
 
                     // Record usage for the session
-                    if let Some(session_config) = session.clone() {
+                    if let Some(ref session_config) = session {
                         if let Some(ref usage) = usage {
                             Self::update_session_metrics(session_config, usage, messages.len())
                                 .await?;
