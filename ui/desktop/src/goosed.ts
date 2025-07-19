@@ -1,4 +1,4 @@
-import { spawn, ChildProcess, execSync } from 'child_process';
+import { spawn, ChildProcess } from 'child_process';
 import { createServer } from 'net';
 import os from 'node:os';
 import path from 'node:path';
@@ -70,26 +70,10 @@ const connectToExternalBackend = async (
     throw new Error(`External goosed server not accessible on port ${port}`);
   }
 
-  if (process.platform === 'win32') {
-    throw new Error('External backend process discovery not supported on Windows');
-  }
-
-  let pid: number;
-  try {
-    const stdout = execSync(`lsof -ti:${port}`, { encoding: 'utf8' });
-    const parsedPid = parseInt(stdout.trim());
-    if (isNaN(parsedPid)) {
-      throw new Error('Could not parse PID from lsof output');
-    }
-    pid = parsedPid;
-  } catch (error) {
-    throw new Error(`Could not find process for external backend on port ${port}: ${error}`);
-  }
-
   const mockProcess = {
-    pid,
+    pid: undefined,
     kill: () => {
-      log.info(`Not killing external process ${pid} - managed externally`);
+      log.info(`Not killing external process that is managed externally`);
     },
   } as ChildProcess;
 
