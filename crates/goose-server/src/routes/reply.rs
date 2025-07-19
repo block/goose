@@ -1,7 +1,7 @@
 use super::utils::verify_secret_key;
 use crate::state::AppState;
 use axum::{
-    extract::State,
+    extract::{DefaultBodyLimit, State},
     http::{self, HeaderMap, StatusCode},
     response::IntoResponse,
     routing::post,
@@ -538,10 +538,10 @@ async fn submit_tool_result(
 
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
-        .route("/reply", post(handler))
-        .route("/ask", post(ask_handler))
+        .route("/reply", post(handler).layer(DefaultBodyLimit::max(50 * 1024 * 1024)))
+        .route("/ask", post(ask_handler).layer(DefaultBodyLimit::max(10 * 1024 * 1024)))
         .route("/confirm", post(confirm_permission))
-        .route("/tool_result", post(submit_tool_result))
+        .route("/tool_result", post(submit_tool_result).layer(DefaultBodyLimit::max(10 * 1024 * 1024)))
         .with_state(state)
 }
 
