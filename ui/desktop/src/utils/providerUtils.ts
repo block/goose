@@ -73,7 +73,7 @@ export const updateSystemPromptWithParameters = async (
   recipeParameters: Record<string, string>
 ): Promise<void> => {
   try {
-    const recipeConfig = window.appConfig?.get?.('recipeConfig');
+    const recipeConfig = window.appConfig?.get?.('recipe');
     const originalInstructions = (recipeConfig as { instructions?: string })?.instructions;
 
     if (!originalInstructions) {
@@ -189,7 +189,7 @@ export const initializeSystem = async (
     await initializeAgent({ provider, model });
 
     // Get recipeConfig directly here
-    const recipeConfig = window.appConfig?.get?.('recipeConfig');
+    const recipeConfig = window.appConfig?.get?.('recipe');
     const botPrompt = (recipeConfig as { instructions?: string })?.instructions;
     const responseConfig = (recipeConfig as { response?: { json_schema?: unknown } })?.response;
 

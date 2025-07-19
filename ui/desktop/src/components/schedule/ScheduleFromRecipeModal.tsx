@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Recipe } from '../../recipe';
-import { generateDeepLink } from '../ui/DeepLinkModal';
+import { Recipe, generateDeepLink } from '../../recipe';
 import Copy from '../icons/Copy';
 import { Check } from 'lucide-react';
 
@@ -24,24 +23,29 @@ export const ScheduleFromRecipeModal: React.FC<ScheduleFromRecipeModalProps> = (
   const [deepLink, setDeepLink] = useState('');
 
   useEffect(() => {
-    if (isOpen && recipe) {
-      // Convert Recipe to the format expected by generateDeepLink
-      const recipeConfig = {
-        id: recipe.title?.toLowerCase().replace(/[^a-z0-9-]/g, '-') || 'recipe',
-        title: recipe.title,
-        description: recipe.description,
-        instructions: recipe.instructions,
-        activities: recipe.activities || [],
-        prompt: recipe.prompt,
-        extensions: recipe.extensions,
-        goosehints: recipe.goosehints,
-        context: recipe.context,
-        profile: recipe.profile,
-        author: recipe.author,
-      };
-      const link = generateDeepLink(recipeConfig);
-      setDeepLink(link);
-    }
+    let isCancelled = false;
+
+    const generateLink = async () => {
+      if (isOpen && recipe) {
+        try {
+          const link = await generateDeepLink(recipe);
+          if (!isCancelled) {
+            setDeepLink(link);
+          }
+        } catch (error) {
+          console.error('Failed to generate deeplink:', error);
+          if (!isCancelled) {
+            setDeepLink('Error generating deeplink');
+          }
+        }
+      }
+    };
+
+    generateLink();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [isOpen, recipe]);
 
   const handleCopy = () => {

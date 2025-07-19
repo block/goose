@@ -3491,6 +3491,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "url",
+ "urlencoding",
  "utoipa",
  "uuid",
  "webbrowser 0.8.15",
@@ -3571,7 +3572,6 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
- "urlencoding",
  "webbrowser 1.0.4",
  "winapi",
 ]
@@ -3666,7 +3666,6 @@ dependencies = [
  "tracing-subscriber",
  "umya-spreadsheet",
  "url",
- "urlencoding",
  "utoipa",
  "webbrowser 0.8.15",
  "which 6.0.3",

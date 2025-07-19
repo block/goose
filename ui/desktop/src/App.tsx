@@ -432,7 +432,7 @@ const RecipeEditorRoute = () => {
 
   if (!config) {
     const electronConfig = window.electron.getConfig();
-    config = electronConfig.recipeConfig;
+    config = electronConfig.recipe;
   }
 
   return <RecipeEditor config={config} />;
@@ -758,7 +758,7 @@ export default function App() {
     const urlParams = new URLSearchParams(window.location.search);
     const viewType = urlParams.get('view');
     const resumeSessionId = urlParams.get('resumeSessionId');
-    const recipeConfig = window.appConfig.get('recipeConfig');
+    const recipeConfig = window.appConfig.get('recipe');
 
     // Check for session resume first - this takes priority over other navigation
     if (resumeSessionId) {
@@ -979,7 +979,7 @@ export default function App() {
 
   // Handle navigation to pair view for recipe deeplinks after router is ready
   useEffect(() => {
-    const recipeConfig = window.appConfig.get('recipeConfig');
+    const recipeConfig = window.appConfig.get('recipe');
     if (
       recipeConfig &&
       typeof recipeConfig === 'object' &&

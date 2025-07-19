@@ -3,6 +3,7 @@ use std::sync::Arc;
 use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
 use goose::message::Message;
 use goose::recipe::Recipe;
+use goose::recipe_deeplink;
 use serde::{Deserialize, Serialize};
 
 use crate::state::AppState;
@@ -32,6 +33,26 @@ pub struct AuthorRequest {
 pub struct CreateRecipeResponse {
     recipe: Option<Recipe>,
     error: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct EncodeRecipeRequest {
+    recipe: Recipe,
+}
+
+#[derive(Debug, Serialize)]
+pub struct EncodeRecipeResponse {
+    deeplink: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DecodeRecipeRequest {
+    deeplink: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DecodeRecipeResponse {
+    recipe: Recipe,
 }
 
 /// Create a Recipe configuration from the current state of an agent
@@ -84,8 +105,70 @@ async fn create_recipe(
     }
 }
 
+async fn encode_recipe(
+    Json(request): Json<EncodeRecipeRequest>,
+) -> Result<Json<EncodeRecipeResponse>, StatusCode> {
+    match recipe_deeplink::encode(&request.recipe) {
+        Ok(encoded) => Ok(Json(EncodeRecipeResponse { deeplink: encoded })),
+        Err(err) => {
+            tracing::error!("Failed to encode recipe: {}", err);
+            Err(StatusCode::BAD_REQUEST)
+        }
+    }
+}
+
+async fn decode_recipe(
+    Json(request): Json<DecodeRecipeRequest>,
+) -> Result<Json<DecodeRecipeResponse>, StatusCode> {
+    match recipe_deeplink::decode(&request.deeplink) {
+        Ok(recipe) => Ok(Json(DecodeRecipeResponse { recipe })),
+        Err(err) => {
+            tracing::error!("Failed to decode deeplink: {}", err);
+            Err(StatusCode::BAD_REQUEST)
+        }
+    }
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/recipe/create", post(create_recipe))
+        .route("/recipes/encode", post(encode_recipe))
+        .route("/recipes/decode", post(decode_recipe))
         .with_state(state)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use goose::recipe::Recipe;
+
+    #[tokio::test]
+    async fn test_decode_and_encode_recipe() {
+        let original_recipe = Recipe::builder()
+            .title("Test Recipe")
+            .description("A test recipe")
+            .instructions("Test instructions")
+            .build()
+            .unwrap();
+        let encoded = recipe_deeplink::encode(&original_recipe).unwrap();
+
+        let request = DecodeRecipeRequest {
+            deeplink: encoded.clone(),
+        };
+        let response = decode_recipe(Json(request)).await;
+
+        assert!(response.is_ok());
+        let decoded = response.unwrap().0.recipe;
+        assert_eq!(decoded.title, original_recipe.title);
+        assert_eq!(decoded.description, original_recipe.description);
+        assert_eq!(decoded.instructions, original_recipe.instructions);
+
+        let encode_request = EncodeRecipeRequest { recipe: decoded };
+        let encode_response = encode_recipe(Json(encode_request)).await;
+
+        assert!(encode_response.is_ok());
+        let encoded_again = encode_response.unwrap().0.deeplink;
+        assert!(!encoded_again.is_empty());
+        assert_eq!(encoded, encoded_again);
+    }
 }

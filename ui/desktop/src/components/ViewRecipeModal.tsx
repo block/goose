@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react';
-import { Recipe } from '../recipe';
+import { useState, useEffect, useCallback } from 'react';
+import { Recipe, generateDeepLink } from '../recipe';
 import { Parameter } from '../recipe/index';
-import { Buffer } from 'buffer';
 import { FullExtensionConfig } from '../extensions';
 import { Geese } from './icons/Geese';
 import Copy from './icons/Copy';
@@ -21,13 +20,6 @@ interface ViewRecipeModalProps {
   isOpen: boolean;
   onClose: () => void;
   config: Recipe;
-}
-
-// Function to generate a deep link from a recipe
-function generateDeepLink(recipe: Recipe): string {
-  const configBase64 = Buffer.from(JSON.stringify(recipe)).toString('base64');
-  const urlSafe = encodeURIComponent(configBase64);
-  return `goose://recipe?config=${urlSafe}`;
 }
 
 export default function ViewRecipeModal({ isOpen, onClose, config }: ViewRecipeModalProps) {
@@ -118,7 +110,7 @@ export default function ViewRecipeModal({ isOpen, onClose, config }: ViewRecipeM
     setParameters(allParams);
   }, [instructions, prompt]);
 
-  const getCurrentConfig = (): Recipe => {
+  const getCurrentConfig = useCallback((): Recipe => {
     // Transform the internal parameters state into the desired output format.
     const formattedParameters = parameters.map((param) => {
       const formattedParam: Parameter = {
@@ -163,7 +155,17 @@ export default function ViewRecipeModal({ isOpen, onClose, config }: ViewRecipeM
     };
 
     return updatedConfig;
-  };
+  }, [
+    recipeConfig,
+    title,
+    description,
+    instructions,
+    activities,
+    prompt,
+    parameters,
+    recipeExtensions,
+    extensionOptions,
+  ]);
 
   const [errors, setErrors] = useState<{
     title?: string;
@@ -196,9 +198,59 @@ export default function ViewRecipeModal({ isOpen, onClose, config }: ViewRecipeM
     );
   };
 
-  const deeplink = generateDeepLink(getCurrentConfig());
+  const [deeplink, setDeeplink] = useState('');
+  const [isGeneratingDeeplink, setIsGeneratingDeeplink] = useState(false);
+
+  // Generate deeplink whenever recipe configuration changes
+  useEffect(() => {
+    let isCancelled = false;
+
+    const generateLink = async () => {
+      if (!title.trim() || !description.trim() || !instructions.trim()) {
+        setDeeplink('');
+        return;
+      }
+
+      setIsGeneratingDeeplink(true);
+      try {
+        const currentConfig = getCurrentConfig();
+        const link = await generateDeepLink(currentConfig);
+        if (!isCancelled) {
+          setDeeplink(link);
+        }
+      } catch (error) {
+        console.error('Failed to generate deeplink:', error);
+        if (!isCancelled) {
+          setDeeplink('Error generating deeplink');
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsGeneratingDeeplink(false);
+        }
+      }
+    };
+
+    generateLink();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [
+    title,
+    description,
+    instructions,
+    prompt,
+    activities,
+    parameters,
+    recipeExtensions,
+    getCurrentConfig,
+  ]);
 
   const handleCopy = () => {
+    if (!deeplink || isGeneratingDeeplink || deeplink === 'Error generating deeplink') {
+      return;
+    }
+
     navigator.clipboard
       .writeText(deeplink)
       .then(() => {
@@ -430,6 +482,9 @@ export default function ViewRecipeModal({ isOpen, onClose, config }: ViewRecipeM
                     onClick={() => validateForm() && handleCopy()}
                     variant="ghost"
                     size="sm"
+                    disabled={
+                      !deeplink || isGeneratingDeeplink || deeplink === 'Error generating deeplink'
+                    }
                     className="ml-4 p-2 hover:bg-background-default rounded-lg transition-colors flex items-center disabled:opacity-50 disabled:hover:bg-transparent"
                   >
                     {copied ? (
@@ -448,7 +503,9 @@ export default function ViewRecipeModal({ isOpen, onClose, config }: ViewRecipeM
                   onClick={() => validateForm() && handleCopy()}
                   className={`text-sm truncate font-mono cursor-pointer ${!title.trim() || !description.trim() ? 'text-textDisabled' : 'text-textStandard'}`}
                 >
-                  {deeplink}
+                  {isGeneratingDeeplink
+                    ? 'Generating deeplink...'
+                    : deeplink || 'Click to generate deeplink'}
                 </div>
               )}
             </div>

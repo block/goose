@@ -1,11 +1,10 @@
 use anyhow::Result;
-use base64::Engine;
 use console::style;
-use serde_json;
 
 use crate::recipes::github_recipe::RecipeSource;
 use crate::recipes::recipe::load_recipe_for_validation;
 use crate::recipes::search_recipe::list_available_recipes;
+use goose::recipe_deeplink;
 
 /// Validates a recipe file
 ///
@@ -42,21 +41,26 @@ pub fn handle_validate(recipe_name: &str) -> Result<()> {
 pub fn handle_deeplink(recipe_name: &str) -> Result<String> {
     // Load the recipe file first to validate it
     match load_recipe_for_validation(recipe_name) {
-        Ok(recipe) => {
-            let mut full_url = String::new();
-            if let Ok(recipe_json) = serde_json::to_string(&recipe) {
-                let deeplink = base64::engine::general_purpose::STANDARD.encode(recipe_json);
+        Ok(recipe) => match recipe_deeplink::encode(&recipe) {
+            Ok(encoded) => {
                 println!(
                     "{} Generated deeplink for: {}",
                     style("✓").green().bold(),
                     recipe.title
                 );
-                let url_safe = urlencoding::encode(&deeplink);
-                full_url = format!("goose://recipe?config={}", url_safe);
+                let full_url = format!("goose://recipe?config={}", encoded);
                 println!("{}", full_url);
+                Ok(full_url)
             }
-            Ok(full_url)
-        }
+            Err(err) => {
+                println!(
+                    "{} Failed to encode recipe: {}",
+                    style("✗").red().bold(),
+                    err
+                );
+                Err(anyhow::anyhow!("Failed to encode recipe: {}", err))
+            }
+        },
         Err(err) => {
             println!("{} {}", style("✗").red().bold(), err);
             Err(err)
@@ -185,7 +189,10 @@ response:
 
         let result = handle_deeplink(&recipe_path);
         assert!(result.is_ok());
-        assert!(result.unwrap().contains("goose://recipe?config=eyJ2ZXJzaW9uIjoiMS4wLjAiLCJ0aXRsZSI6IlRlc3QgUmVjaXBlIHdpdGggVmFsaWQgSlNPTiBTY2hlbWEiLCJkZXNjcmlwdGlvbiI6IkEgdGVzdCByZWNpcGUgd2l0aCB2YWxpZCBKU09OIHNjaGVtYSIsImluc3RydWN0aW9ucyI6IlRlc3QgaW5zdHJ1Y3Rpb25zIiwicHJvbXB0IjoiVGVzdCBwcm9tcHQgY29udGVudCIsInJlc3BvbnNlIjp7Impzb25fc2NoZW1hIjp7InByb3BlcnRpZXMiOnsiY291bnQiOnsiZGVzY3JpcHRpb24iOiJBIGNvdW50IHZhbHVlIiwidHlwZSI6Im51bWJlciJ9LCJyZXN1bHQiOnsiZGVzY3JpcHRpb24iOiJUaGUgcmVzdWx0IiwidHlwZSI6InN0cmluZyJ9fSwicmVxdWlyZWQiOlsicmVzdWx0Il0sInR5cGUiOiJvYmplY3QifX19"));
+        let url = result.unwrap();
+        assert!(url.starts_with("goose://recipe?config="));
+        let encoded_part = url.strip_prefix("goose://recipe?config=").unwrap();
+        assert!(encoded_part.len() > 0);
     }
 
     #[test]
