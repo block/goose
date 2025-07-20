@@ -1,7 +1,6 @@
-use crate::content::{Annotations, EmbeddedResource, ImageContent};
 use crate::handler::PromptError;
-use crate::resource::ResourceContents;
 use base64::engine::{general_purpose::STANDARD as BASE64_STANDARD, Engine};
+use rmcp::model::{Annotations, EmbeddedResource, ImageContent};
 use serde::{Deserialize, Serialize};
 
 /// A prompt that can be used to generate text from a model
@@ -113,8 +112,7 @@ impl PromptMessage {
             role,
             content: PromptMessageContent::Image {
                 image: ImageContent {
-                    data,
-                    mime_type,
+                    raw: rmcp::model::RawImageContent { data, mime_type },
                     annotations,
                 },
             },
@@ -129,7 +127,7 @@ impl PromptMessage {
         text: Option<String>,
         annotations: Option<Annotations>,
     ) -> Self {
-        let resource_contents = ResourceContents::TextResourceContents {
+        let resource_contents = rmcp::model::ResourceContents::TextResourceContents {
             uri,
             mime_type: Some(mime_type),
             text: text.unwrap_or_default(),
@@ -139,7 +137,9 @@ impl PromptMessage {
             role,
             content: PromptMessageContent::Resource {
                 resource: EmbeddedResource {
-                    resource: resource_contents,
+                    raw: rmcp::model::RawEmbeddedResource {
+                        resource: resource_contents,
+                    },
                     annotations,
                 },
             },

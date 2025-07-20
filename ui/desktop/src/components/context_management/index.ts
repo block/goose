@@ -59,7 +59,7 @@ export function convertApiMessageToFrontendMessage(
     display: display ?? true,
     sendToLLM: sendToLLM ?? true,
     id: generateId(),
-    role: apiMessage.role,
+    role: apiMessage.role as Role,
     created: apiMessage.created,
     content: apiMessage.content
       .map((apiContent) => mapApiContentToFrontendMessageContent(apiContent))

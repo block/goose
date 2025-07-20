@@ -1,7 +1,7 @@
-use crate::content::Annotations;
 /// Resources that servers provide to clients
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
+use rmcp::model::Annotations;
 use serde::{Deserialize, Serialize};
 use url::Url;
 use utoipa::ToSchema;

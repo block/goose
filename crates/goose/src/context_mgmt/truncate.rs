@@ -1,8 +1,9 @@
 use crate::message::{Message, MessageContent};
 use crate::utils::safe_truncate;
 use anyhow::{anyhow, Result};
-use mcp_core::{Content, ResourceContents, Role};
+use rmcp::model::{RawContent, ResourceContents, Role};
 use std::collections::HashSet;
+use std::ops::DerefMut;
 use tracing::{debug, warn};
 
 /// Maximum size for truncated content in characters
@@ -89,7 +90,7 @@ fn truncate_message_content(message: &Message, max_content_size: usize) -> Resul
             MessageContent::ToolResponse(tool_response) => {
                 if let Ok(ref mut result) = tool_response.tool_result {
                     for content_item in result {
-                        if let Content::Text(ref mut text_content) = content_item {
+                        if let RawContent::Text(ref mut text_content) = content_item.deref_mut() {
                             if text_content.text.chars().count() > max_content_size {
                                 let truncated = format!(
                                     "{}\n\n[... tool response truncated from {} to {} characters ...]",
@@ -101,7 +102,9 @@ fn truncate_message_content(message: &Message, max_content_size: usize) -> Resul
                             }
                         }
                         // Handle Resource content which might contain large text
-                        else if let Content::Resource(ref mut resource_content) = content_item {
+                        else if let RawContent::Resource(ref mut resource_content) =
+                            content_item.deref_mut()
+                        {
                             if let ResourceContents::TextResourceContents { text, .. } =
                                 &mut resource_content.resource
                             {
@@ -139,19 +142,21 @@ fn estimate_message_tokens(message: &Message, estimate_fn: &dyn Fn(&str) -> usiz
             MessageContent::ToolResponse(tool_response) => {
                 if let Ok(ref result) = tool_response.tool_result {
                     for content_item in result {
-                        match content_item {
-                            Content::Text(text_content) => {
+                        match &content_item.raw {
+                            RawContent::Text(text_content) => {
                                 total_tokens += estimate_fn(&text_content.text);
                             }
-                            Content::Resource(resource_content) => {
-                                match &resource_content.resource {
+                            RawContent::Resource(resource) => {
+                                match &resource.resource {
                                     ResourceContents::TextResourceContents { text, .. } => {
                                         total_tokens += estimate_fn(text);
                                     }
                                     _ => total_tokens += 5, // Small overhead for other resource types
                                 }
                             }
-                            _ => total_tokens += 5, // Small overhead for other content types
+                            _ => {
+                                total_tokens += 5; // Small overhead for other content types
+                            }
                         }
                     }
                 }
@@ -375,8 +380,8 @@ mod tests {
     use super::*;
     use crate::message::Message;
     use anyhow::Result;
-    use mcp_core::content::Content;
     use mcp_core::tool::ToolCall;
+    use rmcp::model::Content;
     use serde_json::json;
 
     // Helper function to create a user text message with a specified token count

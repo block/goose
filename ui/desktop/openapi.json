@@ -934,18 +934,14 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Role"
-            },
-            "nullable": true
+            }
           },
           "priority": {
-            "type": "number",
-            "format": "float",
-            "nullable": true
+            "type": "number"
           },
           "timestamp": {
             "type": "string",
-            "format": "date-time",
-            "example": "2023-01-01T00:00:00Z"
+            "format": "date-time"
           }
         }
       },
@@ -1002,72 +998,81 @@
       "Content": {
         "oneOf": [
           {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/TextContent"
+            "type": "object",
+            "required": [
+              "text",
+              "type"
+            ],
+            "properties": {
+              "text": {
+                "type": "string"
               },
-              {
-                "type": "object",
-                "required": [
-                  "type"
-                ],
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "text"
-                    ]
-                  }
-                }
+              "type": {
+                "type": "string"
               }
-            ]
+            }
           },
           {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ImageContent"
+            "type": "object",
+            "required": [
+              "data",
+              "mimeType",
+              "type"
+            ],
+            "properties": {
+              "data": {
+                "type": "string"
               },
-              {
-                "type": "object",
-                "required": [
-                  "type"
-                ],
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "image"
-                    ]
-                  }
-                }
+              "mimeType": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
               }
-            ]
+            }
           },
           {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/EmbeddedResource"
+            "type": "object",
+            "required": [
+              "resource",
+              "type"
+            ],
+            "properties": {
+              "resource": {
+                "$ref": "#/components/schemas/ResourceContents"
               },
-              {
-                "type": "object",
-                "required": [
-                  "type"
-                ],
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "resource"
-                    ]
-                  }
-                }
+              "type": {
+                "type": "string"
               }
-            ]
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "data",
+              "mimeType",
+              "type"
+            ],
+            "properties": {
+              "annotations": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Annotations"
+                  }
+                ]
+              },
+              "data": {
+                "type": "string"
+              },
+              "mimeType": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              }
+            }
           }
-        ],
-        "discriminator": {
-          "propertyName": "type"
-        }
+        ]
       },
       "ContextLengthExceeded": {
         "type": "object",
@@ -1160,8 +1165,7 @@
               {
                 "$ref": "#/components/schemas/Annotations"
               }
-            ],
-            "nullable": true
+            ]
           },
           "resource": {
             "$ref": "#/components/schemas/ResourceContents"
@@ -1491,8 +1495,7 @@
               {
                 "$ref": "#/components/schemas/Annotations"
               }
-            ],
-            "nullable": true
+            ]
           },
           "data": {
             "type": "string"
@@ -1824,6 +1827,11 @@
             "format": "double",
             "description": "Cost per token for output (optional)",
             "nullable": true
+          },
+          "supports_cache_control": {
+            "type": "boolean",
+            "description": "Whether this model supports cache control",
+            "nullable": true
           }
         }
       },
@@ -1997,10 +2005,13 @@
         ]
       },
       "Role": {
-        "type": "string",
-        "enum": [
-          "user",
-          "assistant"
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "string"
+          }
         ]
       },
       "RunNowResponse": {
@@ -2284,8 +2295,7 @@
               {
                 "$ref": "#/components/schemas/Annotations"
               }
-            ],
-            "nullable": true
+            ]
           },
           "text": {
             "type": "string"

@@ -1,13 +1,18 @@
 use goose_server::openapi;
 use std::env;
 use std::fs;
+use std::path::PathBuf;
 
 fn main() {
     let schema = openapi::generate_schema();
 
-    // Get the current working directory
-    let current_dir = env::current_dir().unwrap();
-    let output_path = current_dir.join("ui").join("desktop").join("openapi.json");
+    let package_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+    let output_path = PathBuf::from(package_dir)
+        .join("..")
+        .join("..")
+        .join("ui")
+        .join("desktop")
+        .join("openapi.json");
 
     // Ensure parent directory exists
     if let Some(parent) = output_path.parent() {

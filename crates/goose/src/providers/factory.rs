@@ -12,6 +12,7 @@ use super::{
     google::GoogleProvider,
     groq::GroqProvider,
     lead_worker::LeadWorkerProvider,
+    litellm::LiteLLMProvider,
     ollama::OllamaProvider,
     openai::OpenAiProvider,
     openrouter::OpenRouterProvider,
@@ -50,6 +51,7 @@ pub fn providers() -> Vec<ProviderMetadata> {
         // GithubCopilotProvider::metadata(),
         GoogleProvider::metadata(),
         GroqProvider::metadata(),
+        LiteLLMProvider::metadata(),
         OllamaProvider::metadata(),
         OpenAiProvider::metadata(),
         OpenRouterProvider::metadata(),
@@ -158,6 +160,7 @@ fn create_provider(name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>> 
         "databricks" => Ok(Arc::new(DatabricksProvider::from_env(model)?)),
         "gemini-cli" => Ok(Arc::new(GeminiCliProvider::from_env(model)?)),
         "groq" => Ok(Arc::new(GroqProvider::from_env(model)?)),
+        "litellm" => Ok(Arc::new(LiteLLMProvider::from_env(model)?)),
         "ollama" => Ok(Arc::new(OllamaProvider::from_env(model)?)),
         "openrouter" => Ok(Arc::new(OpenRouterProvider::from_env(model)?)),
         "gcp_vertex_ai" => Ok(Arc::new(GcpVertexAIProvider::from_env(model)?)),
@@ -177,7 +180,7 @@ mod tests {
     use crate::message::{Message, MessageContent};
     use crate::providers::base::{ProviderMetadata, ProviderUsage, Usage};
     use chrono::Utc;
-    use mcp_core::{content::TextContent, Role};
+    use rmcp::model::{AnnotateAble, RawTextContent, Role};
     use std::env;
 
     #[allow(dead_code)]
@@ -215,13 +218,15 @@ mod tests {
                 Message::new(
                     Role::Assistant,
                     Utc::now().timestamp(),
-                    vec![MessageContent::Text(TextContent {
-                        text: format!(
-                            "Response from {} with model {}",
-                            self.name, self.model_config.model_name
-                        ),
-                        annotations: None,
-                    })],
+                    vec![MessageContent::Text(
+                        RawTextContent {
+                            text: format!(
+                                "Response from {} with model {}",
+                                self.name, self.model_config.model_name
+                            ),
+                        }
+                        .no_annotation(),
+                    )],
                 ),
                 ProviderUsage::new(self.model_config.model_name.clone(), Usage::default()),
             ))
