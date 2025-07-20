@@ -703,10 +703,12 @@ impl Agent {
         tools: &[Tool],
         toolshim_tools: &[Tool],
         system_prompt: &str,
-        cancel_token: &CancellationToken,
+        cancel_token: &Option<CancellationToken>,
     ) -> Result<TurnResult> {
-        if cancel_token.is_cancelled() {
-            return Ok(TurnResult::Finished { final_event: None });
+        if let Some(token) = cancel_token {
+            if token.is_cancelled() {
+                return Ok(TurnResult::Finished { final_event: None });
+            }
         }
 
         if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
@@ -755,8 +757,10 @@ impl Agent {
 
         let mut added_message = false;
         while let Some(next) = stream.next().await {
-            if cancel_token.is_cancelled() {
-                break;
+            if let Some(token) = cancel_token {
+                if token.is_cancelled() {
+                    break;
+                }
             }
             match next {
                 Ok((response, usage)) => {
@@ -927,8 +931,10 @@ impl Agent {
                             let mut all_install_successful = true;
 
                             while let Some((request_id, item)) = combined.next().await {
-                                if cancel_token.is_cancelled() {
-                                    break;
+                                if let Some(token) = cancel_token.as_ref() {
+                                    if token.is_cancelled() {
+                                        break;
+                                    }
                                 }
                                 match item {
                                     ToolStreamItem::Result(output) => {
@@ -1011,7 +1017,7 @@ impl Agent {
         &self,
         messages: &[Message],
         session: Option<SessionConfig>,
-        cancel_token: CancellationToken,
+        cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         let mut messages = messages.to_vec();
         let reply_span = tracing::Span::current();

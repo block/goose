@@ -153,7 +153,7 @@ Response:`;
  * @param prompt The prompt to send to the AI
  * @returns Promise<string> The AI's response
  */
-export async function ask(prompt: string): Promise<string> {
+async function ask(prompt: string): Promise<string> {
   const response = await fetch(getApiUrl('/ask'), {
     method: 'POST',
     headers: {

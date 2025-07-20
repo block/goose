@@ -171,7 +171,7 @@ async fn reply_handler(
         };
 
         let mut stream = match agent
-            .reply(&messages, Some(session_config), task_cancel.clone())
+            .reply(&messages, Some(session_config), Some(task_cancel.clone()))
             .await
         {
             Ok(stream) => stream,
@@ -308,126 +308,6 @@ impl Drop for CancelGuard {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-struct AskRequest {
-    prompt: String,
-    session_id: Option<String>,
-    session_working_dir: String,
-    scheduled_job_id: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-struct AskResponse {
-    response: String,
-}
-
-async fn ask_handler(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-    Json(request): Json<AskRequest>,
-) -> Result<Json<AskResponse>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
-    let session_working_dir = request.session_working_dir.clone();
-
-    let session_id = request
-        .session_id
-        .unwrap_or_else(session::generate_session_id);
-
-    let agent = state
-        .get_agent()
-        .await
-        .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
-
-    let provider = agent.provider().await;
-
-    let messages = vec![Message::user().with_text(request.prompt)];
-
-    let cancel_token = CancellationToken::new();
-    let task_cancel = cancel_token.clone();
-
-    let mut response_text = String::new();
-    let config = SessionConfig {
-        id: session::Identifier::Name(session_id.clone()),
-        working_dir: PathBuf::from(&session_working_dir),
-        schedule_id: request.scheduled_job_id.clone(),
-        execution_mode: None,
-        max_turns: None,
-    };
-    let mut stream = match agent.reply(&messages, Some(config), task_cancel).await {
-        Ok(stream) => stream,
-        Err(e) => {
-            tracing::error!("Failed to start reply stream: {:?}", e);
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
-        }
-    };
-
-    let mut all_messages = messages.clone();
-    let mut response_message = Message::assistant();
-
-    while let Some(response) = stream.next().await {
-        match response {
-            Ok(AgentEvent::Message(message)) => {
-                if message.role == Role::Assistant {
-                    for content in &message.content {
-                        if let MessageContent::Text(text) = content {
-                            response_text.push_str(&text.text);
-                            response_text.push('\n');
-                        }
-                        response_message.content.push(content.clone());
-                    }
-                }
-            }
-            Ok(AgentEvent::ModelChange { model, mode }) => {
-                // Log model change for non-streaming
-                tracing::info!("Model changed to {} in {} mode", model, mode);
-            }
-            Ok(AgentEvent::McpNotification(n)) => {
-                // Handle notifications if needed
-                tracing::info!("Received notification: {:?}", n);
-            }
-
-            Err(e) => {
-                tracing::error!("Error processing as_ai message: {}", e);
-                return Err(StatusCode::INTERNAL_SERVER_ERROR);
-            }
-        }
-    }
-
-    if !response_message.content.is_empty() {
-        push_message(&mut all_messages, response_message);
-    }
-
-    let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
-        Ok(path) => path,
-        Err(e) => {
-            tracing::error!("Failed to get session path: {}", e);
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
-        }
-    };
-
-    let session_path_clone = session_path.clone();
-    let messages = all_messages.clone();
-    let provider = Arc::clone(provider.as_ref().unwrap());
-    let session_working_dir_clone = session_working_dir.clone();
-    tokio::spawn(async move {
-        if let Err(e) = session::persist_messages(
-            &session_path_clone,
-            &messages,
-            Some(provider),
-            Some(PathBuf::from(session_working_dir_clone)),
-        )
-        .await
-        {
-            tracing::error!("Failed to store session history: {:?}", e);
-        }
-    });
-
-    Ok(Json(AskResponse {
-        response: response_text.trim().to_string(),
-    }))
-}
-
 #[derive(Debug, Deserialize, Serialize, ToSchema)]
 pub struct PermissionConfirmationRequest {
     id: String,
@@ -522,7 +402,6 @@ async fn submit_tool_result(
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/reply", post(reply_handler))
-        .route("/ask", post(ask_handler))
         .route("/confirm", post(confirm_permission))
         .route("/tool_result", post(submit_tool_result))
         .with_state(state)
@@ -576,7 +455,7 @@ mod tests {
         use tower::ServiceExt;
 
         #[tokio::test]
-        async fn test_ask_endpoint() {
+        async fn test_reply_endpoint() {
             let mock_model_config = ModelConfig::new("test-model".to_string());
             let mock_provider = Arc::new(MockProvider {
                 model_config: mock_model_config,
@@ -584,24 +463,17 @@ mod tests {
             let agent = Agent::new();
             let _ = agent.update_provider(mock_provider).await;
             let state = AppState::new(Arc::new(agent), "test-secret".to_string()).await;
-            let scheduler_path = goose::scheduler::get_default_scheduler_storage_path()
-                .expect("Failed to get default scheduler storage path");
-            let scheduler =
-                goose::scheduler_factory::SchedulerFactory::create_legacy(scheduler_path)
-                    .await
-                    .unwrap();
-            state.set_scheduler(scheduler).await;
 
             let app = routes(state);
 
             let request = Request::builder()
-                .uri("/ask")
+                .uri("/reply")
                 .method("POST")
                 .header("content-type", "application/json")
                 .header("x-secret-key", "test-secret")
                 .body(Body::from(
-                    serde_json::to_string(&AskRequest {
-                        prompt: "test prompt".to_string(),
+                    serde_json::to_string(&ChatRequest {
+                        messages: vec![Message::user().with_text("test message")],
                         session_id: Some("test-session".to_string()),
                         session_working_dir: "test-working-dir".to_string(),
                         scheduled_job_id: None,

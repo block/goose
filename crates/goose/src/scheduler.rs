@@ -1,3 +1,17 @@
+use std::collections::HashMap;
+use std::fs;
+use std::io;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+
+use anyhow::{anyhow, Result};
+use async_trait::async_trait;
+use chrono::{DateTime, Utc};
+use etcetera::{choose_app_strategy, AppStrategy};
+use serde::{Deserialize, Serialize};
+use tokio::sync::Mutex;
+use tokio_cron_scheduler::{job::JobId, Job, JobScheduler as TokioJobScheduler};
+
 use crate::agents::AgentEvent;
 use crate::agents::{Agent, SessionConfig};
 use crate::config::{self, Config};
@@ -8,20 +22,6 @@ use crate::recipe::Recipe;
 use crate::scheduler_trait::SchedulerTrait;
 use crate::session;
 use crate::session::storage::SessionMetadata;
-use anyhow::{anyhow, Result};
-use async_trait::async_trait;
-use chrono::{DateTime, Utc};
-use etcetera::{choose_app_strategy, AppStrategy};
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::fs;
-use std::io;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::sync::Mutex;
-use tokio_cron_scheduler::{job::JobId, Job, JobScheduler as TokioJobScheduler};
-use tokio_util::sync::CancellationToken;
 
 // Track running tasks with their abort handles
 type RunningTasksMap = HashMap<String, tokio::task::AbortHandle>;
@@ -1199,67 +1199,50 @@ async fn run_scheduled_job_internal(
         };
 
         let session_config = SessionConfig {
-            id: session::storage::Identifier::Name(session_id_for_return.clone()),
+            id: crate::session::storage::Identifier::Name(session_id_for_return.clone()),
             working_dir: current_dir.clone(),
             schedule_id: Some(job.id.clone()),
-            execution_mode: job.execution_mode,
+            execution_mode: job.execution_mode.clone(),
             max_turns: None,
         };
 
-        let cancel_token = CancellationToken::new();
         match agent
-            .reply(
-                &all_session_messages,
-                Some(session_config),
-                cancel_token.clone(),
-            )
+            .reply(&all_session_messages, Some(session_config.clone()), None)
             .await
         {
             Ok(mut stream) => {
                 use futures::StreamExt;
 
-                loop {
-                    tokio::select! {
-                        message_result = stream.next() => {
-                            match message_result {
-                                Some(Ok(AgentEvent::Message(msg))) => {
-                                    if msg.role == rmcp::model::Role::Assistant {
-                                        tracing::info!("[Job {}] Assistant: {:?}", job.id, msg.content);
-                                    }
-                                    all_session_messages.push(msg);
-                                }
-                                Some(Ok(AgentEvent::McpNotification(_))) => {
-                                    // Handle notifications if needed
-                                }
-                                Some(Ok(AgentEvent::ModelChange { .. })) => {
-                                    // Model change events are informational, just continue
-                                }
-                                Some(Err(e)) => {
-                                    tracing::error!(
-                                        "[Job {}] Error receiving message from agent: {}",
-                                        job.id,
-                                        e
-                                    );
-                                    break;
-                                }
-                                None => {
-                                    break;
-                                }
+                while let Some(message_result) = stream.next().await {
+                    // Check if the task has been cancelled
+                    tokio::task::yield_now().await;
+
+                    match message_result {
+                        Ok(AgentEvent::Message(msg)) => {
+                            if msg.role == rmcp::model::Role::Assistant {
+                                tracing::info!("[Job {}] Assistant: {:?}", job.id, msg.content);
                             }
+                            all_session_messages.push(msg);
                         }
-                        _ = cancel_token.cancelled() => {
-                            tracing::info!("[Job {}] Job cancelled", job.id);
-                            break;
+                        Ok(AgentEvent::McpNotification(_)) => {
+                            // Handle notifications if needed
                         }
-                        _ = tokio::time::sleep(Duration::from_secs(60 * 60)) => {
-                            tracing::warn!("[Job {}] Job timed out", job.id);
-                            cancel_token.cancel();
+                        Ok(AgentEvent::ModelChange { .. }) => {
+                            // Model change events are informational, just continue
+                        }
+
+                        Err(e) => {
+                            tracing::error!(
+                                "[Job {}] Error receiving message from agent: {}",
+                                job.id,
+                                e
+                            );
                             break;
                         }
                     }
                 }
 
-                match session::storage::read_metadata(&session_file_path) {
+                match crate::session::storage::read_metadata(&session_file_path) {
                     Ok(mut updated_metadata) => {
                         updated_metadata.message_count = all_session_messages.len();
                         if let Err(e) = crate::session::storage::save_messages_with_metadata(

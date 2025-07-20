@@ -273,6 +273,10 @@ export type ModelInfo = {
      * Cost per token for output (optional)
      */
     output_token_cost?: number | null;
+    /**
+     * Whether this model supports cache control
+     */
+    supports_cache_control?: boolean | null;
 };
 
 export type PermissionConfirmationRequest = {
