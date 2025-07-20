@@ -200,46 +200,44 @@ async fn reply_handler(
                     break;
                 }
                 response = timeout(Duration::from_millis(500), stream.next()) => {
-                    match response {
-                        Ok(Some(Ok(AgentEvent::Message(message)))) => {
-                            push_message(&mut all_messages, message.clone());
-                            if let Err(_) = stream_event(MessageEvent::Message { message }, &task_tx).await {
-                                break;
-                            }
-                        }
-                        Ok(Some(Ok(AgentEvent::ModelChange { model, mode }))) => {
-                            if let Err(_) = stream_event(MessageEvent::ModelChange { model, mode }, &task_tx).await {
-                                break;
-                            }
-                        }
-                        Ok(Some(Ok(AgentEvent::McpNotification((request_id, n))))) => {
-                            if let Err(_) = stream_event(MessageEvent::Notification{
-                                request_id: request_id.clone(),
-                                message: n,
-                            }, &task_tx).await {
-                                break;
-                            }
-                        }
-                        Ok(Some(Err(e))) => {
-                            tracing::error!("Error processing message: {}", e);
-                            let _ = stream_event(
-                                MessageEvent::Error { error: e.to_string() },
-                                &task_tx,
-                            ).await;
+                match response {
+                    Ok(Some(Ok(AgentEvent::Message(message)))) => {
+                        push_message(&mut all_messages, message.clone());
+                        if let Err(e) = stream_event(MessageEvent::Message { message }, &tx).await {
+                            tracing::error!("Error sending message through channel: {}", e);
+                            let _ = stream_event(MessageEvent::Error { error: e.to_string() }, &tx).await;
                             break;
                         }
-                        Ok(None) => {
-                            break;
+                    }
+                    Ok(Some(Ok(AgentEvent::ModelChange { model, mode }))) => {
+                        if let Err(e) = stream_event(MessageEvent::ModelChange { model, mode }, &tx).await {
+                            tracing::error!("Error sending model change through channel: {}", e);
+                            let _ = stream_event(MessageEvent::Error { error: e.to_string() }, &tx).await;
                         }
-                        Err(_) => {
-                            if task_tx.is_closed() {
-                                break;
-                            }
-                            continue;
+                    }
+                    Ok(Some(Ok(AgentEvent::McpNotification((request_id, n))))) => {
+                        if let Err(e) = stream_event(MessageEvent::Notification {
+                            request_id: request_id.clone(),
+                            message: n,
+                        }, &tx).await {
+                            tracing::error!("Error sending message through channel: {}", e);
+                            let _ = stream_event(MessageEvent::Error { error: e.to_string() }, &tx).await;
+                        }
+                    }
+                    Ok(Some(Err(e))) => {
+                        tracing::error!("Error processing message: {}", e);
+                        let _ = stream_event(MessageEvent::Error { error: e.to_string() }, &tx).await;
+                        break;
+                    }
+                    Ok(None) => break,
+                    Err(_) => {
+                        if tx.is_closed() {
+                            break;
                         }
                     }
                 }
             }
+                        }
         }
 
         if all_messages.len() > saved_message_count {
