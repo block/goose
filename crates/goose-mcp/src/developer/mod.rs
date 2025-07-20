@@ -336,7 +336,7 @@ impl DeveloperRouter {
                     "new_str": {"type": "string"},
                     "instruction": {
                         "type": "string",
-                        "description": "Optional: A single sentence written in the first person describing what you are going to do for the sketched edit. Use it to disambiguate uncertainty in the edit."
+                        "description": "A single sentence written in the first person describing what you are going to do for the sketched edit. Use it to disambiguate uncertainty in the edit."
                     },
                     "file_text": {"type": "string"}
                 }
