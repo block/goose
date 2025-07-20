@@ -16,8 +16,7 @@ use super::utils::emit_debug_trace;
 use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use chrono::Utc;
-use mcp_core::content::TextContent;
-use mcp_core::role::Role;
+use rmcp::model::Role;
 
 pub const SAGEMAKER_TGI_DOC_LINK: &str =
     "https://docs.aws.amazon.com/sagemaker/latest/dg/realtime-endpoints.html";
@@ -206,10 +205,7 @@ impl SageMakerTgiProvider {
         Ok(Message::new(
             Role::Assistant,
             Utc::now().timestamp(),
-            vec![MessageContent::Text(TextContent {
-                text: clean_text,
-                annotations: None,
-            })],
+            vec![MessageContent::text(clean_text)],
         ))
     }
 

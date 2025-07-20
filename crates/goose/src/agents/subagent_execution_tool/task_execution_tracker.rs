@@ -5,14 +5,12 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
 use tokio::time::{sleep, Duration, Instant};
 
-use crate::agents::sub_recipe_execution_tool::notification_events::{
+use crate::agents::subagent_execution_tool::notification_events::{
     FailedTaskInfo, TaskCompletionStats, TaskExecutionNotificationEvent, TaskExecutionStats,
     TaskInfo as EventTaskInfo,
 };
-use crate::agents::sub_recipe_execution_tool::task_types::{
-    Task, TaskInfo, TaskResult, TaskStatus,
-};
-use crate::agents::sub_recipe_execution_tool::utils::{count_by_status, get_task_name};
+use crate::agents::subagent_execution_tool::task_types::{Task, TaskInfo, TaskResult, TaskStatus};
+use crate::agents::subagent_execution_tool::utils::{count_by_status, get_task_name};
 use serde_json::Value;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -41,6 +39,18 @@ fn format_task_metadata(task_info: &TaskInfo) -> String {
             })
             .collect::<Vec<_>>()
             .join(",")
+    } else if task_info.task.task_type == "text_instruction" {
+        // For text_instruction tasks, extract and display the instruction
+        if let Some(text_instruction) = task_info.task.get_text_instruction() {
+            // Truncate long instructions to keep the display clean
+            if text_instruction.len() > 80 {
+                format!("instruction={}...", &text_instruction[..77])
+            } else {
+                format!("instruction={}", text_instruction)
+            }
+        } else {
+            String::new()
+        }
     } else {
         String::new()
     }
@@ -113,27 +123,30 @@ impl TaskExecutionTracker {
             .map(|task_info| task_info.current_output.clone())
     }
 
+    async fn format_line(&self, task_info: Option<&TaskInfo>, line: &str) -> String {
+        if let Some(task_info) = task_info {
+            let task_name = get_task_name(task_info);
+            let task_type = task_info.task.task_type.clone();
+            let metadata = format_task_metadata(task_info);
+
+            if metadata.is_empty() {
+                format!("[{} ({})] {}", task_name, task_type, line)
+            } else {
+                format!("[{} ({}) {}] {}", task_name, task_type, metadata, line)
+            }
+        } else {
+            line.to_string()
+        }
+    }
+
     pub async fn send_live_output(&self, task_id: &str, line: &str) {
         match self.display_mode {
             DisplayMode::SingleTaskOutput => {
                 let tasks = self.tasks.read().await;
                 let task_info = tasks.get(task_id);
 
-                let formatted_line = if let Some(task_info) = task_info {
-                    let task_name = get_task_name(task_info);
-                    let task_type = task_info.task.task_type.clone();
-                    let metadata = format_task_metadata(task_info);
-
-                    if metadata.is_empty() {
-                        format!("[{} ({})] {}", task_name, task_type, line)
-                    } else {
-                        format!("[{} ({}) {}] {}", task_name, task_type, metadata, line)
-                    }
-                } else {
-                    line.to_string()
-                };
+                let formatted_line = self.format_line(task_info, line).await;
                 drop(tasks);
-
                 let event = TaskExecutionNotificationEvent::line_output(
                     task_id.to_string(),
                     formatted_line,

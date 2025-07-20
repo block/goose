@@ -432,7 +432,7 @@ const RecipeEditorRoute = () => {
 
   if (!config) {
     const electronConfig = window.electron.getConfig();
-    config = electronConfig.recipeConfig;
+    config = electronConfig.recipe;
   }
 
   return <RecipeEditor config={config} />;
@@ -758,11 +758,39 @@ export default function App() {
     const urlParams = new URLSearchParams(window.location.search);
     const viewType = urlParams.get('view');
     const resumeSessionId = urlParams.get('resumeSessionId');
-    const recipeConfig = window.appConfig.get('recipeConfig');
+    const recipeConfig = window.appConfig.get('recipe');
 
     // Check for session resume first - this takes priority over other navigation
     if (resumeSessionId) {
       console.log('Session resume detected, letting useChat hook handle navigation');
+
+      // Even when resuming a session, we need to initialize the system
+      const initializeForSessionResume = async () => {
+        try {
+          await initConfig();
+          await readAllConfig({ throwOnError: true });
+
+          const config = window.electron.getConfig();
+          const provider = (await read('GOOSE_PROVIDER', false)) ?? config.GOOSE_DEFAULT_PROVIDER;
+          const model = (await read('GOOSE_MODEL', false)) ?? config.GOOSE_DEFAULT_MODEL;
+
+          if (provider && model) {
+            await initializeSystem(provider as string, model as string, {
+              getExtensions,
+              addExtension,
+            });
+          } else {
+            throw new Error('No provider/model configured for session resume');
+          }
+        } catch (error) {
+          console.error('Failed to initialize system for session resume:', error);
+          setFatalError(
+            `Failed to initialize system for session resume: ${error instanceof Error ? error.message : 'Unknown error'}`
+          );
+        }
+      };
+
+      initializeForSessionResume();
       return;
     }
 
@@ -951,7 +979,7 @@ export default function App() {
 
   // Handle navigation to pair view for recipe deeplinks after router is ready
   useEffect(() => {
-    const recipeConfig = window.appConfig.get('recipeConfig');
+    const recipeConfig = window.appConfig.get('recipe');
     if (
       recipeConfig &&
       typeof recipeConfig === 'object' &&
@@ -1146,7 +1174,7 @@ export default function App() {
   }, []);
 
   const config = window.electron.getConfig();
-  const STRICT_ALLOWLIST = config.GOOSE_ALLOWLIST_WARNING === true ? false : true;
+  const STRICT_ALLOWLIST = config.GOOSE_ALLOWLIST_WARNING !== true;
 
   useEffect(() => {
     console.log('Setting up extension handler');

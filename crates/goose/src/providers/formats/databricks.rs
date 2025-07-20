@@ -6,7 +6,9 @@ use crate::providers::utils::{
 };
 use anyhow::{anyhow, Error};
 use mcp_core::ToolError;
-use mcp_core::{Content, Role, Tool, ToolCall};
+use mcp_core::{Tool, ToolCall};
+use rmcp::model::Role;
+use rmcp::model::{AnnotateAble, Content, RawContent, ResourceContents};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -126,7 +128,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                                         .audience()
                                         .is_none_or(|audience| audience.contains(&Role::Assistant))
                                 })
-                                .map(|content| content.unannotated())
+                                .map(|content| content.raw.clone())
                                 .collect();
 
                             // Process all content, replacing images with placeholder text
@@ -135,30 +137,33 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
 
                             for content in abridged {
                                 match content {
-                                    Content::Image(image) => {
+                                    RawContent::Image(image) => {
                                         // Add placeholder text in the tool response
                                         tool_content.push(Content::text("This tool result included an image that is uploaded in the next message."));
 
                                         // Create a separate image message
                                         image_messages.push(json!({
                                             "role": "user",
-                                            "content": [convert_image(&image, image_format)]
+                                            "content": [convert_image(&image.no_annotation(), image_format)]
                                         }));
                                     }
-                                    Content::Resource(resource) => {
-                                        tool_content.push(Content::text(resource.get_text()));
+                                    RawContent::Resource(resource) => {
+                                        let text = match &resource.resource {
+                                            ResourceContents::TextResourceContents {
+                                                text, ..
+                                            } => text.clone(),
+                                            _ => String::new(),
+                                        };
+                                        tool_content.push(Content::text(text));
                                     }
                                     _ => {
-                                        tool_content.push(content);
+                                        tool_content.push(content.no_annotation());
                                     }
                                 }
                             }
                             let tool_response_content: Value = json!(tool_content
                                 .iter()
-                                .map(|content| match content {
-                                    Content::Text(text) => text.text.clone(),
-                                    _ => String::new(),
-                                })
+                                .filter_map(|content| content.as_text().map(|t| t.text.clone()))
                                 .collect::<Vec<String>>()
                                 .join(" "));
 
@@ -584,7 +589,6 @@ pub fn create_request(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcp_core::content::Content;
     use serde_json::json;
 
     #[test]

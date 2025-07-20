@@ -6,6 +6,7 @@ description: "Share a Goose session setup (including tools, goals, and instructi
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import { PanelLeft, Bot } from 'lucide-react';
 
 Sometimes you finish a task in Goose and realize, "Hey, this setup could be useful again." Maybe you have curated a great combination of tools, defined a clear goal, and want to preserve that flow. Or maybe you're trying to help someone else replicate what you just did without walking them through it step by step. 
 
@@ -16,15 +17,36 @@ You can turn your current Goose session into a reusable recipe that includes the
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
 
-   1. While in the session you want to save as a recipe, click the gear icon `⚙️` in the top right corner  
-   2. Select **Make recipe from this session**
-   3. In the dialog that appears:
-      - Provide a **title** for the recipe
-      - Provide a **description**
-      - A set of **instructions** will also be automatically generated. Review and edit as needed.
-      - Provide an optional initial **prompt** to display in the chat box.
-      - Some **activities** will be automatically generated. Add or remove as needed. 
-   4. Copy the recipe URL and use it however you like (e.g., share it with teammates, drop it in documentation, or keep it for yourself)
+  Create a recipe from the current session or from a template.
+
+  <Tabs>
+    <TabItem value="session" label="Current Session" default>
+      1. While in the session you want to save as a recipe, click the <Bot className="inline" size={16} /> button at the bottom of the app
+      2. Click `Create a recipe from this session`
+      3. A dialog opens with automatically generated instructions and activities:
+         - Provide a **title** and **description** for the recipe
+         - Review the **instructions** and edit them as needed
+         - Provide an optional **initial prompt** to display in the chat box
+         - Add or remove optional **activities** to display as buttons
+      4. When you're finished, you can:
+         - Copy the recipe link to share the recipe with others or [open it from the link](#use-recipe)
+         - Click `Save Recipe` to [save the recipe](/docs/guides/recipes/storing-recipes) locally
+         - Click `Create Schedule` to [schedule the recipe](#schedule-recipe)
+    </TabItem>
+    <TabItem value="new" label="Template">
+      1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+      2. Click the `Recipes` button in the sidebar
+      3. Click `Create Recipe`
+      4. A dialog opens with placeholder content:
+         - Provide a **title** and **description** for the recipe
+         - Edit the **instructions** as needed
+         - Provide an optional **initial prompt** to display in the chat box
+         - Add or remove optional **activities** to display as buttons
+         - Provide a **recipe name**
+         - Choose to [save the recipe](/docs/guides/recipes/storing-recipes) with **global** or **directory** availability
+      5. Click `Create Recipe`
+    </TabItem>
+  </Tabs>
 
    :::warning
    You cannot create a recipe from an existing recipe session, but you can view or [edit the recipe](#edit-recipe).
@@ -162,16 +184,18 @@ You can turn your current Goose session into a reusable recipe that includes the
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
 
-   1. While in the session created from a recipe, click the gear icon `⚙️` in the top right corner  
-   2. Select **View recipe**  
-   3. In the dialog that appears, you can edit the:
+   1. While in the session that's using the recipe, click the <Bot className="inline" size={16} /> button at the bottom of the app 
+   2. Click `View recipe` 
+   3. Edit any of the following:
       - Title
       - Description
       - Instructions
       - Initial prompt
       - Activities
-   4. Copy the new recipe URL. The original recipe and your current session are not affected by your edits.
-   5. Use and share the URL for your new recipe. 
+  4. When you're finished, you can:
+      - Copy the recipe link to share the recipe with others or [open it from the link](#use-recipe)
+      - Click `Save Recipe` to [save the recipe](/docs/guides/recipes/storing-recipes) locally
+      - Click `Create Schedule` to [schedule the recipe](#schedule-recipe)
 
   </TabItem>
 
@@ -186,19 +210,25 @@ You can turn your current Goose session into a reusable recipe that includes the
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
 
-  1. Open the recipe using a direct link or manual URL entry:
+  1. Open the recipe using a direct link or manual URL entry, or from your Recipe library:
 
-     - **Direct Link**
-       - Click a recipe link shared with you
-       - The recipe will automatically open in Goose Desktop
+     **Direct Link:**
 
-     - **Manual URL Entry**
-       - Copy a recipe URL
-       - Paste it into your browser's address bar
-       - You will see a prompt to "Open Goose"
-       - Goose Desktop will open with the recipe
+         1. Click a recipe link shared with you
 
-  2. If the recipe contains parameters, enter your values in the **Recipe Parameters** dialog and click **Start Recipe**.
+     **Manual URL Entry:**
+
+         1. Paste a recipe link into your browser's address bar 
+         2. Press `Enter` and click the `Open Goose.app` prompt
+       
+     **Recipe Library:**
+
+         1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+         2. Click `Recipes` in the sidebar
+         3. Find your recipe in the Recipe Library
+         4. Click `Use` next to the recipe you want to open
+
+  2. If the recipe contains parameters, enter your values in the `Recipe Parameters` dialog and click `Start Recipe`.
   
      Parameters are dynamic values used in the recipe:
 
@@ -421,6 +451,12 @@ You can turn your current Goose session into a reusable recipe that includes the
   <TabItem value="ui" label="Goose Desktop" default>
     Share your recipe with Desktop users by copying the recipe URL from the recipe creation dialog. When someone clicks the URL, it will open Goose Desktop with your recipe configuration.
 
+    To copy the recipe URL:
+    1. [Open the recipe](#use-recipe)
+    2. Click the <Bot className="inline" size={16} /> button at the bottom of the app 
+    3. Click `View recipe`
+    4. Scroll down and copy the link
+
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
     Share your recipe with CLI users by directly sending them the recipe file or converting it to a shareable [deep link](/docs/guides/goose-cli-commands#recipe) for Desktop users:
@@ -437,22 +473,22 @@ You can turn your current Goose session into a reusable recipe that includes the
   <TabItem value="ui" label="Goose Desktop" default>
 Automate Goose recipes by running them on a schedule.
 
-   1. click the gear icon `⚙️` in the top right corner  
-   2. Select **Scheduler**  
-   3. Click **Create New Schedule**
+   1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+   2. Click `Scheduler` 
+   3. Click `Create Schedule`
    3. In the dialog that appears:
-      - Provide a **Name** for the schedule
-      - Select the **Source** of your recipe. This can be either a `yaml` file or link generated by Goose Desktop.
-      - Select whether you want your recipe to run in the background or foreground. Recipes run in the background don't open a window, but the session results are saved. Recipes run in the foreground will open a window if the Goose Desktop app is running. Otherwise, the recipe runs in the background.
-      - Choose the **Frequency** and timing for your recipe. Your selected frequency (e.g. every 20 minutes, weekly at 10 AM on Friday) is converted into a [cron expression](https://en.wikipedia.org/wiki/Cron#Cron_expression) used by Goose.
-      - Click **Create Schedule**
+      - Provide a **name** for the schedule
+      - Select the **source** of your recipe. This can be either a `yaml` file or link generated by Goose Desktop.
+      - Select whether you want your recipe to run in the background or foreground **execution mode**. Recipes run in the background don't open a window, but the session results are saved. Recipes run in the foreground will open a window if the Goose Desktop app is running. Otherwise, the recipe runs in the background.
+      - Choose the **frequency** and **time** to run your recipe. Your selected frequency (e.g. every 20 minutes, weekly at 10 AM on Friday) is converted into a [cron expression](https://en.wikipedia.org/wiki/Cron#Cron_expression) used by Goose.
+      - Click `Create Schedule`
 
-  Your new scheduled recipe is listed in the **Schedules Management** section. Click on the schedule to view details, see when it was last run, and perform actions with the scheduled recipe:
-    - **Run Schedule Now** to trigger the recipe manually
-    - **Edit Schedule** to change the scheduled frequency
-    - **Pause Schedule** to stop the recipe from running automatically. 
+  Your new scheduled recipe is listed in the `Scheduler` page. Click on the schedule to view details, see when it was last run, and perform actions with the scheduled recipe:
+    - `Run Schedule Now` to trigger the recipe manually
+    - `Edit Schedule` to change the scheduled frequency
+    - `Pause Schedule` to stop the recipe from running automatically. 
 
-  At the bottom of the **Schedule Details** screen you can view the list of sessions created by the scheduled recipe and open or restore each session.
+  At the bottom of the `Schedule Details` page you can view the list of sessions created by the scheduled recipe and open or restore each session.
 
   </TabItem>
   <TabItem value="cli" label="Goose CLI">

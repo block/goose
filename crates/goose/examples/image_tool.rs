@@ -5,10 +5,8 @@ use goose::{
     message::Message,
     providers::{bedrock::BedrockProvider, databricks::DatabricksProvider, openai::OpenAiProvider},
 };
-use mcp_core::{
-    content::Content,
-    tool::{Tool, ToolCall},
-};
+use mcp_core::tool::{Tool, ToolCall};
+use rmcp::model::Content;
 use serde_json::json;
 use std::fs;
 

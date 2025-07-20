@@ -15,6 +15,7 @@ goose = { path = "../goose" }
 mcp-core = { path = "../mcp-core" }
 goose-mcp = { path = "../goose-mcp" }
 mcp-server = { path = "../mcp-server" }
+rmcp = { workspace = true }
 axum = { version = "0.8.1", features = ["ws", "macros"] }
 tokio = { version = "1.43", features = ["full"] }
 chrono = "0.4"

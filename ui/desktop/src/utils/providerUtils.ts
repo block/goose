@@ -73,7 +73,7 @@ export const updateSystemPromptWithParameters = async (
   recipeParameters: Record<string, string>
 ): Promise<void> => {
   try {
-    const recipeConfig = window.appConfig?.get?.('recipeConfig');
+    const recipeConfig = window.appConfig?.get?.('recipe');
     const originalInstructions = (recipeConfig as { instructions?: string })?.instructions;
 
     if (!originalInstructions) {
@@ -189,7 +189,7 @@ export const initializeSystem = async (
     await initializeAgent({ provider, model });
 
     // Get recipeConfig directly here
-    const recipeConfig = window.appConfig?.get?.('recipeConfig');
+    const recipeConfig = window.appConfig?.get?.('recipe');
     const botPrompt = (recipeConfig as { instructions?: string })?.instructions;
     const responseConfig = (recipeConfig as { response?: { json_schema?: unknown } })?.response;
 
@@ -206,6 +206,7 @@ export const initializeSystem = async (
           : desktopPrompt,
       }),
     });
+
     if (!response.ok) {
       console.warn(`Failed to extend system prompt: ${response.statusText}`);
     } else {
@@ -229,8 +230,6 @@ export const initializeSystem = async (
       });
       if (!sessionConfigResponse.ok) {
         console.warn(`Failed to configure session: ${sessionConfigResponse.statusText}`);
-      } else {
-        console.log('Configured session with response schema');
       }
     }
 
@@ -244,7 +243,6 @@ export const initializeSystem = async (
     const configVersion = localStorage.getItem('configVersion');
     const shouldMigrateExtensions = !configVersion || parseInt(configVersion, 10) < 3;
 
-    console.log(`shouldMigrateExtensions is ${shouldMigrateExtensions}`);
     if (shouldMigrateExtensions) {
       await migrateExtensionsToSettingsV3();
     }

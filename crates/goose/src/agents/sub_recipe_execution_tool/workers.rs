@@ -28,3 +28,4 @@ async fn worker_loop(state: Arc<SharedState>, _worker_id: usize) {
 
     state.decrement_active_workers();
 }
+

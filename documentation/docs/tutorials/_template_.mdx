@@ -8,6 +8,8 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
+import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
 
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/VIDEO_ID" />
@@ -35,87 +37,47 @@ This tutorial covers how to add the [{name} MCP Server](/) as a Goose extension 
 
 ## Configuration
 
-:::info
-Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`.
-:::
+<!-- For external MCP servers (npx, uvx, git, etc.) -->
+<GooseDesktopInstaller
+  extensionId="{extension_id}"
+  extensionName="{Extension Name}"
+  extensionDescription="{Extension description}"
+  command="npx"
+  args={["-y", "@package/name"]}
+  cliCommand="npx -y @package/name"
+  timeout={300}
+  note="Note that you'll need Node.js installed on your system to run this command, as it uses npx."
+/>
 
-:::info
-Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on your system to run this command, as it uses `uvx`.
-:::
+<!-- For built-in extensions -->
+<GooseBuiltinInstaller
+  extensionName="{Extension Name}"
+  extensionDescription="{Extension description}"
+  extensionId="{extension_id}"
+/>
 
-:::info
-Note that you'll need [JBang](https://www.jbang.dev/download) installed on your system to run this command, as it uses `jbang`.
-:::
-
-<Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
-    1. [Launch the installer]({goose_url})  
-    2. Press <code>Yes</code> to confirm the installation  
-    3. Obtain a [XYZ Access Token](/) and paste it in  
-    4. Click <code>Save Configuration</code>  
-    5. Scroll to the top and click <code>Exit</code> from the upper left corner  
-  </TabItem>
-
-  <TabItem value="cli" label="Goose CLI (No Env Vars)">
-    <CLIExtensionInstructions
-      name="example"
-      command="npx -y @modelcontextprotocol/server-example"
-      timeout={300}
-    />
-  </TabItem>
-
-  <TabItem value="cli" label="Goose CLI (ONE env variable & infoNote linking where to obtain one)">
-
-    <CLIExtensionInstructions
-      name="github"
-      command="gh issue list"
-      timeout={300}
-      envVars={[
-        { key: "GITHUB_TOKEN", value: "••••••••••••••••" }
-      ]}
-      infoNote={
-        <>
-          When creating your access token, you can specify the repositories and granular permissions you'd like Goose to have access to.{" "}
-          <a
-            href="https://github.com/settings/personal-access-tokens"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Create one here
-          </a>.
-        </>
-      }
-    />
-
-  </TabItem>
-  <TabItem value="cli" label="Goose CLI (Multiple Env Vars & infoNote)">
-
-    <CLIExtensionInstructions
-      name="github"
-      command="gh issue list"
-      timeout={300}
-      envVars={[
-        { key: "GITHUB_TOKEN", value: "••••••••••••••••" },
-        { key: "REPO_SCOPE", value: "public" }
-      ]}
-      infoNote={
-        <>
-          When creating your access token, you can specify the repositories and granular permissions you'd like Goose to have access to.{" "}
-          <a
-            href="https://github.com/settings/personal-access-tokens"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Create one here
-          </a>.
-        </>
-      }
-    />
-
-  </TabItem>
-
-
-</Tabs>
+<!-- For external MCP servers with environment variables -->
+<GooseDesktopInstaller
+  extensionId="{extension_id}"
+  extensionName="{Extension Name}"
+  extensionDescription="{Extension description}"
+  command="npx"
+  args={["-y", "@package/name"]}
+  cliCommand="npx -y @package/name"
+  timeout={300}
+  envVars={[
+    { key: "API_KEY", value: "••••••••••••••••" }
+  ]}
+  infoNote={
+    <>
+      Get your API key from{" "}
+      <a href="https://example.com/api-keys" target="_blank" rel="noopener noreferrer">
+        example.com
+      </a>.
+    </>
+  }
+  note="Note that you'll need Node.js installed on your system to run this command, as it uses npx."
+/>
 
 ## Example Usage
 

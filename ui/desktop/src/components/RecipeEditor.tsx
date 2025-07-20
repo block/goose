@@ -1,9 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Recipe } from '../recipe';
+import { Recipe, generateDeepLink } from '../recipe';
 import { Parameter } from '../recipe/index';
 
-import { Buffer } from 'buffer';
 import { FullExtensionConfig } from '../extensions';
 import { Geese } from './icons/Geese';
 import Copy from './icons/Copy';
@@ -21,13 +20,6 @@ import { Button } from './ui/button';
 
 interface RecipeEditorProps {
   config?: Recipe;
-}
-
-// Function to generate a deep link from a recipe
-function generateDeepLink(recipe: Recipe): string {
-  const configBase64 = Buffer.from(JSON.stringify(recipe)).toString('base64');
-  const urlSafe = encodeURIComponent(configBase64);
-  return `goose://recipe?config=${urlSafe}`;
 }
 
 export default function RecipeEditor({ config }: RecipeEditorProps) {
@@ -57,6 +49,9 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
     value: string;
     setValue: (value: string) => void;
   } | null>(null);
+
+  const [deeplink, setDeeplink] = useState('');
+  const [isGeneratingDeeplink, setIsGeneratingDeeplink] = useState(false);
 
   // Initialize selected extensions for the recipe from config or localStorage
   const [recipeExtensions] = useState<string[]>(() => {
@@ -134,7 +129,7 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
     setParameters(allParams);
   }, [instructions, prompt]);
 
-  const getCurrentConfig = (): Recipe => {
+  const getCurrentConfig = useCallback((): Recipe => {
     // Transform the internal parameters state into the desired output format.
     const formattedParameters = parameters.map((param) => {
       const formattedParam: Parameter = {
@@ -184,7 +179,62 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
     console.log('Final config extensions:', config.extensions);
 
     return config;
-  };
+  }, [
+    recipeConfig,
+    title,
+    description,
+    instructions,
+    activities,
+    prompt,
+    parameters,
+    recipeExtensions,
+    extensionOptions,
+  ]);
+
+  // Generate deeplink whenever recipe configuration changes
+  useEffect(() => {
+    let isCancelled = false;
+
+    const generateLink = async () => {
+      if (!title.trim() || !description.trim() || !instructions.trim()) {
+        setDeeplink('');
+        return;
+      }
+
+      setIsGeneratingDeeplink(true);
+      try {
+        const currentConfig = getCurrentConfig();
+        const link = await generateDeepLink(currentConfig);
+        if (!isCancelled) {
+          setDeeplink(link);
+        }
+      } catch (error) {
+        console.error('Failed to generate deeplink:', error);
+        if (!isCancelled) {
+          setDeeplink('Error generating deeplink');
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsGeneratingDeeplink(false);
+        }
+      }
+    };
+
+    generateLink();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [
+    title,
+    description,
+    instructions,
+    prompt,
+    activities,
+    parameters,
+    recipeExtensions,
+    getCurrentConfig,
+  ]);
 
   const [errors, setErrors] = useState<{
     title?: string;
@@ -217,9 +267,11 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
     );
   };
 
-  const deeplink = generateDeepLink(getCurrentConfig());
-
   const handleCopy = () => {
+    if (!deeplink || isGeneratingDeeplink || deeplink === 'Error generating deeplink') {
+      return;
+    }
+
     navigator.clipboard
       .writeText(deeplink)
       .then(() => {
@@ -437,6 +489,9 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
                   onClick={() => validateForm() && handleCopy()}
                   variant="ghost"
                   size="sm"
+                  disabled={
+                    !deeplink || isGeneratingDeeplink || deeplink === 'Error generating deeplink'
+                  }
                   className="p-2 hover:bg-background-default rounded-lg transition-colors flex items-center disabled:opacity-50 disabled:hover:bg-transparent flex-shrink-0"
                 >
                   {copied ? (
@@ -457,7 +512,9 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
                   className={`text-sm dark:text-white font-mono cursor-pointer hover:bg-background-default p-2 rounded transition-colors overflow-x-auto whitespace-nowrap ${!title.trim() || !description.trim() ? 'text-textDisabled' : 'text-textStandard'}`}
                   style={{ maxWidth: '500px', width: '100%' }}
                 >
-                  {deeplink}
+                  {isGeneratingDeeplink
+                    ? 'Generating deeplink...'
+                    : deeplink || 'Click to generate deeplink'}
                 </div>
               </div>
             )}

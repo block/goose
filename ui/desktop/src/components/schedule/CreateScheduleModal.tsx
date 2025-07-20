@@ -5,8 +5,7 @@ import { Input } from '../ui/input';
 import { Select } from '../ui/Select';
 import cronstrue from 'cronstrue';
 import * as yaml from 'yaml';
-import { Buffer } from 'buffer';
-import { Recipe } from '../../recipe';
+import { Recipe, decodeRecipe } from '../../recipe';
 import ClockIcon from '../../assets/clock-icon.svg';
 
 type FrequencyValue = 'once' | 'every' | 'daily' | 'weekly' | 'monthly';
@@ -107,20 +106,19 @@ type SourceType = 'file' | 'deeplink';
 type ExecutionMode = 'background' | 'foreground';
 
 // Function to parse deep link and extract recipe config
-function parseDeepLink(deepLink: string): Recipe | null {
+async function parseDeepLink(deepLink: string): Promise<Recipe | null> {
   try {
     const url = new URL(deepLink);
     if (url.protocol !== 'goose:' || (url.hostname !== 'bot' && url.hostname !== 'recipe')) {
       return null;
     }
 
-    const configParam = url.searchParams.get('config');
-    if (!configParam) {
+    const recipeParam = url.searchParams.get('config');
+    if (!recipeParam) {
       return null;
     }
 
-    const configJson = Buffer.from(decodeURIComponent(configParam), 'base64').toString('utf-8');
-    return JSON.parse(configJson) as Recipe;
+    return await decodeRecipe(recipeParam);
   } catch (error) {
     console.error('Failed to parse deep link:', error);
     return null;
@@ -287,26 +285,33 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
   const [internalValidationError, setInternalValidationError] = useState<string | null>(null);
 
   const handleDeepLinkChange = useCallback(
-    (value: string) => {
+    async (value: string) => {
       setDeepLinkInput(value);
       setInternalValidationError(null);
 
       if (value.trim()) {
-        const recipe = parseDeepLink(value.trim());
-        if (recipe) {
-          setParsedRecipe(recipe);
-          // Auto-populate schedule ID from recipe title if available
-          if (recipe.title && !scheduleId) {
-            const cleanId = recipe.title
-              .toLowerCase()
-              .replace(/[^a-z0-9-]/g, '-')
-              .replace(/-+/g, '-');
-            setScheduleId(cleanId);
+        try {
+          const recipe = await parseDeepLink(value.trim());
+          if (recipe) {
+            setParsedRecipe(recipe);
+            // Auto-populate schedule ID from recipe title if available
+            if (recipe.title && !scheduleId) {
+              const cleanId = recipe.title
+                .toLowerCase()
+                .replace(/[^a-z0-9-]/g, '-')
+                .replace(/-+/g, '-');
+              setScheduleId(cleanId);
+            }
+          } else {
+            setParsedRecipe(null);
+            setInternalValidationError(
+              'Invalid deep link format. Please use a goose://bot or goose://recipe link.'
+            );
           }
-        } else {
+        } catch (error) {
           setParsedRecipe(null);
           setInternalValidationError(
-            'Invalid deep link format. Please use a goose://bot or goose://recipe link.'
+            'Failed to parse deep link. Please ensure using a goose://bot or goose://recipe link and try again.'
           );
         }
       } else {

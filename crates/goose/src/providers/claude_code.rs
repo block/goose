@@ -10,9 +10,8 @@ use super::errors::ProviderError;
 use super::utils::emit_debug_trace;
 use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
-use mcp_core::content::TextContent;
 use mcp_core::tool::Tool;
-use mcp_core::Role;
+use rmcp::model::Role;
 
 pub const CLAUDE_CODE_DEFAULT_MODEL: &str = "default";
 pub const CLAUDE_CODE_KNOWN_MODELS: &[&str] = &["default"];
@@ -98,7 +97,7 @@ impl ClaudeCodeProvider {
                             // Convert tool result contents to text
                             let content_text = tool_contents
                                 .iter()
-                                .filter_map(|content| content.as_text())
+                                .filter_map(|content| content.as_text().map(|t| t.text.clone()))
                                 .collect::<Vec<_>>()
                                 .join("\n");
 
@@ -214,10 +213,7 @@ impl ClaudeCodeProvider {
             ));
         }
 
-        let message_content = vec![MessageContent::Text(TextContent {
-            text: combined_text,
-            annotations: None,
-        })];
+        let message_content = vec![MessageContent::text(combined_text)];
 
         let response_message = Message::new(
             Role::Assistant,
@@ -330,7 +326,7 @@ impl ClaudeCodeProvider {
         // Extract the first user message text
         let description = messages
             .iter()
-            .find(|m| m.role == mcp_core::Role::User)
+            .find(|m| m.role == rmcp::model::Role::User)
             .and_then(|m| {
                 m.content.iter().find_map(|c| match c {
                     MessageContent::Text(text_content) => Some(&text_content.text),
@@ -354,12 +350,9 @@ impl ClaudeCodeProvider {
         }
 
         let message = Message::new(
-            mcp_core::Role::Assistant,
+            rmcp::model::Role::Assistant,
             chrono::Utc::now().timestamp(),
-            vec![MessageContent::Text(mcp_core::content::TextContent {
-                text: description.clone(),
-                annotations: None,
-            })],
+            vec![MessageContent::text(description.clone())],
         );
 
         let usage = Usage::default();

@@ -18,7 +18,8 @@ use goose::{
     permission::{Permission, PermissionConfirmation},
     session,
 };
-use mcp_core::{protocol::JsonRpcMessage, role::Role, Content, ToolResult};
+use mcp_core::{protocol::JsonRpcMessage, role::Role, ToolResult};
+use rmcp::model::Content;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
@@ -125,7 +126,8 @@ async fn reply_handler(
     let cancel_token = CancellationToken::new();
 
     let messages = request.messages;
-    let session_working_dir = request.session_working_dir;
+    let session_working_dir = request.session_working_dir.clone();
+
     let session_id = request
         .session_id
         .unwrap_or_else(session::generate_session_id);
@@ -162,7 +164,7 @@ async fn reply_handler(
 
         let session_config = SessionConfig {
             id: session::Identifier::Name(session_id.clone()),
-            working_dir: PathBuf::from(session_working_dir),
+            working_dir: PathBuf::from(&session_working_dir),
             schedule_id: request.scheduled_job_id.clone(),
             execution_mode: None,
             max_turns: None,
@@ -253,12 +255,16 @@ async fn reply_handler(
         }
 
         if all_messages.len() > saved_message_count {
-            let provider = agent.provider().await.ok();
-            if let Some(provider) = provider {
+            if let Some(provider) = agent.provider().await.ok() {
+                let provider = Arc::clone(&provider);
                 tokio::spawn(async move {
-                    if let Err(e) =
-                        session::persist_messages(&session_path, &all_messages, Some(provider))
-                            .await
+                    if let Err(e) = session::persist_messages(
+                        &session_path,
+                        &all_messages,
+                        Some(provider),
+                        Some(PathBuf::from(&session_working_dir)),
+                    )
+                    .await
                     {
                         tracing::error!("Failed to store session history: {:?}", e);
                     }
@@ -322,7 +328,7 @@ async fn ask_handler(
 ) -> Result<Json<AskResponse>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    let session_working_dir = request.session_working_dir;
+    let session_working_dir = request.session_working_dir.clone();
 
     let session_id = request
         .session_id
@@ -343,7 +349,7 @@ async fn ask_handler(
     let mut response_text = String::new();
     let config = SessionConfig {
         id: session::Identifier::Name(session_id.clone()),
-        working_dir: PathBuf::from(session_working_dir),
+        working_dir: PathBuf::from(&session_working_dir),
         schedule_id: request.scheduled_job_id.clone(),
         execution_mode: None,
         max_turns: None,
@@ -403,9 +409,15 @@ async fn ask_handler(
     let session_path_clone = session_path.clone();
     let messages = all_messages.clone();
     let provider = Arc::clone(provider.as_ref().unwrap());
+    let session_working_dir_clone = session_working_dir.clone();
     tokio::spawn(async move {
-        if let Err(e) =
-            session::persist_messages(&session_path_clone, &messages, Some(provider)).await
+        if let Err(e) = session::persist_messages(
+            &session_path_clone,
+            &messages,
+            Some(provider),
+            Some(PathBuf::from(session_working_dir_clone)),
+        )
+        .await
         {
             tracing::error!("Failed to store session history: {:?}", e);
         }
