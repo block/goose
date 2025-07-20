@@ -1,5 +1,5 @@
 ---
-title: Orchestrating 6 Subagents to Build a Collaborative API Playground
+title: Orchestrating 6 Subagents to Build a Collaborative API Playground for Kids
 description: Delegating backend, frontend, docs, and tests so six subagents could build collaborative API tool for kids
 authors: 
     - rizel
@@ -26,25 +26,29 @@ Before I explain, it’s better if I just show you:
 
 ![api playground](api-playground.png)
 
-It’s a collaborative API testing playground where kids can run sample requests, get playful error messages, and see live responses in real time. Everyone in the session sees the API response together, turning the experience of solo debugging into multiplayer coding. And I wanted it to look like a literal playground.
+It’s a collaborative API testing playground where kids can run sample requests, get playful error messages, and see live responses in real time. Everyone in the session sees the API response together, turning the experience of solo debugging into multiplayer coding. And it looks like a literal playground.
 
 I was inspired to build this after attending our company’s Bring Your Kids to Work Day. I didn’t bring my kid because she’s still an infant, but I attended to support my teammate Adewale Abati, who led a virtual session introducing kids to Goose. They used it to build comics, games, and music apps that were fun, imaginative, and genuinely impressive.
 
 I decided to create a digital resource that teaches foundational concepts like APIs in a way that feels inviting instead of intimidating. Traditional API testing tools are powerful, but for a kid just starting out, they can be confusing and unclear.
 
-The wild part is that I let Goose and six subagents bring this idea to life.
+**The wild part is that I let Goose and six subagents bring this idea to life.**
 
 ## Meet the Subagents
 
-[Subagents](https://block.github.io/goose/docs/experimental/subagents) are individual AI instances that take on specific tasks. Each one runs in its own session, which helps preserve the main context window and keeps your primary Goose conversation uncluttered and focused on high-level orchestration. I think of subagents as temporary teammates. For this project, I treated them like an on-demand dev squad. I had a Backend Developer to build the server, a Frontend Developer to handle the UI, a Doc Writer to create a beginner-friendly README, and a Test Engineer to put together a simple test suite.
+[Subagents](/docs/experimental/subagents) are individual AI instances that take on specific tasks. Each one runs in its own session, which helps preserve the main context window and keeps your primary Goose conversation uncluttered and focused on high-level orchestration. I think of subagents as temporary teammates. Goose assigns each subagent a job and deallocates it when the work is complete.
 
-:::note  
-Goose automatically cleans up subagents upon task completion.  
-:::
+For this project, I turned my subagents into an on-demand dev squad, and I assigned them the following roles:
 
-Typically, I am not a one-shot prompter. I prefer prompt chaining, which means breaking a complex task into smaller prompts and guiding the AI step by step. This method gives me more control over the output, especially when I am trying to build something complex.
+* **Backend Developer** - Build the WebSocket server for real-time collaboration  
+* **Frontend Developer** - Create the collaborative web UI  
+* **Conflict Resolution Engineer** - Handle simultaneous user edits  
+* **Documentation Writer** - Create a beginner-friendly README  
+* **API Sample Curator** - Build example collections with fun public APIs  
+* **Test Engineer** - Write a simple test suite
 
-But this time, I wanted to delegate, walk away, and come back to progress, so I used subagents.
+Sidenote: It felt like I was assembling the Avengers.
+![avengers](avengers.gif)
 
 Since the feature is still experimental, I had to enable it via an environment variable:
 
@@ -52,12 +56,12 @@ Since the feature is still experimental, I had to enable it via an environment v
 export GOOSE_ALPHA_FEATURES=true  
 ```
 
-## A Gaggle of Geese
+## Instructing My Team
 
-There are a few ways to create subagents in Goose. You can use natural language prompts, define them through [recipes](https://block.github.io/goose/docs/guides/recipes/), or even spin up [external subagents](https://block.github.io/goose/docs/experimental/subagents/#external-subagents) like Codex or Claude Code.. 
+There are a few ways to create subagents in Goose. You can use natural language prompts, define them through [recipes](/docs/guides/recipes/), or even spin up [external subagents](/docs/experimental/subagents/#external-subagents) like Codex or Claude Code.. 
 
-I used natural language prompts because of the convenience to directly configure a subagent through one prompt. Here’s the prompt I used:
-
+I took the natural language prompt approach because it felt convenient to directly configure a subagent through one prompt. Here’s the prompt I used:
+  
 ```
 Build a real-time collaborative API testing platform using 3 AI subagents working sequentially - like "Google Docs for Postman" where teams can test APIs together, but for kids. Make it so errors and results are explained in a way that kids can understand and the design is kid friendly using metaphors. 
 
@@ -82,50 +86,104 @@ Final result should be a working web app where multiple people can test APIs tog
 Set the time out to 9 minutes
 ```
 
-Goose lets you run subagents in parallel or sequentially. I chose a hybrid approach. The first three tasks needed to happen in order, since each step relied on the previous one. But the last three could run in parallel, since they only needed the core app to exist before moving forward.
+:::note TLDR
+Goose lets you run subagents in parallel or sequentially. I chose a hybrid approach instructing Goose to run the first subagents sequentially (since their tasks relied on the previous step) and the last three subagents in parallel (since they only needed the core app to exist). 
 
-I set the timeout to 9 minutes giving the subagents more time to work on accomplishing the tasks. The subagent working on conflict resolution failed to accomplish its task in 9 minutes, so after all the subagents completed their tasks, Goose used the main session to accomplish the failed tasks. 
+I also set the timeout to 9 minutes, giving the subagents more time than the default 5 minutes to accomplish their tasks.
+:::
+ 
+The subagents delivered a working collaborative API playground.  The functionality was solid, but I noticed the visual design was inconsistent. It used so many colors and fonts. I wanted it to look kid friendly, but not like a kid made it!
 
 ## My Parallel Prompt Fail
 
-Once I had a working app, I wanted to refine the design and make the interface feel more cohesive. I wrote a follow up prompt asking Goose to spin up five subagents in parallel. Each one was in charge of a different UI component: the header, request builder, tab layout, and collaboration panel.
+So I wrote a follow-up prompt asking Goose to spawn five subagents in parallel, each responsible for a different UI component: the header, request builder, tab layout, and collaboration panel. I figured that having the subagents execute the work in parallel would get the job done faster.
 
-It didn’t go as planned. Each subagent brought its own interpretation of what “kid-friendly” meant. The result was a clashing mix of styles that felt disconnected and inconsistent.
+But the result of this prompt made the app look worse! Each subagent brought its own interpretation of what "kid-friendly" meant. The header had a gaming-like design with black and purple colors, the tabs used Comic Sans while the rest of the app didn't, and the panels used a glassmorphic design. 
 
-That confirmed a hunch I had. When tasks are interdependent, running subagents in parallel is not the right move. Those kinds of tasks are better handled sequentially.
+This happened because each subagent wasn't aware of the other subagents' plan. They all ran in parallel without any shared design vision.
 
 ## A Better Prompt Strategy
 
-This time, I took a different approach. I asked Goose to analyze the existing UI and generate a shared design plan. Then I told Goose to use that plan to spawn new subagents and assign them tasks based on the plan.
+This time, I took a different approach.I told Goose to spin up one subagent to analyze the UI and come up with a shared design plan. Once the plan was ready, Goose could then spawn four more subagents to implement the plan in parallel.
 
-The result was a much more consistent interface. This felt super meta and futuristic for me that I could have Goose instruct the subagents.
+```
+Can you take a look at the UI? The color scheme is all over the place. I want it to be unified but also have a playground theme like a real-life playground. Not just the colors but the elements as well.
+
+I want to use CSS to create grass and trees and a full visual space. For the panels, background, buttons, and text—every single element. Detailed.
+
+Have one subagent analyze the UI and decide what should be updated to feel cohesive and playful. It will create a plan.
+
+After that, four subagents will carry out the plan.
+```
+
+The first subagent came back with a creative design direction: transform the interface into a vibrant outdoor playground using bright greens, sunny yellows, and elements like swings, slides, and trees.
+
+Here’s an excerpt of the plan:
+
+```
+Core Visual Concept:
+
+Transform the API testing interface into a vibrant outdoor playground where kids can "play" with APIs like playground equipment. Think bright sunny day, green grass, colorful playground equipment, and friendly cartoon-style elements.
+
+🎨 Color Palette & Visual Elements
+
+- Grass Green: #4CAF50, #66BB6A, #81C784 (various grass shades)
+- Sky Blue: #2196F3, #42A5F5, #64B5F6 (clear sky)
+- Sunshine Yellow: #FFC107, #FFD54F, #FFEB3B (sun and highlights)
+- Playground Red: #F44336, #EF5350 (slides, swings)
+- Tree Brown: #8D6E63, #A1887F (tree trunks, wooden elements)
+- Flower Colors: #E91E63, #9C27B0, #FF5722 (decorative flowers)
+```
+
+Then, it split implementation into four phases between the four remaining subagents:
+
+```
+Phase 1: Foundation (Area 1)
+- Create base playground environment
+- Implement sky, grass, and tree elements
+
+Phase 2: Equipment (Area 2)
+- Transform main panels into playground equipment
+
+Phase 3: Interactions (Area 3)
+- Convert buttons and form elements
+- Add micro-animations and hover effects
+
+Phase 4: Content (Area 4)
+- Update typography and fonts
+- Rewrite copy with playground metaphors
+```
+
+The result was a much more cohesive, playful interface that actually looked like a digital playground. Having Goose coordinate subagents based on a shared design plan worked way better than running them loose in parallel.
 
 ## Final Thoughts
 
 This was my first experience with subagents, and I learned that:
 
-* Sequential execution works better when one task builds on another. Parallel execution is best for independent tasks.  
-* I could let Goose make the plan and delegate the tasks to subagents, rather than doing it all myself.
+* Sequential execution works better when one task builds on another.   
+* Parallel execution works when tasks are independent or follow a shared plan  
+* Use subagents for complex projects with independent tasks you can delegate.  
+* You can let Goose do the planning for you. You don’t have to micromanage every step.
 
-I loved that instead of managing every step, I could assign focused jobs and let Goose coordinate the flow. It felt less like babysitting a tool and more like leading a small dev team.  In fact, I don't think I could lead Goose to success this quickly without prior coding knowledge, but it does provide accessibility and helps me multitask better.
+I loved that instead of managing every detail, I could assign focused jobs and let Goose coordinate the flow. 
 
-The next experiment I want to try is using external subagents. This method would allow me to delegate one-off tasks to Claude Code or Codex. 
+The next experiment I want to try is using external subagents, which would allow me to delegate one-off tasks to tools like Claude Code or Codex.
 
 What will you build with subagents?
 
-[Download Goose](http://block.github.io/goose)
+[Download Goose](/)
 
-[Learn about subagents](https://block.github.io/goose/docs/experimental/subagents)
+[Learn about subagents](/docs/experimental/subagents)
 
 <head>
-  <meta property="og:title" content="Orchestrating 6 Subagents to Build a Collaborative API Playground" />
+  <meta property="og:title" content="Orchestrating 6 Subagents to Build a Collaborative API Playground for Kids" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/03/06/goose-tips" />
   <meta property="og:description" content="Delegating backend, frontend, docs, and tests so six subagents could build collaborative API tool for kids." />
   <meta property="og:image" content="https://block.github.io/goose/assets/images/built-by-subagents-869a01d4b147ebdb54334dcc22dc521e.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
-  <meta name="twitter:title" content="Orchestrating 6 Subagents to Build a Collaborative API Playground" />
+  <meta name="twitter:title" content="Orchestrating 6 Subagents to Build a Collaborative API Playground for Kids" />
   <meta name="twitter:description" content="Delegating backend, frontend, docs, and tests so six subagents could build collaborative API tool for kids." />
   <meta name="twitter:image" content="https://block.github.io/goose/assets/images/built-by-subagents-869a01d4b147ebdb54334dcc22dc521e.png" />
 </head>
