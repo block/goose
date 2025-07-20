@@ -15,6 +15,7 @@ use rmcp::model::{AnnotateAble, Content, RawContent, ResourceContents};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::ops::Deref;
+use tracing;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct DeltaToolCallFunction {
@@ -56,6 +57,7 @@ struct StreamingChunk {
 /// Convert internal Message format to OpenAI's API message specification
 ///   some openai compatible endpoints use the anthropic image spec at the content level
 ///   even though the message structure is otherwise following openai, the enum switches this
+#[tracing::instrument(skip_all)]
 pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Value> {
     let mut messages_spec = Vec::new();
     for message in messages {
@@ -114,7 +116,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                             "type": "function",
                             "function": {
                                 "name": sanitized_name,
-                                "arguments": tool_call.arguments.to_string(),
+                                "arguments": serde_json::to_string(&tool_call.arguments).unwrap_or_else(|_| "{}".to_string()),
                             }
                         }));
                     }
@@ -219,7 +221,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                             "type": "function",
                             "function": {
                                 "name": sanitized_name,
-                                "arguments": tool_call.arguments.to_string(),
+                                "arguments": serde_json::to_string(&tool_call.arguments).unwrap_or_else(|_| "{}".to_string()),
                             }
                         }));
                     }
@@ -240,7 +242,50 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
         messages_spec.extend(output);
     }
 
+    // Validate message ordering before returning
+    validate_message_ordering(&messages_spec);
     messages_spec
+}
+
+/// Validates that tool response messages follow the correct OpenAI format:
+/// - Tool responses must come after tool calls
+/// - Tool responses must have corresponding tool_call_id
+/// - Assistant messages with tool_calls must be followed by tool responses
+fn validate_message_ordering(messages: &[Value]) {
+    let mut pending_tool_call_ids = std::collections::HashSet::new();
+    
+    for (i, message) in messages.iter().enumerate() {
+        let role = message.get("role").and_then(|r| r.as_str()).unwrap_or("");
+        
+        match role {
+            "assistant" => {
+                // Collect tool call IDs from this message
+                if let Some(tool_calls) = message.get("tool_calls").and_then(|tc| tc.as_array()) {
+                    for tool_call in tool_calls {
+                        if let Some(id) = tool_call.get("id").and_then(|id| id.as_str()) {
+                            pending_tool_call_ids.insert(id.to_string());
+                        }
+                    }
+                }
+            }
+            "tool" => {
+                // Check if this tool response has a corresponding tool call
+                if let Some(tool_call_id) = message.get("tool_call_id").and_then(|id| id.as_str()) {
+                    if !pending_tool_call_ids.remove(tool_call_id) {
+                        tracing::warn!("Tool response at index {} has tool_call_id '{}' but no corresponding tool call found", i, tool_call_id);
+                    }
+                } else {
+                    tracing::warn!("Tool response at index {} is missing tool_call_id", i);
+                }
+            }
+            _ => {}
+        }
+    }
+    
+    // Check if there are any unmatched tool calls
+    if !pending_tool_call_ids.is_empty() {
+        tracing::warn!("Found tool calls without corresponding tool responses: {:?}", pending_tool_call_ids);
+    }
 }
 
 /// Convert internal Tool format to OpenAI's API tool specification
@@ -294,6 +339,9 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
                 if arguments.is_empty() {
                     arguments = "{}".to_string();
                 }
+                
+                // Trim whitespace to prevent trailing characters issue
+                arguments = arguments.trim().to_string();
 
                 if !is_valid_function_name(&function_name) {
                     let error = ToolError::NotFound(format!(
@@ -302,7 +350,66 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
                     ));
                     content.push(MessageContent::tool_request(id, Err(error)));
                 } else {
-                    match serde_json::from_str::<Value>(&arguments) {
+                    // Log raw JSON payload for debugging
+                    tracing::debug!("Parsing tool call arguments for id {}: raw JSON = '{}'", id, arguments);
+                    
+                    // First try to parse as normal JSON
+                    let normal_parse = serde_json::from_str::<Value>(&arguments);
+                    
+                    let parsed = if normal_parse.is_ok() {
+                        normal_parse
+                    } else {
+                        // If that fails, check if we have concatenated JSON objects
+                        // This can happen when OpenAI returns multiple objects without proper array formatting
+                        if arguments.contains("}{") {
+                            tracing::debug!("Detected concatenated JSON objects, attempting to fix");
+                            
+                            // Try to split and parse individual objects
+                            let mut objects = Vec::new();
+                            let mut current_obj = String::new();
+                            let mut brace_count = 0;
+                            
+                            for ch in arguments.chars() {
+                                current_obj.push(ch);
+                                match ch {
+                                    '{' => brace_count += 1,
+                                    '}' => {
+                                        brace_count -= 1;
+                                        if brace_count == 0 {
+                                            // We have a complete object
+                                            if let Ok(obj) = serde_json::from_str::<Value>(&current_obj) {
+                                                objects.push(obj);
+                                            }
+                                            current_obj.clear();
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            
+                            if objects.len() == 1 {
+                                Ok(objects[0].clone())
+                            } else if objects.len() > 1 {
+                                // Multiple objects detected - merge them into a single object
+                                tracing::debug!("Multiple JSON objects detected, merging into single object");
+                                let mut merged = serde_json::Map::new();
+                                for obj in objects {
+                                    if let Value::Object(obj_map) = obj {
+                                        merged.extend(obj_map);
+                                    }
+                                }
+                                Ok(Value::Object(merged))
+                            } else {
+                                // Fall back to original error
+                                serde_json::from_str::<Value>(&arguments)
+                            }
+                        } else {
+                            // Not concatenated objects, return original error
+                            normal_parse
+                        }
+                    };
+                    
+                    match parsed {
                         Ok(params) => {
                             content.push(MessageContent::tool_request(
                                 id,
@@ -310,6 +417,7 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
                             ));
                         }
                         Err(e) => {
+                            tracing::error!("JSON parsing failed for tool call id {}: raw JSON = '{}', error: {}", id, arguments, e);
                             let error = ToolError::InvalidParameters(format!(
                                 "Could not interpret tool use parameters for id {}: {}",
                                 id, e
@@ -461,10 +569,70 @@ where
                     }
                 }
 
+                // Trim whitespace to prevent trailing characters issue
+                arguments = arguments.trim().to_string();
+
                 let parsed = if arguments.is_empty() {
                     Ok(json!({}))
                 } else {
-                    serde_json::from_str::<Value>(&arguments)
+                    // Log raw JSON payload for debugging
+                    tracing::debug!("Parsing tool call arguments for id {}: raw JSON = '{}'", id, arguments);
+                    
+                    // First try to parse as normal JSON
+                    let normal_parse = serde_json::from_str::<Value>(&arguments);
+                    
+                    if normal_parse.is_ok() {
+                        normal_parse
+                    } else {
+                        // If that fails, check if we have concatenated JSON objects
+                        // This can happen when OpenAI returns multiple objects without proper array formatting
+                        if arguments.contains("}{") {
+                            tracing::debug!("Detected concatenated JSON objects, attempting to fix");
+                            
+                            // Try to split and parse individual objects
+                            let mut objects = Vec::new();
+                            let mut current_obj = String::new();
+                            let mut brace_count = 0;
+                            
+                            for ch in arguments.chars() {
+                                current_obj.push(ch);
+                                match ch {
+                                    '{' => brace_count += 1,
+                                    '}' => {
+                                        brace_count -= 1;
+                                        if brace_count == 0 {
+                                            // We have a complete object
+                                            if let Ok(obj) = serde_json::from_str::<Value>(&current_obj) {
+                                                objects.push(obj);
+                                            }
+                                            current_obj.clear();
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            
+                            if objects.len() == 1 {
+                                Ok(objects[0].clone())
+                            } else if objects.len() > 1 {
+                                // Multiple objects detected - merge them into a single object
+                                tracing::debug!("Multiple JSON objects detected, merging into single object");
+                                let mut merged = serde_json::Map::new();
+                                for obj in objects {
+                                    if let Value::Object(obj_map) = obj {
+                                        merged.extend(obj_map);
+                                    }
+                                }
+                                Ok(Value::Object(merged))
+                            } else {
+                                // Fall back to original error
+                                serde_json::from_str::<Value>(&arguments)
+                            }
+                        } else {
+                            // Not concatenated objects, return original error
+                            normal_parse
+                        }
+                    }
                 };
 
                 let content = match parsed {
@@ -473,6 +641,7 @@ where
                         Ok(ToolCall::new(function_name, params)),
                     ),
                     Err(e) => {
+                        tracing::error!("JSON parsing failed for tool call id {}: raw JSON = '{}', error: {}", id, arguments, e);
                         let error = ToolError::InvalidParameters(format!(
                             "Could not interpret tool use parameters for id {}: {}",
                             id, e
