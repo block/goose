@@ -49,7 +49,7 @@ export interface CreateRecipeResponse {
 }
 
 export async function createRecipe(request: CreateRecipeRequest): Promise<CreateRecipeResponse> {
-  const url = getApiUrl('/recipe/create');
+  const url = getApiUrl('/recipes/create');
   console.log('Creating recipe at:', url);
   console.log('Request:', JSON.stringify(request, null, 2));
 

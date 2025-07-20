@@ -131,7 +131,7 @@ async fn decode_recipe(
 
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
-        .route("/recipe/create", post(create_recipe))
+        .route("/recipes/create", post(create_recipe))
         .route("/recipes/encode", post(encode_recipe))
         .route("/recipes/decode", post(decode_recipe))
         .with_state(state)
