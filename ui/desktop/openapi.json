@@ -1827,6 +1827,11 @@
             "format": "double",
             "description": "Cost per token for output (optional)",
             "nullable": true
+          },
+          "supports_cache_control": {
+            "type": "boolean",
+            "description": "Whether this model supports cache control",
+            "nullable": true
           }
         }
       },
