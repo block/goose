@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Error};
 use serde_json::{json, Value};
+use tracing;
 
 use crate::{
     message::{Message, MessageContent},
@@ -188,19 +189,8 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
                     arguments = "{}".to_string();
                 }
                 
-                // Trim whitespace and validate JSON structure to prevent trailing characters
+                // Trim whitespace to prevent trailing characters issue
                 arguments = arguments.trim().to_string();
-                
-                // Quick validation: ensure it starts with { and ends with }
-                if !arguments.starts_with('{') || !arguments.ends_with('}') {
-                    if !arguments.starts_with('[') || !arguments.ends_with(']') {
-                        log::warn!("Tool call arguments for id {} don't appear to be valid JSON object or array: '{}'", id, arguments);
-                        // Try to parse as a string value
-                        if !arguments.starts_with('"') || !arguments.ends_with('"') {
-                            arguments = format!("\"{}\"", arguments.replace('"', "\\\""));
-                        }
-                    }
-                }
 
                 if !is_valid_function_name(&function_name) {
                     let error = ToolError::NotFound(format!(
@@ -210,7 +200,7 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
                     content.push(MessageContent::tool_request(id, Err(error).into()));
                 } else {
                     // Log raw JSON payload for debugging
-                    log::debug!("Parsing tool call arguments for id {}: raw JSON = '{}'", id, arguments);
+                    tracing::debug!("Parsing tool call arguments for id {}: raw JSON = '{}'", id, arguments);
                     
                     match serde_json::from_str::<Value>(&arguments) {
                         Ok(params) => {
@@ -220,7 +210,7 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
                             ));
                         }
                         Err(e) => {
-                            log::error!("JSON parsing failed for tool call id {}: raw JSON = '{}', error: {}", id, arguments, e);
+                            tracing::error!("JSON parsing failed for tool call id {}: raw JSON = '{}', error: {}", id, arguments, e);
                             let error = ToolError::InvalidParameters(format!(
                                 "Could not interpret tool use parameters for id {}: {}",
                                 id, e

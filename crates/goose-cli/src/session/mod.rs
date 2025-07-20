@@ -1319,7 +1319,16 @@ impl Session {
                                 self.debug,
                             );
                         }
-                        None => panic!("No content in last message"),
+                        None => {
+                            // Handle empty message content gracefully
+                            tracing::warn!("Found user message with empty content, removing it");
+                            self.messages.pop();
+                            let prompt = "Removed an empty message and interrupted before the model replied.";
+                            output::render_message(
+                                &Message::assistant().with_text(prompt),
+                                self.debug,
+                            );
+                        }
                     }
                 }
             }
