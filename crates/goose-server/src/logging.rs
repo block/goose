@@ -97,7 +97,7 @@ pub fn setup_logging(name: Option<&str>) -> Result<()> {
         .with(console_layer.with_filter(LevelFilter::INFO));
 
     // Initialize with Langfuse if available
-    if let Some(langfuse) = langfuse_layer::create_langfuse_observer() {
+    if let Some(langfuse) = langfuse_layer::create_langfuse_observer(name.clone().unwrap_or("goose-server")) {
         subscriber
             .with(langfuse.with_filter(LevelFilter::DEBUG))
             .try_init()
