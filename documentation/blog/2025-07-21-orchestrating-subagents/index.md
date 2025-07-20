@@ -66,12 +66,15 @@ Build a real-time collaborative API testing platform using 3 AI subagents workin
 - Subagent 1: Create a WebSocket backend server that handles API request execution (GET/POST/PUT/DELETE with headers, body, auth) AND real-time collaboration features (multiple users, shared collections, live updates). 
 
 - Subagent 2: Build a conflict resolution system for when multiple users edit the same API request simultaneously, plus response formatting and request history management. 
+
 - Subagent 3: Create the collaborative web UI using HTML, CSS, and vanilla JavaScript with API testing interface (URL input, method selection, headers, request body) that shows live user cursors, real-time updates, and shared results when anyone runs a test. 
 
 3 other subagents should work in parallel developing a readme, api collections and, a simple test suite. 
 
 - Subagent 4: Create a beginner friendly README
+
 - Subagent 5: Create a spample api collection and examples with 2-3 read to try example requests. Use safe, fun public apis like dog facts and joke api
+
 - Subagent 6: Create a simple test suite 
 
 Final result should be a working web app where multiple people can test APIs together, see each other's requests and responses instantly, and collaborate without conflicts. Use HTML/CSS/JS for the frontend, no frameworks. 
