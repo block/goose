@@ -77,7 +77,7 @@ Build a real-time collaborative API testing platform using 3 AI subagents workin
 
 - Subagent 4: Create a beginner friendly README
 
-- Subagent 5: Create a spample api collection and examples with 2-3 read to try example requests. Use safe, fun public apis like dog facts and joke api
+- Subagent 5: Create a sample api collection and examples with 2-3 read to try example requests. Use safe, fun public apis like dog facts and joke api
 
 - Subagent 6: Create a simple test suite 
 
