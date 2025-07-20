@@ -137,19 +137,7 @@ async fn reply_handler(
 
     let _ = tokio::spawn(async move {
         let agent = match state.get_agent().await {
-            Ok(agent) => match agent.provider().await {
-                Ok(_) => agent,
-                Err(_) => {
-                    let _ = stream_event(
-                        MessageEvent::Error {
-                            error: "No provider configured".to_string(),
-                        },
-                        &task_tx,
-                    )
-                    .await;
-                    return;
-                }
-            },
+            Ok(agent) => agent,
             Err(_) => {
                 let _ = stream_event(
                     MessageEvent::Error {

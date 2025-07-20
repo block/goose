@@ -485,9 +485,6 @@ async fn process_message_streaming(
     )
     .await?;
 
-    let cancel_token = CancellationToken::new();
-    let task_cancel = cancel_token.clone();
-
     let session_config = SessionConfig {
         id: session::Identifier::Path(session_file.clone()),
         working_dir: std::env::current_dir()?,
@@ -496,10 +493,7 @@ async fn process_message_streaming(
         max_turns: None,
     };
 
-    match agent
-        .reply(&messages, Some(session_config), task_cancel)
-        .await
-    {
+    match agent.reply(&messages, Some(session_config), None).await {
         Ok(mut stream) => {
             while let Some(result) = stream.next().await {
                 match result {
