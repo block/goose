@@ -96,7 +96,7 @@ The subagents delivered a working collaborative API playground.  The functionali
 
 ## My Parallel Prompt Fail
 
-So I wrote a follow-up prompt asking Goose to spawn five subagents in parallel, each responsible for a different UI component: the header, request builder, tab layout, and collaboration panel. I figured that having the subagents execute the work in parallel would get the job done faster.
+After the agents completed the initial task, I proceeded with a follow-up prompt asking Goose to spawn five more subagents to work in parallel, each responsible for a different UI component: the header, request builder, tab layout, and collaboration panel. I figured that having the subagents execute the work in parallel would get the job done faster.
 
 But the result of this prompt made the app look worse! Each subagent brought its own interpretation of what "kid-friendly" meant. The header had a gaming-like design with black and purple colors, the tabs used Comic Sans while the rest of the app didn't, and the panels used a glassmorphic design. 
 
