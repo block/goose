@@ -1131,7 +1131,6 @@ impl Agent {
         notifications
     }
 
-    /// Update the provider
     pub async fn update_provider(&self, provider: Arc<dyn Provider>) -> Result<()> {
         let mut current_provider = self.provider.lock().await;
         *current_provider = Some(provider.clone());

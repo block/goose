@@ -11,14 +11,14 @@ use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
 use goose::{
     agents::{AgentEvent, SessionConfig},
-    message::{push_message, Message, MessageContent},
+    message::{push_message, Message},
     permission::permission_confirmation::PrincipalType,
 };
 use goose::{
     permission::{Permission, PermissionConfirmation},
     session,
 };
-use mcp_core::{protocol::JsonRpcMessage, role::Role, ToolResult};
+use mcp_core::{protocol::JsonRpcMessage, ToolResult};
 use rmcp::model::Content;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -37,7 +37,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
 use utoipa::ToSchema;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct ChatRequest {
     messages: Vec<Message>,
     session_id: Option<String>,
@@ -135,7 +135,7 @@ async fn reply_handler(
     let task_cancel = cancel_token.clone();
     let task_tx = tx.clone();
 
-    let handle = tokio::spawn(async move {
+    let _ = tokio::spawn(async move {
         let agent = match state.get_agent().await {
             Ok(agent) => match agent.provider().await {
                 Ok(_) => agent,
@@ -280,32 +280,7 @@ async fn reply_handler(
         )
         .await;
     });
-
-    // Create a guard that cancels the task when dropped
-    let _cancel_guard = CancelGuard::new(cancel_token, handle);
-
     Ok(SseResponse::new(stream))
-}
-
-struct CancelGuard {
-    cancel_token: CancellationToken,
-    handle: tokio::task::JoinHandle<()>,
-}
-
-impl CancelGuard {
-    fn new(cancel_token: CancellationToken, handle: tokio::task::JoinHandle<()>) -> Self {
-        Self {
-            cancel_token,
-            handle,
-        }
-    }
-}
-
-impl Drop for CancelGuard {
-    fn drop(&mut self) {
-        self.cancel_token.cancel();
-        self.handle.abort();
-    }
 }
 
 #[derive(Debug, Deserialize, Serialize, ToSchema)]
