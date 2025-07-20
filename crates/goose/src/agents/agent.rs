@@ -716,7 +716,6 @@ impl Agent {
                     break;
                 }
 
-                // Inlined process_one_turn logic starts here
                 if let Some(token) = &cancel_token {
                     if token.is_cancelled() {
                         break;
