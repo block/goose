@@ -156,12 +156,12 @@ export default function RecipesView({ _onLoadRecipe }: RecipesViewProps = {}) {
         throw new Error('Invalid deeplink format. Expected: goose://recipe?config=...');
       }
 
-      const configEncoded = cleanLink.replace('goose://recipe?config=', '');
+      const recipeEncoded = cleanLink.replace('goose://recipe?config=', '');
 
-      if (!configEncoded) {
+      if (!recipeEncoded) {
         throw new Error('No recipe configuration found in deeplink');
       }
-      const recipe = await decodeRecipe(configEncoded);
+      const recipe = await decodeRecipe(recipeEncoded);
 
       if (!recipe.title || !recipe.description || !recipe.instructions) {
         throw new Error('Recipe is missing required fields (title, description, instructions)');

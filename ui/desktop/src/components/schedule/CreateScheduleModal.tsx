@@ -113,12 +113,12 @@ async function parseDeepLink(deepLink: string): Promise<Recipe | null> {
       return null;
     }
 
-    const configParam = url.searchParams.get('config');
-    if (!configParam) {
+    const recipeParam = url.searchParams.get('config');
+    if (!recipeParam) {
       return null;
     }
 
-    return await decodeRecipe(configParam);
+    return await decodeRecipe(recipeParam);
   } catch (error) {
     console.error('Failed to parse deep link:', error);
     return null;
