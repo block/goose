@@ -13,6 +13,7 @@ use std::time::Duration;
 use url::Url;
 
 pub const OLLAMA_HOST: &str = "localhost";
+pub const OLLAMA_TIMEOUT: u64 = 600; // seconds
 pub const OLLAMA_DEFAULT_PORT: u16 = 11434;
 pub const OLLAMA_DEFAULT_MODEL: &str = "qwen2.5";
 // Ollama can run many models, we only provide the default
@@ -41,9 +42,10 @@ impl OllamaProvider {
             .get_param("OLLAMA_HOST")
             .unwrap_or_else(|_| OLLAMA_HOST.to_string());
 
-        let client = Client::builder()
-            .timeout(Duration::from_secs(600))
-            .build()?;
+        let timeout: Duration =
+            Duration::from_secs(config.get_param("OLLAMA_TIMEOUT").unwrap_or(OLLAMA_TIMEOUT));
+
+        let client = Client::builder().timeout(timeout).build()?;
 
         Ok(Self {
             client,
@@ -104,12 +106,15 @@ impl Provider for OllamaProvider {
             OLLAMA_DEFAULT_MODEL,
             OLLAMA_KNOWN_MODELS.to_vec(),
             OLLAMA_DOC_URL,
-            vec![ConfigKey::new(
-                "OLLAMA_HOST",
-                true,
-                false,
-                Some(OLLAMA_HOST),
-            )],
+            vec![
+                ConfigKey::new("OLLAMA_HOST", true, false, Some(OLLAMA_HOST)),
+                ConfigKey::new(
+                    "OLLAMA_TIMEOUT",
+                    false,
+                    false,
+                    Some(&(OLLAMA_TIMEOUT.to_string())),
+                ),
+            ],
         )
     }
 
