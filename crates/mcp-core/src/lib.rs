@@ -1,6 +1,4 @@
 pub mod handler;
-pub mod role;
-pub use role::Role;
 pub mod tool;
 pub use tool::{Tool, ToolCall};
 pub mod resource;

@@ -18,8 +18,8 @@ use goose::{
     permission::{Permission, PermissionConfirmation},
     session,
 };
-use mcp_core::{protocol::JsonRpcMessage, role::Role, ToolResult};
-use rmcp::model::Content;
+use mcp_core::{protocol::JsonRpcMessage, ToolResult};
+use rmcp::model::{Content, Role};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
