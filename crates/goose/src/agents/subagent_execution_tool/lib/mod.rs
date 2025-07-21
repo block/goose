@@ -25,18 +25,7 @@ pub async fn execute_tasks(
     )
     .map_err(|e| format!("Failed to parse task_ids: {}", e))?;
 
-    let mut tasks = Vec::new();
-    for task_id in &task_ids {
-        match tasks_manager.get_task(task_id).await {
-            Some(task) => tasks.push(task),
-            None => {
-                return Err(format!(
-                    "Task with ID '{}' not found in TasksManager",
-                    task_id
-                ))
-            }
-        }
-    }
+    let tasks = tasks_manager.get_tasks(&task_ids).await?;
 
     let task_count = tasks.len();
     match execution_mode {
