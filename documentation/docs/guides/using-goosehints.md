@@ -6,7 +6,9 @@ sidebar_label: Using Goosehints
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
+<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/kWXJC5p0608" />
 
 `.goosehints` is a text file used to provide additional context about your project and improve the communication with Goose. The use of `goosehints` ensures that Goose understands your requirements better and can execute tasks more effectively.
 
