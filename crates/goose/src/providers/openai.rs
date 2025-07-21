@@ -197,7 +197,7 @@ impl Provider for OpenAiProvider {
         let base_url =
             url::Url::parse(&self.host).map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
         let url = base_url
-            .join("v1/models")
+            .join(&self.base_path.replace("v1/chat/completions", "v1/models"))
             .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
         let mut request = self.client.get(url).bearer_auth(&self.api_key);
         if let Some(org) = &self.organization {
