@@ -39,7 +39,7 @@ use crate::agents::platform_tools::{
     PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
 };
 use crate::agents::prompt_manager::PromptManager;
-use crate::agents::retry::RetryManager;
+use crate::agents::retry::{RetryManager, RetryResult};
 use crate::agents::router_tool_selector::{
     create_tool_selector, RouterToolSelectionStrategy, RouterToolSelector,
 };
@@ -138,7 +138,7 @@ impl Agent {
 
         let tool_monitor = Arc::new(Mutex::new(None));
         let retry_manager = RetryManager::with_tool_monitor(tool_monitor.clone());
-        
+
         Self {
             provider: Mutex::new(None),
             extension_manager: Arc::new(RwLock::new(ExtensionManager::new())),
@@ -200,12 +200,17 @@ impl Agent {
         session: &Option<SessionConfig>,
         initial_messages: &[Message],
     ) -> Result<bool> {
-        self.retry_manager.handle_retry_logic(
-            messages,
-            session,
-            initial_messages,
-            &self.final_output_tool,
-        ).await
+        let result = self
+            .retry_manager
+            .handle_retry_logic(messages, session, initial_messages, &self.final_output_tool)
+            .await?;
+
+        match result {
+            RetryResult::Retried => Ok(true),
+            RetryResult::Skipped
+            | RetryResult::MaxAttemptsReached
+            | RetryResult::SuccessChecksPassed => Ok(false),
+        }
     }
 
     /// Set the scheduler service for this agent

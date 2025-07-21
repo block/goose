@@ -6,13 +6,26 @@ use tokio::process::Command;
 use tokio::sync::Mutex;
 use tracing::{debug, info, warn};
 
+use crate::agents::types::SessionConfig;
 use crate::agents::types::{
     RetryConfig, SuccessCheck, DEFAULT_ON_FAILURE_TIMEOUT_SECONDS, DEFAULT_RETRY_TIMEOUT_SECONDS,
 };
 use crate::config::Config;
 use crate::message::Message;
 use crate::tool_monitor::ToolMonitor;
-use crate::agents::types::SessionConfig;
+
+/// Result of a retry logic evaluation
+#[derive(Debug, Clone, PartialEq)]
+pub enum RetryResult {
+    /// No retry configuration or session available, retry logic skipped
+    Skipped,
+    /// Maximum retry attempts reached, cannot retry further
+    MaxAttemptsReached,
+    /// Success checks passed, no retry needed
+    SuccessChecksPassed,
+    /// Retry is needed and will be performed
+    Retried,
+}
 
 /// Environment variable for configuring retry timeout globally
 const GOOSE_RECIPE_RETRY_TIMEOUT_SECONDS: &str = "GOOSE_RECIPE_RETRY_TIMEOUT_SECONDS";
@@ -56,7 +69,7 @@ impl RetryManager {
     pub async fn reset_attempts(&self) {
         let mut attempts = self.attempts.lock().await;
         *attempts = 0;
-        
+
         // Reset tool monitor if available
         if let Some(monitor) = &self.tool_monitor {
             if let Some(monitor) = monitor.lock().await.as_mut() {
@@ -77,6 +90,22 @@ impl RetryManager {
         *self.attempts.lock().await
     }
 
+    /// Reset status for retry: clear message history and final output tool state
+    async fn reset_status_for_retry(
+        messages: &mut Vec<Message>,
+        initial_messages: &[Message],
+        final_output_tool: &Arc<Mutex<Option<crate::agents::final_output_tool::FinalOutputTool>>>,
+    ) {
+        messages.clear();
+        messages.extend_from_slice(initial_messages);
+        info!("Reset message history to initial state for retry");
+
+        if let Some(final_output_tool) = final_output_tool.lock().await.as_mut() {
+            final_output_tool.final_output = None;
+            info!("Cleared final output tool state for retry");
+        }
+    }
+
     /// Handle retry logic for the agent reply loop
     pub async fn handle_retry_logic(
         &self,
@@ -84,20 +113,20 @@ impl RetryManager {
         session: &Option<SessionConfig>,
         initial_messages: &[Message],
         final_output_tool: &Arc<Mutex<Option<crate::agents::final_output_tool::FinalOutputTool>>>,
-    ) -> Result<bool> {
+    ) -> Result<RetryResult> {
         let Some(session_config) = session else {
-            return Ok(false);
+            return Ok(RetryResult::Skipped);
         };
 
         let Some(retry_config) = &session_config.retry_config else {
-            return Ok(false);
+            return Ok(RetryResult::Skipped);
         };
 
         let success = execute_success_checks(&retry_config.checks, retry_config).await?;
 
         if success {
             info!("All success checks passed, no retry needed");
-            return Ok(false);
+            return Ok(RetryResult::SuccessChecksPassed);
         }
 
         let current_attempts = self.get_attempts().await;
@@ -111,7 +140,7 @@ impl RetryManager {
                 "Maximum retry attempts ({}) exceeded",
                 retry_config.max_retries
             );
-            return Ok(false);
+            return Ok(RetryResult::MaxAttemptsReached);
         }
 
         if let Some(on_failure_cmd) = &retry_config.on_failure {
@@ -119,21 +148,12 @@ impl RetryManager {
             execute_on_failure_command(on_failure_cmd, retry_config).await?;
         }
 
-        // Reset message history to initial state
-        messages.clear();
-        messages.extend_from_slice(initial_messages);
-        info!("Reset message history to initial state for retry");
-
-        // Clear final output tool state
-        if let Some(final_output_tool) = final_output_tool.lock().await.as_mut() {
-            final_output_tool.final_output = None;
-            info!("Cleared final output tool state for retry");
-        }
+        Self::reset_status_for_retry(messages, initial_messages, final_output_tool).await;
 
         let new_attempts = self.increment_attempts().await;
         info!("Incrementing retry attempts to {}", new_attempts);
 
-        Ok(true)
+        Ok(RetryResult::Retried)
     }
 }
 
@@ -208,25 +228,23 @@ pub async fn execute_shell_command(
     );
 
     let future = async {
-        let output = if cfg!(target_os = "windows") {
-            Command::new("cmd")
-                .args(["/C", command])
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .stdin(Stdio::null())
-                .kill_on_drop(true)
-                .output()
-                .await?
+        let mut cmd = if cfg!(target_os = "windows") {
+            let mut cmd = Command::new("cmd");
+            cmd.args(["/C", command]);
+            cmd
         } else {
-            Command::new("sh")
-                .args(["-c", command])
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .stdin(Stdio::null())
-                .kill_on_drop(true)
-                .output()
-                .await?
+            let mut cmd = Command::new("sh");
+            cmd.args(["-c", command]);
+            cmd
         };
+
+        let output = cmd
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .stdin(Stdio::null())
+            .kill_on_drop(true)
+            .output()
+            .await?;
 
         debug!(
             "Shell command completed with status: {}, stdout: {}, stderr: {}",
@@ -302,6 +320,26 @@ mod tests {
             timeout_seconds: Some(60),
             on_failure_timeout_seconds: Some(120),
         }
+    }
+
+    #[test]
+    fn test_retry_result_enum() {
+        assert_ne!(RetryResult::Skipped, RetryResult::MaxAttemptsReached);
+        assert_ne!(RetryResult::Skipped, RetryResult::SuccessChecksPassed);
+        assert_ne!(RetryResult::Skipped, RetryResult::Retried);
+        assert_ne!(
+            RetryResult::MaxAttemptsReached,
+            RetryResult::SuccessChecksPassed
+        );
+        assert_ne!(RetryResult::MaxAttemptsReached, RetryResult::Retried);
+        assert_ne!(RetryResult::SuccessChecksPassed, RetryResult::Retried);
+
+        let result = RetryResult::Retried;
+        let cloned = result.clone();
+        assert_eq!(result, cloned);
+
+        let debug_str = format!("{:?}", RetryResult::MaxAttemptsReached);
+        assert!(debug_str.contains("MaxAttemptsReached"));
     }
 
     #[tokio::test]
