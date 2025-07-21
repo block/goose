@@ -67,7 +67,7 @@ To configure your chosen provider or see available options, run `goose configure
 
   **To change provider model**
   1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-  2. Click the `Models` tab`
+  2. Click the `Models` tab
   3. Click `Switch models`
   5. Select a Provider from drop down menu
   6. Select a model from drop down menu
