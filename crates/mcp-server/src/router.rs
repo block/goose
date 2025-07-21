@@ -78,6 +78,7 @@ impl CapabilitiesBuilder {
             tools: self.tools,
             prompts: self.prompts,
             resources: self.resources,
+            ui: None, // Server doesn't declare UI capabilities by default
         }
     }
 }

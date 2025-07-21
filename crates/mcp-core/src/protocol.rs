@@ -171,7 +171,9 @@ pub struct ServerCapabilities {
     pub resources: Option<ResourcesCapability>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<ToolsCapability>,
-    // Add other capabilities as needed
+    /// UI capabilities - server support for UI resources
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ui: Option<UICapabilities>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -191,6 +193,28 @@ pub struct ResourcesCapability {
 #[serde(rename_all = "camelCase")]
 pub struct ToolsCapability {
     pub list_changed: Option<bool>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct UICapabilities {
+    /// Whether the server supports UI resources
+    pub supports_ui: bool,
+    /// Supported UI mime types
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub supported_formats: Option<Vec<String>>,
+}
+
+impl Default for UICapabilities {
+    fn default() -> Self {
+        Self {
+            supports_ui: true,
+            supported_formats: Some(vec![
+                "application/vnd.mcp-ui.remote-dom+javascript".to_string(),
+                "text/html".to_string(),
+            ]),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]

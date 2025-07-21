@@ -18,16 +18,34 @@ export interface ImageContent {
   annotations?: Record<string, unknown>;
 }
 
-export interface ResourceContent {
-  type: 'resource';
-  resource: Resource;
-  annotations?: Record<string, unknown>;
-}
-
-export interface Resource {
+// Resource contents - matches ResourceContents enum from backend
+export interface TextResourceContents {
   uri: string;
   text: string;
-  mimeType?: string;
+  mime_type?: string;
+}
+
+export interface BlobResourceContents {
+  uri: string;
+  blob: string;
+  mime_type?: string;
+}
+
+export type ResourceContents = TextResourceContents | BlobResourceContents;
+
+export function isTextResource(resource: ResourceContents): resource is TextResourceContents {
+  return 'text' in resource && typeof (resource as TextResourceContents).text === 'string';
+}
+
+// Safe helper to extract text from ResourceContents
+export function getResourceText(resource: ResourceContents): string | null {
+  return isTextResource(resource) ? resource.text : null;
+}
+
+export interface ResourceContent {
+  type: 'resource';
+  resource: ResourceContents;
+  annotations?: Record<string, unknown>;
 }
 
 export type Content = TextContent | ImageContent | ResourceContent;

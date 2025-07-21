@@ -1,8 +1,9 @@
 import React, { useState, createContext, useContext, useEffect } from 'react';
-import { X, FileDiff, SquareSplitHorizontal, BetweenHorizontalStart } from 'lucide-react';
+import { X, FileDiff, SquareSplitHorizontal, BetweenHorizontalStart, Monitor } from 'lucide-react';
 import { Button } from './ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
 import { useWindowManager } from '../hooks/useWindowManager';
+import { Resource, UIResourceRenderer } from './UIResourceRenderer';
 
 interface SidecarView {
   id: string;
@@ -19,6 +20,7 @@ interface SidecarContextType {
   hideView: () => void;
   showDiffViewer: (diffContent: string, fileName?: string) => void;
   hideDiffViewer: () => void;
+  showUIResource: (resource: Resource, title: string) => void;
 }
 
 const SidecarContext = createContext<SidecarContextType | null>(null);
@@ -349,6 +351,31 @@ export function SidecarProvider({ children, showSidecar = true }: SidecarProvide
     }
   };
 
+  const showUIResource = (resource: Resource, title: string) => {
+    const uiView: SidecarView = {
+      id: `ui-${Date.now()}`,
+      title,
+      icon: <Monitor size={16} />,
+      content: (
+        <div className="h-full w-full">
+          <UIResourceRenderer
+            resource={resource}
+            className="h-full w-full"
+            htmlProps={{
+              style: {
+                height: '100%',
+                width: '100%',
+                border: 'none',
+                borderRadius: '0.75rem',
+              },
+            }}
+          />
+        </div>
+      ),
+    };
+    showView(uiView);
+  };
+
   const contextValue: SidecarContextType = {
     activeView,
     views,
@@ -356,6 +383,7 @@ export function SidecarProvider({ children, showSidecar = true }: SidecarProvide
     hideView,
     showDiffViewer,
     hideDiffViewer,
+    showUIResource,
   };
 
   // Don't render sidecar if showSidecar is false
@@ -412,10 +440,11 @@ export function Sidecar({ className = '' }: { className?: string }) {
 
   // Check if current view is diff viewer
   const isDiffViewer = currentView.id === 'diff';
+  const isUIResource = currentView.id.startsWith('ui-');
 
   return (
     <div
-      className={`bg-background-default overflow-hidden rounded-2xl flex flex-col m-5 ${className}`}
+      className={`bg-background-default overflow-hidden rounded-2xl flex flex-col m-5 ${isUIResource ? 'w-[800px]' : 'w-[500px]'} ${className}`}
     >
       {currentView && (
         <>
@@ -495,7 +524,9 @@ export function Sidecar({ className = '' }: { className?: string }) {
           </div>
 
           {/* Sidecar Content */}
-          <div className="flex-1  border-4 overflow-hidden border-background-default border-t-0 rounded-b-2xl">
+          <div
+            className={`flex-1 ${isUIResource ? 'p-4' : 'border-4 border-background-default border-t-0'} ${isDiffViewer ? 'overflow-hidden' : 'overflow-auto'} rounded-b-2xl`}
+          >
             {currentView.content}
           </div>
         </>
