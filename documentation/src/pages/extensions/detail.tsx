@@ -1,5 +1,5 @@
 import Layout from "@theme/Layout";
-import { Download, Terminal, Star, ArrowLeft, Info } from "lucide-react";
+import { Download, Terminal, Star, ArrowLeft, Info, BookOpen } from "lucide-react";
 import { Button } from "@site/src/components/ui/button";
 import { Badge } from "@site/src/components/ui/badge";
 import { getGooseInstallLink } from "@site/src/utils/install-links";
@@ -12,6 +12,26 @@ import Link from "@docusaurus/Link";
 
 function ExtensionDetail({ server }: { server: MCPServer }) {
   const [githubStars, setGithubStars] = useState<number | null>(null);
+
+
+// outliers in naming
+const overrides: Record<string, string> = {
+  'computercontroller': 'computer-controller-mcp',
+  'pdf-read': 'pdf-mcp',
+  'knowledge-graph-memory': 'knowledge-graph-mcp'
+};
+
+const getDocumentationPath = (serverId: string): string => {
+  let filename = serverId.replace(/_/g, '-');
+  filename = overrides[filename] ?? filename;
+
+  if (!filename.endsWith('-mcp')) {
+    filename += '-mcp';
+  }
+
+  return filename;
+};
+
 
   useEffect(() => {
     if (server.link) {
@@ -38,7 +58,14 @@ function ExtensionDetail({ server }: { server: MCPServer }) {
             </div>
 
             <div className="server-card flex-1">
-              <div className="card p-8">
+              <div className="card p-8 relative">
+                <Link
+                  to={`/docs/mcp/${getDocumentationPath(server.id)}`}
+                  className="absolute top-4 right-4 flex items-center gap-2 text-textSubtle hover:text-textProminent transition-colors no-underline"
+                  title="View tutorial"
+                >
+                  <BookOpen className="h-5 w-5" />
+                </Link>
                 <div className="card-header mb-6">
                   <div className="flex items-center gap-4">
                     <h1 className="font-medium text-5xl text-textProminent m-0">

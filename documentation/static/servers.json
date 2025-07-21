@@ -66,17 +66,6 @@
     "environmentVariables": []
   },
   {
-    "id": "git",
-    "name": "Git",
-    "description": "Git version control system integration",
-    "command": "uvx mcp-server-git",
-    "link": "https://github.com/modelcontextprotocol/servers/tree/main/src/git",
-    "installation_notes": "Install using npx package manager. Note: Does not support git push, merge or rebase operations.",
-    "is_builtin": false,
-    "endorsed": true,
-    "environmentVariables": []
-  },
-  {
     "id": "tavily",
     "name": "Tavily Web Search",
     "description": "Web search capabilities powered by Tavily",
@@ -432,17 +421,6 @@
     "command": "npx -y nostrbook-mcp",
     "link": "https://github.com/nostrbook/nostrbook-mcp",
     "installation_notes": "Install using npx package manager.",
-    "is_builtin": false,
-    "endorsed": false,
-    "environmentVariables": []
-  },
-  {
-    "id": "pdf-mcp",
-    "name": "PDF",
-    "description": "PDF document processing and manipulation",
-    "command": "uvx mcp-server-pdf",
-    "link": "https://github.com/modelcontextprotocol/servers",
-    "installation_notes": "Install using uvx package manager.",
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": []
