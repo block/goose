@@ -7,9 +7,20 @@ import { useLocation } from "@docusaurus/router";
 import { useEffect, useState } from "react";
 import type { MCPServer } from "@site/src/types/server";
 import { fetchMCPServers } from "@site/src/utils/mcp-servers";
-import Link from "@docusaurus/Link";
+import { fetchGitHubStars, formatStarCount } from "@site/src/utils/github-stars";
+import Link from "@docusaurus/Link"; 
 
 function ExtensionDetail({ server }: { server: MCPServer }) {
+  const [githubStars, setGithubStars] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (server.link) {
+      fetchGitHubStars(server.link).then(stars => {
+        setGithubStars(stars);
+      });
+    }
+  }, [server.link]);
+
   return (
     <Layout>
       <div className="min-h-screen flex items-start justify-center py-16">
@@ -71,9 +82,23 @@ function ExtensionDetail({ server }: { server: MCPServer }) {
                           <h4 className="font-medium m-0">Command</h4>
                         </div>
                         <div className="command-content">
-                          <code className="text-sm block">
-                            {`goose session --with-extension "${server.command}"`}
-                          </code>
+                          {(server.type === "local" || !server.type) ? (
+                            <code className="text-sm block">
+                              {`goose session --with-extension "${server.command}"`}
+                            </code>
+                          ) : server.type === "remote" ? (
+                            <code className="text-sm block">
+                              {`goose session --with-remote-extension "${server.url}"`}
+                            </code>
+                          ) : server.type === "streamable-http" ? (
+                            <code className="text-sm block">
+                              {`goose session --with-streamable-http-extension "${server.url}"`}
+                            </code>
+                          ) : (
+                            <code className="text-sm block">
+                              No command available
+                            </code>
+                          )}
                         </div>
                       </>
                     )}
@@ -115,15 +140,17 @@ function ExtensionDetail({ server }: { server: MCPServer }) {
                   )}
 
                   <div className="card-footer">
-                    <a
-                      href={server.link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="card-stats"
-                    >
-                      <Star className="h-4 w-4" />
-                      <span>{server.githubStars} on Github</span>
-                    </a>
+                    {githubStars !== null && (
+                      <a
+                        href={server.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="card-stats"
+                      >
+                        <Star className="h-4 w-4" />
+                        <span>{formatStarCount(githubStars)} on Github</span>
+                      </a>
+                    )}
 
                     {server.is_builtin ? (
                       <div
