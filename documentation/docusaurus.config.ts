@@ -65,10 +65,10 @@ const config: Config = {
             "./src/css/tailwind.css",
           ],
         },
-        gtag: {
+        gtag: process.env.NODE_ENV === 'production' ? {
           trackingID: 'G-ZS5D6SB4ZJ',
           anonymizeIP: true,
-        },
+        } : undefined,
       } satisfies Preset.Options,
     ],
   ],

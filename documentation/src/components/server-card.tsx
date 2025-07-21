@@ -1,14 +1,34 @@
 import { Star, Download, Terminal, ChevronRight, Info } from "lucide-react";
-import { Badge } from "@site/src/components/ui/badge";
-import { Button } from "@site/src/components/ui/button";
 import type { MCPServer } from "@site/src/types/server";
 import Link from "@docusaurus/Link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getGooseInstallLink } from "@site/src/utils/install-links";
+import { fetchGitHubStars, formatStarCount } from "@site/src/utils/github-stars";
+
+const getExtensionCommand = (server: MCPServer): string => {
+  switch (server.type) {
+    case "remote":
+      return `goose session --with-remote-extension "${server.url}"`;
+    case "streamable-http":
+      return `goose session --with-streamable-http-extension "${server.url}"`;
+    case "local":
+    default:
+      return `goose session --with-extension "${server.command}"`;
+  }
+};
 
 export function ServerCard({ server }: { server: MCPServer }) {
   const [isCommandVisible, setIsCommandVisible] = useState(false);
+  const [githubStars, setGithubStars] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (server.link) {
+      fetchGitHubStars(server.link).then(stars => {
+        setGithubStars(stars);
+        });
+    }
+  }, [server.link]);
 
   return (
     <div className="extension-title h-full">
@@ -65,7 +85,7 @@ export function ServerCard({ server }: { server: MCPServer }) {
                   </div>
                 )}
 
-                {(!server.is_builtin && server.command !== undefined && server.url === undefined) &&  (
+                {!server.is_builtin && (
                   <>
                   <button
                     onClick={() => setIsCommandVisible(!isCommandVisible)}
@@ -91,44 +111,7 @@ export function ServerCard({ server }: { server: MCPServer }) {
                       transition: { duration: 0.1 },
                       }}
                     >
-                      <code>
-                      {`goose session --with-extension "${server.command}"`}
-                      </code>
-                    </motion.div>
-                    )}
-                  </AnimatePresence>
-                  </>
-                )}
-
-                {(!server.is_builtin && server.command === undefined && server.url !== undefined) &&  (
-                  <>
-                  <button
-                    onClick={() => setIsCommandVisible(!isCommandVisible)}
-                    className="command-toggle"
-                  >
-                    <Terminal className="h-4 w-4" />
-                    <h4 className="mx-2">Command</h4>
-                    <ChevronRight
-                    className={`ml-auto transition-transform ${
-                      isCommandVisible ? "rotate-90" : ""
-                    }`}
-                    />
-                  </button>
-                  <AnimatePresence>
-                    {isCommandVisible && (
-                    <motion.div
-                      className="command-content"
-                      initial={{ opacity: 0, translateY: -20 }}
-                      animate={{ opacity: 1, translateY: 0 }}
-                      exit={{
-                      opacity: 0,
-                      translateY: -20,
-                      transition: { duration: 0.1 },
-                      }}
-                    >
-                      <code>
-                      {`goose session --with-remote-extension "${server.url}"`}
-                      </code>
+                      <code>{getExtensionCommand(server)}</code>
                     </motion.div>
                     )}
                   </AnimatePresence>
@@ -138,14 +121,14 @@ export function ServerCard({ server }: { server: MCPServer }) {
             </div>
 
             <div className="card-footer">
-                {server.githubStars !== undefined && (
+                {githubStars !== null && (
                 <Link
                   to={server.link}
                   className="card-stats"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <Star className="h-4 w-4" />
-                  <span>{server.githubStars} on Github</span>
+                  <span>{formatStarCount(githubStars)} on Github</span>
                 </Link>
                 )}
               <div className="card-action">

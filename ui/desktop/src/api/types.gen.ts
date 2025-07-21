@@ -6,6 +6,16 @@ export type Annotations = {
     timestamp?: string;
 };
 
+export type Author = {
+    contact?: string | null;
+    metadata?: string | null;
+};
+
+export type AuthorRequest = {
+    contact?: string | null;
+    metadata?: string | null;
+};
+
 export type ConfigKey = {
     default?: string | null;
     name: string;
@@ -71,6 +81,19 @@ export type ContextManageResponse = {
     tokenCounts: Array<number>;
 };
 
+export type CreateRecipeRequest = {
+    activities?: Array<string> | null;
+    author?: AuthorRequest | null;
+    description: string;
+    messages: Array<Message>;
+    title: string;
+};
+
+export type CreateRecipeResponse = {
+    error?: string | null;
+    recipe?: Recipe | null;
+};
+
 export type CreateScheduleRequest = {
     cron: string;
     execution_mode?: string | null;
@@ -78,9 +101,25 @@ export type CreateScheduleRequest = {
     recipe_source: string;
 };
 
+export type DecodeRecipeRequest = {
+    deeplink: string;
+};
+
+export type DecodeRecipeResponse = {
+    recipe: Recipe;
+};
+
 export type EmbeddedResource = {
     annotations?: Annotations;
     resource: ResourceContents;
+};
+
+export type EncodeRecipeRequest = {
+    recipe: Recipe;
+};
+
+export type EncodeRecipeResponse = {
+    deeplink: string;
 };
 
 export type Envs = {
@@ -337,6 +376,86 @@ export type ProvidersResponse = {
     providers: Array<ProviderDetails>;
 };
 
+/**
+ * A Recipe represents a personalized, user-generated agent configuration that defines
+ * specific behaviors and capabilities within the Goose system.
+ *
+ * # Fields
+ *
+ * ## Required Fields
+ * * `version` - Semantic version of the Recipe file format (defaults to "1.0.0")
+ * * `title` - Short, descriptive name of the Recipe
+ * * `description` - Detailed description explaining the Recipe's purpose and functionality
+ * * `Instructions` - Instructions that defines the Recipe's behavior
+ *
+ * ## Optional Fields
+ * * `prompt` - the initial prompt to the session to start with
+ * * `extensions` - List of extension configurations required by the Recipe
+ * * `context` - Supplementary context information for the Recipe
+ * * `activities` - Activity labels that appear when loading the Recipe
+ * * `author` - Information about the Recipe's creator and metadata
+ * * `parameters` - Additional parameters for the Recipe
+ * * `response` - Response configuration including JSON schema validation
+ *
+ * # Example
+ *
+ *
+ * use goose::recipe::Recipe;
+ *
+ * // Using the builder pattern
+ * let recipe = Recipe::builder()
+ * .title("Example Agent")
+ * .description("An example Recipe configuration")
+ * .instructions("Act as a helpful assistant")
+ * .build()
+ * .expect("Missing required fields");
+ *
+ * // Or using struct initialization
+ * let recipe = Recipe {
+ * version: "1.0.0".to_string(),
+ * title: "Example Agent".to_string(),
+ * description: "An example Recipe configuration".to_string(),
+ * instructions: Some("Act as a helpful assistant".to_string()),
+ * prompt: None,
+ * extensions: None,
+ * context: None,
+ * activities: None,
+ * author: None,
+ * settings: None,
+ * parameters: None,
+ * response: None,
+ * sub_recipes: None,
+ * };
+ *
+ */
+export type Recipe = {
+    activities?: Array<string> | null;
+    author?: Author | null;
+    context?: Array<string> | null;
+    description: string;
+    extensions?: Array<ExtensionConfig> | null;
+    instructions?: string | null;
+    parameters?: Array<RecipeParameter> | null;
+    prompt?: string | null;
+    response?: Response | null;
+    settings?: Settings | null;
+    sub_recipes?: Array<SubRecipe> | null;
+    title: string;
+    version?: string;
+};
+
+export type RecipeParameter = {
+    default?: string | null;
+    description: string;
+    input_type: RecipeParameterInputType;
+    key: string;
+    requirement: RecipeParameterRequirement;
+};
+
+export type RecipeParameterInputType = 'string' | 'number' | 'boolean' | 'date' | 'file';
+
+export type RecipeParameterRequirement = 'required' | 'optional' | 'user_prompt';
+
 export type RedactedThinkingContent = {
     data: string;
 };
@@ -349,6 +468,10 @@ export type ResourceContents = {
     blob: string;
     mime_type?: string | null;
     uri: string;
+};
+
+export type Response = {
+    json_schema?: unknown;
 };
 
 export type Role = string;
@@ -462,6 +585,21 @@ export type SessionMetadata = {
 
 export type SessionsQuery = {
     limit?: number;
+};
+
+export type Settings = {
+    goose_model?: string | null;
+    goose_provider?: string | null;
+    temperature?: number | null;
+};
+
+export type SubRecipe = {
+    name: string;
+    path: string;
+    sequential_when_repeated?: boolean;
+    values?: {
+        [key: string]: string;
+    } | null;
 };
 
 export type SummarizationRequested = {
@@ -997,6 +1135,83 @@ export type ManageContextResponses = {
 };
 
 export type ManageContextResponse = ManageContextResponses[keyof ManageContextResponses];
+
+export type CreateRecipeData = {
+    body: CreateRecipeRequest;
+    path?: never;
+    query?: never;
+    url: '/recipes/create';
+};
+
+export type CreateRecipeErrors = {
+    /**
+     * Bad request
+     */
+    400: unknown;
+    /**
+     * Precondition failed - Agent not available
+     */
+    412: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type CreateRecipeResponses = {
+    /**
+     * Recipe created successfully
+     */
+    200: CreateRecipeResponse;
+};
+
+export type CreateRecipeResponse2 = CreateRecipeResponses[keyof CreateRecipeResponses];
+
+export type DecodeRecipeData = {
+    body: DecodeRecipeRequest;
+    path?: never;
+    query?: never;
+    url: '/recipes/decode';
+};
+
+export type DecodeRecipeErrors = {
+    /**
+     * Bad request
+     */
+    400: unknown;
+};
+
+export type DecodeRecipeResponses = {
+    /**
+     * Recipe decoded successfully
+     */
+    200: DecodeRecipeResponse;
+};
+
+export type DecodeRecipeResponse2 = DecodeRecipeResponses[keyof DecodeRecipeResponses];
+
+export type EncodeRecipeData = {
+    body: EncodeRecipeRequest;
+    path?: never;
+    query?: never;
+    url: '/recipes/encode';
+};
+
+export type EncodeRecipeErrors = {
+    /**
+     * Bad request
+     */
+    400: unknown;
+};
+
+export type EncodeRecipeResponses = {
+    /**
+     * Recipe encoded successfully
+     */
+    200: EncodeRecipeResponse;
+};
+
+export type EncodeRecipeResponse2 = EncodeRecipeResponses[keyof EncodeRecipeResponses];
 
 export type CreateScheduleData = {
     body: CreateScheduleRequest;
