@@ -1,19 +1,141 @@
 use anyhow::Result;
 use std::process::Stdio;
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::process::Command;
+use tokio::sync::Mutex;
 use tracing::{debug, info, warn};
 
 use crate::agents::types::{
     RetryConfig, SuccessCheck, DEFAULT_ON_FAILURE_TIMEOUT_SECONDS, DEFAULT_RETRY_TIMEOUT_SECONDS,
 };
 use crate::config::Config;
+use crate::message::Message;
+use crate::tool_monitor::ToolMonitor;
+use crate::agents::types::SessionConfig;
 
 /// Environment variable for configuring retry timeout globally
 const GOOSE_RECIPE_RETRY_TIMEOUT_SECONDS: &str = "GOOSE_RECIPE_RETRY_TIMEOUT_SECONDS";
 
 /// Environment variable for configuring on_failure timeout globally
 const GOOSE_RECIPE_ON_FAILURE_TIMEOUT_SECONDS: &str = "GOOSE_RECIPE_ON_FAILURE_TIMEOUT_SECONDS";
+
+/// Manages retry state and operations for agent execution
+#[derive(Debug)]
+pub struct RetryManager {
+    /// Current number of retry attempts
+    attempts: Arc<Mutex<u32>>,
+    /// Optional tool monitor for reset operations
+    tool_monitor: Option<Arc<Mutex<Option<ToolMonitor>>>>,
+}
+
+impl Default for RetryManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl RetryManager {
+    /// Create a new retry manager
+    pub fn new() -> Self {
+        Self {
+            attempts: Arc::new(Mutex::new(0)),
+            tool_monitor: None,
+        }
+    }
+
+    /// Create a new retry manager with tool monitor
+    pub fn with_tool_monitor(tool_monitor: Arc<Mutex<Option<ToolMonitor>>>) -> Self {
+        Self {
+            attempts: Arc::new(Mutex::new(0)),
+            tool_monitor: Some(tool_monitor),
+        }
+    }
+
+    /// Reset the retry attempts counter to 0
+    pub async fn reset_attempts(&self) {
+        let mut attempts = self.attempts.lock().await;
+        *attempts = 0;
+        
+        // Reset tool monitor if available
+        if let Some(monitor) = &self.tool_monitor {
+            if let Some(monitor) = monitor.lock().await.as_mut() {
+                monitor.reset();
+            }
+        }
+    }
+
+    /// Increment the retry attempts counter and return the new value
+    pub async fn increment_attempts(&self) -> u32 {
+        let mut attempts = self.attempts.lock().await;
+        *attempts += 1;
+        *attempts
+    }
+
+    /// Get the current retry attempts count
+    pub async fn get_attempts(&self) -> u32 {
+        *self.attempts.lock().await
+    }
+
+    /// Handle retry logic for the agent reply loop
+    pub async fn handle_retry_logic(
+        &self,
+        messages: &mut Vec<Message>,
+        session: &Option<SessionConfig>,
+        initial_messages: &[Message],
+        final_output_tool: &Arc<Mutex<Option<crate::agents::final_output_tool::FinalOutputTool>>>,
+    ) -> Result<bool> {
+        let Some(session_config) = session else {
+            return Ok(false);
+        };
+
+        let Some(retry_config) = &session_config.retry_config else {
+            return Ok(false);
+        };
+
+        let success = execute_success_checks(&retry_config.checks, retry_config).await?;
+
+        if success {
+            info!("All success checks passed, no retry needed");
+            return Ok(false);
+        }
+
+        let current_attempts = self.get_attempts().await;
+        if current_attempts >= retry_config.max_retries {
+            let error_msg = Message::assistant().with_text(format!(
+                "Maximum retry attempts ({}) exceeded. Unable to complete the task successfully.",
+                retry_config.max_retries
+            ));
+            messages.push(error_msg);
+            warn!(
+                "Maximum retry attempts ({}) exceeded",
+                retry_config.max_retries
+            );
+            return Ok(false);
+        }
+
+        if let Some(on_failure_cmd) = &retry_config.on_failure {
+            info!("Executing on_failure command: {}", on_failure_cmd);
+            execute_on_failure_command(on_failure_cmd, retry_config).await?;
+        }
+
+        // Reset message history to initial state
+        messages.clear();
+        messages.extend_from_slice(initial_messages);
+        info!("Reset message history to initial state for retry");
+
+        // Clear final output tool state
+        if let Some(final_output_tool) = final_output_tool.lock().await.as_mut() {
+            final_output_tool.final_output = None;
+            info!("Cleared final output tool state for retry");
+        }
+
+        let new_attempts = self.increment_attempts().await;
+        info!("Incrementing retry attempts to {}", new_attempts);
+
+        Ok(true)
+    }
+}
 
 /// Get the configured timeout duration for retry operations
 /// retry_config.timeout_seconds -> env var -> default

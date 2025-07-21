@@ -29,7 +29,7 @@ use crate::tool_monitor::{ToolCall, ToolMonitor};
 use regex::Regex;
 use serde_json::Value;
 use tokio::sync::{mpsc, Mutex, RwLock};
-use tracing::{debug, error, info, instrument, warn};
+use tracing::{debug, error, info, instrument};
 
 use crate::agents::extension::{ExtensionConfig, ExtensionError, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
@@ -39,7 +39,7 @@ use crate::agents::platform_tools::{
     PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
 };
 use crate::agents::prompt_manager::PromptManager;
-use crate::agents::retry::{execute_on_failure_command, execute_success_checks};
+use crate::agents::retry::RetryManager;
 use crate::agents::router_tool_selector::{
     create_tool_selector, RouterToolSelectionStrategy, RouterToolSelector,
 };
@@ -65,7 +65,7 @@ pub struct Agent {
     pub(super) extension_manager: Arc<RwLock<ExtensionManager>>,
     pub(super) sub_recipe_manager: Mutex<SubRecipeManager>,
     pub(super) tasks_manager: TasksManager,
-    pub(super) final_output_tool: Mutex<Option<FinalOutputTool>>,
+    pub(super) final_output_tool: Arc<Mutex<Option<FinalOutputTool>>>,
     pub(super) frontend_tools: Mutex<HashMap<String, FrontendTool>>,
     pub(super) frontend_instructions: Mutex<Option<String>>,
     pub(super) prompt_manager: Mutex<PromptManager>,
@@ -73,12 +73,12 @@ pub struct Agent {
     pub(super) confirmation_rx: Mutex<mpsc::Receiver<(String, PermissionConfirmation)>>,
     pub(super) tool_result_tx: mpsc::Sender<(String, ToolResult<Vec<Content>>)>,
     pub(super) tool_result_rx: ToolResultReceiver,
-    pub(super) tool_monitor: Mutex<Option<ToolMonitor>>,
+    pub(super) tool_monitor: Arc<Mutex<Option<ToolMonitor>>>,
     pub(super) router_tool_selector: Mutex<Option<Arc<Box<dyn RouterToolSelector>>>>,
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
     pub(super) mcp_tx: Mutex<mpsc::Sender<JsonRpcMessage>>,
     pub(super) mcp_notification_rx: Arc<Mutex<mpsc::Receiver<JsonRpcMessage>>>,
-    pub(super) retry_attempts: Arc<Mutex<u32>>,
+    pub(super) retry_manager: RetryManager,
 }
 
 #[derive(Clone, Debug)]
@@ -136,12 +136,15 @@ impl Agent {
         // Add MCP notification channel
         let (mcp_tx, mcp_rx) = mpsc::channel(100);
 
+        let tool_monitor = Arc::new(Mutex::new(None));
+        let retry_manager = RetryManager::with_tool_monitor(tool_monitor.clone());
+        
         Self {
             provider: Mutex::new(None),
             extension_manager: Arc::new(RwLock::new(ExtensionManager::new())),
             sub_recipe_manager: Mutex::new(SubRecipeManager::new()),
             tasks_manager: TasksManager::new(),
-            final_output_tool: Mutex::new(None),
+            final_output_tool: Arc::new(Mutex::new(None)),
             frontend_tools: Mutex::new(HashMap::new()),
             frontend_instructions: Mutex::new(None),
             prompt_manager: Mutex::new(PromptManager::new()),
@@ -149,13 +152,13 @@ impl Agent {
             confirmation_rx: Mutex::new(confirm_rx),
             tool_result_tx: tool_tx,
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
-            tool_monitor: Mutex::new(None),
+            tool_monitor,
             router_tool_selector: Mutex::new(None),
             scheduler_service: Mutex::new(None),
             // Initialize with MCP notification support
             mcp_tx: Mutex::new(mcp_tx),
             mcp_notification_rx: Arc::new(Mutex::new(mcp_rx)),
-            retry_attempts: Arc::new(Mutex::new(0)),
+            retry_manager,
         }
     }
 
@@ -177,21 +180,17 @@ impl Agent {
 
     /// Reset the retry attempts counter to 0
     pub async fn reset_retry_attempts(&self) {
-        let mut retry_attempts = self.retry_attempts.lock().await;
-        *retry_attempts = 0;
-        self.reset_tool_monitor().await;
+        self.retry_manager.reset_attempts().await;
     }
 
     /// Increment the retry attempts counter and return the new value
     pub async fn increment_retry_attempts(&self) -> u32 {
-        let mut retry_attempts = self.retry_attempts.lock().await;
-        *retry_attempts += 1;
-        *retry_attempts
+        self.retry_manager.increment_attempts().await
     }
 
     /// Get the current retry attempts count
     pub async fn get_retry_attempts(&self) -> u32 {
-        *self.retry_attempts.lock().await
+        self.retry_manager.get_attempts().await
     }
 
     /// Handle retry logic for the agent reply loop
@@ -201,53 +200,12 @@ impl Agent {
         session: &Option<SessionConfig>,
         initial_messages: &[Message],
     ) -> Result<bool> {
-        let Some(session_config) = session else {
-            return Ok(false);
-        };
-
-        let Some(retry_config) = &session_config.retry_config else {
-            return Ok(false);
-        };
-
-        let success = execute_success_checks(&retry_config.checks, retry_config).await?;
-
-        if success {
-            info!("All success checks passed, no retry needed");
-            return Ok(false);
-        }
-
-        let current_attempts = self.get_retry_attempts().await;
-        if current_attempts >= retry_config.max_retries {
-            let error_msg = Message::assistant().with_text(format!(
-                "Maximum retry attempts ({}) exceeded. Unable to complete the task successfully.",
-                retry_config.max_retries
-            ));
-            messages.push(error_msg);
-            warn!(
-                "Maximum retry attempts ({}) exceeded",
-                retry_config.max_retries
-            );
-            return Ok(false);
-        }
-
-        if let Some(on_failure_cmd) = &retry_config.on_failure {
-            info!("Executing on_failure command: {}", on_failure_cmd);
-            execute_on_failure_command(on_failure_cmd, retry_config).await?;
-        }
-
-        messages.clear();
-        messages.extend_from_slice(initial_messages);
-        info!("Reset message history to initial state for retry");
-
-        if let Some(final_output_tool) = self.final_output_tool.lock().await.as_mut() {
-            final_output_tool.final_output = None;
-            info!("Cleared final output tool state for retry");
-        }
-
-        let new_attempts = self.increment_retry_attempts().await;
-        info!("Incrementing retry attempts to {}", new_attempts);
-
-        Ok(true)
+        self.retry_manager.handle_retry_logic(
+            messages,
+            session,
+            initial_messages,
+            &self.final_output_tool,
+        ).await
     }
 
     /// Set the scheduler service for this agent
