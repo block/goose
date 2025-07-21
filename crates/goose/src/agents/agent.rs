@@ -716,10 +716,8 @@ impl Agent {
                     break;
                 }
 
-                if let Some(token) = &cancel_token {
-                    if token.is_cancelled() {
-                        break;
-                    }
+                if cancel_token.as_ref().is_some_and(|t| t.is_cancelled()) {
+                    break;
                 }
 
                 if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
@@ -762,10 +760,8 @@ impl Agent {
 
                 let mut added_message = false;
                 while let Some(next) = stream.next().await {
-                    if let Some(token) = &cancel_token {
-                        if token.is_cancelled() {
-                            break;
-                        }
+                    if cancel_token.as_ref().is_some_and(|t| t.is_cancelled()) {
+                        break;
                     }
                     match next {
                         Ok((response, usage)) => {
