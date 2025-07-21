@@ -55,6 +55,10 @@ If you're already using a recipe and want to save a modified version:
 3. Make any desired edits to the description, instructions, or initial prompts
 5. Click **Save Recipe**
 
+:::note
+When you modify and save a recipe with a new name, a new recipe and new link are generated. You can still run the original recipe from the recipe library, or using the original link. If you edit a recipe without changing its name, the version in the recipe library is updated, but you can still run the original recipe via link.
+:::
+
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
 
