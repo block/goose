@@ -439,9 +439,7 @@ const INDENT: &str = "    ";
 
 fn get_tool_params_max_length(key: Option<&str>) -> usize {
     // Special handling for text_instruction to show more content
-    if let Some(key) = key
-        && key == "text_instruction"
-    {
+    if key.is_some() && key.unwrap() == "text_instruction" {
         200 // Allow longer display for text instructions
     } else {
         Config::global()

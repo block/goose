@@ -12,7 +12,7 @@ pub async fn run_complete_subagent_task(
 
     // Execute the subagent task
     let result = subagent
-        .reply_subagent(text_instruction, task_config)
+        .reply_subagent_simple(text_instruction, task_config)
         .await?;
     let response_text = result.as_concat_text();
 
