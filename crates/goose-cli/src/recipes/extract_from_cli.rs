@@ -15,7 +15,7 @@ pub fn extract_recipe_info_from_cli(
     recipe_name: String,
     params: Vec<(String, String)>,
     additional_sub_recipes: Vec<String>,
-) -> Result<RecipeInfo> {
+) -> Result<(InputConfig, RecipeInfo)> {
     let recipe = load_recipe(&recipe_name, params.clone()).unwrap_or_else(|err| {
         eprintln!("{}: {}", console::style("Error").red().bold(), err);
         std::process::exit(1);
@@ -46,12 +46,13 @@ pub fn extract_recipe_info_from_cli(
             }
         }
     }
-    Ok(RecipeInfo {
-        input_config: InputConfig {
-            contents: recipe.prompt.filter(|s| !s.trim().is_empty()),
-            extensions_override: recipe.extensions,
-            additional_system_prompt: recipe.instructions,
-        },
+    let input_config = InputConfig {
+        contents: recipe.prompt.filter(|s| !s.trim().is_empty()),
+        extensions_override: recipe.extensions,
+        additional_system_prompt: recipe.instructions,
+    };
+
+    let recipe_info = RecipeInfo {
         session_settings: recipe.settings.map(|s| SessionSettings {
             goose_provider: s.goose_provider,
             goose_model: s.goose_model,
@@ -60,7 +61,9 @@ pub fn extract_recipe_info_from_cli(
         sub_recipes: Some(all_sub_recipes),
         final_output_response: recipe.response,
         retry_config: recipe.retry,
-    })
+    };
+
+    Ok((input_config, recipe_info))
 }
 
 fn extract_recipe_name(recipe_identifier: &str) -> String {
@@ -91,8 +94,8 @@ mod tests {
         let params = vec![("name".to_string(), "my_value".to_string())];
         let recipe_name = recipe_path.to_str().unwrap().to_string();
 
-        let recipe_info = extract_recipe_info_from_cli(recipe_name, params, Vec::new()).unwrap();
-        let input_config = recipe_info.input_config;
+        let (input_config, recipe_info) =
+            extract_recipe_info_from_cli(recipe_name, params, Vec::new()).unwrap();
         let settings = recipe_info.session_settings;
         let sub_recipes = recipe_info.sub_recipes;
         let response = recipe_info.final_output_response;
@@ -150,9 +153,8 @@ mod tests {
             sub_recipe2_path.to_string_lossy().to_string(),
         ];
 
-        let recipe_info =
+        let (input_config, recipe_info) =
             extract_recipe_info_from_cli(recipe_name, params, additional_sub_recipes).unwrap();
-        let input_config = recipe_info.input_config;
         let settings = recipe_info.session_settings;
         let sub_recipes = recipe_info.sub_recipes;
         let response = recipe_info.final_output_response;

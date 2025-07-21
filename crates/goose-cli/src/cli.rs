@@ -687,7 +687,6 @@ pub struct InputConfig {
 
 #[derive(Debug)]
 pub struct RecipeInfo {
-    pub input_config: InputConfig,
     pub session_settings: Option<SessionSettings>,
     pub sub_recipes: Option<Vec<goose::recipe::SubRecipe>>,
     pub final_output_response: Option<goose::recipe::Response>,
@@ -838,24 +837,19 @@ pub async fn cli() -> Result<()> {
             provider,
             model,
         }) => {
-            let recipe_info = match (instructions, input_text, recipe) {
+            let (input_config, recipe_info) = match (instructions, input_text, recipe) {
                 (Some(file), _, _) if file == "-" => {
                     let mut input = String::new();
                     std::io::stdin()
                         .read_to_string(&mut input)
                         .expect("Failed to read from stdin");
 
-                    RecipeInfo {
-                        input_config: InputConfig {
-                            contents: Some(input),
-                            extensions_override: None,
-                            additional_system_prompt: system,
-                        },
-                        session_settings: None,
-                        sub_recipes: None,
-                        final_output_response: None,
-                        retry_config: None,
-                    }
+                    let input_config = InputConfig {
+                        contents: Some(input),
+                        extensions_override: None,
+                        additional_system_prompt: system,
+                    };
+                    (input_config, None)
                 }
                 (Some(file), _, _) => {
                     let contents = std::fs::read_to_string(&file).unwrap_or_else(|err| {
@@ -865,29 +859,21 @@ pub async fn cli() -> Result<()> {
                         );
                         std::process::exit(1);
                     });
-                    RecipeInfo {
-                        input_config: InputConfig {
-                            contents: Some(contents),
-                            extensions_override: None,
-                            additional_system_prompt: None,
-                        },
-                        session_settings: None,
-                        sub_recipes: None,
-                        final_output_response: None,
-                        retry_config: None,
-                    }
+                    let input_config = InputConfig {
+                        contents: Some(contents),
+                        extensions_override: None,
+                        additional_system_prompt: None,
+                    };
+                    (input_config, None)
                 }
-                (_, Some(text), _) => RecipeInfo {
-                    input_config: InputConfig {
+                (_, Some(text), _) => {
+                    let input_config = InputConfig {
                         contents: Some(text),
                         extensions_override: None,
                         additional_system_prompt: system,
-                    },
-                    session_settings: None,
-                    sub_recipes: None,
-                    final_output_response: None,
-                    retry_config: None,
-                },
+                    };
+                    (input_config, None)
+                }
                 (_, _, Some(recipe_name)) => {
                     if explain {
                         explain_recipe(&recipe_name, params)?;
@@ -900,7 +886,9 @@ pub async fn cli() -> Result<()> {
                         }
                         return Ok(());
                     }
-                    extract_recipe_info_from_cli(recipe_name, params, additional_sub_recipes)?
+                    let (input_config, recipe_info) =
+                        extract_recipe_info_from_cli(recipe_name, params, additional_sub_recipes)?;
+                    (input_config, Some(recipe_info))
                 }
                 (None, None, None) => {
                     eprintln!("Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin.");
@@ -916,9 +904,11 @@ pub async fn cli() -> Result<()> {
                 remote_extensions,
                 streamable_http_extensions,
                 builtins,
-                extensions_override: recipe_info.input_config.extensions_override,
-                additional_system_prompt: recipe_info.input_config.additional_system_prompt,
-                settings: recipe_info.session_settings,
+                extensions_override: input_config.extensions_override,
+                additional_system_prompt: input_config.additional_system_prompt,
+                settings: recipe_info
+                    .as_ref()
+                    .and_then(|r| r.session_settings.clone()),
                 provider,
                 model,
                 debug,
@@ -927,9 +917,11 @@ pub async fn cli() -> Result<()> {
                 scheduled_job_id,
                 interactive, // Use the interactive flag from the Run command
                 quiet,
-                sub_recipes: recipe_info.sub_recipes,
-                final_output_response: recipe_info.final_output_response,
-                retry_config: recipe_info.retry_config,
+                sub_recipes: recipe_info.as_ref().and_then(|r| r.sub_recipes.clone()),
+                final_output_response: recipe_info
+                    .as_ref()
+                    .and_then(|r| r.final_output_response.clone()),
+                retry_config: recipe_info.as_ref().and_then(|r| r.retry_config.clone()),
             })
             .await;
 
@@ -943,8 +935,8 @@ pub async fn cli() -> Result<()> {
             )?;
 
             if interactive {
-                let _ = session.interactive(recipe_info.input_config.contents).await;
-            } else if let Some(contents) = recipe_info.input_config.contents {
+                let _ = session.interactive(input_config.contents).await;
+            } else if let Some(contents) = input_config.contents {
                 let _ = session.headless(contents).await;
             } else {
                 eprintln!("Error: no text provided for prompt in headless mode");
