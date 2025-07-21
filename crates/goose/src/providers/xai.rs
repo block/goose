@@ -3,14 +3,17 @@ use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
-use crate::providers::utils::get_model;
+use crate::providers::provider_common::{
+    build_endpoint_url, get_shared_client, retry_with_backoff, AuthType, HeaderBuilder,
+    ProviderConfigBuilder, RetryConfig,
+};
+use crate::providers::utils::{emit_debug_trace, get_model, handle_response_openai_compat};
 use anyhow::Result;
 use async_trait::async_trait;
 use mcp_core::Tool;
-use reqwest::{Client, StatusCode};
+use reqwest::Client;
 use serde_json::Value;
-use std::time::Duration;
-use url::Url;
+use std::sync::Arc;
 
 pub const XAI_API_HOST: &str = "https://api.x.ai/v1";
 pub const XAI_DEFAULT_MODEL: &str = "grok-3";
@@ -39,10 +42,12 @@ pub const XAI_DOC_URL: &str = "https://docs.x.ai/docs/overview";
 #[derive(serde::Serialize)]
 pub struct XaiProvider {
     #[serde(skip)]
-    client: Client,
+    client: Arc<Client>,
     host: String,
     api_key: String,
     model: ModelConfig,
+    #[serde(skip)]
+    retry_config: RetryConfig,
 }
 
 impl Default for XaiProvider {
@@ -55,72 +60,48 @@ impl Default for XaiProvider {
 impl XaiProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
-        let api_key: String = config.get_secret("XAI_API_KEY")?;
-        let host: String = config
-            .get_param("XAI_HOST")
-            .unwrap_or_else(|_| XAI_API_HOST.to_string());
+        let config_builder = ProviderConfigBuilder::new(config, "XAI");
 
-        let client = Client::builder()
-            .timeout(Duration::from_secs(600))
-            .build()?;
+        let api_key = config_builder.get_api_key()?;
+        let host = config_builder.get_host(XAI_API_HOST);
+
+        // Use shared client for better connection pooling
+        let client = get_shared_client();
+
+        // Configure retry settings
+        let retry_config = RetryConfig::default();
 
         Ok(Self {
             client,
             host,
             api_key,
             model,
+            retry_config,
         })
     }
 
     async fn post(&self, payload: Value) -> anyhow::Result<Value, ProviderError> {
-        // Ensure the host ends with a slash for proper URL joining
-        let host = if self.host.ends_with('/') {
-            self.host.clone()
-        } else {
-            format!("{}/", self.host)
-        };
-        let base_url = Url::parse(&host)
-            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
-        let url = base_url.join("chat/completions").map_err(|e| {
-            ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
-        })?;
+        let url = build_endpoint_url(&self.host, "chat/completions")?;
+
+        // Build headers using HeaderBuilder
+        let headers = HeaderBuilder::new(self.api_key.clone(), AuthType::Bearer).build();
 
         tracing::debug!("xAI API URL: {}", url);
         tracing::debug!("xAI request model: {:?}", self.model.model_name);
 
-        let response = self
-            .client
-            .post(url)
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .json(&payload)
-            .send()
-            .await?;
+        // Use retry logic for resilience
+        retry_with_backoff(&self.retry_config, || async {
+            let response = self
+                .client
+                .post(url.clone())
+                .headers(headers.clone())
+                .json(&payload)
+                .send()
+                .await?;
 
-        let status = response.status();
-        let payload: Option<Value> = response.json().await.ok();
-
-        match status {
-            StatusCode::OK => payload.ok_or_else( || ProviderError::RequestFailed("Response body is not valid JSON".to_string()) ),
-            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
-                Err(ProviderError::Authentication(format!("Authentication failed. Please ensure your API keys are valid and have the required permissions. \
-                    Status: {}. Response: {:?}", status, payload)))
-            }
-            StatusCode::PAYLOAD_TOO_LARGE => {
-                Err(ProviderError::ContextLengthExceeded(format!("{:?}", payload)))
-            }
-            StatusCode::TOO_MANY_REQUESTS => {
-                Err(ProviderError::RateLimitExceeded(format!("{:?}", payload)))
-            }
-            StatusCode::INTERNAL_SERVER_ERROR | StatusCode::SERVICE_UNAVAILABLE => {
-                Err(ProviderError::ServerError(format!("{:?}", payload)))
-            }
-            _ => {
-                tracing::debug!(
-                    "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
-                );
-                Err(ProviderError::RequestFailed(format!("Request failed with status: {}", status)))
-            }
-        }
+            handle_response_openai_compat(response).await
+        })
+        .await
     }
 }
 
@@ -171,7 +152,37 @@ impl Provider for XaiProvider {
             Usage::default()
         });
         let model = get_model(&response);
-        super::utils::emit_debug_trace(&self.model, &payload, &response, &usage);
+        emit_debug_trace(&self.model, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(model, usage)))
+    }
+
+    /// Fetch supported models from xAI API; returns Err on failure, Ok(None) if no models found
+    async fn fetch_supported_models_async(&self) -> Result<Option<Vec<String>>, ProviderError> {
+        let url = build_endpoint_url(&self.host, "models")?;
+
+        // Build headers using HeaderBuilder
+        let headers = HeaderBuilder::new(self.api_key.clone(), AuthType::Bearer).build();
+
+        let response = self.client.get(url).headers(headers).send().await?;
+        let json: serde_json::Value = response.json().await?;
+
+        if let Some(err_obj) = json.get("error") {
+            let msg = err_obj
+                .get("message")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown error");
+            return Err(ProviderError::Authentication(msg.to_string()));
+        }
+
+        let data = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
+            ProviderError::UsageError("Missing data field in JSON response".into())
+        })?;
+
+        let mut models: Vec<String> = data
+            .iter()
+            .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
+            .collect();
+        models.sort();
+        Ok(Some(models))
     }
 }

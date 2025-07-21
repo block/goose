@@ -8,10 +8,10 @@ use aws_sdk_bedrockruntime::config::ProvideCredentials;
 use aws_sdk_sagemakerruntime::Client as SageMakerClient;
 use mcp_core::Tool;
 use serde_json::{json, Value};
-use tokio::time::sleep;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
+use super::provider_common::{retry_with_backoff, RetryConfig};
 use super::utils::emit_debug_trace;
 use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
@@ -29,6 +29,8 @@ pub struct SageMakerTgiProvider {
     sagemaker_client: SageMakerClient,
     endpoint_name: String,
     model: ModelConfig,
+    #[serde(skip)]
+    retry_config: RetryConfig,
 }
 
 impl SageMakerTgiProvider {
@@ -75,10 +77,14 @@ impl SageMakerTgiProvider {
 
         let sagemaker_client = SageMakerClient::new(&config_with_timeout);
 
+        // Configure retry settings
+        let retry_config = RetryConfig::default();
+
         Ok(Self {
             sagemaker_client,
             endpoint_name,
             model,
+            retry_config,
         })
     }
 
@@ -156,27 +162,45 @@ impl SageMakerTgiProvider {
             ProviderError::RequestFailed(format!("Failed to serialize request: {}", e))
         })?;
 
-        let response = self
-            .sagemaker_client
-            .invoke_endpoint()
-            .endpoint_name(&self.endpoint_name)
-            .content_type("application/json")
-            .body(body.into_bytes().into())
-            .send()
-            .await
-            .map_err(|e| ProviderError::RequestFailed(format!("SageMaker invoke failed: {}", e)))?;
+        // Use retry logic for resilience
+        retry_with_backoff(&self.retry_config, || async {
+            let response = self
+                .sagemaker_client
+                .invoke_endpoint()
+                .endpoint_name(&self.endpoint_name)
+                .content_type("application/json")
+                .body(body.clone().into_bytes().into())
+                .send()
+                .await
+                .map_err(|e| {
+                    // Convert AWS SDK errors to appropriate ProviderError types
+                    let error_msg = format!("SageMaker invoke failed: {}", e);
+                    if error_msg.contains("ThrottlingException") {
+                        ProviderError::RateLimitExceeded(error_msg)
+                    } else if error_msg.contains("ValidationException")
+                        && error_msg.contains("payload size")
+                    {
+                        ProviderError::ContextLengthExceeded(error_msg)
+                    } else if error_msg.contains("ModelError") {
+                        ProviderError::ExecutionError(error_msg)
+                    } else {
+                        ProviderError::RequestFailed(error_msg)
+                    }
+                })?;
 
-        let response_body = response
-            .body
-            .as_ref()
-            .ok_or_else(|| ProviderError::RequestFailed("Empty response body".to_string()))?;
-        let response_text = std::str::from_utf8(response_body.as_ref()).map_err(|e| {
-            ProviderError::RequestFailed(format!("Failed to decode response: {}", e))
-        })?;
+            let response_body = response
+                .body
+                .as_ref()
+                .ok_or_else(|| ProviderError::RequestFailed("Empty response body".to_string()))?;
+            let response_text = std::str::from_utf8(response_body.as_ref()).map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to decode response: {}", e))
+            })?;
 
-        serde_json::from_str(response_text).map_err(|e| {
-            ProviderError::RequestFailed(format!("Failed to parse response JSON: {}", e))
+            serde_json::from_str(response_text).map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to parse response JSON: {}", e))
+            })
         })
+        .await
     }
 
     fn parse_tgi_response(&self, response: Value) -> Result<Message, ProviderError> {
@@ -299,63 +323,30 @@ impl Provider for SageMakerTgiProvider {
             ProviderError::RequestFailed(format!("Failed to create request: {}", e))
         })?;
 
-        // Retry configuration
-        const MAX_RETRIES: u32 = 3;
-        const INITIAL_BACKOFF_MS: u64 = 1000; // 1 second
-        const MAX_BACKOFF_MS: u64 = 30000; // 30 seconds
+        let response = self.invoke_endpoint(request_payload.clone()).await?;
+        let message = self.parse_tgi_response(response)?;
 
-        let mut attempts = 0;
-        let mut backoff_ms = INITIAL_BACKOFF_MS;
+        // TGI doesn't provide usage statistics, so we estimate
+        let usage = Usage {
+            input_tokens: Some(0),  // Would need to tokenize input to get accurate count
+            output_tokens: Some(0), // Would need to tokenize output to get accurate count
+            total_tokens: Some(0),
+        };
 
-        loop {
-            attempts += 1;
+        // Add debug trace
+        let debug_payload = serde_json::json!({
+            "system": system,
+            "messages": messages,
+            "tools": tools
+        });
+        emit_debug_trace(
+            &self.model,
+            &debug_payload,
+            &serde_json::to_value(&message).unwrap_or_default(),
+            &usage,
+        );
 
-            match self.invoke_endpoint(request_payload.clone()).await {
-                Ok(response) => {
-                    let message = self.parse_tgi_response(response)?;
-
-                    // TGI doesn't provide usage statistics, so we estimate
-                    let usage = Usage {
-                        input_tokens: Some(0),  // Would need to tokenize input to get accurate count
-                        output_tokens: Some(0), // Would need to tokenize output to get accurate count
-                        total_tokens: Some(0),
-                    };
-
-                    // Add debug trace
-                    let debug_payload = serde_json::json!({
-                        "system": system,
-                        "messages": messages,
-                        "tools": tools
-                    });
-                    emit_debug_trace(
-                        &self.model,
-                        &debug_payload,
-                        &serde_json::to_value(&message).unwrap_or_default(),
-                        &usage,
-                    );
-
-                    let provider_usage = ProviderUsage::new(model_name.to_string(), usage);
-                    return Ok((message, provider_usage));
-                }
-                Err(err) => {
-                    if attempts > MAX_RETRIES {
-                        return Err(err);
-                    }
-
-                    // Log retry attempt
-                    tracing::warn!(
-                        "SageMaker TGI request failed (attempt {}/{}), retrying in {} ms: {:?}",
-                        attempts,
-                        MAX_RETRIES,
-                        backoff_ms,
-                        err
-                    );
-
-                    // Wait before retry
-                    sleep(Duration::from_millis(backoff_ms)).await;
-                    backoff_ms = (backoff_ms * 2).min(MAX_BACKOFF_MS);
-                }
-            }
-        }
+        let provider_usage = ProviderUsage::new(model_name.to_string(), usage);
+        Ok((message, provider_usage))
     }
 }

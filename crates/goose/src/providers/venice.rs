@@ -4,10 +4,14 @@ use chrono::Utc;
 use reqwest::{Client, Response};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::time::Duration;
+use std::sync::Arc;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
+use super::provider_common::{
+    build_endpoint_url, get_shared_client, retry_with_backoff, AuthType, HeaderBuilder,
+    ProviderConfigBuilder, RetryConfig,
+};
 use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use mcp_core::{tool::Tool, ToolCall, ToolResult};
@@ -72,12 +76,14 @@ const FALLBACK_MODELS: [&str; 3] = [
 #[derive(Debug, Serialize, Deserialize)]
 pub struct VeniceProvider {
     #[serde(skip)]
-    client: Client,
+    client: Arc<Client>,
     host: String,
     base_path: String,
     models_path: String,
     api_key: String,
     model: ModelConfig,
+    #[serde(skip)]
+    retry_config: RetryConfig,
 }
 
 impl Default for VeniceProvider {
@@ -90,23 +96,25 @@ impl Default for VeniceProvider {
 impl VeniceProvider {
     pub fn from_env(mut model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
-        let api_key: String = config.get_secret("VENICE_API_KEY")?;
-        let host: String = config
-            .get_param("VENICE_HOST")
-            .unwrap_or_else(|_| VENICE_DEFAULT_HOST.to_string());
-        let base_path: String = config
-            .get_param("VENICE_BASE_PATH")
-            .unwrap_or_else(|_| VENICE_DEFAULT_BASE_PATH.to_string());
-        let models_path: String = config
-            .get_param("VENICE_MODELS_PATH")
-            .unwrap_or_else(|_| VENICE_DEFAULT_MODELS_PATH.to_string());
+        let config_builder = ProviderConfigBuilder::new(config, "VENICE");
+
+        let api_key = config_builder.get_api_key()?;
+        let host = config_builder.get_host(VENICE_DEFAULT_HOST);
+        let base_path = config_builder
+            .get_param("BASE_PATH", Some(VENICE_DEFAULT_BASE_PATH))
+            .unwrap_or_else(|| VENICE_DEFAULT_BASE_PATH.to_string());
+        let models_path = config_builder
+            .get_param("MODELS_PATH", Some(VENICE_DEFAULT_MODELS_PATH))
+            .unwrap_or_else(|| VENICE_DEFAULT_MODELS_PATH.to_string());
 
         // Ensure we only keep the bare model id internally
         model.model_name = strip_flags(&model.model_name).to_string();
 
-        let client = Client::builder()
-            .timeout(Duration::from_secs(600))
-            .build()?;
+        // Use shared client for better connection pooling
+        let client = get_shared_client();
+
+        // Configure retry settings
+        let retry_config = RetryConfig::default();
 
         let instance = Self {
             client,
@@ -115,106 +123,112 @@ impl VeniceProvider {
             models_path,
             api_key,
             model,
+            retry_config,
         };
 
         Ok(instance)
     }
 
     async fn post(&self, path: &str, body: &str) -> Result<Response, ProviderError> {
-        let base_url = url::Url::parse(&self.host)
-            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
-        let url = base_url
-            .join(path)
-            .map_err(|e| ProviderError::RequestFailed(format!("Failed to construct URL: {e}")))?;
+        let url = build_endpoint_url(&self.host, path)?;
+
+        // Build headers using HeaderBuilder
+        let headers = HeaderBuilder::new(self.api_key.clone(), AuthType::Bearer).build();
+
         // Choose GET for models endpoint, POST otherwise
-        let method = if path.contains("models") {
-            tracing::debug!("Using GET method for models endpoint");
-            self.client.get(url.clone())
-        } else {
-            tracing::debug!("Using POST method for completions endpoint");
-            self.client.post(url.clone())
-        };
+        let is_models_endpoint = path.contains("models");
 
-        // Log the request details
-        tracing::debug!("Venice request URL: {}", url);
-        tracing::debug!("Venice request body: {}", body);
+        // Use retry logic for resilience
+        retry_with_backoff(&self.retry_config, || async {
+            // Log the request details
+            tracing::debug!("Venice request URL: {}", url);
+            tracing::debug!("Venice request body: {}", body);
 
-        let response = method
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("Content-Type", "application/json")
-            .body(body.to_string())
-            .send()
-            .await?;
+            let response = if is_models_endpoint {
+                tracing::debug!("Using GET method for models endpoint");
+                self.client.get(url.clone())
+                    .headers(headers.clone())
+                    .send()
+                    .await?
+            } else {
+                tracing::debug!("Using POST method for completions endpoint");
+                self.client.post(url.clone())
+                    .headers(headers.clone())
+                    .body(body.to_string())
+                    .send()
+                    .await?
+            };
 
-        let status = response.status();
-        tracing::debug!("Venice response status: {}", status);
+            let status = response.status();
+            tracing::debug!("Venice response status: {}", status);
 
-        if !status.is_success() {
-            // Read response body for more details on error
-            let error_body = response.text().await.unwrap_or_default();
+            if !status.is_success() {
+                // Read response body for more details on error
+                let error_body = response.text().await.unwrap_or_default();
 
-            // Log full error response for debugging
-            tracing::debug!("Full Venice error response: {}", error_body);
+                // Log full error response for debugging
+                tracing::debug!("Full Venice error response: {}", error_body);
 
-            // Try to parse the error response
-            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&error_body) {
-                // Print the full JSON error for better debugging
-                println!(
-                    "Venice API error response: {}",
-                    serde_json::to_string_pretty(&json).unwrap_or_else(|_| json.to_string())
-                );
+                // Try to parse the error response
+                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&error_body) {
+                    // Print the full JSON error for better debugging
+                    println!(
+                        "Venice API error response: {}",
+                        serde_json::to_string_pretty(&json).unwrap_or_else(|_| json.to_string())
+                    );
 
-                // Check for tool support errors
-                if let Some(details) = json.get("details") {
-                    // Specifically look for tool support issues
-                    if let Some(tools) = details.get("tools") {
-                        if let Some(errors) = tools.get("_errors") {
-                            if errors.to_string().contains("not supported by this model") {
-                                let model_name = self.model.model_name.clone();
-                                return Err(ProviderError::RequestFailed(
-                                    format!("The selected model '{}' does not support tool calls. Please select a model that supports tools, such as 'llama-3.3-70b' or 'mistral-31-24b'.", model_name)
-                                ));
+                    // Check for tool support errors
+                    if let Some(details) = json.get("details") {
+                        // Specifically look for tool support issues
+                        if let Some(tools) = details.get("tools") {
+                            if let Some(errors) = tools.get("_errors") {
+                                if errors.to_string().contains("not supported by this model") {
+                                    let model_name = self.model.model_name.clone();
+                                    return Err(ProviderError::RequestFailed(
+                                        format!("The selected model '{}' does not support tool calls. Please select a model that supports tools, such as 'llama-3.3-70b' or 'mistral-31-24b'.", model_name)
+                                    ));
+                                }
                             }
                         }
                     }
-                }
 
-                // Check for specific error message in context.issues
-                if let Some(context) = json.get("context") {
-                    if let Some(issues) = context.get("issues") {
-                        if let Some(issues_array) = issues.as_array() {
-                            for issue in issues_array {
-                                if let Some(message) = issue.get("message").and_then(|m| m.as_str())
-                                {
-                                    if message.contains("tools is not supported by this model") {
-                                        let model_name = self.model.model_name.clone();
-                                        return Err(ProviderError::RequestFailed(
-                                            format!("The selected model '{}' does not support tool calls. Please select a model that supports tools, such as 'llama-3.3-70b' or 'mistral-31-24b'.", model_name)
-                                        ));
+                    // Check for specific error message in context.issues
+                    if let Some(context) = json.get("context") {
+                        if let Some(issues) = context.get("issues") {
+                            if let Some(issues_array) = issues.as_array() {
+                                for issue in issues_array {
+                                    if let Some(message) = issue.get("message").and_then(|m| m.as_str())
+                                    {
+                                        if message.contains("tools is not supported by this model") {
+                                            let model_name = self.model.model_name.clone();
+                                            return Err(ProviderError::RequestFailed(
+                                                format!("The selected model '{}' does not support tool calls. Please select a model that supports tools, such as 'llama-3.3-70b' or 'mistral-31-24b'.", model_name)
+                                            ));
+                                        }
                                     }
                                 }
                             }
                         }
                     }
+
+                    // General error extraction
+                    if let Some(error_msg) = json.get("error").and_then(|e| e.as_str()) {
+                        return Err(ProviderError::RequestFailed(format!(
+                            "Venice API error: {}",
+                            error_msg
+                        )));
+                    }
                 }
 
-                // General error extraction
-                if let Some(error_msg) = json.get("error").and_then(|e| e.as_str()) {
-                    return Err(ProviderError::RequestFailed(format!(
-                        "Venice API error: {}",
-                        error_msg
-                    )));
-                }
+                // Fallback for unparseable errors
+                return Err(ProviderError::RequestFailed(format!(
+                    "Venice API request failed with status code {}",
+                    status
+                )));
             }
 
-            // Fallback for unparseable errors
-            return Err(ProviderError::RequestFailed(format!(
-                "Venice API request failed with status code {}",
-                status
-            )));
-        }
-
-        Ok(response)
+            Ok(response)
+        }).await
     }
 }
 
@@ -252,24 +266,8 @@ impl Provider for VeniceProvider {
     }
 
     async fn fetch_supported_models_async(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        // Fetch supported models via Venice API
-        let base_url = url::Url::parse(&self.host)
-            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {}", e)))?;
-        let models_url = base_url.join(&self.models_path).map_err(|e| {
-            ProviderError::RequestFailed(format!("Failed to construct models URL: {}", e))
-        })?;
-        let response = self
-            .client
-            .get(models_url)
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .send()
-            .await?;
-        if !response.status().is_success() {
-            return Err(ProviderError::RequestFailed(format!(
-                "Venice API request failed with status {}",
-                response.status()
-            )));
-        }
+        // Fetch supported models via Venice API using the post method
+        let response = self.post(&self.models_path, "").await?;
         let body = response.text().await?;
         let json: serde_json::Value = serde_json::from_str(&body)
             .map_err(|e| ProviderError::RequestFailed(format!("Failed to parse JSON: {}", e)))?;

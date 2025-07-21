@@ -26,6 +26,18 @@ pub enum ProviderError {
 
     #[error("Unsupported operation: {0}")]
     NotImplemented(String),
+
+    #[error("Timeout error: Request timed out after {0} seconds")]
+    Timeout(u64),
+
+    #[error("Network error: {0}")]
+    NetworkError(String),
+
+    #[error("Invalid response: {0}")]
+    InvalidResponse(String),
+
+    #[error("Configuration error: {0}")]
+    ConfigurationError(String),
 }
 
 impl From<anyhow::Error> for ProviderError {
@@ -36,7 +48,18 @@ impl From<anyhow::Error> for ProviderError {
 
 impl From<reqwest::Error> for ProviderError {
     fn from(error: reqwest::Error) -> Self {
-        ProviderError::ExecutionError(error.to_string())
+        if error.is_timeout() {
+            // Extract timeout duration if possible from error message
+            ProviderError::Timeout(600) // Default to our standard timeout
+        } else if error.is_connect() {
+            ProviderError::NetworkError(format!("Connection failed: {}", error))
+        } else if error.is_decode() {
+            ProviderError::InvalidResponse(format!("Failed to decode response: {}", error))
+        } else if error.is_builder() || error.is_request() {
+            ProviderError::ConfigurationError(format!("Request configuration error: {}", error))
+        } else {
+            ProviderError::ExecutionError(error.to_string())
+        }
     }
 }
 
@@ -178,5 +201,45 @@ impl std::fmt::Display for OpenAIError {
             write!(f, ")")?;
         }
         Ok(())
+    }
+}
+
+/// Trait for parsing provider-specific error responses
+pub trait ProviderErrorParser {
+    /// Parse an error response into a ProviderError
+    fn parse_error_response(&self, status: StatusCode, response_text: &str) -> ProviderError;
+
+    /// Check if an error indicates context length exceeded
+    fn is_context_length_error(&self, response_text: &str) -> bool {
+        response_text.to_lowercase().contains("context")
+            || response_text.to_lowercase().contains("too long")
+            || response_text.to_lowercase().contains("too many tokens")
+            || response_text.to_lowercase().contains("exceeds")
+    }
+}
+
+/// Default implementation for providers without specific error parsing
+pub struct DefaultErrorParser;
+
+impl ProviderErrorParser for DefaultErrorParser {
+    fn parse_error_response(&self, status: StatusCode, response_text: &str) -> ProviderError {
+        let error_msg = format!("API error ({}): {}", status, response_text);
+
+        match status {
+            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
+                ProviderError::Authentication(error_msg)
+            }
+            StatusCode::TOO_MANY_REQUESTS => ProviderError::RateLimitExceeded(error_msg),
+            StatusCode::BAD_REQUEST => {
+                if self.is_context_length_error(response_text) {
+                    ProviderError::ContextLengthExceeded(error_msg)
+                } else {
+                    ProviderError::RequestFailed(error_msg)
+                }
+            }
+            s if s.is_server_error() => ProviderError::ServerError(error_msg),
+            StatusCode::REQUEST_TIMEOUT => ProviderError::Timeout(408),
+            _ => ProviderError::RequestFailed(error_msg),
+        }
     }
 }

@@ -6,7 +6,7 @@ use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io;
-use std::time::Duration;
+use std::sync::Arc;
 use tokio::pin;
 use tokio_util::io::StreamReader;
 
@@ -15,17 +15,16 @@ use super::embedding::EmbeddingCapable;
 use super::errors::ProviderError;
 use super::formats::databricks::{create_request, response_to_message};
 use super::oauth;
-use super::utils::{get_model, ImageFormat};
+use super::provider_common::{
+    build_endpoint_url, get_shared_client, retry_with_backoff, ProviderConfigBuilder, RetryConfig,
+};
+use super::utils::{emit_debug_trace, get_model, ImageFormat};
 use crate::config::ConfigError;
 use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{get_usage, response_to_streaming_message};
 use mcp_core::tool::Tool;
 use serde_json::json;
-use tokio::time::sleep;
-use tokio_stream::StreamExt;
-use tokio_util::codec::{FramedRead, LinesCodec};
-use url::Url;
 
 const DEFAULT_CLIENT_ID: &str = "databricks-cli";
 const DEFAULT_REDIRECT_URL: &str = "http://localhost:8020";
@@ -33,16 +32,10 @@ const DEFAULT_REDIRECT_URL: &str = "http://localhost:8020";
 // https://openid.net/specs/openid-connect-core-1_0.html#OfflineAccess
 const DEFAULT_SCOPES: &[&str] = &["all-apis", "offline_access"];
 
-/// Default timeout for API requests in seconds
-const DEFAULT_TIMEOUT_SECS: u64 = 600;
-/// Default initial interval for retry (in milliseconds)
-const DEFAULT_INITIAL_RETRY_INTERVAL_MS: u64 = 5000;
-/// Default maximum number of retries
-const DEFAULT_MAX_RETRIES: usize = 6;
-/// Default retry backoff multiplier
-const DEFAULT_BACKOFF_MULTIPLIER: f64 = 2.0;
-/// Default maximum interval for retry (in milliseconds)
-const DEFAULT_MAX_RETRY_INTERVAL_MS: u64 = 320_000;
+// Databricks specific retry settings
+const DATABRICKS_MAX_RETRIES: u32 = 6;
+const DATABRICKS_INITIAL_RETRY_INTERVAL_MS: u64 = 5000;
+const DATABRICKS_MAX_RETRY_INTERVAL_MS: u64 = 320_000;
 
 pub const DATABRICKS_DEFAULT_MODEL: &str = "databricks-claude-3-7-sonnet";
 // Databricks can passthrough to a wide range of models, we only provide the default
@@ -55,53 +48,6 @@ pub const DATABRICKS_KNOWN_MODELS: &[&str] = &[
 
 pub const DATABRICKS_DOC_URL: &str =
     "https://docs.databricks.com/en/generative-ai/external-models/index.html";
-
-/// Retry configuration for handling rate limit errors
-#[derive(Debug, Clone)]
-struct RetryConfig {
-    /// Maximum number of retry attempts
-    max_retries: usize,
-    /// Initial interval between retries in milliseconds
-    initial_interval_ms: u64,
-    /// Multiplier for backoff (exponential)
-    backoff_multiplier: f64,
-    /// Maximum interval between retries in milliseconds
-    max_interval_ms: u64,
-}
-
-impl Default for RetryConfig {
-    fn default() -> Self {
-        Self {
-            max_retries: DEFAULT_MAX_RETRIES,
-            initial_interval_ms: DEFAULT_INITIAL_RETRY_INTERVAL_MS,
-            backoff_multiplier: DEFAULT_BACKOFF_MULTIPLIER,
-            max_interval_ms: DEFAULT_MAX_RETRY_INTERVAL_MS,
-        }
-    }
-}
-
-impl RetryConfig {
-    /// Calculate the delay for a specific retry attempt (with jitter)
-    fn delay_for_attempt(&self, attempt: usize) -> Duration {
-        if attempt == 0 {
-            return Duration::from_millis(0);
-        }
-
-        // Calculate exponential backoff
-        let exponent = (attempt - 1) as u32;
-        let base_delay_ms = (self.initial_interval_ms as f64
-            * self.backoff_multiplier.powi(exponent as i32)) as u64;
-
-        // Apply max limit
-        let capped_delay_ms = std::cmp::min(base_delay_ms, self.max_interval_ms);
-
-        // Add jitter (+/-20% randomness) to avoid thundering herd problem
-        let jitter_factor = 0.8 + (rand::random::<f64>() * 0.4); // Between 0.8 and 1.2
-        let jittered_delay_ms = (capped_delay_ms as f64 * jitter_factor) as u64;
-
-        Duration::from_millis(jittered_delay_ms)
-    }
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DatabricksAuth {
@@ -132,7 +78,7 @@ impl DatabricksAuth {
 #[derive(Debug, serde::Serialize)]
 pub struct DatabricksProvider {
     #[serde(skip)]
-    client: Client,
+    client: Arc<Client>,
     host: String,
     auth: DatabricksAuth,
     model: ModelConfig,
@@ -151,6 +97,7 @@ impl Default for DatabricksProvider {
 impl DatabricksProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
+        let config_builder = ProviderConfigBuilder::new(config, "DATABRICKS");
 
         // For compatibility for now we check both config and secret for databricks host
         // but it is not actually a secret value
@@ -168,12 +115,25 @@ impl DatabricksProvider {
 
         let host = host?;
 
-        let client = Client::builder()
-            .timeout(Duration::from_secs(DEFAULT_TIMEOUT_SECS))
-            .build()?;
+        // Use shared client for better connection pooling
+        let client = get_shared_client();
 
-        // Load optional retry configuration from environment
-        let retry_config = Self::load_retry_config(config);
+        // Configure retry settings with Databricks' specific requirements
+        let retry_config = RetryConfig {
+            max_retries: config_builder
+                .get_param("MAX_RETRIES", None)
+                .and_then(|v| v.parse::<u32>().ok())
+                .unwrap_or(DATABRICKS_MAX_RETRIES),
+            initial_delay_ms: config_builder
+                .get_param("INITIAL_RETRY_INTERVAL_MS", None)
+                .and_then(|v| v.parse::<u64>().ok())
+                .unwrap_or(DATABRICKS_INITIAL_RETRY_INTERVAL_MS),
+            max_delay_ms: config_builder
+                .get_param("MAX_RETRY_INTERVAL_MS", None)
+                .and_then(|v| v.parse::<u64>().ok())
+                .unwrap_or(DATABRICKS_MAX_RETRY_INTERVAL_MS),
+            backoff_multiplier: 2.0,
+        };
 
         // If we find a databricks token we prefer that
         if let Ok(api_key) = config.get_secret("DATABRICKS_TOKEN") {
@@ -198,40 +158,6 @@ impl DatabricksProvider {
         })
     }
 
-    /// Loads retry configuration from environment variables or uses defaults.
-    fn load_retry_config(config: &crate::config::Config) -> RetryConfig {
-        let max_retries = config
-            .get_param("DATABRICKS_MAX_RETRIES")
-            .ok()
-            .and_then(|v: String| v.parse::<usize>().ok())
-            .unwrap_or(DEFAULT_MAX_RETRIES);
-
-        let initial_interval_ms = config
-            .get_param("DATABRICKS_INITIAL_RETRY_INTERVAL_MS")
-            .ok()
-            .and_then(|v: String| v.parse::<u64>().ok())
-            .unwrap_or(DEFAULT_INITIAL_RETRY_INTERVAL_MS);
-
-        let backoff_multiplier = config
-            .get_param("DATABRICKS_BACKOFF_MULTIPLIER")
-            .ok()
-            .and_then(|v: String| v.parse::<f64>().ok())
-            .unwrap_or(DEFAULT_BACKOFF_MULTIPLIER);
-
-        let max_interval_ms = config
-            .get_param("DATABRICKS_MAX_RETRY_INTERVAL_MS")
-            .ok()
-            .and_then(|v: String| v.parse::<u64>().ok())
-            .unwrap_or(DEFAULT_MAX_RETRY_INTERVAL_MS);
-
-        RetryConfig {
-            max_retries,
-            initial_interval_ms,
-            backoff_multiplier,
-            max_interval_ms,
-        }
-    }
-
     /// Create a new DatabricksProvider with the specified host and token
     ///
     /// # Arguments
@@ -243,9 +169,8 @@ impl DatabricksProvider {
     ///
     /// Returns a Result containing the new DatabricksProvider instance
     pub fn from_params(host: String, api_key: String, model: ModelConfig) -> Result<Self> {
-        let client = Client::builder()
-            .timeout(Duration::from_secs(600))
-            .build()?;
+        // Use shared client for better connection pooling
+        let client = get_shared_client();
 
         Ok(Self {
             client,
@@ -284,71 +209,46 @@ impl DatabricksProvider {
             format!("serving-endpoints/{}/invocations", self.model.model_name)
         };
 
-        match self.post_with_retry(path.as_str(), &payload).await {
-            Ok(res) => res.json().await.map_err(|_| {
-                ProviderError::RequestFailed("Response body is not valid JSON".to_string())
-            }),
-            Err(e) => Err(e),
-        }
-    }
+        let url = build_endpoint_url(&self.host, &path)?;
 
-    async fn post_with_retry(
-        &self,
-        path: &str,
-        payload: &Value,
-    ) -> Result<reqwest::Response, ProviderError> {
-        let base_url = Url::parse(&self.host)
-            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
-        let url = base_url.join(path).map_err(|e| {
-            ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
-        })?;
+        // Use retry logic for resilience
+        retry_with_backoff(&self.retry_config, || async {
+            // Get a fresh auth token for each attempt
+            let auth_header = self.ensure_auth_header().await.map_err(|e| {
+                tracing::error!("Authentication error: {:?}", e);
+                ProviderError::RequestFailed(format!("Failed to get authentication token: {}", e))
+            })?;
 
-        let mut attempts = 0;
-        loop {
-            let auth_header = self.ensure_auth_header().await?;
             let response = self
                 .client
                 .post(url.clone())
                 .header("Authorization", auth_header)
-                .json(payload)
+                .json(&payload)
                 .send()
                 .await?;
 
             let status = response.status();
+            let response_body: Option<Value> = response.json().await.ok();
 
-            break match status {
-                StatusCode::OK => Ok(response),
-                StatusCode::TOO_MANY_REQUESTS
-                | StatusCode::INTERNAL_SERVER_ERROR
-                | StatusCode::SERVICE_UNAVAILABLE => {
-                    if attempts < self.retry_config.max_retries {
-                        attempts += 1;
-                        tracing::warn!(
-                            "{}: retrying ({}/{})",
-                            status,
-                            attempts,
-                            self.retry_config.max_retries
-                        );
-
-                        let delay = self.retry_config.delay_for_attempt(attempts);
-                        tracing::info!("Backing off for {:?} before retry", delay);
-                        sleep(delay).await;
-
-                        continue;
-                    }
-
-                    Err(match status {
-                        StatusCode::TOO_MANY_REQUESTS => {
-                            ProviderError::RateLimitExceeded("Rate limit exceeded".to_string())
-                        }
-                        _ => ProviderError::ServerError("Server error".to_string()),
+            match status {
+                StatusCode::OK => {
+                    response_body.ok_or_else(|| {
+                        ProviderError::RequestFailed("Response body is not valid JSON".to_string())
                     })
+                }
+                StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
+                    Err(ProviderError::Authentication(format!(
+                        "Authentication failed. Please ensure your API keys are valid and have the required permissions. \
+                        Status: {}. Response: {:?}",
+                        status, response_body
+                    )))
                 }
                 StatusCode::BAD_REQUEST => {
                     // Databricks provides a generic 'error' but also includes 'external_model_message' which is provider specific
                     // We try to extract the error message from the payload and check for phrases that indicate context length exceeded
-                    let bytes = response.bytes().await?;
-                    let payload_str = String::from_utf8_lossy(&bytes).to_lowercase();
+                    let payload_str = serde_json::to_string(&response_body)
+                        .unwrap_or_default()
+                        .to_lowercase();
                     let check_phrases = [
                         "too long",
                         "context length",
@@ -367,13 +267,13 @@ impl DatabricksProvider {
                     }
 
                     let mut error_msg = "Unknown error".to_string();
-                    if let Ok(response_json) = serde_json::from_slice::<Value>(&bytes) {
+                    if let Some(payload) = &response_body {
                         // try to convert message to string, if that fails use external_model_message
-                        error_msg = response_json
+                        error_msg = payload
                             .get("message")
                             .and_then(|m| m.as_str())
                             .or_else(|| {
-                                response_json
+                                payload
                                     .get("external_model_message")
                                     .and_then(|ext| ext.get("message"))
                                     .and_then(|m| m.as_str())
@@ -386,30 +286,35 @@ impl DatabricksProvider {
                         "{}",
                         format!(
                             "Provider request failed with status: {}. Payload: {:?}",
-                            status, payload_str
+                            status, response_body
                         )
                     );
-                    return Err(ProviderError::RequestFailed(format!(
+                    Err(ProviderError::RequestFailed(format!(
                         "Request failed with status: {}. Message: {}",
                         status, error_msg
-                    )));
+                    )))
+                }
+                StatusCode::TOO_MANY_REQUESTS => {
+                    Err(ProviderError::RateLimitExceeded(format!("{:?}", response_body)))
+                }
+                StatusCode::INTERNAL_SERVER_ERROR | StatusCode::SERVICE_UNAVAILABLE => {
+                    Err(ProviderError::ServerError(format!("{:?}", response_body)))
                 }
                 _ => {
                     tracing::debug!(
                         "{}",
                         format!(
                             "Provider request failed with status: {}. Payload: {:?}",
-                            status,
-                            response.text().await.ok().unwrap_or_default()
+                            status, response_body
                         )
                     );
-                    return Err(ProviderError::RequestFailed(format!(
+                    Err(ProviderError::RequestFailed(format!(
                         "Request failed with status: {}",
                         status
-                    )));
+                    )))
                 }
-            };
-        }
+            }
+        }).await
     }
 }
 
@@ -460,7 +365,7 @@ impl Provider for DatabricksProvider {
             Usage::default()
         });
         let model = get_model(&response);
-        super::utils::emit_debug_trace(&self.model, &payload, &response, &usage);
+        emit_debug_trace(&self.model, &payload, &response, &usage);
 
         Ok((message, ProviderUsage::new(model, usage)))
     }
@@ -483,12 +388,29 @@ impl Provider for DatabricksProvider {
             .unwrap()
             .insert("stream".to_string(), Value::Bool(true));
 
+        let url = build_endpoint_url(
+            &self.host,
+            &format!("serving-endpoints/{}/invocations", self.model.model_name),
+        )?;
+
+        // For streaming, we can't use the standard retry logic because we need the response stream
+        let auth_header = self.ensure_auth_header().await?;
         let response = self
-            .post_with_retry(
-                format!("serving-endpoints/{}/invocations", self.model.model_name).as_str(),
-                &payload,
-            )
+            .client
+            .post(url)
+            .header("Authorization", auth_header)
+            .json(&payload)
+            .send()
             .await?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_text = response.text().await.unwrap_or_default();
+            return Err(ProviderError::RequestFailed(format!(
+                "Streaming request failed with status: {}. Error: {}",
+                status, error_text
+            )));
+        }
 
         // Map reqwest error to io::Error
         let stream = response.bytes_stream().map_err(io::Error::other);
@@ -497,11 +419,11 @@ impl Provider for DatabricksProvider {
         // Wrap in a line decoder and yield lines inside the stream
         Ok(Box::pin(try_stream! {
             let stream_reader = StreamReader::new(stream);
-            let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
+            let framed = tokio_util::codec::FramedRead::new(stream_reader, tokio_util::codec::LinesCodec::new()).map_err(anyhow::Error::from);
 
             let message_stream = response_to_streaming_message(framed);
             pin!(message_stream);
-            while let Some(message) = message_stream.next().await {
+            while let Some(message) = futures::StreamExt::next(&mut message_stream).await {
                 let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
                 super::utils::emit_debug_trace(&model_config, &payload, &message, &usage.as_ref().map(|f| f.usage).unwrap_or_default());
                 yield (message, usage);
@@ -524,11 +446,7 @@ impl Provider for DatabricksProvider {
     }
 
     async fn fetch_supported_models_async(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        let base_url = Url::parse(&self.host)
-            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
-        let url = base_url.join("api/2.0/serving-endpoints").map_err(|e| {
-            ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
-        })?;
+        let url = build_endpoint_url(&self.host, "api/2.0/serving-endpoints")?;
 
         let auth_header = match self.ensure_auth_header().await {
             Ok(header) => header,
