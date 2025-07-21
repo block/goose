@@ -318,7 +318,10 @@ derive_utoipa!(Annotations as AnnotationsSchema);
         super::routes::schedule::unpause_schedule,
         super::routes::schedule::kill_running_job,
         super::routes::schedule::inspect_running_job,
-        super::routes::schedule::sessions_handler
+        super::routes::schedule::sessions_handler,
+        super::routes::recipe::create_recipe,
+        super::routes::recipe::encode_recipe,
+        super::routes::recipe::decode_recipe
     ),
     components(schemas(
         super::routes::config_management::UpsertConfigQuery,
@@ -375,6 +378,21 @@ derive_utoipa!(Annotations as AnnotationsSchema);
         super::routes::schedule::ListSchedulesResponse,
         super::routes::schedule::SessionsQuery,
         super::routes::schedule::SessionDisplayInfo,
+        super::routes::recipe::CreateRecipeRequest,
+        super::routes::recipe::AuthorRequest,
+        super::routes::recipe::CreateRecipeResponse,
+        super::routes::recipe::EncodeRecipeRequest,
+        super::routes::recipe::EncodeRecipeResponse,
+        super::routes::recipe::DecodeRecipeRequest,
+        super::routes::recipe::DecodeRecipeResponse,
+        goose::recipe::Recipe,
+        goose::recipe::Author,
+        goose::recipe::Settings,
+        goose::recipe::RecipeParameter,
+        goose::recipe::RecipeParameterInputType,
+        goose::recipe::RecipeParameterRequirement,
+        goose::recipe::Response,
+        goose::recipe::SubRecipe,
     ))
 )]
 pub struct ApiDoc;

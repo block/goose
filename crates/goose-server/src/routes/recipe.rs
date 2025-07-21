@@ -5,10 +5,11 @@ use goose::message::Message;
 use goose::recipe::Recipe;
 use goose::recipe_deeplink;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 use crate::state::AppState;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateRecipeRequest {
     messages: Vec<Message>,
     // Required metadata
@@ -21,7 +22,7 @@ pub struct CreateRecipeRequest {
     author: Option<AuthorRequest>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct AuthorRequest {
     #[serde(default)]
     contact: Option<String>,
@@ -29,33 +30,45 @@ pub struct AuthorRequest {
     metadata: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct CreateRecipeResponse {
     recipe: Option<Recipe>,
     error: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct EncodeRecipeRequest {
     recipe: Recipe,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct EncodeRecipeResponse {
     deeplink: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct DecodeRecipeRequest {
     deeplink: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct DecodeRecipeResponse {
     recipe: Recipe,
 }
 
-/// Create a Recipe configuration from the current state of an agent
+#[utoipa::path(
+    post,
+    path = "/recipes/create",
+    request_body = CreateRecipeRequest,
+    responses(
+        (status = 200, description = "Recipe created successfully", body = CreateRecipeResponse),
+        (status = 400, description = "Bad request"),
+        (status = 412, description = "Precondition failed - Agent not available"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "Recipe Management"
+)]
+/// Create a Recipe configuration from the current session
 async fn create_recipe(
     State(state): State<Arc<AppState>>,
     Json(request): Json<CreateRecipeRequest>,
@@ -105,6 +118,16 @@ async fn create_recipe(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/recipes/encode",
+    request_body = EncodeRecipeRequest,
+    responses(
+        (status = 200, description = "Recipe encoded successfully", body = EncodeRecipeResponse),
+        (status = 400, description = "Bad request")
+    ),
+    tag = "Recipe Management"
+)]
 async fn encode_recipe(
     Json(request): Json<EncodeRecipeRequest>,
 ) -> Result<Json<EncodeRecipeResponse>, StatusCode> {
@@ -117,6 +140,16 @@ async fn encode_recipe(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/recipes/decode",
+    request_body = DecodeRecipeRequest,
+    responses(
+        (status = 200, description = "Recipe decoded successfully", body = DecodeRecipeResponse),
+        (status = 400, description = "Bad request")
+    ),
+    tag = "Recipe Management"
+)]
 async fn decode_recipe(
     Json(request): Json<DecodeRecipeRequest>,
 ) -> Result<Json<DecodeRecipeResponse>, StatusCode> {

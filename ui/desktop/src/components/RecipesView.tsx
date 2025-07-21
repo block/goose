@@ -163,8 +163,12 @@ export default function RecipesView({ _onLoadRecipe }: RecipesViewProps = {}) {
       }
       const recipe = await decodeRecipe(recipeEncoded);
 
-      if (!recipe.title || !recipe.description || !recipe.instructions) {
-        throw new Error('Recipe is missing required fields (title, description, instructions)');
+      if (!recipe.title || !recipe.description) {
+        throw new Error('Recipe is missing required fields (title, description)');
+      }
+
+      if (!recipe.instructions && !recipe.prompt) {
+        throw new Error('Recipe must have either instructions or prompt');
       }
 
       return recipe;
