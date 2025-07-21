@@ -685,9 +685,9 @@ impl Agent {
 
         let config = Config::global();
 
-        // Setup tools and prompt
         let (mut tools, mut toolshim_tools, mut system_prompt) =
             self.prepare_tools_and_prompt().await?;
+        let goose_mode = Self::determine_goose_mode(&session, &config);
 
         if let Some(content) = messages
             .last()
@@ -735,26 +735,22 @@ impl Agent {
                 let mut messages_to_add = Vec::new();
                 let mut tools_updated = false;
 
-                // Handle MCP notifications
                 let mcp_notifications = self.get_mcp_notifications().await;
                 for notification in mcp_notifications {
-                    if let JsonRpcMessage::Notification(ref notif) = notification {
-                        if let Some(params) = &notif.params {
-                            if let Some(data) = params.get("data") {
-                                if let (Some(subagent_id), Some(_message)) = (
-                                    data.get("subagent_id").and_then(|v| v.as_str()),
-                                    data.get("message").and_then(|v| v.as_str()),
-                                ) {
-                                    yield AgentEvent::McpNotification((
-                                        subagent_id.to_string(),
-                                        notification.clone(),
-                                    ));
-                                }
+                    if let JsonRpcMessage::Notification(notif) = &notification {
+                        if let Some(data) = notif.params.as_ref().and_then(|p| p.get("data")) {
+                            if let (Some(subagent_id), Some(_message)) = (
+                                data.get("subagent_id").and_then(|v| v.as_str()),
+                                data.get("message").and_then(|v| v.as_str()),
+                            ) {
+                                yield AgentEvent::McpNotification((
+                                    subagent_id.to_string(),
+                                    notification.clone(),
+                                ));
                             }
                         }
                     }
                 }
-
                 let mut stream = Self::stream_response_from_provider(
                     self.provider().await?,
                     &system_prompt,
@@ -803,8 +799,6 @@ impl Agent {
                             }
 
                             if let Some(response) = response {
-                                let config = Config::global();
-                                let goose_mode = Self::determine_goose_mode(&session, &config);
                                 let (tools_with_readonly_annotation, tools_without_annotation) =
                                     Self::categorize_tools_by_annotation(&tools);
 
@@ -1023,26 +1017,16 @@ impl Agent {
     }
 
     fn determine_goose_mode(session: &Option<SessionConfig>, config: &Config) -> String {
-        // Get goose_mode from config, but override with execution_mode if provided in session config
-        let mut goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
-
-        // If this is a scheduled job with an execution_mode, override the goose_mode
-        if let Some(session_config) = &session {
-            if let Some(execution_mode) = &session_config.execution_mode {
-                // Map "foreground" to "auto" and "background" to "chat"
-                goose_mode = match execution_mode.as_str() {
-                    "foreground" => "auto".to_string(),
-                    "background" => "chat".to_string(),
-                    _ => goose_mode,
-                };
-                tracing::info!(
-                    "Using execution_mode '{}' which maps to goose_mode '{}'",
-                    execution_mode,
-                    goose_mode
-                );
-            }
+        match session
+            .as_ref()
+            .and_then(|s| s.execution_mode.as_ref().map(String::as_str))
+        {
+            Some("foreground") => "auto".to_string(),
+            Some("background") => "chat".to_string(),
+            _ => config
+                .get_param("GOOSE_MODE")
+                .unwrap_or_else(|_| "auto".to_string()),
         }
-        goose_mode
     }
 
     /// Extend the system prompt with one line of additional instruction
@@ -1317,7 +1301,7 @@ impl Agent {
             metadata: None,
         };
 
-        // Ideally we'd get the name of the provider we are using from the provider itself
+        // Ideally we'd get the name of the provider we are using from the provider itself,
         // but it doesn't know and the plumbing looks complicated.
         let config = Config::global();
         let provider_name: String = config

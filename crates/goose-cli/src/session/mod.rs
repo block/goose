@@ -47,6 +47,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio;
+use tokio_util::sync::CancellationToken;
 
 pub enum RunMode {
     Normal,
@@ -129,13 +130,10 @@ impl Session {
         edit_mode: Option<EditMode>,
     ) -> Self {
         let messages = if let Some(session_file) = &session_file {
-            match session::read_messages(session_file) {
-                Ok(msgs) => msgs,
-                Err(e) => {
-                    eprintln!("Warning: Failed to load message history: {}", e);
-                    Vec::new()
-                }
-            }
+            session::read_messages(session_file).unwrap_or_else(|e| {
+                eprintln!("Warning: Failed to load message history: {}", e);
+                Vec::new()
+            })
         } else {
             // Don't try to read messages if we're not saving sessions
             Vec::new()
@@ -176,7 +174,7 @@ impl Session {
     ///   Format: "ENV1=val1 ENV2=val2 command args..."
     pub async fn add_extension(&mut self, extension_command: String) -> Result<()> {
         let mut parts: Vec<&str> = extension_command.split_whitespace().collect();
-        let mut envs = std::collections::HashMap::new();
+        let mut envs = HashMap::new();
 
         // Parse environment variables (format: KEY=value)
         while let Some(part) = parts.first() {
@@ -496,7 +494,7 @@ impl Session {
             self.display_context_usage().await?;
 
             match input::get_input(&mut editor)? {
-                input::InputResult::Message(content) => {
+                InputResult::Message(content) => {
                     match self.run_mode {
                         RunMode::Normal => {
                             save_history(&mut editor);
@@ -518,15 +516,11 @@ impl Session {
                                 eprintln!("Warning: Failed to update project tracker with instruction: {}", e);
                             }
 
-                            // Get the provider from the agent for description generation
                             let provider = self.agent.provider().await?;
 
                             // Persist messages with provider for automatic description generation
                             if let Some(session_file) = &self.session_file {
-                                let working_dir = Some(
-                                    std::env::current_dir()
-                                        .expect("failed to get current session working directory"),
-                                );
+                                let working_dir = Some(std::env::current_dir().unwrap_or_default());
 
                                 session::persist_messages_with_schedule_id(
                                     session_file,
@@ -870,12 +864,14 @@ impl Session {
     }
 
     async fn process_agent_response(&mut self, interactive: bool) -> Result<()> {
+        let cancel_token = CancellationToken::new();
+        let cancel_token_clone = cancel_token.clone();
+
         let session_config = self.session_file.as_ref().map(|s| {
             let session_id = session::Identifier::Path(s.clone());
             SessionConfig {
                 id: session_id.clone(),
-                working_dir: std::env::current_dir()
-                    .expect("failed to get current session working directory"),
+                working_dir: std::env::current_dir().unwrap_or_default(),
                 schedule_id: self.scheduled_job_id.clone(),
                 execution_mode: None,
                 max_turns: self.max_turns,
@@ -883,7 +879,7 @@ impl Session {
         });
         let mut stream = self
             .agent
-            .reply(&self.messages, session_config.clone())
+            .reply(&self.messages, session_config.clone(), Some(cancel_token))
             .await?;
 
         let mut progress_bars = output::McpSpinners::new();
@@ -941,7 +937,7 @@ impl Session {
                                         )
                                         .await?;
                                     }
-
+                                    cancel_token_clone.cancel();
                                     drop(stream);
                                     break;
                                 } else {
@@ -1023,6 +1019,7 @@ impl Session {
                                     .reply(
                                         &self.messages,
                                         session_config.clone(),
+                                        None
                                     )
                                     .await?;
                             }
@@ -1179,6 +1176,7 @@ impl Session {
 
                         Some(Err(e)) => {
                             eprintln!("Error: {}", e);
+                            cancel_token_clone.cancel();
                             drop(stream);
                             if let Err(e) = self.handle_interrupted_messages(false).await {
                                 eprintln!("Error handling interruption: {}", e);
@@ -1195,6 +1193,7 @@ impl Session {
                     }
                 }
                 _ = tokio::signal::ctrl_c() => {
+                    cancel_token_clone.cancel();
                     drop(stream);
                     if let Err(e) = self.handle_interrupted_messages(true).await {
                         eprintln!("Error handling interruption: {}", e);
