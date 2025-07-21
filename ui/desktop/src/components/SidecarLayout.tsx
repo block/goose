@@ -306,8 +306,8 @@ export function SidecarProvider({ children, showSidecar = true }: SidecarProvide
 
   // Import and use the window manager hook
   const { toggleWindow } = useWindowManager({
-    expandPercentage: 100,
-    maxWidthForExpansion: 2200,
+    expandPercentage: 60,
+    maxWidthForExpansion: 1200,
     transitionDuration: 300,
   });
 
@@ -325,8 +325,10 @@ export function SidecarProvider({ children, showSidecar = true }: SidecarProvide
     setActiveView(view.id);
   };
 
-  const hideView = () => {
+  const hideView = async () => {
     setActiveView(null);
+    // Collapse window when hiding sidecar
+    await toggleWindow();
   };
 
   const showDiffViewer = (content: string, fileName = 'File') => {
@@ -340,10 +342,12 @@ export function SidecarProvider({ children, showSidecar = true }: SidecarProvide
     showView(diffView);
   };
 
-  const hideDiffViewer = () => {
+  const hideDiffViewer = async () => {
     setViews((prev) => prev.filter((v) => v.id !== 'diff'));
     if (activeView === 'diff') {
       setActiveView(null);
+      // Collapse window when hiding diff viewer
+      await toggleWindow();
     }
   };
 
