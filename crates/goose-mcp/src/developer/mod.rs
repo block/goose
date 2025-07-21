@@ -26,12 +26,11 @@ use mcp_core::tool::ToolAnnotations;
 use mcp_core::{
     handler::{PromptError, ResourceError, ToolError},
     protocol::{JsonRpcMessage, JsonRpcNotification, ServerCapabilities},
-    resource::Resource,
     tool::Tool,
 };
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
-use rmcp::model::{Content, Prompt, PromptArgument, PromptTemplate};
+use rmcp::model::{Content, Prompt, PromptArgument, PromptTemplate, Resource};
 
 use rmcp::model::Role;
 
