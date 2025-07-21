@@ -6,14 +6,14 @@ use crate::agents::subagent_execution_tool::{
     tasks_manager::TasksManager,
 };
 use crate::agents::subagent_task_config::TaskConfig;
-use mcp_core::protocol::JsonRpcMessage;
+use rmcp::model::JsonRpcMessage;
 use serde_json::{json, Value};
-use tokio::sync::mpsc;
+use tokio::sync::mpsc::Sender;
 
 pub async fn execute_tasks(
     input: Value,
     execution_mode: ExecutionMode,
-    notifier: mpsc::Sender<JsonRpcMessage>,
+    notifier: Sender<JsonRpcMessage>,
     task_config: TaskConfig,
     tasks_manager: &TasksManager,
 ) -> Result<Value, String> {

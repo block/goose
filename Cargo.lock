@@ -5394,6 +5394,7 @@ dependencies = [
  "nix 0.30.1",
  "rand 0.8.5",
  "reqwest 0.11.27",
+ "rmcp",
  "serde",
  "serde_json",
  "serde_urlencoded",

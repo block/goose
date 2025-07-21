@@ -6,10 +6,11 @@ use crate::{
 };
 use anyhow::anyhow;
 use chrono::{DateTime, Utc};
-use mcp_core::protocol::{JsonRpcMessage, JsonRpcNotification};
 use mcp_core::{handler::ToolError, tool::Tool};
+use rmcp::model::{JsonRpcMessage, JsonRpcNotification, JsonRpcVersion2_0, Notification};
+use rmcp::object;
 use serde::{Deserialize, Serialize};
-use serde_json::{self, json};
+// use serde_json::{self};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{Mutex, RwLock};
 use tracing::{debug, error, instrument};
@@ -112,18 +113,21 @@ impl SubAgent {
     /// Send an MCP notification about the subagent's activity
     pub async fn send_mcp_notification(&self, notification_type: &str, message: &str) {
         let notification = JsonRpcMessage::Notification(JsonRpcNotification {
-            jsonrpc: "2.0".to_string(),
-            method: "notifications/message".to_string(),
-            params: Some(json!({
-                "level": "info",
-                "logger": format!("subagent_{}", self.id),
-                "data": {
-                    "subagent_id": self.id,
-                    "type": notification_type,
-                    "message": message,
-                    "timestamp": Utc::now().to_rfc3339()
-                }
-            })),
+            jsonrpc: JsonRpcVersion2_0,
+            notification: Notification {
+                method: "notifications/message".to_string(),
+                params: object!({
+                    "level": "info",
+                    "logger": format!("subagent_{}", self.id),
+                    "data": {
+                        "subagent_id": self.id,
+                        "type": notification_type,
+                        "message": message,
+                        "timestamp": Utc::now().to_rfc3339()
+                    }
+                }),
+                extensions: Default::default(),
+            },
         });
 
         if let Err(e) = self.config.mcp_tx.send(notification).await {

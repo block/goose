@@ -1,11 +1,10 @@
 use anyhow::Result;
 use mcp_core::handler::{PromptError, ResourceError};
-use mcp_core::protocol::JsonRpcMessage;
 use mcp_core::tool::ToolAnnotations;
 use mcp_core::{handler::ToolError, protocol::ServerCapabilities, tool::Tool};
 use mcp_server::router::{CapabilitiesBuilder, RouterService};
 use mcp_server::{ByteTransport, Router, Server};
-use rmcp::model::{Content, Prompt, PromptArgument, RawResource, Resource};
+use rmcp::model::{Content, JsonRpcMessage, Prompt, PromptArgument, RawResource, Resource};
 use serde_json::Value;
 use std::{future::Future, pin::Pin, sync::Arc};
 use tokio::sync::mpsc;

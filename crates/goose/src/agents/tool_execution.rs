@@ -4,7 +4,7 @@ use std::sync::Arc;
 use async_stream::try_stream;
 use futures::stream::{self, BoxStream};
 use futures::{Stream, StreamExt};
-use mcp_core::protocol::JsonRpcMessage;
+use rmcp::model::JsonRpcMessage;
 use tokio::sync::Mutex;
 
 use crate::config::permission::PermissionLevel;

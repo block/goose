@@ -8,7 +8,7 @@ use crate::agents::{
     subagent_execution_tool::task_types::ExecutionMode,
     subagent_execution_tool::tasks_manager::TasksManager, tool_execution::ToolCallResult,
 };
-use mcp_core::protocol::JsonRpcMessage;
+use rmcp::model::JsonRpcMessage;
 use tokio::sync::mpsc;
 use tokio_stream;
 

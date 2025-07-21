@@ -6,7 +6,6 @@ use std::sync::Arc;
 use anyhow::{anyhow, Result};
 use futures::stream::BoxStream;
 use futures::{stream, FutureExt, Stream, StreamExt, TryStreamExt};
-use mcp_core::protocol::JsonRpcMessage;
 
 use crate::agents::extension::{ExtensionConfig, ExtensionError, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
@@ -45,7 +44,7 @@ use crate::scheduler_trait::SchedulerTrait;
 use crate::tool_monitor::{ToolCall, ToolMonitor};
 use mcp_core::{protocol::GetPromptResult, tool::Tool, ToolError, ToolResult};
 use regex::Regex;
-use rmcp::model::{Content, Prompt};
+use rmcp::model::{Content, JsonRpcMessage, Prompt};
 use serde_json::Value;
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tokio_util::sync::CancellationToken;
@@ -775,7 +774,7 @@ impl Agent {
                 let mcp_notifications = self.get_mcp_notifications().await;
                 for notification in mcp_notifications {
                     if let JsonRpcMessage::Notification(notif) = &notification {
-                        if let Some(data) = notif.params.as_ref().and_then(|p| p.get("data")) {
+                        if let Some(data) = notif.notification.params.get("data") {
                             if let (Some(subagent_id), Some(_message)) = (
                                 data.get("subagent_id").and_then(|v| v.as_str()),
                                 data.get("message").and_then(|v| v.as_str()),

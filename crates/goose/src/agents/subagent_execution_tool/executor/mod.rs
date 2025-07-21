@@ -7,10 +7,11 @@ use crate::agents::subagent_execution_tool::task_execution_tracker::{
 use crate::agents::subagent_execution_tool::tasks::process_task;
 use crate::agents::subagent_execution_tool::workers::spawn_worker;
 use crate::agents::subagent_task_config::TaskConfig;
-use mcp_core::protocol::JsonRpcMessage;
+use rmcp::model::JsonRpcMessage;
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use tokio::sync::mpsc;
+use tokio::sync::mpsc::Sender;
 use tokio::time::Instant;
 
 const EXECUTION_STATUS_COMPLETED: &str = "completed";
@@ -46,7 +47,7 @@ pub async fn execute_single_task(
 
 pub async fn execute_tasks_in_parallel(
     tasks: Vec<Task>,
-    notifier: mpsc::Sender<JsonRpcMessage>,
+    notifier: Sender<JsonRpcMessage>,
     task_config: TaskConfig,
 ) -> ExecutionResponse {
     let task_execution_tracker = Arc::new(TaskExecutionTracker::new(
