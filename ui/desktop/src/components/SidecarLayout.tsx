@@ -440,7 +440,7 @@ export function Sidecar({ className = '' }: { className?: string }) {
 
   return (
     <div
-      className={`bg-background-default overflow-hidden rounded-2xl flex flex-col m-5 ${isUIResource ? 'w-[600px]' : 'w-[500px]'} ${className}`}
+      className={`bg-background-default overflow-hidden rounded-2xl flex flex-col m-5 ${isUIResource ? 'w-[800px]' : 'w-[500px]'} ${className}`}
     >
       {currentView && (
         <>

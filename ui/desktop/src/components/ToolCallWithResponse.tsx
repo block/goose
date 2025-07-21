@@ -263,6 +263,13 @@ function ToolCallView({
           });
 
           console.log('Final mapped results:', mappedResults);
+          
+          // If we have proper UI resources, don't process text content with fallback logic
+          // The UI resources will be handled by the proper UI rendering path
+          if (hasUIResources) {
+            console.log('📋 Proper UI resources detected - skipping text fallback processing');
+          }
+          
           return mappedResults;
         })()
       : [];
@@ -534,6 +541,9 @@ function ToolCallView({
                   result={result}
                   isStartExpanded={isExpandToolResults}
                   toolCall={toolCall}
+                  hasUIResourcesInResponse={toolResults.some(({ result }) => 
+                    result.type === 'resource' && isUIResource(result)
+                  )}
                 />
               </div>
             );
@@ -571,9 +581,10 @@ interface ToolResultViewProps {
   result: Content;
   isStartExpanded: boolean;
   toolCall: { name?: string } | null; // Tool call object for generating fallback UI
+  hasUIResourcesInResponse?: boolean; // Whether the response contains proper UI resources
 }
 
-function ToolResultView({ result, isStartExpanded, toolCall }: ToolResultViewProps) {
+function ToolResultView({ result, isStartExpanded, toolCall, hasUIResourcesInResponse = false }: ToolResultViewProps) {
   const sidecar = useSidecar();
   const hasShownInSidecar = useRef(false);
 
@@ -630,6 +641,17 @@ function ToolResultView({ result, isStartExpanded, toolCall }: ToolResultViewPro
           (() => {
             const textContent = result as { type: 'text'; text: string };
             if (!textContent.text) return null;
+
+            // Skip fallback detection if we have proper UI resources in the response
+            if (hasUIResourcesInResponse) {
+              console.log('⏭️ Skipping fallback UI detection - proper UI resources found in response');
+              return (
+                <MarkdownContent
+                  content={textContent.text}
+                  className="whitespace-pre-wrap max-w-full overflow-x-auto"
+                />
+              );
+            }
 
             // Only trigger fallback for STRONG evidence that UI content was flattened to text
 

@@ -45,6 +45,17 @@ export function UIResourceRenderer({
   console.log('Resource.mimeType:', resource?.mimeType);
   console.log('Resource.mime_type:', (resource as Record<string, unknown>)?.mime_type);
 
+  // Log expected @mcp-ui/server format detection
+  const mcpUIFormat = (resource as any)?.content;
+  if (mcpUIFormat) {
+    console.log('🔍 Detected @mcp-ui/server format:', {
+      hasContent: !!mcpUIFormat,
+      contentType: mcpUIFormat?.type,
+      contentKeys: Object.keys(mcpUIFormat || {}),
+      delivery: (resource as any)?.delivery
+    });
+  }
+
   // Validate resource according to mcp-ui spec
   const mimeType = resource.mimeType || (resource as Record<string, unknown>).mime_type;
   const mimeTypeString = String(mimeType || 'unknown');
@@ -186,12 +197,48 @@ export function isUIResource(content: Content): boolean {
     return isValid;
   }
 
+  // Handle @mcp-ui/server format - resources created with createUIResource
+  if (content.type === 'resource' && content.resource) {
+    const resource = content.resource as any;
+    
+    // Check for @mcp-ui/server format: { uri, content: { type, ... }, delivery }
+    if (resource.uri?.startsWith('ui://') && resource.content && typeof resource.content === 'object') {
+      const contentType = resource.content.type;
+      const isValidUIContent = contentType === 'rawHtml' || 
+                              contentType === 'externalUrl' || 
+                              contentType === 'remoteDom';
+      
+      console.log('isUIResource result (@mcp-ui/server format):', {
+        hasUIScheme: true,
+        hasValidUIContent: isValidUIContent,
+        contentType,
+        uri: resource.uri,
+      });
+      
+      return isValidUIContent;
+    }
+  }
+
   // Handle text type content that might contain embedded UI resource (legacy fallback)
   if (content.type === 'text' && content.text) {
     console.log('Checking text content for embedded UI resource');
     try {
       // Try to parse the text as JSON to see if it's a resource object
       const parsed = JSON.parse(content.text);
+      
+      // Check for @mcp-ui/server format in JSON
+      if (parsed?.uri?.startsWith('ui://') && parsed?.content?.type) {
+        const contentType = parsed.content.type;
+        const isValidUIContent = contentType === 'rawHtml' || 
+                                contentType === 'externalUrl' || 
+                                contentType === 'remoteDom';
+        if (isValidUIContent) {
+          console.log('Found valid @mcp-ui/server format in JSON text');
+          return true;
+        }
+      }
+      
+      // Check for Goose internal format in JSON
       if (
         parsed &&
         typeof parsed === 'object' &&
@@ -232,7 +279,64 @@ export function extractUIResource(content: Content): Resource | null {
     const resource = content.resource;
     console.log('Extracting from resource content:', resource);
 
-    // Check if it's a valid UI resource according to mcp-ui spec
+    // Check for @mcp-ui/server format first
+    const mcpUIResource = resource as any;
+    if (mcpUIResource.uri?.startsWith('ui://') && mcpUIResource.content && typeof mcpUIResource.content === 'object') {
+      const { uri, content: uiContent, delivery } = mcpUIResource;
+      
+      console.log('Processing @mcp-ui/server format:', { uri, uiContent, delivery });
+      
+      // Convert @mcp-ui/server format to Resource format expected by @mcp-ui/client
+      let extractedResource: Resource;
+      
+      switch (uiContent.type) {
+        case 'rawHtml':
+          extractedResource = {
+            uri,
+            mimeType: 'text/html',
+            text: uiContent.htmlString,
+            name: mcpUIResource.name || 'HTML Component',
+          };
+          break;
+          
+        case 'externalUrl':
+          extractedResource = {
+            uri,
+            mimeType: 'text/uri-list',
+            text: uiContent.iframeUrl,
+            name: mcpUIResource.name || 'External Component',
+          };
+          break;
+          
+        case 'remoteDom':
+          const mimeType = uiContent.flavor === 'react' 
+            ? 'application/vnd.mcp-ui.remote-dom+react'
+            : 'application/vnd.mcp-ui.remote-dom+javascript';
+          extractedResource = {
+            uri,
+            mimeType,
+            text: uiContent.script,
+            name: mcpUIResource.name || 'Remote DOM Component',
+          };
+          console.log('🎯 Created Remote DOM resource:', {
+            uri,
+            mimeType,
+            flavor: uiContent.flavor,
+            scriptLength: uiContent.script?.length || 0,
+            scriptPreview: uiContent.script?.substring(0, 100) || 'No script'
+          });
+          break;
+          
+        default:
+          console.error('Unknown @mcp-ui/server content type:', uiContent.type);
+          return null;
+      }
+      
+      console.log('Successfully extracted @mcp-ui/server resource:', extractedResource);
+      return extractedResource;
+    }
+
+    // Check if it's a valid UI resource according to mcp-ui spec (Goose internal format)
     if (isUIResource(content)) {
       // Safely extract text content from resource using type-safe helper
       const textContent = getResourceText(resource);
@@ -264,6 +368,61 @@ export function extractUIResource(content: Content): Resource | null {
     try {
       // Try to parse the text as JSON to see if it's a resource object
       const parsed = JSON.parse(content.text);
+      
+      // Check for @mcp-ui/server format in JSON
+      if (parsed?.uri?.startsWith('ui://') && parsed?.content?.type) {
+        const { uri, content: uiContent } = parsed;
+        
+        let extractedResource: Resource;
+        
+        switch (uiContent.type) {
+          case 'rawHtml':
+            extractedResource = {
+              uri,
+              mimeType: 'text/html',
+              text: uiContent.htmlString,
+              name: parsed.name || 'HTML Component',
+            };
+            break;
+            
+          case 'externalUrl':
+            extractedResource = {
+              uri,
+              mimeType: 'text/uri-list',
+              text: uiContent.iframeUrl,
+              name: parsed.name || 'External Component',
+            };
+            break;
+            
+          case 'remoteDom':
+            const mimeType = uiContent.flavor === 'react' 
+              ? 'application/vnd.mcp-ui.remote-dom+react'
+              : 'application/vnd.mcp-ui.remote-dom+javascript';
+            extractedResource = {
+              uri,
+              mimeType,
+              text: uiContent.script,
+              name: parsed.name || 'Remote DOM Component',
+            };
+            console.log('🎯 Created Remote DOM resource from JSON:', {
+              uri,
+              mimeType,
+              flavor: uiContent.flavor,
+              scriptLength: uiContent.script?.length || 0,
+              scriptPreview: uiContent.script?.substring(0, 100) || 'No script'
+            });
+            break;
+            
+          default:
+            console.error('Unknown @mcp-ui/server content type in JSON:', uiContent.type);
+            return null;
+        }
+        
+        console.log('Successfully extracted @mcp-ui/server resource from JSON text:', extractedResource);
+        return extractedResource;
+      }
+      
+      // Check for Goose internal format in JSON
       if (
         parsed &&
         typeof parsed === 'object' &&
