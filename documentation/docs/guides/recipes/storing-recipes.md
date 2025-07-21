@@ -6,7 +6,7 @@ sidebar_label: Saving Recipes
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import { PanelLeft } from 'lucide-react';
+import { PanelLeft, Bot } from 'lucide-react';
 
 This guide covers storing, organizing, and finding Goose recipes when you need to access them again later. 
 
@@ -43,8 +43,17 @@ Before saving recipes, it's important to understand where they can be stored and
   <TabItem value="desktop" label="Goose Desktop" default>
 
 **Save New Recipe:**
+
 1. To create a recipe from your chat session, see: [Create Recipe](/docs/guides/recipes/session-recipes#create-recipe)
 2. Once in the Recipe Editor, click **Save Recipe** to save it to your Recipe Library
+
+**Save Modified Recipe:**
+
+If you're already using a recipe and want to save a modified version:
+1. Click the <Bot className="inline" size={16}/> button with your current model at the bottom of the window
+2. Click **View Recipe**
+3. Make any desired edits to the description, instructions, or initial prompts
+5. Click **Save Recipe**
 
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
