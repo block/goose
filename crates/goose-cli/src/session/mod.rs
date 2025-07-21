@@ -358,34 +358,7 @@ impl Session {
     }
 
     pub async fn get_prompt(&mut self, name: &str, arguments: Value) -> Result<Vec<PromptMessage>> {
-        let result = self.agent.get_prompt(name, arguments).await?;
-        // Convert mcp_core::prompt::PromptMessage to rmcp::model::PromptMessage
-        let converted_messages = result
-            .messages
-            .into_iter()
-            .map(|msg| rmcp::model::PromptMessage {
-                role: match msg.role {
-                    mcp_core::prompt::PromptMessageRole::User => {
-                        rmcp::model::PromptMessageRole::User
-                    }
-                    mcp_core::prompt::PromptMessageRole::Assistant => {
-                        rmcp::model::PromptMessageRole::Assistant
-                    }
-                },
-                content: match msg.content {
-                    mcp_core::prompt::PromptMessageContent::Text { text } => {
-                        rmcp::model::PromptMessageContent::Text { text }
-                    }
-                    mcp_core::prompt::PromptMessageContent::Image { image } => {
-                        rmcp::model::PromptMessageContent::Image { image }
-                    }
-                    mcp_core::prompt::PromptMessageContent::Resource { resource } => {
-                        rmcp::model::PromptMessageContent::Resource { resource }
-                    }
-                },
-            })
-            .collect();
-        Ok(converted_messages)
+        Ok(self.agent.get_prompt(name, arguments).await?.messages)
     }
 
     /// Process a single message and get the response

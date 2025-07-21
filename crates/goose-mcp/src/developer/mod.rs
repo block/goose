@@ -22,19 +22,16 @@ use tokio::{
 use url::Url;
 
 use include_dir::{include_dir, Dir};
+use mcp_core::tool::ToolAnnotations;
 use mcp_core::{
     handler::{PromptError, ResourceError, ToolError},
     protocol::{JsonRpcMessage, JsonRpcNotification, ServerCapabilities},
     resource::Resource,
     tool::Tool,
 };
-use mcp_core::{
-    prompt::{Prompt, PromptArgument, PromptTemplate},
-    tool::ToolAnnotations,
-};
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
-use rmcp::model::Content;
+use rmcp::model::{Content, Prompt, PromptArgument, PromptTemplate};
 
 use rmcp::model::Role;
 
