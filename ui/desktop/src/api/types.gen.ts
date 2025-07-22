@@ -463,12 +463,12 @@ export type RedactedThinkingContent = {
 };
 
 export type ResourceContents = {
-    mime_type?: string | null;
+    mime_type?: string;
     text: string;
     uri: string;
 } | {
     blob: string;
-    mime_type?: string | null;
+    mime_type?: string;
     uri: string;
 };
 
@@ -758,14 +758,6 @@ export type ToolResponse = {
     toolResult: {
         [key: string]: unknown;
     };
-};
-
-export type ToolResultSchema = {
-    data: {
-        [key: string]: unknown;
-    };
-    message?: string | null;
-    success: boolean;
 };
 
 export type UpdateScheduleRequest = {
