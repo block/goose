@@ -19,7 +19,7 @@ use goose::{
     session,
 };
 use mcp_core::{protocol::JsonRpcMessage, ToolResult};
-use rmcp::model::{Content, Role};
+use rmcp::model::Content;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
