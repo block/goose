@@ -467,6 +467,7 @@ where
         let mut accumulated_tool_calls: std::collections::HashMap<String, (String, String)> = std::collections::HashMap::new();
         let mut current_tool_id: Option<String> = None;
         let mut final_usage: Option<crate::providers::base::ProviderUsage> = None;
+        let mut message_id: Option<String> = None;
 
         while let Some(line_result) = stream.next().await {
             let line = line_result?;
@@ -496,6 +497,11 @@ where
                 "message_start" => {
                     // Message started, we can extract initial metadata and usage if needed
                     if let Some(message_data) = event.data.get("message") {
+                        // Extract message ID
+                        if let Some(id) = message_data.get("id").and_then(|v| v.as_str()) {
+                            message_id = Some(id.to_string());
+                        }
+
                         if let Some(usage_data) = message_data.get("usage") {
                             let usage = get_usage(usage_data).unwrap_or_default();
                             tracing::debug!("🔍 Anthropic message_start parsed usage: input_tokens={:?}, output_tokens={:?}, total_tokens={:?}",
@@ -532,12 +538,13 @@ where
                             if let Some(text) = delta.get("text").and_then(|v| v.as_str()) {
                                 accumulated_text.push_str(text);
 
-                                // Yield partial text message
-                                let message = Message::new(
+                                // Yield partial text message with the same ID from message_start
+                                let mut message = Message::new(
                                     Role::Assistant,
                                     chrono::Utc::now().timestamp(),
                                     vec![MessageContent::text(text)],
                                 );
+                                message.id = message_id.clone();
                                 yield (Some(message), None);
                             }
                         } else if delta.get("type") == Some(&json!("input_json_delta")) {
@@ -568,11 +575,12 @@ where
                                         let error = mcp_core::handler::ToolError::InvalidParameters(
                                             format!("Could not parse tool arguments: {}", args)
                                         );
-                                        let message = Message::new(
+                                        let mut message = Message::new(
                                             Role::Assistant,
                                             chrono::Utc::now().timestamp(),
                                             vec![MessageContent::tool_request(tool_id, Err(error))],
                                         );
+                                        message.id = message_id.clone();
                                         yield (Some(message), None);
                                         continue;
                                     }
@@ -580,11 +588,12 @@ where
                             };
 
                             let tool_call = ToolCall::new(&name, parsed_args);
-                            let message = Message::new(
+                            let mut message = Message::new(
                                 rmcp::model::Role::Assistant,
                                 chrono::Utc::now().timestamp(),
                                 vec![MessageContent::tool_request(tool_id, Ok(tool_call))],
                             );
+                            message.id = message_id.clone();
                             yield (Some(message), None);
                         }
                     }
