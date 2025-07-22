@@ -850,7 +850,9 @@ mod retry_tests {
 
         let initial_messages = vec![Message::user().with_text("Complete this task")];
 
-        let reply_stream = agent.reply(&initial_messages, Some(session_config)).await?;
+        let reply_stream = agent
+            .reply(&initial_messages, Some(session_config), None)
+            .await?;
         tokio::pin!(reply_stream);
 
         let mut responses = Vec::new();
