@@ -6,13 +6,15 @@ import { extractImagePaths, removeImagePathsFromText } from '../utils/imageUtils
 import MarkdownContent from './MarkdownContent';
 import { Message, getTextContent } from '../types/message';
 import MessageCopyLink from './MessageCopyLink';
+import MessageRestoreLink from './MessageRestoreLink';
 import { formatMessageTimestamp } from '../utils/timeUtils';
 
 interface UserMessageProps {
   message: Message;
+  onRestore: (files: { path: string; checkpoint: string; timestamp: string }[]) => void;
 }
 
-export default function UserMessage({ message }: UserMessageProps) {
+export default function UserMessage({ message, onRestore }: UserMessageProps) {
   const contentRef = useRef<HTMLDivElement>(null);
 
   // Extract text content from the message
@@ -56,7 +58,8 @@ export default function UserMessage({ message }: UserMessageProps) {
             <div className="absolute w-40 font-mono right-0 text-xs text-text-muted pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
               {timestamp}
             </div>
-            <div className="absolute right-0 pt-1">
+            <div className="absolute right-0 pt-1 flex gap-2">
+              <MessageRestoreLink message={message} onRestore={onRestore} />
               <MessageCopyLink text={displayText} contentRef={contentRef} />
             </div>
           </div>

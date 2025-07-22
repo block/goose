@@ -52,6 +52,8 @@ import Splash from './Splash';
 import PopularChatTopics from './PopularChatTopics';
 import ProgressiveMessageList from './ProgressiveMessageList';
 import { SessionSummaryModal } from './context_management/SessionSummaryModal';
+import RestoreModal from './RestoreModal';
+import { SidecarProvider } from './SidecarLayout';
 import {
   ChatContextManagerProvider,
   useChatContextManager,
@@ -65,7 +67,9 @@ import { useRecipeManager } from '../hooks/useRecipeManager';
 import { useSessionContinuation } from '../hooks/useSessionContinuation';
 import { useFileDrop } from '../hooks/useFileDrop';
 import { useCostTracking } from '../hooks/useCostTracking';
-import { Message } from '../types/message';
+import { useSidecar } from './SidecarLayout';
+import { hasDiffContent } from './ToolCallWithResponse';
+import { getToolRequests, getToolResponses, Message } from '../types/message';
 import { Recipe } from '../recipe';
 
 // Context for sharing current model info
@@ -126,6 +130,11 @@ function BaseChatContent({
   // Track if user has started using the current recipe
   const [hasStartedUsingRecipe, setHasStartedUsingRecipe] = React.useState(false);
   const [currentRecipeTitle, setCurrentRecipeTitle] = React.useState<string | null>(null);
+
+  // State for restore modal
+  const [restoreModalFiles, setRestoreModalFiles] = React.useState<
+    { path: string; checkpoint: string; timestamp: string }[] | null
+  >(null);
 
   const {
     summaryContent,
@@ -236,6 +245,32 @@ function BaseChatContent({
     sessionMetadata,
   });
 
+  // Get sidecar context to check for collapsed panel
+  const sidecar = useSidecar();
+
+  // Check if there are any messages with diff content
+  const hasDiffActions = filteredMessages.some((message) => {
+    const toolRequests = getToolRequests(message);
+    if (toolRequests.length === 0) return false;
+
+    // Look for tool responses in subsequent messages
+    const messageIndex = messages.findIndex((msg) => msg.id === message.id);
+    if (messageIndex === -1) return false;
+
+    for (let i = messageIndex + 1; i < messages.length; i++) {
+      const responses = getToolResponses(messages[i]);
+      for (const response of responses) {
+        const matchingRequest = toolRequests.find((req) => req.id === response.id);
+        if (matchingRequest && hasDiffContent(response)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  });
+
+  const showCollapsedSidecar = hasDiffActions && sidecar;
+
   useEffect(() => {
     window.electron.logInfo(
       'Initial messages when resuming session: ' + JSON.stringify(chat.messages, null, 2)
@@ -306,6 +341,60 @@ function BaseChatContent({
     }, 100);
   }, []);
 
+  // Helper function to render ProgressiveMessageList with consistent props
+  const renderProgressiveMessageList = useCallback(() => {
+    return showCollapsedSidecar ? (
+      <div className="relative pl-6 pr-18">
+        <ProgressiveMessageList
+          messages={filteredMessages}
+          chat={chat}
+          toolCallNotifications={toolCallNotifications}
+          append={append}
+          appendMessage={(newMessage) => {
+            const updatedMessages = [...messages, newMessage];
+            setMessages(updatedMessages);
+          }}
+          isUserMessage={isUserMessage}
+          onScrollToBottom={handleScrollToBottom}
+          isStreamingMessage={isLoading}
+          onRestore={(files) => {
+            // Show the restore modal first
+            setRestoreModalFiles(files);
+          }}
+        />
+      </div>
+    ) : (
+      <ProgressiveMessageList
+        messages={filteredMessages}
+        chat={chat}
+        toolCallNotifications={toolCallNotifications}
+        append={append}
+        appendMessage={(newMessage) => {
+          const updatedMessages = [...messages, newMessage];
+          setMessages(updatedMessages);
+        }}
+        isUserMessage={isUserMessage}
+        onScrollToBottom={handleScrollToBottom}
+        isStreamingMessage={isLoading}
+        onRestore={(files) => {
+          // Show the restore modal first
+          setRestoreModalFiles(files);
+        }}
+      />
+    );
+  }, [
+    filteredMessages,
+    chat,
+    toolCallNotifications,
+    append,
+    messages,
+    setMessages,
+    isUserMessage,
+    handleScrollToBottom,
+    isLoading,
+    showCollapsedSidecar,
+  ]);
+
   return (
     <div className="h-full flex flex-col min-h-0">
       <MainPanelLayout
@@ -328,7 +417,7 @@ function BaseChatContent({
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             data-drop-zone="true"
-            paddingX={6}
+            paddingX={showCollapsedSidecar ? 0 : 6}
             paddingY={0}
           >
             {/* Recipe agent header - sticky at top of chat container */}
@@ -381,36 +470,10 @@ function BaseChatContent({
                 <>
                   {disableSearch ? (
                     // Render messages without SearchView wrapper when search is disabled
-                    <ProgressiveMessageList
-                      messages={filteredMessages}
-                      chat={chat}
-                      toolCallNotifications={toolCallNotifications}
-                      append={append}
-                      appendMessage={(newMessage) => {
-                        const updatedMessages = [...messages, newMessage];
-                        setMessages(updatedMessages);
-                      }}
-                      isUserMessage={isUserMessage}
-                      onScrollToBottom={handleScrollToBottom}
-                      isStreamingMessage={isLoading}
-                    />
+                    renderProgressiveMessageList()
                   ) : (
                     // Render messages with SearchView wrapper when search is enabled
-                    <SearchView>
-                      <ProgressiveMessageList
-                        messages={filteredMessages}
-                        chat={chat}
-                        toolCallNotifications={toolCallNotifications}
-                        append={append}
-                        appendMessage={(newMessage) => {
-                          const updatedMessages = [...messages, newMessage];
-                          setMessages(updatedMessages);
-                        }}
-                        isUserMessage={isUserMessage}
-                        onScrollToBottom={handleScrollToBottom}
-                        isStreamingMessage={isLoading}
-                      />
-                    </SearchView>
+                    <SearchView>{renderProgressiveMessageList()}</SearchView>
                   )}
 
                   {error &&
@@ -540,6 +603,25 @@ function BaseChatContent({
           </div>
         </div>
       )}
+
+      {/* Restore Modal */}
+      {restoreModalFiles && (
+        <RestoreModal
+          files={restoreModalFiles}
+          onConfirm={async (files) => {
+            // Create a restore message to send to the chat
+            const fileList = files.map((f) => `• ${f.path} (from ${f.timestamp})`).join('\n');
+            const restoreMessage = `Please restore the following files to their earlier versions:\n\n${fileList}`;
+
+            // Send the restore message to the chat
+            engineHandleSubmit(restoreMessage);
+
+            // Close the modal
+            setRestoreModalFiles(null);
+          }}
+          onClose={() => setRestoreModalFiles(null)}
+        />
+      )}
     </div>
   );
 }
@@ -547,7 +629,9 @@ function BaseChatContent({
 export default function BaseChat(props: BaseChatProps) {
   return (
     <ChatContextManagerProvider>
-      <BaseChatContent {...props} />
+      <SidecarProvider>
+        <BaseChatContent {...props} />
+      </SidecarProvider>
     </ChatContextManagerProvider>
   );
 }

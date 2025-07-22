@@ -13,8 +13,8 @@ use mcp_core::tool::ToolCall;
 use rmcp::model::ResourceContents;
 use rmcp::model::Role;
 use rmcp::model::{
-    AnnotateAble, Content, ImageContent, PromptMessage, PromptMessageContent, PromptMessageRole,
-    RawContent, RawImageContent, RawTextContent, TextContent,
+    AnnotateAble, Content, EmbeddedResource, ImageContent, PromptMessage, PromptMessageContent,
+    PromptMessageRole, RawContent, RawImageContent, RawTextContent, TextContent,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -104,6 +104,7 @@ pub struct SummarizationRequested {
 pub enum MessageContent {
     Text(TextContent),
     Image(ImageContent),
+    EmbeddedResource(EmbeddedResource),
     ToolRequest(ToolRequest),
     ToolResponse(ToolResponse),
     ToolConfirmationRequest(ToolConfirmationRequest),
@@ -239,6 +240,14 @@ impl MessageContent {
         }
     }
 
+    /// Get the embedded resource if this is an EmbeddedResource variant
+    pub fn as_embedded_resource(&self) -> Option<&EmbeddedResource> {
+        match self {
+            MessageContent::EmbeddedResource(resource) => Some(resource),
+            _ => None,
+        }
+    }
+
     /// Get the thinking content if this is a ThinkingContent variant
     pub fn as_thinking(&self) -> Option<&ThinkingContent> {
         match self {
@@ -266,13 +275,21 @@ impl From<Content> for MessageContent {
                 MessageContent::Image(image.optional_annotate(content.annotations))
             }
             RawContent::Resource(resource) => {
-                let text = match &resource.resource {
-                    ResourceContents::TextResourceContents { text, .. } => text.clone(),
-                    ResourceContents::BlobResourceContents { blob, .. } => {
-                        format!("[Binary content: {}]", blob.clone())
+                match &resource.resource {
+                    ResourceContents::TextResourceContents { uri, text, .. } => {
+                        // For special URIs like goose://checkpoint, preserve as resource
+                        if uri.starts_with("goose://") {
+                            MessageContent::EmbeddedResource(
+                                resource.optional_annotate(content.annotations),
+                            )
+                        } else {
+                            MessageContent::text(text.clone())
+                        }
                     }
-                };
-                MessageContent::text(text)
+                    ResourceContents::BlobResourceContents { blob, .. } => {
+                        MessageContent::text(format!("[Binary content: {}]", blob.clone()))
+                    }
+                }
             }
             RawContent::Audio(_) => {
                 MessageContent::text("[Audio content: not supported]".to_string())
