@@ -1,8 +1,10 @@
 use anyhow::Result;
-use base64::Engine;
 use console::style;
 
-use crate::recipes::recipe::load_recipe;
+use crate::recipes::github_recipe::RecipeSource;
+use crate::recipes::recipe::load_recipe_for_validation;
+use crate::recipes::search_recipe::list_available_recipes;
+use goose::recipe_deeplink;
 
 /// Validates a recipe file
 ///
@@ -15,7 +17,7 @@ use crate::recipes::recipe::load_recipe;
 /// Result indicating success or failure
 pub fn handle_validate(recipe_name: &str) -> Result<()> {
     // Load and validate the recipe file
-    match load_recipe(recipe_name) {
+    match load_recipe_for_validation(recipe_name) {
         Ok(_) => {
             println!("{} recipe file is valid", style("✓").green().bold());
             Ok(())
@@ -38,27 +40,93 @@ pub fn handle_validate(recipe_name: &str) -> Result<()> {
 /// Result indicating success or failure
 pub fn handle_deeplink(recipe_name: &str) -> Result<String> {
     // Load the recipe file first to validate it
-    match load_recipe(recipe_name) {
-        Ok(recipe) => {
-            let mut full_url = String::new();
-            if let Ok(recipe_json) = serde_json::to_string(&recipe) {
-                let deeplink = base64::engine::general_purpose::STANDARD.encode(recipe_json);
+    match load_recipe_for_validation(recipe_name) {
+        Ok(recipe) => match recipe_deeplink::encode(&recipe) {
+            Ok(encoded) => {
                 println!(
                     "{} Generated deeplink for: {}",
                     style("✓").green().bold(),
                     recipe.title
                 );
-                let url_safe = urlencoding::encode(&deeplink);
-                full_url = format!("goose://recipe?config={}", url_safe);
+                let full_url = format!("goose://recipe?config={}", encoded);
                 println!("{}", full_url);
+                Ok(full_url)
             }
-            Ok(full_url)
-        }
+            Err(err) => {
+                println!(
+                    "{} Failed to encode recipe: {}",
+                    style("✗").red().bold(),
+                    err
+                );
+                Err(anyhow::anyhow!("Failed to encode recipe: {}", err))
+            }
+        },
         Err(err) => {
             println!("{} {}", style("✗").red().bold(), err);
             Err(err)
         }
     }
+}
+
+/// Lists all available recipes from local paths and GitHub repositories
+///
+/// # Arguments
+///
+/// * `format` - Output format ("text" or "json")
+/// * `verbose` - Whether to show detailed information
+///
+/// # Returns
+///
+/// Result indicating success or failure
+pub fn handle_list(format: &str, verbose: bool) -> Result<()> {
+    let recipes = match list_available_recipes() {
+        Ok(recipes) => recipes,
+        Err(e) => {
+            return Err(anyhow::anyhow!("Failed to list recipes: {}", e));
+        }
+    };
+
+    match format {
+        "json" => {
+            println!("{}", serde_json::to_string(&recipes)?);
+        }
+        _ => {
+            if recipes.is_empty() {
+                println!("No recipes found");
+                return Ok(());
+            } else {
+                println!("Available recipes:");
+                for recipe in recipes {
+                    let source_info = match recipe.source {
+                        RecipeSource::Local => format!("local: {}", recipe.path),
+                        RecipeSource::GitHub => format!("github: {}", recipe.path),
+                    };
+
+                    let description = if let Some(desc) = &recipe.description {
+                        if desc.is_empty() {
+                            "(none)"
+                        } else {
+                            desc
+                        }
+                    } else {
+                        "(none)"
+                    };
+
+                    let output = format!("{} - {} - {}", recipe.name, description, source_info);
+                    if verbose {
+                        println!("  {}", output);
+                        if let Some(title) = &recipe.title {
+                            println!("    Title: {}", title);
+                        }
+                        println!("    Path: {}", recipe.path);
+                    } else {
+                        println!("{}", output);
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -121,7 +189,10 @@ response:
 
         let result = handle_deeplink(&recipe_path);
         assert!(result.is_ok());
-        assert!(result.unwrap().contains("goose://recipe?config=eyJ2ZXJzaW9uIjoiMS4wLjAiLCJ0aXRsZSI6IlRlc3QgUmVjaXBlIHdpdGggVmFsaWQgSlNPTiBTY2hlbWEiLCJkZXNjcmlwdGlvbiI6IkEgdGVzdCByZWNpcGUgd2l0aCB2YWxpZCBKU09OIHNjaGVtYSIsImluc3RydWN0aW9ucyI6IlRlc3QgaW5zdHJ1Y3Rpb25zIiwicHJvbXB0IjoiVGVzdCBwcm9tcHQgY29udGVudCIsInJlc3BvbnNlIjp7Impzb25fc2NoZW1hIjp7InByb3BlcnRpZXMiOnsiY291bnQiOnsiZGVzY3JpcHRpb24iOiJBIGNvdW50IHZhbHVlIiwidHlwZSI6Im51bWJlciJ9LCJyZXN1bHQiOnsiZGVzY3JpcHRpb24iOiJUaGUgcmVzdWx0IiwidHlwZSI6InN0cmluZyJ9fSwicmVxdWlyZWQiOlsicmVzdWx0Il0sInR5cGUiOiJvYmplY3QifX19"));
+        let url = result.unwrap();
+        assert!(url.starts_with("goose://recipe?config="));
+        let encoded_part = url.strip_prefix("goose://recipe?config=").unwrap();
+        assert!(encoded_part.len() > 0);
     }
 
     #[test]

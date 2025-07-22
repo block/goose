@@ -22,7 +22,7 @@ async fn _generate_session_name(messages: &[Message]) -> Result<String, Provider
         "token": std::env::var("DATABRICKS_TOKEN").expect("Missing DATABRICKS_TOKEN"),
     });
 
-    generate_session_name(provider_name, provider_config, messages).await
+    generate_session_name(provider_name, provider_config, messages, None).await
 }
 
 #[tokio::test]

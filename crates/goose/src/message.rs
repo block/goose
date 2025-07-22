@@ -8,12 +8,14 @@ use std::collections::HashSet;
 /// The content of the messages uses MCP types to avoid additional conversions
 /// when interacting with MCP servers.
 use chrono::Utc;
-use mcp_core::content::{Content, ImageContent, TextContent};
 use mcp_core::handler::ToolResult;
-use mcp_core::prompt::{PromptMessage, PromptMessageContent, PromptMessageRole};
-use mcp_core::resource::ResourceContents;
-use mcp_core::role::Role;
 use mcp_core::tool::ToolCall;
+use rmcp::model::ResourceContents;
+use rmcp::model::Role;
+use rmcp::model::{
+    AnnotateAble, Content, ImageContent, PromptMessage, PromptMessageContent, PromptMessageRole,
+    RawContent, RawImageContent, RawTextContent, TextContent,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use utoipa::ToSchema;
@@ -114,18 +116,17 @@ pub enum MessageContent {
 
 impl MessageContent {
     pub fn text<S: Into<String>>(text: S) -> Self {
-        MessageContent::Text(TextContent {
-            text: text.into(),
-            annotations: None,
-        })
+        MessageContent::Text(RawTextContent { text: text.into() }.no_annotation())
     }
 
     pub fn image<S: Into<String>, T: Into<String>>(data: S, mime_type: T) -> Self {
-        MessageContent::Image(ImageContent {
-            data: data.into(),
-            mime_type: mime_type.into(),
-            annotations: None,
-        })
+        MessageContent::Image(
+            RawImageContent {
+                data: data.into(),
+                mime_type: mime_type.into(),
+            }
+            .no_annotation(),
+        )
     }
 
     pub fn tool_request<S: Into<String>>(id: S, tool_call: ToolResult<ToolCall>) -> Self {
@@ -220,7 +221,7 @@ impl MessageContent {
             if let Ok(contents) = &tool_response.tool_result {
                 let texts: Vec<String> = contents
                     .iter()
-                    .filter_map(|content| content.as_text().map(String::from))
+                    .filter_map(|content| content.as_text().map(|t| t.text.to_string()))
                     .collect();
                 if !texts.is_empty() {
                     return Some(texts.join("\n"));
@@ -257,13 +258,25 @@ impl MessageContent {
 
 impl From<Content> for MessageContent {
     fn from(content: Content) -> Self {
-        match content {
-            Content::Text(text) => MessageContent::Text(text),
-            Content::Image(image) => MessageContent::Image(image),
-            Content::Resource(resource) => MessageContent::Text(TextContent {
-                text: resource.get_text(),
-                annotations: None,
-            }),
+        match content.raw {
+            RawContent::Text(text) => {
+                MessageContent::Text(text.optional_annotate(content.annotations))
+            }
+            RawContent::Image(image) => {
+                MessageContent::Image(image.optional_annotate(content.annotations))
+            }
+            RawContent::Resource(resource) => {
+                let text = match &resource.resource {
+                    ResourceContents::TextResourceContents { text, .. } => text.clone(),
+                    ResourceContents::BlobResourceContents { blob, .. } => {
+                        format!("[Binary content: {}]", blob.clone())
+                    }
+                };
+                MessageContent::text(text)
+            }
+            RawContent::Audio(_) => {
+                MessageContent::text("[Audio content: not supported]".to_string())
+            }
         }
     }
 }
@@ -280,16 +293,16 @@ impl From<PromptMessage> for Message {
         let content = match prompt_message.content {
             PromptMessageContent::Text { text } => MessageContent::text(text),
             PromptMessageContent::Image { image } => {
-                MessageContent::image(image.data, image.mime_type)
+                MessageContent::image(image.data.clone(), image.mime_type.clone())
             }
             PromptMessageContent::Resource { resource } => {
                 // For resources, convert to text content with the resource text
-                match resource.resource {
+                match &resource.resource {
                     ResourceContents::TextResourceContents { text, .. } => {
-                        MessageContent::text(text)
+                        MessageContent::text(text.clone())
                     }
                     ResourceContents::BlobResourceContents { blob, .. } => {
-                        MessageContent::text(format!("[Binary content: {}]", blob))
+                        MessageContent::text(format!("[Binary content: {}]", blob.clone()))
                     }
                 }
             }
@@ -512,10 +525,8 @@ impl Message {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcp_core::content::EmbeddedResource;
     use mcp_core::handler::ToolError;
-    use mcp_core::prompt::PromptMessageContent;
-    use mcp_core::resource::ResourceContents;
+    use rmcp::model::{PromptMessage, PromptMessageContent, RawEmbeddedResource, ResourceContents};
     use serde_json::{json, Value};
 
     #[test]
@@ -654,11 +665,11 @@ mod tests {
     #[test]
     fn test_from_prompt_message_image() {
         let prompt_content = PromptMessageContent::Image {
-            image: ImageContent {
+            image: RawImageContent {
                 data: "base64data".to_string(),
                 mime_type: "image/jpeg".to_string(),
-                annotations: None,
-            },
+            }
+            .no_annotation(),
         };
 
         let prompt_message = PromptMessage {
@@ -685,10 +696,7 @@ mod tests {
         };
 
         let prompt_content = PromptMessageContent::Resource {
-            resource: EmbeddedResource {
-                resource,
-                annotations: None,
-            },
+            resource: RawEmbeddedResource { resource }.no_annotation(),
         };
 
         let prompt_message = PromptMessage {
@@ -714,10 +722,7 @@ mod tests {
         };
 
         let prompt_content = PromptMessageContent::Resource {
-            resource: EmbeddedResource {
-                resource,
-                annotations: None,
-            },
+            resource: RawEmbeddedResource { resource }.no_annotation(),
         };
 
         let prompt_message = PromptMessage {

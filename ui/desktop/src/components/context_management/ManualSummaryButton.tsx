@@ -1,7 +1,16 @@
 import React, { useState } from 'react';
 import { ScrollText } from 'lucide-react';
-import Modal from '../Modal';
+import { cn } from '../../utils';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../ui/dialog';
 import { Button } from '../ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/Tooltip';
 import { useChatContextManager } from './ChatContextManager';
 import { Message } from '../../types/message';
 
@@ -34,64 +43,66 @@ export const ManualSummarizeButton: React.FC<ManualSummarizeButtonProps> = ({
     }
   };
 
-  // Footer content for the confirmation modal
-  const footerContent = (
-    <>
-      <Button
-        onClick={handleSummarize}
-        className="w-full h-[60px] rounded-none border-b border-borderSubtle bg-transparent hover:bg-bgSubtle text-textProminent font-medium text-large"
-      >
-        Summarize
-      </Button>
-      <Button
-        onClick={() => setIsConfirmationOpen(false)}
-        variant="ghost"
-        className="w-full h-[60px] rounded-none hover:bg-bgSubtle text-textSubtle hover:text-textStandard text-large font-regular"
-      >
-        Cancel
-      </Button>
-    </>
-  );
+  const handleClose = () => {
+    setIsConfirmationOpen(false);
+  };
 
   return (
     <>
+      <div className="w-px h-4 bg-border-default mx-2" />
       <div className="relative flex items-center">
-        <button
-          className={`flex items-center justify-center text-textSubtle hover:text-textStandard h-6 [&_svg]:size-4 ${
-            isLoadingSummary || isLoading ? 'opacity-50 cursor-not-allowed' : ''
-          }`}
-          onClick={handleClick}
-          disabled={isLoadingSummary || isLoading}
-          title="Summarize conversation context"
-        >
-          <ScrollText size={16} />
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              className={cn(
+                'flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors',
+                (isLoadingSummary || isLoading) &&
+                  'cursor-not-allowed text-text-default/30 hover:text-text-default/30 opacity-50'
+              )}
+              onClick={handleClick}
+              disabled={isLoadingSummary || isLoading}
+            >
+              <ScrollText size={16} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {isLoadingSummary ? 'Summarizing conversation...' : 'Summarize conversation context'}
+          </TooltipContent>
+        </Tooltip>
       </div>
 
       {/* Confirmation Modal */}
-      {isConfirmationOpen && (
-        <Modal footer={footerContent} onClose={() => setIsConfirmationOpen(false)}>
-          <div className="flex flex-col mb-6">
-            <div>
+      <Dialog open={isConfirmationOpen} onOpenChange={handleClose}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
               <ScrollText className="text-iconStandard" size={24} />
-            </div>
-            <div className="mt-2">
-              <h2 className="text-2xl font-regular text-textStandard">Summarize Conversation</h2>
-            </div>
-          </div>
-
-          <div className="mb-6">
-            <p className="text-textStandard mb-4">
+              Summarize Conversation
+            </DialogTitle>
+            <DialogDescription>
               This will summarize your conversation history to save context space.
-            </p>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4">
             <p className="text-textStandard">
               Previous messages will remain visible but only the summary will be included in the
               active context for Goose. This is useful for long conversations that are approaching
               the context limit.
             </p>
           </div>
-        </Modal>
-      )}
+
+          <DialogFooter className="pt-2">
+            <Button type="button" variant="outline" onClick={handleClose}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={handleSummarize}>
+              Summarize
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };

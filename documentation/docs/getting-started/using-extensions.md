@@ -5,6 +5,7 @@ title: Using Extensions
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import { PanelLeft } from 'lucide-react';
 
 Extensions are add-ons that provide a way to extend the functionality of Goose by connecting with applications and tools you already use in your workflow. These extensions can be used to add new features, access data and resources, or integrate with other systems.
 
@@ -31,8 +32,8 @@ Here are the built-in extensions:
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  1. Click `...` in the top right corner of the Goose Desktop.
-  2. Select `Advanced Settings` from the menu.
+  1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
+  2. Click the `Extensions` button on the sidebar.
   3. Under `Extensions`, you can toggle the built-in extensions on or off.
   </TabItem>
 
@@ -115,8 +116,8 @@ See available servers in the **[MCP Server Directory](https://www.pulsemcp.com/s
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
  
-  1. Click `...` in the top right corner of the Goose Desktop.
-  2. Select `Advanced Settings` from the menu.
+  1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
+  2. Click the `Extensions` button on the sidebar.
   3. Under `Extensions`, click `Add custom extension`.
   4. On the `Add custom extension` modal, enter the necessary details
      - If adding an environment variable, click `Add` button to the right of the variable
@@ -343,8 +344,8 @@ You can enable or disable installed extensions based on your workflow needs.
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  1. Click the three dots in the top-right corner of the application.
-  2. Select `Advanced Settings` from the menu, scroll down to the `Extensions` section.
+  1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
+  2. Click the `Extensions` button on the sidebar.
   2. Use the toggle switch next to each extension to enable or disable it.
 
   </TabItem>
@@ -506,8 +507,8 @@ You can remove installed extensions.
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
 
-  1. Click `...` in the top right corner of the Goose Desktop.
-  2. Select `Advanced Settings` from the menu.
+  1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
+  2. Click the `Extensions` button on the sidebar.
   3. Under `Extensions`, find the extension you'd like to remove and click on the settings icon beside it.
   4. In the dialog that appears, click `Remove Extension`.
 

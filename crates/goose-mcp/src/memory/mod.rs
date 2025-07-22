@@ -14,14 +14,12 @@ use tokio::sync::mpsc;
 
 use mcp_core::{
     handler::{PromptError, ResourceError, ToolError},
-    prompt::Prompt,
     protocol::{JsonRpcMessage, ServerCapabilities},
-    resource::Resource,
     tool::{Tool, ToolAnnotations, ToolCall},
-    Content,
 };
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
+use rmcp::model::{Content, Prompt, Resource};
 
 // MemoryRouter implementation
 #[derive(Clone)]

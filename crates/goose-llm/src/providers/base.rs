@@ -69,6 +69,7 @@ pub trait Provider: Send + Sync {
     /// * `system` - The system prompt that guides the model's behavior
     /// * `messages` - The conversation history as a sequence of messages
     /// * `tools` - Optional list of tools the model can use
+    /// * `request_id` - Optional request ID (only used by some providers like Databricks)
     ///
     /// # Returns
     /// A tuple containing the model's response message and provider usage statistics
@@ -81,6 +82,7 @@ pub trait Provider: Send + Sync {
         system: &str,
         messages: &[Message],
         tools: &[Tool],
+        request_id: Option<&str>,
     ) -> Result<ProviderCompleteResponse, ProviderError>;
 
     /// Structured extraction: always JSON‐Schema
@@ -90,6 +92,7 @@ pub trait Provider: Send + Sync {
     /// * `messages` – conversation history  
     /// * `schema`   – a JSON‐Schema for the expected output.
     ///                 Will set strict=true for OpenAI & Databricks.
+    /// * `request_id` - Optional request ID (only used by some providers like Databricks)
     ///
     /// # Returns
     /// A `ProviderExtractResponse` whose `data` is a JSON object matching `schema`.  
@@ -102,6 +105,7 @@ pub trait Provider: Send + Sync {
         system: &str,
         messages: &[Message],
         schema: &serde_json::Value,
+        request_id: Option<&str>,
     ) -> Result<ProviderExtractResponse, ProviderError>;
 }
 

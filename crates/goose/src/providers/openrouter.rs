@@ -199,23 +199,20 @@ fn update_request_for_anthropic(original_payload: &Value) -> Value {
 }
 
 fn create_request_based_on_model(
-    model_config: &ModelConfig,
+    provider: &OpenRouterProvider,
     system: &str,
     messages: &[Message],
     tools: &[Tool],
 ) -> anyhow::Result<Value, Error> {
     let mut payload = create_request(
-        model_config,
+        &provider.model,
         system,
         messages,
         tools,
         &super::utils::ImageFormat::OpenAi,
     )?;
 
-    if model_config
-        .model_name
-        .starts_with(OPENROUTER_MODEL_PREFIX_ANTHROPIC)
-    {
+    if provider.supports_cache_control() {
         payload = update_request_for_anthropic(&payload);
     }
 
@@ -259,21 +256,17 @@ impl Provider for OpenRouterProvider {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         // Create the base payload
-        let payload = create_request_based_on_model(&self.model, system, messages, tools)?;
+        let payload = create_request_based_on_model(self, system, messages, tools)?;
 
         // Make request
         let response = self.post(payload.clone()).await?;
 
         // Parse response
         let message = response_to_message(response.clone())?;
-        let usage = match get_usage(&response) {
-            Ok(usage) => usage,
-            Err(ProviderError::UsageError(e)) => {
-                tracing::debug!("Failed to get usage data: {}", e);
-                Usage::default()
-            }
-            Err(e) => return Err(e),
-        };
+        let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
+            tracing::debug!("Failed to get usage data");
+            Usage::default()
+        });
         let model = get_model(&response);
         emit_debug_trace(&self.model, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(model, usage)))
@@ -368,5 +361,11 @@ impl Provider for OpenRouterProvider {
 
         models.sort();
         Ok(Some(models))
+    }
+
+    fn supports_cache_control(&self) -> bool {
+        self.model
+            .model_name
+            .starts_with(OPENROUTER_MODEL_PREFIX_ANTHROPIC)
     }
 }

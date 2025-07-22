@@ -6,19 +6,21 @@ export default function Dot({
   size: number;
   loadingStatus: LoadingStatus;
 }) {
-  const backgroundColor =
-    {
-      loading: '#2693FF',
-      success: 'var(--icon-extra-subtle)',
-      error: '#CC0023',
-    }[loadingStatus] ?? 'var(--icon-extra-subtle)';
+  const backgroundColorClasses = {
+    loading: 'bg-blue-500',
+    success: 'bg-green-600',
+    error: 'bg-red-600',
+  };
 
   return (
-    <div
-      className={`w-${size} h-${size} rounded-full`}
-      style={{
-        backgroundColor: backgroundColor,
-      }}
-    />
+    <div className={`${loadingStatus === 'loading' ? '' : ''} flex items-center justify-center`}>
+      <div
+        className={`rounded-full ${backgroundColorClasses[loadingStatus] || 'bg-icon-extra-subtle'}`}
+        style={{
+          width: `${size * 2}px`,
+          height: `${size * 2}px`,
+        }}
+      />
+    </div>
   );
 }

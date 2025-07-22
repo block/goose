@@ -147,6 +147,13 @@ run-ui-only:
     @echo "Running UI..."
     cd ui/desktop && npm install && npm run start-gui
 
+debug-ui:
+	@echo "🚀 Starting Goose frontend in external backend mode"
+	cd ui/desktop && \
+	export GOOSE_EXTERNAL_BACKEND=true && \
+	export GOOSE_EXTERNAL_PORT=3000 && \
+	npm install && \
+	npm run start-gui
 
 # Run UI with alpha changes
 run-ui-alpha temporal="true":
@@ -176,6 +183,17 @@ run-docs:
 run-server:
     @echo "Running server..."
     cargo run -p goose-server
+
+# Check if OpenAPI schema is up-to-date
+check-openapi-schema: generate-openapi
+    ./scripts/check-openapi-schema.sh
+
+# Generate OpenAPI specification without starting the UI
+generate-openapi:
+    @echo "Generating OpenAPI schema..."
+    cargo run -p goose-server --bin generate_schema
+    @echo "Generating frontend API..."
+    cd ui/desktop && npm run generate-api
 
 # make GUI with latest binary
 lint-ui:
@@ -274,12 +292,11 @@ install-deps:
     cd ui/desktop && npm install
     cd documentation && yarn
 
-# ensure the current branch is "main" or error
-ensure-main:
+ensure-release-branch:
     #!/usr/bin/env bash
     branch=$(git rev-parse --abbrev-ref HEAD); \
-    if [ "$branch" != "main" ]; then \
-        echo "Error: You are not on the main branch (current: $branch)"; \
+    if [[ ! "$branch" == release/* ]]; then \
+        echo "Error: You are not on a release branch (current: $branch)"; \
         exit 1; \
     fi
 
@@ -287,7 +304,7 @@ ensure-main:
     git fetch
     # @{u} refers to upstream branch of current branch
     if [ "$(git rev-parse HEAD)" != "$(git rev-parse @{u})" ]; then \
-        echo "Error: Your branch is not up to date with the upstream main branch"; \
+        echo "Error: Your branch is not up to date with the upstream branch"; \
         echo "  ensure your branch is up to date (git pull)"; \
         exit 1; \
     fi
@@ -309,7 +326,7 @@ validate version:
     fi
 
 # set cargo and app versions, must be semver
-release version: ensure-main
+prepare-release version:
     @just validate {{ version }} || exit 1
 
     @git switch -c "release/{{ version }}"
@@ -327,8 +344,8 @@ release version: ensure-main
 get-tag-version:
     @uvx --from=toml-cli toml get --toml-path=Cargo.toml "workspace.package.version"
 
-# create the git tag from Cargo.toml, must be on main
-tag: ensure-main
+# create the git tag from Cargo.toml, checking we're on a release branch
+tag: ensure-release-branch
     git tag v$(just get-tag-version)
 
 # create tag and push to origin (use this when release branch is merged to main)
@@ -337,9 +354,9 @@ tag-push: tag
     git push origin tag v$(just get-tag-version)
 
 # generate release notes from git commits
-release-notes:
+release-notes old:
     #!/usr/bin/env bash
-    git log --pretty=format:"- %s" v$(just get-tag-version)..HEAD
+    git log --pretty=format:"- %s" {{ old }}..v$(just get-tag-version)
 
 ### s = file seperator based on OS
 s := if os() == "windows" { "\\" } else { "/" }
@@ -355,16 +372,16 @@ set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
 ### Build the core code
 ### profile = --release or "" for debug
 ### allparam = OR/AND/ANY/NONE --workspace --all-features --all-targets
-win-bld profile allparam: 
+win-bld profile allparam:
   cargo run {{profile}} -p goose-server --bin  generate_schema
   cargo build {{profile}} {{allparam}}
 
 ### Build just debug
-win-bld-dbg: 
+win-bld-dbg:
   just win-bld " " " "
 
 ### Build debug and test, examples,...
-win-bld-dbg-all: 
+win-bld-dbg-all:
   just win-bld " " "--workspace --all-targets --all-features"
 
 ### Build just release
@@ -427,8 +444,8 @@ win-total-rls *allparam:
   just win-bld-rls{{allparam}}
   just win-run-rls
 
-### Build and run the Kotlin example with 
-### auto-generated bindings for goose-llm 
+### Build and run the Kotlin example with
+### auto-generated bindings for goose-llm
 kotlin-example:
     # Build Rust dylib and generate Kotlin bindings
     cargo build -p goose-llm

@@ -3,13 +3,14 @@ use crate::recipe::Response;
 use indoc::formatdoc;
 use mcp_core::{
     tool::{Tool, ToolAnnotations},
-    Content, ToolCall, ToolError,
+    ToolCall, ToolError,
 };
+use rmcp::model::Content;
 use serde_json::Value;
 
 pub const FINAL_OUTPUT_TOOL_NAME: &str = "recipe__final_output";
 pub const FINAL_OUTPUT_CONTINUATION_MESSAGE: &str =
-    "I see I MUST call the `final_output` tool NOW with the final output for the user.";
+    "You MUST call the `final_output` tool NOW with the final output for the user.";
 
 pub struct FinalOutputTool {
     pub response: Response,

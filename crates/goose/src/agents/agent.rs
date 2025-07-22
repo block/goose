@@ -9,10 +9,14 @@ use futures::{stream, FutureExt, Stream, StreamExt, TryStreamExt};
 use mcp_core::protocol::JsonRpcMessage;
 
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
-use crate::agents::sub_recipe_execution_tool::sub_recipe_execute_task_tool::{
-    self, SUB_RECIPE_EXECUTE_TASK_TOOL_NAME,
+use crate::agents::recipe_tools::dynamic_task_tools::{
+    create_dynamic_task, create_dynamic_task_tool, DYNAMIC_TASK_TOOL_NAME_PREFIX,
 };
 use crate::agents::sub_recipe_manager::SubRecipeManager;
+use crate::agents::subagent_execution_tool::subagent_execute_task_tool::{
+    self, SUBAGENT_EXECUTE_TASK_TOOL_NAME,
+};
+use crate::agents::subagent_execution_tool::tasks_manager::TasksManager;
 use crate::config::{Config, ExtensionConfigManager, PermissionManager};
 use crate::message::{push_message, Message};
 use crate::permission::permission_judge::check_tool_permissions;
@@ -25,7 +29,7 @@ use crate::tool_monitor::{ToolCall, ToolMonitor};
 use regex::Regex;
 use serde_json::Value;
 use tokio::sync::{mpsc, Mutex, RwLock};
-use tracing::{debug, error, instrument};
+use tracing::{debug, error, info, instrument};
 
 use crate::agents::extension::{ExtensionConfig, ExtensionError, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
@@ -35,6 +39,7 @@ use crate::agents::platform_tools::{
     PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
 };
 use crate::agents::prompt_manager::PromptManager;
+use crate::agents::retry::{RetryManager, RetryResult};
 use crate::agents::router_tool_selector::{
     create_tool_selector, RouterToolSelectionStrategy, RouterToolSelector,
 };
@@ -43,27 +48,24 @@ use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::tool_vectordb::generate_table_id;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, ToolResultReceiver};
-use mcp_core::{
-    prompt::Prompt, protocol::GetPromptResult, tool::Tool, Content, ToolError, ToolResult,
-};
-
-use crate::agents::subagent_tools::SUBAGENT_RUN_TASK_TOOL_NAME;
+use mcp_core::{protocol::GetPromptResult, tool::Tool, ToolError, ToolResult};
+use rmcp::model::{Content, Prompt};
 
 use super::final_output_tool::FinalOutputTool;
 use super::platform_tools;
 use super::router_tools;
-use super::subagent_manager::SubAgentManager;
-use super::subagent_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
+use crate::agents::subagent_task_config::TaskConfig;
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 
 /// The main goose Agent
 pub struct Agent {
     pub(super) provider: Mutex<Option<Arc<dyn Provider>>>,
-    pub(super) extension_manager: RwLock<ExtensionManager>,
+    pub(super) extension_manager: Arc<RwLock<ExtensionManager>>,
     pub(super) sub_recipe_manager: Mutex<SubRecipeManager>,
-    pub(super) final_output_tool: Mutex<Option<FinalOutputTool>>,
+    pub(super) tasks_manager: TasksManager,
+    pub(super) final_output_tool: Arc<Mutex<Option<FinalOutputTool>>>,
     pub(super) frontend_tools: Mutex<HashMap<String, FrontendTool>>,
     pub(super) frontend_instructions: Mutex<Option<String>>,
     pub(super) prompt_manager: Mutex<PromptManager>,
@@ -71,11 +73,12 @@ pub struct Agent {
     pub(super) confirmation_rx: Mutex<mpsc::Receiver<(String, PermissionConfirmation)>>,
     pub(super) tool_result_tx: mpsc::Sender<(String, ToolResult<Vec<Content>>)>,
     pub(super) tool_result_rx: ToolResultReceiver,
-    pub(super) tool_monitor: Mutex<Option<ToolMonitor>>,
+    pub(super) tool_monitor: Arc<Mutex<Option<ToolMonitor>>>,
     pub(super) router_tool_selector: Mutex<Option<Arc<Box<dyn RouterToolSelector>>>>,
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
-    pub(super) subagent_manager: Mutex<Option<SubAgentManager>>,
+    pub(super) mcp_tx: Mutex<mpsc::Sender<JsonRpcMessage>>,
     pub(super) mcp_notification_rx: Arc<Mutex<mpsc::Receiver<JsonRpcMessage>>>,
+    pub(super) retry_manager: RetryManager,
 }
 
 #[derive(Clone, Debug)]
@@ -133,11 +136,15 @@ impl Agent {
         // Add MCP notification channel
         let (mcp_tx, mcp_rx) = mpsc::channel(100);
 
+        let tool_monitor = Arc::new(Mutex::new(None));
+        let retry_manager = RetryManager::with_tool_monitor(tool_monitor.clone());
+
         Self {
             provider: Mutex::new(None),
-            extension_manager: RwLock::new(ExtensionManager::new()),
+            extension_manager: Arc::new(RwLock::new(ExtensionManager::new())),
             sub_recipe_manager: Mutex::new(SubRecipeManager::new()),
-            final_output_tool: Mutex::new(None),
+            tasks_manager: TasksManager::new(),
+            final_output_tool: Arc::new(Mutex::new(None)),
             frontend_tools: Mutex::new(HashMap::new()),
             frontend_instructions: Mutex::new(None),
             prompt_manager: Mutex::new(PromptManager::new()),
@@ -145,12 +152,13 @@ impl Agent {
             confirmation_rx: Mutex::new(confirm_rx),
             tool_result_tx: tool_tx,
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
-            tool_monitor: Mutex::new(None),
+            tool_monitor,
             router_tool_selector: Mutex::new(None),
             scheduler_service: Mutex::new(None),
             // Initialize with MCP notification support
-            subagent_manager: Mutex::new(Some(SubAgentManager::new(mcp_tx))),
+            mcp_tx: Mutex::new(mcp_tx),
             mcp_notification_rx: Arc::new(Mutex::new(mcp_rx)),
+            retry_manager,
         }
     }
 
@@ -167,6 +175,41 @@ impl Agent {
     pub async fn reset_tool_monitor(&self) {
         if let Some(monitor) = self.tool_monitor.lock().await.as_mut() {
             monitor.reset();
+        }
+    }
+
+    /// Reset the retry attempts counter to 0
+    pub async fn reset_retry_attempts(&self) {
+        self.retry_manager.reset_attempts().await;
+    }
+
+    /// Increment the retry attempts counter and return the new value
+    pub async fn increment_retry_attempts(&self) -> u32 {
+        self.retry_manager.increment_attempts().await
+    }
+
+    /// Get the current retry attempts count
+    pub async fn get_retry_attempts(&self) -> u32 {
+        self.retry_manager.get_attempts().await
+    }
+
+    /// Handle retry logic for the agent reply loop
+    async fn handle_retry_logic(
+        &self,
+        messages: &mut Vec<Message>,
+        session: &Option<SessionConfig>,
+        initial_messages: &[Message],
+    ) -> Result<bool> {
+        let result = self
+            .retry_manager
+            .handle_retry_logic(messages, session, initial_messages, &self.final_output_tool)
+            .await?;
+
+        match result {
+            RetryResult::Retried => Ok(true),
+            RetryResult::Skipped
+            | RetryResult::MaxAttemptsReached
+            | RetryResult::SuccessChecksPassed => Ok(false),
         }
     }
 
@@ -291,10 +334,26 @@ impl Agent {
         let sub_recipe_manager = self.sub_recipe_manager.lock().await;
         let result: ToolCallResult = if sub_recipe_manager.is_sub_recipe_tool(&tool_call.name) {
             sub_recipe_manager
-                .dispatch_sub_recipe_tool_call(&tool_call.name, tool_call.arguments.clone())
+                .dispatch_sub_recipe_tool_call(
+                    &tool_call.name,
+                    tool_call.arguments.clone(),
+                    &self.tasks_manager,
+                )
                 .await
-        } else if tool_call.name == SUB_RECIPE_EXECUTE_TASK_TOOL_NAME {
-            sub_recipe_execute_task_tool::run_tasks(tool_call.arguments.clone()).await
+        } else if tool_call.name == SUBAGENT_EXECUTE_TASK_TOOL_NAME {
+            let provider = self.provider().await.ok();
+            let mcp_tx = self.mcp_tx.lock().await.clone();
+
+            let task_config =
+                TaskConfig::new(provider, Some(Arc::clone(&self.extension_manager)), mcp_tx);
+            subagent_execute_task_tool::run_tasks(
+                tool_call.arguments.clone(),
+                task_config,
+                &self.tasks_manager,
+            )
+            .await
+        } else if tool_call.name == DYNAMIC_TASK_TOOL_NAME_PREFIX {
+            create_dynamic_task(tool_call.arguments.clone(), &self.tasks_manager).await
         } else if tool_call.name == PLATFORM_READ_RESOURCE_TOOL_NAME {
             // Check if the tool is read_resource and handle it separately
             ToolCallResult::from(
@@ -310,11 +369,6 @@ impl Agent {
             )
         } else if tool_call.name == PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME {
             ToolCallResult::from(extension_manager.search_available_extensions().await)
-        } else if tool_call.name == SUBAGENT_RUN_TASK_TOOL_NAME {
-            ToolCallResult::from(
-                self.handle_run_subagent_task(tool_call.arguments.clone())
-                    .await,
-            )
         } else if self.is_frontend_tool(&tool_call.name).await {
             // For frontend tools, return an error indicating we need frontend execution
             ToolCallResult::from(Err(ToolError::ExecutionError(
@@ -556,11 +610,8 @@ impl Agent {
                 platform_tools::manage_schedule_tool(),
             ]);
 
-            // Add subagent tool (only if ALPHA_FEATURES is enabled)
-            let config = Config::global();
-            if config.get_param::<bool>("ALPHA_FEATURES").unwrap_or(false) {
-                prefixed_tools.push(subagent_tools::run_task_subagent_tool());
-            }
+            // Dynamic task tool
+            prefixed_tools.push(create_dynamic_task_tool());
 
             // Add resource tools if supported
             if extension_manager.supports_resources() {
@@ -578,8 +629,7 @@ impl Agent {
             if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
                 prefixed_tools.push(final_output_tool.tool());
             }
-            prefixed_tools
-                .push(sub_recipe_execute_task_tool::create_sub_recipe_execute_task_tool());
+            prefixed_tools.push(subagent_execute_task_tool::create_subagent_execute_task_tool());
         }
 
         prefixed_tools
@@ -671,7 +721,10 @@ impl Agent {
         session: Option<SessionConfig>,
     ) -> anyhow::Result<BoxStream<'_, anyhow::Result<AgentEvent>>> {
         let mut messages = messages.to_vec();
+        let initial_messages = messages.clone();
         let reply_span = tracing::Span::current();
+
+        self.reset_retry_attempts().await;
 
         // Load settings from config
         let config = Config::global();
@@ -837,24 +890,6 @@ impl Agent {
 
                                 let num_tool_requests = frontend_requests.len() + remaining_requests.len();
                                 if num_tool_requests == 0 {
-                                    if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
-                                        if final_output_tool.final_output.is_none() {
-                                            tracing::warn!("Final output tool has not been called yet. Continuing agent loop.");
-                                            let message = Message::assistant().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE);
-                                            messages.push(message.clone());
-                                            yield AgentEvent::Message(message);
-                                            continue;
-                                        } else {
-                                            let message = Message::assistant().with_text(final_output_tool.final_output.clone().unwrap());
-                                            messages.push(message.clone());
-                                            yield AgentEvent::Message(message);
-                                            // Set added_message to true and continue to end the current iteration
-                                            added_message = true;
-                                            push_message(&mut messages, response);
-                                            continue;
-                                        }
-                                    }
-                                    // If there's no final output tool and no tool requests, continue the loop
                                     continue;
                                 }
 
@@ -1039,12 +1074,32 @@ impl Agent {
                     if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
                         if final_output_tool.final_output.is_none() {
                             tracing::warn!("Final output tool has not been called yet. Continuing agent loop.");
-                            yield AgentEvent::Message(Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE));
+                            let message = Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE);
+                            messages.push(message.clone());
+                            yield AgentEvent::Message(message);
                             continue;
                         } else {
-                            yield AgentEvent::Message(Message::assistant().with_text(final_output_tool.final_output.clone().unwrap()));
+                            let message = Message::assistant().with_text(final_output_tool.final_output.clone().unwrap());
+                            messages.push(message.clone());
+                            yield AgentEvent::Message(message);
                         }
                     }
+
+                    match self.handle_retry_logic(&mut messages, &session, &initial_messages).await {
+                        Ok(should_retry) => {
+                            if should_retry {
+                                info!("Retry logic triggered, restarting agent loop");
+                                continue;
+                            }
+                        }
+                        Err(e) => {
+                            error!("Retry logic failed: {}", e);
+                            yield AgentEvent::Message(Message::assistant().with_text(
+                                format!("Retry logic encountered an error: {}", e)
+                            ));
+                        }
+                    }
+
                     break;
                 }
 
@@ -1076,15 +1131,6 @@ impl Agent {
     pub async fn update_provider(&self, provider: Arc<dyn Provider>) -> Result<()> {
         let mut current_provider = self.provider.lock().await;
         *current_provider = Some(provider.clone());
-
-        // Initialize subagent manager with MCP notification support
-        // Need to recreate the MCP channel since we're replacing the manager
-        let (mcp_tx, mcp_rx) = mpsc::channel(100);
-        {
-            let mut rx_guard = self.mcp_notification_rx.lock().await;
-            *rx_guard = mcp_rx;
-        }
-        *self.subagent_manager.lock().await = Some(SubAgentManager::new(mcp_tx));
 
         self.update_router_tool_selector(Some(provider), None)
             .await?;

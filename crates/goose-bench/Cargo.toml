@@ -10,13 +10,13 @@ description.workspace = true
 [lints]
 workspace = true
 
-
 [dependencies]
 anyhow = "1.0"
 paste = "1.0"
 ctor = "0.2.7"
 goose = { path = "../goose" }
 mcp-core = { path = "../mcp-core" }
+rmcp = { workspace = true }
 async-trait = "0.1.86"
 chrono = { version = "0.4", features = ["serde"] }
 serde_json = "1.0"

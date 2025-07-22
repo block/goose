@@ -21,6 +21,7 @@ goose-mcp = { path = "../goose-mcp" }
 mcp-client = { path = "../mcp-client" }
 mcp-server = { path = "../mcp-server" }
 mcp-core = { path = "../mcp-core" }
+rmcp = { workspace = true }
 clap = { version = "4.4", features = ["derive"] }
 cliclack = "0.3.5"
 console = "0.15.8"
@@ -70,7 +71,6 @@ http = "1.0"
 webbrowser = "1.0"
 
 indicatif = "0.17.11"
-urlencoding = "2"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }

@@ -5,6 +5,7 @@ title: Configure LLM Provider
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import { PanelLeft } from 'lucide-react';
 
 # Supported LLM Providers
 
@@ -25,7 +26,8 @@ Goose relies heavily on tool calling capabilities and currently works best with 
 | [Azure OpenAI](https://learn.microsoft.com/en-us/azure/ai-services/openai/) | Access Azure-hosted OpenAI models, including GPT-4 and GPT-3.5. Supports both API key and Azure credential chain authentication.                                                                                          | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT_NAME`, `AZURE_OPENAI_API_KEY` (optional)                                                                                           |
 | [Databricks](https://www.databricks.com/)                                   | Unified data analytics and AI platform for building and deploying models.                                                                                                                                                 | `DATABRICKS_HOST`, `DATABRICKS_TOKEN`                                                                                                                                               |
 | [Gemini](https://ai.google.dev/gemini-api/docs)                             | Advanced LLMs by Google with multimodal capabilities (text, images).                                                                                                                                                      | `GOOGLE_API_KEY`                                                                                                                                                                    |
-| [GCP Vertex AI](https://cloud.google.com/vertex-ai)                         | Google Cloud's Vertex AI platform, supporting Gemini and Claude models. **Credentials must be [configured in advance](https://cloud.google.com/vertex-ai/docs/authentication).**                 | `GCP_PROJECT_ID`, `GCP_LOCATION` and optional `GCP_MAX_RETRIES` (6), `GCP_INITIAL_RETRY_INTERVAL_MS` (5000), `GCP_BACKOFF_MULTIPLIER` (2.0), `GCP_MAX_RETRY_INTERVAL_MS` (320_000). |
+| [GCP Vertex AI](https://cloud.google.com/vertex-ai)                         | Google Cloud's Vertex AI platform, supporting Gemini and Claude models. **Credentials must be [configured in advance](https://cloud.google.com/vertex-ai/docs/authentication).**                 | `GCP_PROJECT_ID`, `GCP_LOCATION` and optionally `GCP_MAX_RATE_LIMIT_RETRIES` (5), `GCP_MAX_OVERLOADED_RETRIES` (5), `GCP_INITIAL_RETRY_INTERVAL_MS` (5000), `GCP_BACKOFF_MULTIPLIER` (2.0), `GCP_MAX_RETRY_INTERVAL_MS` (320_000). |
+| [GitHub Copilot](https://docs.github.com/en/copilot/using-github-copilot/ai-models) | Access to GitHub Copilot's chat models including gpt-4o, o1, o3-mini, and Claude models. Uses device code authentication flow for secure access. | Uses GitHub device code authentication flow (no API key needed) |
 | [Groq](https://groq.com/)                                                   | High-performance inference hardware and tools for LLMs.                                                                                                                                                                   | `GROQ_API_KEY`                                                                                                                                                                      |
 | [Ollama](https://ollama.com/)                                               | Local model runner supporting Qwen, Llama, DeepSeek, and other open-source models. **Because this provider runs locally, you must first [download and run a model](/docs/getting-started/providers#local-llms).**  | `OLLAMA_HOST`                                                                                                                                                                       |
 | [Ramalama](https://ramalama.ai/)                                            | Local model using native [OCI](https://opencontainers.org/) container runtimes, [CNCF](https://www.cncf.io/) tools, and supporting models as OCI artifacts. Ramalama API an compatible alternative to Ollama and can be used with the Goose Ollama provider. Supports Qwen, Llama, DeepSeek, and other open-source models. **Because this provider runs locally, you must first [download and run a model](/docs/getting-started/providers#local-llms).**  | `OLLAMA_HOST`                                                                                                                                                                       |
@@ -56,16 +58,18 @@ To configure your chosen provider or see available options, run `goose configure
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
   **To update your LLM provider and API key:** 
-  1. Click the gear on the Goose Desktop toolbar
-  1. Click `Advanced Settings`
-  1. Under `Models`, click `Configure provider`
-  1. Click `Configure` on the LLM provider to update
-  1. Add additional configurations (API key, host, etc) then press `submit`
+  1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+  2. Click the `Settings` button on the sidebar
+  3. Click the `Models` tab
+  4. Click `Configure Providers`
+  5. Click `Configure` on the LLM provider to update
+  6. Add additional configurations (API key, host, etc) then press `submit`
 
   **To change provider model**
-  1. Click the gear on the Goose Desktop toolbar
-  2. Click `Advanced Settings`
-  3. Under `Models`, click `Switch models`
+  1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+  2. Click the `Settings` button on the sidebar
+  3. Click the `Models` tab
+  4. Click `Switch models`
   5. Select a Provider from drop down menu
   6. Select a model from drop down menu
   7. Press `Select Model`
@@ -203,8 +207,8 @@ Goose supports using custom OpenAI-compatible endpoints, which is particularly u
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-    1. Click `...` in the upper right corner
-    2. Click `Advanced Settings`
+    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+    2. Click the `Settings` button on the sidebar
     3. Next to `Models`, click the `browse` link
     4. Click the `configure` link in the upper right corner
     5. Press the `+` button next to OpenAI
@@ -251,10 +255,12 @@ To set up Google Gemini with Goose, follow these steps:
   <TabItem value="ui" label="Goose Desktop" default>
   **To update your LLM provider and API key:** 
 
-    1. Click on the three dots in the top-right corner.
-    2. Select `Provider Settings` from the menu.
-    2. Choose `Google Gemini` as provider from the list.
-    3. Click Edit, enter your API key, and click `Set as Active`.
+    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
+    2. Click the `Settings` button on the sidebar.
+    3. Click the `Models` tab.
+    4. Click `Configure Providers`
+    5. Choose `Google Gemini` as provider from the list.
+    6. Click `Configure`, enter your API key, and click `Submit`.
 
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
@@ -506,8 +512,8 @@ ollama run michaelneale/deepseek-r1-goose
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-    3. Click `...` in the top-right corner.
-    4. Navigate to `Advanced Settings` -> `Browse Models` -> and select `Ollama` from the list.
+    3. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
+    4. Click `Settings` -> `Models` -> `Configure Providers` -> and select `Ollama` from the list.
     5. Enter `michaelneale/deepseek-r1-goose` for the model name.
   </TabItem>
   <TabItem value="cli" label="Goose CLI">

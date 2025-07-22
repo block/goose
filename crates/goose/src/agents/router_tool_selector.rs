@@ -1,6 +1,6 @@
-use mcp_core::content::TextContent;
 use mcp_core::tool::Tool;
-use mcp_core::{Content, ToolError};
+use mcp_core::ToolError;
+use rmcp::model::Content;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -115,10 +115,7 @@ impl RouterToolSelector for VectorToolSelector {
                     "Tool: {}\nDescription: {}\nSchema: {}",
                     tool.tool_name, tool.description, tool.schema
                 );
-                Content::Text(TextContent {
-                    text,
-                    annotations: None,
-                })
+                Content::text(text)
             })
             .collect();
 
@@ -292,12 +289,7 @@ impl RouterToolSelector for LLMToolSelector {
             let tool_entries: Vec<Content> = text
                 .split("\n\n")
                 .filter(|entry| entry.trim().starts_with("Tool:"))
-                .map(|entry| {
-                    Content::Text(TextContent {
-                        text: entry.trim().to_string(),
-                        annotations: None,
-                    })
-                })
+                .map(|entry| Content::text(entry.trim().to_string()))
                 .collect();
 
             Ok(tool_entries)
