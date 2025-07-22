@@ -3,6 +3,7 @@ import useSWR from 'swr';
 import { getSecretKey } from '../config';
 import { Message, createUserMessage, hasCompletedToolCalls } from '../types/message';
 import { getSessionHistory } from '../api';
+import { ChatState } from '../types/chatState';
 
 // Ensure TextDecoder is available in the global scope
 const TextDecoder = globalThis.TextDecoder;
@@ -145,14 +146,8 @@ export interface UseMessageStreamHelpers {
   /** Form submission handler to automatically reset input and append a user message */
   handleSubmit: (event?: { preventDefault?: () => void }) => void;
 
-  /** Whether the API request is in progress */
-  isLoading: boolean;
-
-  /** Whether we're waiting for the first response from LLM */
-  isWaiting: boolean;
-
-  /** Whether we're actively streaming response content */
-  isStreaming: boolean;
+  /** Current chat state (idle, waiting, streaming) */
+  chatState: ChatState;
 
   /** Add a tool result to a tool call */
   addToolResult: ({ toolCallId, result }: { toolCallId: string; result: unknown }) => void;
@@ -214,20 +209,9 @@ export function useMessageStream({
     messagesRef.current = messages || [];
   }, [messages]);
 
-  // We store loading state in another hook to sync loading states across hook invocations
-  const { data: isLoading = false, mutate: mutateLoading } = useSWR<boolean>(
-    [chatKey, 'loading'],
-    null
-  );
-
-  // Track waiting vs streaming states
-  const { data: isWaiting = false, mutate: mutateWaiting } = useSWR<boolean>(
-    [chatKey, 'waiting'],
-    null
-  );
-
-  const { data: isStreaming = false, mutate: mutateStreaming } = useSWR<boolean>(
-    [chatKey, 'streaming'],
+  // Track chat state (idle, waiting, streaming)
+  const { data: chatState = ChatState.Idle, mutate: mutateChatState } = useSWR<ChatState>(
+    [chatKey, 'chatState'],
     null
   );
 
@@ -291,8 +275,7 @@ export function useMessageStream({
                 switch (parsedEvent.type) {
                   case 'Message': {
                     // Transition from waiting to streaming on first message
-                    mutateWaiting(false);
-                    mutateStreaming(true);
+                    mutateChatState(ChatState.Streaming);
 
                     // Create a new message object with the properties preserved or defaulted
                     const newMessage = {
@@ -453,16 +436,14 @@ export function useMessageStream({
 
       return currentMessages;
     },
-    [mutate, mutateWaiting, mutateStreaming, onFinish, onError, forceUpdate, setError]
+    [mutate, mutateChatState, onFinish, onError, forceUpdate, setError]
   );
 
   // Send a request to the server
   const sendRequest = useCallback(
     async (requestMessages: Message[]) => {
       try {
-        mutateLoading(true);
-        mutateWaiting(true);  // Start in waiting state
-        mutateStreaming(false);
+        mutateChatState(ChatState.Waiting); // Start in waiting state
         setError(undefined);
 
         // Create abort controller
@@ -533,13 +514,11 @@ export function useMessageStream({
 
         setError(err as Error);
       } finally {
-        mutateLoading(false);
-        mutateWaiting(false);
-        mutateStreaming(false);
+        mutateChatState(ChatState.Idle);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [api, processMessageStream, mutateLoading, mutateWaiting, mutateStreaming, setError, onResponse, onError, maxSteps]
+    [api, processMessageStream, mutateChatState, setError, onResponse, onError, maxSteps]
   );
 
   // Append a new message and send request
@@ -682,9 +661,7 @@ export function useMessageStream({
     setInput,
     handleInputChange,
     handleSubmit,
-    isLoading: isLoading || false,
-    isWaiting: isWaiting || false,
-    isStreaming: isStreaming || false,
+    chatState,
     addToolResult,
     updateMessageStreamBody,
     notifications,

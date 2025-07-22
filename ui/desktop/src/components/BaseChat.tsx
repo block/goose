@@ -68,6 +68,7 @@ import { useFileDrop } from '../hooks/useFileDrop';
 import { useCostTracking } from '../hooks/useCostTracking';
 import { Message } from '../types/message';
 import { Recipe } from '../recipe';
+import { ChatState } from '../types/chatState';
 
 // Context for sharing current model info
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
@@ -145,9 +146,7 @@ function BaseChatContent({
     ancestorMessages,
     setAncestorMessages,
     append,
-    isLoading,
-    isWaiting,
-    isStreaming,
+    chatState,
     error,
     setMessages,
     input: _input,
@@ -220,8 +219,8 @@ function BaseChatContent({
 
   // Handle recipe auto-execution
   useEffect(() => {
-    handleAutoExecution(append, isLoading);
-  }, [handleAutoExecution, append, isLoading]);
+    handleAutoExecution(append, chatState !== ChatState.Idle);
+  }, [handleAutoExecution, append, chatState]);
 
   // Use shared session continuation
   const { createNewSessionIfNeeded } = useSessionContinuation({
@@ -400,7 +399,7 @@ function BaseChatContent({
                       }}
                       isUserMessage={isUserMessage}
                       onScrollToBottom={handleScrollToBottom}
-                      isStreamingMessage={isLoading}
+                      isStreamingMessage={chatState !== ChatState.Idle}
                     />
                   ) : (
                     // Render messages with SearchView wrapper when search is enabled
@@ -416,7 +415,7 @@ function BaseChatContent({
                         }}
                         isUserMessage={isUserMessage}
                         onScrollToBottom={handleScrollToBottom}
-                        isStreamingMessage={isLoading}
+                        isStreamingMessage={chatState !== ChatState.Idle}
                       />
                     </SearchView>
                   )}
@@ -488,12 +487,11 @@ function BaseChatContent({
           </ScrollArea>
 
           {/* Fixed loading indicator at bottom left of chat container */}
-          {isLoading && (
+          {chatState !== ChatState.Idle && (
             <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
-              <LoadingGoose 
+              <LoadingGoose
                 message={isLoadingSummary ? 'summarizing conversation…' : undefined}
-                isWaiting={isWaiting}
-                isStreaming={isStreaming}
+                chatState={chatState}
               />
             </div>
           )}
@@ -504,7 +502,7 @@ function BaseChatContent({
         >
           <ChatInput
             handleSubmit={handleSubmit}
-            isLoading={isLoading}
+            isLoading={chatState !== ChatState.Idle}
             onStop={onStopGoose}
             commandHistory={commandHistory}
             initialValue={_input || initialPrompt}
