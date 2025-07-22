@@ -7,6 +7,7 @@ import { initializeSystem } from './utils/providerUtils';
 import { initializeCostDatabase } from './utils/costDatabase';
 import { ErrorUI } from './components/ErrorBoundary';
 import { ConfirmationModal } from './components/ui/ConfirmationModal';
+import { DeepLinkPasteArea } from './components/DeepLinkPasteArea';
 import { ToastContainer } from 'react-toastify';
 import { extractExtensionName } from './components/settings/extensions/utils';
 import { GoosehintsModal } from './components/GoosehintsModal';
@@ -535,17 +536,18 @@ const SharedSessionRouteWrapper = ({
   const location = useLocation();
   const navigate = useNavigate();
 
-  const sessionDetails = location.state?.sessionDetails as SharedSessionDetails | null;
-  const error = location.state?.error || sharedSessionError;
-  const shareToken = location.state?.shareToken;
-  const baseUrl = location.state?.baseUrl;
+  const historyState = window.history.state;
+  const sessionDetails = (location.state?.sessionDetails ||
+    historyState?.sessionDetails) as SharedSessionDetails | null;
+  const error = location.state?.error || historyState?.error || sharedSessionError;
+  const shareToken = location.state?.shareToken || historyState?.shareToken;
+  const baseUrl = location.state?.baseUrl || historyState?.baseUrl;
 
   return (
     <SharedSessionView
       session={sessionDetails}
       isLoading={isLoadingSharedSession}
       error={error}
-      onBack={() => navigate('/sessions')}
       onRetry={async () => {
         if (shareToken && baseUrl) {
           setIsLoadingSharedSession(true);
@@ -697,6 +699,7 @@ export default function App() {
   const [isGoosehintsModalOpen, setIsGoosehintsModalOpen] = useState(false);
   const [isLoadingSharedSession, setIsLoadingSharedSession] = useState(false);
   const [sharedSessionError, setSharedSessionError] = useState<string | null>(null);
+  const [isDeepLinkPasteAreaOpen, setIsDeepLinkPasteAreaOpen] = useState(false);
 
   // Add separate state for pair chat to maintain its own conversation
   const [pairChat, setPairChat] = useState<ChatType>({
@@ -1024,51 +1027,32 @@ export default function App() {
     const handleOpenSharedSession = async (_event: IpcRendererEvent, ...args: unknown[]) => {
       const link = args[0] as string;
       window.electron.logInfo(`Opening shared session from deep link ${link}`);
-      setIsLoadingSession(true);
+      setIsLoadingSharedSession(true);
       setSharedSessionError(null);
       try {
         await openSharedSessionFromDeepLink(
           link,
-          (view: View, _options?: SessionLinksViewOptions) => {
-            // Convert view to route navigation
-            switch (view) {
-              case 'chat':
-                window.history.replaceState({}, '', '/');
-                break;
-              case 'settings':
-                window.history.replaceState({}, '', '/settings');
-                break;
-              case 'sessions':
-                window.history.replaceState({}, '', '/sessions');
-                break;
-              case 'schedules':
-                window.history.replaceState({}, '', '/schedules');
-                break;
-              case 'recipes':
-                window.history.replaceState({}, '', '/recipes');
-                break;
-              case 'permission':
-                window.history.replaceState({}, '', '/permission');
-                break;
-              case 'ConfigureProviders':
-                window.history.replaceState({}, '', '/configure-providers');
-                break;
-              case 'sharedSession':
-                window.history.replaceState({}, '', '/shared-session');
-                break;
-              case 'recipeEditor':
-                window.history.replaceState({}, '', '/recipe-editor');
-                break;
-              default:
-                window.history.replaceState({}, '', '/');
+          (_view: View, _options?: SessionLinksViewOptions) => {
+            // Navigate to shared session view with the session data
+            window.location.hash = '#/shared-session';
+            if (_options) {
+              window.history.replaceState(_options, '', '#/shared-session');
             }
           }
         );
       } catch (error) {
         console.error('Unexpected error opening shared session:', error);
-        window.history.replaceState({}, '', '/sessions');
+        // Navigate to shared session view with error
+        window.location.hash = '#/shared-session';
+        const shareToken = link.replace('goose://sessions/', '');
+        const options = {
+          sessionDetails: null,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          shareToken,
+        };
+        window.history.replaceState(options, '', '#/shared-session');
       } finally {
-        setIsLoadingSession(false);
+        setIsLoadingSharedSession(false);
       }
     };
     window.electron.on('open-shared-session', handleOpenSharedSession);
@@ -1090,6 +1074,18 @@ export default function App() {
         } catch (error) {
           console.error('Error creating new window:', error);
         }
+      }
+
+      // Deeplink area for pasting deeplinks directly
+      // Cmd/Ctrl + Shift + D
+      const isModifierPressed = isMac ? event.metaKey : event.ctrlKey;
+      const isDKey = event.key === 'D' || event.key === 'd' || event.code === 'KeyD';
+
+      if (isModifierPressed && event.shiftKey && isDKey) {
+        console.log('Deeplink paste area keyboard shortcut triggered!');
+        event.preventDefault();
+        setIsDeepLinkPasteAreaOpen(true);
+        console.log('Set isDeepLinkPasteAreaOpen to true');
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -1496,6 +1492,69 @@ export default function App() {
               setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
             />
           )}
+          <DeepLinkPasteArea
+            isOpen={isDeepLinkPasteAreaOpen}
+            onClose={() => setIsDeepLinkPasteAreaOpen(false)}
+            onDeepLinkSubmit={async (deepLink: string) => {
+              // Determine the type of deeplink and handle accordingly
+              if (deepLink.includes('/sessions/')) {
+                // Handle session deeplinks directly using the same function as the protocol handler
+                setIsLoadingSharedSession(true);
+                setSharedSessionError(null);
+                try {
+                  await openSharedSessionFromDeepLink(
+                    deepLink,
+                    (_view: View, _options?: SessionLinksViewOptions) => {
+                      // Navigate to shared session view with the session data
+                      window.location.hash = '#/shared-session';
+                      if (_options) {
+                        window.history.replaceState(_options, '', '#/shared-session');
+                      }
+                    }
+                  );
+                } catch (error) {
+                  console.error('Error processing session deeplink:', error);
+                  // Navigate to shared session view with error
+                  window.location.hash = '#/shared-session';
+                  const shareToken = deepLink.replace('goose://sessions/', '');
+                  const options = {
+                    sessionDetails: null,
+                    error: error instanceof Error ? error.message : 'Unknown error',
+                    shareToken,
+                  };
+                  window.history.replaceState(options, '', '#/shared-session');
+                } finally {
+                  setIsLoadingSharedSession(false);
+                }
+              } else if (deepLink.includes('/extension/')) {
+                // Handle extension deeplinks
+                try {
+                  await addExtensionFromDeepLinkV2(
+                    deepLink,
+                    addExtension,
+                    (view: string, options) => {
+                      switch (view) {
+                        case 'settings':
+                          window.location.hash = '#/extensions';
+                          // Store the config for the extensions route
+                          window.history.replaceState(options, '', '#/extensions');
+                          break;
+                        default:
+                          window.location.hash = `#/${view}`;
+                      }
+                    }
+                  );
+                } catch (error) {
+                  console.error('Error processing extension deeplink:', error);
+                  throw error;
+                }
+              } else {
+                // Handle other types of deeplinks (bot, etc.)
+                // For now, just emit the add-extension event to let existing handlers deal with it
+                window.electron.emit('add-extension', deepLink);
+              }
+            }}
+          />
         </HashRouter>
         <AnnouncementModal />
       </ModelAndProviderProvider>
