@@ -1,5 +1,5 @@
 use anyhow::Result;
-use dotenv::dotenv;
+use dotenvy::dotenv;
 use goose_llm::extractors::generate_tooltip;
 use goose_llm::message::{Message, MessageContent, ToolRequest};
 use goose_llm::providers::errors::ProviderError;

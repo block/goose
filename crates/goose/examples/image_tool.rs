@@ -1,6 +1,6 @@
 use anyhow::Result;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-use dotenv::dotenv;
+use dotenvy::dotenv;
 use goose::{
     message::Message,
     providers::{bedrock::BedrockProvider, databricks::DatabricksProvider, openai::OpenAiProvider},
