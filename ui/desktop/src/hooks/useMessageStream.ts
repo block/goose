@@ -4,8 +4,10 @@ import { getSecretKey } from '../config';
 import { Message, createUserMessage, hasCompletedToolCalls } from '../types/message';
 import { getSessionHistory } from '../api';
 
+let messageIdCounter = 0;
+
 function generateMessageId(): string {
-  return `msg-${Date.now()}`;
+  return `msg-${Date.now()}-${++messageIdCounter}`;
 }
 
 // Ensure TextDecoder is available in the global scope
@@ -364,7 +366,7 @@ export function useMessageStream({
                     // If this is a token limit error, create a contextLengthExceeded message instead of throwing
                     if (isTokenLimitError) {
                       const contextMessage: Message = {
-                        id: `context-${Date.now()}`,
+                        id: generateMessageId(),
                         role: 'assistant',
                         created: Math.floor(Date.now() / 1000),
                         content: [
