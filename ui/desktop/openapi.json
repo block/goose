@@ -2332,17 +2332,16 @@
         }
       },
       "ResourceContents": {
-        "oneOf": [
+        "anyOf": [
           {
             "type": "object",
             "required": [
-              "uri",
-              "text"
+              "text",
+              "uri"
             ],
             "properties": {
               "mime_type": {
-                "type": "string",
-                "nullable": true
+                "type": "string"
               },
               "text": {
                 "type": "string"
@@ -2355,16 +2354,15 @@
           {
             "type": "object",
             "required": [
-              "uri",
-              "blob"
+              "blob",
+              "uri"
             ],
             "properties": {
               "blob": {
                 "type": "string"
               },
               "mime_type": {
-                "type": "string",
-                "nullable": true
+                "type": "string"
               },
               "uri": {
                 "type": "string"

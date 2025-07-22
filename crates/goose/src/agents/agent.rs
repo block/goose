@@ -8,15 +8,32 @@ use futures::stream::BoxStream;
 use futures::{stream, FutureExt, Stream, StreamExt, TryStreamExt};
 use mcp_core::protocol::JsonRpcMessage;
 
+use crate::agents::extension::{ExtensionConfig, ExtensionError, ExtensionResult, ToolInfo};
+use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
+use crate::agents::platform_tools::{
+    PLATFORM_LIST_RESOURCES_TOOL_NAME, PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME,
+    PLATFORM_MANAGE_SCHEDULE_TOOL_NAME, PLATFORM_READ_RESOURCE_TOOL_NAME,
+    PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
+};
+use crate::agents::prompt_manager::PromptManager;
 use crate::agents::recipe_tools::dynamic_task_tools::{
     create_dynamic_task, create_dynamic_task_tool, DYNAMIC_TASK_TOOL_NAME_PREFIX,
 };
+use crate::agents::retry::{RetryManager, RetryResult};
+use crate::agents::router_tool_selector::{
+    create_tool_selector, RouterToolSelectionStrategy, RouterToolSelector,
+};
+use crate::agents::router_tools::{ROUTER_LLM_SEARCH_TOOL_NAME, ROUTER_VECTOR_SEARCH_TOOL_NAME};
 use crate::agents::sub_recipe_manager::SubRecipeManager;
 use crate::agents::subagent_execution_tool::subagent_execute_task_tool::{
     self, SUBAGENT_EXECUTE_TASK_TOOL_NAME,
 };
 use crate::agents::subagent_execution_tool::tasks_manager::TasksManager;
+use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
+use crate::agents::tool_vectordb::generate_table_id;
+use crate::agents::types::SessionConfig;
+use crate::agents::types::{FrontendTool, ToolResultReceiver};
 use crate::config::{Config, ExtensionConfigManager, PermissionManager};
 use crate::message::{push_message, Message};
 use crate::permission::permission_judge::check_tool_permissions;
@@ -26,30 +43,13 @@ use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::tool_monitor::{ToolCall, ToolMonitor};
+use mcp_core::{protocol::GetPromptResult, tool::Tool, ToolError, ToolResult};
 use regex::Regex;
+use rmcp::model::{Content, Prompt};
 use serde_json::Value;
 use tokio::sync::{mpsc, Mutex, RwLock};
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument};
-
-use crate::agents::extension::{ExtensionConfig, ExtensionError, ExtensionResult, ToolInfo};
-use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
-use crate::agents::platform_tools::{
-    PLATFORM_LIST_RESOURCES_TOOL_NAME, PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME,
-    PLATFORM_MANAGE_SCHEDULE_TOOL_NAME, PLATFORM_READ_RESOURCE_TOOL_NAME,
-    PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
-};
-use crate::agents::prompt_manager::PromptManager;
-use crate::agents::retry::{RetryManager, RetryResult};
-use crate::agents::router_tool_selector::{
-    create_tool_selector, RouterToolSelectionStrategy, RouterToolSelector,
-};
-use crate::agents::router_tools::{ROUTER_LLM_SEARCH_TOOL_NAME, ROUTER_VECTOR_SEARCH_TOOL_NAME};
-use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
-use crate::agents::tool_vectordb::generate_table_id;
-use crate::agents::types::SessionConfig;
-use crate::agents::types::{FrontendTool, ToolResultReceiver};
-use mcp_core::{protocol::GetPromptResult, tool::Tool, ToolError, ToolResult};
-use rmcp::model::{Content, Prompt};
 
 use super::final_output_tool::FinalOutputTool;
 use super::platform_tools;
@@ -317,17 +317,17 @@ impl Agent {
         }
 
         if tool_call.name == FINAL_OUTPUT_TOOL_NAME {
-            if let Some(final_output_tool) = self.final_output_tool.lock().await.as_mut() {
+            return if let Some(final_output_tool) = self.final_output_tool.lock().await.as_mut() {
                 let result = final_output_tool.execute_tool_call(tool_call.clone()).await;
-                return (request_id, Ok(result));
+                (request_id, Ok(result))
             } else {
-                return (
+                (
                     request_id,
                     Err(ToolError::ExecutionError(
                         "Final output tool not defined".to_string(),
                     )),
-                );
-            }
+                )
+            };
         }
 
         let extension_manager = self.extension_manager.read().await;
@@ -406,10 +406,9 @@ impl Agent {
             let result = extension_manager
                 .dispatch_tool_call(tool_call.clone())
                 .await;
-            match result {
-                Ok(call_result) => call_result,
-                Err(e) => ToolCallResult::from(Err(ToolError::ExecutionError(e.to_string()))),
-            }
+            result.unwrap_or_else(|e| {
+                ToolCallResult::from(Err(ToolError::ExecutionError(e.to_string())))
+            })
         };
 
         (
@@ -719,42 +718,17 @@ impl Agent {
         &self,
         messages: &[Message],
         session: Option<SessionConfig>,
-    ) -> anyhow::Result<BoxStream<'_, anyhow::Result<AgentEvent>>> {
+        cancel_token: Option<CancellationToken>,
+    ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         let mut messages = messages.to_vec();
         let initial_messages = messages.clone();
         let reply_span = tracing::Span::current();
-
         self.reset_retry_attempts().await;
-
-        // Load settings from config
         let config = Config::global();
 
-        // Setup tools and prompt
         let (mut tools, mut toolshim_tools, mut system_prompt) =
             self.prepare_tools_and_prompt().await?;
-
-        // Get goose_mode from config, but override with execution_mode if provided in session config
-        let mut goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
-
-        // If this is a scheduled job with an execution_mode, override the goose_mode
-        if let Some(session_config) = &session {
-            if let Some(execution_mode) = &session_config.execution_mode {
-                // Map "foreground" to "auto" and "background" to "chat"
-                goose_mode = match execution_mode.as_str() {
-                    "foreground" => "auto".to_string(),
-                    "background" => "chat".to_string(),
-                    _ => goose_mode,
-                };
-                tracing::info!(
-                    "Using execution_mode '{}' which maps to goose_mode '{}'",
-                    execution_mode,
-                    goose_mode
-                );
-            }
-        }
-
-        let (tools_with_readonly_annotation, tools_without_annotation) =
-            Self::categorize_tools_by_annotation(&tools);
+        let goose_mode = Self::determine_goose_mode(session.as_ref(), config);
 
         if let Some(content) = messages
             .last()
@@ -775,12 +749,16 @@ impl Agent {
                 });
 
             loop {
-                // Check for final output before incrementing turns or checking max_turns
-                // This ensures that if we have a final output ready, we return it immediately
-                // without being blocked by the max_turns limit - this is needed for streaming cases
+                if cancel_token.as_ref().is_some_and(|t| t.is_cancelled()) {
+                    break;
+                }
+
                 if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
                     if final_output_tool.final_output.is_some() {
-                        yield AgentEvent::Message(Message::assistant().with_text(final_output_tool.final_output.clone().unwrap()));
+                        let final_event = AgentEvent::Message(
+                            Message::assistant().with_text(final_output_tool.final_output.clone().unwrap()),
+                        );
+                        yield final_event;
                         break;
                     }
                 }
@@ -793,23 +771,19 @@ impl Agent {
                     break;
                 }
 
-                // Check for MCP notifications from subagents
+                // Handle MCP notifications from subagents
                 let mcp_notifications = self.get_mcp_notifications().await;
                 for notification in mcp_notifications {
-                    // Extract subagent info from the notification data
-                    if let JsonRpcMessage::Notification(ref notif) = notification {
-                        if let Some(params) = &notif.params {
-                            if let Some(data) = params.get("data") {
-                                if let (Some(subagent_id), Some(_message)) = (
-                                    data.get("subagent_id").and_then(|v| v.as_str()),
-                                    data.get("message").and_then(|v| v.as_str())
-                                ) {
-                                    // Emit as McpNotification event
-                                    yield AgentEvent::McpNotification((
-                                        subagent_id.to_string(),
-                                        notification.clone()
-                                    ));
-                                }
+                    if let JsonRpcMessage::Notification(notif) = &notification {
+                        if let Some(data) = notif.params.as_ref().and_then(|p| p.get("data")) {
+                            if let (Some(subagent_id), Some(_message)) = (
+                                data.get("subagent_id").and_then(|v| v.as_str()),
+                                data.get("message").and_then(|v| v.as_str()),
+                            ) {
+                                yield AgentEvent::McpNotification((
+                                    subagent_id.to_string(),
+                                    notification.clone(),
+                                ));
                             }
                         }
                     }
@@ -821,17 +795,24 @@ impl Agent {
                     &messages,
                     &tools,
                     &toolshim_tools,
-                ).await?;
+                )
+                .await?;
 
                 let mut added_message = false;
+                let mut messages_to_add = Vec::new();
+                let mut tools_updated = false;
+
                 while let Some(next) = stream.next().await {
+                    if cancel_token.as_ref().is_some_and(|t| t.is_cancelled()) {
+                        break;
+                    }
+
                     match next {
                         Ok((response, usage)) => {
                             // Emit model change event if provider is lead-worker
                             let provider = self.provider().await?;
                             if let Some(lead_worker) = provider.as_lead_worker() {
                                 if let Some(ref usage) = usage {
-                                    // The actual model used is in the usage
                                     let active_model = usage.model.clone();
                                     let (lead_model, worker_model) = lead_worker.get_model_info();
                                     let mode = if active_model == lead_model {
@@ -849,43 +830,44 @@ impl Agent {
                                 }
                             }
 
-                            // record usage for the session in the session file
-                            if let Some(session_config) = session.clone() {
+                            // Record usage for the session
+                            if let Some(ref session_config) = &session {
                                 if let Some(ref usage) = usage {
-                                    Self::update_session_metrics(session_config, usage, messages.len()).await?;
+                                    Self::update_session_metrics(session_config, usage, messages.len())
+                                        .await?;
                                 }
                             }
 
                             if let Some(response) = response {
-                                // categorize the type of requests we need to handle
-                                let (frontend_requests,
-                                    remaining_requests,
-                                    filtered_response) =
+                                let (tools_with_readonly_annotation, tools_without_annotation) =
+                                    Self::categorize_tools_by_annotation(&tools);
+
+                                // Categorize tool requests
+                                let (frontend_requests, remaining_requests, filtered_response) =
                                     self.categorize_tool_requests(&response).await;
 
                                 // Record tool calls in the router selector
                                 let selector = self.router_tool_selector.lock().await.clone();
                                 if let Some(selector) = selector {
-                                    // Record frontend tool calls
                                     for request in &frontend_requests {
                                         if let Ok(tool_call) = &request.tool_call {
-                                            if let Err(e) = selector.record_tool_call(&tool_call.name).await {
-                                                tracing::error!("Failed to record frontend tool call: {}", e);
+                                            if let Err(e) = selector.record_tool_call(&tool_call.name).await
+                                            {
+                                                error!("Failed to record frontend tool call: {}", e);
                                             }
                                         }
                                     }
-                                    // Record remaining tool calls
                                     for request in &remaining_requests {
                                         if let Ok(tool_call) = &request.tool_call {
-                                            if let Err(e) = selector.record_tool_call(&tool_call.name).await {
-                                                tracing::error!("Failed to record tool call: {}", e);
+                                            if let Err(e) = selector.record_tool_call(&tool_call.name).await
+                                            {
+                                                error!("Failed to record tool call: {}", e);
                                             }
                                         }
                                     }
                                 }
-                                // Yield the assistant's response with frontend tool requests filtered out
-                                yield AgentEvent::Message(filtered_response.clone());
 
+                                yield AgentEvent::Message(filtered_response.clone());
                                 tokio::task::yield_now().await;
 
                                 let num_tool_requests = frontend_requests.len() + remaining_requests.len();
@@ -893,23 +875,17 @@ impl Agent {
                                     continue;
                                 }
 
-                                // Process tool requests depending on frontend tools and then goose_mode
                                 let message_tool_response = Arc::new(Mutex::new(Message::user()));
 
-                                // First handle any frontend tool requests
                                 let mut frontend_tool_stream = self.handle_frontend_tool_requests(
                                     &frontend_requests,
-                                    message_tool_response.clone()
+                                    message_tool_response.clone(),
                                 );
 
-                                // we have a stream of frontend tools to handle, inside the stream
-                                // execution is yeield back to this reply loop, and is of the same Message
-                                // type, so we can yield that back up to be handled
                                 while let Some(msg) = frontend_tool_stream.try_next().await? {
                                     yield AgentEvent::Message(msg);
                                 }
 
-                                // Clone goose_mode once before the match to avoid move issues
                                 let mode = goose_mode.clone();
                                 if mode.as_str() == "chat" {
                                     // Skip all tool calls in chat mode
@@ -921,36 +897,42 @@ impl Agent {
                                         );
                                     }
                                 } else {
-                                    // At this point, we have handled the frontend tool requests and know goose_mode != "chat"
-                                    // What remains is handling the remaining tool requests (enable extension,
-                                    // regular tool calls) in goose_mode == ["auto", "approve" or "smart_approve"]
                                     let mut permission_manager = PermissionManager::default();
-                                    let (permission_check_result, enable_extension_request_ids) = check_tool_permissions(
-                                        &remaining_requests,
-                                        &mode,
-                                        tools_with_readonly_annotation.clone(),
-                                        tools_without_annotation.clone(),
-                                        &mut permission_manager,
-                                        self.provider().await?).await;
+                                    let (permission_check_result, enable_extension_request_ids) =
+                                        check_tool_permissions(
+                                            &remaining_requests,
+                                            &mode,
+                                            tools_with_readonly_annotation.clone(),
+                                            tools_without_annotation.clone(),
+                                            &mut permission_manager,
+                                            self.provider().await?,
+                                        )
+                                        .await;
 
-                                    // Handle pre-approved and read-only tools in parallel
                                     let mut tool_futures: Vec<(String, ToolStream)> = Vec::new();
 
-                                    // Skip the confirmation for approved tools
+                                    // Handle pre-approved and read-only tools
                                     for request in &permission_check_result.approved {
                                         if let Ok(tool_call) = request.tool_call.clone() {
-                                            let (req_id, tool_result) = self.dispatch_tool_call(tool_call, request.id.clone()).await;
+                                            let (req_id, tool_result) = self
+                                                .dispatch_tool_call(tool_call, request.id.clone())
+                                                .await;
 
-                                            tool_futures.push((req_id, match tool_result {
-                                                Ok(result) => tool_stream(
-                                                    result.notification_stream.unwrap_or_else(|| Box::new(stream::empty())),
-                                                    result.result,
-                                                ),
-                                                Err(e) => tool_stream(
-                                                    Box::new(stream::empty()),
-                                                    futures::future::ready(Err(e)),
-                                                ),
-                                            }));
+                                            tool_futures.push((
+                                                req_id,
+                                                match tool_result {
+                                                    Ok(result) => tool_stream(
+                                                        result
+                                                            .notification_stream
+                                                            .unwrap_or_else(|| Box::new(stream::empty())),
+                                                        result.result,
+                                                    ),
+                                                    Err(e) => tool_stream(
+                                                        Box::new(stream::empty()),
+                                                        futures::future::ready(Err(e)),
+                                                    ),
+                                                },
+                                            ));
                                         }
                                     }
 
@@ -962,29 +944,22 @@ impl Agent {
                                         );
                                     }
 
-                                    // We need interior mutability in handle_approval_tool_requests
                                     let tool_futures_arc = Arc::new(Mutex::new(tool_futures));
 
-                                    // Process tools requiring approval (enable extension, regular tool calls)
+                                    // Process tools requiring approval
                                     let mut tool_approval_stream = self.handle_approval_tool_requests(
                                         &permission_check_result.needs_approval,
                                         tool_futures_arc.clone(),
                                         &mut permission_manager,
-                                        message_tool_response.clone()
+                                        message_tool_response.clone(),
                                     );
 
-                                    // We have a stream of tool_approval_requests to handle
-                                    // Execution is yielded back to this reply loop, and is of the same Message
-                                    // type, so we can yield the Message back up to be handled and grab any
-                                    // confirmations or denials
                                     while let Some(msg) = tool_approval_stream.try_next().await? {
                                         yield AgentEvent::Message(msg);
                                     }
 
                                     tool_futures = {
-                                        // Lock the mutex asynchronously
                                         let mut futures_lock = tool_futures_arc.lock().await;
-                                        // Drain the vector and collect into a new Vec
                                         futures_lock.drain(..).collect::<Vec<_>>()
                                     };
 
@@ -996,27 +971,33 @@ impl Agent {
                                         .collect::<Vec<_>>();
 
                                     let mut combined = stream::select_all(with_id);
-
                                     let mut all_install_successful = true;
 
                                     while let Some((request_id, item)) = combined.next().await {
+                                        if cancel_token.as_ref().is_some_and(|t| t.is_cancelled()) {
+                                            break;
+                                        }
                                         match item {
                                             ToolStreamItem::Result(output) => {
-                                                if enable_extension_request_ids.contains(&request_id) && output.is_err(){
+                                                if enable_extension_request_ids.contains(&request_id)
+                                                    && output.is_err()
+                                                {
                                                     all_install_successful = false;
                                                 }
                                                 let mut response = message_tool_response.lock().await;
-                                                *response = response.clone().with_tool_response(request_id, output);
-                                            },
+                                                *response =
+                                                    response.clone().with_tool_response(request_id, output);
+                                            }
                                             ToolStreamItem::Message(msg) => {
-                                                yield AgentEvent::McpNotification((request_id, msg))
+                                                yield AgentEvent::McpNotification((
+                                                    request_id, msg,
+                                                ));
                                             }
                                         }
                                     }
 
-                                    // Update system prompt and tools if installations were successful
                                     if all_install_successful {
-                                        (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
+                                        tools_updated = true;
                                     }
                                 }
 
@@ -1024,63 +1005,39 @@ impl Agent {
                                 yield AgentEvent::Message(final_message_tool_resp.clone());
 
                                 added_message = true;
-                                push_message(&mut messages, response);
-                                push_message(&mut messages, final_message_tool_resp);
-
-                                // Check for MCP notifications from subagents again before next iteration
-                                // Note: These are already handled as McpNotification events above,
-                                // so we don't need to convert them to assistant messages here.
-                                // This was causing duplicate plain-text notifications.
-                                // let mcp_notifications = self.get_mcp_notifications().await;
-                                // for notification in mcp_notifications {
-                                //     // Extract subagent info from the notification data for assistant messages
-                                //     if let JsonRpcMessage::Notification(ref notif) = notification {
-                                //         if let Some(params) = &notif.params {
-                                //             if let Some(data) = params.get("data") {
-                                //                 if let (Some(subagent_id), Some(message)) = (
-                                //                     data.get("subagent_id").and_then(|v| v.as_str()),
-                                //                     data.get("message").and_then(|v| v.as_str())
-                                //                 ) {
-                                //                     yield AgentEvent::Message(
-                                //                         Message::assistant().with_text(
-                                //                             format!("Subagent {}: {}", subagent_id, message)
-                                //                         )
-                                //                     );
-                                //                 }
-                                //             }
-                                //         }
-                                //     }
-                                // }
+                                push_message(&mut messages_to_add, response);
+                                push_message(&mut messages_to_add, final_message_tool_resp);
                             }
-                        },
+                        }
                         Err(ProviderError::ContextLengthExceeded(_)) => {
-                            // At this point, the last message should be a user message
-                            // because call to provider led to context length exceeded error
-                            // Immediately yield a special message and break
                             yield AgentEvent::Message(Message::assistant().with_context_length_exceeded(
-                                "The context length of the model has been exceeded. Please start a new session and try again.",
-                            ));
+                                    "The context length of the model has been exceeded. Please start a new session and try again.",
+                                ));
                             break;
-                        },
+                        }
                         Err(e) => {
-                            // Create an error message & terminate the stream
                             error!("Error: {}", e);
-                            yield AgentEvent::Message(Message::assistant().with_text(format!("Ran into this error: {e}.\n\nPlease retry if you think this is a transient or recoverable error.")));
+                            yield AgentEvent::Message(Message::assistant().with_text(
+                                    format!("Ran into this error: {e}.\n\nPlease retry if you think this is a transient or recoverable error.")
+                                ));
                             break;
                         }
                     }
+                }
+                if tools_updated {
+                    (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
                 }
                 if !added_message {
                     if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
                         if final_output_tool.final_output.is_none() {
                             tracing::warn!("Final output tool has not been called yet. Continuing agent loop.");
                             let message = Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE);
-                            messages.push(message.clone());
+                            messages_to_add.push(message.clone());
                             yield AgentEvent::Message(message);
-                            continue;
+                            continue
                         } else {
                             let message = Message::assistant().with_text(final_output_tool.final_output.clone().unwrap());
-                            messages.push(message.clone());
+                            messages_to_add.push(message.clone());
                             yield AgentEvent::Message(message);
                         }
                     }
@@ -1099,14 +1056,26 @@ impl Agent {
                             ));
                         }
                     }
-
                     break;
                 }
 
-                // Yield control back to the scheduler to prevent blocking
+                messages.extend(messages_to_add);
+
                 tokio::task::yield_now().await;
             }
         }))
+    }
+
+    fn determine_goose_mode(session: Option<&SessionConfig>, config: &Config) -> String {
+        let mode = session.and_then(|s| s.execution_mode.as_deref());
+
+        match mode {
+            Some("foreground") => "auto".to_string(),
+            Some("background") => "chat".to_string(),
+            _ => config
+                .get_param("GOOSE_MODE")
+                .unwrap_or_else(|_| "auto".to_string()),
+        }
     }
 
     /// Extend the system prompt with one line of additional instruction
@@ -1127,7 +1096,6 @@ impl Agent {
         notifications
     }
 
-    /// Update the provider
     pub async fn update_provider(&self, provider: Arc<dyn Provider>) -> Result<()> {
         let mut current_provider = self.provider.lock().await;
         *current_provider = Some(provider.clone());
@@ -1191,10 +1159,9 @@ impl Agent {
                 )
                 .await
                 {
-                    tracing::error!(
+                    error!(
                         "Failed to index tools for extension {}: {}",
-                        extension_name,
-                        e
+                        extension_name, e
                     );
                 }
             }
@@ -1243,7 +1210,7 @@ impl Agent {
         Err(anyhow!("Prompt '{}' not found", name))
     }
 
-    pub async fn get_plan_prompt(&self) -> anyhow::Result<String> {
+    pub async fn get_plan_prompt(&self) -> Result<String> {
         let extension_manager = self.extension_manager.read().await;
         let tools = extension_manager.get_prefixed_tools(None).await?;
         let tools_info = tools
@@ -1265,7 +1232,7 @@ impl Agent {
 
     pub async fn handle_tool_result(&self, id: String, result: ToolResult<Vec<Content>>) {
         if let Err(e) = self.tool_result_tx.send((id, result)).await {
-            tracing::error!("Failed to send tool result: {}", e);
+            error!("Failed to send tool result: {}", e);
         }
     }
 
@@ -1356,7 +1323,7 @@ impl Agent {
                 let activities_text = activities_text.trim();
 
                 // Regex to remove bullet markers or numbers with an optional dot.
-                let bullet_re = Regex::new(r"^[•\-\*\d]+\.?\s*").expect("Invalid regex");
+                let bullet_re = Regex::new(r"^[•\-*\d]+\.?\s*").expect("Invalid regex");
 
                 // Process each line in the activities section.
                 let activities: Vec<String> = activities_text
@@ -1383,7 +1350,7 @@ impl Agent {
             metadata: None,
         };
 
-        // Ideally we'd get the name of the provider we are using from the provider itself
+        // Ideally we'd get the name of the provider we are using from the provider itself,
         // but it doesn't know and the plumbing looks complicated.
         let config = Config::global();
         let provider_name: String = config
@@ -1443,7 +1410,7 @@ mod tests {
 
         let prompt_manager = agent.prompt_manager.lock().await;
         let system_prompt =
-            prompt_manager.build_system_prompt(vec![], None, serde_json::Value::Null, None, None);
+            prompt_manager.build_system_prompt(vec![], None, Value::Null, None, None);
 
         let final_output_tool_ref = agent.final_output_tool.lock().await;
         let final_output_tool_system_prompt =

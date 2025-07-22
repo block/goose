@@ -537,7 +537,7 @@ function BaseChatContent({
         recipeDetails={{
           title: recipeConfig?.title,
           description: recipeConfig?.description,
-          instructions: recipeConfig?.instructions,
+          instructions: recipeConfig?.instructions || undefined,
         }}
       />
 

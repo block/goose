@@ -1,20 +1,20 @@
+import type { OpenDialogReturnValue } from 'electron';
 import {
   app,
-  session,
+  App,
   BrowserWindow,
   dialog,
+  Event,
+  globalShortcut,
   ipcMain,
   Menu,
   MenuItem,
   Notification,
   powerSaveBlocker,
-  Tray,
-  App,
-  globalShortcut,
+  session,
   shell,
-  Event,
+  Tray,
 } from 'electron';
-import type { OpenDialogReturnValue } from 'electron';
 import { Buffer } from 'node:buffer';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
@@ -33,20 +33,20 @@ import {
   EnvToggles,
   loadSettings,
   saveSettings,
+  SchedulingEngine,
   updateEnvironmentVariables,
   updateSchedulingEngineEnvironment,
-  SchedulingEngine,
 } from './utils/settings';
 import * as crypto from 'crypto';
 // import electron from "electron";
 import * as yaml from 'yaml';
 import windowStateKeeper from 'electron-window-state';
 import {
-  setupAutoUpdater,
+  getUpdateAvailable,
   registerUpdateIpcHandlers,
   setTrayRef,
+  setupAutoUpdater,
   updateTrayMenu,
-  getUpdateAvailable,
 } from './utils/autoUpdater';
 import { UPDATES_ENABLED } from './updates';
 import { Recipe } from './recipe';
@@ -589,7 +589,7 @@ const createChat = async (
     titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'default',
     trafficLightPosition: process.platform === 'darwin' ? { x: 20, y: 16 } : undefined,
     vibrancy: process.platform === 'darwin' ? 'window' : undefined,
-    frame: process.platform === 'darwin' ? false : true,
+    frame: process.platform !== 'darwin',
     x: mainWindowState.x,
     y: mainWindowState.y,
     width: mainWindowState.width,
@@ -1542,15 +1542,8 @@ ipcMain.handle('show-message-box', async (_event, options) => {
   return result;
 });
 
-// Handle allowed extensions list fetching
 ipcMain.handle('get-allowed-extensions', async () => {
-  try {
-    const allowList = await getAllowList();
-    return allowList;
-  } catch (error) {
-    console.error('Error fetching allowed extensions:', error);
-    throw error;
-  }
+  return await getAllowList();
 });
 
 const createNewWindow = async (app: App, dir?: string | null) => {
@@ -2068,57 +2061,33 @@ app.whenReady().then(async () => {
   });
 });
 
-/**
- * Fetches the allowed extensions list from the remote YAML file if GOOSE_ALLOWLIST is set.
- * If the ALLOWLIST is not set, any are allowed. If one is set, it will warn if the deeplink
- * doesn't match a command from the list.
- * If it fails to load, then it will return an empty list.
- * If the format is incorrect, it will return an empty list.
- * Format of yaml is:
- *
- ```yaml:
- extensions:
-  - id: slack
-    command: uvx mcp_slack
-  - id: knowledge_graph_memory
-    command: npx -y @modelcontextprotocol/server-memory
- ```
- *
- * @returns A promise that resolves to an array of extension commands that are allowed.
- */
 async function getAllowList(): Promise<string[]> {
   if (!process.env.GOOSE_ALLOWLIST) {
     return [];
   }
 
-  try {
-    // Fetch the YAML file
-    const response = await fetch(process.env.GOOSE_ALLOWLIST);
+  const response = await fetch(process.env.GOOSE_ALLOWLIST);
 
-    if (!response.ok) {
-      throw new Error(
-        `Failed to fetch allowed extensions: ${response.status} ${response.statusText}`
-      );
-    }
+  if (!response.ok) {
+    throw new Error(
+      `Failed to fetch allowed extensions: ${response.status} ${response.statusText}`
+    );
+  }
 
-    // Parse the YAML content
-    const yamlContent = await response.text();
-    const parsedYaml = yaml.parse(yamlContent);
+  // Parse the YAML content
+  const yamlContent = await response.text();
+  const parsedYaml = yaml.parse(yamlContent);
 
-    // Extract the commands from the extensions array
-    if (parsedYaml && parsedYaml.extensions && Array.isArray(parsedYaml.extensions)) {
-      const commands = parsedYaml.extensions.map(
-        (ext: { id: string; command: string }) => ext.command
-      );
-      console.log(`Fetched ${commands.length} allowed extension commands`);
-      return commands;
-    } else {
-      console.error('Invalid YAML structure:', parsedYaml);
-      return [];
-    }
-  } catch (error) {
-    console.error('Error in getAllowList:', error);
-    throw error;
+  // Extract the commands from the extensions array
+  if (parsedYaml && parsedYaml.extensions && Array.isArray(parsedYaml.extensions)) {
+    const commands = parsedYaml.extensions.map(
+      (ext: { id: string; command: string }) => ext.command
+    );
+    console.log(`Fetched ${commands.length} allowed extension commands`);
+    return commands;
+  } else {
+    console.error('Invalid YAML structure:', parsedYaml);
+    return [];
   }
 }
 

@@ -1174,7 +1174,7 @@ export default function App() {
   }, []);
 
   const config = window.electron.getConfig();
-  const STRICT_ALLOWLIST = config.GOOSE_ALLOWLIST_WARNING === true ? false : true;
+  const STRICT_ALLOWLIST = config.GOOSE_ALLOWLIST_WARNING !== true;
 
   useEffect(() => {
     console.log('Setting up extension handler');
