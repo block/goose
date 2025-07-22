@@ -4,6 +4,7 @@ use crate::session::Session;
 use anyhow::Result;
 use goose::agents::Agent;
 use goose::config::Config;
+use goose::message::Message;
 use goose::model::ModelConfig;
 use goose::providers::{create, testprovider::TestProvider};
 use std::path::Path;
@@ -11,7 +12,7 @@ use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub struct ScenarioResult {
-    pub messages: Vec<goose::message::Message>,
+    pub messages: Vec<Message>,
     pub error: Option<String>,
 }
 
@@ -51,6 +52,13 @@ pub async fn run_test_scenario(test_name: &str, inputs: &[&str]) -> Result<Scena
             }
         }
     } else {
+        if std::env::var("GITHUB_ACTIONS").is_ok() {
+            panic!(
+                "Test recording is not supported on CI. \
+            Did you forget to add the file {} to the repository and were expecting that to replay?",
+                file_path
+            );
+        }
         let config = Config::global();
 
         let (provider_name, model_name): (String, String) = match (
@@ -59,11 +67,7 @@ pub async fn run_test_scenario(test_name: &str, inputs: &[&str]) -> Result<Scena
         ) {
             (Ok(provider), Ok(model)) => (provider, model),
             _ => {
-                if std::env::var("GITHUB_ACTIONS").is_ok() {
-                    panic!("You forgot to add the file {} to the repository. This file is required when running tests in CI.", file_path);
-                } else {
-                    panic!("Provider or model not configured. Run 'goose configure' first");
-                }
+                panic!("Provider or model not configured. Run 'goose configure' first");
             }
         };
 
