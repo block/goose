@@ -12,8 +12,8 @@ use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata};
 use goose::session::info::SessionInfo;
 use goose::session::SessionMetadata;
 use mcp_core::handler::ToolResultSchema;
-use rmcp::model::ResourceContents;
 use mcp_core::tool::{Tool, ToolAnnotations};
+use rmcp::model::ResourceContents;
 use rmcp::model::{Annotations, Content, EmbeddedResource, ImageContent, Role, TextContent};
 use utoipa::{OpenApi, ToSchema};
 
