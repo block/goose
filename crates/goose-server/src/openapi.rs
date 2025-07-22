@@ -393,6 +393,8 @@ derive_utoipa!(Annotations as AnnotationsSchema);
         goose::recipe::RecipeParameterRequirement,
         goose::recipe::Response,
         goose::recipe::SubRecipe,
+        goose::agents::types::RetryConfig,
+        goose::agents::types::SuccessCheck,
     ))
 )]
 pub struct ApiDoc;
