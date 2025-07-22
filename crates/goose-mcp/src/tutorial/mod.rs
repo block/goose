@@ -1,17 +1,15 @@
 use anyhow::Result;
 use include_dir::{include_dir, Dir};
 use indoc::formatdoc;
-use rmcp::model::Content;
+use rmcp::model::{Content, Prompt, Role};
 use serde_json::{json, Value};
 use std::{future::Future, pin::Pin};
 use tokio::sync::mpsc;
 
 use mcp_core::{
     handler::{PromptError, ResourceError, ToolError},
-    prompt::Prompt,
     protocol::{JsonRpcMessage, ServerCapabilities},
     resource::Resource,
-    role::Role,
     tool::{Tool, ToolAnnotations},
 };
 use mcp_server::router::CapabilitiesBuilder;

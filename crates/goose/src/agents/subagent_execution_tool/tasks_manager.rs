@@ -1,3 +1,4 @@
+use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -32,6 +33,22 @@ impl TasksManager {
     pub async fn get_task(&self, task_id: &str) -> Option<Task> {
         let tasks = self.tasks.read().await;
         tasks.get(task_id).cloned()
+    }
+
+    pub async fn get_tasks(&self, task_ids: &[String]) -> Result<Vec<Task>, String> {
+        let mut tasks = Vec::new();
+        for task_id in task_ids {
+            match self.get_task(task_id).await {
+                Some(task) => tasks.push(task),
+                None => {
+                    return Err(format!(
+                        "Task with ID '{}' not found in TasksManager",
+                        task_id
+                    ))
+                }
+            }
+        }
+        Ok(tasks)
     }
 }
 

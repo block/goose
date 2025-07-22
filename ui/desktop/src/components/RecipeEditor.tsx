@@ -17,6 +17,7 @@ import ParameterInput from './parameter/ParameterInput';
 import { saveRecipe, generateRecipeFilename } from '../recipe/recipeStorage';
 import { toastSuccess, toastError } from '../toasts';
 import { Button } from './ui/button';
+import { useEscapeKey } from '../hooks/useEscapeKey';
 
 interface RecipeEditorProps {
   config?: Recipe;
@@ -128,6 +129,12 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
 
     setParameters(allParams);
   }, [instructions, prompt]);
+
+  // Handle Esc key for Save Recipe Dialog
+  useEscapeKey(showSaveDialog, () => {
+    setShowSaveDialog(false);
+    setSaveRecipeName('');
+  });
 
   const getCurrentConfig = useCallback((): Recipe => {
     // Transform the internal parameters state into the desired output format.

@@ -5,6 +5,7 @@ title: Configure LLM Provider
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import { PanelLeft } from 'lucide-react';
 
 # Supported LLM Providers
 
@@ -57,16 +58,18 @@ To configure your chosen provider or see available options, run `goose configure
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
   **To update your LLM provider and API key:** 
-  1. Click the gear on the Goose Desktop toolbar
-  1. Click `Advanced Settings`
-  1. Under `Models`, click `Configure provider`
-  1. Click `Configure` on the LLM provider to update
-  1. Add additional configurations (API key, host, etc) then press `submit`
+  1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+  2. Click the `Settings` button on the sidebar
+  3. Click the `Models` tab
+  4. Click `Configure Providers`
+  5. Click `Configure` on the LLM provider to update
+  6. Add additional configurations (API key, host, etc) then press `submit`
 
   **To change provider model**
-  1. Click the gear on the Goose Desktop toolbar
-  2. Click `Advanced Settings`
-  3. Under `Models`, click `Switch models`
+  1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+  2. Click the `Settings` button on the sidebar
+  3. Click the `Models` tab
+  4. Click `Switch models`
   5. Select a Provider from drop down menu
   6. Select a model from drop down menu
   7. Press `Select Model`
@@ -204,8 +207,8 @@ Goose supports using custom OpenAI-compatible endpoints, which is particularly u
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-    1. Click `...` in the upper right corner
-    2. Click `Advanced Settings`
+    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+    2. Click the `Settings` button on the sidebar
     3. Next to `Models`, click the `browse` link
     4. Click the `configure` link in the upper right corner
     5. Press the `+` button next to OpenAI
@@ -252,10 +255,12 @@ To set up Google Gemini with Goose, follow these steps:
   <TabItem value="ui" label="Goose Desktop" default>
   **To update your LLM provider and API key:** 
 
-    1. Click on the three dots in the top-right corner.
-    2. Select `Provider Settings` from the menu.
-    2. Choose `Google Gemini` as provider from the list.
-    3. Click Edit, enter your API key, and click `Set as Active`.
+    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
+    2. Click the `Settings` button on the sidebar.
+    3. Click the `Models` tab.
+    4. Click `Configure Providers`
+    5. Choose `Google Gemini` as provider from the list.
+    6. Click `Configure`, enter your API key, and click `Submit`.
 
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
@@ -507,8 +512,8 @@ ollama run michaelneale/deepseek-r1-goose
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-    3. Click `...` in the top-right corner.
-    4. Navigate to `Advanced Settings` -> `Browse Models` -> and select `Ollama` from the list.
+    3. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
+    4. Click `Settings` -> `Models` -> `Configure Providers` -> and select `Ollama` from the list.
     5. Enter `michaelneale/deepseek-r1-goose` for the model name.
   </TabItem>
   <TabItem value="cli" label="Goose CLI">

@@ -8,7 +8,6 @@ type PromptFuture = Pin<Box<dyn Future<Output = Result<String, PromptError>> + S
 
 use mcp_core::{
     handler::{PromptError, ResourceError, ToolError},
-    prompt::{Prompt, PromptMessage, PromptMessageRole},
     protocol::{
         CallToolResult, GetPromptResult, Implementation, InitializeResult, JsonRpcMessage,
         JsonRpcRequest, JsonRpcResponse, ListPromptsResult, ListResourcesResult, ListToolsResult,
@@ -17,7 +16,7 @@ use mcp_core::{
     },
     ResourceContents,
 };
-use rmcp::model::Content;
+use rmcp::model::{Content, Prompt, PromptMessage, PromptMessageRole};
 use serde_json::Value;
 use tokio::sync::mpsc;
 use tower_service::Service;

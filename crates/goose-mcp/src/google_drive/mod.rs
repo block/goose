@@ -11,7 +11,7 @@ use mcp_core::protocol::JsonRpcMessage;
 use mcp_core::tool::ToolAnnotations;
 use oauth_pkce::PkceOAuth2Client;
 use regex::Regex;
-use rmcp::model::Content;
+use rmcp::model::{Content, Prompt};
 use serde_json::{json, Value};
 use std::io::Cursor;
 use std::{env, fs, future::Future, path::Path, pin::Pin, sync::Arc};
@@ -20,7 +20,6 @@ use tokio::sync::mpsc;
 
 use mcp_core::{
     handler::{PromptError, ResourceError, ToolError},
-    prompt::Prompt,
     protocol::ServerCapabilities,
     resource::Resource,
     tool::Tool,

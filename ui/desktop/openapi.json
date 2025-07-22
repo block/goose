@@ -2183,7 +2183,7 @@
       },
       "Recipe": {
         "type": "object",
-        "description": "A Recipe represents a personalized, user-generated agent configuration that defines\nspecific behaviors and capabilities within the Goose system.\n\n# Fields\n\n## Required Fields\n* `version` - Semantic version of the Recipe file format (defaults to \"1.0.0\")\n* `title` - Short, descriptive name of the Recipe\n* `description` - Detailed description explaining the Recipe's purpose and functionality\n* `Instructions` - Instructions that defines the Recipe's behavior\n\n## Optional Fields\n* `prompt` - the initial prompt to the session to start with\n* `extensions` - List of extension configurations required by the Recipe\n* `context` - Supplementary context information for the Recipe\n* `activities` - Activity labels that appear when loading the Recipe\n* `author` - Information about the Recipe's creator and metadata\n* `parameters` - Additional parameters for the Recipe\n* `response` - Response configuration including JSON schema validation\n\n# Example\n\n\nuse goose::recipe::Recipe;\n\n// Using the builder pattern\nlet recipe = Recipe::builder()\n.title(\"Example Agent\")\n.description(\"An example Recipe configuration\")\n.instructions(\"Act as a helpful assistant\")\n.build()\n.expect(\"Missing required fields\");\n\n// Or using struct initialization\nlet recipe = Recipe {\nversion: \"1.0.0\".to_string(),\ntitle: \"Example Agent\".to_string(),\ndescription: \"An example Recipe configuration\".to_string(),\ninstructions: Some(\"Act as a helpful assistant\".to_string()),\nprompt: None,\nextensions: None,\ncontext: None,\nactivities: None,\nauthor: None,\nsettings: None,\nparameters: None,\nresponse: None,\nsub_recipes: None,\n};\n",
+        "description": "A Recipe represents a personalized, user-generated agent configuration that defines\nspecific behaviors and capabilities within the Goose system.\n\n# Fields\n\n## Required Fields\n* `version` - Semantic version of the Recipe file format (defaults to \"1.0.0\")\n* `title` - Short, descriptive name of the Recipe\n* `description` - Detailed description explaining the Recipe's purpose and functionality\n* `Instructions` - Instructions that defines the Recipe's behavior\n\n## Optional Fields\n* `prompt` - the initial prompt to the session to start with\n* `extensions` - List of extension configurations required by the Recipe\n* `context` - Supplementary context information for the Recipe\n* `activities` - Activity labels that appear when loading the Recipe\n* `author` - Information about the Recipe's creator and metadata\n* `parameters` - Additional parameters for the Recipe\n* `response` - Response configuration including JSON schema validation\n* `retry` - Retry configuration for automated validation and recovery\n# Example\n\n\nuse goose::recipe::Recipe;\n\n// Using the builder pattern\nlet recipe = Recipe::builder()\n.title(\"Example Agent\")\n.description(\"An example Recipe configuration\")\n.instructions(\"Act as a helpful assistant\")\n.build()\n.expect(\"Missing required fields\");\n\n// Or using struct initialization\nlet recipe = Recipe {\nversion: \"1.0.0\".to_string(),\ntitle: \"Example Agent\".to_string(),\ndescription: \"An example Recipe configuration\".to_string(),\ninstructions: Some(\"Act as a helpful assistant\".to_string()),\nprompt: None,\nextensions: None,\ncontext: None,\nactivities: None,\nauthor: None,\nsettings: None,\nparameters: None,\nresponse: None,\nsub_recipes: None,\nretry: None,\n};\n",
         "required": [
           "title",
           "description"
@@ -2240,6 +2240,14 @@
             "allOf": [
               {
                 "$ref": "#/components/schemas/Response"
+              }
+            ],
+            "nullable": true
+          },
+          "retry": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RetryConfig"
               }
             ],
             "nullable": true
@@ -2370,6 +2378,48 @@
         "properties": {
           "json_schema": {
             "nullable": true
+          }
+        }
+      },
+      "RetryConfig": {
+        "type": "object",
+        "description": "Configuration for retry logic in recipe execution",
+        "required": [
+          "max_retries",
+          "checks"
+        ],
+        "properties": {
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SuccessCheck"
+            },
+            "description": "List of success checks to validate recipe completion"
+          },
+          "max_retries": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Maximum number of retry attempts before giving up",
+            "minimum": 0
+          },
+          "on_failure": {
+            "type": "string",
+            "description": "Optional shell command to run on failure for cleanup",
+            "nullable": true
+          },
+          "on_failure_timeout_seconds": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Timeout in seconds for on_failure commands (default: 600 seconds)",
+            "nullable": true,
+            "minimum": 0
+          },
+          "timeout_seconds": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Timeout in seconds for individual shell commands (default: 300 seconds)",
+            "nullable": true,
+            "minimum": 0
           }
         }
       },
@@ -2683,6 +2733,34 @@
             },
             "nullable": true
           }
+        }
+      },
+      "SuccessCheck": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Execute a shell command and check its exit status",
+            "required": [
+              "command",
+              "type"
+            ],
+            "properties": {
+              "command": {
+                "type": "string",
+                "description": "The shell command to execute"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Shell"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "A single success check to validate recipe completion",
+        "discriminator": {
+          "propertyName": "type"
         }
       },
       "SummarizationRequested": {

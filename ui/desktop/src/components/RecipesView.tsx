@@ -23,6 +23,7 @@ import { Skeleton } from './ui/skeleton';
 import { MainPanelLayout } from './Layout/MainPanelLayout';
 import { Recipe, decodeRecipe } from '../recipe';
 import { toastSuccess, toastError } from '../toasts';
+import { useEscapeKey } from '../hooks/useEscapeKey';
 
 interface RecipesViewProps {
   onLoadRecipe?: (recipe: Recipe) => void;
@@ -57,6 +58,23 @@ export default function RecipesView({ _onLoadRecipe }: RecipesViewProps = {}) {
   useEffect(() => {
     loadSavedRecipes();
   }, []);
+
+  // Handle Esc key for modals
+  useEscapeKey(showPreview, () => setShowPreview(false));
+  useEscapeKey(showImportDialog, () => {
+    setShowImportDialog(false);
+    setImportDeeplink('');
+    setImportRecipeName('');
+  });
+  useEscapeKey(showCreateDialog, () => {
+    setShowCreateDialog(false);
+    setCreateTitle('');
+    setCreateDescription('');
+    setCreateInstructions('');
+    setCreatePrompt('');
+    setCreateActivities('');
+    setCreateRecipeName('');
+  });
 
   // Minimum loading time to prevent skeleton flash
   useEffect(() => {

@@ -1,5 +1,6 @@
 use console::style;
 use goose::agents::extension::ExtensionError;
+use goose::agents::types::RetryConfig;
 use goose::agents::Agent;
 use goose::config::{Config, ExtensionConfig, ExtensionConfigManager};
 use goose::providers::create;
@@ -60,6 +61,8 @@ pub struct SessionBuilderConfig {
     pub sub_recipes: Option<Vec<SubRecipe>>,
     /// Final output expected response
     pub final_output_response: Option<Response>,
+    /// Retry configuration for automated validation and recovery
+    pub retry_config: Option<RetryConfig>,
 }
 
 /// Offers to help debug an extension failure by creating a minimal debugging session
@@ -135,6 +138,7 @@ async fn offer_extension_debugging_help(
         debug_agent,
         Some(temp_session_file.clone()),
         false,
+        None,
         None,
         None,
         None,
@@ -407,6 +411,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         session_config.scheduled_job_id.clone(),
         session_config.max_turns,
         edit_mode,
+        session_config.retry_config.clone(),
     );
 
     // Add extensions if provided
@@ -602,6 +607,7 @@ mod tests {
             quiet: false,
             sub_recipes: None,
             final_output_response: None,
+            retry_config: None,
         };
 
         assert_eq!(config.extensions.len(), 1);
