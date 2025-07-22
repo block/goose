@@ -8,7 +8,7 @@ use crate::agents::subagent_execution_tool::tasks::process_task;
 use crate::agents::subagent_execution_tool::workers::spawn_worker;
 use crate::agents::subagent_task_config::TaskConfig;
 use crate::utils::safe_truncate;
-use mcp_core::protocol::JsonRpcMessage;
+use rmcp::model::JsonRpcMessage;
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use tokio::sync::mpsc;
