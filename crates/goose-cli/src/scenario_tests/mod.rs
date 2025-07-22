@@ -80,7 +80,7 @@ pub async fn run_test_scenario(test_name: &str, inputs: &[&str]) -> Result<Scena
     let agent = Agent::new();
     agent.update_provider(provider).await?;
 
-    let mut session = Session::new(agent, None, false, None, None, None);
+    let mut session = Session::new(agent, None, false, None, None, None, None);
 
     let mut error = None;
     for input in inputs {
