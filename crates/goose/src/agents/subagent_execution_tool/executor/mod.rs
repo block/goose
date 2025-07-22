@@ -7,6 +7,7 @@ use crate::agents::subagent_execution_tool::task_execution_tracker::{
 use crate::agents::subagent_execution_tool::tasks::process_task;
 use crate::agents::subagent_execution_tool::workers::spawn_worker;
 use crate::agents::subagent_task_config::TaskConfig;
+use crate::utils::safe_truncate;
 use mcp_core::protocol::JsonRpcMessage;
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
@@ -179,7 +180,7 @@ async fn collect_results(
         if let Some(data) = result.data.as_mut() {
             if let Some(data_str) = data.as_str() {
                 if data_str.len() > 650 {
-                    *data = serde_json::Value::String(format!("{}...", &data_str[..650]));
+                    *data = serde_json::Value::String(safe_truncate(data_str, 650));
                 }
             }
         }

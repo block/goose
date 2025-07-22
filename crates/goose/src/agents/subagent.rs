@@ -448,8 +448,7 @@ impl SubAgent {
             Err(ProviderError::RateLimitExceeded(_)) => {
                 self.set_status(SubAgentStatus::Completed("Rate limit exceeded".to_string()))
                     .await;
-                Ok(Message::assistant()
-                    .with_text("Rate limit exceeded. Please try again later."))
+                Ok(Message::assistant().with_text("Rate limit exceeded. Please try again later."))
             }
             Err(e) => {
                 self.set_status(SubAgentStatus::Completed(format!("Error: {}", e)))
