@@ -11,7 +11,7 @@ use mcp_core::protocol::JsonRpcMessage;
 use mcp_core::tool::ToolAnnotations;
 use oauth_pkce::PkceOAuth2Client;
 use regex::Regex;
-use rmcp::model::{Content, Prompt, RawResource, Resource};
+use rmcp::model::{AnnotateAble, Content, Prompt, RawResource, Resource};
 use serde_json::{json, Value};
 use std::io::Cursor;
 use std::{env, fs, future::Future, path::Path, pin::Pin, sync::Arc};
@@ -1887,15 +1887,15 @@ impl GoogleDriveRouter {
             Ok(r) => {
                 r.1.files
                     .map(|files| {
-                        files.into_iter().map(|f| Resource {
-                            raw: RawResource {
+                        files.into_iter().map(|f| {
+                            RawResource {
                                 uri: f.id.unwrap_or_default(),
                                 mime_type: f.mime_type,
                                 name: f.name.unwrap_or_default(),
                                 description: None,
                                 size: None,
-                            },
-                            annotations: None,
+                            }
+                            .no_annotation()
                         })
                     })
                     .into_iter()

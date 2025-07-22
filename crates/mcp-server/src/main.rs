@@ -47,8 +47,7 @@ impl CounterRouter {
     }
 
     fn _create_resource_text(&self, uri: &str, name: &str) -> Resource {
-        let raw_resource = RawResource::new(uri, name);
-        Resource::new(raw_resource, None)
+        Resource::new(RawResource::new(uri, name), None)
     }
 }
 

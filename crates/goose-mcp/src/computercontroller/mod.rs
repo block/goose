@@ -588,7 +588,7 @@ impl ComputerControllerRouter {
         resource.mime_type = Some(if mime_type == "blob" {
             "blob".to_string()
         } else {
-            "string".to_string()
+            "text".to_string()
         });
         self.active_resources
             .lock()
