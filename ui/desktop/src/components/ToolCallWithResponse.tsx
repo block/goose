@@ -126,10 +126,10 @@ const notificationToProgress = (notification: NotificationEvent): Progress =>
 const getExtensionTooltip = (toolCallName: string): string | null => {
   const lastIndex = toolCallName.lastIndexOf('__');
   if (lastIndex === -1) return null;
-  
+
   const extensionName = toolCallName.substring(0, lastIndex);
   if (!extensionName) return null;
-  
+
   return `${extensionName} extension`;
 };
 
@@ -377,7 +377,7 @@ function ToolCallView({
         // This ensures any MCP tool works without explicit handling
         const toolDisplayName = snakeToTitleCase(toolName);
         const entries = Object.entries(args);
-        
+
         if (entries.length === 0) {
           return `${toolDisplayName}`;
         }
@@ -413,7 +413,7 @@ function ToolCallView({
   };
 
   const toolLabel = (
-    <span className={cn("ml-2", extensionTooltip && "cursor-pointer hover:opacity-80")}>
+    <span className={cn('ml-2', extensionTooltip && 'cursor-pointer hover:opacity-80')}>
       {getToolLabelContent()}
     </span>
   );

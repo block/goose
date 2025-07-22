@@ -129,7 +129,7 @@ async fn run_truncate_test(
         ),
     ];
 
-    let reply_stream = agent.reply(&messages, None).await?;
+    let reply_stream = agent.reply(&messages, None, None).await?;
     tokio::pin!(reply_stream);
 
     let mut responses = Vec::new();
@@ -619,7 +619,7 @@ mod final_output_tool_tests {
         );
 
         // Simulate the reply stream continuing after the final output tool call.
-        let reply_stream = agent.reply(&vec![], None).await?;
+        let reply_stream = agent.reply(&vec![], None, None).await?;
         tokio::pin!(reply_stream);
 
         let mut responses = Vec::new();
@@ -716,7 +716,7 @@ mod final_output_tool_tests {
         agent.add_final_output_tool(response).await;
 
         // Simulate the reply stream being called.
-        let reply_stream = agent.reply(&vec![], None).await?;
+        let reply_stream = agent.reply(&vec![], None, None).await?;
         tokio::pin!(reply_stream);
 
         let mut responses = Vec::new();
@@ -850,7 +850,9 @@ mod retry_tests {
 
         let initial_messages = vec![Message::user().with_text("Complete this task")];
 
-        let reply_stream = agent.reply(&initial_messages, Some(session_config)).await?;
+        let reply_stream = agent
+            .reply(&initial_messages, Some(session_config), None)
+            .await?;
         tokio::pin!(reply_stream);
 
         let mut responses = Vec::new();
@@ -1013,7 +1015,7 @@ mod max_turns_tests {
         };
         let messages = vec![Message::user().with_text("Hello")];
 
-        let reply_stream = agent.reply(&messages, Some(session_config)).await?;
+        let reply_stream = agent.reply(&messages, Some(session_config), None).await?;
         tokio::pin!(reply_stream);
 
         let mut responses = Vec::new();
