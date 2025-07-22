@@ -60,6 +60,7 @@ import { type View, ViewOptions } from '../App';
 import { MainPanelLayout } from './Layout/MainPanelLayout';
 import ChatInput from './ChatInput';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
+import { RecipeWarningModal } from './ui/RecipeWarningModal';
 import { useChatEngine } from '../hooks/useChatEngine';
 import { useRecipeManager } from '../hooks/useRecipeManager';
 import { useSessionContinuation } from '../hooks/useSessionContinuation';
@@ -195,6 +196,10 @@ function BaseChatContent({
     handleAutoExecution,
     recipeError,
     setRecipeError,
+    isRecipeWarningModalOpen,
+    recipeAccepted,
+    handleRecipeAccept,
+    handleRecipeCancel,
   } = useRecipeManager(messages, location.state);
 
   // Reset recipe usage tracking when recipe changes
@@ -356,9 +361,9 @@ function BaseChatContent({
             {
               // Check if we should show splash instead of messages
               (() => {
-                // Show splash if we have a recipe and user hasn't started using it yet
+                // Show splash if we have a recipe and user hasn't started using it yet, and recipe has been accepted
                 const shouldShowSplash =
-                  recipeConfig && !hasStartedUsingRecipe && !suppressEmptyState;
+                  recipeConfig && recipeAccepted && !hasStartedUsingRecipe && !suppressEmptyState;
 
                 return shouldShowSplash;
               })() ? (
@@ -377,7 +382,8 @@ function BaseChatContent({
                     <PopularChatTopics append={(text: string) => appendWithTracking(text)} />
                   ) : null}
                 </>
-              ) : filteredMessages.length > 0 || (recipeConfig && hasStartedUsingRecipe) ? (
+              ) : filteredMessages.length > 0 ||
+                (recipeConfig && recipeAccepted && hasStartedUsingRecipe) ? (
                 <>
                   {disableSearch ? (
                     // Render messages without SearchView wrapper when search is disabled
@@ -521,6 +527,18 @@ function BaseChatContent({
           closeSummaryModal();
         }}
         summaryContent={summaryContent}
+      />
+
+      {/* Recipe Warning Modal */}
+      <RecipeWarningModal
+        isOpen={isRecipeWarningModalOpen}
+        onConfirm={handleRecipeAccept}
+        onCancel={handleRecipeCancel}
+        recipeDetails={{
+          title: recipeConfig?.title,
+          description: recipeConfig?.description,
+          instructions: recipeConfig?.instructions,
+        }}
       />
 
       {/* Recipe Error Modal */}

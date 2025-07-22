@@ -50,6 +50,7 @@ import {
 } from './utils/autoUpdater';
 import { UPDATES_ENABLED } from './updates';
 import { Recipe } from './recipe';
+import './utils/recipeHash';
 
 // API URL constructor for main process before window is ready
 function getApiUrlMain(endpoint: string, dynamicPort: number): string {
