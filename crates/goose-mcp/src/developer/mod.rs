@@ -38,7 +38,7 @@ use mcp_server::Router;
 
 use mcp_core::role::Role;
 
-use self::editor_models::{create_editor_model, EditorModel};
+use self::editor_models::{create_editor_model, EditorModel, EditorModelImpl};
 use self::shell::{expand_path, get_shell_config, is_absolute_path, normalize_line_endings};
 use indoc::indoc;
 use std::process::Stdio;
@@ -259,87 +259,168 @@ impl DeveloperRouter {
             }),
         );
 
-        // Create text editor tool with different descriptions based on editor API configuration
-        let (text_editor_desc, str_replace_command) = if let Some(ref editor) = editor_model {
-            (
-                formatdoc! {r#"
-                Perform text editing operations on files.
+        // Create text editor tool with different descriptions and schemas based on editor API configuration
+        let (text_editor_desc, schema_properties) = match &editor_model {
+            Some(EditorModel::MorphLLM(editor)) => {
+                // MorphLLM-specific configuration with instruction parameter
+                (
+                    formatdoc! {r#"
+                    Perform text editing operations on files.
 
-                The `command` parameter specifies the operation to perform. Allowed options are:
-                - `view`: View the content of a file.
-                - `write`: Create or overwrite a file with the given content
-                - `edit_file`: Edit the file with the new content.
-                - `insert`: Insert text at a specific line location in the file.
-                - `undo_edit`: Undo the last edit made to a file.
+                    The `command` parameter specifies the operation to perform. Allowed options are:
+                    - `view`: View the content of a file.
+                    - `write`: Create or overwrite a file with the given content
+                    - `edit_file`: Edit the file with the new content.
+                    - `insert`: Insert text at a specific line location in the file.
+                    - `undo_edit`: Undo the last edit made to a file.
 
-                To use the write command, you must specify `file_text` which will become the new content of the file. Be careful with
-                existing files! This is a full overwrite, so you must include everything - not just sections you are modifying.
+                    To use the write command, you must specify `file_text` which will become the new content of the file. Be careful with
+                    existing files! This is a full overwrite, so you must include everything - not just sections you are modifying.
 
-                To use the edit_file command, you must specify both `old_str` and `new_str` - {}.
+                    To use the edit_file command, you must specify both `old_str` and `new_str` - {}. 
+                    **IMPORTANT**: You must also provide an `instruction` parameter with your edit_file command.
 
-                To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning) 
-                and `new_str` (the text to insert).
-            "#, editor.get_str_replace_description()},
-                "edit_file",
-            )
-        } else {
-            (indoc! {r#"
-                Perform text editing operations on files.
+                    To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning) 
+                    and `new_str` (the text to insert).
+                "#, editor.get_str_replace_description()},
+                    json!({
+                        "path": {
+                            "description": "Absolute path to file or directory, e.g. `/repo/file.py` or `/repo`.",
+                            "type": "string"
+                        },
+                        "command": {
+                            "type": "string",
+                            "enum": ["view", "write", "edit_file", "insert", "undo_edit"],
+                            "description": "Allowed options are: `view`, `write`, `edit_file`, `insert`, `undo_edit`."
+                        },
+                        "view_range": {
+                            "type": "array",
+                            "items": {"type": "integer"},
+                            "minItems": 2,
+                            "maxItems": 2,
+                            "description": "Optional array of two integers specifying the start and end line numbers to view. Line numbers are 1-indexed, and -1 for the end line means read to the end of the file. This parameter only applies when viewing files, not directories."
+                        },
+                        "insert_line": {
+                            "type": "integer",
+                            "description": "The line number after which to insert the text (0 for beginning of file). This parameter is required when using the insert command."
+                        },
+                        "old_str": {"type": "string"},
+                        "new_str": {"type": "string"},
+                        "instruction": {
+                            "type": "string",
+                            "description": "A single sentence written in the first person describing what you are going to do for the sketched edit. This helps the apply model understand and apply your edit correctly. Use it to disambiguate uncertainty in the edit."
+                        },
+                        "file_text": {"type": "string"}
+                    }),
+                )
+            }
+            Some(editor) => {
+                // Other editors (OpenAI, etc...) - no instruction parameter
+                (
+                    formatdoc! {r#"
+                    Perform text editing operations on files.
 
-                The `command` parameter specifies the operation to perform. Allowed options are:
-                - `view`: View the content of a file.
-                - `write`: Create or overwrite a file with the given content
-                - `str_replace`: Replace a string in a file with a new string.
-                - `insert`: Insert text at a specific line location in the file.
-                - `undo_edit`: Undo the last edit made to a file.
+                    The `command` parameter specifies the operation to perform. Allowed options are:
+                    - `view`: View the content of a file.
+                    - `write`: Create or overwrite a file with the given content
+                    - `edit_file`: Edit the file with the new content.
+                    - `insert`: Insert text at a specific line location in the file.
+                    - `undo_edit`: Undo the last edit made to a file.
 
-                To use the write command, you must specify `file_text` which will become the new content of the file. Be careful with
-                existing files! This is a full overwrite, so you must include everything - not just sections you are modifying.
+                    To use the write command, you must specify `file_text` which will become the new content of the file. Be careful with
+                    existing files! This is a full overwrite, so you must include everything - not just sections you are modifying.
 
-                To use the str_replace command, you must specify both `old_str` and `new_str` - the `old_str` needs to exactly match one
-                unique section of the original file, including any whitespace. Make sure to include enough context that the match is not
-                ambiguous. The entire original string will be replaced with `new_str`.
+                    To use the edit_file command, you must specify both `old_str` and `new_str` - {}.
 
-                To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning) 
-                and `new_str` (the text to insert).
-            "#}.to_string(), "str_replace")
+                    To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning) 
+                    and `new_str` (the text to insert).
+                "#, editor.get_str_replace_description()},
+                    json!({
+                        "path": {
+                            "description": "Absolute path to file or directory, e.g. `/repo/file.py` or `/repo`.",
+                            "type": "string"
+                        },
+                        "command": {
+                            "type": "string",
+                            "enum": ["view", "write", "edit_file", "insert", "undo_edit"],
+                            "description": "Allowed options are: `view`, `write`, `edit_file`, `insert`, `undo_edit`."
+                        },
+                        "view_range": {
+                            "type": "array",
+                            "items": {"type": "integer"},
+                            "minItems": 2,
+                            "maxItems": 2,
+                            "description": "Optional array of two integers specifying the start and end line numbers to view. Line numbers are 1-indexed, and -1 for the end line means read to the end of the file. This parameter only applies when viewing files, not directories."
+                        },
+                        "insert_line": {
+                            "type": "integer",
+                            "description": "The line number after which to insert the text (0 for beginning of file). This parameter is required when using the insert command."
+                        },
+                        "old_str": {"type": "string"},
+                        "new_str": {"type": "string"},
+                        "file_text": {"type": "string"}
+                    }),
+                )
+            }
+            None => {
+                // No editor - traditional str_replace
+                (
+                    indoc! {r#"
+                    Perform text editing operations on files.
+
+                    The `command` parameter specifies the operation to perform. Allowed options are:
+                    - `view`: View the content of a file.
+                    - `write`: Create or overwrite a file with the given content
+                    - `str_replace`: Replace a string in a file with a new string.
+                    - `insert`: Insert text at a specific line location in the file.
+                    - `undo_edit`: Undo the last edit made to a file.
+
+                    To use the write command, you must specify `file_text` which will become the new content of the file. Be careful with
+                    existing files! This is a full overwrite, so you must include everything - not just sections you are modifying.
+
+                    To use the str_replace command, you must specify both `old_str` and `new_str` - the `old_str` needs to exactly match one
+                    unique section of the original file, including any whitespace. Make sure to include enough context that the match is not
+                    ambiguous. The entire original string will be replaced with `new_str`.
+
+                    To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning) 
+                    and `new_str` (the text to insert).
+                "#}.to_string(),
+                    json!({
+                        "path": {
+                            "description": "Absolute path to file or directory, e.g. `/repo/file.py` or `/repo`.",
+                            "type": "string"
+                        },
+                        "command": {
+                            "type": "string",
+                            "enum": ["view", "write", "str_replace", "insert", "undo_edit"],
+                            "description": "Allowed options are: `view`, `write`, `str_replace`, `insert`, `undo_edit`."
+                        },
+                        "view_range": {
+                            "type": "array",
+                            "items": {"type": "integer"},
+                            "minItems": 2,
+                            "maxItems": 2,
+                            "description": "Optional array of two integers specifying the start and end line numbers to view. Line numbers are 1-indexed, and -1 for the end line means read to the end of the file. This parameter only applies when viewing files, not directories."
+                        },
+                        "insert_line": {
+                            "type": "integer",
+                            "description": "The line number after which to insert the text (0 for beginning of file). This parameter is required when using the insert command."
+                        },
+                        "old_str": {"type": "string"},
+                        "new_str": {"type": "string"},
+                        "file_text": {"type": "string"}
+                    })
+                )
+            }
         };
 
         let text_editor_tool = Tool::new(
             "text_editor".to_string(),
-            text_editor_desc.to_string(),
+            text_editor_desc,
             json!({
                 "type": "object",
                 "required": ["command", "path"],
-                "properties": {
-                    "path": {
-                        "description": "Absolute path to file or directory, e.g. `/repo/file.py` or `/repo`.",
-                        "type": "string"
-                    },
-                    "command": {
-                        "type": "string",
-                        "enum": ["view", "write", str_replace_command, "insert", "undo_edit"],
-                        "description": format!("Allowed options are: `view`, `write`, `{}`, `insert`, `undo_edit`.", str_replace_command)
-                    },
-                    "view_range": {
-                        "type": "array",
-                        "items": {"type": "integer"},
-                        "minItems": 2,
-                        "maxItems": 2,
-                        "description": "Optional array of two integers specifying the start and end line numbers to view. Line numbers are 1-indexed, and -1 for the end line means read to the end of the file. This parameter only applies when viewing files, not directories."
-                    },
-                    "insert_line": {
-                        "type": "integer",
-                        "description": "The line number after which to insert the text (0 for beginning of file). This parameter is required when using the insert command."
-                    },
-                    "old_str": {"type": "string"},
-                    "new_str": {"type": "string"},
-                    "instruction": {
-                        "type": "string",
-                        "description": "A single sentence written in the first person describing what you are going to do for the sketched edit. Use it to disambiguate uncertainty in the edit."
-                    },
-                    "file_text": {"type": "string"}
-                }
+                "properties": schema_properties
             }),
             None,
         );
@@ -884,10 +965,20 @@ impl DeveloperRouter {
                     .ok_or_else(|| {
                         ToolError::InvalidParameters("Missing 'new_str' parameter".into())
                     })?;
-                let instruction = params
-                    .get("instruction")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or(""); // Empty string for backward compatibility
+
+                // Only extract instruction parameter when MorphLLM is being used
+                let instruction = match &self.editor_model {
+                    Some(EditorModel::MorphLLM(_)) => params
+                        .get("instruction")
+                        .and_then(|v| v.as_str())
+                        .ok_or_else(|| {
+                            ToolError::InvalidParameters(
+                                "Missing 'instruction' parameter required for MorphLLM editor"
+                                    .into(),
+                            )
+                        })?,
+                    _ => "", // Empty instruction for other editors or no editor
+                };
 
                 self.text_editor_replace(&path, old_str, new_str, instruction)
                     .await
