@@ -10,7 +10,7 @@ import { extractExtensionConfig } from '../components/settings/extensions/utils'
 import type { ExtensionConfig, FixedExtensionEntry } from '../components/ConfigContext';
 // TODO: remove when removing migration logic
 import { toastService } from '../toasts';
-import { ExtensionQuery, addExtension as apiAddExtension } from '../api';
+import { ExtensionQuery, SubRecipe, addExtension as apiAddExtension } from '../api';
 
 export interface Provider {
   id: string; // Lowercase key (e.g., "openai")
@@ -192,6 +192,7 @@ export const initializeSystem = async (
     const recipeConfig = window.appConfig?.get?.('recipe');
     const botPrompt = (recipeConfig as { instructions?: string })?.instructions;
     const responseConfig = (recipeConfig as { response?: { json_schema?: unknown } })?.response;
+    const subRecipes = (recipeConfig as { sub_recipes?: SubRecipe[] })?.sub_recipes;
 
     // Extend the system prompt with desktop-specific information
     const response = await fetch(getApiUrl('/agent/prompt'), {
@@ -206,6 +207,20 @@ export const initializeSystem = async (
           : desktopPrompt,
       }),
     });
+    console.log('======subRecipes', subRecipes);
+    if (subRecipes && subRecipes.length > 0) {
+      const add_sub_recipe_response = await fetch(getApiUrl('/agent/add_sub_recipes'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Secret-Key': getSecretKey(),
+        },
+        body: JSON.stringify({
+          sub_recipes: subRecipes,
+        }),
+      });
+      console.log('======add_sub_recipe_response', add_sub_recipe_response);
+    }
 
     if (!response.ok) {
       console.warn(`Failed to extend system prompt: ${response.statusText}`);

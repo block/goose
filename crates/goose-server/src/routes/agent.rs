@@ -6,7 +6,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use goose::config::Config;
+use goose::{config::Config, recipe::SubRecipe};
 use goose::config::PermissionManager;
 use goose::model::ModelConfig;
 use goose::providers::create;
@@ -32,6 +32,16 @@ struct ExtendPromptRequest {
 
 #[derive(Serialize)]
 struct ExtendPromptResponse {
+    success: bool,
+}
+
+#[derive(Deserialize)]
+struct AddSubRecipesRequest {
+    sub_recipes: Vec<SubRecipe>,
+}
+
+#[derive(Serialize)]
+struct AddSubRecipesResponse {
     success: bool,
 }
 
@@ -86,6 +96,21 @@ async fn get_versions() -> Json<VersionsResponse> {
         available_versions: versions.iter().map(|v| v.to_string()).collect(),
         default_version,
     })
+}
+
+async fn add_sub_recipes(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(payload): Json<AddSubRecipesRequest>,
+) -> Result<Json<AddSubRecipesResponse>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
+    let agent = state
+        .get_agent()
+        .await
+        .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
+    agent.add_sub_recipes(payload.sub_recipes.clone()).await;
+    Ok(Json(AddSubRecipesResponse { success: true }))
 }
 
 async fn extend_prompt(
@@ -318,5 +343,6 @@ pub fn routes(state: Arc<AppState>) -> Router {
             post(update_router_tool_selector),
         )
         .route("/agent/session_config", post(update_session_config))
+        .route("/agent/add_sub_recipes", post(add_sub_recipes))
         .with_state(state)
 }

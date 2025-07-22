@@ -179,7 +179,12 @@ async fn collect_results(
         if let Some(data) = result.data.as_mut() {
             if let Some(data_str) = data.as_str() {
                 if data_str.len() > 650 {
-                    *data = serde_json::Value::String(format!("{}...", &data_str[..650]));
+                    let mut end = 650;
+                    while end > 0 && !data_str.is_char_boundary(end) {
+                        end -= 1;
+                    }
+
+                    *data = serde_json::Value::String(format!("{}...", &data_str[..end]));
                 }
             }
         }

@@ -161,6 +161,7 @@ export default function RecipesView({ _onLoadRecipe }: RecipesViewProps = {}) {
   };
 
   const handlePreviewRecipe = (savedRecipe: SavedRecipe) => {
+    console.log('======handlePreviewRecipe', savedRecipe);
     setSelectedRecipe(savedRecipe);
     setShowPreview(true);
   };

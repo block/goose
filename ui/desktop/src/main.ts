@@ -196,7 +196,6 @@ if (process.platform === 'win32') {
       const protocolUrl = commandLine.find((arg) => arg.startsWith('goose://'));
       if (protocolUrl) {
         const parsedUrl = new URL(protocolUrl);
-
         // If it's a bot/recipe URL, handle it directly by creating a new window
         if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
           app.whenReady().then(async () => {
@@ -259,6 +258,7 @@ async function handleProtocolUrl(url: string) {
   const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
   if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
+    console.log('======parsedUrl', parsedUrl);
     // For bot/recipe URLs, get existing window or create new one
     const existingWindows = BrowserWindow.getAllWindows();
     const targetWindow =
