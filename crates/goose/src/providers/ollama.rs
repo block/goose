@@ -1,5 +1,6 @@
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
+use super::retry::ProviderRetry;
 use super::utils::{get_model, handle_response_openai_compat};
 use crate::message::Message;
 use crate::model::ModelConfig;
@@ -143,7 +144,7 @@ impl Provider for OllamaProvider {
             filtered_tools,
             &super::utils::ImageFormat::OpenAi,
         )?;
-        let response = self.post(payload.clone()).await?;
+        let response = self.with_retry(|| self.post(payload.clone())).await?;
         let message = response_to_message(response.clone())?;
 
         let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {

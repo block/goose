@@ -8,6 +8,8 @@ use std::time::Duration;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
+use super::retry::ProviderRetry;
+use super::utils::map_http_error_to_provider_error;
 use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use mcp_core::{tool::Tool, ToolCall, ToolResult};
@@ -197,21 +199,11 @@ impl VeniceProvider {
                         }
                     }
                 }
-
-                // General error extraction
-                if let Some(error_msg) = json.get("error").and_then(|e| e.as_str()) {
-                    return Err(ProviderError::RequestFailed(format!(
-                        "Venice API error: {}",
-                        error_msg
-                    )));
-                }
             }
 
-            // Fallback for unparseable errors
-            return Err(ProviderError::RequestFailed(format!(
-                "Venice API request failed with status code {}",
-                status
-            )));
+            // Use the common error mapping function
+            let error_json = serde_json::from_str::<Value>(&error_body).ok();
+            return Err(map_http_error_to_provider_error(status, error_json));
         }
 
         Ok(response)
@@ -251,7 +243,7 @@ impl Provider for VeniceProvider {
         self.model.clone()
     }
 
-    async fn fetch_supported_models_async(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         // Fetch supported models via Venice API
         let base_url = url::Url::parse(&self.host)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {}", e)))?;
@@ -475,8 +467,9 @@ impl Provider for VeniceProvider {
         tracing::debug!("Sending request to Venice API");
         tracing::debug!("Venice request payload: {}", payload.to_string());
 
-        // Send request
-        let response = self.post(&self.base_path, &payload.to_string()).await?;
+        // Send request with retry
+        let payload_str = payload.to_string();
+        let response = self.with_retry(|| self.post(&self.base_path, &payload_str)).await?;
 
         // Parse the response
         let response_text = response.text().await?;

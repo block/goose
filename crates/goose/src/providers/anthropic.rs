@@ -16,9 +16,10 @@ use super::errors::ProviderError;
 use super::formats::anthropic::{
     create_request, get_usage, response_to_message, response_to_streaming_message,
 };
-use super::utils::{emit_debug_trace, get_model};
+use super::utils::{emit_debug_trace, get_model, map_http_error_to_provider_error};
 use crate::message::Message;
 use crate::model::ModelConfig;
+use crate::providers::retry::ProviderRetry;
 use mcp_core::tool::Tool;
 
 pub const ANTHROPIC_DEFAULT_MODEL: &str = "claude-3-5-sonnet-latest";
@@ -90,40 +91,35 @@ impl AnthropicProvider {
 
         let status = response.status();
         let payload: Option<Value> = response.json().await.ok();
+        Self::anthropic_api_call_result(status, payload)
+    }
 
+    fn anthropic_api_call_result(
+        status: StatusCode,
+        payload: Option<Value>,
+    ) -> Result<Value, ProviderError> {
         // https://docs.anthropic.com/en/api/errors
         match status {
-            StatusCode::OK => payload.ok_or_else( || ProviderError::RequestFailed("Response body is not valid JSON".to_string()) ),
-            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
-                Err(ProviderError::Authentication(format!("Authentication failed. Please ensure your API keys are valid and have the required permissions. \
-                    Status: {}. Response: {:?}", status, payload)))
-            }
-            StatusCode::BAD_REQUEST => {
-                let mut error_msg = "Unknown error".to_string();
-                if let Some(payload) = &payload {
-                    if let Some(error) = payload.get("error") {
-                    tracing::debug!("Bad Request Error: {error:?}");
-                    error_msg = error.get("message").and_then(|m| m.as_str()).unwrap_or("Unknown error").to_string();
-                    if error_msg.to_lowercase().contains("too long") || error_msg.to_lowercase().contains("too many") {
-                        return Err(ProviderError::ContextLengthExceeded(error_msg.to_string()));
-                    }
-                }}
-                tracing::debug!(
-                    "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
-                );
-                Err(ProviderError::RequestFailed(format!("Request failed with status: {}. Message: {}", status, error_msg)))
-            }
-            StatusCode::TOO_MANY_REQUESTS => {
-                Err(ProviderError::RateLimitExceeded(format!("{:?}", payload)))
-            }
-            StatusCode::INTERNAL_SERVER_ERROR | StatusCode::SERVICE_UNAVAILABLE => {
-                Err(ProviderError::ServerError(format!("{:?}", payload)))
-            }
+            StatusCode::OK => payload.ok_or_else(|| {
+                ProviderError::RequestFailed("Response body is not valid JSON".to_string())
+            }),
             _ => {
-                tracing::debug!(
-                    "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
-                );
-                Err(ProviderError::RequestFailed(format!("Request failed with status: {}", status)))
+                if status == StatusCode::BAD_REQUEST {
+                    if let Some(error_msg) = payload
+                        .as_ref()
+                        .and_then(|p| p.get("error"))
+                        .and_then(|e| e.get("message"))
+                        .and_then(|m| m.as_str())
+                    {
+                        let msg = error_msg.to_string();
+                        if msg.to_lowercase().contains("too long")
+                            || msg.to_lowercase().contains("too many")
+                        {
+                            return Err(ProviderError::ContextLengthExceeded(msg));
+                        }
+                    }
+                }
+                Err(map_http_error_to_provider_error(status, payload))
             }
         }
     }
@@ -179,7 +175,7 @@ impl Provider for AnthropicProvider {
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let payload = create_request(&self.model, system, messages, tools)?;
 
-        let mut headers = reqwest::header::HeaderMap::new();
+        let mut headers = HeaderMap::new();
         headers.insert("x-api-key", self.api_key.parse().unwrap());
         headers.insert("anthropic-version", ANTHROPIC_API_VERSION.parse().unwrap());
 
@@ -197,10 +193,10 @@ impl Provider for AnthropicProvider {
             );
         }
 
-        // Make request
-        let response = self.post(headers, payload.clone()).await?;
+        let response = self
+            .with_retry(|| self.post(headers.clone(), payload.clone()))
+            .await?;
 
-        // Parse response
         let message = response_to_message(response.clone())?;
         let usage = get_usage(&response)?;
         tracing::debug!("🔍 Anthropic non-streaming parsed usage: input_tokens={:?}, output_tokens={:?}, total_tokens={:?}", 
@@ -217,7 +213,7 @@ impl Provider for AnthropicProvider {
     }
 
     /// Fetch supported models from Anthropic; returns Err on failure, Ok(None) if not present
-    async fn fetch_supported_models_async(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         let url = format!("{}/v1/models", self.host);
         let response = self
             .client
@@ -226,7 +222,7 @@ impl Provider for AnthropicProvider {
             .header("x-api-key", self.api_key.clone())
             .send()
             .await?;
-        let json: serde_json::Value = response.json().await?;
+        let json: Value = response.json().await?;
         // if 'models' key missing, return None
         let arr = match json.get("models").and_then(|v| v.as_array()) {
             Some(arr) => arr,
@@ -262,7 +258,7 @@ impl Provider for AnthropicProvider {
             .unwrap()
             .insert("stream".to_string(), Value::Bool(true));
 
-        let mut headers = reqwest::header::HeaderMap::new();
+        let mut headers = HeaderMap::new();
         headers.insert("x-api-key", self.api_key.parse().unwrap());
         headers.insert("anthropic-version", ANTHROPIC_API_VERSION.parse().unwrap());
 
@@ -297,10 +293,8 @@ impl Provider for AnthropicProvider {
         if !response.status().is_success() {
             let status = response.status();
             let error_text = response.text().await.unwrap_or_default();
-            return Err(ProviderError::RequestFailed(format!(
-                "Streaming request failed with status: {}. Error: {}",
-                status, error_text
-            )));
+            let error_json = serde_json::from_str::<Value>(&error_text).ok();
+            return Err(map_http_error_to_provider_error(status, error_json));
         }
 
         // Map reqwest error to io::Error
@@ -316,7 +310,7 @@ impl Provider for AnthropicProvider {
             pin!(message_stream);
             while let Some(message) = futures::StreamExt::next(&mut message_stream).await {
                 let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-                super::utils::emit_debug_trace(&model_config, &payload, &message, &usage.as_ref().map(|f| f.usage).unwrap_or_default());
+                emit_debug_trace(&model_config, &payload, &message, &usage.as_ref().map(|f| f.usage).unwrap_or_default());
                 yield (message, usage);
             }
         }))

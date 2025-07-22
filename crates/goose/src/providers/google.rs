@@ -1,11 +1,10 @@
 use super::errors::ProviderError;
+use super::retry::ProviderRetry;
+use super::utils::{emit_debug_trace, handle_response_google_compat, unescape_json_values};
 use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
 use crate::providers::formats::google::{create_request, get_usage, response_to_message};
-use crate::providers::utils::{
-    emit_debug_trace, handle_response_google_compat, unescape_json_values,
-};
 use anyhow::Result;
 use async_trait::async_trait;
 use axum::http::HeaderMap;
@@ -99,48 +98,14 @@ impl GoogleProvider {
                 ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
             })?;
 
-        let max_retries = 3;
-        let mut retries = 0;
-        let base_delay = Duration::from_secs(2);
+        let response = self
+            .client
+            .post(url)
+            .json(&payload)
+            .send()
+            .await?;
 
-        loop {
-            let response = self
-                .client
-                .post(url.clone()) // Clone the URL for each retry
-                .json(&payload)
-                .send()
-                .await;
-
-            match response {
-                Ok(res) => {
-                    match handle_response_google_compat(res).await {
-                        Ok(result) => return Ok(result),
-                        Err(ProviderError::RateLimitExceeded(_)) => {
-                            retries += 1;
-                            if retries > max_retries {
-                                return Err(ProviderError::RateLimitExceeded(
-                                    "Max retries exceeded for rate limit error".to_string(),
-                                ));
-                            }
-
-                            let delay = 2u64.pow(retries);
-                            let total_delay = Duration::from_secs(delay) + base_delay;
-
-                            println!("Rate limit hit. Retrying in {:?}", total_delay);
-                            tokio::time::sleep(total_delay).await;
-                            continue;
-                        }
-                        Err(err) => return Err(err), // Other errors
-                    }
-                }
-                Err(err) => {
-                    return Err(ProviderError::RequestFailed(format!(
-                        "Request failed: {}",
-                        err
-                    )));
-                }
-            }
-        }
+        handle_response_google_compat(response).await
     }
 }
 
@@ -178,7 +143,7 @@ impl Provider for GoogleProvider {
         let payload = create_request(&self.model, system, messages, tools)?;
 
         // Make request
-        let response = self.post(payload.clone()).await?;
+        let response = self.with_retry(|| self.post(payload.clone())).await?;
 
         // Parse response
         let message = response_to_message(unescape_json_values(&response))?;
@@ -193,7 +158,7 @@ impl Provider for GoogleProvider {
     }
 
     /// Fetch supported models from Google Generative Language API; returns Err on failure, Ok(None) if not present
-    async fn fetch_supported_models_async(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         // List models via the v1beta/models endpoint
         let url = format!("{}/v1beta/models", self.host);
         let response = self.client.get(&url).send().await?;

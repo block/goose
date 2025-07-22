@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
+use super::retry::ProviderRetry;
 use super::utils::{
     emit_debug_trace, get_model, handle_response_google_compat, handle_response_openai_compat,
     is_google_model,
@@ -259,7 +260,7 @@ impl Provider for OpenRouterProvider {
         let payload = create_request_based_on_model(self, system, messages, tools)?;
 
         // Make request
-        let response = self.post(payload.clone()).await?;
+        let response = self.with_retry(|| self.post(payload.clone())).await?;
 
         // Parse response
         let message = response_to_message(response.clone())?;
@@ -273,7 +274,7 @@ impl Provider for OpenRouterProvider {
     }
 
     /// Fetch supported models from OpenRouter API (only models with tool support)
-    async fn fetch_supported_models_async(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         let base_url = Url::parse(&self.host)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
         let url = base_url.join("api/v1/models").map_err(|e| {

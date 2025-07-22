@@ -409,10 +409,10 @@ impl Provider for LeadWorkerProvider {
         final_result
     }
 
-    async fn fetch_supported_models_async(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         // Combine models from both providers
-        let lead_models = self.lead_provider.fetch_supported_models_async().await?;
-        let worker_models = self.worker_provider.fetch_supported_models_async().await?;
+        let lead_models = self.lead_provider.fetch_supported_models().await?;
+        let worker_models = self.worker_provider.fetch_supported_models().await?;
 
         match (lead_models, worker_models) {
             (Some(lead), Some(worker)) => {

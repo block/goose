@@ -4,12 +4,12 @@ use reqwest::Client;
 use serde::Serialize;
 use serde_json::Value;
 use std::time::Duration;
-use tokio::time::sleep;
 
 use super::azureauth::AzureAuth;
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
+use super::retry::ProviderRetry;
 use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
 use crate::message::Message;
 use crate::model::ModelConfig;
@@ -20,12 +20,6 @@ pub const AZURE_DOC_URL: &str =
     "https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models";
 pub const AZURE_DEFAULT_API_VERSION: &str = "2024-10-21";
 pub const AZURE_OPENAI_KNOWN_MODELS: &[&str] = &["gpt-4o", "gpt-4o-mini", "gpt-4"];
-
-// Default retry configuration
-const DEFAULT_MAX_RETRIES: usize = 5;
-const DEFAULT_INITIAL_RETRY_INTERVAL_MS: u64 = 1000; // Start with 1 second
-const DEFAULT_MAX_RETRY_INTERVAL_MS: u64 = 32000; // Max 32 seconds
-const DEFAULT_BACKOFF_MULTIPLIER: f64 = 2.0;
 
 #[derive(Debug)]
 pub struct AzureProvider {
@@ -108,110 +102,29 @@ impl AzureProvider {
         base_url.set_path(&new_path);
         base_url.set_query(Some(&format!("api-version={}", self.api_version)));
 
-        let mut attempts = 0;
-        let mut last_error = None;
-        let mut current_delay = DEFAULT_INITIAL_RETRY_INTERVAL_MS;
+        // Get a fresh auth token for each attempt
+        let auth_token = self.auth.get_token().await.map_err(|e| {
+            tracing::error!("Authentication error: {:?}", e);
+            ProviderError::RequestFailed(format!("Failed to get authentication token: {}", e))
+        })?;
 
-        loop {
-            // Check if we've exceeded max retries
-            if attempts > DEFAULT_MAX_RETRIES {
-                let error_msg = format!(
-                    "Exceeded maximum retry attempts ({}) for rate limiting",
-                    DEFAULT_MAX_RETRIES
-                );
-                tracing::error!("{}", error_msg);
-                return Err(last_error.unwrap_or(ProviderError::RateLimitExceeded(error_msg)));
+        let mut request_builder = self.client.post(base_url.clone());
+        let token_value = auth_token.token_value.clone();
+
+        // Set the correct header based on authentication type
+        match self.auth.credential_type() {
+            super::azureauth::AzureCredentials::ApiKey(_) => {
+                request_builder = request_builder.header("api-key", token_value.clone());
             }
-
-            // Get a fresh auth token for each attempt
-            let auth_token = self.auth.get_token().await.map_err(|e| {
-                tracing::error!("Authentication error: {:?}", e);
-                ProviderError::RequestFailed(format!("Failed to get authentication token: {}", e))
-            })?;
-
-            let mut request_builder = self.client.post(base_url.clone());
-            let token_value = auth_token.token_value.clone();
-
-            // Set the correct header based on authentication type
-            match self.auth.credential_type() {
-                super::azureauth::AzureCredentials::ApiKey(_) => {
-                    request_builder = request_builder.header("api-key", token_value.clone());
-                }
-                super::azureauth::AzureCredentials::DefaultCredential => {
-                    request_builder = request_builder
-                        .header("Authorization", format!("Bearer {}", token_value.clone()));
-                }
-            }
-
-            let response_result = request_builder.json(&payload).send().await;
-
-            match response_result {
-                Ok(response) => match handle_response_openai_compat(response).await {
-                    Ok(result) => {
-                        return Ok(result);
-                    }
-                    Err(ProviderError::RateLimitExceeded(msg)) => {
-                        attempts += 1;
-                        last_error = Some(ProviderError::RateLimitExceeded(msg.clone()));
-
-                        let retry_after =
-                            if let Some(secs) = msg.to_lowercase().find("try again in ") {
-                                msg[secs..]
-                                    .split_whitespace()
-                                    .nth(3)
-                                    .and_then(|s| s.parse::<u64>().ok())
-                                    .unwrap_or(0)
-                            } else {
-                                0
-                            };
-
-                        let delay = if retry_after > 0 {
-                            Duration::from_secs(retry_after)
-                        } else {
-                            let delay = current_delay.min(DEFAULT_MAX_RETRY_INTERVAL_MS);
-                            current_delay =
-                                (current_delay as f64 * DEFAULT_BACKOFF_MULTIPLIER) as u64;
-                            Duration::from_millis(delay)
-                        };
-
-                        sleep(delay).await;
-                        continue;
-                    }
-                    Err(e) => {
-                        tracing::error!(
-                            "Error response from Azure OpenAI (attempt {}): {:?}",
-                            attempts + 1,
-                            e
-                        );
-                        return Err(e);
-                    }
-                },
-                Err(e) => {
-                    tracing::error!(
-                        "Request failed (attempt {}): {:?}\nIs timeout: {}\nIs connect: {}\nIs request: {}",
-                        attempts + 1,
-                        e,
-                        e.is_timeout(),
-                        e.is_connect(),
-                        e.is_request(),
-                    );
-
-                    // For timeout errors, we should retry
-                    if e.is_timeout() {
-                        attempts += 1;
-                        let delay = current_delay.min(DEFAULT_MAX_RETRY_INTERVAL_MS);
-                        current_delay = (current_delay as f64 * DEFAULT_BACKOFF_MULTIPLIER) as u64;
-                        sleep(Duration::from_millis(delay)).await;
-                        continue;
-                    }
-
-                    return Err(ProviderError::RequestFailed(format!(
-                        "Request failed: {}",
-                        e
-                    )));
-                }
+            super::azureauth::AzureCredentials::DefaultCredential => {
+                request_builder = request_builder
+                    .header("Authorization", format!("Bearer {}", token_value.clone()));
             }
         }
+
+        let response = request_builder.json(&payload).send().await?;
+
+        handle_response_openai_compat(response).await
     }
 }
 
@@ -249,7 +162,7 @@ impl Provider for AzureProvider {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let payload = create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi)?;
-        let response = self.post(payload.clone()).await?;
+        let response = self.with_retry(|| self.post(payload.clone())).await?;
 
         let message = response_to_message(response.clone())?;
         let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {

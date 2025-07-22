@@ -1,6 +1,6 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use reqwest::{Client, StatusCode};
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::time::Duration;
@@ -8,7 +8,8 @@ use std::time::Duration;
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
 use super::formats::snowflake::{create_request, get_usage, response_to_message};
-use super::utils::{get_model, ImageFormat};
+use super::retry::ProviderRetry;
+use super::utils::{get_model, map_http_error_to_provider_error, ImageFormat};
 use crate::config::ConfigError;
 use crate::message::Message;
 use crate::model::ModelConfig;
@@ -133,10 +134,9 @@ impl SnowflakeProvider {
             .await?;
 
         let status = response.status();
-
         let payload_text: String = response.text().await.ok().unwrap_or_default();
 
-        if status == StatusCode::OK {
+        if status.is_success() {
             if let Ok(payload) = serde_json::from_str::<Value>(&payload_text) {
                 if payload.get("code").is_some() {
                     let code = payload
@@ -299,96 +299,11 @@ impl SnowflakeProvider {
             "content_list": content_list
         });
 
-        match status {
-            StatusCode::OK => Ok(answer_payload),
-            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
-                // Extract a clean error message from the response if available
-                let error_msg = payload_text
-                    .lines()
-                    .find(|line| line.contains("\"message\""))
-                    .and_then(|line| {
-                        let json_str = line.strip_prefix("data: ").unwrap_or(line);
-                        serde_json::from_str::<Value>(json_str).ok()
-                    })
-                    .and_then(|json| {
-                        json.get("message")
-                            .and_then(|m| m.as_str())
-                            .map(|s| s.to_string())
-                    })
-                    .unwrap_or_else(|| "Invalid credentials".to_string());
-
-                Err(ProviderError::Authentication(format!(
-                    "Authentication failed. Please check your SNOWFLAKE_TOKEN and SNOWFLAKE_HOST configuration. Error: {}", 
-                    error_msg
-                )))
-            }
-            StatusCode::BAD_REQUEST => {
-                // Snowflake provides a generic 'error' but also includes 'external_model_message' which is provider specific
-                // We try to extract the error message from the payload and check for phrases that indicate context length exceeded
-                let payload_str = payload_text.to_lowercase();
-                let check_phrases = [
-                    "too long",
-                    "context length",
-                    "context_length_exceeded",
-                    "reduce the length",
-                    "token count",
-                    "exceeds",
-                    "exceed context limit",
-                    "input length",
-                    "max_tokens",
-                    "decrease input length",
-                    "context limit",
-                ];
-                if check_phrases.iter().any(|c| payload_str.contains(c)) {
-                    return Err(ProviderError::ContextLengthExceeded("Request exceeds maximum context length. Please reduce the number of messages or content size.".to_string()));
-                }
-
-                // Try to parse a clean error message from the response
-                let error_msg = if let Ok(json) = serde_json::from_str::<Value>(&payload_text) {
-                    json.get("message")
-                        .and_then(|m| m.as_str())
-                        .map(|s| s.to_string())
-                        .or_else(|| {
-                            json.get("external_model_message")
-                                .and_then(|ext| ext.get("message"))
-                                .and_then(|m| m.as_str())
-                                .map(|s| s.to_string())
-                        })
-                        .unwrap_or_else(|| "Bad request".to_string())
-                } else {
-                    "Bad request".to_string()
-                };
-
-                tracing::debug!(
-                    "Provider request failed with status: {}. Response: {}",
-                    status,
-                    payload_text
-                );
-                Err(ProviderError::RequestFailed(format!(
-                    "Request failed: {}",
-                    error_msg
-                )))
-            }
-            StatusCode::TOO_MANY_REQUESTS => Err(ProviderError::RateLimitExceeded(
-                "Rate limit exceeded. Please try again later.".to_string(),
-            )),
-            StatusCode::INTERNAL_SERVER_ERROR | StatusCode::SERVICE_UNAVAILABLE => {
-                Err(ProviderError::ServerError(
-                    "Snowflake service is temporarily unavailable. Please try again later."
-                        .to_string(),
-                ))
-            }
-            _ => {
-                tracing::debug!(
-                    "Provider request failed with status: {}. Response: {}",
-                    status,
-                    payload_text
-                );
-                Err(ProviderError::RequestFailed(format!(
-                    "Request failed with status: {}",
-                    status
-                )))
-            }
+        if status.is_success() {
+            Ok(answer_payload)
+        } else {
+            let error_json = serde_json::from_str::<Value>(&payload_text).ok();
+            Err(map_http_error_to_provider_error(status, error_json))
         }
     }
 }
@@ -426,7 +341,7 @@ impl Provider for SnowflakeProvider {
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let payload = create_request(&self.model, system, messages, tools)?;
 
-        let response = self.post(payload.clone()).await?;
+        let response = self.with_retry(|| self.post(payload.clone())).await?;
 
         // Parse response
         let message = response_to_message(response.clone())?;

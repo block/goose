@@ -333,7 +333,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
     let models_res = {
         let temp_model_config = goose::model::ModelConfig::new(provider_meta.default_model.clone());
         let temp_provider = create(provider_name, temp_model_config)?;
-        temp_provider.fetch_supported_models_async().await
+        temp_provider.fetch_supported_models().await
     };
     spin.stop(style("Model fetch complete").green());
 

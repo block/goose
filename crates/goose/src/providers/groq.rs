@@ -1,13 +1,14 @@
 use super::errors::ProviderError;
+use super::retry::ProviderRetry;
+use super::utils::{get_model, handle_response_openai_compat};
 use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
-use crate::providers::utils::get_model;
 use anyhow::Result;
 use async_trait::async_trait;
 use mcp_core::Tool;
-use reqwest::{Client, StatusCode};
+use reqwest::Client;
 use serde_json::Value;
 use std::time::Duration;
 use url::Url;
@@ -54,7 +55,7 @@ impl GroqProvider {
         })
     }
 
-    async fn post(&self, payload: Value) -> anyhow::Result<Value, ProviderError> {
+    async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
         let base_url = Url::parse(&self.host)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
         let url = base_url.join("openai/v1/chat/completions").map_err(|e| {
@@ -69,31 +70,7 @@ impl GroqProvider {
             .send()
             .await?;
 
-        let status = response.status();
-        let payload: Option<Value> = response.json().await.ok();
-
-        match status {
-            StatusCode::OK => payload.ok_or_else( || ProviderError::RequestFailed("Response body is not valid JSON".to_string()) ),
-            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
-                Err(ProviderError::Authentication(format!("Authentication failed. Please ensure your API keys are valid and have the required permissions. \
-                    Status: {}. Response: {:?}", status, payload)))
-            }
-            StatusCode::PAYLOAD_TOO_LARGE => {
-                Err(ProviderError::ContextLengthExceeded(format!("{:?}", payload)))
-            }
-            StatusCode::TOO_MANY_REQUESTS => {
-                Err(ProviderError::RateLimitExceeded(format!("{:?}", payload)))
-            }
-            StatusCode::INTERNAL_SERVER_ERROR | StatusCode::SERVICE_UNAVAILABLE => {
-                Err(ProviderError::ServerError(format!("{:?}", payload)))
-            }
-            _ => {
-                tracing::debug!(
-                    "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
-                );
-                Err(ProviderError::RequestFailed(format!("Request failed with status: {}", status)))
-            }
-        }
+        handle_response_openai_compat(response).await
     }
 }
 
@@ -127,7 +104,7 @@ impl Provider for GroqProvider {
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
+    ) -> Result<(Message, ProviderUsage), ProviderError> {
         let payload = create_request(
             &self.model,
             system,
@@ -136,7 +113,7 @@ impl Provider for GroqProvider {
             &super::utils::ImageFormat::OpenAi,
         )?;
 
-        let response = self.post(payload.clone()).await?;
+        let response = self.with_retry(|| self.post(payload.clone())).await?;
 
         let message = response_to_message(response.clone())?;
         let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
@@ -149,7 +126,7 @@ impl Provider for GroqProvider {
     }
 
     /// Fetch supported models from Groq; returns Err on failure, Ok(None) if no models found
-    async fn fetch_supported_models_async(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         // Construct the Groq models endpoint
         let base_url = url::Url::parse(&self.host)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {}", e)))?;
@@ -166,40 +143,20 @@ impl Provider for GroqProvider {
 
         // Send request
         let response = request.send().await?;
-        let status = response.status();
-        let payload: serde_json::Value = response.json().await.map_err(|_| {
-            ProviderError::RequestFailed("Response body is not valid JSON".to_string())
-        })?;
+        let response = handle_response_openai_compat(response).await?;
 
-        // Check for error response from API
-        if let Some(err_obj) = payload.get("error") {
-            let msg = err_obj
-                .get("message")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown error");
-            return Err(ProviderError::Authentication(msg.to_string()));
-        }
+        let data = response
+            .get("data")
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| {
+                ProviderError::UsageError("Missing or invalid `data` field in response".into())
+            })?;
 
-        // Extract model names
-        if status == StatusCode::OK {
-            let data = payload
-                .get("data")
-                .and_then(|v| v.as_array())
-                .ok_or_else(|| {
-                    ProviderError::UsageError("Missing or invalid `data` field in response".into())
-                })?;
-
-            let mut model_names: Vec<String> = data
-                .iter()
-                .filter_map(|m| m.get("id").and_then(Value::as_str).map(String::from))
-                .collect();
-            model_names.sort();
-            Ok(Some(model_names))
-        } else {
-            Err(ProviderError::RequestFailed(format!(
-                "Groq API returned error status: {}. Payload: {:?}",
-                status, payload
-            )))
-        }
+        let mut model_names: Vec<String> = data
+            .iter()
+            .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(String::from))
+            .collect();
+        model_names.sort();
+        Ok(Some(model_names))
     }
 }
