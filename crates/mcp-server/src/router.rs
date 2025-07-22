@@ -14,9 +14,8 @@ use mcp_core::{
         PromptsCapability, ReadResourceResult, ResourcesCapability, ServerCapabilities,
         ToolsCapability,
     },
-    ResourceContents,
 };
-use rmcp::model::{Content, Prompt, PromptMessage, PromptMessageRole};
+use rmcp::model::{Content, Prompt, PromptMessage, PromptMessageRole, Resource, ResourceContents};
 use serde_json::Value;
 use tokio::sync::mpsc;
 use tower_service::Service;
@@ -93,7 +92,7 @@ pub trait Router: Send + Sync + 'static {
         arguments: Value,
         notifier: mpsc::Sender<JsonRpcMessage>,
     ) -> Pin<Box<dyn Future<Output = Result<Vec<Content>, ToolError>> + Send + 'static>>;
-    fn list_resources(&self) -> Vec<mcp_core::resource::Resource>;
+    fn list_resources(&self) -> Vec<Resource>;
     fn read_resource(
         &self,
         uri: &str,
