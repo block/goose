@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use mcp_core::protocol::JsonRpcMessage;
+use rmcp::model::JsonRpcMessage;
 use thiserror::Error;
 use tokio::sync::{mpsc, oneshot};
 

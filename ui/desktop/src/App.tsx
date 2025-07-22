@@ -15,7 +15,8 @@ import AnnouncementModal from './components/AnnouncementModal';
 import { generateSessionId } from './sessions';
 import ProviderGuard from './components/ProviderGuard';
 
-import Hub, { type ChatType } from './components/hub';
+import { ChatType } from './types/chat';
+import Hub from './components/hub';
 import Pair from './components/pair';
 import SettingsView, { SettingsViewOptions } from './components/settings/SettingsView';
 import SessionsView from './components/sessions/SessionsView';
@@ -182,6 +183,12 @@ const PairRouteWrapper = ({
 
   // Check if we have a resumed session or recipe config from navigation state
   useEffect(() => {
+    // Only process if we actually have navigation state
+    if (!location.state) {
+      console.log('No navigation state, preserving existing chat state');
+      return;
+    }
+
     const resumedSession = location.state?.resumedSession as SessionDetails | undefined;
     const recipeConfig = location.state?.recipeConfig as Recipe | undefined;
     const resetChat = location.state?.resetChat as boolean | undefined;
@@ -205,22 +212,17 @@ const PairRouteWrapper = ({
 
       // Clear the navigation state to prevent reloading on navigation
       window.history.replaceState({}, document.title);
-    } else if (recipeConfig) {
-      console.log('Loading recipe config in pair view:', recipeConfig.title);
+    } else if (recipeConfig && resetChat) {
+      console.log('Loading new recipe config in pair view:', recipeConfig.title);
 
-      // Load recipe config and optionally reset chat
-      // Use the ref to get the current chat state without adding it as a dependency
-      const currentChat = chatRef.current;
       const updatedChat: ChatType = {
-        ...currentChat,
-        recipeConfig: recipeConfig,
+        id: chatRef.current.id, // Keep the same ID
         title: recipeConfig.title || 'Recipe Chat',
+        messages: [], // Clear messages to start fresh
+        messageHistoryIndex: 0,
+        recipeConfig: recipeConfig,
+        recipeParameters: null, // Clear parameters for new recipe
       };
-
-      if (resetChat) {
-        updatedChat.messages = [];
-        updatedChat.messageHistoryIndex = 0;
-      }
 
       // Update both the local chat state and the app-level pairChat state
       setChat(updatedChat);
@@ -228,7 +230,29 @@ const PairRouteWrapper = ({
 
       // Clear the navigation state to prevent reloading on navigation
       window.history.replaceState({}, document.title);
+    } else if (recipeConfig && !chatRef.current.recipeConfig) {
+      // Only set recipe config if we don't already have one (e.g., from deeplinks)
+
+      const updatedChat: ChatType = {
+        ...chatRef.current,
+        recipeConfig: recipeConfig,
+        title: recipeConfig.title || chatRef.current.title,
+      };
+
+      // Update both the local chat state and the app-level pairChat state
+      setChat(updatedChat);
+      setPairChat(updatedChat);
+
+      // Clear the navigation state to prevent reloading on navigation
+      window.history.replaceState({}, document.title);
+    } else if (location.state) {
+      // We have navigation state but it doesn't match our conditions
+      // Clear it to prevent future processing, but don't modify chat state
+      console.log('Clearing unprocessed navigation state');
+      window.history.replaceState({}, document.title);
     }
+    // If we have a recipe config but resetChat is false and we already have a recipe,
+    // do nothing - just continue with the existing chat state
   }, [location.state, setChat, setPairChat]);
 
   return (
@@ -1174,7 +1198,7 @@ export default function App() {
   }, []);
 
   const config = window.electron.getConfig();
-  const STRICT_ALLOWLIST = config.GOOSE_ALLOWLIST_WARNING === true ? false : true;
+  const STRICT_ALLOWLIST = config.GOOSE_ALLOWLIST_WARNING !== true;
 
   useEffect(() => {
     console.log('Setting up extension handler');

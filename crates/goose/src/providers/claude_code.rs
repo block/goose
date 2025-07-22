@@ -1,5 +1,6 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use rmcp::model::Role;
 use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -13,7 +14,6 @@ use crate::config::Config;
 use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use mcp_core::tool::Tool;
-use mcp_core::Role;
 
 pub const CLAUDE_CODE_DEFAULT_MODEL: &str = "claude-3-5-sonnet-latest";
 pub const CLAUDE_CODE_KNOWN_MODELS: &[&str] = &["sonnet", "opus", "claude-3-5-sonnet-latest"];
@@ -351,7 +351,11 @@ impl ClaudeCodeProvider {
 
         let mut child = cmd
             .spawn()
-            .map_err(|e| ProviderError::RequestFailed(format!("Failed to spawn command: {}", e)))?;
+            .map_err(|e| ProviderError::RequestFailed(format!(
+                "Failed to spawn Claude CLI command '{}': {}. \
+                Make sure the Claude Code CLI is installed and in your PATH, or set CLAUDE_CODE_COMMAND in your config to the correct path.",
+                self.command, e
+            )))?;
 
         let stdout = child
             .stdout
@@ -408,7 +412,7 @@ impl ClaudeCodeProvider {
         // Extract the first user message text
         let description = messages
             .iter()
-            .find(|m| m.role == mcp_core::Role::User)
+            .find(|m| m.role == Role::User)
             .and_then(|m| {
                 m.content.iter().find_map(|c| match c {
                     MessageContent::Text(text_content) => Some(&text_content.text),
@@ -433,7 +437,7 @@ impl ClaudeCodeProvider {
 
         let message = Message {
             id: None,
-            role: mcp_core::Role::Assistant,
+            role: Role::Assistant,
             created: chrono::Utc::now().timestamp(),
             content: vec![MessageContent::text(description.clone())],
         };

@@ -73,10 +73,15 @@ fn create_tasks_from_params(
 }
 
 fn create_task_execution_payload(tasks: &[Task], sub_recipe: &SubRecipe) -> Value {
+    let execution_mode = if tasks.len() == 1 || sub_recipe.sequential_when_repeated {
+        ExecutionMode::Sequential
+    } else {
+        ExecutionMode::Parallel
+    };
     let task_ids: Vec<String> = tasks.iter().map(|task| task.id.clone()).collect();
     json!({
         "task_ids": task_ids,
-        "execution_mode": if sub_recipe.sequential_when_repeated { ExecutionMode::Sequential } else { ExecutionMode::Parallel },
+        "execution_mode": execution_mode,
     })
 }
 

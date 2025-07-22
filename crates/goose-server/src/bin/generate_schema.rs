@@ -19,9 +19,12 @@ fn main() {
         fs::create_dir_all(parent).unwrap();
     }
 
-    fs::write(&output_path, schema).unwrap();
-    println!(
+    fs::write(&output_path, &schema).unwrap();
+    eprintln!(
         "Successfully generated OpenAPI schema at {}",
         output_path.display()
     );
+
+    // Output the schema to stdout for piping
+    println!("{}", schema);
 }

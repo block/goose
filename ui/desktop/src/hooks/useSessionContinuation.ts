@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { generateSessionId } from '../sessions';
-import { ChatType } from '../components/hub';
+import { ChatType } from '../types/chat';
 
 interface UseSessionContinuationProps {
   chat: ChatType;
