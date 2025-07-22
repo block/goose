@@ -4,6 +4,10 @@ import { getSecretKey } from '../config';
 import { Message, createUserMessage, hasCompletedToolCalls } from '../types/message';
 import { getSessionHistory } from '../api';
 
+function generateMessageId(): string {
+  return `msg-${Date.now()}`;
+}
+
 // Ensure TextDecoder is available in the global scope
 const TextDecoder = globalThis.TextDecoder;
 
@@ -297,6 +301,8 @@ export function useMessageStream({
                     // Create a new message object with the properties preserved or defaulted
                     const newMessage = {
                       ...parsedEvent.message,
+                      // Ensure the message has an ID - if not provided, generate one
+                      id: parsedEvent.message.id || generateMessageId(),
                       // Only set to true if it's undefined (preserve false values)
                       display:
                         parsedEvent.message.display === undefined
@@ -461,7 +467,7 @@ export function useMessageStream({
     async (requestMessages: Message[]) => {
       try {
         mutateLoading(true);
-        mutateWaiting(true);  // Start in waiting state
+        mutateWaiting(true); // Start in waiting state
         mutateStreaming(false);
         setError(undefined);
 
@@ -539,7 +545,17 @@ export function useMessageStream({
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [api, processMessageStream, mutateLoading, mutateWaiting, mutateStreaming, setError, onResponse, onError, maxSteps]
+    [
+      api,
+      processMessageStream,
+      mutateLoading,
+      mutateWaiting,
+      mutateStreaming,
+      setError,
+      onResponse,
+      onError,
+      maxSteps,
+    ]
   );
 
   // Append a new message and send request
@@ -637,6 +653,7 @@ export function useMessageStream({
 
       // Create a tool response message
       const toolResponseMessage: Message = {
+        id: generateMessageId(),
         role: 'user' as const,
         created: Math.floor(Date.now() / 1000),
         content: [
