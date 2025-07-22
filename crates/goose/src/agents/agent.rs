@@ -687,7 +687,7 @@ impl Agent {
 
         let (mut tools, mut toolshim_tools, mut system_prompt) =
             self.prepare_tools_and_prompt().await?;
-        let goose_mode = Self::determine_goose_mode(&session, &config);
+        let goose_mode = Self::determine_goose_mode(session.as_ref(), config);
 
         if let Some(content) = messages
             .last()
@@ -1012,11 +1012,10 @@ impl Agent {
         }))
     }
 
-    fn determine_goose_mode(session: &Option<SessionConfig>, config: &Config) -> String {
-        match session
-            .as_ref()
-            .and_then(|s| s.execution_mode.as_ref().map(String::as_str))
-        {
+    fn determine_goose_mode(session: Option<&SessionConfig>, config: &Config) -> String {
+        let mode = session.and_then(|s| s.execution_mode.as_deref());
+
+        match mode {
             Some("foreground") => "auto".to_string(),
             Some("background") => "chat".to_string(),
             _ => config

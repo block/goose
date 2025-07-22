@@ -135,7 +135,7 @@ async fn reply_handler(
     let task_cancel = cancel_token.clone();
     let task_tx = tx.clone();
 
-    let _ = tokio::spawn(async move {
+    std::mem::drop(tokio::spawn(async move {
         let agent = match state.get_agent().await {
             Ok(agent) => agent,
             Err(_) => {
@@ -265,7 +265,7 @@ async fn reply_handler(
         }
 
         if all_messages.len() > saved_message_count {
-            if let Some(provider) = agent.provider().await.ok() {
+            if let Ok(provider) = agent.provider().await {
                 let provider = Arc::clone(&provider);
                 tokio::spawn(async move {
                     if let Err(e) = session::persist_messages(
@@ -289,7 +289,7 @@ async fn reply_handler(
             &task_tx,
         )
         .await;
-    });
+    }));
     Ok(SseResponse::new(stream))
 }
 
