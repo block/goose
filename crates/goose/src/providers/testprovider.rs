@@ -169,7 +169,7 @@ mod tests {
     use crate::message::{Message, MessageContent};
     use crate::providers::base::{ProviderUsage, Usage};
     use chrono::Utc;
-    use mcp_core::{content::TextContent, Role};
+    use rmcp::model::{RawTextContent, Role, TextContent};
     use std::env;
 
     #[derive(Clone)]
@@ -203,7 +203,9 @@ mod tests {
                     Role::Assistant,
                     Utc::now().timestamp(),
                     vec![MessageContent::Text(TextContent {
-                        text: self.response.clone(),
+                        raw: RawTextContent {
+                            text: self.response.clone(),
+                        },
                         annotations: None,
                     })],
                 ),
