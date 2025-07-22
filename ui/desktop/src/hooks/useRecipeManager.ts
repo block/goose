@@ -16,6 +16,8 @@ export const useRecipeManager = (messages: Message[], locationState?: LocationSt
   const [recipeParameters, setRecipeParameters] = useState<Record<string, string> | null>(null);
   const [readyForAutoUserPrompt, setReadyForAutoUserPrompt] = useState(false);
   const [recipeError, setRecipeError] = useState<string | null>(null);
+  const [isRecipeWarningModalOpen, setIsRecipeWarningModalOpen] = useState(false);
+  const [recipeAccepted, setRecipeAccepted] = useState(false);
 
   // Get chat context to access persisted recipe
   const chatContext = useChatContext();
@@ -72,15 +74,37 @@ export const useRecipeManager = (messages: Message[], locationState?: LocationSt
     }
   }, [chatContext, locationState]);
 
+  // Check if recipe has been accepted before
+  useEffect(() => {
+    const checkRecipeAcceptance = async () => {
+      if (recipeConfig) {
+        try {
+          const hasAccepted = await window.electron.hasAcceptedRecipeBefore(recipeConfig);
+          if (!hasAccepted) {
+            setIsRecipeWarningModalOpen(true);
+          } else {
+            setRecipeAccepted(true);
+          }
+        } catch (error) {
+          console.error('Error checking recipe acceptance:', error);
+          // If there's an error, assume the recipe hasn't been accepted
+          setIsRecipeWarningModalOpen(true);
+        }
+      }
+    };
+
+    checkRecipeAcceptance();
+  }, [recipeConfig]);
+
   // Show parameter modal if recipe has parameters and they haven't been set yet
   useEffect(() => {
-    if (recipeConfig?.parameters && recipeConfig.parameters.length > 0) {
+    if (recipeConfig?.parameters && recipeConfig.parameters.length > 0 && recipeAccepted) {
       // If we have parameters and they haven't been set yet, open the modal.
       if (!recipeParameters) {
         setIsParameterModalOpen(true);
       }
     }
-  }, [recipeConfig, recipeParameters]);
+  }, [recipeConfig, recipeParameters, recipeAccepted]);
 
   // Set ready for auto user prompt after component initialization
   useEffect(() => {
@@ -101,7 +125,7 @@ export const useRecipeManager = (messages: Message[], locationState?: LocationSt
 
   // Pre-fill input with recipe prompt instead of auto-sending it
   const initialPrompt = useMemo(() => {
-    if (!recipeConfig?.prompt) return '';
+    if (!recipeConfig?.prompt || !recipeAccepted) return '';
 
     const hasRequiredParams = recipeConfig.parameters && recipeConfig.parameters.length > 0;
 
@@ -117,7 +141,7 @@ export const useRecipeManager = (messages: Message[], locationState?: LocationSt
 
     // Otherwise, we are waiting for parameters, so the input should be empty.
     return '';
-  }, [recipeConfig, recipeParameters]);
+  }, [recipeConfig, recipeParameters, recipeAccepted]);
 
   // Handle parameter submission
   const handleParameterSubmit = async (inputValues: Record<string, string>) => {
@@ -132,6 +156,28 @@ export const useRecipeManager = (messages: Message[], locationState?: LocationSt
     }
   };
 
+  // Handle recipe acceptance
+  const handleRecipeAccept = async () => {
+    try {
+      if (recipeConfig) {
+        await window.electron.recordRecipeHash(recipeConfig);
+        setRecipeAccepted(true);
+        setIsRecipeWarningModalOpen(false);
+      }
+    } catch (error) {
+      console.error('Error recording recipe hash:', error);
+      // Even if recording fails, we should still allow the user to proceed
+      setRecipeAccepted(true);
+      setIsRecipeWarningModalOpen(false);
+    }
+  };
+
+  // Handle recipe cancellation
+  const handleRecipeCancel = () => {
+    setIsRecipeWarningModalOpen(false);
+    window.electron.closeWindow();
+  };
+
   // Auto-execution handler for scheduled recipes
   const handleAutoExecution = (append: (message: Message) => void, isLoading: boolean) => {
     const hasRequiredParams = recipeConfig?.parameters && recipeConfig.parameters.length > 0;
@@ -142,7 +188,8 @@ export const useRecipeManager = (messages: Message[], locationState?: LocationSt
       (!hasRequiredParams || recipeParameters) &&
       messages.length === 0 &&
       !isLoading &&
-      readyForAutoUserPrompt
+      readyForAutoUserPrompt &&
+      recipeAccepted
     ) {
       // Substitute parameters if they exist
       const finalPrompt = recipeParameters
@@ -249,5 +296,10 @@ export const useRecipeManager = (messages: Message[], locationState?: LocationSt
     handleAutoExecution,
     recipeError,
     setRecipeError,
+    isRecipeWarningModalOpen,
+    setIsRecipeWarningModalOpen,
+    recipeAccepted,
+    handleRecipeAccept,
+    handleRecipeCancel,
   };
 };

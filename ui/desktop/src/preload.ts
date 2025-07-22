@@ -105,6 +105,10 @@ type ElectronAPI = {
   restartApp: () => void;
   onUpdaterEvent: (callback: (event: UpdaterEvent) => void) => void;
   getUpdateState: () => Promise<{ updateAvailable: boolean; latestVersion?: string } | null>;
+  // Recipe warning functions
+  closeWindow: () => void;
+  hasAcceptedRecipeBefore: (recipeConfig: Recipe) => Promise<boolean>;
+  recordRecipeHash: (recipeConfig: Recipe) => Promise<boolean>;
 };
 
 type AppConfigAPI = {
@@ -215,6 +219,11 @@ const electronAPI: ElectronAPI = {
   getUpdateState: (): Promise<{ updateAvailable: boolean; latestVersion?: string } | null> => {
     return ipcRenderer.invoke('get-update-state');
   },
+  closeWindow: () => ipcRenderer.send('close-window'),
+  hasAcceptedRecipeBefore: (recipeConfig: Recipe) =>
+    ipcRenderer.invoke('has-accepted-recipe-before', recipeConfig),
+  recordRecipeHash: (recipeConfig: Recipe) =>
+    ipcRenderer.invoke('record-recipe-hash', recipeConfig),
 };
 
 const appConfigAPI: AppConfigAPI = {
