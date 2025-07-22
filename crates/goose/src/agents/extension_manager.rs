@@ -817,7 +817,7 @@ impl ExtensionManager {
 }
 
 fn resource_is_active(resource: &Resource) -> bool {
-    resource.priority().is_some_and(|p| (p - 1.0) < 1e-6)
+    resource.priority().is_some_and(|p| (p - 1.0).abs() < 1e-6)
 }
 
 #[cfg(test)]
