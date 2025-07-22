@@ -749,14 +749,6 @@ impl Agent {
                 });
 
             loop {
-                turns_taken += 1;
-                if turns_taken > max_turns {
-                    yield AgentEvent::Message(Message::assistant().with_text(
-                        "I've reached the maximum number of actions I can do without user input. Would you like me to continue?"
-                    ));
-                    break;
-                }
-
                 if cancel_token.as_ref().is_some_and(|t| t.is_cancelled()) {
                     break;
                 }
@@ -771,9 +763,15 @@ impl Agent {
                     }
                 }
 
-                let mut messages_to_add = Vec::new();
-                let mut tools_updated = false;
+                turns_taken += 1;
+                if turns_taken > max_turns {
+                    yield AgentEvent::Message(Message::assistant().with_text(
+                        "I've reached the maximum number of actions I can do without user input. Would you like me to continue?"
+                    ));
+                    break;
+                }
 
+                // Handle MCP notifications from subagents
                 let mcp_notifications = self.get_mcp_notifications().await;
                 for notification in mcp_notifications {
                     if let JsonRpcMessage::Notification(notif) = &notification {
@@ -790,6 +788,7 @@ impl Agent {
                         }
                     }
                 }
+
                 let mut stream = Self::stream_response_from_provider(
                     self.provider().await?,
                     &system_prompt,
@@ -800,10 +799,14 @@ impl Agent {
                 .await?;
 
                 let mut added_message = false;
+                let mut messages_to_add = Vec::new();
+                let mut tools_updated = false;
+
                 while let Some(next) = stream.next().await {
                     if cancel_token.as_ref().is_some_and(|t| t.is_cancelled()) {
                         break;
                     }
+
                     match next {
                         Ok((response, usage)) => {
                             // Emit model change event if provider is lead-worker
@@ -971,10 +974,8 @@ impl Agent {
                                     let mut all_install_successful = true;
 
                                     while let Some((request_id, item)) = combined.next().await {
-                                        if let Some(token) = cancel_token.as_ref() {
-                                            if token.is_cancelled() {
-                                                break;
-                                            }
+                                        if cancel_token.as_ref().is_some_and(|t| t.is_cancelled()) {
+                                            break;
                                         }
                                         match item {
                                             ToolStreamItem::Result(output) => {
@@ -1023,7 +1024,24 @@ impl Agent {
                         }
                     }
                 }
-                None => {
+                if tools_updated {
+                    (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
+                }
+                if !added_message {
+                    if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
+                        if final_output_tool.final_output.is_none() {
+                            tracing::warn!("Final output tool has not been called yet. Continuing agent loop.");
+                            let message = Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE);
+                            messages_to_add.push(message.clone());
+                            yield AgentEvent::Message(message);
+                            continue
+                        } else {
+                            let message = Message::assistant().with_text(final_output_tool.final_output.clone().unwrap());
+                            messages_to_add.push(message.clone());
+                            yield AgentEvent::Message(message);
+                        }
+                    }
+
                     match self.handle_retry_logic(&mut messages, &session, &initial_messages).await {
                         Ok(should_retry) => {
                             if should_retry {
@@ -1040,11 +1058,8 @@ impl Agent {
                     }
                     break;
                 }
-                messages.extend(messages_to_add);
 
-                if tools_updated {
-                    (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
-                }
+                messages.extend(messages_to_add);
 
                 tokio::task::yield_now().await;
             }
