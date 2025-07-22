@@ -131,7 +131,7 @@ jobs:
           source ./bin/activate-hermit
           export CARGO_INCREMENTAL=0
           cargo clippy --jobs 2 -- -D warnings
-          
+
   desktop-lint:
     name: Lint Electron Desktop App
     runs-on: macos-latest
