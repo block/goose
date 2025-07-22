@@ -2,6 +2,7 @@ use crate::session;
 use mcp_core::{Tool, ToolResult};
 use rmcp::model::Content;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
@@ -16,7 +17,7 @@ pub const DEFAULT_RETRY_TIMEOUT_SECONDS: u64 = 300;
 pub const DEFAULT_ON_FAILURE_TIMEOUT_SECONDS: u64 = 600;
 
 /// Configuration for retry logic in recipe execution
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct RetryConfig {
     /// Maximum number of retry attempts before giving up
     pub max_retries: u32,
