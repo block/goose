@@ -723,10 +723,7 @@ impl Agent {
         let mut messages = messages.to_vec();
         let initial_messages = messages.clone();
         let reply_span = tracing::Span::current();
-
         self.reset_retry_attempts().await;
-
-        // Load settings from config
         let config = Config::global();
 
         let (mut tools, mut toolshim_tools, mut system_prompt) =
@@ -742,326 +739,316 @@ impl Agent {
         }
 
         Ok(Box::pin(async_stream::try_stream! {
-                    let _ = reply_span.enter();
-                    let mut turns_taken = 0u32;
-                    let max_turns = session
-                        .as_ref()
-                        .and_then(|s| s.max_turns)
-                        .unwrap_or_else(|| {
-                            config.get_param("GOOSE_MAX_TURNS").unwrap_or(DEFAULT_MAX_TURNS)
-                        });
+            let _ = reply_span.enter();
+            let mut turns_taken = 0u32;
+            let max_turns = session
+                .as_ref()
+                .and_then(|s| s.max_turns)
+                .unwrap_or_else(|| {
+                    config.get_param("GOOSE_MAX_TURNS").unwrap_or(DEFAULT_MAX_TURNS)
+                });
 
-                    loop {
-                        turns_taken += 1;
-                        if turns_taken > max_turns {
-                            yield AgentEvent::Message(Message::assistant().with_text(
-                                "I've reached the maximum number of actions I can do without user input. Would you like me to continue?"
-                            ));
-                            break;
-                        }
+            loop {
+                turns_taken += 1;
+                if turns_taken > max_turns {
+                    yield AgentEvent::Message(Message::assistant().with_text(
+                        "I've reached the maximum number of actions I can do without user input. Would you like me to continue?"
+                    ));
+                    break;
+                }
 
-                        if cancel_token.as_ref().is_some_and(|t| t.is_cancelled()) {
-                            break;
-                        }
+                if cancel_token.as_ref().is_some_and(|t| t.is_cancelled()) {
+                    break;
+                }
 
-                        if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
-                            if final_output_tool.final_output.is_some() {
-                                let final_event = AgentEvent::Message(
-                                    Message::assistant().with_text(final_output_tool.final_output.clone().unwrap()),
-                                );
-                                yield final_event;
-                                break;
+                if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
+                    if final_output_tool.final_output.is_some() {
+                        let final_event = AgentEvent::Message(
+                            Message::assistant().with_text(final_output_tool.final_output.clone().unwrap()),
+                        );
+                        yield final_event;
+                        break;
+                    }
+                }
+
+                let mut messages_to_add = Vec::new();
+                let mut tools_updated = false;
+
+                let mcp_notifications = self.get_mcp_notifications().await;
+                for notification in mcp_notifications {
+                    if let JsonRpcMessage::Notification(notif) = &notification {
+                        if let Some(data) = notif.params.as_ref().and_then(|p| p.get("data")) {
+                            if let (Some(subagent_id), Some(_message)) = (
+                                data.get("subagent_id").and_then(|v| v.as_str()),
+                                data.get("message").and_then(|v| v.as_str()),
+                            ) {
+                                yield AgentEvent::McpNotification((
+                                    subagent_id.to_string(),
+                                    notification.clone(),
+                                ));
                             }
                         }
+                    }
+                }
+                let mut stream = Self::stream_response_from_provider(
+                    self.provider().await?,
+                    &system_prompt,
+                    &messages,
+                    &tools,
+                    &toolshim_tools,
+                )
+                .await?;
 
-                        let mut messages_to_add = Vec::new();
+                let mut added_message = false;
+                while let Some(next) = stream.next().await {
+                    if cancel_token.as_ref().is_some_and(|t| t.is_cancelled()) {
+                        break;
+                    }
+                    match next {
+                        Ok((response, usage)) => {
+                            // Emit model change event if provider is lead-worker
+                            let provider = self.provider().await?;
+                            if let Some(lead_worker) = provider.as_lead_worker() {
+                                if let Some(ref usage) = usage {
+                                    let active_model = usage.model.clone();
+                                    let (lead_model, worker_model) = lead_worker.get_model_info();
+                                    let mode = if active_model == lead_model {
+                                        "lead"
+                                    } else if active_model == worker_model {
+                                        "worker"
+                                    } else {
+                                        "unknown"
+                                    };
 
-                        let mcp_notifications = self.get_mcp_notifications().await;
-                        for notification in mcp_notifications {
-                            if let JsonRpcMessage::Notification(notif) = &notification {
-                                if let Some(data) = notif.params.as_ref().and_then(|p| p.get("data")) {
-                                    if let (Some(subagent_id), Some(_message)) = (
-                                        data.get("subagent_id").and_then(|v| v.as_str()),
-                                        data.get("message").and_then(|v| v.as_str()),
-                                    ) {
-                                        yield AgentEvent::McpNotification((
-                                            subagent_id.to_string(),
-                                            notification.clone(),
-                                        ));
-                                    }
+                                    yield AgentEvent::ModelChange {
+                                        model: active_model,
+                                        mode: mode.to_string(),
+                                    };
                                 }
                             }
-                        }
-                        let mut stream = Self::stream_response_from_provider(
-                            self.provider().await?,
-                            &system_prompt,
-                            &messages,
-                            &tools,
-                            &toolshim_tools,
-                        )
-                        .await?;
 
-                        let mut added_message = false;
-                        while let Some(next) = stream.next().await {
-                            if cancel_token.as_ref().is_some_and(|t| t.is_cancelled()) {
-                                break;
+                            // Record usage for the session
+                            if let Some(ref session_config) = &session {
+                                if let Some(ref usage) = usage {
+                                    Self::update_session_metrics(session_config, usage, messages.len())
+                                        .await?;
+                                }
                             }
-                            match next {
-                                Ok((response, usage)) => {
-                                    // Emit model change event if provider is lead-worker
-                                    let provider = self.provider().await?;
-                                    if let Some(lead_worker) = provider.as_lead_worker() {
-                                        if let Some(ref usage) = usage {
-                                            let active_model = usage.model.clone();
-                                            let (lead_model, worker_model) = lead_worker.get_model_info();
-                                            let mode = if active_model == lead_model {
-                                                "lead"
-                                            } else if active_model == worker_model {
-                                                "worker"
-                                            } else {
-                                                "unknown"
-                                            };
 
-                                            yield AgentEvent::ModelChange {
-                                                model: active_model,
-                                                mode: mode.to_string(),
-                                            };
-                                        }
-                                    }
+                            if let Some(response) = response {
+                                let (tools_with_readonly_annotation, tools_without_annotation) =
+                                    Self::categorize_tools_by_annotation(&tools);
 
-                                    // Record usage for the session
-                                    if let Some(ref session_config) = &session {
-                                        if let Some(ref usage) = usage {
-                                            Self::update_session_metrics(session_config, usage, messages.len())
-                                                .await?;
-                                        }
-                                    }
+                                // Categorize tool requests
+                                let (frontend_requests, remaining_requests, filtered_response) =
+                                    self.categorize_tool_requests(&response).await;
 
-                                    if let Some(response) = response {
-                                        let (tools_with_readonly_annotation, tools_without_annotation) =
-                                            Self::categorize_tools_by_annotation(&tools);
-
-                                        // Categorize tool requests
-                                        let (frontend_requests, remaining_requests, filtered_response) =
-                                            self.categorize_tool_requests(&response).await;
-
-                                        // Record tool calls in the router selector
-                                        let selector = self.router_tool_selector.lock().await.clone();
-                                        if let Some(selector) = selector {
-                                            for request in &frontend_requests {
-                                                if let Ok(tool_call) = &request.tool_call {
-                                                    if let Err(e) = selector.record_tool_call(&tool_call.name).await
-                                                    {
-                                                        error!("Failed to record frontend tool call: {}", e);
-                                                    }
-                                                }
-                                            }
-                                            for request in &remaining_requests {
-                                                if let Ok(tool_call) = &request.tool_call {
-                                                    if let Err(e) = selector.record_tool_call(&tool_call.name).await
-                                                    {
-                                                        error!("Failed to record tool call: {}", e);
-                                                    }
-                                                }
+                                // Record tool calls in the router selector
+                                let selector = self.router_tool_selector.lock().await.clone();
+                                if let Some(selector) = selector {
+                                    for request in &frontend_requests {
+                                        if let Ok(tool_call) = &request.tool_call {
+                                            if let Err(e) = selector.record_tool_call(&tool_call.name).await
+                                            {
+                                                error!("Failed to record frontend tool call: {}", e);
                                             }
                                         }
-
-                                        yield AgentEvent::Message(filtered_response.clone());
-                                        tokio::task::yield_now().await;
-
-                                        let num_tool_requests = frontend_requests.len() + remaining_requests.len();
-                                        if num_tool_requests == 0 {
-                                            continue;
+                                    }
+                                    for request in &remaining_requests {
+                                        if let Ok(tool_call) = &request.tool_call {
+                                            if let Err(e) = selector.record_tool_call(&tool_call.name).await
+                                            {
+                                                error!("Failed to record tool call: {}", e);
+                                            }
                                         }
+                                    }
+                                }
 
-                                        let message_tool_response = Arc::new(Mutex::new(Message::user()));
+                                yield AgentEvent::Message(filtered_response.clone());
+                                tokio::task::yield_now().await;
 
-                                        let mut frontend_tool_stream = self.handle_frontend_tool_requests(
-                                            &frontend_requests,
-                                            message_tool_response.clone(),
+                                let num_tool_requests = frontend_requests.len() + remaining_requests.len();
+                                if num_tool_requests == 0 {
+                                    continue;
+                                }
+
+                                let message_tool_response = Arc::new(Mutex::new(Message::user()));
+
+                                let mut frontend_tool_stream = self.handle_frontend_tool_requests(
+                                    &frontend_requests,
+                                    message_tool_response.clone(),
+                                );
+
+                                while let Some(msg) = frontend_tool_stream.try_next().await? {
+                                    yield AgentEvent::Message(msg);
+                                }
+
+                                let mode = goose_mode.clone();
+                                if mode.as_str() == "chat" {
+                                    // Skip all tool calls in chat mode
+                                    for request in remaining_requests {
+                                        let mut response = message_tool_response.lock().await;
+                                        *response = response.clone().with_tool_response(
+                                            request.id.clone(),
+                                            Ok(vec![Content::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)]),
                                         );
+                                    }
+                                } else {
+                                    let mut permission_manager = PermissionManager::default();
+                                    let (permission_check_result, enable_extension_request_ids) =
+                                        check_tool_permissions(
+                                            &remaining_requests,
+                                            &mode,
+                                            tools_with_readonly_annotation.clone(),
+                                            tools_without_annotation.clone(),
+                                            &mut permission_manager,
+                                            self.provider().await?,
+                                        )
+                                        .await;
 
-                                        while let Some(msg) = frontend_tool_stream.try_next().await? {
-                                            yield AgentEvent::Message(msg);
-                                        }
+                                    let mut tool_futures: Vec<(String, ToolStream)> = Vec::new();
 
-                                        let mode = goose_mode.clone();
-                                        if mode.as_str() == "chat" {
-                                            // Skip all tool calls in chat mode
-                                            for request in remaining_requests {
-                                                let mut response = message_tool_response.lock().await;
-                                                *response = response.clone().with_tool_response(
-                                                    request.id.clone(),
-                                                    Ok(vec![Content::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)]),
-                                                );
-                                            }
-                                        } else {
-                                            let mut permission_manager = PermissionManager::default();
-                                            let (permission_check_result, enable_extension_request_ids) =
-                                                check_tool_permissions(
-                                                    &remaining_requests,
-                                                    &mode,
-                                                    tools_with_readonly_annotation.clone(),
-                                                    tools_without_annotation.clone(),
-                                                    &mut permission_manager,
-                                                    self.provider().await?,
-                                                )
+                                    // Handle pre-approved and read-only tools
+                                    for request in &permission_check_result.approved {
+                                        if let Ok(tool_call) = request.tool_call.clone() {
+                                            let (req_id, tool_result) = self
+                                                .dispatch_tool_call(tool_call, request.id.clone())
                                                 .await;
 
-                                            let mut tool_futures: Vec<(String, ToolStream)> = Vec::new();
+                                            tool_futures.push((
+                                                req_id,
+                                                match tool_result {
+                                                    Ok(result) => tool_stream(
+                                                        result
+                                                            .notification_stream
+                                                            .unwrap_or_else(|| Box::new(stream::empty())),
+                                                        result.result,
+                                                    ),
+                                                    Err(e) => tool_stream(
+                                                        Box::new(stream::empty()),
+                                                        futures::future::ready(Err(e)),
+                                                    ),
+                                                },
+                                            ));
+                                        }
+                                    }
 
-                                            // Handle pre-approved and read-only tools
-                                            for request in &permission_check_result.approved {
-                                                if let Ok(tool_call) = request.tool_call.clone() {
-                                                    let (req_id, tool_result) = self
-                                                        .dispatch_tool_call(tool_call, request.id.clone())
-                                                        .await;
+                                    for request in &permission_check_result.denied {
+                                        let mut response = message_tool_response.lock().await;
+                                        *response = response.clone().with_tool_response(
+                                            request.id.clone(),
+                                            Ok(vec![Content::text(DECLINED_RESPONSE)]),
+                                        );
+                                    }
 
-                                                    tool_futures.push((
-                                                        req_id,
-                                                        match tool_result {
-                                                            Ok(result) => tool_stream(
-                                                                result
-                                                                    .notification_stream
-                                                                    .unwrap_or_else(|| Box::new(stream::empty())),
-                                                                result.result,
-                                                            ),
-                                                            Err(e) => tool_stream(
-                                                                Box::new(stream::empty()),
-                                                                futures::future::ready(Err(e)),
-                                                            ),
-                                                        },
-                                                    ));
-                                                }
+                                    let tool_futures_arc = Arc::new(Mutex::new(tool_futures));
+
+                                    // Process tools requiring approval
+                                    let mut tool_approval_stream = self.handle_approval_tool_requests(
+                                        &permission_check_result.needs_approval,
+                                        tool_futures_arc.clone(),
+                                        &mut permission_manager,
+                                        message_tool_response.clone(),
+                                    );
+
+                                    while let Some(msg) = tool_approval_stream.try_next().await? {
+                                        yield AgentEvent::Message(msg);
+                                    }
+
+                                    tool_futures = {
+                                        let mut futures_lock = tool_futures_arc.lock().await;
+                                        futures_lock.drain(..).collect::<Vec<_>>()
+                                    };
+
+                                    let with_id = tool_futures
+                                        .into_iter()
+                                        .map(|(request_id, stream)| {
+                                            stream.map(move |item| (request_id.clone(), item))
+                                        })
+                                        .collect::<Vec<_>>();
+
+                                    let mut combined = stream::select_all(with_id);
+                                    let mut all_install_successful = true;
+
+                                    while let Some((request_id, item)) = combined.next().await {
+                                        if let Some(token) = cancel_token.as_ref() {
+                                            if token.is_cancelled() {
+                                                break;
                                             }
-
-                                            for request in &permission_check_result.denied {
+                                        }
+                                        match item {
+                                            ToolStreamItem::Result(output) => {
+                                                if enable_extension_request_ids.contains(&request_id)
+                                                    && output.is_err()
+                                                {
+                                                    all_install_successful = false;
+                                                }
                                                 let mut response = message_tool_response.lock().await;
-                                                *response = response.clone().with_tool_response(
-                                                    request.id.clone(),
-                                                    Ok(vec![Content::text(DECLINED_RESPONSE)]),
-                                                );
+                                                *response =
+                                                    response.clone().with_tool_response(request_id, output);
                                             }
-
-                                            let tool_futures_arc = Arc::new(Mutex::new(tool_futures));
-
-                                            // Process tools requiring approval
-                                            let mut tool_approval_stream = self.handle_approval_tool_requests(
-                                                &permission_check_result.needs_approval,
-                                                tool_futures_arc.clone(),
-                                                &mut permission_manager,
-                                                message_tool_response.clone(),
-                                            );
-
-                                            while let Some(msg) = tool_approval_stream.try_next().await? {
-                                                yield AgentEvent::Message(msg);
+                                            ToolStreamItem::Message(msg) => {
+                                                yield AgentEvent::McpNotification((
+                                                    request_id, msg,
+                                                ));
                                             }
-
-                                            tool_futures = {
-                                                let mut futures_lock = tool_futures_arc.lock().await;
-                                                futures_lock.drain(..).collect::<Vec<_>>()
-                                            };
-
-                                            let with_id = tool_futures
-                                                .into_iter()
-                                                .map(|(request_id, stream)| {
-                                                    stream.map(move |item| (request_id.clone(), item))
-                                                })
-                                                .collect::<Vec<_>>();
-
-                                            let mut combined = stream::select_all(with_id);
-                                            let mut all_install_successful = true;
-
-                                            while let Some((request_id, item)) = combined.next().await {
-                                                if let Some(token) = cancel_token.as_ref() {
-                                                    if token.is_cancelled() {
-                                                        break;
-                                                    }
-                                                }
-                                                match item {
-                                                    ToolStreamItem::Result(output) => {
-                                                        if enable_extension_request_ids.contains(&request_id)
-                                                            && output.is_err()
-                                                        {
-                                                            all_install_successful = false;
-                                                        }
-                                                        let mut response = message_tool_response.lock().await;
-                                                        *response =
-                                                            response.clone().with_tool_response(request_id, output);
-                                                    }
-                                                    ToolStreamItem::Message(msg) => {
-                                                        yield AgentEvent::McpNotification((
-                                                            request_id, msg,
-                                                        ));
-                                                    }
-                                                }
-                                            }
-
-                                            if all_install_successful {
-             (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
-        }
-                                        }
-
-                                        let final_message_tool_resp = message_tool_response.lock().await.clone();
-                                        yield AgentEvent::Message(final_message_tool_resp.clone());
-
-                                        added_message = true;
-                                        push_message(&mut messages_to_add, response);
-                                        push_message(&mut messages_to_add, final_message_tool_resp);
-                                    }
-                                }
-                                Err(ProviderError::ContextLengthExceeded(_)) => {
-                                    yield AgentEvent::Message(Message::assistant().with_context_length_exceeded(
-                                            "The context length of the model has been exceeded. Please start a new session and try again.",
-                                        ));
-                                    break;
-                                }
-                                Err(e) => {
-                                    error!("Error: {}", e);
-                                    yield AgentEvent::Message(Message::assistant().with_text(
-                                            format!("Ran into this error: {e}.\n\nPlease retry if you think this is a transient or recoverable error.")
-                                        ));
-                                    break;
-                                }
-                            }
-                        }
-                        if !added_message {
-                        let maybe_tool = self.final_output_tool.lock().await;
-                        match maybe_tool.as_ref().and_then(|tool| tool.final_output.as_ref()) {
-                            Some(output) => {
-                                let message = Message::assistant().with_text(output.clone());
-                                yield AgentEvent::Message(message);
-                                break;
-                            }
-                            None if maybe_tool.is_some() => {
-                                tracing::warn!("Final output tool has not been called yet. Continuing agent loop.");
-                                let message = Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE);
-                                messages_to_add.push(message.clone());
-                                yield AgentEvent::Message(message);
-                            }
-                            None => {
-                                match self.handle_retry_logic(&mut messages, &session, &initial_messages).await {
-                                    Ok(should_retry) => {
-                                        if should_retry {
-                                            info!("Retry logic triggered, restarting agent loop");
-                                            continue;
                                         }
                                     }
-                                    Err(e) => {
-                                        error!("Retry logic failed: {}", e);
-                                        yield AgentEvent::Message(Message::assistant().with_text(
-                                            format!("Retry logic encountered an error: {}", e)
-                                        ));
+
+                                    if all_install_successful {
+                                        tools_updated = true;
                                     }
                                 }
-                                break;
+
+                                let final_message_tool_resp = message_tool_response.lock().await.clone();
+                                yield AgentEvent::Message(final_message_tool_resp.clone());
+
+                                added_message = true;
+                                push_message(&mut messages_to_add, response);
+                                push_message(&mut messages_to_add, final_message_tool_resp);
                             }
                         }
+                        Err(ProviderError::ContextLengthExceeded(_)) => {
+                            yield AgentEvent::Message(Message::assistant().with_context_length_exceeded(
+                                    "The context length of the model has been exceeded. Please start a new session and try again.",
+                                ));
+                            break;
+                        }
+                        Err(e) => {
+                            error!("Error: {}", e);
+                            yield AgentEvent::Message(Message::assistant().with_text(
+                                    format!("Ran into this error: {e}.\n\nPlease retry if you think this is a transient or recoverable error.")
+                                ));
+                            break;
+                        }
                     }
+                }
+                None => {
+                    match self.handle_retry_logic(&mut messages, &session, &initial_messages).await {
+                        Ok(should_retry) => {
+                            if should_retry {
+                                info!("Retry logic triggered, restarting agent loop");
+                                continue;
+                            }
+                        }
+                        Err(e) => {
+                            error!("Retry logic failed: {}", e);
+                            yield AgentEvent::Message(Message::assistant().with_text(
+                                format!("Retry logic encountered an error: {}", e)
+                            ));
+                        }
+                    }
+                    break;
+                }
+                messages.extend(messages_to_add);
 
-                        tokio::task::yield_now().await;
-                    }
-                }))
+                if tools_updated {
+                    (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
+                }
+
+                tokio::task::yield_now().await;
+            }
+        }))
     }
 
     fn determine_goose_mode(session: Option<&SessionConfig>, config: &Config) -> String {
