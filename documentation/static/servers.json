@@ -307,6 +307,17 @@
     "environmentVariables": []
   },
   {
+    "id": "context7",
+    "name": "Context7",
+    "description": "Use up-to-date code and docs",
+    "command": "npx -y @upstash/context7-mcp",
+    "link": "https://github.com/upstash/context7",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
     "id": "elevenlabs-mcp",
     "name": "ElevenLabs",
     "description": "Text-to-speech and voice synthesis",
@@ -392,6 +403,17 @@
     "description": "Chatbot and conversational AI integration",
     "command": "npx -y mbot-mcp",
     "link": "https://github.com/deemkeen/mbotmcp",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
+    "id": "mongodb",
+    "name": "MongoDB",
+    "description": "MongoDB database integration",
+    "command": "npx -y mongodb-mcp-server --connection-string mongodb://localhost:27017",
+    "link": "https://github.com/mongodb-js/mongodb-mcp-server",
     "installation_notes": "Install using npx package manager.",
     "is_builtin": false,
     "endorsed": false,
