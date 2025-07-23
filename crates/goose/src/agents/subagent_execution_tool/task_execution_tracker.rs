@@ -3,7 +3,7 @@ use rmcp::object;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
-use tokio::time::{sleep, Duration, Instant};
+use tokio::time::{Duration, Instant};
 use tokio_util::sync::CancellationToken;
 
 use crate::agents::subagent_execution_tool::notification_events::{
@@ -22,7 +22,6 @@ pub enum DisplayMode {
 }
 
 const THROTTLE_INTERVAL_MS: u64 = 250;
-const COMPLETION_NOTIFICATION_DELAY_MS: u64 = 500;
 
 fn format_task_metadata(task_info: &TaskInfo) -> String {
     if let Some(params) = task_info.task.get_command_parameters() {
@@ -100,6 +99,40 @@ impl TaskExecutionTracker {
         }
     }
 
+    fn is_cancelled(&self) -> bool {
+        self.cancellation_token
+            .as_ref()
+            .is_some_and(|t| t.is_cancelled())
+    }
+
+    fn log_notification_error(
+        &self,
+        error: &mpsc::error::TrySendError<JsonRpcMessage>,
+        context: &str,
+    ) {
+        if !self.is_cancelled() {
+            tracing::warn!("Failed to send {} notification: {}", context, error);
+        }
+    }
+
+    fn try_send_notification(&self, event: TaskExecutionNotificationEvent, context: &str) {
+        if let Err(e) = self
+            .notifier
+            .try_send(JsonRpcMessage::Notification(JsonRpcNotification {
+                jsonrpc: JsonRpcVersion2_0,
+                notification: Notification {
+                    method: "notifications/message".to_string(),
+                    params: object!({
+                        "data": event.to_notification_data()
+                    }),
+                    extensions: Default::default(),
+                },
+            }))
+        {
+            self.log_notification_error(&e, context);
+        }
+    }
+
     pub async fn start_task(&self, task_id: &str) {
         let mut tasks = self.tasks.write().await;
         if let Some(task_info) = tasks.get_mut(task_id) {
@@ -157,28 +190,7 @@ impl TaskExecutionTracker {
                     formatted_line,
                 );
 
-                if let Err(e) =
-                    self.notifier
-                        .try_send(JsonRpcMessage::Notification(JsonRpcNotification {
-                            jsonrpc: JsonRpcVersion2_0,
-                            notification: Notification {
-                                method: "notifications/message".to_string(),
-                                params: object!({
-                                    "data": event.to_notification_data()
-                                }),
-                                extensions: Default::default(),
-                            },
-                        }))
-                {
-                    // Only log warning if not cancelled (channel close is expected during cancellation)
-                    if let Some(ref token) = self.cancellation_token {
-                        if !token.is_cancelled() {
-                            tracing::warn!("Failed to send live output notification: {}", e);
-                        }
-                    } else {
-                        tracing::warn!("Failed to send live output notification: {}", e);
-                    }
-                }
+                self.try_send_notification(event, "live output");
             }
             DisplayMode::MultipleTasksOutput => {
                 let mut tasks = self.tasks.write().await;
@@ -208,11 +220,8 @@ impl TaskExecutionTracker {
     }
 
     async fn send_tasks_update(&self) {
-        // Check if we're cancelled before sending notifications
-        if let Some(ref token) = self.cancellation_token {
-            if token.is_cancelled() {
-                return;
-            }
+        if self.is_cancelled() {
+            return;
         }
 
         let tasks = self.tasks.read().await;
@@ -247,28 +256,7 @@ impl TaskExecutionTracker {
 
         let event = TaskExecutionNotificationEvent::tasks_update(stats, event_tasks);
 
-        if let Err(e) = self
-            .notifier
-            .try_send(JsonRpcMessage::Notification(JsonRpcNotification {
-                jsonrpc: JsonRpcVersion2_0,
-                notification: Notification {
-                    method: "notifications/message".to_string(),
-                    params: object!({
-                        "data": event.to_notification_data()
-                    }),
-                    extensions: Default::default(),
-                },
-            }))
-        {
-            // Only log warning if not cancelled (channel close is expected during cancellation)
-            if let Some(ref token) = self.cancellation_token {
-                if !token.is_cancelled() {
-                    tracing::warn!("Failed to send tasks update notification: {}", e);
-                }
-            } else {
-                tracing::warn!("Failed to send tasks update notification: {}", e);
-            }
-        }
+        self.try_send_notification(event, "tasks update");
     }
 
     pub async fn refresh_display(&self) {
@@ -301,11 +289,8 @@ impl TaskExecutionTracker {
     }
 
     pub async fn send_tasks_complete(&self) {
-        // Check if we're cancelled before sending notifications
-        if let Some(ref token) = self.cancellation_token {
-            if token.is_cancelled() {
-                return;
-            }
+        if self.is_cancelled() {
+            return;
         }
 
         let tasks = self.tasks.read().await;
@@ -325,36 +310,6 @@ impl TaskExecutionTracker {
 
         let event = TaskExecutionNotificationEvent::tasks_complete(stats, failed_tasks);
 
-        if let Err(e) = self
-            .notifier
-            .try_send(JsonRpcMessage::Notification(JsonRpcNotification {
-                jsonrpc: JsonRpcVersion2_0,
-                notification: Notification {
-                    method: "notifications/message".to_string(),
-                    params: object!({
-                        "data": event.to_notification_data()
-                    }),
-                    extensions: Default::default(),
-                },
-            }))
-        {
-            // Only log warning if not cancelled (channel close is expected during cancellation)
-            if let Some(ref token) = self.cancellation_token {
-                if !token.is_cancelled() {
-                    tracing::warn!("Failed to send tasks complete notification: {}", e);
-                }
-            } else {
-                tracing::warn!("Failed to send tasks complete notification: {}", e);
-            }
-        }
-
-        // Brief delay to ensure completion notification is processed (skip if cancelled)
-        if let Some(ref token) = self.cancellation_token {
-            if !token.is_cancelled() {
-                sleep(Duration::from_millis(COMPLETION_NOTIFICATION_DELAY_MS)).await;
-            }
-        } else {
-            sleep(Duration::from_millis(COMPLETION_NOTIFICATION_DELAY_MS)).await;
-        }
+        self.try_send_notification(event, "tasks complete");
     }
 }

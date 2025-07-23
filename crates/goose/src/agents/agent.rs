@@ -348,7 +348,6 @@ impl Agent {
             let task_config =
                 TaskConfig::new(provider, Some(Arc::clone(&self.extension_manager)), mcp_tx);
 
-            // Get the current cancellation token
             let current_token = self.current_cancellation_token.lock().await.clone();
 
             subagent_execute_task_tool::run_tasks(
@@ -726,7 +725,6 @@ impl Agent {
         session: Option<SessionConfig>,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        // Store the cancellation token for use in tool calls
         {
             let mut current_token = self.current_cancellation_token.lock().await;
             *current_token = cancel_token.clone();
