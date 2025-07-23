@@ -27,23 +27,15 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { type View, ViewOptions } from '../App';
-import { Message } from '../types/message';
 import BaseChat from './BaseChat';
 import ParameterInputModal from './ParameterInputModal';
 import { useRecipeManager } from '../hooks/useRecipeManager';
 import { useIsMobile } from '../hooks/use-mobile';
 import { useSidebar } from './ui/sidebar';
-import { Recipe } from '../recipe';
 import 'react-toastify/dist/ReactToastify.css';
 import { cn } from '../utils';
 
-export interface ChatType {
-  id: string;
-  title: string;
-  messageHistoryIndex: number;
-  messages: Message[];
-  recipeConfig?: Recipe | null; // Add recipe configuration to chat state
-}
+import { ChatType } from '../types/chat';
 
 export default function Pair({
   chat,
@@ -83,6 +75,7 @@ export default function Pair({
         messages: [], // Clear messages to start fresh
         messageHistoryIndex: 0,
         recipeConfig: location.state.recipeConfig, // Set the recipe config in chat state
+        recipeParameters: null, // Clear parameters for new recipe
       };
       setChat(newChat);
 

@@ -36,9 +36,7 @@ use goose::providers::pricing::initialize_pricing_cache;
 use goose::session;
 use input::InputResult;
 use mcp_core::handler::ToolError;
-use mcp_core::protocol::JsonRpcMessage;
-use mcp_core::protocol::JsonRpcNotification;
-use rmcp::model::PromptMessage;
+use rmcp::model::{JsonRpcMessage, JsonRpcNotification, Notification, PromptMessage};
 
 use rand::{distributions::Alphanumeric, Rng};
 use rustyline::EditMode;
@@ -304,6 +302,7 @@ impl Session {
                 // TODO: should set a timeout
                 timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
                 bundled: None,
+                description: None,
             };
             self.agent
                 .add_extension(config)
@@ -1024,10 +1023,11 @@ impl Session {
                             }
                         }
                         Some(Ok(AgentEvent::McpNotification((_id, message)))) => {
-                                if let JsonRpcMessage::Notification(JsonRpcNotification{
-                                    method,
-                                    params: Some(Value::Object(o)),
-                                    ..
+                                if let JsonRpcMessage::Notification( JsonRpcNotification {
+                                    notification: Notification {
+                                        method,
+                                        params: o,..
+                                    },..
                                 }) = message {
                                 match method.as_str() {
                                     "notifications/message" => {

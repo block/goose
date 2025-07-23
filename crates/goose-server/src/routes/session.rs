@@ -187,14 +187,20 @@ async fn get_session_insights(
 
         // Track tokens - only add positive values to prevent negative totals
         if let Some(tokens) = session.metadata.accumulated_total_tokens {
-            if tokens > 0 {
-                total_tokens += tokens as i64;
-            } else if tokens < 0 {
-                // Log negative token values for debugging
-                info!(
-                    "Warning: Session {} has negative accumulated_total_tokens: {}",
-                    session.id, tokens
-                );
+            match tokens.cmp(&0) {
+                std::cmp::Ordering::Greater => {
+                    total_tokens += tokens as i64;
+                }
+                std::cmp::Ordering::Less => {
+                    // Log negative token values for debugging
+                    info!(
+                        "Warning: Session {} has negative accumulated_total_tokens: {}",
+                        session.id, tokens
+                    );
+                }
+                std::cmp::Ordering::Equal => {
+                    // Zero tokens, no action needed
+                }
             }
         }
 

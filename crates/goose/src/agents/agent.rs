@@ -6,7 +6,6 @@ use std::sync::Arc;
 use anyhow::{anyhow, Result};
 use futures::stream::BoxStream;
 use futures::{stream, FutureExt, Stream, StreamExt, TryStreamExt};
-use mcp_core::protocol::JsonRpcMessage;
 
 use crate::agents::extension::{ExtensionConfig, ExtensionError, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
@@ -45,7 +44,7 @@ use crate::scheduler_trait::SchedulerTrait;
 use crate::tool_monitor::{ToolCall, ToolMonitor};
 use mcp_core::{protocol::GetPromptResult, tool::Tool, ToolError, ToolResult};
 use regex::Regex;
-use rmcp::model::{Content, Prompt};
+use rmcp::model::{Content, JsonRpcMessage, Prompt};
 use serde_json::Value;
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tokio_util::sync::CancellationToken;
@@ -274,6 +273,7 @@ impl Agent {
         &self,
         tool_call: mcp_core::tool::ToolCall,
         request_id: String,
+        cancellation_token: Option<CancellationToken>,
     ) -> (String, Result<ToolCallResult, ToolError>) {
         // Check if this tool call should be allowed based on repetition monitoring
         if let Some(monitor) = self.tool_monitor.lock().await.as_mut() {
@@ -344,12 +344,12 @@ impl Agent {
             let provider = self.provider().await.ok();
             let mcp_tx = self.mcp_tx.lock().await.clone();
 
-            let task_config =
-                TaskConfig::new(provider, Some(Arc::clone(&self.extension_manager)), mcp_tx);
+            let task_config = TaskConfig::new(provider, mcp_tx);
             subagent_execute_task_tool::run_tasks(
                 tool_call.arguments.clone(),
                 task_config,
                 &self.tasks_manager,
+                cancellation_token,
             )
             .await
         } else if tool_call.name == DYNAMIC_TASK_TOOL_NAME_PREFIX {
@@ -775,7 +775,7 @@ impl Agent {
                 let mcp_notifications = self.get_mcp_notifications().await;
                 for notification in mcp_notifications {
                     if let JsonRpcMessage::Notification(notif) = &notification {
-                        if let Some(data) = notif.params.as_ref().and_then(|p| p.get("data")) {
+                        if let Some(data) = notif.notification.params.get("data") {
                             if let (Some(subagent_id), Some(_message)) = (
                                 data.get("subagent_id").and_then(|v| v.as_str()),
                                 data.get("message").and_then(|v| v.as_str()),
@@ -915,7 +915,7 @@ impl Agent {
                                     for request in &permission_check_result.approved {
                                         if let Ok(tool_call) = request.tool_call.clone() {
                                             let (req_id, tool_result) = self
-                                                .dispatch_tool_call(tool_call, request.id.clone())
+                                                .dispatch_tool_call(tool_call, request.id.clone(), cancel_token.clone())
                                                 .await;
 
                                             tool_futures.push((
@@ -952,6 +952,7 @@ impl Agent {
                                         tool_futures_arc.clone(),
                                         &mut permission_manager,
                                         message_tool_response.clone(),
+                                        cancel_token.clone(),
                                     );
 
                                     while let Some(msg) = tool_approval_stream.try_next().await? {

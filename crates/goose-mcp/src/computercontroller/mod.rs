@@ -13,12 +13,12 @@ use std::os::unix::fs::PermissionsExt;
 
 use mcp_core::{
     handler::{PromptError, ResourceError, ToolError},
-    protocol::{JsonRpcMessage, ServerCapabilities},
+    protocol::ServerCapabilities,
     tool::{Tool, ToolAnnotations},
 };
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
-use rmcp::model::{AnnotateAble, Content, Prompt, RawResource, Resource};
+use rmcp::model::{AnnotateAble, Content, JsonRpcMessage, Prompt, RawResource, Resource};
 
 mod docx_tool;
 mod pdf_tool;

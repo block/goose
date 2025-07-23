@@ -7,17 +7,7 @@ use base64::Engine;
 use chrono::NaiveDate;
 use indoc::indoc;
 use lazy_static::lazy_static;
-use mcp_core::protocol::JsonRpcMessage;
 use mcp_core::tool::ToolAnnotations;
-use oauth_pkce::PkceOAuth2Client;
-use regex::Regex;
-use rmcp::model::{AnnotateAble, Content, Prompt, RawResource, Resource};
-use serde_json::{json, Value};
-use std::io::Cursor;
-use std::{env, fs, future::Future, path::Path, pin::Pin, sync::Arc};
-use storage::CredentialsManager;
-use tokio::sync::mpsc;
-
 use mcp_core::{
     handler::{PromptError, ResourceError, ToolError},
     protocol::ServerCapabilities,
@@ -25,6 +15,14 @@ use mcp_core::{
 };
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
+use oauth_pkce::PkceOAuth2Client;
+use regex::Regex;
+use rmcp::model::{AnnotateAble, Content, JsonRpcMessage, Prompt, RawResource, Resource};
+use serde_json::{json, Value};
+use std::io::Cursor;
+use std::{env, fs, future::Future, path::Path, pin::Pin, sync::Arc};
+use storage::CredentialsManager;
+use tokio::sync::mpsc;
 
 use google_docs1::{self, Docs};
 use google_drive3::common::ReadSeek;

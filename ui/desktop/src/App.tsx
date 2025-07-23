@@ -15,7 +15,8 @@ import AnnouncementModal from './components/AnnouncementModal';
 import { generateSessionId } from './sessions';
 import ProviderGuard from './components/ProviderGuard';
 
-import Hub, { type ChatType } from './components/hub';
+import { ChatType } from './types/chat';
+import Hub from './components/hub';
 import Pair from './components/pair';
 import SettingsView, { SettingsViewOptions } from './components/settings/SettingsView';
 import SessionsView from './components/sessions/SessionsView';
@@ -182,6 +183,12 @@ const PairRouteWrapper = ({
 
   // Check if we have a resumed session or recipe config from navigation state
   useEffect(() => {
+    // Only process if we actually have navigation state
+    if (!location.state) {
+      console.log('No navigation state, preserving existing chat state');
+      return;
+    }
+
     const resumedSession = location.state?.resumedSession as SessionDetails | undefined;
     const recipeConfig = location.state?.recipeConfig as Recipe | undefined;
     const resetChat = location.state?.resetChat as boolean | undefined;
@@ -205,22 +212,17 @@ const PairRouteWrapper = ({
 
       // Clear the navigation state to prevent reloading on navigation
       window.history.replaceState({}, document.title);
-    } else if (recipeConfig) {
-      console.log('Loading recipe config in pair view:', recipeConfig.title);
+    } else if (recipeConfig && resetChat) {
+      console.log('Loading new recipe config in pair view:', recipeConfig.title);
 
-      // Load recipe config and optionally reset chat
-      // Use the ref to get the current chat state without adding it as a dependency
-      const currentChat = chatRef.current;
       const updatedChat: ChatType = {
-        ...currentChat,
-        recipeConfig: recipeConfig,
+        id: chatRef.current.id, // Keep the same ID
         title: recipeConfig.title || 'Recipe Chat',
+        messages: [], // Clear messages to start fresh
+        messageHistoryIndex: 0,
+        recipeConfig: recipeConfig,
+        recipeParameters: null, // Clear parameters for new recipe
       };
-
-      if (resetChat) {
-        updatedChat.messages = [];
-        updatedChat.messageHistoryIndex = 0;
-      }
 
       // Update both the local chat state and the app-level pairChat state
       setChat(updatedChat);
@@ -228,7 +230,29 @@ const PairRouteWrapper = ({
 
       // Clear the navigation state to prevent reloading on navigation
       window.history.replaceState({}, document.title);
+    } else if (recipeConfig && !chatRef.current.recipeConfig) {
+      // Only set recipe config if we don't already have one (e.g., from deeplinks)
+
+      const updatedChat: ChatType = {
+        ...chatRef.current,
+        recipeConfig: recipeConfig,
+        title: recipeConfig.title || chatRef.current.title,
+      };
+
+      // Update both the local chat state and the app-level pairChat state
+      setChat(updatedChat);
+      setPairChat(updatedChat);
+
+      // Clear the navigation state to prevent reloading on navigation
+      window.history.replaceState({}, document.title);
+    } else if (location.state) {
+      // We have navigation state but it doesn't match our conditions
+      // Clear it to prevent future processing, but don't modify chat state
+      console.log('Clearing unprocessed navigation state');
+      window.history.replaceState({}, document.title);
     }
+    // If we have a recipe config but resetChat is false and we already have a recipe,
+    // do nothing - just continue with the existing chat state
   }, [location.state, setChat, setPairChat]);
 
   return (
@@ -511,17 +535,18 @@ const SharedSessionRouteWrapper = ({
   const location = useLocation();
   const navigate = useNavigate();
 
-  const sessionDetails = location.state?.sessionDetails as SharedSessionDetails | null;
-  const error = location.state?.error || sharedSessionError;
-  const shareToken = location.state?.shareToken;
-  const baseUrl = location.state?.baseUrl;
+  const historyState = window.history.state;
+  const sessionDetails = (location.state?.sessionDetails ||
+    historyState?.sessionDetails) as SharedSessionDetails | null;
+  const error = location.state?.error || historyState?.error || sharedSessionError;
+  const shareToken = location.state?.shareToken || historyState?.shareToken;
+  const baseUrl = location.state?.baseUrl || historyState?.baseUrl;
 
   return (
     <SharedSessionView
       session={sessionDetails}
       isLoading={isLoadingSharedSession}
       error={error}
-      onBack={() => navigate('/sessions')}
       onRetry={async () => {
         if (shareToken && baseUrl) {
           setIsLoadingSharedSession(true);
@@ -689,6 +714,7 @@ export default function App() {
   // Create a setView function for useChat hook - we'll use window.history instead of navigate
   const setView = (view: View, viewOptions: ViewOptions = {}) => {
     console.log(`Setting view to: ${view}`, viewOptions);
+    console.trace('setView called from:'); // This will show the call stack
     // Convert view to route navigation using hash routing
     switch (view) {
       case 'chat':
@@ -728,7 +754,10 @@ export default function App() {
         window.location.hash = '#/welcome';
         break;
       default:
-        window.location.hash = '#/';
+        console.error(`Unknown view: ${view}, not navigating anywhere. This is likely a bug.`);
+        console.trace('Invalid setView call stack:');
+        // Don't navigate anywhere for unknown views to avoid unexpected redirects
+        break;
     }
   };
 
@@ -1000,51 +1029,32 @@ export default function App() {
     const handleOpenSharedSession = async (_event: IpcRendererEvent, ...args: unknown[]) => {
       const link = args[0] as string;
       window.electron.logInfo(`Opening shared session from deep link ${link}`);
-      setIsLoadingSession(true);
+      setIsLoadingSharedSession(true);
       setSharedSessionError(null);
       try {
         await openSharedSessionFromDeepLink(
           link,
-          (view: View, _options?: SessionLinksViewOptions) => {
-            // Convert view to route navigation
-            switch (view) {
-              case 'chat':
-                window.history.replaceState({}, '', '/');
-                break;
-              case 'settings':
-                window.history.replaceState({}, '', '/settings');
-                break;
-              case 'sessions':
-                window.history.replaceState({}, '', '/sessions');
-                break;
-              case 'schedules':
-                window.history.replaceState({}, '', '/schedules');
-                break;
-              case 'recipes':
-                window.history.replaceState({}, '', '/recipes');
-                break;
-              case 'permission':
-                window.history.replaceState({}, '', '/permission');
-                break;
-              case 'ConfigureProviders':
-                window.history.replaceState({}, '', '/configure-providers');
-                break;
-              case 'sharedSession':
-                window.history.replaceState({}, '', '/shared-session');
-                break;
-              case 'recipeEditor':
-                window.history.replaceState({}, '', '/recipe-editor');
-                break;
-              default:
-                window.history.replaceState({}, '', '/');
+          (_view: View, _options?: SessionLinksViewOptions) => {
+            // Navigate to shared session view with the session data
+            window.location.hash = '#/shared-session';
+            if (_options) {
+              window.history.replaceState(_options, '', '#/shared-session');
             }
           }
         );
       } catch (error) {
         console.error('Unexpected error opening shared session:', error);
-        window.history.replaceState({}, '', '/sessions');
+        // Navigate to shared session view with error
+        window.location.hash = '#/shared-session';
+        const shareToken = link.replace('goose://sessions/', '');
+        const options = {
+          sessionDetails: null,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          shareToken,
+        };
+        window.history.replaceState(options, '', '#/shared-session');
       } finally {
-        setIsLoadingSession(false);
+        setIsLoadingSharedSession(false);
       }
     };
     window.electron.on('open-shared-session', handleOpenSharedSession);

@@ -1,17 +1,22 @@
-use crate::agents::extension_manager::ExtensionManager;
 use crate::providers::base::Provider;
-use mcp_core::protocol::JsonRpcMessage;
+use rmcp::model::JsonRpcMessage;
+use std::env;
 use std::fmt;
 use std::sync::Arc;
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::mpsc;
 use uuid::Uuid;
+
+/// Default maximum number of turns for task execution
+pub const DEFAULT_SUBAGENT_MAX_TURNS: usize = 5;
+
+/// Environment variable name for configuring max turns
+pub const GOOSE_SUBAGENT_MAX_TURNS_ENV_VAR: &str = "GOOSE_SUBAGENT_MAX_TURNS";
 
 /// Configuration for task execution with all necessary dependencies
 #[derive(Clone)]
 pub struct TaskConfig {
     pub id: String,
     pub provider: Option<Arc<dyn Provider>>,
-    pub extension_manager: Option<Arc<RwLock<ExtensionManager>>>,
     pub mcp_tx: mpsc::Sender<JsonRpcMessage>,
     pub max_turns: Option<usize>,
 }
@@ -21,7 +26,6 @@ impl fmt::Debug for TaskConfig {
         f.debug_struct("TaskConfig")
             .field("id", &self.id)
             .field("provider", &"<dyn Provider>")
-            .field("extension_manager", &"<ExtensionManager>")
             .field("max_turns", &self.max_turns)
             .finish()
     }
@@ -29,17 +33,17 @@ impl fmt::Debug for TaskConfig {
 
 impl TaskConfig {
     /// Create a new TaskConfig with all required dependencies
-    pub fn new(
-        provider: Option<Arc<dyn Provider>>,
-        extension_manager: Option<Arc<RwLock<ExtensionManager>>>,
-        mcp_tx: mpsc::Sender<JsonRpcMessage>,
-    ) -> Self {
+    pub fn new(provider: Option<Arc<dyn Provider>>, mcp_tx: mpsc::Sender<JsonRpcMessage>) -> Self {
         Self {
             id: Uuid::new_v4().to_string(),
             provider,
-            extension_manager,
             mcp_tx,
-            max_turns: Some(10),
+            max_turns: Some(
+                env::var(GOOSE_SUBAGENT_MAX_TURNS_ENV_VAR)
+                    .ok()
+                    .and_then(|val| val.parse::<usize>().ok())
+                    .unwrap_or(DEFAULT_SUBAGENT_MAX_TURNS),
+            ),
         }
     }
 
