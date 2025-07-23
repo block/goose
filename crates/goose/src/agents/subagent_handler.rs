@@ -1,6 +1,7 @@
 use crate::agents::subagent::SubAgent;
 use crate::agents::subagent_task_config::TaskConfig;
 use anyhow::Result;
+use mcp_core::ToolError;
 
 /// Standalone function to run a complete subagent task
 pub async fn run_complete_subagent_task(

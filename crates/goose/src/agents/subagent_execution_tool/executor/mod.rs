@@ -193,7 +193,7 @@ async fn collect_results(
     expected_count: usize,
 ) -> Vec<TaskResult> {
     let mut results = Vec::new();
-    while let Some(mut result) = result_rx.recv().await {
+    while let Some(result) = result_rx.recv().await {
         task_execution_tracker
             .complete_task(&result.task_id, result.clone())
             .await;

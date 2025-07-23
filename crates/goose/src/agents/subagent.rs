@@ -50,9 +50,7 @@ pub struct SubAgent {
 impl SubAgent {
     /// Create a new subagent with the given configuration and provider
     #[instrument(skip(task_config))]
-    pub async fn new(
-        task_config: TaskConfig,
-    ) -> Result<Arc<Self>, anyhow::Error> {
+    pub async fn new(task_config: TaskConfig) -> Result<Arc<Self>, anyhow::Error> {
         debug!("Creating new subagent with id: {}", task_config.id);
 
         // Create a new extension manager for this subagent
