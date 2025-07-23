@@ -204,12 +204,6 @@ impl SubAgent {
             .as_ref()
             .ok_or_else(|| anyhow!("No provider configured for subagent"))?;
 
-        let extension_manager = self
-            .config
-            .extension_manager
-            .as_ref()
-            .ok_or_else(|| anyhow!("No extension manager configured for subagent"))?;
-
         // Set status to processing
         self.set_status(SubAgentStatus::Processing).await;
 
