@@ -5,8 +5,9 @@
 use crate::agents::subagent_execution_tool::tasks_manager::TasksManager;
 use crate::agents::subagent_execution_tool::{lib::ExecutionMode, task_types::Task};
 use crate::agents::tool_execution::ToolCallResult;
-use mcp_core::{tool::ToolAnnotations, Tool, ToolError};
-use rmcp::model::Content;
+use mcp_core::ToolError;
+use rmcp::model::{Content, Tool, ToolAnnotations};
+use rmcp::object;
 use serde_json::{json, Value};
 
 pub const DYNAMIC_TASK_TOOL_NAME_PREFIX: &str = "dynamic_task__create_task";
@@ -35,7 +36,7 @@ pub fn create_dynamic_task_tool() -> Tool {
                 text_instruction: Get weather for Los Angeles.
                 text_instruction: Get weather for San Francisco.
             ".to_string(),
-        json!({
+        object!({
             "type": "object",
             "properties": {
                 "task_parameters": {
@@ -56,15 +57,14 @@ pub fn create_dynamic_task_tool() -> Tool {
                     }
                 }
             }
-        }),
-        Some(ToolAnnotations {
-            title: Some("Dynamic Task Creation".to_string()),
-            read_only_hint: false,
-            destructive_hint: true,
-            idempotent_hint: false,
-            open_world_hint: true,
-        }),
-    )
+        })
+    ).annotate(ToolAnnotations {
+        title: Some("Dynamic Task Creation".to_string()),
+        read_only_hint: Some(false),
+        destructive_hint: Some(true),
+        idempotent_hint: Some(false),
+        open_world_hint: Some(true),
+    })
 }
 
 fn extract_task_parameters(params: &Value) -> Vec<Value> {

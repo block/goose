@@ -9,7 +9,8 @@ use crate::{
 };
 use anyhow::anyhow;
 use chrono::{DateTime, Utc};
-use mcp_core::{handler::ToolError, tool::Tool};
+use mcp_core::handler::ToolError;
+use rmcp::model::Tool;
 use serde::{Deserialize, Serialize};
 // use serde_json::{self};
 use std::{collections::HashMap, sync::Arc};
@@ -336,10 +337,10 @@ impl SubAgent {
         let tools_with_descriptions: Vec<String> = available_tools
             .iter()
             .map(|t| {
-                if t.description.is_empty() {
-                    t.name.clone()
+                if let Some(description) = &t.description {
+                    format!("{}: {}", t.name, description)
                 } else {
-                    format!("{}: {}", t.name, t.description)
+                    t.name.to_string()
                 }
             })
             .collect();

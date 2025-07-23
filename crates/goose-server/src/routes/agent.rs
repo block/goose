@@ -207,7 +207,10 @@ async fn get_tools(
 
             ToolInfo::new(
                 &tool.name,
-                &tool.description,
+                tool.description
+                    .as_ref()
+                    .map(|d| d.as_ref())
+                    .unwrap_or_default(),
                 get_parameter_names(&tool),
                 permission,
             )

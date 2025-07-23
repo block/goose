@@ -15,7 +15,7 @@ use crate::providers::toolshim::{
     modify_system_prompt_for_tool_json, OllamaInterpreter,
 };
 use crate::session;
-use mcp_core::tool::Tool;
+use rmcp::model::Tool;
 
 use super::super::agents::Agent;
 
@@ -110,11 +110,11 @@ impl Agent {
             .iter()
             .fold((HashSet::new(), HashSet::new()), |mut acc, tool| {
                 match &tool.annotations {
-                    Some(annotations) if annotations.read_only_hint => {
-                        acc.0.insert(tool.name.clone());
+                    Some(annotations) if annotations.read_only_hint.unwrap_or(false) => {
+                        acc.0.insert(tool.name.to_string());
                     }
                     _ => {
-                        acc.1.insert(tool.name.clone());
+                        acc.1.insert(tool.name.to_string());
                     }
                 }
                 acc

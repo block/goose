@@ -12,7 +12,7 @@ use super::errors::ProviderError;
 use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
 use crate::message::Message;
 use crate::model::ModelConfig;
-use mcp_core::tool::Tool;
+use rmcp::model::Tool;
 
 pub const LITELLM_DEFAULT_MODEL: &str = "gpt-4o-mini";
 pub const LITELLM_DOC_URL: &str = "https://docs.litellm.ai/docs/";

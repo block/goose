@@ -15,9 +15,9 @@ use goose::config::{
 };
 use goose::message::Message;
 use goose::providers::{create, providers};
-use mcp_core::tool::ToolAnnotations;
-use mcp_core::Tool;
-use serde_json::{json, Value};
+use rmcp::model::{Tool, ToolAnnotations};
+use rmcp::object;
+use serde_json::Value;
 use std::collections::HashMap;
 use std::error::Error;
 
@@ -387,21 +387,21 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
         let sample_tool = Tool::new(
             "get_weather".to_string(),
             "Get current temperature for a given location.".to_string(),
-            json!({
+            object!({
                 "type": "object",
                 "required": ["location"],
                 "properties": {
                     "location": {"type": "string"}
                 }
             }),
-            Some(ToolAnnotations {
-                title: Some("Get weather".to_string()),
-                read_only_hint: true,
-                destructive_hint: false,
-                idempotent_hint: false,
-                open_world_hint: false,
-            }),
-        );
+        )
+        .annotate(ToolAnnotations {
+            title: Some("Get weather".to_string()),
+            read_only_hint: Some(true),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(false),
+            open_world_hint: Some(false),
+        });
         vec![sample_tool]
     } else {
         vec![]
@@ -411,9 +411,8 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
         .complete(
             "You are an AI agent called Goose. You use tools of connected extensions to solve problems.",
             &messages,
-            &tools
-        )
-        .await;
+            &tools.into_iter().collect::<Vec<_>>()
+        ).await;
 
     match result {
         Ok((_message, _usage)) => {
@@ -1270,7 +1269,10 @@ pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
         .map(|tool| {
             ToolInfo::new(
                 &tool.name,
-                &tool.description,
+                tool.description
+                    .as_ref()
+                    .map(|d| d.as_ref())
+                    .unwrap_or_default(),
                 get_parameter_names(&tool),
                 permission_manager.get_user_permission(&tool.name),
             )
