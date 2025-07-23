@@ -146,7 +146,7 @@ export interface UseMessageStreamHelpers {
   /** Form submission handler to automatically reset input and append a user message */
   handleSubmit: (event?: { preventDefault?: () => void }) => void;
 
-  /** Current chat state (idle, waiting, streaming) */
+  /** Current chat state (idle, thinking, streaming, waiting for user input) */
   chatState: ChatState;
 
   /** Add a tool result to a tool call */
@@ -209,7 +209,7 @@ export function useMessageStream({
     messagesRef.current = messages || [];
   }, [messages]);
 
-  // Track chat state (idle, waiting, streaming)
+  // Track chat state (idle, thinking, streaming, waiting for user input)
   const { data: chatState = ChatState.Idle, mutate: mutateChatState } = useSWR<ChatState>(
     [chatKey, 'chatState'],
     null
@@ -303,6 +303,15 @@ export function useMessageStream({
                       forceUpdate();
                     } else {
                       currentMessages = [...currentMessages, newMessage];
+                    }
+
+                    // Check if this message contains tool confirmation requests
+                    const hasToolConfirmation = newMessage.content.some(
+                      (content) => content.type === 'toolConfirmationRequest'
+                    );
+
+                    if (hasToolConfirmation) {
+                      mutateChatState(ChatState.WaitingForUserInput);
                     }
 
                     mutate(currentMessages, false);
@@ -443,7 +452,7 @@ export function useMessageStream({
   const sendRequest = useCallback(
     async (requestMessages: Message[]) => {
       try {
-        mutateChatState(ChatState.Waiting); // Start in waiting state
+        mutateChatState(ChatState.Thinking); // Start in thinking state
         setError(undefined);
 
         // Create abort controller
@@ -514,7 +523,18 @@ export function useMessageStream({
 
         setError(err as Error);
       } finally {
-        mutateChatState(ChatState.Idle);
+        // Check if the last message has pending tool confirmations
+        const currentMessages = messagesRef.current;
+        const lastMessage = currentMessages[currentMessages.length - 1];
+        const hasPendingToolConfirmation = lastMessage?.content.some(
+          (content) => content.type === 'toolConfirmationRequest'
+        );
+
+        if (hasPendingToolConfirmation) {
+          mutateChatState(ChatState.WaitingForUserInput);
+        } else {
+          mutateChatState(ChatState.Idle);
+        }
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -527,11 +547,16 @@ export function useMessageStream({
       // If a string is passed, convert it to a Message object
       const messageToAppend = typeof message === 'string' ? createUserMessage(message) : message;
 
+      // If we were waiting for user input and user provides input, transition away from that state
+      if (chatState === ChatState.WaitingForUserInput) {
+        mutateChatState(ChatState.Thinking);
+      }
+
       const currentMessages = [...messagesRef.current, messageToAppend];
       mutate(currentMessages, false);
       await sendRequest(currentMessages);
     },
-    [mutate, sendRequest]
+    [mutate, sendRequest, chatState, mutateChatState]
   );
 
   // Reload the last message

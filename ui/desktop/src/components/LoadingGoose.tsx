@@ -31,6 +31,8 @@ const LoadingGoose = ({ message, chatState = ChatState.Idle }: LoadingGooseProps
           <AnimatedIcons className="flex-shrink-0" cycleInterval={600} />
         ) : chatState === ChatState.Streaming ? (
           <FlyingBird className="flex-shrink-0" cycleInterval={150} />
+        ) : chatState === ChatState.WaitingForUserInput ? (
+          <AnimatedIcons className="flex-shrink-0" cycleInterval={600} variant="waiting" />
         ) : (
           <GooseLogo size="small" hover={false} />
         )}

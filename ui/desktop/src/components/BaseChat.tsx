@@ -219,7 +219,10 @@ function BaseChatContent({
 
   // Handle recipe auto-execution
   useEffect(() => {
-    handleAutoExecution(append, chatState !== ChatState.Idle);
+    handleAutoExecution(
+      append,
+      chatState !== ChatState.Idle && chatState !== ChatState.WaitingForUserInput
+    );
   }, [handleAutoExecution, append, chatState]);
 
   // Use shared session continuation
@@ -502,7 +505,7 @@ function BaseChatContent({
         >
           <ChatInput
             handleSubmit={handleSubmit}
-            isLoading={chatState !== ChatState.Idle}
+            chatState={chatState}
             onStop={onStopGoose}
             commandHistory={commandHistory}
             initialValue={_input || initialPrompt}

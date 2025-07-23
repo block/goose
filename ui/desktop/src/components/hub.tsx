@@ -26,6 +26,7 @@ import { Message } from '../types/message';
 import { SessionInsights } from './sessions/SessionsInsights';
 import ChatInput from './ChatInput';
 import { generateSessionId } from '../sessions';
+import { ChatState } from '../types/chatState';
 import { ChatContextManagerProvider } from './context_management/ChatContextManager';
 import { Recipe } from '../recipe';
 import 'react-toastify/dist/ReactToastify.css';
@@ -94,7 +95,7 @@ export default function Hub({
 
         <ChatInput
           handleSubmit={handleSubmit}
-          isLoading={false}
+          chatState={ChatState.Idle}
           onStop={() => {}}
           commandHistory={[]}
           initialValue=""

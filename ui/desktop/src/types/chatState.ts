@@ -1,5 +1,6 @@
 export enum ChatState {
   Idle = 'idle',
-  Waiting = 'waiting',
+  Thinking = 'thinking',
   Streaming = 'streaming',
+  WaitingForUserInput = 'waitingForUserInput',
 }
