@@ -18,7 +18,7 @@ pub async fn run_complete_subagent_task(
         .to_string();
 
     // Create the subagent with the parent agent's provider
-    let (subagent, handle) = SubAgent::new(task_config.clone())
+    let subagent = SubAgent::new(task_config.clone())
         .await
         .map_err(|e| ToolError::ExecutionError(format!("Failed to create subagent: {}", e)))?;
 
@@ -33,11 +33,6 @@ pub async fn run_complete_subagent_task(
             e
         ))),
     };
-
-    // Clean up the subagent handle
-    if let Err(e) = handle.await {
-        tracing::debug!("Subagent handle cleanup error: {}", e);
-    }
 
     // Return the result
     result
