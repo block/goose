@@ -131,7 +131,7 @@ mod tests {
 
         // The key improvement is that get_valid_sorted_sessions should not fail completely
         // when encountering corrupted sessions, but should skip them and continue with valid ones
-        
+
         // This test verifies the logic changes we made to handle corrupted sessions gracefully
         assert!(true, "Test passes - the function now handles corrupted sessions gracefully by skipping them instead of failing completely");
     }
