@@ -343,8 +343,7 @@ impl Agent {
             let provider = self.provider().await.ok();
             let mcp_tx = self.mcp_tx.lock().await.clone();
 
-            let task_config =
-                TaskConfig::new(provider, Some(Arc::clone(&self.extension_manager)), mcp_tx);
+            let task_config = TaskConfig::new(provider, mcp_tx);
             subagent_execute_task_tool::run_tasks(
                 tool_call.arguments.clone(),
                 task_config,
