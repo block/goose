@@ -305,10 +305,8 @@ Ollama and Ramalama are both options to provide local LLMs, each which requires 
 1. [Download Ollama](https://ollama.com/download). 
 2. Run any [model supporting tool-calling](https://ollama.com/search?c=tools):
 
-:::warning Tool calling support and Context size
-Goose extensively uses tool calling, so models without it can only do chat completion. If using models without tool calling, all Goose extensions must be disabled.
-
-Also, ensure that the `OLLAMA_CONTEXT_LENGTH` environment variable is set high enough to accommodate the instructions required for Goose and extensions. If Goose uses extensions incorrectly or ignores `.goosehits` file, the context length is likely too low. Refer to the [Ollama documentation](https://github.com/ollama/ollama/blob/main/docs/faq.md#how-can-i-specify-the-context-window-size) for more details.
+:::warning Tool calling support
+Goose extensively uses tool calling, so models without it (e.g. `DeepSeek-r1`) can only do chat completion. If using models without tool calling, all Goose [extensions must be disabled](/docs/getting-started/using-extensions#enablingdisabling-extensions). As an alternative, you can use a [custom DeepSeek-r1 model](/docs/getting-started/providers#deepseek-r1) we've made specifically for Goose.
 :::
 
 Example:
@@ -399,15 +397,17 @@ If you're running Ollama on a different server, you'll have to set `OLLAMA_HOST=
 └  Configuration saved successfully
 ```
 
+:::tip Context Length
+If you notice that Goose is having trouble using extensions or is ignoring [.goosehints](/docs/guides/using-goosehints), it is likely that the model's default context length of 4096 tokens is too low. Set the `OLLAMA_CONTEXT_LENGTH` environment variable to a [higher value](https://github.com/ollama/ollama/blob/main/docs/faq.md#how-can-i-specify-the-context-window-size). 
+:::
+
 #### Ramalama
 
 1. [Download Ramalama](https://github.com/containers/ramalama?tab=readme-ov-file#install).
 2. Run any Ollama [model supporting tool-calling](https://ollama.com/search?c=tools) or [GGUF format HuggingFace Model](https://huggingface.co/search/full-text?q=%22tools+support%22+%2B+%22gguf%22&type=model) :
 
-:::warning Tool calling support and Context size
-Goose extensively uses tool calling, so models without it can only do chat completion. If using models without tool calling, all Goose extensions must be disabled.
-
-Using `ramalama serve`, ensure that the `--ctx-size, -c` option is set high enough to accommodate the instructions required for Goose and extensions. If Goose uses extensions incorrectly or ignores `.goosehits` file, the context length is likely too low. Refer to the [Ramalama documentation](https://github.com/containers/ramalama/blob/main/docs/ramalama-serve.1.md#--ctx-size--c) for more details.
+:::warning Tool calling support
+Goose extensively uses tool calling, so models without it (e.g. `DeepSeek-r1`) can only do chat completion. If using models without tool calling, all Goose [extensions must be disabled](/docs/getting-started/using-extensions#enablingdisabling-extensions). As an alternative, you can use a [custom DeepSeek-r1 model](/docs/getting-started/providers#deepseek-r1) we've made specifically for Goose.
 :::
 
 Example:
@@ -496,6 +496,11 @@ For the Ollama provider, if you don't provide a host, we set it to `localhost:11
 │
 └  Configuration saved successfully
 ```
+
+:::tip Context Length
+If you notice that Goose is having trouble using extensions or is ignoring [.goosehints](/docs/guides/using-goosehints), it is likely that the model's default context length of 2048 tokens is too low. Use `ramalama serve` to set the `--ctx-size, -c` option to a [higher value](https://github.com/containers/ramalama/blob/main/docs/ramalama-serve.1.md#--ctx-size--c). 
+:::
+
 
 ### DeepSeek-R1
 
