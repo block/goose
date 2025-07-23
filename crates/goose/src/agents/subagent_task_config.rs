@@ -39,7 +39,7 @@ impl TaskConfig {
             provider,
             extension_manager,
             mcp_tx,
-            max_turns: Some(10),
+            max_turns: Some(5),
         }
     }
 
