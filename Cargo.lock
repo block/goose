@@ -3473,6 +3473,7 @@ dependencies = [
  "rand 0.8.5",
  "regex",
  "reqwest 0.12.12",
+ "rmcp",
  "serde",
  "serde_json",
  "serde_urlencoded",
@@ -3490,6 +3491,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "url",
+ "urlencoding",
  "utoipa",
  "uuid",
  "webbrowser 0.8.15",
@@ -3512,6 +3514,7 @@ dependencies = [
  "once_cell",
  "paste",
  "regex",
+ "rmcp",
  "serde",
  "serde_json",
  "tokio",
@@ -3553,6 +3556,7 @@ dependencies = [
  "rand 0.8.5",
  "regex",
  "reqwest 0.12.12",
+ "rmcp",
  "rustyline",
  "serde",
  "serde_json",
@@ -3564,11 +3568,11 @@ dependencies = [
  "test-case",
  "tokio",
  "tokio-stream",
+ "tokio-util",
  "tower-http",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
- "urlencoding",
  "webbrowser 1.0.4",
  "winapi",
 ]
@@ -3648,6 +3652,7 @@ dependencies = [
  "once_cell",
  "regex",
  "reqwest 0.11.27",
+ "rmcp",
  "serde",
  "serde_json",
  "serde_with",
@@ -3662,7 +3667,6 @@ dependencies = [
  "tracing-subscriber",
  "umya-spreadsheet",
  "url",
- "urlencoding",
  "utoipa",
  "webbrowser 0.8.15",
  "which 6.0.3",
@@ -3692,6 +3696,7 @@ dependencies = [
  "mcp-server",
  "once_cell",
  "reqwest 0.12.12",
+ "rmcp",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -3699,6 +3704,7 @@ dependencies = [
  "tokio",
  "tokio-cron-scheduler",
  "tokio-stream",
+ "tokio-util",
  "tower 0.5.2",
  "tower-http",
  "tracing",
@@ -5388,6 +5394,7 @@ dependencies = [
  "nix 0.30.1",
  "rand 0.8.5",
  "reqwest 0.11.27",
+ "rmcp",
  "serde",
  "serde_json",
  "serde_urlencoded",
@@ -5411,6 +5418,7 @@ dependencies = [
  "async-trait",
  "base64 0.21.7",
  "chrono",
+ "rmcp",
  "schemars",
  "serde",
  "serde_json",
@@ -5421,22 +5429,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mcp-macros"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "convert_case",
- "mcp-core",
- "proc-macro2",
- "quote",
- "schemars",
- "serde",
- "serde_json",
- "syn 2.0.99",
- "tokio",
-]
-
-[[package]]
 name = "mcp-server"
 version = "0.1.0"
 dependencies = [
@@ -5444,8 +5436,8 @@ dependencies = [
  "async-trait",
  "futures",
  "mcp-core",
- "mcp-macros",
  "pin-project",
+ "rmcp",
  "schemars",
  "serde",
  "serde_json",
@@ -7119,6 +7111,40 @@ dependencies = [
 ]
 
 [[package]]
+name = "rmcp"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37f2048a81a7ff7e8ef6bc5abced70c3d9114c8f03d85d7aaaafd9fd04f12e9e"
+dependencies = [
+ "base64 0.22.1",
+ "chrono",
+ "futures",
+ "paste",
+ "pin-project-lite",
+ "rmcp-macros",
+ "schemars",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.12",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "rmcp-macros"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72398e694b9f6dbb5de960cf158c8699e6a1854cb5bbaac7de0646b2005763c4"
+dependencies = [
+ "darling",
+ "proc-macro2",
+ "quote",
+ "serde_json",
+ "syn 2.0.99",
+]
+
+[[package]]
 name = "roaring"
 version = "0.10.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7401,6 +7427,7 @@ version = "0.8.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3fbf2ae1b8bc8e02df939598064d22402220cd5bbcca1c76f7d6a310974d5615"
 dependencies = [
+ "chrono",
  "dyn-clone",
  "schemars_derive",
  "serde",

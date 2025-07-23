@@ -6,6 +6,7 @@ sidebar_label: Saving Recipes
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import { PanelLeft, Bot } from 'lucide-react';
 
 This guide covers storing, organizing, and finding Goose recipes when you need to access them again later. 
 
@@ -42,17 +43,21 @@ Before saving recipes, it's important to understand where they can be stored and
   <TabItem value="desktop" label="Goose Desktop" default>
 
 **Save New Recipe:**
+
 1. To create a recipe from your chat session, see: [Create Recipe](/docs/guides/recipes/session-recipes#create-recipe)
 2. Once in the Recipe Editor, click **Save Recipe** to save it to your Recipe Library
 
 **Save Modified Recipe:**
 
 If you're already using a recipe and want to save a modified version:
-1. Click the gear icon ⚙️ in the top right corner
-2. Click **Save recipe**
-3. Enter a name for the recipe
-4. [Choose to save globally or locally](#recipe-storage-locations) to your current project
+1. Click the <Bot className="inline" size={16}/> button with your current model at the bottom of the window
+2. Click **View Recipe**
+3. Make any desired edits to the description, instructions, or initial prompts
 5. Click **Save Recipe**
+
+:::note
+When you modify and save a recipe with a new name, a new recipe and new link are generated. You can still run the original recipe from the recipe library, or using the original link. If you edit a recipe without changing its name, the version in the recipe library is updated, but you can still run the original recipe via link.
+:::
 
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
@@ -73,9 +78,9 @@ If you're already using a recipe and want to save a modified version:
   <TabItem value="desktop" label="Goose Desktop" default>
 
 **Access Recipe Library:**
-1. Click the gear icon ⚙️ in the top right corner
-2. Click **Recipe Library**
-3. Browse your saved recipes in a list view
+1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+2. Click `Recipes`
+3. Browse the list of your saved recipes  
 4. Each recipe shows its title, description, and whether it's global or local
 
   </TabItem>
@@ -102,20 +107,17 @@ Set up [custom recipe paths](/docs/guides/recipes/session-recipes#configure-reci
   </TabItem>
 </Tabs>
 
-
-
-
 ## Using Saved Recipes
 
 <Tabs groupId="interface">
   <TabItem value="desktop" label="Goose Desktop" default>
 
-1. Click the gear icon ⚙️ in the top right corner
-2. Click **Recipe Library**
+1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+2. Click `Recipes`
 3. Find your recipe in the Recipe Library
 4. Choose one of the following:
-   - Click **Use Recipe** to run it immediately
-   - Click **Preview** to see details first, then click **Load Recipe** to run it
+   - Click `Use` to run it immediately
+   - Click `Preview` to see the recipe details first, then click **Load Recipe** to run it
 
   </TabItem>
   <TabItem value="cli" label="Goose CLI">

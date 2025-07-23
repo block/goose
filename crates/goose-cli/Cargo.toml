@@ -21,6 +21,7 @@ goose-mcp = { path = "../goose-mcp" }
 mcp-client = { path = "../mcp-client" }
 mcp-server = { path = "../mcp-server" }
 mcp-core = { path = "../mcp-core" }
+rmcp = { workspace = true }
 clap = { version = "4.4", features = ["derive"] }
 cliclack = "0.3.5"
 console = "0.15.8"
@@ -68,9 +69,8 @@ tokio-stream = "0.1"
 bytes = "1.5"
 http = "1.0"
 webbrowser = "1.0"
-
 indicatif = "0.17.11"
-urlencoding = "2"
+tokio-util = "0.7.15"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }

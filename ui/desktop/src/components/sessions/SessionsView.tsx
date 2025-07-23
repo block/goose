@@ -63,17 +63,6 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
     setError(null);
   };
 
-  const handleResumeSession = () => {
-    if (selectedSession) {
-      console.log('Resuming session in current window:', selectedSession.session_id);
-
-      // Navigate to pair view with the session data
-      setView('pair', {
-        resumedSession: selectedSession,
-      });
-    }
-  };
-
   const handleRetryLoadSession = () => {
     if (selectedSession) {
       loadSessionDetails(selectedSession.session_id);
@@ -99,7 +88,6 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
       isLoading={isLoadingSession}
       error={error}
       onBack={handleBackToSessions}
-      onResume={handleResumeSession}
       onRetry={handleRetryLoadSession}
     />
   ) : (

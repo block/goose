@@ -38,9 +38,10 @@ use crate::model::ModelConfig;
 use crate::providers::formats::openai::create_request;
 use anyhow::Result;
 use mcp_core::tool::{Tool, ToolCall};
-use mcp_core::Content;
 use reqwest::Client;
+use rmcp::model::RawContent;
 use serde_json::{json, Value};
+use std::ops::Deref;
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -88,12 +89,12 @@ impl OllamaInterpreter {
 
         // Format the URL correctly with http:// prefix if needed
         let base = if host.starts_with("http://") || host.starts_with("https://") {
-            host.clone()
+            &host
         } else {
-            format!("http://{}", host)
+            &format!("http://{}", host)
         };
 
-        let mut base_url = url::Url::parse(&base)
+        let mut base_url = url::Url::parse(base)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
 
         // Set the default port if missing
@@ -340,8 +341,8 @@ pub fn convert_tool_messages_to_text(messages: &[Message]) -> Vec<Message> {
                             Ok(contents) => {
                                 let text_contents: Vec<String> = contents
                                     .iter()
-                                    .filter_map(|c| match c {
-                                        Content::Text(t) => Some(t.text.clone()),
+                                    .filter_map(|c| match c.deref() {
+                                        RawContent::Text(t) => Some(t.text.clone()),
                                         _ => None,
                                     })
                                     .collect();

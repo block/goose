@@ -17,6 +17,7 @@ reqwest = { version = "0.12.9", features = ["json", "rustls-tls-native-roots"], 
 [dependencies]
 mcp-client = { path = "../mcp-client" }
 mcp-core = { path = "../mcp-core" }
+rmcp = { workspace = true }
 anyhow = "1.0"
 thiserror = "1.0"
 futures = "0.3"
@@ -52,6 +53,7 @@ nanoid = "0.4"
 sha2 = "0.10"
 base64 = "0.21"
 url = "2.5"
+urlencoding = "2.1"
 axum = "0.8.1"
 webbrowser = "0.8"
 lazy_static = "1.5.0"

@@ -4,14 +4,15 @@ use std::sync::Arc;
 use async_stream::try_stream;
 use futures::stream::{self, BoxStream};
 use futures::{Stream, StreamExt};
-use mcp_core::protocol::JsonRpcMessage;
+use rmcp::model::JsonRpcMessage;
 use tokio::sync::Mutex;
 
 use crate::config::permission::PermissionLevel;
 use crate::config::PermissionManager;
 use crate::message::{Message, ToolRequest};
 use crate::permission::Permission;
-use mcp_core::{Content, ToolResult};
+use mcp_core::ToolResult;
+use rmcp::model::Content;
 
 // ToolCallResult combines the result of a tool call with an optional notification stream that
 // can be used to receive notifications from the tool.

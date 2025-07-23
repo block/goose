@@ -1,5 +1,6 @@
 // Import the proper type from ConfigContext
 import { getApiUrl, getSecretKey } from '../config';
+import { safeJsonParse } from './jsonUtils';
 
 export interface ModelCostInfo {
   input_token_cost: number; // Cost per token for input (in USD)
@@ -47,7 +48,15 @@ async function fetchPricingForModel(
     throw new Error(`API request failed with status ${response.status}`);
   }
 
-  const data = await response.json();
+  const data = await safeJsonParse<{
+    pricing: Array<{
+      provider: string;
+      model: string;
+      input_token_cost: number;
+      output_token_cost: number;
+      currency: string;
+    }>;
+  }>(response, 'Failed to parse pricing data');
 
   // Find the specific model pricing using the lookup provider/model
   const pricing = data.pricing?.find(

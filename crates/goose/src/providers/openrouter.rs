@@ -65,7 +65,7 @@ impl OpenRouterProvider {
         })
     }
 
-    async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
+    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
         let base_url = Url::parse(&self.host)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
         let url = base_url.join("api/v1/chat/completions").map_err(|e| {
@@ -79,12 +79,12 @@ impl OpenRouterProvider {
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("HTTP-Referer", "https://block.github.io/goose")
             .header("X-Title", "Goose")
-            .json(&payload)
+            .json(payload)
             .send()
             .await?;
 
         // Handle Google-compatible model responses differently
-        if is_google_model(&payload) {
+        if is_google_model(payload) {
             return handle_response_google_compat(response).await;
         }
 
@@ -199,23 +199,20 @@ fn update_request_for_anthropic(original_payload: &Value) -> Value {
 }
 
 fn create_request_based_on_model(
-    model_config: &ModelConfig,
+    provider: &OpenRouterProvider,
     system: &str,
     messages: &[Message],
     tools: &[Tool],
 ) -> anyhow::Result<Value, Error> {
     let mut payload = create_request(
-        model_config,
+        &provider.model,
         system,
         messages,
         tools,
         &super::utils::ImageFormat::OpenAi,
     )?;
 
-    if model_config
-        .model_name
-        .starts_with(OPENROUTER_MODEL_PREFIX_ANTHROPIC)
-    {
+    if provider.supports_cache_control() {
         payload = update_request_for_anthropic(&payload);
     }
 
@@ -259,13 +256,13 @@ impl Provider for OpenRouterProvider {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         // Create the base payload
-        let payload = create_request_based_on_model(&self.model, system, messages, tools)?;
+        let payload = create_request_based_on_model(self, system, messages, tools)?;
 
         // Make request
-        let response = self.post(payload.clone()).await?;
+        let response = self.post(&payload).await?;
 
         // Parse response
-        let message = response_to_message(response.clone())?;
+        let message = response_to_message(&response)?;
         let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
             tracing::debug!("Failed to get usage data");
             Usage::default()
@@ -364,5 +361,11 @@ impl Provider for OpenRouterProvider {
 
         models.sort();
         Ok(Some(models))
+    }
+
+    fn supports_cache_control(&self) -> bool {
+        self.model
+            .model_name
+            .starts_with(OPENROUTER_MODEL_PREFIX_ANTHROPIC)
     }
 }

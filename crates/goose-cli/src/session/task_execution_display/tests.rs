@@ -1,5 +1,5 @@
 use super::*;
-use goose::agents::sub_recipe_execution_tool::notification_events::{
+use goose::agents::subagent_execution_tool::notification_events::{
     FailedTaskInfo, TaskCompletionStats, TaskExecutionStats,
 };
 use serde_json::json;

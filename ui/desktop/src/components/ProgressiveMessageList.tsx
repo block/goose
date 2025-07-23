@@ -62,6 +62,8 @@ export default function ProgressiveMessageList({
   const [isLoading, setIsLoading] = useState(() => messages.length > showLoadingThreshold);
   const timeoutRef = useRef<number | null>(null);
   const mountedRef = useRef(true);
+  const hasOnlyToolResponses = (message: Message) =>
+    message.content.every((c) => c.type === 'toolResponse');
 
   // Try to use context manager, but don't require it for session history
   let hasContextHandlerContent: ((message: Message) => boolean) | undefined;
@@ -199,7 +201,7 @@ export default function ProgressiveMessageList({
                     }}
                   />
                 ) : (
-                  <UserMessage message={message} />
+                  !hasOnlyToolResponses(message) && <UserMessage message={message} />
                 )}
               </>
             ) : (

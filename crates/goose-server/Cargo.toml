@@ -15,6 +15,7 @@ goose = { path = "../goose" }
 mcp-core = { path = "../mcp-core" }
 goose-mcp = { path = "../goose-mcp" }
 mcp-server = { path = "../mcp-server" }
+rmcp = { workspace = true }
 axum = { version = "0.8.1", features = ["ws", "macros"] }
 tokio = { version = "1.43", features = ["full"] }
 chrono = "0.4"
@@ -41,6 +42,7 @@ axum-extra = "0.10.0"
 utoipa = { version = "4.1", features = ["axum_extras", "chrono"] }
 dirs = "6.0.0"
 reqwest = { version = "0.12.9", features = ["json", "rustls-tls", "blocking", "multipart"], default-features = false }
+tokio-util = "0.7.15"
 
 [[bin]]
 name = "goosed"

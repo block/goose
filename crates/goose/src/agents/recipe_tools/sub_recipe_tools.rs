@@ -5,8 +5,8 @@ use anyhow::Result;
 use mcp_core::tool::{Tool, ToolAnnotations};
 use serde_json::{json, Map, Value};
 
-use crate::agents::sub_recipe_execution_tool::lib::{ExecutionMode, Task};
-use crate::agents::sub_recipe_execution_tool::tasks_manager::TasksManager;
+use crate::agents::subagent_execution_tool::lib::{ExecutionMode, Task};
+use crate::agents::subagent_execution_tool::tasks_manager::TasksManager;
 use crate::recipe::{Recipe, RecipeParameter, RecipeParameterRequirement, SubRecipe};
 
 use super::param_utils::prepare_command_params;
@@ -73,10 +73,15 @@ fn create_tasks_from_params(
 }
 
 fn create_task_execution_payload(tasks: &[Task], sub_recipe: &SubRecipe) -> Value {
+    let execution_mode = if tasks.len() == 1 || sub_recipe.sequential_when_repeated {
+        ExecutionMode::Sequential
+    } else {
+        ExecutionMode::Parallel
+    };
     let task_ids: Vec<String> = tasks.iter().map(|task| task.id.clone()).collect();
     json!({
         "task_ids": task_ids,
-        "execution_mode": if sub_recipe.sequential_when_repeated { ExecutionMode::Sequential } else { ExecutionMode::Parallel },
+        "execution_mode": execution_mode,
     })
 }
 

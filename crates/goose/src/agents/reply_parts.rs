@@ -275,10 +275,9 @@ impl Agent {
         (frontend_requests, other_requests, filtered_message)
     }
 
-    /// Update session metrics after a response
     pub(crate) async fn update_session_metrics(
-        session_config: crate::agents::types::SessionConfig,
-        usage: &crate::providers::base::ProviderUsage,
+        session_config: &crate::agents::types::SessionConfig,
+        usage: &ProviderUsage,
         messages_length: usize,
     ) -> Result<()> {
         let session_file_path = match session::storage::get_path(session_config.id.clone()) {

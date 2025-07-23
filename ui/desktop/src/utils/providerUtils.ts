@@ -70,11 +70,11 @@ const substituteParameters = (text: string, params: Record<string, string>): str
  * This should be called after recipe parameters are collected
  */
 export const updateSystemPromptWithParameters = async (
-  recipeParameters: Record<string, string>
+  recipeParameters: Record<string, string>,
+  recipeConfig?: { instructions?: string | null }
 ): Promise<void> => {
   try {
-    const recipeConfig = window.appConfig?.get?.('recipeConfig');
-    const originalInstructions = (recipeConfig as { instructions?: string })?.instructions;
+    const originalInstructions = recipeConfig?.instructions;
 
     if (!originalInstructions) {
       return;
@@ -96,7 +96,9 @@ export const updateSystemPromptWithParameters = async (
     });
 
     if (!response.ok) {
-      console.warn(`Failed to update system prompt with parameters: ${response.statusText}`);
+      console.warn(
+        `Failed to update system prompt with parameters: ${response.status} ${response.statusText}`
+      );
     }
   } catch (error) {
     console.error('Error updating system prompt with parameters:', error);
@@ -189,7 +191,7 @@ export const initializeSystem = async (
     await initializeAgent({ provider, model });
 
     // Get recipeConfig directly here
-    const recipeConfig = window.appConfig?.get?.('recipeConfig');
+    const recipeConfig = window.appConfig?.get?.('recipe');
     const botPrompt = (recipeConfig as { instructions?: string })?.instructions;
     const responseConfig = (recipeConfig as { response?: { json_schema?: unknown } })?.response;
 
@@ -206,6 +208,7 @@ export const initializeSystem = async (
           : desktopPrompt,
       }),
     });
+
     if (!response.ok) {
       console.warn(`Failed to extend system prompt: ${response.statusText}`);
     } else {
@@ -229,8 +232,6 @@ export const initializeSystem = async (
       });
       if (!sessionConfigResponse.ok) {
         console.warn(`Failed to configure session: ${sessionConfigResponse.statusText}`);
-      } else {
-        console.log('Configured session with response schema');
       }
     }
 
@@ -244,7 +245,6 @@ export const initializeSystem = async (
     const configVersion = localStorage.getItem('configVersion');
     const shouldMigrateExtensions = !configVersion || parseInt(configVersion, 10) < 3;
 
-    console.log(`shouldMigrateExtensions is ${shouldMigrateExtensions}`);
     if (shouldMigrateExtensions) {
       await migrateExtensionsToSettingsV3();
     }

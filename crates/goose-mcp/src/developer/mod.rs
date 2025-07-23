@@ -24,19 +24,18 @@ use url::Url;
 use include_dir::{include_dir, Dir};
 use mcp_core::{
     handler::{PromptError, ResourceError, ToolError},
-    protocol::{JsonRpcMessage, JsonRpcNotification, ServerCapabilities},
-    resource::Resource,
-    tool::Tool,
-    Content,
+    protocol::ServerCapabilities,
+    tool::{Tool, ToolAnnotations},
 };
-use mcp_core::{
-    prompt::{Prompt, PromptArgument, PromptTemplate},
-    tool::ToolAnnotations,
-};
+
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
 
-use mcp_core::role::Role;
+use rmcp::model::{
+    Content, JsonRpcMessage, JsonRpcNotification, JsonRpcVersion2_0, Notification, Prompt,
+    PromptArgument, PromptTemplate, Resource, Role,
+};
+use rmcp::object;
 
 use self::editor_models::{create_editor_model, EditorModel};
 use self::shell::{expand_path, get_shell_config, is_absolute_path, normalize_line_endings};
@@ -675,15 +674,18 @@ impl DeveloperRouter {
                             let line = String::from_utf8_lossy(&stdout_buf);
 
                             notifier.try_send(JsonRpcMessage::Notification(JsonRpcNotification {
-                                jsonrpc: "2.0".to_string(),
-                                method: "notifications/message".to_string(),
-                                params: Some(json!({
-                                    "data": {
-                                        "type": "shell",
-                                        "stream": "stdout",
-                                        "output": line.to_string(),
-                                    }
-                                })),
+                                jsonrpc: JsonRpcVersion2_0,
+                                notification: Notification {
+                                    method: "notifications/message".to_string(),
+                                    params: object!({
+                                        "data": {
+                                            "type": "shell",
+                                            "stream": "stdout",
+                                            "output": line.to_string(),
+                                        }
+                                    }),
+                                    extensions: Default::default(),
+                                }
                             })).ok();
 
                             combined_output.push_str(&line);
@@ -698,15 +700,18 @@ impl DeveloperRouter {
                             let line = String::from_utf8_lossy(&stderr_buf);
 
                             notifier.try_send(JsonRpcMessage::Notification(JsonRpcNotification {
-                                jsonrpc: "2.0".to_string(),
-                                method: "notifications/message".to_string(),
-                                params: Some(json!({
-                                    "data": {
-                                        "type": "shell",
-                                        "stream": "stderr",
-                                        "output": line.to_string(),
-                                    }
-                                })),
+                                jsonrpc: JsonRpcVersion2_0,
+                                notification: Notification {
+                                    method: "notifications/message".to_string(),
+                                    params: object!({
+                                        "data": {
+                                            "type": "shell",
+                                            "stream": "stderr",
+                                            "output": line.to_string(),
+                                        }
+                                    }),
+                                    extensions: Default::default(),
+                                }
                             })).ok();
 
                             combined_output.push_str(&line);
@@ -1886,7 +1891,7 @@ mod tests {
             .unwrap()
             .as_text()
             .unwrap();
-        assert!(text.contains("Hello, world!"));
+        assert!(text.text.contains("Hello, world!"));
 
         temp_dir.close().unwrap();
     }
@@ -1940,7 +1945,9 @@ mod tests {
             .as_text()
             .unwrap();
 
-        assert!(text.contains("has been edited, and the section now reads"));
+        assert!(text
+            .text
+            .contains("has been edited, and the section now reads"));
 
         // View the file to verify the change
         let view_result = router
@@ -1968,9 +1975,9 @@ mod tests {
         // Check that the file has been modified and contains some form of "Rust"
         // The Editor API might transform the content differently than simple string replacement
         assert!(
-            text.contains("Rust") || text.contains("Hello, Rust!"),
+            text.text.contains("Rust") || text.text.contains("Hello, Rust!"),
             "Expected content to contain 'Rust', but got: {}",
-            text
+            text.text
         );
 
         temp_dir.close().unwrap();
@@ -2029,7 +2036,7 @@ mod tests {
             .unwrap();
 
         let text = undo_result.first().unwrap().as_text().unwrap();
-        assert!(text.contains("Undid the last edit"));
+        assert!(text.text.contains("Undid the last edit"));
 
         // View the file to verify the undo
         let view_result = router
@@ -2053,7 +2060,7 @@ mod tests {
             .unwrap()
             .as_text()
             .unwrap();
-        assert!(text.contains("First line"));
+        assert!(text.text.contains("First line"));
 
         temp_dir.close().unwrap();
     }
@@ -2507,14 +2514,14 @@ mod tests {
             .unwrap();
 
         // Should contain lines 3-6 with line numbers
-        assert!(text.contains("3: Line 3"));
-        assert!(text.contains("4: Line 4"));
-        assert!(text.contains("5: Line 5"));
-        assert!(text.contains("6: Line 6"));
-        assert!(text.contains("(lines 3-6)"));
+        assert!(text.text.contains("3: Line 3"));
+        assert!(text.text.contains("4: Line 4"));
+        assert!(text.text.contains("5: Line 5"));
+        assert!(text.text.contains("6: Line 6"));
+        assert!(text.text.contains("(lines 3-6)"));
         // Should not contain other lines
-        assert!(!text.contains("1: Line 1"));
-        assert!(!text.contains("7: Line 7"));
+        assert!(!text.text.contains("1: Line 1"));
+        assert!(!text.text.contains("7: Line 7"));
 
         temp_dir.close().unwrap();
     }
@@ -2569,13 +2576,13 @@ mod tests {
             .unwrap();
 
         // Should contain lines 3 to end
-        assert!(text.contains("3: Line 3"));
-        assert!(text.contains("4: Line 4"));
-        assert!(text.contains("5: Line 5"));
-        assert!(text.contains("(lines 3-end)"));
+        assert!(text.text.contains("3: Line 3"));
+        assert!(text.text.contains("4: Line 4"));
+        assert!(text.text.contains("5: Line 5"));
+        assert!(text.text.contains("(lines 3-end)"));
         // Should not contain earlier lines
-        assert!(!text.contains("1: Line 1"));
-        assert!(!text.contains("2: Line 2"));
+        assert!(!text.text.contains("1: Line 1"));
+        assert!(!text.text.contains("2: Line 2"));
 
         temp_dir.close().unwrap();
     }
@@ -2695,7 +2702,7 @@ mod tests {
             .as_text()
             .unwrap();
 
-        assert!(text.contains("Text has been inserted at line 1"));
+        assert!(text.text.contains("Text has been inserted at line 1"));
 
         // Verify the file content
         let view_result = router
@@ -2720,10 +2727,10 @@ mod tests {
             .as_text()
             .unwrap();
 
-        assert!(view_text.contains("1: Line 1"));
-        assert!(view_text.contains("2: Line 2"));
-        assert!(view_text.contains("3: Line 3"));
-        assert!(view_text.contains("4: Line 4"));
+        assert!(view_text.text.contains("1: Line 1"));
+        assert!(view_text.text.contains("2: Line 2"));
+        assert!(view_text.text.contains("3: Line 3"));
+        assert!(view_text.text.contains("4: Line 4"));
 
         temp_dir.close().unwrap();
     }
@@ -2778,7 +2785,7 @@ mod tests {
             .as_text()
             .unwrap();
 
-        assert!(text.contains("Text has been inserted at line 3"));
+        assert!(text.text.contains("Text has been inserted at line 3"));
 
         // Verify the file content
         let view_result = router
@@ -2803,11 +2810,11 @@ mod tests {
             .as_text()
             .unwrap();
 
-        assert!(view_text.contains("1: Line 1"));
-        assert!(view_text.contains("2: Line 2"));
-        assert!(view_text.contains("3: Line 3"));
-        assert!(view_text.contains("4: Line 4"));
-        assert!(view_text.contains("5: Line 5"));
+        assert!(view_text.text.contains("1: Line 1"));
+        assert!(view_text.text.contains("2: Line 2"));
+        assert!(view_text.text.contains("3: Line 3"));
+        assert!(view_text.text.contains("4: Line 4"));
+        assert!(view_text.text.contains("5: Line 5"));
 
         temp_dir.close().unwrap();
     }
@@ -2862,7 +2869,7 @@ mod tests {
             .as_text()
             .unwrap();
 
-        assert!(text.contains("Text has been inserted at line 4"));
+        assert!(text.text.contains("Text has been inserted at line 4"));
 
         // Verify the file content
         let view_result = router
@@ -2887,10 +2894,10 @@ mod tests {
             .as_text()
             .unwrap();
 
-        assert!(view_text.contains("1: Line 1"));
-        assert!(view_text.contains("2: Line 2"));
-        assert!(view_text.contains("3: Line 3"));
-        assert!(view_text.contains("4: Line 4"));
+        assert!(view_text.text.contains("1: Line 1"));
+        assert!(view_text.text.contains("2: Line 2"));
+        assert!(view_text.text.contains("3: Line 3"));
+        assert!(view_text.text.contains("4: Line 4"));
 
         temp_dir.close().unwrap();
     }
@@ -3059,7 +3066,7 @@ mod tests {
             .unwrap();
 
         let text = undo_result.first().unwrap().as_text().unwrap();
-        assert!(text.contains("Undid the last edit"));
+        assert!(text.text.contains("Undid the last edit"));
 
         // Verify the file is back to original content
         let view_result = router
@@ -3084,9 +3091,9 @@ mod tests {
             .as_text()
             .unwrap();
 
-        assert!(view_text.contains("1: Line 1"));
-        assert!(view_text.contains("2: Line 2"));
-        assert!(!view_text.contains("Inserted Line"));
+        assert!(view_text.text.contains("1: Line 1"));
+        assert!(view_text.text.contains("2: Line 2"));
+        assert!(!view_text.text.contains("Inserted Line"));
 
         temp_dir.close().unwrap();
     }
