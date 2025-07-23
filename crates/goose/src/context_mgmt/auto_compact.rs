@@ -233,18 +233,28 @@ mod tests {
     #[tokio::test]
     async fn test_auto_compact_above_threshold() {
         let mock_provider = Arc::new(MockProvider {
-            model_config: ModelConfig::new("test-model".to_string()).with_context_limit(100.into()), // Very small context limit
+            model_config: ModelConfig::new("test-model".to_string())
+                .with_context_limit(50_000.into()), // Realistic context limit that won't underflow
         });
 
         let agent = Agent::new();
         let _ = agent.update_provider(mock_provider).await;
 
-        // Create messages that will exceed 30% of the tiny context limit
-        let messages = vec![
-            create_test_message("This is a long message that contains many tokens"),
-            create_test_message("Another long message with substantial content"),
-            create_test_message("Yet another message to fill up the context"),
-        ];
+        // Create messages that will exceed 30% of the context limit
+        // With 50k context limit, after overhead we have ~27k usable tokens
+        // 30% of that is ~8.1k tokens, so we need messages that exceed that
+        let mut messages = Vec::new();
+
+        // Create longer messages with more content to reach the threshold
+        for i in 0..200 {
+            messages.push(create_test_message(&format!(
+                "This is message number {} with significantly more content to increase token count. \
+                 We need to ensure that our total token usage exceeds 30% of the available context \
+                 limit after accounting for system prompt and tools overhead. This message contains \
+                 multiple sentences to increase the token count substantially.",
+                i
+            )));
+        }
 
         let result = check_and_compact_messages(&agent, &messages, Some(0.3))
             .await
@@ -269,16 +279,23 @@ mod tests {
     #[tokio::test]
     async fn test_auto_compact_respects_config() {
         let mock_provider = Arc::new(MockProvider {
-            model_config: ModelConfig::new("test-model".to_string()).with_context_limit(100.into()),
+            model_config: ModelConfig::new("test-model".to_string())
+                .with_context_limit(50_000.into()), // Realistic context limit that won't underflow
         });
 
         let agent = Agent::new();
         let _ = agent.update_provider(mock_provider).await;
 
-        let messages = vec![
-            create_test_message("Message 1"),
-            create_test_message("Message 2"),
-        ];
+        // Create enough messages to trigger compaction with low threshold
+        let mut messages = Vec::new();
+        // Need to create more messages since we have a 27k usable token limit
+        // 10% of 27k = 2.7k tokens
+        for i in 0..150 {
+            messages.push(create_test_message(&format!(
+                "Message {} with enough content to ensure we exceed 10% of the context limit. Adding more content.",
+                i
+            )));
+        }
 
         // Set config value
         let config = Config::global();
@@ -290,6 +307,23 @@ mod tests {
         let result = check_and_compact_messages(&agent, &messages, None)
             .await
             .unwrap();
+
+        // Debug info if not compacted
+        if !result.compacted {
+            let provider = agent.provider().await.unwrap();
+            let token_counter = create_async_token_counter().await.unwrap();
+            let token_counts = get_messages_token_counts_async(&token_counter, &messages);
+            let total_tokens: usize = token_counts.iter().sum();
+            let context_limit = estimate_target_context_limit(provider);
+            let usage_ratio = total_tokens as f64 / context_limit as f64;
+
+            eprintln!(
+                "Config test not compacted - tokens: {} / {} ({:.1}%)",
+                total_tokens,
+                context_limit,
+                usage_ratio * 100.0
+            );
+        }
 
         // With such a low threshold (10%), it should compact
         assert!(result.compacted);

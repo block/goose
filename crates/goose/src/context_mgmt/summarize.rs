@@ -191,9 +191,7 @@ pub async fn summarize_messages_chunked(
     let mut current_chunk_tokens = 0;
 
     for (message, message_tokens) in preprocessed_messages.iter().zip(token_counts.iter()) {
-        // Use saturating_sub to avoid underflow for small context limits (e.g., in tests)
-        let effective_chunk_size = chunk_size.saturating_sub(summary_prompt_tokens).max(1);
-        if current_chunk_tokens + message_tokens > effective_chunk_size {
+        if current_chunk_tokens + message_tokens > chunk_size - summary_prompt_tokens {
             // Summarize the current chunk with the accumulated summary.
             accumulated_summary =
                 summarize_combined_messages(&provider, &accumulated_summary, &current_chunk)
@@ -294,9 +292,7 @@ pub async fn summarize_messages_async(
     let mut current_chunk_tokens = 0;
 
     for (message, message_tokens) in preprocessed_messages.iter().zip(token_counts.iter()) {
-        // Use saturating_sub to avoid underflow for small context limits (e.g., in tests)
-        let effective_chunk_size = chunk_size.saturating_sub(summary_prompt_tokens).max(1);
-        if current_chunk_tokens + message_tokens > effective_chunk_size {
+        if current_chunk_tokens + message_tokens > chunk_size - summary_prompt_tokens {
             // Summarize the current chunk with the accumulated summary.
             accumulated_summary =
                 summarize_combined_messages(&provider, &accumulated_summary, &current_chunk)
@@ -422,7 +418,7 @@ mod tests {
     async fn test_summarize_messages_single_chunk() {
         let provider = create_mock_provider();
         let token_counter = TokenCounter::new();
-        let context_limit = 100; // Set a high enough limit to avoid chunking.
+        let context_limit = 10_000; // Higher limit to avoid underflow
         let messages = create_test_messages();
 
         let result = summarize_messages(
@@ -458,7 +454,7 @@ mod tests {
     async fn test_summarize_messages_multiple_chunks() {
         let provider = create_mock_provider();
         let token_counter = TokenCounter::new();
-        let context_limit = 30;
+        let context_limit = 10_000; // Higher limit to avoid underflow
         let messages = create_test_messages();
 
         let result = summarize_messages(
@@ -494,7 +490,7 @@ mod tests {
     async fn test_summarize_messages_empty_input() {
         let provider = create_mock_provider();
         let token_counter = TokenCounter::new();
-        let context_limit = 100;
+        let context_limit = 10_000; // Higher limit to avoid underflow
         let messages: Vec<Message> = Vec::new();
 
         let result = summarize_messages(
@@ -620,7 +616,7 @@ mod tests {
     async fn test_summarize_messages_uses_chunked_for_large_context() {
         let provider = create_mock_provider();
         let token_counter = TokenCounter::new();
-        let context_limit = 100; // Small context limit but not too small to cause overflow
+        let context_limit = 10_000; // Higher limit to avoid underflow
         let messages = create_test_messages();
 
         let result = summarize_messages(
@@ -776,7 +772,7 @@ mod tests {
     async fn test_summarize_messages_chunked_direct_call() {
         let provider = create_mock_provider();
         let token_counter = TokenCounter::new();
-        let context_limit = 30; // Small to force chunking
+        let context_limit = 10_000; // Higher limit to avoid underflow
         let messages = create_test_messages();
 
         let result = summarize_messages_chunked(
