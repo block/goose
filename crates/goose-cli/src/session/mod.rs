@@ -16,6 +16,7 @@ pub use self::export::message_to_markdown;
 pub use builder::{build_session, SessionBuilderConfig, SessionSettings};
 use console::Color;
 use goose::agents::AgentEvent;
+use goose::context_mgmt::auto_compact::check_and_compact_messages;
 use goose::message::push_message;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::Permission;
@@ -840,6 +841,41 @@ impl Session {
     }
 
     async fn process_agent_response(&mut self, interactive: bool) -> Result<()> {
+        // Check and compact messages if needed before calling reply
+        let compact_result = check_and_compact_messages(&self.agent, &self.messages, None).await?;
+        if compact_result.compacted {
+            self.messages = compact_result.messages;
+
+            // Notify user of compaction
+            let msg = if let (Some(before), Some(after)) =
+                (compact_result.tokens_before, compact_result.tokens_after)
+            {
+                format!(
+                    "Auto-compacted context: {} → {} tokens ({:.0}% reduction)",
+                    before,
+                    after,
+                    (1.0 - (after as f64 / before as f64)) * 100.0
+                )
+            } else {
+                "Auto-compacted context to prevent overflow".to_string()
+            };
+            output::render_text(&msg, Some(Color::Yellow), true);
+
+            // Persist the compacted messages
+            if let Some(session_file) = &self.session_file {
+                let working_dir = std::env::current_dir().ok();
+                let provider = self.agent.provider().await.ok();
+                session::persist_messages_with_schedule_id(
+                    session_file,
+                    &self.messages,
+                    provider,
+                    self.scheduled_job_id.clone(),
+                    working_dir,
+                )
+                .await?;
+            }
+        }
+
         let cancel_token = CancellationToken::new();
         let cancel_token_clone = cancel_token.clone();
 

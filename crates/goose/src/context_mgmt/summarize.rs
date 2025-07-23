@@ -191,7 +191,9 @@ pub async fn summarize_messages_chunked(
     let mut current_chunk_tokens = 0;
 
     for (message, message_tokens) in preprocessed_messages.iter().zip(token_counts.iter()) {
-        if current_chunk_tokens + message_tokens > chunk_size - summary_prompt_tokens {
+        // Use saturating_sub to avoid underflow for small context limits (e.g., in tests)
+        let effective_chunk_size = chunk_size.saturating_sub(summary_prompt_tokens).max(1);
+        if current_chunk_tokens + message_tokens > effective_chunk_size {
             // Summarize the current chunk with the accumulated summary.
             accumulated_summary =
                 summarize_combined_messages(&provider, &accumulated_summary, &current_chunk)
@@ -292,7 +294,9 @@ pub async fn summarize_messages_async(
     let mut current_chunk_tokens = 0;
 
     for (message, message_tokens) in preprocessed_messages.iter().zip(token_counts.iter()) {
-        if current_chunk_tokens + message_tokens > chunk_size - summary_prompt_tokens {
+        // Use saturating_sub to avoid underflow for small context limits (e.g., in tests)
+        let effective_chunk_size = chunk_size.saturating_sub(summary_prompt_tokens).max(1);
+        if current_chunk_tokens + message_tokens > effective_chunk_size {
             // Summarize the current chunk with the accumulated summary.
             accumulated_summary =
                 summarize_combined_messages(&provider, &accumulated_summary, &current_chunk)

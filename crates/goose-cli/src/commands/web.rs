@@ -10,6 +10,7 @@ use axum::{
 };
 use futures::{sink::SinkExt, stream::StreamExt};
 use goose::agents::{Agent, AgentEvent};
+use goose::context_mgmt::auto_compact::check_and_compact_messages;
 use goose::message::Message as GooseMessage;
 use goose::session;
 use serde::{Deserialize, Serialize};
@@ -454,6 +455,45 @@ async fn process_message_streaming(
         session_msgs.push(user_message.clone());
         session_msgs.clone()
     };
+
+    // Check and compact messages if needed before calling reply
+    let compact_result = check_and_compact_messages(agent, &messages, None).await?;
+    if compact_result.compacted {
+        messages = compact_result.messages.clone();
+
+        // Update session messages
+        {
+            let mut session_msgs = session_messages.lock().await;
+            *session_msgs = compact_result.messages;
+        }
+
+        // Notify client of compaction
+        let msg = if let (Some(before), Some(after)) =
+            (compact_result.tokens_before, compact_result.tokens_after)
+        {
+            format!(
+                "Auto-compacted context: {} → {} tokens ({:.0}% reduction)",
+                before,
+                after,
+                (1.0 - (after as f64 / before as f64)) * 100.0
+            )
+        } else {
+            "Auto-compacted context to prevent overflow".to_string()
+        };
+
+        let mut sender_lock = sender.lock().await;
+        let _ = sender_lock
+            .send(Message::Text(
+                serde_json::to_string(&WebSocketMessage::Response {
+                    content: msg,
+                    role: "system".to_string(),
+                    timestamp: chrono::Utc::now().timestamp_millis(),
+                })
+                .unwrap()
+                .into(),
+            ))
+            .await;
+    }
 
     // Persist messages to JSONL file with provider for automatic description generation
     let provider = agent.provider().await;

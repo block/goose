@@ -20,7 +20,10 @@ pub fn estimate_target_context_limit(provider: Arc<dyn Provider>) -> usize {
     let target_limit = (model_context_limit as f32 * ESTIMATE_FACTOR) as usize;
 
     // subtract out overhead for system prompt and tools
-    target_limit - (SYSTEM_PROMPT_TOKEN_OVERHEAD + TOOLS_TOKEN_OVERHEAD)
+    // but ensure we don't underflow for small context limits (e.g., in tests)
+    target_limit
+        .saturating_sub(SYSTEM_PROMPT_TOKEN_OVERHEAD + TOOLS_TOKEN_OVERHEAD)
+        .max(1)
 }
 
 pub fn get_messages_token_counts(token_counter: &TokenCounter, messages: &[Message]) -> Vec<usize> {
