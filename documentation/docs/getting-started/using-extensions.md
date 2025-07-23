@@ -24,7 +24,7 @@ Here are the built-in extensions:
 
 - [Developer](/docs/mcp/developer-mcp): Provides a set of general development tools that are useful for software development.
 - [Computer Controller](/docs/mcp/computer-controller-mcp): Provides general computer control tools for webscraping, file caching, and automations.
-- [Memory](/docs/mcp/memory-mcp): Teaches Goose to remember your preferences as you use it
+- [Memory](/docs/mcp/memory-mcp): Teaches Goose to remember your preferences as you use it.
 - [Tutorial](/docs/mcp/tutorial-mcp): Provides interactive tutorials for learning about Goose.
 
 
