@@ -437,17 +437,14 @@ where
             if chunk.choices.is_empty() {
                 yield (None, usage)
             } else if let Some(tool_calls) = &chunk.choices[0].delta.tool_calls {
-                // Initialize tracking for multiple tool calls
                 let mut tool_call_data: std::collections::HashMap<i32, (String, String, String)> = std::collections::HashMap::new();
 
-                // Process initial tool call(s)
                 for tool_call in tool_calls {
                     if let (Some(index), Some(id), Some(name)) = (tool_call.index, &tool_call.id, &tool_call.function.name) {
                         tool_call_data.insert(index, (id.clone(), name.clone(), tool_call.function.arguments.clone()));
                     }
                 }
 
-                // Continue collecting tool call arguments until we don't see more tool calls
                 let mut done = false;
                 while !done {
                     if let Some(response_chunk) = stream.next().await {
@@ -465,28 +462,23 @@ where
                                         if let Some((_, _, ref mut args)) = tool_call_data.get_mut(&index) {
                                             args.push_str(&delta_call.function.arguments);
                                         } else if let (Some(id), Some(name)) = (&delta_call.id, &delta_call.function.name) {
-                                            // New tool call starting
                                             tool_call_data.insert(index, (id.clone(), name.clone(), delta_call.function.arguments.clone()));
                                         }
                                     }
                                 }
                             } else {
-                                // No more tool calls in this chunk, we're done collecting
                                 done = true;
                             }
 
-                            // Check if this chunk indicates the end of tool calls
                             if tool_chunk.choices[0].finish_reason == Some("tool_calls".to_string()) {
                                 done = true;
                             }
                         }
                     } else {
-                        // Stream ended
                         break;
                     }
                 }
 
-                // Convert all collected tool calls to MessageContent
                 let mut contents = Vec::new();
                 let mut sorted_indices: Vec<_> = tool_call_data.keys().cloned().collect();
                 sorted_indices.sort();
