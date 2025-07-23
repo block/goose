@@ -59,10 +59,9 @@ impl SubAgent {
         // Create a new extension manager for this subagent
         let mut extension_manager = ExtensionManager::new();
 
-        // Add extensions based on priority:
-        // 1. Recipe extensions (if this is a sub-recipe task)
-        // 2. Default enabled extensions from config
-        // 3. Essential extensions like developer
+        // Add extensions based on task_type:
+        // 1. If executing dynamic task (task_type = 'text_instruction'), default to using all enabled extensions
+        // 2. (TODO) If executing a sub-recipe task, only use recipe extensions
 
         // Get all enabled extensions from config
         let enabled_extensions = ExtensionConfigManager::get_all()
