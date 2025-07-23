@@ -713,6 +713,7 @@ export default function App() {
   // Create a setView function for useChat hook - we'll use window.history instead of navigate
   const setView = (view: View, viewOptions: ViewOptions = {}) => {
     console.log(`Setting view to: ${view}`, viewOptions);
+    console.trace('setView called from:'); // This will show the call stack
     // Convert view to route navigation using hash routing
     switch (view) {
       case 'chat':
@@ -752,7 +753,10 @@ export default function App() {
         window.location.hash = '#/welcome';
         break;
       default:
-        window.location.hash = '#/';
+        console.error(`Unknown view: ${view}, not navigating anywhere. This is likely a bug.`);
+        console.trace('Invalid setView call stack:');
+        // Don't navigate anywhere for unknown views to avoid unexpected redirects
+        break;
     }
   };
 
