@@ -94,7 +94,6 @@ async fn handle_text_instruction_task(
         // "instructions": "You are a helpful assistant. Execute the given task and provide a clear, concise response.",
     });
 
-    // Use tokio::select to race between subagent execution and cancellation
     let result = tokio::select! {
         result = run_complete_subagent_task(task_arguments, task_config) => result,
         _ = cancellation_token.cancelled() => {
@@ -191,10 +190,8 @@ async fn run_command(
         task_execution_tracker.clone(),
     );
 
-    // Use tokio::select to race between process completion and cancellation
     let result = tokio::select! {
         _ = cancellation_token.cancelled() => {
-            // Kill the child process
             if let Err(e) = child.kill().await {
                 tracing::warn!("Failed to kill child process: {}", e);
             }
