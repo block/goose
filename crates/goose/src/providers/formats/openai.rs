@@ -1165,6 +1165,7 @@ data: [DONE]
 
         while let Some(Ok((message, _usage))) = messages.next().await {
             if let Some(msg) = message {
+                println!("{:?}", msg);
                 if msg.content.len() == 2 {
                     if let (MessageContent::ToolRequest(req1), MessageContent::ToolRequest(req2)) =
                         (&msg.content[0], &msg.content[1])
