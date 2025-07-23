@@ -157,6 +157,7 @@ function BaseChatContent({
     updateMessageStreamBody,
     sessionMetadata,
     isUserMessage,
+    clearError,
   } = useChatEngine({
     chat,
     setChat,
@@ -434,21 +435,51 @@ function BaseChatContent({
                             {error.message || 'Honk! Goose experienced an error while responding'}
                           </div>
 
-                          {/* Regular retry button for non-token-limit errors */}
-                          <div
-                            className="px-3 py-2 mt-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
-                            onClick={async () => {
-                              // Find the last user message
-                              const lastUserMessage = messages.reduceRight(
-                                (found, m) => found || (m.role === 'user' ? m : null),
-                                null as Message | null
-                              );
-                              if (lastUserMessage) {
-                                append(lastUserMessage);
-                              }
-                            }}
-                          >
-                            Retry Last Message
+                          {/* Action buttons for non-token-limit errors */}
+                          <div className="flex gap-2 mt-2">
+                            <div
+                              className="px-3 py-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
+                              onClick={async () => {
+                                // Create a contextLengthExceeded message similar to token limit errors
+                                const contextMessage: Message = {
+                                  id: `context-${Date.now()}`,
+                                  role: 'assistant',
+                                  created: Math.floor(Date.now() / 1000),
+                                  content: [
+                                    {
+                                      type: 'contextLengthExceeded',
+                                      msg: 'Summarization requested due to error. Creating summary to help resolve the issue.',
+                                    },
+                                  ],
+                                  display: true,
+                                  sendToLLM: false,
+                                };
+
+                                // Add the context message to trigger ContextHandler
+                                const updatedMessages = [...messages, contextMessage];
+                                setMessages(updatedMessages);
+
+                                // Clear the error state since we're handling it with summarization
+                                clearError();
+                              }}
+                            >
+                              Summarize Conversation
+                            </div>
+                            <div
+                              className="px-3 py-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
+                              onClick={async () => {
+                                // Find the last user message
+                                const lastUserMessage = messages.reduceRight(
+                                  (found, m) => found || (m.role === 'user' ? m : null),
+                                  null as Message | null
+                                );
+                                if (lastUserMessage) {
+                                  append(lastUserMessage);
+                                }
+                              }}
+                            >
+                              Retry Last Message
+                            </div>
                           </div>
                         </div>
                       </>
@@ -472,7 +503,7 @@ function BaseChatContent({
           {/* Fixed loading indicator at bottom left of chat container */}
           {isLoading && (
             <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
-              <LoadingGoose 
+              <LoadingGoose
                 message={isLoadingSummary ? 'summarizing conversation…' : undefined}
                 isWaiting={isWaiting}
                 isStreaming={isStreaming}
