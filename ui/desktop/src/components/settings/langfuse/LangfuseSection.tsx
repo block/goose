@@ -23,11 +23,13 @@ export default function LangfuseSection() {
   const envSecretKey = window.appConfig.get('LANGFUSE_SECRET_KEY');
   const envPublicKey = window.appConfig.get('LANGFUSE_PUBLIC_KEY');
   const envLangfuseUrl = window.appConfig.get('LANGFUSE_URL');
+  const envMenuIconEnabled = window.appConfig.get('LANGFUSE_MENU_ICON_ENABLED');
 
   // Initial state for langfuse configuration
   const [langfuseConfig, setLangfuseConfig] = useState<LangfuseConfig>({
     enabled: envLangfuseEnable ? true : false,
     selfHosted: envSelfHostedEnabled ? true : false,
+    menuIcon: envMenuIconEnabled ? true : false,
     secretKey: typeof envSecretKey === 'string' ? envSecretKey : '',
     publicKey: typeof envPublicKey === 'string' ? envPublicKey : '',
     langfuseUrl: typeof envLangfuseUrl === 'string' ? envLangfuseUrl : '',
@@ -40,6 +42,7 @@ export default function LangfuseSection() {
     const forcedConfig: LangfuseConfig = {
       enabled: envLangfuseEnable ? true : false,
       selfHosted: envSelfHostedEnabled ? true : false,
+      menuIcon: envMenuIconEnabled ? true : false,
       secretKey: typeof envSecretKey === 'string' ? envSecretKey : '',
       publicKey: typeof envPublicKey === 'string' ? envPublicKey : '',
       langfuseUrl: typeof envLangfuseUrl === 'string' ? envLangfuseUrl : '',
@@ -58,7 +61,7 @@ export default function LangfuseSection() {
         }
       }
     }
-  }, [envLangfuseEnable, envSelfHostedEnabled, envSecretKey, envPublicKey, envLangfuseUrl]);
+  }, [envLangfuseEnable, envSelfHostedEnabled, envMenuIconEnabled, envSecretKey, envPublicKey, envLangfuseUrl]);
 
   const isValidUrl = (value: string): boolean => {
     if (!value) return false;
@@ -83,6 +86,15 @@ export default function LangfuseSection() {
     if (envSelfHostedEnabled) return;
     setLangfuseConfig((prev) => {
       const updated = { ...prev, selfHosted: !prev.selfHosted };
+      localStorage.setItem('langfuse_config', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const toggleMenuIcon = () => {
+    if (envMenuIconEnabled) return;
+    setLangfuseConfig((prev) => {
+      const updated = { ...prev, menuIcon: !prev.menuIcon };
       localStorage.setItem('langfuse_config', JSON.stringify(updated));
       return updated;
     });
@@ -203,9 +215,21 @@ export default function LangfuseSection() {
                     onChange={handlePublicKeyChange}
                   />
                 </div>
-              )}
-
-              {langfuseConfig.enabled && (
+                <div className="flex items-center justify-between">
+                  <label className="text-textStandard cursor-pointer">
+                    {envMenuIconEnabled ? 'Menu icon enabled' : 'Enable menu icon'}
+                  </label>
+                  {envMenuIconEnabled ? (
+                    <Lock className="w-5 h-5 text-gray-600" />
+                  ) : (
+                    <Switch
+                      checked={langfuseConfig.menuIcon}
+                      disabled={!!envMenuIconEnabled}
+                      onCheckedChange={toggleMenuIcon}
+                      variant="mono"
+                    />
+                  )}
+                </div>
                 <div className="flex items-center justify-between">
                   <label className="text-textStandard cursor-pointer">
                     {envSelfHostedEnabled ? 'Self hosting enabled' : 'Enable self-hosted connection'}

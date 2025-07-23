@@ -1260,7 +1260,7 @@ export default function ChatInput({
           </div>
 
           {/* Attach button */}
-          {langfuseConfig.enabled && (
+          {langfuseConfig.enabled && langfuseConfig.menuIcon && (
             <>
             <div className="w-px h-4 bg-border-default mx-2" />
             <Tooltip>
