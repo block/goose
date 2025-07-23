@@ -13,6 +13,7 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::Sender;
 use tokio::time::Instant;
+use tokio_util::sync::CancellationToken;
 
 const EXECUTION_STATUS_COMPLETED: &str = "completed";
 const DEFAULT_MAX_WORKERS: usize = 10;
@@ -21,14 +22,22 @@ pub async fn execute_single_task(
     task: &Task,
     notifier: mpsc::Sender<JsonRpcMessage>,
     task_config: TaskConfig,
+    cancellation_token: Option<CancellationToken>,
 ) -> ExecutionResponse {
     let start_time = Instant::now();
     let task_execution_tracker = Arc::new(TaskExecutionTracker::new(
         vec![task.clone()],
         DisplayMode::SingleTaskOutput,
         notifier,
+        cancellation_token.clone(),
     ));
-    let result = process_task(task, task_execution_tracker.clone(), task_config).await;
+    let result = process_task(
+        task,
+        task_execution_tracker.clone(),
+        task_config,
+        cancellation_token.unwrap_or_default(),
+    )
+    .await;
 
     // Complete the task in the tracker
     task_execution_tracker
@@ -49,11 +58,13 @@ pub async fn execute_tasks_in_parallel(
     tasks: Vec<Task>,
     notifier: Sender<JsonRpcMessage>,
     task_config: TaskConfig,
+    cancellation_token: Option<CancellationToken>,
 ) -> ExecutionResponse {
     let task_execution_tracker = Arc::new(TaskExecutionTracker::new(
         tasks.clone(),
         DisplayMode::MultipleTasksOutput,
         notifier,
+        cancellation_token.clone(),
     ));
     let start_time = Instant::now();
     let task_count = tasks.len();
@@ -71,7 +82,12 @@ pub async fn execute_tasks_in_parallel(
         return create_error_response(e);
     }
 
-    let shared_state = create_shared_state(task_rx, result_tx, task_execution_tracker.clone());
+    let shared_state = create_shared_state(
+        task_rx,
+        result_tx,
+        task_execution_tracker.clone(),
+        cancellation_token.unwrap_or_default(),
+    );
 
     let worker_count = std::cmp::min(task_count, DEFAULT_MAX_WORKERS);
     let mut worker_handles = Vec::new();
@@ -135,12 +151,14 @@ fn create_shared_state(
     task_rx: mpsc::Receiver<Task>,
     result_tx: mpsc::Sender<TaskResult>,
     task_execution_tracker: Arc<TaskExecutionTracker>,
+    cancellation_token: CancellationToken,
 ) -> Arc<SharedState> {
     Arc::new(SharedState {
         task_receiver: Arc::new(tokio::sync::Mutex::new(task_rx)),
         result_sender: result_tx,
         active_workers: Arc::new(AtomicUsize::new(0)),
         task_execution_tracker,
+        cancellation_token,
     })
 }
 

@@ -11,6 +11,7 @@ use crate::agents::{
 use rmcp::model::JsonRpcMessage;
 use tokio::sync::mpsc;
 use tokio_stream;
+use tokio_util::sync::CancellationToken;
 
 pub const SUBAGENT_EXECUTE_TASK_TOOL_NAME: &str = "subagent__execute_task";
 pub fn create_subagent_execute_task_tool() -> Tool {
@@ -64,6 +65,7 @@ pub async fn run_tasks(
     execute_data: Value,
     task_config: TaskConfig,
     tasks_manager: &TasksManager,
+    cancellation_token: Option<CancellationToken>,
 ) -> ToolCallResult {
     let (notification_tx, notification_rx) = mpsc::channel::<JsonRpcMessage>(100);
 
@@ -81,6 +83,7 @@ pub async fn run_tasks(
             notification_tx,
             task_config,
             &tasks_manager_clone,
+            cancellation_token,
         )
         .await
         {

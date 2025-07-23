@@ -763,14 +763,6 @@ export type ToolResponse = {
     };
 };
 
-export type ToolResultSchema = {
-    data: {
-        [key: string]: unknown;
-    };
-    message?: string | null;
-    success: boolean;
-};
-
 export type UpdateScheduleRequest = {
     cron: string;
 };

@@ -603,7 +603,7 @@ mod final_output_tool_tests {
             }),
         );
         let (_, result) = agent
-            .dispatch_tool_call(tool_call, "request_id".to_string())
+            .dispatch_tool_call(tool_call, "request_id".to_string(), None)
             .await;
 
         assert!(result.is_ok(), "Tool call should succeed");

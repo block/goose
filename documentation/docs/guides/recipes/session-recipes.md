@@ -588,5 +588,14 @@ To protect your privacy and system integrity, Goose excludes:
 
 This means others may need to supply their own credentials or memory context if the recipe depends on those elements.
 
+## CLI and Desktop Formats
+
+The Goose CLI supports both CLI and Desktop recipe formats:
+
+- **CLI Format**: Recipe fields are at the root level. This format is used when recipes are created via the CLI `/recipe` command and Recipe Generator YAML option.
+- **Desktop Format**: Recipe fields are nested under a `recipe` key. This format is used when recipes are saved in Goose Desktop.
+
+Both formats work seamlessly with `goose run --recipe <file>` and `goose recipe` CLI commands - you don't need to convert between them. For more details, see [CLI and Desktop Formats](/docs/guides/recipes/recipe-reference#cli-and-desktop-formats).
+
 ## Learn More
 Check out the [Goose Recipes](/docs/guides/recipes) guide for more docs, tools, and resources to help you master Goose recipes.
