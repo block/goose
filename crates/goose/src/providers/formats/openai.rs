@@ -437,56 +437,91 @@ where
             if chunk.choices.is_empty() {
                 yield (None, usage)
             } else if let Some(tool_calls) = &chunk.choices[0].delta.tool_calls {
-                let tool_call = &tool_calls[0];
-                let id = tool_call.id.clone().ok_or(anyhow!("No tool call ID"))?;
-                let function_name = tool_call.function.name.clone().ok_or(anyhow!("No function name"))?;
-                let mut arguments = tool_call.function.arguments.clone();
+                // Initialize tracking for multiple tool calls
+                let mut tool_call_data: std::collections::HashMap<i32, (String, String, String)> = std::collections::HashMap::new();
 
-                while let Some(response_chunk) = stream.next().await {
-                    if response_chunk.as_ref().is_ok_and(|s| s == "data: [DONE]") {
-                        break 'outer;
-                    }
-                    let response_str = response_chunk?;
-                    if let Some(line) = strip_data_prefix(&response_str) {
-                        let tool_chunk: StreamingChunk = serde_json::from_str(line)
-                            .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
-                        let more_args = tool_chunk.choices[0].delta.tool_calls.as_ref()
-                            .and_then(|calls| calls.first())
-                            .map(|call| call.function.arguments.as_str());
-                        if let Some(more_args) = more_args {
-                            arguments.push_str(more_args);
-                        } else {
-                            break;
-                        }
+                // Process initial tool call(s)
+                for tool_call in tool_calls {
+                    if let (Some(index), Some(id), Some(name)) = (tool_call.index, &tool_call.id, &tool_call.function.name) {
+                        tool_call_data.insert(index, (id.clone(), name.clone(), tool_call.function.arguments.clone()));
                     }
                 }
 
-                let parsed = if arguments.is_empty() {
-                    Ok(json!({}))
-                } else {
-                    serde_json::from_str::<Value>(&arguments)
-                };
+                // Continue collecting tool call arguments until we don't see more tool calls
+                let mut done = false;
+                while !done {
+                    if let Some(response_chunk) = stream.next().await {
+                        if response_chunk.as_ref().is_ok_and(|s| s == "data: [DONE]") {
+                            break 'outer;
+                        }
+                        let response_str = response_chunk?;
+                        if let Some(line) = strip_data_prefix(&response_str) {
+                            let tool_chunk: StreamingChunk = serde_json::from_str(line)
+                                .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
 
-                let content = match parsed {
-                    Ok(params) => MessageContent::tool_request(
-                        id,
-                        Ok(ToolCall::new(function_name, params)),
-                    ),
-                    Err(e) => {
-                        let error = ToolError::InvalidParameters(format!(
-                            "Could not interpret tool use parameters for id {}: {}",
-                            id, e
-                        ));
-                        MessageContent::tool_request(id, Err(error))
+                            if let Some(delta_tool_calls) = &tool_chunk.choices[0].delta.tool_calls {
+                                for delta_call in delta_tool_calls {
+                                    if let Some(index) = delta_call.index {
+                                        if let Some((_, _, ref mut args)) = tool_call_data.get_mut(&index) {
+                                            args.push_str(&delta_call.function.arguments);
+                                        } else if let (Some(id), Some(name)) = (&delta_call.id, &delta_call.function.name) {
+                                            // New tool call starting
+                                            tool_call_data.insert(index, (id.clone(), name.clone(), delta_call.function.arguments.clone()));
+                                        }
+                                    }
+                                }
+                            } else {
+                                // No more tool calls in this chunk, we're done collecting
+                                done = true;
+                            }
+
+                            // Check if this chunk indicates the end of tool calls
+                            if tool_chunk.choices[0].finish_reason == Some("tool_calls".to_string()) {
+                                done = true;
+                            }
+                        }
+                    } else {
+                        // Stream ended
+                        break;
                     }
-                };
+                }
+
+                // Convert all collected tool calls to MessageContent
+                let mut contents = Vec::new();
+                let mut sorted_indices: Vec<_> = tool_call_data.keys().cloned().collect();
+                sorted_indices.sort();
+
+                for index in sorted_indices {
+                    if let Some((id, function_name, arguments)) = tool_call_data.get(&index) {
+                        let parsed = if arguments.is_empty() {
+                            Ok(json!({}))
+                        } else {
+                            serde_json::from_str::<Value>(arguments)
+                        };
+
+                        let content = match parsed {
+                            Ok(params) => MessageContent::tool_request(
+                                id.clone(),
+                                Ok(ToolCall::new(function_name.clone(), params)),
+                            ),
+                            Err(e) => {
+                                let error = ToolError::InvalidParameters(format!(
+                                    "Could not interpret tool use parameters for id {}: {}",
+                                    id, e
+                                ));
+                                MessageContent::tool_request(id.clone(), Err(error))
+                            }
+                        };
+                        contents.push(content);
+                    }
+                }
 
                 yield (
                     Some(Message {
                         id: chunk.id,
                         role: Role::Assistant,
                         created: chrono::Utc::now().timestamp(),
-                        content: vec![content],
+                        content: contents,
                     }),
                     usage,
                 )
