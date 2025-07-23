@@ -32,11 +32,8 @@ pub fn create_dynamic_task_tool() -> Tool {
                 text_instruction: Search for the config file in the root directory.
             Examples of 'task_parameters' for multiple tasks:
                 text_instruction: Get weather for Melbourne.
-                timeout_seconds: 300
                 text_instruction: Get weather for Los Angeles.
-                timeout_seconds: 300
                 text_instruction: Get weather for San Francisco.
-                timeout_seconds: 300
             ".to_string(),
         json!({
             "type": "object",
@@ -54,11 +51,6 @@ pub fn create_dynamic_task_tool() -> Tool {
                                 "type": "string",
                                 "description": "The text instruction to execute"
                             },
-                            "timeout_seconds": {
-                                "type": "integer",
-                                "description": "Optional timeout for the task in seconds (default: 300)",
-                                "minimum": 1
-                            }
                         },
                         "required": ["text_instruction"]
                     }

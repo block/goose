@@ -40,18 +40,8 @@ fn format_task_metadata(task_info: &TaskInfo) -> String {
             })
             .collect::<Vec<_>>()
             .join(",")
-    } else if task_info.task.task_type == "text_instruction" {
-        // For text_instruction tasks, extract and display the instruction
-        if let Some(text_instruction) = task_info.task.get_text_instruction() {
-            // Truncate long instructions to keep the display clean
-            if text_instruction.len() > 80 {
-                format!("instruction={}...", &text_instruction[..77])
-            } else {
-                format!("instruction={}", text_instruction)
-            }
-        } else {
-            String::new()
-        }
+    } else if let Some(text_instruction) = task_info.task.get_text_instruction() {
+        format!("instruction={}", text_instruction)
     } else {
         String::new()
     }
