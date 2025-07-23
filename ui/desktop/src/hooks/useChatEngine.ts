@@ -79,6 +79,7 @@ export const useChatEngine = ({
     updateMessageStreamBody,
     notifications,
     sessionMetadata,
+    setError,
   } = useMessageStream({
     api: getApiUrl('/reply'),
     id: chat.id,
@@ -402,5 +403,8 @@ export const useChatEngine = ({
 
     // Utilities
     isUserMessage,
+
+    // Error management
+    clearError: () => setError(undefined),
   };
 };

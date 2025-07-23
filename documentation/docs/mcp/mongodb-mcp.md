@@ -5,6 +5,7 @@ description: Add MongoDB MCP Server as a Goose Extension
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 The MongoDB MCP Server extension allows Goose to interact directly with your MongoDB databases, enabling comprehensive database operations including querying, document manipulation, collection management, and database administration. This makes it easy to work with your MongoDB databases through natural language interactions.
 
@@ -55,11 +56,18 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=mongodb-mcp-server&arg=--connection-string&arg=mongodb://localhost:27017&id=mongodb&name=MongoDB&description=MongoDB%20database%20integration)
-  2. Press `Yes` to confirm the installation
-  3. Enter your MongoDB connection string in the format: `mongodb://username:password@hostname:27017/database`
-  4. Click `Save Configuration`
-  5. Scroll to the top and click `Exit` from the upper left corner
+    <GooseDesktopInstaller
+      extensionId="mongodb"
+      extensionName="MongoDB"
+      description="MongoDB database integration"
+      command="npx"
+      args={["-y", "mongodb-mcp-server", "--connection-string", "mongodb://localhost:27017"]}
+    />
+    
+    :::info Configure Your Connection String
+    If needed, [update the extension](/docs/getting-started/using-extensions#updating-extension-properties) to match to your [MongoDB environment](#customizing-your-connection). For example, change the connection string in the `command` property to use the `mongodb://username:password@hostname:27017/database` format.
+    :::
+
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
@@ -100,7 +108,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     └ 
   ```
 
-  4. Enter the command with your database connection string
+  4. Enter the command with the database connection string that matches your [MongoDB environment](#customizing-your-connection)
   ```sh
     ┌   goose-configure 
     │
