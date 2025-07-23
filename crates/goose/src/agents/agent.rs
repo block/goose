@@ -75,6 +75,7 @@ pub struct Agent {
     pub(super) tool_monitor: Arc<Mutex<Option<ToolMonitor>>>,
     pub(super) router_tool_selector: Mutex<Option<Arc<Box<dyn RouterToolSelector>>>>,
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
+    pub(super) current_cancellation_token: Arc<Mutex<Option<CancellationToken>>>,
     pub(super) mcp_tx: Mutex<mpsc::Sender<JsonRpcMessage>>,
     pub(super) mcp_notification_rx: Arc<Mutex<mpsc::Receiver<JsonRpcMessage>>>,
     pub(super) retry_manager: RetryManager,
@@ -154,6 +155,7 @@ impl Agent {
             tool_monitor,
             router_tool_selector: Mutex::new(None),
             scheduler_service: Mutex::new(None),
+            current_cancellation_token: Arc::new(Mutex::new(None)),
             // Initialize with MCP notification support
             mcp_tx: Mutex::new(mcp_tx),
             mcp_notification_rx: Arc::new(Mutex::new(mcp_rx)),
@@ -345,10 +347,15 @@ impl Agent {
 
             let task_config =
                 TaskConfig::new(provider, Some(Arc::clone(&self.extension_manager)), mcp_tx);
+
+            // Get the current cancellation token
+            let current_token = self.current_cancellation_token.lock().await.clone();
+
             subagent_execute_task_tool::run_tasks(
                 tool_call.arguments.clone(),
                 task_config,
                 &self.tasks_manager,
+                current_token,
             )
             .await
         } else if tool_call.name == DYNAMIC_TASK_TOOL_NAME_PREFIX {
@@ -719,6 +726,12 @@ impl Agent {
         session: Option<SessionConfig>,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
+        // Store the cancellation token for use in tool calls
+        {
+            let mut current_token = self.current_cancellation_token.lock().await;
+            *current_token = cancel_token.clone();
+        }
+
         let mut messages = messages.to_vec();
         let initial_messages = messages.clone();
         let reply_span = tracing::Span::current();

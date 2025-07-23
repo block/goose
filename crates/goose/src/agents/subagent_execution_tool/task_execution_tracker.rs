@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
 use tokio::time::{sleep, Duration, Instant};
+use tokio_util::sync::CancellationToken;
 
 use crate::agents::subagent_execution_tool::notification_events::{
     FailedTaskInfo, TaskCompletionStats, TaskExecutionNotificationEvent, TaskExecutionStats,
@@ -62,6 +63,7 @@ pub struct TaskExecutionTracker {
     last_refresh: Arc<RwLock<Instant>>,
     notifier: mpsc::Sender<JsonRpcMessage>,
     display_mode: DisplayMode,
+    cancellation_token: Option<CancellationToken>,
 }
 
 impl TaskExecutionTracker {
@@ -69,6 +71,7 @@ impl TaskExecutionTracker {
         tasks: Vec<Task>,
         display_mode: DisplayMode,
         notifier: Sender<JsonRpcMessage>,
+        cancellation_token: Option<CancellationToken>,
     ) -> Self {
         let task_map = tasks
             .into_iter()
@@ -93,6 +96,7 @@ impl TaskExecutionTracker {
             last_refresh: Arc::new(RwLock::new(Instant::now())),
             notifier,
             display_mode,
+            cancellation_token,
         }
     }
 
@@ -166,7 +170,14 @@ impl TaskExecutionTracker {
                             },
                         }))
                 {
-                    tracing::warn!("Failed to send live output notification: {}", e);
+                    // Only log warning if not cancelled (channel close is expected during cancellation)
+                    if let Some(ref token) = self.cancellation_token {
+                        if !token.is_cancelled() {
+                            tracing::warn!("Failed to send live output notification: {}", e);
+                        }
+                    } else {
+                        tracing::warn!("Failed to send live output notification: {}", e);
+                    }
                 }
             }
             DisplayMode::MultipleTasksOutput => {
@@ -197,6 +208,13 @@ impl TaskExecutionTracker {
     }
 
     async fn send_tasks_update(&self) {
+        // Check if we're cancelled before sending notifications
+        if let Some(ref token) = self.cancellation_token {
+            if token.is_cancelled() {
+                return;
+            }
+        }
+
         let tasks = self.tasks.read().await;
         let task_list: Vec<_> = tasks.values().collect();
         let (total, pending, running, completed, failed) = count_by_status(&tasks);
@@ -242,7 +260,14 @@ impl TaskExecutionTracker {
                 },
             }))
         {
-            tracing::warn!("Failed to send tasks update notification: {}", e);
+            // Only log warning if not cancelled (channel close is expected during cancellation)
+            if let Some(ref token) = self.cancellation_token {
+                if !token.is_cancelled() {
+                    tracing::warn!("Failed to send tasks update notification: {}", e);
+                }
+            } else {
+                tracing::warn!("Failed to send tasks update notification: {}", e);
+            }
         }
     }
 
@@ -276,6 +301,13 @@ impl TaskExecutionTracker {
     }
 
     pub async fn send_tasks_complete(&self) {
+        // Check if we're cancelled before sending notifications
+        if let Some(ref token) = self.cancellation_token {
+            if token.is_cancelled() {
+                return;
+            }
+        }
+
         let tasks = self.tasks.read().await;
         let (total, _, _, completed, failed) = count_by_status(&tasks);
 
@@ -306,10 +338,23 @@ impl TaskExecutionTracker {
                 },
             }))
         {
-            tracing::warn!("Failed to send tasks complete notification: {}", e);
+            // Only log warning if not cancelled (channel close is expected during cancellation)
+            if let Some(ref token) = self.cancellation_token {
+                if !token.is_cancelled() {
+                    tracing::warn!("Failed to send tasks complete notification: {}", e);
+                }
+            } else {
+                tracing::warn!("Failed to send tasks complete notification: {}", e);
+            }
         }
 
-        // Brief delay to ensure completion notification is processed
-        sleep(Duration::from_millis(COMPLETION_NOTIFICATION_DELAY_MS)).await;
+        // Brief delay to ensure completion notification is processed (skip if cancelled)
+        if let Some(ref token) = self.cancellation_token {
+            if !token.is_cancelled() {
+                sleep(Duration::from_millis(COMPLETION_NOTIFICATION_DELAY_MS)).await;
+            }
+        } else {
+            sleep(Duration::from_millis(COMPLETION_NOTIFICATION_DELAY_MS)).await;
+        }
     }
 }
