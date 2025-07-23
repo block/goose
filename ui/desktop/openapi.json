@@ -2975,31 +2975,6 @@
           }
         }
       },
-      "ToolResultSchema": {
-        "type": "object",
-        "required": [
-          "success",
-          "data"
-        ],
-        "properties": {
-          "data": {
-            "type": "object"
-          },
-          "message": {
-            "type": "string",
-            "example": "Operation completed successfully",
-            "nullable": true
-          },
-          "success": {
-            "type": "boolean",
-            "example": true
-          }
-        },
-        "example": {
-          "data": {},
-          "success": true
-        }
-      },
       "UpdateScheduleRequest": {
         "type": "object",
         "required": [

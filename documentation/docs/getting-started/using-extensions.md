@@ -5,7 +5,7 @@ title: Using Extensions
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import { PanelLeft } from 'lucide-react';
+import { PanelLeft, Settings } from 'lucide-react';
 
 Extensions are add-ons that provide a way to extend the functionality of Goose by connecting with applications and tools you already use in your workflow. These extensions can be used to add new features, access data and resources, or integrate with other systems.
 
@@ -22,10 +22,10 @@ Out of the box, Goose is installed with a few extensions but with only the `Deve
 
 Here are the built-in extensions:
 
-1. **Developer**: provides a set of general development tools that are useful for software development.
-2. **Computer Controller**: provides general computer control tools for webscraping, file caching, and automations.
-3. **Memory**: teaches goose to remember your preferences as you use it
-4. **JetBrains**: provides an integration for working with JetBrains IDEs.
+- [Developer](/docs/mcp/developer-mcp): Provides a set of general development tools that are useful for software development.
+- [Computer Controller](/docs/mcp/computer-controller-mcp): Provides general computer control tools for webscraping, file caching, and automations.
+- [Memory](/docs/mcp/memory-mcp): Teaches Goose to remember your preferences as you use it.
+- [Tutorial](/docs/mcp/tutorial-mcp): Provides interactive tutorials for learning about Goose.
 
 
 #### Toggling Built-in Extensions
@@ -500,6 +500,29 @@ extension_name: postgresql
 </TabItem>
 </Tabs>
 
+## Updating Extension Properties
+
+Goose relies on extension properties to determine how to handle an extension. You can edit these properties if you want to change the extension's display settings and behavior, such as the name, timeout, or environment variables.
+
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+
+  1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
+  2. Click the `Extensions` button on the sidebar.
+  3. Under `Extensions`, click the <Settings className="inline" size={16} /> button on the extension you'd like to edit.
+  4. In the dialog that appears, edit the extension's properties as needed.
+  5. Click `Save Changes`.
+
+  </TabItem>
+
+  <TabItem value="cli" label="Config file">
+  
+  1. Navigate to the Goose [configuration file](/docs/guides/config-file). For example, navigate to `~/.config/goose/config.yaml` on macOS.
+  2. Edit the extension properties as needed and save your changes.
+
+  </TabItem>
+</Tabs>
+
 ## Removing Extensions
 
 You can remove installed extensions. 
@@ -509,7 +532,7 @@ You can remove installed extensions.
 
   1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
   2. Click the `Extensions` button on the sidebar.
-  3. Under `Extensions`, find the extension you'd like to remove and click on the settings icon beside it.
+  3. Under `Extensions`,  click the <Settings className="inline" size={16} /> button on the extension you'd like to remove.
   4. In the dialog that appears, click `Remove Extension`.
 
   </TabItem>

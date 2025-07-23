@@ -5429,22 +5429,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mcp-macros"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "convert_case",
- "mcp-core",
- "proc-macro2",
- "quote",
- "schemars",
- "serde",
- "serde_json",
- "syn 2.0.99",
- "tokio",
-]
-
-[[package]]
 name = "mcp-server"
 version = "0.1.0"
 dependencies = [
@@ -5452,7 +5436,6 @@ dependencies = [
  "async-trait",
  "futures",
  "mcp-core",
- "mcp-macros",
  "pin-project",
  "rmcp",
  "schemars",

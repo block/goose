@@ -21,18 +21,35 @@ pub fn spawn_worker(
 }
 
 async fn worker_loop(state: Arc<SharedState>, _worker_id: usize, task_config: TaskConfig) {
-    while let Some(task) = receive_task(&state).await {
-        state.task_execution_tracker.start_task(&task.id).await;
-        let result = process_task(
-            &task,
-            state.task_execution_tracker.clone(),
-            task_config.clone(),
-        )
-        .await;
+    loop {
+        tokio::select! {
+            task_option = receive_task(&state) => {
+                match task_option {
+                    Some(task) => {
+                        state.task_execution_tracker.start_task(&task.id).await;
+                        let result = process_task(
+                            &task,
+                            state.task_execution_tracker.clone(),
+                            task_config.clone(),
+                            state.cancellation_token.clone(),
+                        )
+                        .await;
 
-        if let Err(e) = state.result_sender.send(result).await {
-            tracing::error!("Worker failed to send result: {}", e);
-            break;
+                        if let Err(e) = state.result_sender.send(result).await {
+                            // Only log error if not cancelled (channel close is expected during cancellation)
+                            if !state.cancellation_token.is_cancelled() {
+                                tracing::error!("Worker failed to send result: {}", e);
+                            }
+                            break;
+                        }
+                    }
+                    None => break, // No more tasks
+                }
+            }
+            _ = state.cancellation_token.cancelled() => {
+                tracing::debug!("Worker cancelled");
+                break;
+            }
         }
     }
 

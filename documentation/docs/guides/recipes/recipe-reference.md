@@ -18,6 +18,49 @@ Files should be named either:
 
 After creating recipe files, you can use [`goose` CLI commands](/docs/guides/goose-cli-commands) to run or validate the files and to manage recipe sharing.
 
+### CLI and Desktop Formats
+
+The Goose CLI supports CLI and Desktop recipe formats:
+
+- **CLI Format**: Recipe fields (like `title`, `description`, `instructions`) are at the root level of the YAML/JSON file
+- **Desktop Format**: Recipe fields are nested inside a `recipe` object, with additional metadata fields at the root level
+
+The CLI automatically detects and handles both formats when running `goose run --recipe <file>` and `goose recipe` commands.
+
+<details>
+<summary>Format Examples</summary>
+
+**CLI Format:**
+```yaml
+version: "1.0.0"
+title: "Code Review Assistant"
+description: "Automated code review with best practices"
+instructions: "You are a code reviewer..."
+prompt: "Review the code in this repository"
+extensions: []
+```
+
+**Desktop Format:**
+```yaml
+name: "Code Review Assistant"
+recipe:
+  version: "1.0.0"
+  title: "Code Review Assistant"
+  description: "Automated code review with best practices"
+  instructions: "You are a code reviewer..."
+  prompt: "Review the code in this repository"
+  extensions: []
+isGlobal: true
+lastModified: 2025-07-02T03:46:46.778Z
+isArchived: false
+```
+
+:::note
+Goose automatically adds metadata fields to recipes saved from the Desktop app.
+:::
+
+</details>
+
 ## Recipe Structure
 
 ### Required Fields
@@ -39,6 +82,17 @@ After creating recipe files, you can use [`goose` CLI commands](/docs/guides/goo
 | `sub_recipes` | Array | List of sub-recipes |
 | `response` | Object | Configuration for structured output validation |
 | `retry` | Object | Configuration for automated retry logic with success validation |
+
+### Desktop Format Metadata Fields
+
+When recipes are saved from Goose Desktop, additional metadata fields are included at the top level (outside the `recipe` key). These fields are used by the Desktop app for organization and management but are ignored by CLI operations.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | String | Display name used in Desktop Recipe Library |
+| `isGlobal` | Boolean | Whether the recipe is available globally or locally to a project |
+| `lastModified` | String | ISO timestamp of when the recipe was last modified |
+| `isArchived` | Boolean | Whether the recipe is archived in the Desktop interface |
 
 ## Parameters
 

@@ -1,5 +1,7 @@
 use crate::{
-    agents::{Agent, TaskConfig},
+    agents::extension::ExtensionConfig,
+    agents::{extension_manager::ExtensionManager, Agent, TaskConfig},
+    config::ExtensionConfigManager,
     message::{Message, MessageContent, ToolRequest},
     prompt_template::render_global_file,
     providers::errors::ProviderError,
@@ -43,6 +45,7 @@ pub struct SubAgent {
     pub config: TaskConfig,
     pub turn_count: Arc<Mutex<usize>>,
     pub created_at: DateTime<Utc>,
+    pub extension_manager: Arc<RwLock<ExtensionManager>>,
 }
 
 impl SubAgent {
@@ -53,6 +56,29 @@ impl SubAgent {
     ) -> Result<(Arc<Self>, tokio::task::JoinHandle<()>), anyhow::Error> {
         debug!("Creating new subagent with id: {}", task_config.id);
 
+        // Create a new extension manager for this subagent
+        let mut extension_manager = ExtensionManager::new();
+
+        // Add extensions based on task_type:
+        // 1. If executing dynamic task (task_type = 'text_instruction'), default to using all enabled extensions
+        // 2. (TODO) If executing a sub-recipe task, only use recipe extensions
+
+        // Get all enabled extensions from config
+        let enabled_extensions = ExtensionConfigManager::get_all()
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|ext| ext.enabled)
+            .map(|ext| ext.config)
+            .collect::<Vec<ExtensionConfig>>();
+
+        // Add enabled extensions to the subagent's extension manager
+        for extension in enabled_extensions {
+            if let Err(e) = extension_manager.add_extension(extension).await {
+                debug!("Failed to add extension to subagent: {}", e);
+                // Continue with other extensions even if one fails
+            }
+        }
+
         let subagent = Arc::new(SubAgent {
             id: task_config.id.clone(),
             conversation: Arc::new(Mutex::new(Vec::new())),
@@ -60,6 +86,7 @@ impl SubAgent {
             config: task_config,
             turn_count: Arc::new(Mutex::new(0)),
             created_at: Utc::now(),
+            extension_manager: Arc::new(RwLock::new(extension_manager)),
         });
 
         // Send initial MCP notification
@@ -169,18 +196,12 @@ impl SubAgent {
         self.send_mcp_notification("message_processing", &format!("Processing: {}", message))
             .await;
 
-        // Get provider and extension manager from task config
+        // Get provider from task config
         let provider = self
             .config
             .provider
             .as_ref()
             .ok_or_else(|| anyhow!("No provider configured for subagent"))?;
-
-        let extension_manager = self
-            .config
-            .extension_manager
-            .as_ref()
-            .ok_or_else(|| anyhow!("No extension manager configured for subagent"))?;
 
         // Check if we've exceeded max turns
         {
@@ -220,8 +241,9 @@ impl SubAgent {
         // Get the current conversation for context
         let mut messages = self.get_conversation().await;
 
-        // Get tools based on whether we're using a recipe or inheriting from parent
-        let tools: Vec<Tool> = extension_manager
+        // Get tools from the subagent's own extension manager
+        let tools: Vec<Tool> = self
+            .extension_manager
             .read()
             .await
             .get_prefixed_tools(None)
@@ -292,7 +314,8 @@ impl SubAgent {
                             .await;
 
                             // Handle platform tools or dispatch to extension manager
-                            let tool_result = match extension_manager
+                            let tool_result = match self
+                                .extension_manager
                                 .read()
                                 .await
                                 .dispatch_tool_call(tool_call.clone())
