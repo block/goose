@@ -1129,9 +1129,22 @@ data: [DONE]
         pin!(messages);
 
         while let Some(Ok((message, _usage))) = messages.next().await {
-            println!("Message: {:?}", message);
+            if let Some(msg) = message {
+                if msg.content.len() == 2 {
+                    if let (MessageContent::ToolRequest(req1), MessageContent::ToolRequest(req2)) =
+                        (&msg.content[0], &msg.content[1])
+                    {
+                        if req1.tool_call.is_ok() && req2.tool_call.is_ok() {
+                            // We expect two tool calls in the response
+                            assert_eq!(req1.tool_call.as_ref().unwrap().name, "developer__shell");
+                            assert_eq!(req2.tool_call.as_ref().unwrap().name, "developer__shell");
+                            return Ok(());
+                        }
+                    }
+                }
+            }
         }
 
-        Ok(())
+        panic!("Expected tool call message with two calls, but did not see it");
     }
 }
