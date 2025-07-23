@@ -314,7 +314,7 @@
     "link": "https://github.com/upstash/context7",
     "installation_notes": "Install using npx package manager.",
     "is_builtin": false,
-    "endorsed": false,
+    "endorsed": true,
     "environmentVariables": []
   },
   {
@@ -416,7 +416,7 @@
     "link": "https://github.com/mongodb-js/mongodb-mcp-server",
     "installation_notes": "Install using npx package manager.",
     "is_builtin": false,
-    "endorsed": false,
+    "endorsed": true,
     "environmentVariables": []
   },
   {
