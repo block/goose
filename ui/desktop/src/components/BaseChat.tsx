@@ -225,10 +225,9 @@ function BaseChatContent({
 
   // Handle recipe auto-execution
   useEffect(() => {
-    handleAutoExecution(
-      append,
-      chatState !== ChatState.Idle && chatState !== ChatState.WaitingForUserInput
-    );
+    const isProcessingResponse =
+      chatState !== ChatState.Idle && chatState !== ChatState.WaitingForUserInput;
+    handleAutoExecution(append, isProcessingResponse);
   }, [handleAutoExecution, append, chatState]);
 
   // Use shared session continuation
