@@ -1,3 +1,4 @@
+use crate::agents::subagent_task_config::DEFAULT_SUBAGENT_MAX_TURNS;
 use crate::{
     agents::{Agent, TaskConfig},
     message::{Message, MessageContent, ToolRequest},
@@ -210,7 +211,7 @@ impl SubAgent {
 
         // Generate response from provider with loop for tool processing (max_turns iterations)
         let mut loop_count = 0;
-        let max_turns = self.config.max_turns.unwrap_or(2);
+        let max_turns = self.config.max_turns.unwrap_or(DEFAULT_SUBAGENT_MAX_TURNS);
 
         // Generate response from provider
         loop {
