@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import type { View } from '../../../App';
 import ModelSettingsButtons from './subcomponents/ModelSettingsButtons';
 import { useConfig } from '../../ConfigContext';
@@ -18,14 +18,16 @@ export default function ModelsSection({ setView }: ModelsSectionProps) {
   const [displayModelName, setDisplayModelName] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const { read, getProviders } = useConfig();
-  const { getCurrentModelDisplayName, getCurrentProviderDisplayName } = useModelAndProvider();
+  const {
+    getCurrentModelDisplayName,
+    getCurrentProviderDisplayName,
+    currentModel,
+    currentProvider,
+  } = useModelAndProvider();
 
-  // Function to load model data
   const loadModelData = useCallback(async () => {
     try {
       setIsLoading(true);
-      const gooseProvider = (await read('GOOSE_PROVIDER', false)) as string;
-      const providers = await getProviders(true);
 
       // Get display name (alias if available, otherwise model name)
       const modelDisplayName = await getCurrentModelDisplayName();
@@ -37,6 +39,8 @@ export default function ModelsSection({ setView }: ModelsSectionProps) {
         setProvider(providerDisplayName);
       } else {
         // Fallback to original provider lookup
+        const gooseProvider = (await read('GOOSE_PROVIDER', false)) as string;
+        const providers = await getProviders(true);
         const providerDetailsList = providers.filter((provider) => provider.name === gooseProvider);
 
         if (providerDetailsList.length != 1) {
@@ -59,8 +63,23 @@ export default function ModelsSection({ setView }: ModelsSectionProps) {
 
   useEffect(() => {
     loadModelData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loadModelData]);
+
+  // Update display when model or provider changes - but only if they actually changed
+  const prevModelRef = useRef<string | null>(null);
+  const prevProviderRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (
+      currentModel &&
+      currentProvider &&
+      (currentModel !== prevModelRef.current || currentProvider !== prevProviderRef.current)
+    ) {
+      prevModelRef.current = currentModel;
+      prevProviderRef.current = currentProvider;
+      loadModelData();
+    }
+  }, [currentModel, currentProvider, loadModelData]);
 
   return (
     <section id="models" className="space-y-4 pr-4">

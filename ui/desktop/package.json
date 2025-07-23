@@ -1,7 +1,7 @@
 {
   "name": "goose-app",
   "productName": "Goose",
-  "version": "1.1.3",
+  "version": "1.1.4",
   "description": "Goose App",
   "engines": {
     "node": "^22.9.0"

@@ -382,7 +382,7 @@ export default function ChatInput({
   useEffect(() => {
     clearAlerts();
 
-    // Only show token alerts if we have loaded the real token limit
+    // Always show token alerts if we have loaded the real token limit and have tokens
     if (isTokenLimitLoaded && tokenLimit && numTokens && numTokens > 0) {
       if (numTokens >= tokenLimit) {
         // Only show error alert when limit reached
@@ -409,6 +409,16 @@ export default function ChatInput({
           },
         });
       }
+    } else if (isTokenLimitLoaded && tokenLimit) {
+      // Always show context window info even when no tokens are present (start of conversation)
+      addAlert({
+        type: AlertType.Info,
+        message: 'Context window',
+        progress: {
+          current: 0,
+          total: tokenLimit,
+        },
+      });
     }
 
     // Add tool count alert if we have the data

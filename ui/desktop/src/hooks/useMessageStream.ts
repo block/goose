@@ -4,6 +4,12 @@ import { getSecretKey } from '../config';
 import { Message, createUserMessage, hasCompletedToolCalls } from '../types/message';
 import { getSessionHistory } from '../api';
 
+let messageIdCounter = 0;
+
+function generateMessageId(): string {
+  return `msg-${Date.now()}-${++messageIdCounter}`;
+}
+
 // Ensure TextDecoder is available in the global scope
 const TextDecoder = globalThis.TextDecoder;
 
@@ -148,6 +154,12 @@ export interface UseMessageStreamHelpers {
   /** Whether the API request is in progress */
   isLoading: boolean;
 
+  /** Whether we're waiting for the first response from LLM */
+  isWaiting: boolean;
+
+  /** Whether we're actively streaming response content */
+  isStreaming: boolean;
+
   /** Add a tool result to a tool call */
   addToolResult: ({ toolCallId, result }: { toolCallId: string; result: unknown }) => void;
 
@@ -161,6 +173,9 @@ export interface UseMessageStreamHelpers {
 
   /** Session metadata including token counts */
   sessionMetadata: SessionMetadata | null;
+
+  /** Clear error state */
+  setError: (error: Error | undefined) => void;
 }
 
 /**
@@ -211,6 +226,17 @@ export function useMessageStream({
   // We store loading state in another hook to sync loading states across hook invocations
   const { data: isLoading = false, mutate: mutateLoading } = useSWR<boolean>(
     [chatKey, 'loading'],
+    null
+  );
+
+  // Track waiting vs streaming states
+  const { data: isWaiting = false, mutate: mutateWaiting } = useSWR<boolean>(
+    [chatKey, 'waiting'],
+    null
+  );
+
+  const { data: isStreaming = false, mutate: mutateStreaming } = useSWR<boolean>(
+    [chatKey, 'streaming'],
     null
   );
 
@@ -273,9 +299,15 @@ export function useMessageStream({
 
                 switch (parsedEvent.type) {
                   case 'Message': {
+                    // Transition from waiting to streaming on first message
+                    mutateWaiting(false);
+                    mutateStreaming(true);
+
                     // Create a new message object with the properties preserved or defaulted
                     const newMessage = {
                       ...parsedEvent.message,
+                      // Ensure the message has an ID - if not provided, generate one
+                      id: parsedEvent.message.id || generateMessageId(),
                       // Only set to true if it's undefined (preserve false values)
                       display:
                         parsedEvent.message.display === undefined
@@ -337,7 +369,7 @@ export function useMessageStream({
                     // If this is a token limit error, create a contextLengthExceeded message instead of throwing
                     if (isTokenLimitError) {
                       const contextMessage: Message = {
-                        id: `context-${Date.now()}`,
+                        id: generateMessageId(),
                         role: 'assistant',
                         created: Math.floor(Date.now() / 1000),
                         content: [
@@ -432,7 +464,7 @@ export function useMessageStream({
 
       return currentMessages;
     },
-    [mutate, onFinish, onError, forceUpdate, setError]
+    [mutate, mutateWaiting, mutateStreaming, onFinish, onError, forceUpdate, setError]
   );
 
   // Send a request to the server
@@ -440,6 +472,8 @@ export function useMessageStream({
     async (requestMessages: Message[]) => {
       try {
         mutateLoading(true);
+        mutateWaiting(true); // Start in waiting state
+        mutateStreaming(false);
         setError(undefined);
 
         // Create abort controller
@@ -511,10 +545,22 @@ export function useMessageStream({
         setError(err as Error);
       } finally {
         mutateLoading(false);
+        mutateWaiting(false);
+        mutateStreaming(false);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [api, processMessageStream, mutateLoading, setError, onResponse, onError, maxSteps]
+    [
+      api,
+      processMessageStream,
+      mutateLoading,
+      mutateWaiting,
+      mutateStreaming,
+      setError,
+      onResponse,
+      onError,
+      maxSteps,
+    ]
   );
 
   // Append a new message and send request
@@ -612,6 +658,7 @@ export function useMessageStream({
 
       // Create a tool response message
       const toolResponseMessage: Message = {
+        id: generateMessageId(),
         role: 'user' as const,
         created: Math.floor(Date.now() / 1000),
         content: [
@@ -658,10 +705,13 @@ export function useMessageStream({
     handleInputChange,
     handleSubmit,
     isLoading: isLoading || false,
+    isWaiting: isWaiting || false,
+    isStreaming: isStreaming || false,
     addToolResult,
     updateMessageStreamBody,
     notifications,
     currentModelInfo,
     sessionMetadata,
+    setError,
   };
 }

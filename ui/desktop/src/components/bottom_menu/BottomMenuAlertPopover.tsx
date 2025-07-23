@@ -12,7 +12,6 @@ interface AlertPopoverProps {
 
 export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [hasShownInitial, setHasShownInitial] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [wasAutoShown, setWasAutoShown] = useState(false);
   const [popoverPosition, setPopoverPosition] = useState({ top: 0, left: 0 });
@@ -116,17 +115,14 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
     // Only auto-show if any of the new/changed alerts have autoShow: true
     const hasNewAutoShowAlert = changedAlerts.some((alert) => alert.autoShow === true);
 
-    // Auto show the popover only if:
-    // 1. There are new alerts that should auto-show AND
-    // 2. We haven't shown this specific alert before (tracked by hasShownInitial)
-    if (hasNewAutoShowAlert && !hasShownInitial) {
+    // Auto show the popover for new auto-show alerts
+    if (hasNewAutoShowAlert) {
       setIsOpen(true);
-      setHasShownInitial(true);
       setWasAutoShown(true);
       // Start 3 second timer for auto-show
       startHideTimer(3000);
     }
-  }, [alerts, hasShownInitial, startHideTimer]);
+  }, [alerts, startHideTimer]);
 
   // Handle auto-hide based on hover state changes
   useEffect(() => {
