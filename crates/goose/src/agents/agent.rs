@@ -75,7 +75,6 @@ pub struct Agent {
     pub(super) tool_monitor: Arc<Mutex<Option<ToolMonitor>>>,
     pub(super) router_tool_selector: Mutex<Option<Arc<Box<dyn RouterToolSelector>>>>,
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
-    pub(super) current_cancellation_token: Arc<Mutex<Option<CancellationToken>>>,
     pub(super) mcp_tx: Mutex<mpsc::Sender<JsonRpcMessage>>,
     pub(super) mcp_notification_rx: Arc<Mutex<mpsc::Receiver<JsonRpcMessage>>>,
     pub(super) retry_manager: RetryManager,
@@ -155,7 +154,6 @@ impl Agent {
             tool_monitor,
             router_tool_selector: Mutex::new(None),
             scheduler_service: Mutex::new(None),
-            current_cancellation_token: Arc::new(Mutex::new(None)),
             // Initialize with MCP notification support
             mcp_tx: Mutex::new(mcp_tx),
             mcp_notification_rx: Arc::new(Mutex::new(mcp_rx)),
@@ -275,6 +273,7 @@ impl Agent {
         &self,
         tool_call: mcp_core::tool::ToolCall,
         request_id: String,
+        cancellation_token: Option<CancellationToken>,
     ) -> (String, Result<ToolCallResult, ToolError>) {
         // Check if this tool call should be allowed based on repetition monitoring
         if let Some(monitor) = self.tool_monitor.lock().await.as_mut() {
@@ -348,13 +347,11 @@ impl Agent {
             let task_config =
                 TaskConfig::new(provider, Some(Arc::clone(&self.extension_manager)), mcp_tx);
 
-            let current_token = self.current_cancellation_token.lock().await.clone();
-
             subagent_execute_task_tool::run_tasks(
                 tool_call.arguments.clone(),
                 task_config,
                 &self.tasks_manager,
-                current_token,
+                cancellation_token,
             )
             .await
         } else if tool_call.name == DYNAMIC_TASK_TOOL_NAME_PREFIX {
@@ -725,11 +722,6 @@ impl Agent {
         session: Option<SessionConfig>,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        {
-            let mut current_token = self.current_cancellation_token.lock().await;
-            *current_token = cancel_token.clone();
-        }
-
         let mut messages = messages.to_vec();
         let initial_messages = messages.clone();
         let reply_span = tracing::Span::current();
@@ -925,7 +917,7 @@ impl Agent {
                                     for request in &permission_check_result.approved {
                                         if let Ok(tool_call) = request.tool_call.clone() {
                                             let (req_id, tool_result) = self
-                                                .dispatch_tool_call(tool_call, request.id.clone())
+                                                .dispatch_tool_call(tool_call, request.id.clone(), cancel_token.clone())
                                                 .await;
 
                                             tool_futures.push((
@@ -962,6 +954,7 @@ impl Agent {
                                         tool_futures_arc.clone(),
                                         &mut permission_manager,
                                         message_tool_response.clone(),
+                                        cancel_token.clone(),
                                     );
 
                                     while let Some(msg) = tool_approval_stream.try_next().await? {
