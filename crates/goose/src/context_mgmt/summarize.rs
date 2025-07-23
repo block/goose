@@ -116,19 +116,13 @@ pub async fn summarize_messages_oneshot(
     token_counter: &TokenCounter,
     _context_limit: usize,
 ) -> Result<(Vec<Message>, Vec<usize>), anyhow::Error> {
-    // Preprocess messages to handle tool response edge case.
-    let (preprocessed_messages, removed_messages) = preprocess_messages(messages);
-
-    if preprocessed_messages.is_empty() {
-        // If no messages to summarize, just return the removed messages
-        return Ok((
-            removed_messages.clone(),
-            get_messages_token_counts(token_counter, &removed_messages),
-        ));
+    if messages.is_empty() {
+        // If no messages to summarize, return empty
+        return Ok((vec![], vec![]));
     }
 
     // Format all messages as a single string for the summarization prompt
-    let messages_text = preprocessed_messages
+    let messages_text = messages
         .iter()
         .map(|msg| format!("{:?}", msg))
         .collect::<Vec<_>>()
@@ -155,8 +149,8 @@ pub async fn summarize_messages_oneshot(
     // Set role to user as it will be used in following conversation as user content.
     response.role = Role::User;
 
-    // Add back removed messages.
-    let final_summary = reintegrate_removed_messages(&[response], &removed_messages);
+    // Return just the summary without any tool response preservation
+    let final_summary = vec![response];
 
     Ok((
         final_summary.clone(),
@@ -180,17 +174,14 @@ pub async fn summarize_messages_chunked(
     let summary_prompt_tokens = token_counter.count_tokens(SUMMARY_PROMPT);
     let mut accumulated_summary = Vec::new();
 
-    // Preprocess messages to handle tool response edge case.
-    let (preprocessed_messages, removed_messages) = preprocess_messages(messages);
-
     // Get token counts for each message.
-    let token_counts = get_messages_token_counts(token_counter, &preprocessed_messages);
+    let token_counts = get_messages_token_counts(token_counter, messages);
 
     // Tokenize and break messages into chunks.
     let mut current_chunk: Vec<Message> = Vec::new();
     let mut current_chunk_tokens = 0;
 
-    for (message, message_tokens) in preprocessed_messages.iter().zip(token_counts.iter()) {
+    for (message, message_tokens) in messages.iter().zip(token_counts.iter()) {
         if current_chunk_tokens + message_tokens > chunk_size - summary_prompt_tokens {
             // Summarize the current chunk with the accumulated summary.
             accumulated_summary =
@@ -213,12 +204,10 @@ pub async fn summarize_messages_chunked(
             summarize_combined_messages(&provider, &accumulated_summary, &current_chunk).await?;
     }
 
-    // Add back removed messages.
-    let final_summary = reintegrate_removed_messages(&accumulated_summary, &removed_messages);
-
+    // Return just the summary without any tool response preservation
     Ok((
-        final_summary.clone(),
-        get_messages_token_counts(token_counter, &final_summary),
+        accumulated_summary.clone(),
+        get_messages_token_counts(token_counter, &accumulated_summary),
     ))
 }
 
@@ -281,17 +270,14 @@ pub async fn summarize_messages_async(
     let summary_prompt_tokens = token_counter.count_tokens(SUMMARY_PROMPT);
     let mut accumulated_summary = Vec::new();
 
-    // Preprocess messages to handle tool response edge case.
-    let (preprocessed_messages, removed_messages) = preprocess_messages(messages);
-
     // Get token counts for each message.
-    let token_counts = get_messages_token_counts_async(token_counter, &preprocessed_messages);
+    let token_counts = get_messages_token_counts_async(token_counter, messages);
 
     // Tokenize and break messages into chunks.
     let mut current_chunk: Vec<Message> = Vec::new();
     let mut current_chunk_tokens = 0;
 
-    for (message, message_tokens) in preprocessed_messages.iter().zip(token_counts.iter()) {
+    for (message, message_tokens) in messages.iter().zip(token_counts.iter()) {
         if current_chunk_tokens + message_tokens > chunk_size - summary_prompt_tokens {
             // Summarize the current chunk with the accumulated summary.
             accumulated_summary =
@@ -314,12 +300,10 @@ pub async fn summarize_messages_async(
             summarize_combined_messages(&provider, &accumulated_summary, &current_chunk).await?;
     }
 
-    // Add back removed messages.
-    let final_summary = reintegrate_removed_messages(&accumulated_summary, &removed_messages);
-
+    // Return just the summary without any tool response preservation
     Ok((
-        final_summary.clone(),
-        get_messages_token_counts_async(token_counter, &final_summary),
+        accumulated_summary.clone(),
+        get_messages_token_counts_async(token_counter, &accumulated_summary),
     ))
 }
 
