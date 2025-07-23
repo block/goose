@@ -1,5 +1,5 @@
-use mcp_core::protocol::{JsonRpcMessage, JsonRpcNotification};
-use serde_json::json;
+use rmcp::model::{JsonRpcMessage, JsonRpcNotification, JsonRpcVersion2_0, Notification};
+use rmcp::object;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
@@ -12,6 +12,7 @@ use crate::agents::subagent_execution_tool::notification_events::{
 use crate::agents::subagent_execution_tool::task_types::{Task, TaskInfo, TaskResult, TaskStatus};
 use crate::agents::subagent_execution_tool::utils::{count_by_status, get_task_name};
 use serde_json::Value;
+use tokio::sync::mpsc::Sender;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum DisplayMode {
@@ -67,7 +68,7 @@ impl TaskExecutionTracker {
     pub fn new(
         tasks: Vec<Task>,
         display_mode: DisplayMode,
-        notifier: mpsc::Sender<JsonRpcMessage>,
+        notifier: Sender<JsonRpcMessage>,
     ) -> Self {
         let task_map = tasks
             .into_iter()
@@ -155,11 +156,14 @@ impl TaskExecutionTracker {
                 if let Err(e) =
                     self.notifier
                         .try_send(JsonRpcMessage::Notification(JsonRpcNotification {
-                            jsonrpc: "2.0".to_string(),
-                            method: "notifications/message".to_string(),
-                            params: Some(json!({
-                                "data": event.to_notification_data()
-                            })),
+                            jsonrpc: JsonRpcVersion2_0,
+                            notification: Notification {
+                                method: "notifications/message".to_string(),
+                                params: object!({
+                                    "data": event.to_notification_data()
+                                }),
+                                extensions: Default::default(),
+                            },
                         }))
                 {
                     tracing::warn!("Failed to send live output notification: {}", e);
@@ -228,11 +232,14 @@ impl TaskExecutionTracker {
         if let Err(e) = self
             .notifier
             .try_send(JsonRpcMessage::Notification(JsonRpcNotification {
-                jsonrpc: "2.0".to_string(),
-                method: "notifications/message".to_string(),
-                params: Some(json!({
-                    "data": event.to_notification_data()
-                })),
+                jsonrpc: JsonRpcVersion2_0,
+                notification: Notification {
+                    method: "notifications/message".to_string(),
+                    params: object!({
+                        "data": event.to_notification_data()
+                    }),
+                    extensions: Default::default(),
+                },
             }))
         {
             tracing::warn!("Failed to send tasks update notification: {}", e);
@@ -289,11 +296,14 @@ impl TaskExecutionTracker {
         if let Err(e) = self
             .notifier
             .try_send(JsonRpcMessage::Notification(JsonRpcNotification {
-                jsonrpc: "2.0".to_string(),
-                method: "notifications/message".to_string(),
-                params: Some(json!({
-                    "data": event.to_notification_data()
-                })),
+                jsonrpc: JsonRpcVersion2_0,
+                notification: Notification {
+                    method: "notifications/message".to_string(),
+                    params: object!({
+                        "data": event.to_notification_data()
+                    }),
+                    extensions: Default::default(),
+                },
             }))
         {
             tracing::warn!("Failed to send tasks complete notification: {}", e);

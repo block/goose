@@ -1,6 +1,6 @@
 use crate::agents::extension_manager::ExtensionManager;
 use crate::providers::base::Provider;
-use mcp_core::protocol::JsonRpcMessage;
+use rmcp::model::JsonRpcMessage;
 use std::fmt;
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};

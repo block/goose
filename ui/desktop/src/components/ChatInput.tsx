@@ -896,373 +896,375 @@ export default function ChatInput({
       onDrop={handleLocalDrop}
       onDragOver={handleLocalDragOver}
     >
-      <form onSubmit={onFormSubmit} className="flex flex-col">
-        {/* Input row with inline action buttons */}
-        <div className="relative flex items-end">
-          <div className="relative flex-1">
-            <textarea
-              data-testid="chat-input"
-              autoFocus
-              id="dynamic-textarea"
-              placeholder={isRecording ? '' : '⌘↑/⌘↓ to navigate messages'}
-              value={displayValue}
-              onChange={handleChange}
-              onCompositionStart={handleCompositionStart}
-              onCompositionEnd={handleCompositionEnd}
-              onKeyDown={handleKeyDown}
-              onPaste={handlePaste}
-              onFocus={() => setIsFocused(true)}
-              onBlur={() => setIsFocused(false)}
-              ref={textAreaRef}
-              rows={1}
-              style={{
-                maxHeight: `${maxHeight}px`,
-                overflowY: 'auto',
-                opacity: isRecording ? 0 : 1,
-              }}
-              className="w-full outline-none border-none focus:ring-0 bg-transparent px-3 pt-3 pb-1.5 pr-20 text-sm resize-none text-textStandard placeholder:text-textPlaceholder"
-            />
-            {isRecording && (
-              <div className="absolute inset-0 flex items-center pl-4 pr-20 pt-3 pb-1.5">
-                <WaveformVisualizer
-                  audioContext={audioContext}
-                  analyser={analyser}
-                  isRecording={isRecording}
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Inline action buttons on the right */}
-          <div className="flex items-center gap-1 px-2 relative">
-            {/* Microphone button - show if dictation is enabled, disable if not configured */}
-            {dictationSettings?.enabled && (
-              <>
-                {!canUseDictation ? (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="inline-flex">
-                        <Button
-                          type="button"
-                          size="sm"
-                          shape="round"
-                          variant="outline"
-                          onClick={() => {}}
-                          disabled={true}
-                          className="bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600 rounded-full px-6 py-2"
-                        >
-                          <Microphone />
-                        </Button>
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {dictationSettings.provider === 'openai'
-                        ? 'OpenAI API key is not configured. Set it up in Settings > Models.'
-                        : dictationSettings.provider === 'elevenlabs'
-                          ? 'ElevenLabs API key is not configured. Set it up in Settings > Chat > Voice Dictation.'
-                          : 'Dictation provider is not properly configured.'}
-                    </TooltipContent>
-                  </Tooltip>
-                ) : (
-                  <Button
-                    type="button"
-                    size="sm"
-                    shape="round"
-                    variant="outline"
-                    onClick={() => {
-                      if (isRecording) {
-                        stopRecording();
-                      } else {
-                        startRecording();
-                      }
-                    }}
-                    disabled={isTranscribing}
-                    className={`rounded-full px-6 py-2 ${
-                      isRecording
-                        ? 'bg-red-500 text-white hover:bg-red-600 border-red-500'
-                        : isTranscribing
-                          ? 'bg-slate-600 text-white cursor-not-allowed animate-pulse border-slate-600'
-                          : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600'
-                    }`}
-                  >
-                    <Microphone />
-                  </Button>
-                )}
-              </>
-            )}
-
-            {/* Send/Stop button */}
-            {isLoading ? (
-              <Button
-                type="button"
-                onClick={onStop}
-                size="sm"
-                shape="round"
-                variant="outline"
-                className="bg-slate-600 text-white hover:bg-slate-700 border-slate-600 rounded-full px-6 py-2"
-              >
-                <Stop />
-              </Button>
-            ) : (
-              <Button
-                type="submit"
-                size="sm"
-                shape="round"
-                variant="outline"
-                disabled={
-                  !hasSubmittableContent ||
-                  isAnyImageLoading ||
-                  isAnyDroppedFileLoading ||
-                  isRecording ||
-                  isTranscribing ||
-                  isLoadingSummary
-                }
-                className={`rounded-full px-10 py-2 flex items-center gap-2 ${
-                  !hasSubmittableContent ||
-                  isAnyImageLoading ||
-                  isAnyDroppedFileLoading ||
-                  isRecording ||
-                  isTranscribing ||
-                  isLoadingSummary
-                    ? 'bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600'
-                    : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600 hover:cursor-pointer'
-                }`}
-                title={
-                  isLoadingSummary
-                    ? 'Summarizing conversation...'
-                    : isAnyImageLoading
-                      ? 'Waiting for images to save...'
-                      : isAnyDroppedFileLoading
-                        ? 'Processing dropped files...'
-                        : isRecording
-                          ? 'Recording...'
-                          : isTranscribing
-                            ? 'Transcribing...'
-                            : 'Send'
-                }
-              >
-                <Send className="w-4 h-4" />
-                <span className="text-sm">Send</span>
-              </Button>
-            )}
-
-            {/* Recording/transcribing status indicator - positioned above the button row */}
-            {(isRecording || isTranscribing) && (
-              <div className="absolute right-0 -top-8 bg-background-default px-2 py-1 rounded text-xs whitespace-nowrap shadow-md border border-borderSubtle">
-                {isTranscribing ? (
-                  <span className="text-blue-500 flex items-center gap-1">
-                    <span className="inline-block w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                    Transcribing...
-                  </span>
-                ) : (
-                  <span
-                    className={`flex items-center gap-2 ${estimatedSize > 20 ? 'text-orange-500' : 'text-textSubtle'}`}
-                  >
-                    <span className="inline-block w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                    {Math.floor(recordingDuration)}s • ~{estimatedSize.toFixed(1)}MB
-                    {estimatedSize > 20 && <span className="text-xs">(near 25MB limit)</span>}
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
+      {/* Input row with inline action buttons wrapped in form */}
+      <form onSubmit={onFormSubmit} className="relative flex items-end">
+        <div className="relative flex-1">
+          <textarea
+            data-testid="chat-input"
+            autoFocus
+            id="dynamic-textarea"
+            placeholder={isRecording ? '' : '⌘↑/⌘↓ to navigate messages'}
+            value={displayValue}
+            onChange={handleChange}
+            onCompositionStart={handleCompositionStart}
+            onCompositionEnd={handleCompositionEnd}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
+            ref={textAreaRef}
+            rows={1}
+            style={{
+              maxHeight: `${maxHeight}px`,
+              overflowY: 'auto',
+              opacity: isRecording ? 0 : 1,
+            }}
+            className="w-full outline-none border-none focus:ring-0 bg-transparent px-3 pt-3 pb-1.5 pr-20 text-sm resize-none text-textStandard placeholder:text-textPlaceholder"
+          />
+          {isRecording && (
+            <div className="absolute inset-0 flex items-center pl-4 pr-20 pt-3 pb-1.5">
+              <WaveformVisualizer
+                audioContext={audioContext}
+                analyser={analyser}
+                isRecording={isRecording}
+              />
+            </div>
+          )}
         </div>
 
-        {/* Combined files and images preview */}
-        {(pastedImages.length > 0 || allDroppedFiles.length > 0) && (
-          <div className="flex flex-wrap gap-2 p-2 border-t border-borderSubtle">
-            {/* Render pasted images first */}
-            {pastedImages.map((img) => (
-              <div key={img.id} className="relative group w-20 h-20">
-                {img.dataUrl && (
-                  <img
-                    src={img.dataUrl}
-                    alt={`Pasted image ${img.id}`}
-                    className={`w-full h-full object-cover rounded border ${img.error ? 'border-red-500' : 'border-borderStandard'}`}
-                  />
-                )}
-                {img.isLoading && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded">
-                    <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-white"></div>
-                  </div>
-                )}
-                {img.error && !img.isLoading && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-75 rounded p-1 text-center">
-                    <p className="text-red-400 text-[10px] leading-tight break-all mb-1">
-                      {img.error.substring(0, 50)}
-                    </p>
-                    {img.dataUrl && (
+        {/* Inline action buttons on the right */}
+        <div className="flex items-center gap-1 px-2 relative">
+          {/* Microphone button - show if dictation is enabled, disable if not configured */}
+          {dictationSettings?.enabled && (
+            <>
+              {!canUseDictation ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex">
                       <Button
                         type="button"
-                        onClick={() => handleRetryImageSave(img.id)}
-                        title="Retry saving image"
+                        size="sm"
+                        shape="round"
                         variant="outline"
-                        size="xs"
+                        onClick={() => {}}
+                        disabled={true}
+                        className="bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600 rounded-full px-6 py-2"
                       >
-                        Retry
+                        <Microphone />
                       </Button>
-                    )}
-                  </div>
-                )}
-                {!img.isLoading && (
-                  <Button
-                    type="button"
-                    shape="round"
-                    onClick={() => handleRemovePastedImage(img.id)}
-                    className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity z-10"
-                    aria-label="Remove image"
-                    variant="outline"
-                    size="xs"
-                  >
-                    <Close />
-                  </Button>
-                )}
-              </div>
-            ))}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {dictationSettings.provider === 'openai'
+                      ? 'OpenAI API key is not configured. Set it up in Settings > Models.'
+                      : dictationSettings.provider === 'elevenlabs'
+                        ? 'ElevenLabs API key is not configured. Set it up in Settings > Chat > Voice Dictation.'
+                        : 'Dictation provider is not properly configured.'}
+                  </TooltipContent>
+                </Tooltip>
+              ) : (
+                <Button
+                  type="button"
+                  size="sm"
+                  shape="round"
+                  variant="outline"
+                  onClick={() => {
+                    if (isRecording) {
+                      stopRecording();
+                    } else {
+                      startRecording();
+                    }
+                  }}
+                  disabled={isTranscribing}
+                  className={`rounded-full px-6 py-2 ${
+                    isRecording
+                      ? 'bg-red-500 text-white hover:bg-red-600 border-red-500'
+                      : isTranscribing
+                        ? 'bg-slate-600 text-white cursor-not-allowed animate-pulse border-slate-600'
+                        : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600'
+                  }`}
+                >
+                  <Microphone />
+                </Button>
+              )}
+            </>
+          )}
 
-            {/* Render dropped files after pasted images */}
-            {allDroppedFiles.map((file) => (
-              <div key={file.id} className="relative group">
-                {file.isImage ? (
-                  // Image preview
-                  <div className="w-20 h-20">
-                    {file.dataUrl && (
-                      <img
-                        src={file.dataUrl}
-                        alt={file.name}
-                        className={`w-full h-full object-cover rounded border ${file.error ? 'border-red-500' : 'border-borderStandard'}`}
-                      />
-                    )}
-                    {file.isLoading && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded">
-                        <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-white"></div>
-                      </div>
-                    )}
-                    {file.error && !file.isLoading && (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-75 rounded p-1 text-center">
-                        <p className="text-red-400 text-[10px] leading-tight break-all">
-                          {file.error.substring(0, 30)}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  // File box preview
-                  <div className="flex items-center gap-2 px-3 py-2 bg-bgSubtle border border-borderStandard rounded-lg min-w-[120px] max-w-[200px]">
-                    <div className="flex-shrink-0 w-8 h-8 bg-background-default border border-borderSubtle rounded flex items-center justify-center text-xs font-mono text-textSubtle">
-                      {file.name.split('.').pop()?.toUpperCase() || 'FILE'}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-textStandard truncate" title={file.name}>
-                        {file.name}
-                      </p>
-                      <p className="text-xs text-textSubtle">{file.type || 'Unknown type'}</p>
-                    </div>
-                  </div>
-                )}
-                {!file.isLoading && (
-                  <Button
-                    type="button"
-                    shape="round"
-                    onClick={() => handleRemoveDroppedFile(file.id)}
-                    className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity z-10"
-                    aria-label="Remove file"
-                    variant="outline"
-                    size="xs"
-                  >
-                    <Close />
-                  </Button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+          {/* Send/Stop button */}
+          {isLoading ? (
+            <Button
+              type="button"
+              onClick={onStop}
+              size="sm"
+              shape="round"
+              variant="outline"
+              className="bg-slate-600 text-white hover:bg-slate-700 border-slate-600 rounded-full px-6 py-2"
+            >
+              <Stop />
+            </Button>
+          ) : (
+            <Button
+              type="submit"
+              size="sm"
+              shape="round"
+              variant="outline"
+              disabled={
+                !hasSubmittableContent ||
+                isAnyImageLoading ||
+                isAnyDroppedFileLoading ||
+                isRecording ||
+                isTranscribing ||
+                isLoadingSummary
+              }
+              className={`rounded-full px-10 py-2 flex items-center gap-2 ${
+                !hasSubmittableContent ||
+                isAnyImageLoading ||
+                isAnyDroppedFileLoading ||
+                isRecording ||
+                isTranscribing ||
+                isLoadingSummary
+                  ? 'bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600'
+                  : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600 hover:cursor-pointer'
+              }`}
+              title={
+                isLoadingSummary
+                  ? 'Summarizing conversation...'
+                  : isAnyImageLoading
+                    ? 'Waiting for images to save...'
+                    : isAnyDroppedFileLoading
+                      ? 'Processing dropped files...'
+                      : isRecording
+                        ? 'Recording...'
+                        : isTranscribing
+                          ? 'Transcribing...'
+                          : 'Send'
+              }
+            >
+              <Send className="w-4 h-4" />
+              <span className="text-sm">Send</span>
+            </Button>
+          )}
 
-        {/* Secondary actions and controls row below input */}
-        <div className="flex flex-row items-center gap-1 p-2 relative">
-          {/* Directory path */}
-          <DirSwitcher hasMessages={messages.length > 0} className="mr-0" />
-          <div className="w-px h-4 bg-border-default mx-2" />
-
-          {/* Attach button */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors"
-                onClick={handleFileSelect}
-              >
-                <Attach className="w-4 h-4" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>Attach file or directory</TooltipContent>
-          </Tooltip>
-          <div className="w-px h-4 bg-border-default mx-2" />
-
-          {/* Model selector, mode selector, alerts, summarize button */}
-          <div className="flex flex-row items-center">
-            {/* Cost Tracker */}
-            {COST_TRACKING_ENABLED && (
-              <>
-                <div className="flex items-center h-full ml-1 mr-1">
-                  <CostTracker
-                    inputTokens={inputTokens}
-                    outputTokens={outputTokens}
-                    sessionCosts={sessionCosts}
-                  />
-                </div>
-              </>
-            )}
-            <Tooltip>
-              <div>
-                <ModelsBottomBar
-                  dropdownRef={dropdownRef}
-                  setView={setView}
-                  alerts={alerts}
-                  recipeConfig={recipeConfig}
-                  hasMessages={messages.length > 0}
-                />
-              </div>
-            </Tooltip>
-            <div className="w-px h-4 bg-border-default mx-2" />
-            <BottomMenuModeSelection />
-            {messages.length > 0 && (
-              <ManualSummarizeButton
-                messages={messages}
-                isLoading={isLoading}
-                setMessages={setMessages}
-              />
-            )}
-            <div className="w-px h-4 bg-border-default mx-2" />
-            <div className="flex items-center h-full">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer"
-                    onClick={() => setIsGoosehintsModalOpen?.(true)}
-                  >
-                    <FolderKey size={16} />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>Configure goosehints</TooltipContent>
-              </Tooltip>
+          {/* Recording/transcribing status indicator - positioned above the button row */}
+          {(isRecording || isTranscribing) && (
+            <div className="absolute right-0 -top-8 bg-background-default px-2 py-1 rounded text-xs whitespace-nowrap shadow-md border border-borderSubtle">
+              {isTranscribing ? (
+                <span className="text-blue-500 flex items-center gap-1">
+                  <span className="inline-block w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                  Transcribing...
+                </span>
+              ) : (
+                <span
+                  className={`flex items-center gap-2 ${estimatedSize > 20 ? 'text-orange-500' : 'text-textSubtle'}`}
+                >
+                  <span className="inline-block w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                  {Math.floor(recordingDuration)}s • ~{estimatedSize.toFixed(1)}MB
+                  {estimatedSize > 20 && <span className="text-xs">(near 25MB limit)</span>}
+                </span>
+              )}
             </div>
-          </div>
-
-          <MentionPopover
-            ref={mentionPopoverRef}
-            isOpen={mentionPopover.isOpen}
-            onClose={() => setMentionPopover((prev) => ({ ...prev, isOpen: false }))}
-            onSelect={handleMentionFileSelect}
-            position={mentionPopover.position}
-            query={mentionPopover.query}
-            selectedIndex={mentionPopover.selectedIndex}
-            onSelectedIndexChange={(index) =>
-              setMentionPopover((prev) => ({ ...prev, selectedIndex: index }))
-            }
-          />
+          )}
         </div>
       </form>
+
+      {/* Combined files and images preview */}
+      {(pastedImages.length > 0 || allDroppedFiles.length > 0) && (
+        <div className="flex flex-wrap gap-2 p-2 border-t border-borderSubtle">
+          {/* Render pasted images first */}
+          {pastedImages.map((img) => (
+            <div key={img.id} className="relative group w-20 h-20">
+              {img.dataUrl && (
+                <img
+                  src={img.dataUrl}
+                  alt={`Pasted image ${img.id}`}
+                  className={`w-full h-full object-cover rounded border ${img.error ? 'border-red-500' : 'border-borderStandard'}`}
+                />
+              )}
+              {img.isLoading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded">
+                  <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-white"></div>
+                </div>
+              )}
+              {img.error && !img.isLoading && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-75 rounded p-1 text-center">
+                  <p className="text-red-400 text-[10px] leading-tight break-all mb-1">
+                    {img.error.substring(0, 50)}
+                  </p>
+                  {img.dataUrl && (
+                    <Button
+                      type="button"
+                      onClick={() => handleRetryImageSave(img.id)}
+                      title="Retry saving image"
+                      variant="outline"
+                      size="xs"
+                    >
+                      Retry
+                    </Button>
+                  )}
+                </div>
+              )}
+              {!img.isLoading && (
+                <Button
+                  type="button"
+                  shape="round"
+                  onClick={() => handleRemovePastedImage(img.id)}
+                  className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity z-10"
+                  aria-label="Remove image"
+                  variant="outline"
+                  size="xs"
+                >
+                  <Close />
+                </Button>
+              )}
+            </div>
+          ))}
+
+          {/* Render dropped files after pasted images */}
+          {allDroppedFiles.map((file) => (
+            <div key={file.id} className="relative group">
+              {file.isImage ? (
+                // Image preview
+                <div className="w-20 h-20">
+                  {file.dataUrl && (
+                    <img
+                      src={file.dataUrl}
+                      alt={file.name}
+                      className={`w-full h-full object-cover rounded border ${file.error ? 'border-red-500' : 'border-borderStandard'}`}
+                    />
+                  )}
+                  {file.isLoading && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded">
+                      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-white"></div>
+                    </div>
+                  )}
+                  {file.error && !file.isLoading && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-75 rounded p-1 text-center">
+                      <p className="text-red-400 text-[10px] leading-tight break-all">
+                        {file.error.substring(0, 30)}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                // File box preview
+                <div className="flex items-center gap-2 px-3 py-2 bg-bgSubtle border border-borderStandard rounded-lg min-w-[120px] max-w-[200px]">
+                  <div className="flex-shrink-0 w-8 h-8 bg-background-default border border-borderSubtle rounded flex items-center justify-center text-xs font-mono text-textSubtle">
+                    {file.name.split('.').pop()?.toUpperCase() || 'FILE'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-textStandard truncate" title={file.name}>
+                      {file.name}
+                    </p>
+                    <p className="text-xs text-textSubtle">{file.type || 'Unknown type'}</p>
+                  </div>
+                </div>
+              )}
+              {!file.isLoading && (
+                <Button
+                  type="button"
+                  shape="round"
+                  onClick={() => handleRemoveDroppedFile(file.id)}
+                  className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity z-10"
+                  aria-label="Remove file"
+                  variant="outline"
+                  size="xs"
+                >
+                  <Close />
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Secondary actions and controls row below input */}
+      <div className="flex flex-row items-center gap-1 p-2 relative">
+        {/* Directory path */}
+        <DirSwitcher hasMessages={messages.length > 0} className="mr-0" />
+        <div className="w-px h-4 bg-border-default mx-2" />
+
+        {/* Attach button */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              onClick={handleFileSelect}
+              variant="ghost"
+              size="sm"
+              className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors"
+            >
+              <Attach className="w-4 h-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Attach file or directory</TooltipContent>
+        </Tooltip>
+        <div className="w-px h-4 bg-border-default mx-2" />
+
+        {/* Model selector, mode selector, alerts, summarize button */}
+        <div className="flex flex-row items-center">
+          {/* Cost Tracker */}
+          {COST_TRACKING_ENABLED && (
+            <>
+              <div className="flex items-center h-full ml-1 mr-1">
+                <CostTracker
+                  inputTokens={inputTokens}
+                  outputTokens={outputTokens}
+                  sessionCosts={sessionCosts}
+                />
+              </div>
+            </>
+          )}
+          <Tooltip>
+            <div>
+              <ModelsBottomBar
+                dropdownRef={dropdownRef}
+                setView={setView}
+                alerts={alerts}
+                recipeConfig={recipeConfig}
+                hasMessages={messages.length > 0}
+              />
+            </div>
+          </Tooltip>
+          <div className="w-px h-4 bg-border-default mx-2" />
+          <BottomMenuModeSelection />
+          {messages.length > 0 && (
+            <ManualSummarizeButton
+              messages={messages}
+              isLoading={isLoading}
+              setMessages={setMessages}
+            />
+          )}
+          <div className="w-px h-4 bg-border-default mx-2" />
+          <div className="flex items-center h-full">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={() => setIsGoosehintsModalOpen?.(true)}
+                  variant="ghost"
+                  size="sm"
+                  className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer"
+                >
+                  <FolderKey size={16} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Configure goosehints</TooltipContent>
+            </Tooltip>
+          </div>
+        </div>
+
+        <MentionPopover
+          ref={mentionPopoverRef}
+          isOpen={mentionPopover.isOpen}
+          onClose={() => setMentionPopover((prev) => ({ ...prev, isOpen: false }))}
+          onSelect={handleMentionFileSelect}
+          position={mentionPopover.position}
+          query={mentionPopover.query}
+          selectedIndex={mentionPopover.selectedIndex}
+          onSelectedIndexChange={(index) =>
+            setMentionPopover((prev) => ({ ...prev, selectedIndex: index }))
+          }
+        />
+      </div>
     </div>
   );
 }

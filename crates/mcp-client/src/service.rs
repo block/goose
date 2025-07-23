@@ -1,5 +1,5 @@
 use futures::future::BoxFuture;
-use mcp_core::protocol::{JsonRpcMessage, JsonRpcRequest};
+use rmcp::model::{JsonRpcMessage, JsonRpcRequest};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::task::{Context, Poll};
@@ -50,8 +50,8 @@ where
         let pending_requests = self.pending_requests.clone();
 
         Box::pin(async move {
-            match request {
-                JsonRpcMessage::Request(JsonRpcRequest { id: Some(id), .. }) => {
+            match &request {
+                JsonRpcMessage::Request(JsonRpcRequest { id, .. }) => {
                     // Create a channel to receive the response
                     let (sender, receiver) = oneshot::channel();
                     pending_requests.insert(id.to_string(), sender).await;
@@ -59,15 +59,17 @@ where
                     transport.send(request).await?;
                     receiver.await.map_err(|_| Error::ChannelClosed)?
                 }
-                JsonRpcMessage::Request(_) => {
-                    // Handle notifications without waiting for a response
-                    transport.send(request).await?;
-                    Ok(JsonRpcMessage::Nil)
-                }
                 JsonRpcMessage::Notification(_) => {
                     // Handle notifications without waiting for a response
                     transport.send(request).await?;
-                    Ok(JsonRpcMessage::Nil)
+                    // Return a dummy response for notifications
+                    let dummy_response: JsonRpcMessage =
+                        JsonRpcMessage::Response(rmcp::model::JsonRpcResponse {
+                            jsonrpc: rmcp::model::JsonRpcVersion2_0,
+                            id: rmcp::model::RequestId::Number(0),
+                            result: serde_json::Map::new(),
+                        });
+                    Ok(dummy_response)
                 }
                 _ => Err(Error::UnsupportedMessage),
             }

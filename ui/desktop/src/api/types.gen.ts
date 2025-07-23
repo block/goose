@@ -165,6 +165,7 @@ export type ExtensionConfig = {
      * Whether this extension is bundled with Goose
      */
     bundled?: boolean | null;
+    description?: string | null;
     display_name?: string | null;
     /**
      * The name used to identify this extension
@@ -451,10 +452,11 @@ export type RecipeParameter = {
     description: string;
     input_type: RecipeParameterInputType;
     key: string;
+    options?: Array<string> | null;
     requirement: RecipeParameterRequirement;
 };
 
-export type RecipeParameterInputType = 'string' | 'number' | 'boolean' | 'date' | 'file';
+export type RecipeParameterInputType = 'string' | 'number' | 'boolean' | 'date' | 'file' | 'select';
 
 export type RecipeParameterRequirement = 'required' | 'optional' | 'user_prompt';
 
@@ -622,6 +624,7 @@ export type Settings = {
 };
 
 export type SubRecipe = {
+    description?: string | null;
     name: string;
     path: string;
     sequential_when_repeated?: boolean;
@@ -758,14 +761,6 @@ export type ToolResponse = {
     toolResult: {
         [key: string]: unknown;
     };
-};
-
-export type ToolResultSchema = {
-    data: {
-        [key: string]: unknown;
-    };
-    message?: string | null;
-    success: boolean;
 };
 
 export type UpdateScheduleRequest = {

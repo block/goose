@@ -124,5 +124,9 @@ Set up [custom recipe paths](/docs/guides/recipes/session-recipes#configure-reci
 
 Once you've located your recipe file, [run the recipe](/docs/guides/recipes/session-recipes#run-a-recipe).
 
+:::tip Format Compatibility
+The CLI can run recipes saved from Goose Desktop without any conversion. Both CLI-created and Desktop-saved recipes work with all recipe commands.
+:::
+
   </TabItem>
 </Tabs>

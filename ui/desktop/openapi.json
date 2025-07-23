@@ -1527,6 +1527,10 @@
                 "description": "Whether this extension is bundled with Goose",
                 "nullable": true
               },
+              "description": {
+                "type": "string",
+                "nullable": true
+              },
               "display_name": {
                 "type": "string",
                 "nullable": true
@@ -2297,6 +2301,13 @@
           "key": {
             "type": "string"
           },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
           "requirement": {
             "$ref": "#/components/schemas/RecipeParameterRequirement"
           }
@@ -2309,7 +2320,8 @@
           "number",
           "boolean",
           "date",
-          "file"
+          "file",
+          "select"
         ]
       },
       "RecipeParameterRequirement": {
@@ -2715,6 +2727,10 @@
           "path"
         ],
         "properties": {
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
           "name": {
             "type": "string"
           },
@@ -2957,31 +2973,6 @@
           "toolResult": {
             "type": "object"
           }
-        }
-      },
-      "ToolResultSchema": {
-        "type": "object",
-        "required": [
-          "success",
-          "data"
-        ],
-        "properties": {
-          "data": {
-            "type": "object"
-          },
-          "message": {
-            "type": "string",
-            "example": "Operation completed successfully",
-            "nullable": true
-          },
-          "success": {
-            "type": "boolean",
-            "example": true
-          }
-        },
-        "example": {
-          "data": {},
-          "success": true
         }
       },
       "UpdateScheduleRequest": {

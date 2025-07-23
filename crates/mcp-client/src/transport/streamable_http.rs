@@ -3,8 +3,8 @@ use crate::transport::Error;
 use async_trait::async_trait;
 use eventsource_client::{Client, SSE};
 use futures::TryStreamExt;
-use mcp_core::protocol::{JsonRpcMessage, JsonRpcRequest};
 use reqwest::Client as HttpClient;
+use rmcp::model::{JsonRpcMessage, JsonRpcRequest, NumberOrString::Number};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex, RwLock};
@@ -89,7 +89,7 @@ impl StreamableHttpActor {
 
         let expects_response = matches!(
             parsed_message,
-            JsonRpcMessage::Request(JsonRpcRequest { id: Some(_), .. })
+            JsonRpcMessage::Request(JsonRpcRequest { id: Number(_), .. })
         );
 
         // Try to send the request

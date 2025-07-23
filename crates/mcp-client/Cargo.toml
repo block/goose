@@ -11,6 +11,7 @@ mcp-core = { path = "../mcp-core" }
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7", features = ["io"] }
 reqwest = { version = "0.11", default-features = false, features = ["json", "stream", "rustls-tls-native-roots"] }
+rmcp = { workspace = true }
 eventsource-client = "0.12.0"
 futures = "0.3"
 serde = { version = "1.0", features = ["derive"] }
