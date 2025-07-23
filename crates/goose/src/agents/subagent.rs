@@ -1,3 +1,4 @@
+use crate::agents::subagent_task_config::DEFAULT_SUBAGENT_MAX_TURNS;
 use crate::{
     agents::extension::ExtensionConfig,
     agents::{extension_manager::ExtensionManager, Agent, TaskConfig},
@@ -9,8 +10,6 @@ use crate::{
 use anyhow::anyhow;
 use chrono::{DateTime, Utc};
 use mcp_core::{handler::ToolError, tool::Tool};
-use rmcp::model::{JsonRpcMessage, JsonRpcNotification, JsonRpcVersion2_0, Notification};
-use rmcp::object;
 use serde::{Deserialize, Serialize};
 // use serde_json::{self};
 use std::{collections::HashMap, sync::Arc};
@@ -53,7 +52,7 @@ impl SubAgent {
     #[instrument(skip(task_config))]
     pub async fn new(
         task_config: TaskConfig,
-    ) -> Result<(Arc<Self>, tokio::task::JoinHandle<()>), anyhow::Error> {
+    ) -> Result<Arc<Self>, anyhow::Error> {
         debug!("Creating new subagent with id: {}", task_config.id);
 
         // Create a new extension manager for this subagent
@@ -89,21 +88,8 @@ impl SubAgent {
             extension_manager: Arc::new(RwLock::new(extension_manager)),
         });
 
-        // Send initial MCP notification
-        let subagent_clone = Arc::clone(&subagent);
-        subagent_clone
-            .send_mcp_notification("subagent_created", "Subagent created and ready")
-            .await;
-
-        // Create a background task handle (for future use with streaming/monitoring)
-        let subagent_clone = Arc::clone(&subagent);
-        let handle = tokio::spawn(async move {
-            // This could be used for background monitoring, cleanup, etc.
-            debug!("Subagent {} background task started", subagent_clone.id);
-        });
-
         debug!("Subagent {} created successfully", subagent.id);
-        Ok((subagent, handle))
+        Ok(subagent)
     }
 
     /// Get the current status of the subagent
@@ -118,51 +104,6 @@ impl SubAgent {
             let mut current_status = self.status.write().await;
             *current_status = status.clone();
         } // Write lock is released here!
-
-        // Send MCP notifications based on status
-        match &status {
-            SubAgentStatus::Processing => {
-                self.send_mcp_notification("status_changed", "Processing request")
-                    .await;
-            }
-            SubAgentStatus::Completed(msg) => {
-                self.send_mcp_notification("completed", &format!("Completed: {}", msg))
-                    .await;
-            }
-            SubAgentStatus::Terminated => {
-                self.send_mcp_notification("terminated", "Subagent terminated")
-                    .await;
-            }
-            _ => {}
-        }
-    }
-
-    /// Send an MCP notification about the subagent's activity
-    pub async fn send_mcp_notification(&self, notification_type: &str, message: &str) {
-        let notification = JsonRpcMessage::Notification(JsonRpcNotification {
-            jsonrpc: JsonRpcVersion2_0,
-            notification: Notification {
-                method: "notifications/message".to_string(),
-                params: object!({
-                    "level": "info",
-                    "logger": format!("subagent_{}", self.id),
-                    "data": {
-                        "subagent_id": self.id,
-                        "type": notification_type,
-                        "message": message,
-                        "timestamp": Utc::now().to_rfc3339()
-                    }
-                }),
-                extensions: Default::default(),
-            },
-        });
-
-        if let Err(e) = self.config.mcp_tx.send(notification).await {
-            error!(
-                "Failed to send MCP notification from subagent {}: {}",
-                self.id, e
-            );
-        }
     }
 
     /// Get current progress information
@@ -193,8 +134,6 @@ impl SubAgent {
         task_config: TaskConfig,
     ) -> Result<Message, anyhow::Error> {
         debug!("Processing message for subagent {}", self.id);
-        self.send_mcp_notification("message_processing", &format!("Processing: {}", message))
-            .await;
 
         // Get provider from task config
         let provider = self
@@ -202,20 +141,6 @@ impl SubAgent {
             .provider
             .as_ref()
             .ok_or_else(|| anyhow!("No provider configured for subagent"))?;
-
-        // Check if we've exceeded max turns
-        {
-            let turn_count = *self.turn_count.lock().await;
-            if let Some(max_turns) = self.config.max_turns {
-                if turn_count >= max_turns {
-                    self.set_status(SubAgentStatus::Completed(
-                        "Maximum turns exceeded".to_string(),
-                    ))
-                    .await;
-                    return Err(anyhow!("Maximum turns ({}) exceeded", max_turns));
-                }
-            }
-        }
 
         // Set status to processing
         self.set_status(SubAgentStatus::Processing).await;
@@ -225,17 +150,6 @@ impl SubAgent {
         {
             let mut conversation = self.conversation.lock().await;
             conversation.push(user_message.clone());
-        }
-
-        // Increment turn count
-        {
-            let mut turn_count = self.turn_count.lock().await;
-            *turn_count += 1;
-            self.send_mcp_notification(
-                "turn_progress",
-                &format!("Turn {}/{}", turn_count, self.config.max_turns.unwrap_or(0)),
-            )
-            .await;
         }
 
         // Get the current conversation for context
@@ -255,8 +169,14 @@ impl SubAgent {
         // Build system prompt using the template
         let system_prompt = self.build_system_prompt(&tools).await?;
 
+        // Generate response from provider with loop for tool processing (max_turns iterations)
+        let mut loop_count = 0;
+        let max_turns = self.config.max_turns.unwrap_or(DEFAULT_SUBAGENT_MAX_TURNS);
+
         // Generate response from provider
         loop {
+            loop_count += 1;
+
             match Agent::generate_response_from_provider(
                 Arc::clone(provider),
                 &system_prompt,
@@ -281,18 +201,8 @@ impl SubAgent {
                         .collect();
 
                     // If there are no tool requests, we're done
-                    if tool_requests.is_empty() {
+                    if tool_requests.is_empty() || loop_count >= max_turns {
                         self.add_message(response.clone()).await;
-
-                        // Send notification about response
-                        self.send_mcp_notification(
-                            "response_generated",
-                            &format!("Responded: {}", response.as_concat_text()),
-                        )
-                        .await;
-
-                        // Add delay before completion to ensure all processing finishes
-                        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
                         // Set status back to ready and return the final response
                         self.set_status(SubAgentStatus::Completed("Completed!".to_string()))
@@ -306,13 +216,6 @@ impl SubAgent {
                     // Process each tool request and create user response messages
                     for request in &tool_requests {
                         if let Ok(tool_call) = &request.tool_call {
-                            // Send notification about tool usage
-                            self.send_mcp_notification(
-                                "tool_usage",
-                                &format!("Using tool: {}", tool_call.name),
-                            )
-                            .await;
-
                             // Handle platform tools or dispatch to extension manager
                             let tool_result = match self
                                 .extension_manager
@@ -331,13 +234,6 @@ impl SubAgent {
                                     let tool_response_message = Message::user()
                                         .with_tool_response(request.id.clone(), Ok(result.clone()));
                                     messages.push(tool_response_message);
-
-                                    // Send notification about tool completion
-                                    self.send_mcp_notification(
-                                        "tool_completed",
-                                        &format!("Tool {} completed successfully", tool_call.name),
-                                    )
-                                    .await;
                                 }
                                 Err(e) => {
                                     // Create a user message with the tool error
@@ -346,13 +242,6 @@ impl SubAgent {
                                         Err(ToolError::ExecutionError(e.to_string())),
                                     );
                                     messages.push(tool_error_message);
-
-                                    // Send notification about tool error
-                                    self.send_mcp_notification(
-                                        "tool_error",
-                                        &format!("Tool {} error: {}", tool_call.name, e),
-                                    )
-                                    .await;
                                 }
                             }
                         }
