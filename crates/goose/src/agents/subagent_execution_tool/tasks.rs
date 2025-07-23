@@ -4,6 +4,7 @@ use std::process::Stdio;
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
+use tokio_util::sync::CancellationToken;
 
 use crate::agents::subagent_execution_tool::task_execution_tracker::TaskExecutionTracker;
 use crate::agents::subagent_execution_tool::task_types::{Task, TaskResult, TaskStatus};
@@ -14,8 +15,16 @@ pub async fn process_task(
     task: &Task,
     task_execution_tracker: Arc<TaskExecutionTracker>,
     task_config: TaskConfig,
+    cancellation_token: CancellationToken,
 ) -> TaskResult {
-    match get_task_result(task.clone(), task_execution_tracker, task_config).await {
+    match get_task_result(
+        task.clone(),
+        task_execution_tracker,
+        task_config,
+        cancellation_token,
+    )
+    .await
+    {
         Ok(data) => TaskResult {
             task_id: task.id.clone(),
             status: TaskStatus::Completed,
@@ -35,10 +44,17 @@ async fn get_task_result(
     task: Task,
     task_execution_tracker: Arc<TaskExecutionTracker>,
     task_config: TaskConfig,
+    cancellation_token: CancellationToken,
 ) -> Result<Value, String> {
     if task.task_type == "text_instruction" {
         // Handle text_instruction tasks using subagent system
-        handle_text_instruction_task(task, task_execution_tracker, task_config).await
+        handle_text_instruction_task(
+            task,
+            task_execution_tracker,
+            task_config,
+            cancellation_token,
+        )
+        .await
     } else {
         // Handle sub_recipe tasks using command execution
         let (command, output_identifier) = build_command(&task)?;
@@ -47,6 +63,7 @@ async fn get_task_result(
             &output_identifier,
             &task.id,
             task_execution_tracker,
+            cancellation_token,
         )
         .await?;
 
@@ -62,6 +79,7 @@ async fn handle_text_instruction_task(
     task: Task,
     task_execution_tracker: Arc<TaskExecutionTracker>,
     task_config: TaskConfig,
+    cancellation_token: CancellationToken,
 ) -> Result<Value, String> {
     let text_instruction = task
         .get_text_instruction()
@@ -76,7 +94,14 @@ async fn handle_text_instruction_task(
         // "instructions": "You are a helpful assistant. Execute the given task and provide a clear, concise response.",
     });
 
-    match run_complete_subagent_task(task_arguments, task_config).await {
+    let result = tokio::select! {
+        result = run_complete_subagent_task(task_arguments, task_config) => result,
+        _ = cancellation_token.cancelled() => {
+            return Err("Task cancelled".to_string());
+        }
+    };
+
+    match result {
         Ok(contents) => {
             // Extract the text content from the result
             let result_text = contents
@@ -141,6 +166,7 @@ async fn run_command(
     output_identifier: &str,
     task_id: &str,
     task_execution_tracker: Arc<TaskExecutionTracker>,
+    cancellation_token: CancellationToken,
 ) -> Result<(String, String, bool), String> {
     let mut child = command
         .spawn()
@@ -164,15 +190,25 @@ async fn run_command(
         task_execution_tracker.clone(),
     );
 
-    let status = child
-        .wait()
-        .await
-        .map_err(|e| format!("Failed to wait for process: {}", e))?;
+    let result = tokio::select! {
+        _ = cancellation_token.cancelled() => {
+            if let Err(e) = child.kill().await {
+                tracing::warn!("Failed to kill child process: {}", e);
+            }
+            // Abort the output reading tasks
+            stdout_task.abort();
+            stderr_task.abort();
+            return Err("Command cancelled".to_string());
+        }
+        status_result = child.wait() => {
+            status_result.map_err(|e| format!("Failed to wait for process: {}", e))?
+        }
+    };
 
     let stdout_output = stdout_task.await.unwrap();
     let stderr_output = stderr_task.await.unwrap();
 
-    Ok((stdout_output, stderr_output, status.success()))
+    Ok((stdout_output, stderr_output, result.success()))
 }
 
 fn spawn_output_reader(

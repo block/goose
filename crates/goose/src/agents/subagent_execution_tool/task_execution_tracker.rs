@@ -3,7 +3,8 @@ use rmcp::object;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
-use tokio::time::{sleep, Duration, Instant};
+use tokio::time::{Duration, Instant};
+use tokio_util::sync::CancellationToken;
 
 use crate::agents::subagent_execution_tool::notification_events::{
     FailedTaskInfo, TaskCompletionStats, TaskExecutionNotificationEvent, TaskExecutionStats,
@@ -21,7 +22,6 @@ pub enum DisplayMode {
 }
 
 const THROTTLE_INTERVAL_MS: u64 = 250;
-const COMPLETION_NOTIFICATION_DELAY_MS: u64 = 500;
 
 fn format_task_metadata(task_info: &TaskInfo) -> String {
     if let Some(params) = task_info.task.get_command_parameters() {
@@ -62,6 +62,7 @@ pub struct TaskExecutionTracker {
     last_refresh: Arc<RwLock<Instant>>,
     notifier: mpsc::Sender<JsonRpcMessage>,
     display_mode: DisplayMode,
+    cancellation_token: Option<CancellationToken>,
 }
 
 impl TaskExecutionTracker {
@@ -69,6 +70,7 @@ impl TaskExecutionTracker {
         tasks: Vec<Task>,
         display_mode: DisplayMode,
         notifier: Sender<JsonRpcMessage>,
+        cancellation_token: Option<CancellationToken>,
     ) -> Self {
         let task_map = tasks
             .into_iter()
@@ -93,6 +95,41 @@ impl TaskExecutionTracker {
             last_refresh: Arc::new(RwLock::new(Instant::now())),
             notifier,
             display_mode,
+            cancellation_token,
+        }
+    }
+
+    fn is_cancelled(&self) -> bool {
+        self.cancellation_token
+            .as_ref()
+            .is_some_and(|t| t.is_cancelled())
+    }
+
+    fn log_notification_error(
+        &self,
+        error: &mpsc::error::TrySendError<JsonRpcMessage>,
+        context: &str,
+    ) {
+        if !self.is_cancelled() {
+            tracing::warn!("Failed to send {} notification: {}", context, error);
+        }
+    }
+
+    fn try_send_notification(&self, event: TaskExecutionNotificationEvent, context: &str) {
+        if let Err(e) = self
+            .notifier
+            .try_send(JsonRpcMessage::Notification(JsonRpcNotification {
+                jsonrpc: JsonRpcVersion2_0,
+                notification: Notification {
+                    method: "notifications/message".to_string(),
+                    params: object!({
+                        "data": event.to_notification_data()
+                    }),
+                    extensions: Default::default(),
+                },
+            }))
+        {
+            self.log_notification_error(&e, context);
         }
     }
 
@@ -153,21 +190,7 @@ impl TaskExecutionTracker {
                     formatted_line,
                 );
 
-                if let Err(e) =
-                    self.notifier
-                        .try_send(JsonRpcMessage::Notification(JsonRpcNotification {
-                            jsonrpc: JsonRpcVersion2_0,
-                            notification: Notification {
-                                method: "notifications/message".to_string(),
-                                params: object!({
-                                    "data": event.to_notification_data()
-                                }),
-                                extensions: Default::default(),
-                            },
-                        }))
-                {
-                    tracing::warn!("Failed to send live output notification: {}", e);
-                }
+                self.try_send_notification(event, "live output");
             }
             DisplayMode::MultipleTasksOutput => {
                 let mut tasks = self.tasks.write().await;
@@ -197,6 +220,10 @@ impl TaskExecutionTracker {
     }
 
     async fn send_tasks_update(&self) {
+        if self.is_cancelled() {
+            return;
+        }
+
         let tasks = self.tasks.read().await;
         let task_list: Vec<_> = tasks.values().collect();
         let (total, pending, running, completed, failed) = count_by_status(&tasks);
@@ -229,21 +256,7 @@ impl TaskExecutionTracker {
 
         let event = TaskExecutionNotificationEvent::tasks_update(stats, event_tasks);
 
-        if let Err(e) = self
-            .notifier
-            .try_send(JsonRpcMessage::Notification(JsonRpcNotification {
-                jsonrpc: JsonRpcVersion2_0,
-                notification: Notification {
-                    method: "notifications/message".to_string(),
-                    params: object!({
-                        "data": event.to_notification_data()
-                    }),
-                    extensions: Default::default(),
-                },
-            }))
-        {
-            tracing::warn!("Failed to send tasks update notification: {}", e);
-        }
+        self.try_send_notification(event, "tasks update");
     }
 
     pub async fn refresh_display(&self) {
@@ -276,6 +289,10 @@ impl TaskExecutionTracker {
     }
 
     pub async fn send_tasks_complete(&self) {
+        if self.is_cancelled() {
+            return;
+        }
+
         let tasks = self.tasks.read().await;
         let (total, _, _, completed, failed) = count_by_status(&tasks);
 
@@ -293,23 +310,6 @@ impl TaskExecutionTracker {
 
         let event = TaskExecutionNotificationEvent::tasks_complete(stats, failed_tasks);
 
-        if let Err(e) = self
-            .notifier
-            .try_send(JsonRpcMessage::Notification(JsonRpcNotification {
-                jsonrpc: JsonRpcVersion2_0,
-                notification: Notification {
-                    method: "notifications/message".to_string(),
-                    params: object!({
-                        "data": event.to_notification_data()
-                    }),
-                    extensions: Default::default(),
-                },
-            }))
-        {
-            tracing::warn!("Failed to send tasks complete notification: {}", e);
-        }
-
-        // Brief delay to ensure completion notification is processed
-        sleep(Duration::from_millis(COMPLETION_NOTIFICATION_DELAY_MS)).await;
+        self.try_send_notification(event, "tasks complete");
     }
 }
