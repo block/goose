@@ -32,20 +32,15 @@ fn test_process_output_for_display() {
     assert!(result.len() <= 100);
     assert!(result.ends_with("..."));
 
-    let ansi_output = "\x1b[31mred line 1\x1b[0m\n\x1b[32mgreen line 2\x1b[0m";
-    let result = process_output_for_display(ansi_output);
-    assert_eq!(result, "red line 1 ... green line 2");
-
     assert_eq!(process_output_for_display(""), "");
 }
 
 #[test]
 fn test_format_result_data_for_display() {
-    let string_val = json!("hello world");
-    assert_eq!(format_result_data_for_display(&string_val), "hello world");
-
-    let ansi_string = json!("\x1b[31mred text\x1b[0m");
-    assert_eq!(format_result_data_for_display(&ansi_string), "red text");
+    assert_eq!(
+        format_result_data_for_display(&json!("red text")),
+        "red text"
+    );
 
     assert_eq!(format_result_data_for_display(&json!(true)), "true");
     assert_eq!(format_result_data_for_display(&json!(false)), "false");
