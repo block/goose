@@ -1,8 +1,8 @@
 mod scenarios;
+use dotenvy::dotenv;
 
 use crate::session::Session;
 use anyhow::Result;
-use dotenvy::dotenv;
 use goose::agents::Agent;
 use goose::config::Config;
 use goose::message::Message;
@@ -85,11 +85,53 @@ where
     F: Fn(String, String) -> Fut,
     Fut: Future<Output = Result<ScenarioResult>>,
 {
+    // Check if we should only run a specific provider
+    if let Ok(only_provider) = std::env::var("GOOSE_TEST_PROVIDER") {
+        let config = PROVIDER_CONFIGS
+            .iter()
+            .find(|c| c.name.to_lowercase() == only_provider.to_lowercase())
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Provider '{}' not found. Available: {}",
+                    only_provider,
+                    PROVIDER_CONFIGS
+                        .iter()
+                        .map(|c| c.name)
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            })?;
+
+        println!("Running test '{}' for provider: {}", test_name, config.name);
+        return run_provider_scenario(config, &test_fn, test_name)
+            .await
+            .map(|_| ());
+    }
+
+    let mut failures = Vec::new();
+
     for config in PROVIDER_CONFIGS {
-        if let Err(e) = run_provider_scenario(config, &test_fn, test_name).await {
-            println!("Failed {} for {}: {:?}", test_name, config.name, e);
+        match run_provider_scenario(config, &test_fn, test_name).await {
+            Ok(_) => println!("✅ {} - {}", test_name, config.name),
+            Err(e) => {
+                println!("❌ {} - {} FAILED: {}", test_name, config.name, e);
+                failures.push((config.name, e));
+            }
         }
     }
+
+    if !failures.is_empty() {
+        println!("\n=== Test Failures for {} ===", test_name);
+        for (provider, error) in &failures {
+            println!("❌ {}: {}", provider, error);
+        }
+        return Err(anyhow::anyhow!(
+            "Test '{}' failed for {} provider(s)",
+            test_name,
+            failures.len()
+        ));
+    }
+
     Ok(())
 }
 
@@ -99,10 +141,10 @@ async fn run_provider_scenario<F, Fut>(
     test_name: &str,
 ) -> Result<ScenarioResult>
 where
-    F: Fn(&str, &str) -> Fut,
+    F: Fn(String, String) -> Fut,
     Fut: Future<Output = Result<ScenarioResult>>,
 {
-    if let Ok(path) = dotenv() {
+    if let Ok(path) = dotenvy::dotenv() {
         println!("Loaded environment from {:?}", path);
     }
 
@@ -262,15 +304,14 @@ where
     F: Fn(&ScenarioResult) -> Result<()> + Send + Sync + 'static,
 {
     let inputs_owned: Vec<String> = inputs.iter().map(|s| s.to_string()).collect();
-    let test_name_owned = test_name.to_string();
 
-    run_all_providers_scenario(&test_name_owned, |name, provider| {
+    run_all_providers_scenario(test_name, |name, provider| {
         let inputs = inputs_owned.clone();
         let validator = &validator;
         async move {
             let result = run_single_provider_scenario(
-                name,
-                provider,
+                &name,
+                &provider,
                 &inputs.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
             )
             .await?;
