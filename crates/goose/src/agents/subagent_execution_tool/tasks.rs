@@ -96,9 +96,14 @@ async fn handle_text_instruction_task(
 
     match result {
         Ok(contents) => {
-            // contents is already a String, so we can use it directly
+            let final_text = if contents.is_empty() {
+                "Task completed (no text output)".to_string()
+            } else {
+                contents
+            };
+
             Ok(serde_json::json!({
-                "result": contents
+                "result": final_text
             }))
         }
         Err(e) => {
