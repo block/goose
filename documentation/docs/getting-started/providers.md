@@ -25,6 +25,7 @@ Goose relies heavily on tool calling capabilities and currently works best with 
 | [Anthropic](https://www.anthropic.com/)                                     | Offers Claude, an advanced AI model for natural language tasks.                                                                                                                                                           | `ANTHROPIC_API_KEY`, `ANTHROPIC_HOST` (optional)                                                                                                                                                                 |
 | [Azure OpenAI](https://learn.microsoft.com/en-us/azure/ai-services/openai/) | Access Azure-hosted OpenAI models, including GPT-4 and GPT-3.5. Supports both API key and Azure credential chain authentication.                                                                                          | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT_NAME`, `AZURE_OPENAI_API_KEY` (optional)                                                                                           |
 | [Databricks](https://www.databricks.com/)                                   | Unified data analytics and AI platform for building and deploying models.                                                                                                                                                 | `DATABRICKS_HOST`, `DATABRICKS_TOKEN`                                                                                                                                               |
+| [Docker Model Runner](https://docs.docker.com/ai/model-runner/)                             | Local models running in Docker Desktop or Docker CE with OpenAI-compatible API endpoints. **Because this provider runs locally, you must first [download a model](/docs/getting-started/providers#docker).**                     | `OPENAI_HOST`, `OPENAI_BASE_PATH`                                                                                                                                                       |
 | [Gemini](https://ai.google.dev/gemini-api/docs)                             | Advanced LLMs by Google with multimodal capabilities (text, images).                                                                                                                                                      | `GOOGLE_API_KEY`                                                                                                                                                                    |
 | [GCP Vertex AI](https://cloud.google.com/vertex-ai)                         | Google Cloud's Vertex AI platform, supporting Gemini and Claude models. **Credentials must be [configured in advance](https://cloud.google.com/vertex-ai/docs/authentication).**                 | `GCP_PROJECT_ID`, `GCP_LOCATION` and optionally `GCP_MAX_RATE_LIMIT_RETRIES` (5), `GCP_MAX_OVERLOADED_RETRIES` (5), `GCP_INITIAL_RETRY_INTERVAL_MS` (5000), `GCP_BACKOFF_MULTIPLIER` (2.0), `GCP_MAX_RETRY_INTERVAL_MS` (320_000). |
 | [GitHub Copilot](https://docs.github.com/en/copilot/using-github-copilot/ai-models) | Access to GitHub Copilot's chat models including gpt-4o, o1, o3-mini, and Claude models. Uses device code authentication flow for secure access. | Uses GitHub device code authentication flow (no API key needed) |
@@ -298,7 +299,93 @@ To set up Google Gemini with Goose, follow these steps:
 
 ### Local LLMs
 
-Ollama and Ramalama are both options to provide local LLMs, each which requires a bit more set up before you can use one of them with Goose.
+Docker Model Runner, Ollama, and Ramalama are options to provide local LLMs, each which requires a bit more set up before you can use one of them with Goose.
+
+#### Docker 
+
+1. [Get Docker](https://docs.docker.com/get-started/get-docker/)
+2. [Enable Docker Model Runner](https://docs.docker.com/ai/model-runner/#enable-dmr-in-docker-desktop)
+3. [Pull a model](https://docs.docker.com/ai/model-runner/#pull-a-model), for example, from Docker Hub [AI namespace](https://hub.docker.com/u/ai), [Unsloth](https://hub.docker.com/u/unsloth), or [from HuggingFace](https://www.docker.com/blog/docker-model-runner-on-hugging-face/)
+
+:::warning Limited Support for models without tool calling
+Goose extensively uses tool calling, so models without it can only do chat completion. If using models without tool calling, all Goose [extensions must be disabled](/docs/getting-started/using-extensions#enablingdisabling-extensions).
+:::
+
+Example:
+
+```sh
+docker model pull hf.co/unsloth/gemma-3n-e4b-it-gguf:q6_k
+```
+
+4. Configure Goose to use Docker Model Runner, using the OpenAI API compatible endpoint: 
+
+```sh
+goose configure
+```
+
+4. Choose to `Configure Providers`
+
+```
+┌   goose-configure 
+│
+◆  What would you like to configure?
+│  ● Configure Providers (Change provider or update credentials)
+│  ○ Toggle Extensions 
+│  ○ Add Extension 
+└  
+```
+
+5. Choose `OpenAI` as the model provider: 
+
+```
+┌   goose-configure
+│
+◇  What would you like to configure?
+│  Configure Providers
+│
+◆  Which model provider should we use?
+│  ○ Anthropic
+│  ○ Amazon Bedrock
+│  ○ Claude Code
+│  ● OpenAI (GPT-4 and other OpenAI models, including OpenAI compatible ones)
+│  ○ OpenRouter
+```
+
+6. Configure Docker Model Runner endpoint as the `OPENAI_HOST`: 
+┌   goose-configure
+│
+◇  What would you like to configure?
+│  Configure Providers
+│
+◇  Which model provider should we use?
+│  OpenAI
+│
+◆  Provider OpenAI requires OPENAI_HOST, please enter a value
+│  https://api.openai.com (default)
+└
+
+The default value for the host-side port Docker Model Runner is 12434, so the `OPENAI_HOST` value could be: 
+`http://localhost:12434`. 
+
+7. Configure the base path: 
+
+```
+◆  Provider OpenAI requires OPENAI_BASE_PATH, please enter a value
+│  v1/chat/completions (default)
+└
+```
+
+Docker model runner uses `/engines/llama.cpp/v1/chat/completions` for the base path.
+
+8. Finally configure the model available in Docker Model Runner to be used by Goose: `hf.co/unsloth/gemma-3n-e4b-it-gguf:q6_k`
+
+```
+│
+◇  Enter a model from that provider:
+│  gpt-4o
+│
+◒  Checking your configuration...                                                                                                                           └  Configuration saved successfully
+```
 
 #### Ollama
 
