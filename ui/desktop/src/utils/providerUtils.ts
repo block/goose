@@ -10,7 +10,12 @@ import { extractExtensionConfig } from '../components/settings/extensions/utils'
 import type { ExtensionConfig, FixedExtensionEntry } from '../components/ConfigContext';
 // TODO: remove when removing migration logic
 import { toastService } from '../toasts';
-import { ExtensionQuery, RecipeParameter, SubRecipe, addExtension as apiAddExtension } from '../api';
+import {
+  ExtensionQuery,
+  RecipeParameter,
+  SubRecipe,
+  addExtension as apiAddExtension,
+} from '../api';
 import { addSubRecipes } from '../recipe/update_agent';
 
 export interface Provider {
@@ -72,9 +77,13 @@ const substituteParameters = (text: string, params: Record<string, string>): str
  */
 export const updateSystemPromptWithParameters = async (
   recipeParameters: Record<string, string>,
-  recipeConfig?: { instructions?: string | null }
+  recipeConfig?: {
+    instructions?: string | null;
+    sub_recipes?: SubRecipe[] | null;
+    parameters?: RecipeParameter[] | null;
+  }
 ): Promise<void> => {
-  const subRecipes = (recipeConfig as { sub_recipes?: SubRecipe[] })?.sub_recipes;
+  const subRecipes = recipeConfig?.sub_recipes;
   try {
     const originalInstructions = recipeConfig?.instructions;
 
@@ -107,8 +116,8 @@ export const updateSystemPromptWithParameters = async (
   if (subRecipes && subRecipes?.length > 0) {
     for (const subRecipe of subRecipes) {
       if (subRecipe.values) {
-      // Iterate over each key in subRecipe.values and substitute parameters
-      for (const key in subRecipe.values) {
+        // Iterate over each key in subRecipe.values and substitute parameters
+        for (const key in subRecipe.values) {
           subRecipe.values[key] = substituteParameters(subRecipe.values[key], recipeParameters);
         }
       }
@@ -213,7 +222,7 @@ export const initializeSystem = async (
     let prompt = desktopPrompt;
     if (!hasParameters && recipe_instructions) {
       prompt = `${desktopPromptBot}\nIMPORTANT instructions for you to operate as agent:\n${recipe_instructions}`;
-
+    }
     // Extend the system prompt with desktop-specific information
     const response = await fetch(getApiUrl('/agent/prompt'), {
       method: 'POST',
