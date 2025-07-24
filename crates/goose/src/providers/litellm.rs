@@ -128,7 +128,7 @@ impl LiteLLMProvider {
         Ok(models)
     }
 
-    async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
+    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
         let base_url = Url::parse(&self.host)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
         let url = base_url.join(&self.base_path).map_err(|e| {
@@ -142,7 +142,7 @@ impl LiteLLMProvider {
 
         let request = self.add_headers(request);
 
-        let response = request.json(&payload).send().await?;
+        let response = request.json(payload).send().await?;
 
         handle_response_openai_compat(response).await
     }
@@ -196,9 +196,9 @@ impl Provider for LiteLLMProvider {
             payload = update_request_for_cache_control(&payload);
         }
 
-        let response = self.post(payload.clone()).await?;
+        let response = self.post(&payload).await?;
 
-        let message = super::formats::openai::response_to_message(response.clone())?;
+        let message = super::formats::openai::response_to_message(&response)?;
         let usage = super::formats::openai::get_usage(&response);
         let model = get_model(&response);
         emit_debug_trace(&self.model, &payload, &response, &usage);

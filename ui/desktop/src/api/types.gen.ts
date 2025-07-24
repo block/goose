@@ -165,6 +165,7 @@ export type ExtensionConfig = {
      * Whether this extension is bundled with Goose
      */
     bundled?: boolean | null;
+    description?: string | null;
     display_name?: string | null;
     /**
      * The name used to identify this extension
@@ -396,7 +397,7 @@ export type ProvidersResponse = {
  * * `author` - Information about the Recipe's creator and metadata
  * * `parameters` - Additional parameters for the Recipe
  * * `response` - Response configuration including JSON schema validation
- *
+ * * `retry` - Retry configuration for automated validation and recovery
  * # Example
  *
  *
@@ -425,6 +426,7 @@ export type ProvidersResponse = {
  * parameters: None,
  * response: None,
  * sub_recipes: None,
+ * retry: None,
  * };
  *
  */
@@ -438,6 +440,7 @@ export type Recipe = {
     parameters?: Array<RecipeParameter> | null;
     prompt?: string | null;
     response?: Response | null;
+    retry?: RetryConfig | null;
     settings?: Settings | null;
     sub_recipes?: Array<SubRecipe> | null;
     title: string;
@@ -449,10 +452,11 @@ export type RecipeParameter = {
     description: string;
     input_type: RecipeParameterInputType;
     key: string;
+    options?: Array<string> | null;
     requirement: RecipeParameterRequirement;
 };
 
-export type RecipeParameterInputType = 'string' | 'number' | 'boolean' | 'date' | 'file';
+export type RecipeParameterInputType = 'string' | 'number' | 'boolean' | 'date' | 'file' | 'select';
 
 export type RecipeParameterRequirement = 'required' | 'optional' | 'user_prompt';
 
@@ -461,17 +465,43 @@ export type RedactedThinkingContent = {
 };
 
 export type ResourceContents = {
-    mime_type?: string | null;
+    mime_type?: string;
     text: string;
     uri: string;
 } | {
     blob: string;
-    mime_type?: string | null;
+    mime_type?: string;
     uri: string;
 };
 
 export type Response = {
     json_schema?: unknown;
+};
+
+/**
+ * Configuration for retry logic in recipe execution
+ */
+export type RetryConfig = {
+    /**
+     * List of success checks to validate recipe completion
+     */
+    checks: Array<SuccessCheck>;
+    /**
+     * Maximum number of retry attempts before giving up
+     */
+    max_retries: number;
+    /**
+     * Optional shell command to run on failure for cleanup
+     */
+    on_failure?: string | null;
+    /**
+     * Timeout in seconds for on_failure commands (default: 600 seconds)
+     */
+    on_failure_timeout_seconds?: number | null;
+    /**
+     * Timeout in seconds for individual shell commands (default: 300 seconds)
+     */
+    timeout_seconds?: number | null;
 };
 
 export type Role = string;
@@ -594,12 +624,24 @@ export type Settings = {
 };
 
 export type SubRecipe = {
+    description?: string | null;
     name: string;
     path: string;
     sequential_when_repeated?: boolean;
     values?: {
         [key: string]: string;
     } | null;
+};
+
+/**
+ * Execute a shell command and check its exit status
+ */
+export type SuccessCheck = {
+    /**
+     * The shell command to execute
+     */
+    command: string;
+    type: 'Shell';
 };
 
 export type SummarizationRequested = {
@@ -719,14 +761,6 @@ export type ToolResponse = {
     toolResult: {
         [key: string]: unknown;
     };
-};
-
-export type ToolResultSchema = {
-    data: {
-        [key: string]: unknown;
-    };
-    message?: string | null;
-    success: boolean;
 };
 
 export type UpdateScheduleRequest = {

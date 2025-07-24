@@ -60,25 +60,19 @@ import { type View, ViewOptions } from '../App';
 import { MainPanelLayout } from './Layout/MainPanelLayout';
 import ChatInput from './ChatInput';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
+import { RecipeWarningModal } from './ui/RecipeWarningModal';
 import { useChatEngine } from '../hooks/useChatEngine';
 import { useRecipeManager } from '../hooks/useRecipeManager';
 import { useSessionContinuation } from '../hooks/useSessionContinuation';
 import { useFileDrop } from '../hooks/useFileDrop';
 import { useCostTracking } from '../hooks/useCostTracking';
 import { Message } from '../types/message';
-import { Recipe } from '../recipe';
 
 // Context for sharing current model info
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
 export const useCurrentModelInfo = () => useContext(CurrentModelContext);
 
-export interface ChatType {
-  id: string;
-  title: string;
-  messageHistoryIndex: number;
-  messages: Message[];
-  recipeConfig?: Recipe | null; // Add recipe configuration to chat state
-}
+import { ChatType } from '../types/chat';
 
 interface BaseChatProps {
   chat: ChatType;
@@ -145,6 +139,8 @@ function BaseChatContent({
     setAncestorMessages,
     append,
     isLoading,
+    isWaiting,
+    isStreaming,
     error,
     setMessages,
     input: _input,
@@ -161,6 +157,7 @@ function BaseChatContent({
     updateMessageStreamBody,
     sessionMetadata,
     isUserMessage,
+    clearError,
   } = useChatEngine({
     chat,
     setChat,
@@ -195,21 +192,37 @@ function BaseChatContent({
     handleAutoExecution,
     recipeError,
     setRecipeError,
+    isRecipeWarningModalOpen,
+    recipeAccepted,
+    handleRecipeAccept,
+    handleRecipeCancel,
   } = useRecipeManager(messages, location.state);
 
   // Reset recipe usage tracking when recipe changes
   useEffect(() => {
-    if (recipeConfig?.title !== currentRecipeTitle) {
-      setCurrentRecipeTitle(recipeConfig?.title || null);
-      setHasStartedUsingRecipe(false);
+    const previousTitle = currentRecipeTitle;
+    const newTitle = recipeConfig?.title || null;
+    const hasRecipeChanged = newTitle !== currentRecipeTitle;
 
-      // Clear existing messages when a new recipe is loaded
-      if (recipeConfig?.title && recipeConfig.title !== currentRecipeTitle) {
+    if (hasRecipeChanged) {
+      setCurrentRecipeTitle(newTitle);
+
+      const isSwitchingBetweenRecipes = previousTitle && newTitle;
+      const isInitialRecipeLoad = !previousTitle && newTitle && messages.length === 0;
+      const hasExistingConversation = newTitle && messages.length > 0;
+
+      if (isSwitchingBetweenRecipes) {
+        console.log('Switching from recipe:', previousTitle, 'to:', newTitle);
+        setHasStartedUsingRecipe(false);
         setMessages([]);
         setAncestorMessages([]);
+      } else if (isInitialRecipeLoad) {
+        setHasStartedUsingRecipe(false);
+      } else if (hasExistingConversation) {
+        setHasStartedUsingRecipe(true);
       }
     }
-  }, [recipeConfig?.title, currentRecipeTitle, setMessages, setAncestorMessages]);
+  }, [recipeConfig?.title, currentRecipeTitle, messages.length, setMessages, setAncestorMessages]);
 
   // Handle recipe auto-execution
   useEffect(() => {
@@ -356,9 +369,9 @@ function BaseChatContent({
             {
               // Check if we should show splash instead of messages
               (() => {
-                // Show splash if we have a recipe and user hasn't started using it yet
+                // Show splash if we have a recipe and user hasn't started using it yet, and recipe has been accepted
                 const shouldShowSplash =
-                  recipeConfig && !hasStartedUsingRecipe && !suppressEmptyState;
+                  recipeConfig && recipeAccepted && !hasStartedUsingRecipe && !suppressEmptyState;
 
                 return shouldShowSplash;
               })() ? (
@@ -377,7 +390,8 @@ function BaseChatContent({
                     <PopularChatTopics append={(text: string) => appendWithTracking(text)} />
                   ) : null}
                 </>
-              ) : filteredMessages.length > 0 || (recipeConfig && hasStartedUsingRecipe) ? (
+              ) : filteredMessages.length > 0 ||
+                (recipeConfig && recipeAccepted && hasStartedUsingRecipe) ? (
                 <>
                   {disableSearch ? (
                     // Render messages without SearchView wrapper when search is disabled
@@ -421,44 +435,51 @@ function BaseChatContent({
                             {error.message || 'Honk! Goose experienced an error while responding'}
                           </div>
 
-                          {/* Expandable Error Details */}
-                          <details className="w-full max-w-2xl mb-2">
-                            <summary className="text-xs text-textSubtle cursor-pointer hover:text-textStandard transition-colors">
-                              Error details
-                            </summary>
-                            <div className="mt-2 p-3 bg-bgSubtle border border-borderSubtle rounded-lg text-xs font-mono text-textStandard">
-                              <div className="mb-2">
-                                <strong>Error Type:</strong> {error.name || 'Unknown'}
-                              </div>
-                              <div className="mb-2">
-                                <strong>Message:</strong> {error.message || 'No message'}
-                              </div>
-                              {error.stack && (
-                                <div>
-                                  <strong>Stack Trace:</strong>
-                                  <pre className="mt-1 whitespace-pre-wrap text-xs overflow-x-auto">
-                                    {error.stack}
-                                  </pre>
-                                </div>
-                              )}
-                            </div>
-                          </details>
+                          {/* Action buttons for non-token-limit errors */}
+                          <div className="flex gap-2 mt-2">
+                            <div
+                              className="px-3 py-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
+                              onClick={async () => {
+                                // Create a contextLengthExceeded message similar to token limit errors
+                                const contextMessage: Message = {
+                                  id: `context-${Date.now()}`,
+                                  role: 'assistant',
+                                  created: Math.floor(Date.now() / 1000),
+                                  content: [
+                                    {
+                                      type: 'contextLengthExceeded',
+                                      msg: 'Summarization requested due to error. Creating summary to help resolve the issue.',
+                                    },
+                                  ],
+                                  display: true,
+                                  sendToLLM: false,
+                                };
 
-                          {/* Regular retry button for non-token-limit errors */}
-                          <div
-                            className="px-3 py-2 mt-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
-                            onClick={async () => {
-                              // Find the last user message
-                              const lastUserMessage = messages.reduceRight(
-                                (found, m) => found || (m.role === 'user' ? m : null),
-                                null as Message | null
-                              );
-                              if (lastUserMessage) {
-                                append(lastUserMessage);
-                              }
-                            }}
-                          >
-                            Retry Last Message
+                                // Add the context message to trigger ContextHandler
+                                const updatedMessages = [...messages, contextMessage];
+                                setMessages(updatedMessages);
+
+                                // Clear the error state since we're handling it with summarization
+                                clearError();
+                              }}
+                            >
+                              Summarize Conversation
+                            </div>
+                            <div
+                              className="px-3 py-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
+                              onClick={async () => {
+                                // Find the last user message
+                                const lastUserMessage = messages.reduceRight(
+                                  (found, m) => found || (m.role === 'user' ? m : null),
+                                  null as Message | null
+                                );
+                                if (lastUserMessage) {
+                                  append(lastUserMessage);
+                                }
+                              }}
+                            >
+                              Retry Last Message
+                            </div>
                           </div>
                         </div>
                       </>
@@ -482,7 +503,11 @@ function BaseChatContent({
           {/* Fixed loading indicator at bottom left of chat container */}
           {isLoading && (
             <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
-              <LoadingGoose message={isLoadingSummary ? 'summarizing conversation…' : undefined} />
+              <LoadingGoose
+                message={isLoadingSummary ? 'summarizing conversation…' : undefined}
+                isWaiting={isWaiting}
+                isStreaming={isStreaming}
+              />
             </div>
           )}
         </div>
@@ -495,7 +520,7 @@ function BaseChatContent({
             isLoading={isLoading}
             onStop={onStopGoose}
             commandHistory={commandHistory}
-            initialValue={_input || initialPrompt}
+            initialValue={_input || (messages.length === 0 ? initialPrompt : '')}
             setView={setView}
             numTokens={sessionTokenCount}
             inputTokens={sessionInputTokens || localInputTokens}
@@ -521,6 +546,18 @@ function BaseChatContent({
           closeSummaryModal();
         }}
         summaryContent={summaryContent}
+      />
+
+      {/* Recipe Warning Modal */}
+      <RecipeWarningModal
+        isOpen={isRecipeWarningModalOpen}
+        onConfirm={handleRecipeAccept}
+        onCancel={handleRecipeCancel}
+        recipeDetails={{
+          title: recipeConfig?.title,
+          description: recipeConfig?.description,
+          instructions: recipeConfig?.instructions || undefined,
+        }}
       />
 
       {/* Recipe Error Modal */}

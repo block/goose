@@ -35,7 +35,7 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({
             </div>
           </button>
         </TooltipTrigger>
-        <TooltipContent className="max-w-96 overflow-auto scrollbar-thin" side="top">
+        <TooltipContent side="top">
           {window.appConfig.get('GOOSE_WORKING_DIR') as string}
         </TooltipContent>
       </Tooltip>

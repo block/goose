@@ -1,19 +1,17 @@
 use anyhow::Result;
 use include_dir::{include_dir, Dir};
 use indoc::formatdoc;
-use rmcp::model::{Content, Prompt, Role};
-use serde_json::{json, Value};
-use std::{future::Future, pin::Pin};
-use tokio::sync::mpsc;
-
 use mcp_core::{
     handler::{PromptError, ResourceError, ToolError},
-    protocol::{JsonRpcMessage, ServerCapabilities},
-    resource::Resource,
+    protocol::ServerCapabilities,
     tool::{Tool, ToolAnnotations},
 };
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
+use rmcp::model::{Content, JsonRpcMessage, Prompt, Resource, Role};
+use serde_json::{json, Value};
+use std::{future::Future, pin::Pin};
+use tokio::sync::mpsc;
 
 static TUTORIALS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/tutorial/tutorials");
 

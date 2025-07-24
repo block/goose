@@ -4,7 +4,7 @@ use std::sync::Arc;
 use tokio::process::{Child, ChildStderr, ChildStdin, ChildStdout, Command};
 
 use async_trait::async_trait;
-use mcp_core::protocol::JsonRpcMessage;
+use rmcp::model::JsonRpcMessage;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::{mpsc, Mutex};
 

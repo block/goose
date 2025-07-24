@@ -1,11 +1,10 @@
 use anyhow::Result;
 use mcp_core::handler::{PromptError, ResourceError};
-use mcp_core::protocol::JsonRpcMessage;
 use mcp_core::tool::ToolAnnotations;
-use mcp_core::{handler::ToolError, protocol::ServerCapabilities, resource::Resource, tool::Tool};
+use mcp_core::{handler::ToolError, protocol::ServerCapabilities, tool::Tool};
 use mcp_server::router::{CapabilitiesBuilder, RouterService};
 use mcp_server::{ByteTransport, Router, Server};
-use rmcp::model::{Content, Prompt, PromptArgument};
+use rmcp::model::{Content, JsonRpcMessage, Prompt, PromptArgument, RawResource, Resource};
 use serde_json::Value;
 use std::{future::Future, pin::Pin, sync::Arc};
 use tokio::sync::mpsc;
@@ -47,7 +46,7 @@ impl CounterRouter {
     }
 
     fn _create_resource_text(&self, uri: &str, name: &str) -> Resource {
-        Resource::new(uri, Some("text/plain".to_string()), Some(name.to_string())).unwrap()
+        Resource::new(RawResource::new(uri, name), None)
     }
 }
 

@@ -251,6 +251,7 @@ async fn add_extension(
             display_name,
             timeout,
             bundled: None,
+            description: None,
         },
         ExtensionConfigRequest::Frontend {
             name,

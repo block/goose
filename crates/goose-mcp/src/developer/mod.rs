@@ -22,18 +22,20 @@ use tokio::{
 use url::Url;
 
 use include_dir::{include_dir, Dir};
-use mcp_core::tool::ToolAnnotations;
 use mcp_core::{
     handler::{PromptError, ResourceError, ToolError},
-    protocol::{JsonRpcMessage, JsonRpcNotification, ServerCapabilities},
-    resource::Resource,
-    tool::Tool,
+    protocol::ServerCapabilities,
+    tool::{Tool, ToolAnnotations},
 };
+
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
-use rmcp::model::{Content, Prompt, PromptArgument, PromptTemplate};
 
-use rmcp::model::Role;
+use rmcp::model::{
+    Content, JsonRpcMessage, JsonRpcNotification, JsonRpcVersion2_0, Notification, Prompt,
+    PromptArgument, PromptTemplate, Resource, Role,
+};
+use rmcp::object;
 
 use self::editor_models::{create_editor_model, EditorModel};
 use self::shell::{expand_path, get_shell_config, is_absolute_path, normalize_line_endings};
@@ -672,15 +674,18 @@ impl DeveloperRouter {
                             let line = String::from_utf8_lossy(&stdout_buf);
 
                             notifier.try_send(JsonRpcMessage::Notification(JsonRpcNotification {
-                                jsonrpc: "2.0".to_string(),
-                                method: "notifications/message".to_string(),
-                                params: Some(json!({
-                                    "data": {
-                                        "type": "shell",
-                                        "stream": "stdout",
-                                        "output": line.to_string(),
-                                    }
-                                })),
+                                jsonrpc: JsonRpcVersion2_0,
+                                notification: Notification {
+                                    method: "notifications/message".to_string(),
+                                    params: object!({
+                                        "data": {
+                                            "type": "shell",
+                                            "stream": "stdout",
+                                            "output": line.to_string(),
+                                        }
+                                    }),
+                                    extensions: Default::default(),
+                                }
                             })).ok();
 
                             combined_output.push_str(&line);
@@ -695,15 +700,18 @@ impl DeveloperRouter {
                             let line = String::from_utf8_lossy(&stderr_buf);
 
                             notifier.try_send(JsonRpcMessage::Notification(JsonRpcNotification {
-                                jsonrpc: "2.0".to_string(),
-                                method: "notifications/message".to_string(),
-                                params: Some(json!({
-                                    "data": {
-                                        "type": "shell",
-                                        "stream": "stderr",
-                                        "output": line.to_string(),
-                                    }
-                                })),
+                                jsonrpc: JsonRpcVersion2_0,
+                                notification: Notification {
+                                    method: "notifications/message".to_string(),
+                                    params: object!({
+                                        "data": {
+                                            "type": "shell",
+                                            "stream": "stderr",
+                                            "output": line.to_string(),
+                                        }
+                                    }),
+                                    extensions: Default::default(),
+                                }
                             })).ok();
 
                             combined_output.push_str(&line);

@@ -1,6 +1,15 @@
 use async_trait::async_trait;
 use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::formatdoc;
+use mcp_core::{
+    handler::{PromptError, ResourceError, ToolError},
+    protocol::ServerCapabilities,
+    tool::{Tool, ToolAnnotations, ToolCall},
+};
+use mcp_server::router::CapabilitiesBuilder;
+use mcp_server::Router;
+use rmcp::model::JsonRpcMessage;
+use rmcp::model::{Content, Prompt, Resource};
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
@@ -11,16 +20,6 @@ use std::{
     pin::Pin,
 };
 use tokio::sync::mpsc;
-
-use mcp_core::{
-    handler::{PromptError, ResourceError, ToolError},
-    protocol::{JsonRpcMessage, ServerCapabilities},
-    resource::Resource,
-    tool::{Tool, ToolAnnotations, ToolCall},
-};
-use mcp_server::router::CapabilitiesBuilder;
-use mcp_server::Router;
-use rmcp::model::{Content, Prompt};
 
 // MemoryRouter implementation
 #[derive(Clone)]

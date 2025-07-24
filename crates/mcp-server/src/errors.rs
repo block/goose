@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use thiserror::Error;
 
 pub type BoxError = Box<dyn std::error::Error + Sync + Send>;
@@ -56,38 +58,38 @@ pub enum RouterError {
     PromptNotFound(String),
 }
 
-impl From<RouterError> for mcp_core::protocol::ErrorData {
+impl From<RouterError> for rmcp::model::ErrorData {
     fn from(err: RouterError) -> Self {
-        use mcp_core::protocol::*;
+        use rmcp::model::*;
         match err {
             RouterError::MethodNotFound(msg) => ErrorData {
-                code: METHOD_NOT_FOUND,
-                message: msg,
+                code: ErrorCode::METHOD_NOT_FOUND,
+                message: Cow::from(msg),
                 data: None,
             },
             RouterError::InvalidParams(msg) => ErrorData {
-                code: INVALID_PARAMS,
-                message: msg,
+                code: ErrorCode::INVALID_PARAMS,
+                message: Cow::from(msg),
                 data: None,
             },
             RouterError::Internal(msg) => ErrorData {
-                code: INTERNAL_ERROR,
-                message: msg,
+                code: ErrorCode::INTERNAL_ERROR,
+                message: Cow::from(msg),
                 data: None,
             },
             RouterError::ToolNotFound(msg) => ErrorData {
-                code: INVALID_REQUEST,
-                message: msg,
+                code: ErrorCode::INVALID_REQUEST,
+                message: Cow::from(msg),
                 data: None,
             },
             RouterError::ResourceNotFound(msg) => ErrorData {
-                code: INVALID_REQUEST,
-                message: msg,
+                code: ErrorCode::INVALID_REQUEST,
+                message: Cow::from(msg),
                 data: None,
             },
             RouterError::PromptNotFound(msg) => ErrorData {
-                code: INVALID_REQUEST,
-                message: msg,
+                code: ErrorCode::INVALID_REQUEST,
+                message: Cow::from(msg),
                 data: None,
             },
         }

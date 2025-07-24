@@ -71,12 +71,13 @@ const substituteParameters = (text: string, params: Record<string, string>): str
  * This should be called after recipe parameters are collected
  */
 export const updateSystemPromptWithParameters = async (
-  recipeParameters: Record<string, string>
+  recipeParameters: Record<string, string>,
+  recipeConfig?: { instructions?: string | null }
 ): Promise<void> => {
-  const recipeConfig = window.appConfig?.get?.('recipe');
-    const subRecipes = (recipeConfig as { sub_recipes?: SubRecipe[] })?.sub_recipes;
-    const originalInstructions = (recipeConfig as { instructions?: string })?.instructions;
+  const subRecipes = (recipeConfig as { sub_recipes?: SubRecipe[] })?.sub_recipes;
   try {
+    const originalInstructions = recipeConfig?.instructions;
+
     if (!originalInstructions) {
       return;
     }
@@ -96,7 +97,9 @@ export const updateSystemPromptWithParameters = async (
     });
 
     if (!response.ok) {
-      console.warn(`Failed to update system prompt with parameters: ${response.statusText}`);
+      console.warn(
+        `Failed to update system prompt with parameters: ${response.status} ${response.statusText}`
+      );
     }
   } catch (error) {
     console.error('Error updating system prompt with parameters:', error);

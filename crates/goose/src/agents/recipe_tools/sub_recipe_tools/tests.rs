@@ -13,6 +13,7 @@ mod tests {
             path: "test_sub_recipe.yaml".to_string(),
             values: Some(HashMap::from([("key1".to_string(), "value1".to_string())])),
             sequential_when_repeated: true,
+            description: Some("Test subrecipe".to_string()),
         };
         sub_recipe
     }

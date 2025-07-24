@@ -13,13 +13,12 @@ use std::os::unix::fs::PermissionsExt;
 
 use mcp_core::{
     handler::{PromptError, ResourceError, ToolError},
-    protocol::{JsonRpcMessage, ServerCapabilities},
-    resource::Resource,
+    protocol::ServerCapabilities,
     tool::{Tool, ToolAnnotations},
 };
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
-use rmcp::model::{Content, Prompt};
+use rmcp::model::{AnnotateAble, Content, JsonRpcMessage, Prompt, RawResource, Resource};
 
 mod docx_tool;
 mod pdf_tool;
@@ -585,14 +584,16 @@ impl ComputerControllerRouter {
             .map_err(|_| ToolError::ExecutionError("Invalid cache path".into()))?
             .to_string();
 
-        let resource = Resource::new(
-            uri.clone(),
-            Some(mime_type.to_string()),
-            Some(cache_path.to_string_lossy().into_owned()),
-        )
-        .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
-
-        self.active_resources.lock().unwrap().insert(uri, resource);
+        let mut resource = RawResource::new(uri.clone(), cache_path.to_string_lossy().into_owned());
+        resource.mime_type = Some(if mime_type == "blob" {
+            "blob".to_string()
+        } else {
+            "text".to_string()
+        });
+        self.active_resources
+            .lock()
+            .unwrap()
+            .insert(uri, resource.no_annotation());
         Ok(())
     }
 
@@ -1175,17 +1176,17 @@ impl Router for ComputerControllerRouter {
                 .to_file_path()
                 .map_err(|_| ResourceError::NotFound("Invalid file path in URI".into()))?;
 
-            match resource.mime_type.as_str() {
-                "text" | "json" => fs::read_to_string(&path).map_err(|e| {
+            match resource.raw.mime_type.as_deref() {
+                Some("text") | Some("json") | None => fs::read_to_string(&path).map_err(|e| {
                     ResourceError::ExecutionError(format!("Failed to read file: {}", e))
                 }),
-                "binary" => {
+                Some("binary") => {
                     let bytes = fs::read(&path).map_err(|e| {
                         ResourceError::ExecutionError(format!("Failed to read file: {}", e))
                     })?;
                     Ok(base64::prelude::BASE64_STANDARD.encode(bytes))
                 }
-                mime_type => Err(ResourceError::NotFound(format!(
+                Some(mime_type) => Err(ResourceError::NotFound(format!(
                     "Unsupported mime type: {}",
                     mime_type
                 ))),

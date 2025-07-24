@@ -146,8 +146,8 @@ export default function GooseMessage({
   ]);
 
   return (
-    <div className="goose-message flex w-[90%] justify-start">
-      <div className="flex flex-col w-full">
+    <div className="goose-message flex w-[90%] justify-start min-w-0">
+      <div className="flex flex-col w-full min-w-0">
         {/* Chain-of-Thought (hidden by default) */}
         {cotText && (
           <details className="bg-bgSubtle border border-borderSubtle rounded p-2 mb-2">

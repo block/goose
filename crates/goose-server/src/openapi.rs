@@ -11,9 +11,8 @@ use goose::permission::permission_confirmation::PrincipalType;
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata};
 use goose::session::info::SessionInfo;
 use goose::session::SessionMetadata;
-use mcp_core::handler::ToolResultSchema;
-use mcp_core::resource::ResourceContents;
 use mcp_core::tool::{Tool, ToolAnnotations};
+use rmcp::model::ResourceContents;
 use rmcp::model::{Annotations, Content, EmbeddedResource, ImageContent, Role, TextContent};
 use utoipa::{OpenApi, ToSchema};
 
@@ -286,6 +285,7 @@ derive_utoipa!(EmbeddedResource as EmbeddedResourceSchema);
 derive_utoipa!(ImageContent as ImageContentSchema);
 derive_utoipa!(TextContent as TextContentSchema);
 derive_utoipa!(Annotations as AnnotationsSchema);
+derive_utoipa!(ResourceContents as ResourceContentsSchema);
 
 #[allow(dead_code)] // Used by utoipa for OpenAPI generation
 #[derive(OpenApi)]
@@ -347,12 +347,11 @@ derive_utoipa!(Annotations as AnnotationsSchema);
         TextContentSchema,
         ToolResponse,
         ToolRequest,
-        ToolResultSchema,
         ToolConfirmationRequest,
         ThinkingContent,
         RedactedThinkingContent,
         FrontendToolRequest,
-        ResourceContents,
+        ResourceContentsSchema,
         ContextLengthExceeded,
         SummarizationRequested,
         RoleSchema,
@@ -393,6 +392,8 @@ derive_utoipa!(Annotations as AnnotationsSchema);
         goose::recipe::RecipeParameterRequirement,
         goose::recipe::Response,
         goose::recipe::SubRecipe,
+        goose::agents::types::RetryConfig,
+        goose::agents::types::SuccessCheck,
     ))
 )]
 pub struct ApiDoc;

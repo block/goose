@@ -6,6 +6,7 @@ use utoipa::ToSchema;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
+use utoipa::ToSchema;
 
 /// Type alias for the tool result channel receiver
 pub type ToolResultReceiver = Arc<Mutex<mpsc::Receiver<(String, ToolResult<Vec<Content>>)>>>;
@@ -60,7 +61,7 @@ impl RetryConfig {
 }
 
 /// A single success check to validate recipe completion
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(tag = "type")]
 pub enum SuccessCheck {
     /// Execute a shell command and check its exit status
