@@ -305,8 +305,10 @@ Ollama and Ramalama are both options to provide local LLMs, each which requires 
 1. [Download Ollama](https://ollama.com/download). 
 2. Run any [model supporting tool-calling](https://ollama.com/search?c=tools):
 
-:::warning Limited Support for models without tool calling
-Goose extensively uses tool calling, so models without it (e.g. `DeepSeek-r1`) can only do chat completion. If using models without tool calling, all Goose [extensions must be disabled](/docs/getting-started/using-extensions#enablingdisabling-extensions). As an alternative, you can use a [custom DeepSeek-r1 model](/docs/getting-started/providers#deepseek-r1) we've made specifically for Goose.
+:::warning Tool calling support and Context size
+Goose extensively uses tool calling, so models without it can only do chat completion. If using models without tool calling, all Goose extensions must be disabled.
+
+Also, ensure that the `OLLAMA_CONTEXT_LENGTH` environment variable is set high enough to accommodate the instructions required for Goose and extensions. If Goose uses extensions incorrectly or ignores `.goosehits` file, the context length is likely too low. Refer to the [Ollama documentation](https://github.com/ollama/ollama/blob/main/docs/faq.md#how-can-i-specify-the-context-window-size) for more details.
 :::
 
 Example:
@@ -402,15 +404,17 @@ If you're running Ollama on a different server, you'll have to set `OLLAMA_HOST=
 1. [Download Ramalama](https://github.com/containers/ramalama?tab=readme-ov-file#install).
 2. Run any Ollama [model supporting tool-calling](https://ollama.com/search?c=tools) or [GGUF format HuggingFace Model](https://huggingface.co/search/full-text?q=%22tools+support%22+%2B+%22gguf%22&type=model) :
 
-:::warning Limited Support for models without tool calling
-Goose extensively uses tool calling, so models without it (e.g. `DeepSeek-r1`) can only do chat completion. If using models without tool calling, all Goose [extensions must be disabled](/docs/getting-started/using-extensions#enablingdisabling-extensions). As an alternative, you can use a [custom DeepSeek-r1 model](/docs/getting-started/providers#deepseek-r1) we've made specifically for Goose.
+:::warning Tool calling support and Context size
+Goose extensively uses tool calling, so models without it can only do chat completion. If using models without tool calling, all Goose extensions must be disabled.
+
+Using `ramalama serve`, ensure that the `--ctx-size, -c` option is set high enough to accommodate the instructions required for Goose and extensions. If Goose uses extensions incorrectly or ignores `.goosehits` file, the context length is likely too low. Refer to the [Ramalama documentation](https://github.com/containers/ramalama/blob/main/docs/ramalama-serve.1.md#--ctx-size--c) for more details.
 :::
 
 Example:
 
 ```sh
 # NOTE: the --runtime-args="--jinja" flag is required for Ramalama to work with the Goose Ollama provider.
-ramalama serve --runtime-args="--jinja" ollama://qwen2.5
+ramalama serve --runtime-args="--jinja" --ctx-size=8192 ollama://qwen2.5
 ```
 
 3. In a separate terminal window, configure with Goose:
