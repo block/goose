@@ -1,4 +1,4 @@
-import type { OpenDialogReturnValue } from 'electron';
+import type { OpenDialogReturnValue, OpenDialogOptions } from 'electron';
 import {
   app,
   App,
@@ -20,6 +20,7 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import started from 'electron-squirrel-startup';
 import path from 'node:path';
+import os from 'node:os';
 import { spawn } from 'child_process';
 import 'dotenv/config';
 import { startGoosed } from './goosed';
@@ -1176,10 +1177,34 @@ ipcMain.handle('get-wakelock-state', () => {
 });
 
 // Add file/directory selection handler
-ipcMain.handle('select-file-or-directory', async () => {
-  const result = (await dialog.showOpenDialog({
+ipcMain.handle('select-file-or-directory', async (_event, defaultPath?: string) => {
+  const dialogOptions: OpenDialogOptions = {
     properties: process.platform === 'darwin' ? ['openFile', 'openDirectory'] : ['openFile'],
-  })) as unknown as OpenDialogReturnValue;
+  };
+
+  // Set default path if provided
+  if (defaultPath) {
+    // Expand tilde to home directory
+    const expandedPath = defaultPath.startsWith('~')
+      ? path.join(os.homedir(), defaultPath.slice(1))
+      : defaultPath;
+
+    // Check if the path exists
+    try {
+      const stats = await fs.stat(expandedPath);
+      if (stats.isDirectory()) {
+        dialogOptions.defaultPath = expandedPath;
+      } else {
+        dialogOptions.defaultPath = path.dirname(expandedPath);
+      }
+    } catch (error) {
+      // If path doesn't exist, fall back to home directory and log error
+      console.error(`Default path does not exist: ${expandedPath}, falling back to home directory`);
+      dialogOptions.defaultPath = os.homedir();
+    }
+  }
+
+  const result = (await dialog.showOpenDialog(dialogOptions)) as unknown as OpenDialogReturnValue;
 
   if (!result.canceled && result.filePaths.length > 0) {
     return result.filePaths[0];

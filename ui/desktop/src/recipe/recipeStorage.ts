@@ -31,7 +31,7 @@ function parseLastModified(val: string | Date): Date {
 /**
  * Get the storage directory path for recipes
  */
-function getStorageDirectory(isGlobal: boolean): string {
+export function getStorageDirectory(isGlobal: boolean): string {
   return isGlobal ? '~/.config/goose/recipes' : '.goose/recipes';
 }
 
