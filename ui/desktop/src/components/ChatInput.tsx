@@ -4,7 +4,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
 import { Button } from './ui/button';
 import type { View } from '../App';
 import Stop from './ui/Stop';
-import { Attach, Send, Close, Microphone } from './icons';
+import { Attach, Send, Close, Microphone, Langfuse } from './icons';
 import { ChatState } from '../types/chatState';
 import { debounce } from 'lodash';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
@@ -897,6 +897,16 @@ export default function ChatInput({
   const isAnyImageLoading = pastedImages.some((img) => img.isLoading);
   const isAnyDroppedFileLoading = allDroppedFiles.some((file) => file.isLoading);
 
+  const langfuseConfigRaw = localStorage.getItem('langfuse_config');
+  const langfuseConfig = JSON.parse(langfuseConfigRaw || '{}') || {};
+  const openLangfuse = () => {
+    // sessionStorage
+    const langfuse_host = langfuseConfig.selfHosted
+      ? langfuseConfig.langfuseUrl
+      : 'https://cloud.langfuse.com';
+    window.open(langfuse_host, '_blank');
+  };
+
   return (
     <div
       className={`flex flex-col relative h-auto p-4 transition-colors ${
@@ -1264,7 +1274,25 @@ export default function ChatInput({
               <TooltipContent>Configure goosehints</TooltipContent>
             </Tooltip>
           </div>
-        </div>
+          {/* Attach button */}
+          {langfuseConfig.enabled && langfuseConfig.menuIcon && (
+            <>
+            <div className="w-px h-4 bg-border-default mx-2" />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors"
+                  onClick={openLangfuse}
+                >
+                  <Langfuse className="w-4 h-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Observe in Langfuse</TooltipContent>
+            </Tooltip>
+            <div className="w-px h-4 bg-border-default mx-2" />
+            </>
+          )}
 
         <MentionPopover
           ref={mentionPopoverRef}
