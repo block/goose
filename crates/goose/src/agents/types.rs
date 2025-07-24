@@ -2,10 +2,10 @@ use crate::session;
 use mcp_core::{Tool, ToolResult};
 use rmcp::model::Content;
 use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
+use utoipa::ToSchema;
 
 /// Type alias for the tool result channel receiver
 pub type ToolResultReceiver = Arc<Mutex<mpsc::Receiver<(String, ToolResult<Vec<Content>>)>>>;

@@ -5,23 +5,6 @@ use goose::agents::subagent_execution_tool::notification_events::{
 use serde_json::json;
 
 #[test]
-fn test_strip_ansi_codes() {
-    assert_eq!(strip_ansi_codes("hello world"), "hello world");
-    assert_eq!(strip_ansi_codes("\x1b[31mred text\x1b[0m"), "red text");
-    assert_eq!(
-        strip_ansi_codes("\x1b[1;32mbold green\x1b[0m"),
-        "bold green"
-    );
-    assert_eq!(
-        strip_ansi_codes("normal\x1b[33myellow\x1b[0mnormal"),
-        "normalyellownormal"
-    );
-    assert_eq!(strip_ansi_codes("\x1bhello"), "\x1bhello");
-    assert_eq!(strip_ansi_codes("hello\x1b"), "hello\x1b");
-    assert_eq!(strip_ansi_codes(""), "");
-}
-
-#[test]
 fn test_truncate_with_ellipsis() {
     assert_eq!(truncate_with_ellipsis("hello", 10), "hello");
     assert_eq!(truncate_with_ellipsis("hello", 5), "hello");
