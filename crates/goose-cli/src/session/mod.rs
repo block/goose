@@ -1243,6 +1243,14 @@ impl Session {
                 "The existing call to {} was interrupted. How would you like to proceed?",
                 last_tool_name
             );
+            
+            // If this was a shell command that might have left processes running, clean them up
+            if last_tool_name == "developer__shell" {
+                tokio::spawn(async {
+                    cleanup_shell_processes().await;
+                });
+            }
+            
             self.push_message(Message::assistant().with_text(&prompt));
 
             // No need for description update here
@@ -1547,6 +1555,82 @@ impl Session {
 
     fn push_message(&mut self, message: Message) {
         push_message(&mut self.messages, message);
+    }
+}
+
+/// Cleanup function to kill common development server processes that might be left running
+/// after a shell command is interrupted. This helps prevent Goose from "freezing" when
+/// subprocesses continue running in the background.
+async fn cleanup_shell_processes() {
+    // Give a small delay to let the main process cleanup happen first
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    
+    if cfg!(windows) {
+        // On Windows, look for common development server processes and kill them
+        let server_processes = [
+            "python.exe", "pythonw.exe", "node.exe", "npm.cmd", "yarn.cmd", 
+            "pnpm.cmd", "bun.exe", "deno.exe", "uvicorn.exe", "gunicorn.exe",
+            "flask.exe", "django.exe", "fastapi.exe"
+        ];
+        
+        for process in server_processes {
+            // Use Windows tasklist to check if the process is running a server
+            if let Ok(output) = tokio::process::Command::new("tasklist")
+                .args(&["/FI", &format!("IMAGENAME eq {}", process)])
+                .output()
+                .await
+            {
+                let output_str = String::from_utf8_lossy(&output.stdout);
+                // Check if the output contains common server keywords
+                if output_str.contains("server") || output_str.contains("dev") || 
+                   output_str.contains("start") || output_str.contains("run") ||
+                   output_str.contains("8000") || output_str.contains("3000") ||
+                   output_str.contains("5000") || output_str.contains("4000") {
+                    // Try to kill the process
+                    let _ = tokio::process::Command::new("taskkill")
+                        .args(&["/F", "/IM", process])
+                        .output()
+                        .await;
+                }
+            }
+        }
+    } else {
+        // On Unix-like systems, look for processes that match common development server patterns
+        let server_patterns = [
+            "python.*server", "python.*dev", "python.*run", "python.*start",
+            "python.*uvicorn", "python.*gunicorn", "python.*flask", "python.*django",
+            "node.*server", "node.*dev", "node.*start", "npm.*dev", "npm.*start",
+            "yarn.*dev", "yarn.*start", "pnpm.*dev", "pnpm.*start",
+            "bun.*dev", "bun.*start", "deno.*run"
+        ];
+        
+        for pattern in server_patterns {
+            // Try to find and kill processes matching the pattern
+            let _ = tokio::process::Command::new("pkill")
+                .args(&["-f", pattern])
+                .output()
+                .await;
+        }
+        
+        // Also kill any process listening on common development ports
+        let common_ports = ["3000", "5000", "8000", "4000", "8080", "5173", "3001"];
+        for port in common_ports {
+            if let Ok(output) = tokio::process::Command::new("lsof")
+                .args(&["-t", &format!("-i:{}", port)])
+                .output()
+                .await
+            {
+                let pid_str = String::from_utf8_lossy(&output.stdout);
+                for line in pid_str.lines() {
+                    if let Ok(pid) = line.trim().parse::<u32>() {
+                        let _ = tokio::process::Command::new("kill")
+                            .args(&["-TERM", &pid.to_string()])
+                            .output()
+                            .await;
+                    }
+                }
+            }
+        }
     }
 }
 

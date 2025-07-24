@@ -40,6 +40,8 @@ use rmcp::object;
 use self::editor_models::{create_editor_model, EditorModel};
 use self::shell::{expand_path, get_shell_config, is_absolute_path, normalize_line_endings};
 use indoc::indoc;
+#[cfg(unix)]
+use std::os::unix::process::CommandExt;
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 use xcap::{Monitor, Window};
@@ -639,16 +641,21 @@ impl DeveloperRouter {
         // Get platform-specific shell configuration
         let shell_config = get_shell_config();
 
-        // Execute the command using platform-specific shell
+        // Execute the command using shell with better process cleanup
+        // On Unix-like systems (including WSL), wrap the command to ensure it creates a new process group
+        let wrapped_command = format!("setsid {}", command);
         let mut child = Command::new(&shell_config.executable)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .stdin(Stdio::null())
             .kill_on_drop(true)
             .args(&shell_config.args)
-            .arg(command)
+            .arg(&wrapped_command)
             .spawn()
             .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
+
+        // Store the child PID for cleanup (currently unused but may be needed for future enhancements)
+        let _child_pid = child.id();
 
         let stdout = child.stdout.take().unwrap();
         let stderr = child.stderr.take().unwrap();
@@ -1766,6 +1773,7 @@ mod tests {
                 json!({
                     "command": "Get-ChildItem"
                 }),
+                dummy_sender(),
             )
             .await;
         assert!(result.is_ok());
