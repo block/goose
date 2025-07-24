@@ -3533,6 +3533,7 @@ dependencies = [
  "cliclack",
  "console",
  "dirs 5.0.1",
+ "dotenvy",
  "etcetera",
  "futures",
  "goose",

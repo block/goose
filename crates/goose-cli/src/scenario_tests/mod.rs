@@ -2,13 +2,67 @@ mod scenarios;
 
 use crate::session::Session;
 use anyhow::Result;
+use dotenvy::dotenv;
 use goose::agents::Agent;
 use goose::config::Config;
 use goose::message::Message;
 use goose::model::ModelConfig;
 use goose::providers::{create, testprovider::TestProvider};
+use std::collections::HashMap;
+use std::future::Future;
 use std::path::Path;
 use std::sync::Arc;
+
+#[derive(Debug, Clone)]
+struct ProviderConfig {
+    name: &'static str,
+    factory_name: &'static str,
+    required_env_vars: &'static [&'static str],
+    env_modifications: Option<HashMap<&'static str, Option<String>>>,
+}
+
+static PROVIDER_CONFIGS: &[ProviderConfig] = &[
+    ProviderConfig {
+        name: "OpenAI",
+        factory_name: "openai",
+        required_env_vars: &["OPENAI_API_KEY"],
+        env_modifications: None,
+    },
+    ProviderConfig {
+        name: "Anthropic",
+        factory_name: "anthropic",
+        required_env_vars: &["ANTHROPIC_API_KEY"],
+        env_modifications: None,
+    },
+    ProviderConfig {
+        name: "Azure",
+        factory_name: "azure_openai",
+        required_env_vars: &[
+            "AZURE_OPENAI_API_KEY",
+            "AZURE_OPENAI_ENDPOINT",
+            "AZURE_OPENAI_DEPLOYMENT_NAME",
+        ],
+        env_modifications: None,
+    },
+    ProviderConfig {
+        name: "Bedrock",
+        factory_name: "aws_bedrock",
+        required_env_vars: &["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"],
+        env_modifications: None,
+    },
+    ProviderConfig {
+        name: "Google",
+        factory_name: "google",
+        required_env_vars: &["GOOGLE_API_KEY"],
+        env_modifications: None,
+    },
+    ProviderConfig {
+        name: "Groq",
+        factory_name: "groq",
+        required_env_vars: &["GROQ_API_KEY"],
+        env_modifications: None,
+    },
+];
 
 #[derive(Debug, Clone)]
 pub struct ScenarioResult {
@@ -26,11 +80,106 @@ impl ScenarioResult {
     }
 }
 
+async fn run_all_providers_scenario<F, Fut>(test_name: &str, test_fn: F) -> Result<()>
+where
+    F: Fn(String, String) -> Fut,
+    Fut: Future<Output = Result<ScenarioResult>>,
+{
+    for config in PROVIDER_CONFIGS {
+        if let Err(e) = run_provider_scenario(config, &test_fn, test_name).await {
+            println!("Failed {} for {}: {:?}", test_name, config.name, e);
+        }
+    }
+    Ok(())
+}
+
+async fn run_provider_scenario<F, Fut>(
+    config: &ProviderConfig,
+    test_fn: &F,
+    test_name: &str,
+) -> Result<ScenarioResult>
+where
+    F: Fn(&str, &str) -> Fut,
+    Fut: Future<Output = Result<ScenarioResult>>,
+{
+    if let Ok(path) = dotenv() {
+        println!("Loaded environment from {:?}", path);
+    }
+
+    let mut original_env = HashMap::new();
+
+    for &var in config.required_env_vars {
+        if let Ok(val) = std::env::var(var) {
+            original_env.insert(var, val);
+        }
+    }
+
+    if let Some(mods) = &config.env_modifications {
+        for &var in mods.keys() {
+            if let Ok(val) = std::env::var(var) {
+                original_env.insert(var, val);
+            }
+        }
+    }
+
+    if let Some(mods) = &config.env_modifications {
+        for (&var, value) in mods.iter() {
+            match value {
+                Some(val) => std::env::set_var(var, val),
+                None => std::env::remove_var(var),
+            }
+        }
+    }
+
+    let missing_vars = config
+        .required_env_vars
+        .iter()
+        .any(|var| std::env::var(var).is_err());
+
+    if missing_vars {
+        println!(
+            "Skipping {} scenario - credentials not configured",
+            config.name
+        );
+        return Ok(ScenarioResult {
+            messages: vec![],
+            error: Some("Skipped - credentials not configured".to_string()),
+        });
+    }
+
+    std::env::set_var("GOOSE_PROVIDER", config.factory_name);
+
+    let result = test_fn(test_name.to_string(), config.name.to_string()).await;
+
+    for (&var, value) in original_env.iter() {
+        std::env::set_var(var, value);
+    }
+    if let Some(mods) = &config.env_modifications {
+        for &var in mods.keys() {
+            if !original_env.contains_key(var) {
+                std::env::remove_var(var);
+            }
+        }
+    }
+
+    result
+}
+
 pub async fn run_test_scenario(test_name: &str, inputs: &[&str]) -> Result<ScenarioResult> {
+    run_single_provider_scenario(test_name, "default", inputs).await
+}
+
+async fn run_single_provider_scenario(
+    test_name: &str,
+    provider_name: &str,
+    inputs: &[&str],
+) -> Result<ScenarioResult> {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let file_path = format!(
-        "{}/src/scenario_tests/recordings/{}.json",
-        manifest_dir, test_name
+        "{}/src/scenario_tests/recordings/{}/{}.json",
+        manifest_dir,
+        provider_name.to_lowercase(),
+        test_name
     );
 
     if let Some(parent) = Path::new(&file_path).parent() {
@@ -46,8 +195,8 @@ pub async fn run_test_scenario(test_name: &str, inputs: &[&str]) -> Result<Scena
             Err(e) => {
                 let _ = std::fs::remove_file(&file_path);
                 return Err(anyhow::anyhow!(
-                    "Test replay failed for '{}': {}. File deleted - re-run test to record fresh data.",
-                    test_name, e
+                    "Test replay failed for '{}' ({}): {}. File deleted - re-run test to record fresh data.",
+                    test_name, provider_name, e
                 ));
             }
         }
@@ -72,7 +221,6 @@ pub async fn run_test_scenario(test_name: &str, inputs: &[&str]) -> Result<Scena
         };
 
         let model_config = ModelConfig::new(model_name);
-
         let inner_provider = create(&provider_name, model_config)?;
         Arc::new(TestProvider::new_recording(inner_provider, &file_path))
     };
@@ -96,11 +244,40 @@ pub async fn run_test_scenario(test_name: &str, inputs: &[&str]) -> Result<Scena
         if err_msg.contains("No recorded response found") {
             let _ = std::fs::remove_file(&file_path);
             return Err(anyhow::anyhow!(
-                "Test replay failed for '{}' - missing recorded interaction: {}. File deleted - re-run test to record fresh data.",
-                test_name, err_msg
+                "Test replay failed for '{}' ({}) - missing recorded interaction: {}. File deleted - re-run test to record fresh data.",
+                test_name, provider_name, err_msg
             ));
         }
     }
 
     Ok(ScenarioResult { messages, error })
+}
+
+pub async fn run_multi_provider_scenario<F>(
+    test_name: &str,
+    inputs: &[&str],
+    validator: F,
+) -> Result<()>
+where
+    F: Fn(&ScenarioResult) -> Result<()> + Send + Sync + 'static,
+{
+    let inputs_owned: Vec<String> = inputs.iter().map(|s| s.to_string()).collect();
+    let test_name_owned = test_name.to_string();
+
+    run_all_providers_scenario(&test_name_owned, |name, provider| {
+        let inputs = inputs_owned.clone();
+        let validator = &validator;
+        async move {
+            let result = run_single_provider_scenario(
+                name,
+                provider,
+                &inputs.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
+            )
+            .await?;
+
+            validator(&result)?;
+            Ok(result)
+        }
+    })
+    .await
 }

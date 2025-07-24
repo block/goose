@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::scenario_tests::run_test_scenario;
+    use crate::scenario_tests::{run_multi_provider_scenario, run_test_scenario};
     use anyhow::Result;
 
     #[tokio::test]
@@ -18,5 +18,10 @@ mod tests {
         assert!(result.error.is_none());
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_multi_provider_basic_greeting() -> Result<()> {
+        run_multi_provider_scenario("multi_basic_greeting", &["hello", "goodbye"]).await
     }
 }
