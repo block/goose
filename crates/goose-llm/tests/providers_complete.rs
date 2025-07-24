@@ -1,5 +1,5 @@
 use anyhow::Result;
-use dotenv::dotenv;
+use dotenvy::dotenv;
 use goose_llm::message::{Message, MessageContent};
 use goose_llm::providers::base::Provider;
 use goose_llm::providers::errors::ProviderError;

@@ -6,8 +6,8 @@ use crate::providers::formats::openai::{create_request, get_usage, response_to_m
 use crate::providers::utils::get_model;
 use anyhow::Result;
 use async_trait::async_trait;
-use mcp_core::Tool;
 use reqwest::{Client, StatusCode};
+use rmcp::model::Tool;
 use serde_json::Value;
 use std::time::Duration;
 use url::Url;

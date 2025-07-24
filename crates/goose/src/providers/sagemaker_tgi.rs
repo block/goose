@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use aws_config;
 use aws_sdk_bedrockruntime::config::ProvideCredentials;
 use aws_sdk_sagemakerruntime::Client as SageMakerClient;
-use mcp_core::Tool;
+use rmcp::model::Tool;
 use serde_json::{json, Value};
 use tokio::time::sleep;
 

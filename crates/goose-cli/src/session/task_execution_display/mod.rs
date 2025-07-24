@@ -2,6 +2,7 @@ use goose::agents::subagent_execution_tool::lib::TaskStatus;
 use goose::agents::subagent_execution_tool::notification_events::{
     TaskExecutionNotificationEvent, TaskInfo,
 };
+use goose::utils::safe_truncate;
 use serde_json::Value;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -18,7 +19,7 @@ static INITIAL_SHOWN: AtomicBool = AtomicBool::new(false);
 
 fn format_result_data_for_display(result_data: &Value) -> String {
     match result_data {
-        Value::String(s) => strip_ansi_codes(s),
+        Value::String(s) => s.to_string(),
         Value::Object(obj) => {
             if let Some(partial_output) = obj.get("partial_output").and_then(|v| v.as_str()) {
                 format!("Partial output: {}", partial_output)
@@ -45,53 +46,7 @@ fn process_output_for_display(output: &str) -> String {
     };
 
     let clean_output = recent_lines.join(" ... ");
-    let stripped = strip_ansi_codes(&clean_output);
-    truncate_with_ellipsis(&stripped, OUTPUT_PREVIEW_LENGTH)
-}
-
-fn truncate_with_ellipsis(text: &str, max_len: usize) -> String {
-    if text.len() > max_len {
-        let mut end = max_len.saturating_sub(3);
-        while end > 0 && !text.is_char_boundary(end) {
-            end -= 1;
-        }
-        format!("{}...", &text[..end])
-    } else {
-        text.to_string()
-    }
-}
-
-fn strip_ansi_codes(text: &str) -> String {
-    let mut result = String::new();
-    let mut chars = text.chars();
-
-    while let Some(ch) = chars.next() {
-        if ch == '\x1b' {
-            if let Some(next_ch) = chars.next() {
-                if next_ch == '[' {
-                    // This is an ANSI escape sequence, consume until alphabetic character
-                    loop {
-                        match chars.next() {
-                            Some(c) if c.is_ascii_alphabetic() => break,
-                            Some(_) => continue,
-                            None => break,
-                        }
-                    }
-                } else {
-                    // Not an ANSI sequence, keep both characters
-                    result.push(ch);
-                    result.push(next_ch);
-                }
-            } else {
-                // End of string after \x1b
-                result.push(ch);
-            }
-        } else {
-            result.push(ch);
-        }
-    }
-
-    result
+    safe_truncate(&clean_output, OUTPUT_PREVIEW_LENGTH)
 }
 
 pub fn format_task_execution_notification(
@@ -233,7 +188,7 @@ fn format_task_display(task: &TaskInfo) -> String {
 
     if matches!(task.status, TaskStatus::Failed) {
         if let Some(error) = &task.error {
-            let error_preview = truncate_with_ellipsis(error, 80);
+            let error_preview = safe_truncate(error, 80);
             task_display.push_str(&format!(
                 "   ⚠️  {}{}\n",
                 error_preview.replace('\n', " "),

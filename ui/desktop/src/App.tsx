@@ -535,17 +535,18 @@ const SharedSessionRouteWrapper = ({
   const location = useLocation();
   const navigate = useNavigate();
 
-  const sessionDetails = location.state?.sessionDetails as SharedSessionDetails | null;
-  const error = location.state?.error || sharedSessionError;
-  const shareToken = location.state?.shareToken;
-  const baseUrl = location.state?.baseUrl;
+  const historyState = window.history.state;
+  const sessionDetails = (location.state?.sessionDetails ||
+    historyState?.sessionDetails) as SharedSessionDetails | null;
+  const error = location.state?.error || historyState?.error || sharedSessionError;
+  const shareToken = location.state?.shareToken || historyState?.shareToken;
+  const baseUrl = location.state?.baseUrl || historyState?.baseUrl;
 
   return (
     <SharedSessionView
       session={sessionDetails}
       isLoading={isLoadingSharedSession}
       error={error}
-      onBack={() => navigate('/sessions')}
       onRetry={async () => {
         if (shareToken && baseUrl) {
           setIsLoadingSharedSession(true);
@@ -713,6 +714,7 @@ export default function App() {
   // Create a setView function for useChat hook - we'll use window.history instead of navigate
   const setView = (view: View, viewOptions: ViewOptions = {}) => {
     console.log(`Setting view to: ${view}`, viewOptions);
+    console.trace('setView called from:'); // This will show the call stack
     // Convert view to route navigation using hash routing
     switch (view) {
       case 'chat':
@@ -752,7 +754,10 @@ export default function App() {
         window.location.hash = '#/welcome';
         break;
       default:
-        window.location.hash = '#/';
+        console.error(`Unknown view: ${view}, not navigating anywhere. This is likely a bug.`);
+        console.trace('Invalid setView call stack:');
+        // Don't navigate anywhere for unknown views to avoid unexpected redirects
+        break;
     }
   };
 
@@ -1024,51 +1029,32 @@ export default function App() {
     const handleOpenSharedSession = async (_event: IpcRendererEvent, ...args: unknown[]) => {
       const link = args[0] as string;
       window.electron.logInfo(`Opening shared session from deep link ${link}`);
-      setIsLoadingSession(true);
+      setIsLoadingSharedSession(true);
       setSharedSessionError(null);
       try {
         await openSharedSessionFromDeepLink(
           link,
-          (view: View, _options?: SessionLinksViewOptions) => {
-            // Convert view to route navigation
-            switch (view) {
-              case 'chat':
-                window.history.replaceState({}, '', '/');
-                break;
-              case 'settings':
-                window.history.replaceState({}, '', '/settings');
-                break;
-              case 'sessions':
-                window.history.replaceState({}, '', '/sessions');
-                break;
-              case 'schedules':
-                window.history.replaceState({}, '', '/schedules');
-                break;
-              case 'recipes':
-                window.history.replaceState({}, '', '/recipes');
-                break;
-              case 'permission':
-                window.history.replaceState({}, '', '/permission');
-                break;
-              case 'ConfigureProviders':
-                window.history.replaceState({}, '', '/configure-providers');
-                break;
-              case 'sharedSession':
-                window.history.replaceState({}, '', '/shared-session');
-                break;
-              case 'recipeEditor':
-                window.history.replaceState({}, '', '/recipe-editor');
-                break;
-              default:
-                window.history.replaceState({}, '', '/');
+          (_view: View, _options?: SessionLinksViewOptions) => {
+            // Navigate to shared session view with the session data
+            window.location.hash = '#/shared-session';
+            if (_options) {
+              window.history.replaceState(_options, '', '#/shared-session');
             }
           }
         );
       } catch (error) {
         console.error('Unexpected error opening shared session:', error);
-        window.history.replaceState({}, '', '/sessions');
+        // Navigate to shared session view with error
+        window.location.hash = '#/shared-session';
+        const shareToken = link.replace('goose://sessions/', '');
+        const options = {
+          sessionDetails: null,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          shareToken,
+        };
+        window.history.replaceState(options, '', '#/shared-session');
       } finally {
-        setIsLoadingSession(false);
+        setIsLoadingSharedSession(false);
       }
     };
     window.electron.on('open-shared-session', handleOpenSharedSession);

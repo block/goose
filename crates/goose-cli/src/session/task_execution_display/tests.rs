@@ -5,34 +5,6 @@ use goose::agents::subagent_execution_tool::notification_events::{
 use serde_json::json;
 
 #[test]
-fn test_strip_ansi_codes() {
-    assert_eq!(strip_ansi_codes("hello world"), "hello world");
-    assert_eq!(strip_ansi_codes("\x1b[31mred text\x1b[0m"), "red text");
-    assert_eq!(
-        strip_ansi_codes("\x1b[1;32mbold green\x1b[0m"),
-        "bold green"
-    );
-    assert_eq!(
-        strip_ansi_codes("normal\x1b[33myellow\x1b[0mnormal"),
-        "normalyellownormal"
-    );
-    assert_eq!(strip_ansi_codes("\x1bhello"), "\x1bhello");
-    assert_eq!(strip_ansi_codes("hello\x1b"), "hello\x1b");
-    assert_eq!(strip_ansi_codes(""), "");
-}
-
-#[test]
-fn test_truncate_with_ellipsis() {
-    assert_eq!(truncate_with_ellipsis("hello", 10), "hello");
-    assert_eq!(truncate_with_ellipsis("hello", 5), "hello");
-    assert_eq!(truncate_with_ellipsis("hello world", 8), "hello...");
-    assert_eq!(truncate_with_ellipsis("hello", 3), "...");
-    assert_eq!(truncate_with_ellipsis("hello", 2), "...");
-    assert_eq!(truncate_with_ellipsis("hello", 1), "...");
-    assert_eq!(truncate_with_ellipsis("", 5), "");
-}
-
-#[test]
 fn test_process_output_for_display() {
     assert_eq!(process_output_for_display("hello world"), "hello world");
     assert_eq!(
@@ -49,20 +21,15 @@ fn test_process_output_for_display() {
     assert!(result.len() <= 100);
     assert!(result.ends_with("..."));
 
-    let ansi_output = "\x1b[31mred line 1\x1b[0m\n\x1b[32mgreen line 2\x1b[0m";
-    let result = process_output_for_display(ansi_output);
-    assert_eq!(result, "red line 1 ... green line 2");
-
     assert_eq!(process_output_for_display(""), "");
 }
 
 #[test]
 fn test_format_result_data_for_display() {
-    let string_val = json!("hello world");
-    assert_eq!(format_result_data_for_display(&string_val), "hello world");
-
-    let ansi_string = json!("\x1b[31mred text\x1b[0m");
-    assert_eq!(format_result_data_for_display(&ansi_string), "red text");
+    assert_eq!(
+        format_result_data_for_display(&json!("red text")),
+        "red text"
+    );
 
     assert_eq!(format_result_data_for_display(&json!(true)), "true");
     assert_eq!(format_result_data_for_display(&json!(false)), "false");

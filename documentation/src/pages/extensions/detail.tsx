@@ -99,7 +99,7 @@ const getDocumentationPath = (serverId: string): string => {
                       <div className="flex items-center gap-2">
                         <Info className="h-4 w-4 text-textSubtle shrink-0" />
                         <span className="text-sm text-textSubtle">
-                          Can be enabled in the goose settings page
+                           Can be enabled on the Extensions page in Goose
                         </span>
                       </div>
                     ) : (
@@ -182,7 +182,7 @@ const getDocumentationPath = (serverId: string): string => {
                     {server.is_builtin ? (
                       <div
                         className="built-in-badge"
-                        title="This extension is built into goose and can be enabled in the settings page"
+                        title="This extension is built into Goose and can be enabled on the Extensions page"
                       >
                         Built-in
                       </div>

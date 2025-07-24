@@ -219,6 +219,7 @@ fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
         Ok(call) => match call.name.as_str() {
             "developer__text_editor" => render_text_editor_request(call, debug),
             "developer__shell" => render_shell_request(call, debug),
+            "dynamic_task__create_task" => render_dynamic_task_request(call, debug),
             _ => render_default_request(call, debug),
         },
         Err(e) => print_markdown(&e.to_string(), theme),
@@ -392,6 +393,37 @@ fn render_shell_request(call: &ToolCall, debug: bool) {
     }
 }
 
+fn render_dynamic_task_request(call: &ToolCall, debug: bool) {
+    print_tool_header(call);
+
+    // Print task_parameters array
+    if let Some(Value::Array(task_parameters)) = call.arguments.get("task_parameters") {
+        println!("{}:", style("task_parameters").dim());
+
+        for task_param in task_parameters.iter() {
+            println!("    -");
+
+            if let Some(param_obj) = task_param.as_object() {
+                for (key, value) in param_obj {
+                    match value {
+                        Value::String(s) => {
+                            // For strings, print the full content without truncation
+                            println!("        {}: {}", style(key).dim(), style(s).green());
+                        }
+                        _ => {
+                            // For everything else, use print_params
+                            print!("        ");
+                            print_params(value, 0, debug);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    println!();
+}
+
 fn render_default_request(call: &ToolCall, debug: bool) {
     print_tool_header(call);
     print_params(&call.arguments, 0, debug);
@@ -463,26 +495,8 @@ fn print_params(value: &Value, depth: usize, debug: bool) {
                         }
                     }
                     Value::String(s) => {
-                        // Special handling for text_instruction to show more content
-                        let max_length = if key == "text_instruction" {
-                            200 // Allow longer display for text instructions
-                        } else {
-                            get_tool_params_max_length()
-                        };
-
-                        if !debug && s.len() > max_length {
-                            // For text instructions, show a preview instead of just "..."
-                            if key == "text_instruction" {
-                                let preview = &s[..max_length.saturating_sub(3)];
-                                println!(
-                                    "{}{}: {}",
-                                    indent,
-                                    style(key).dim(),
-                                    style(format!("{}...", preview)).green()
-                                );
-                            } else {
-                                println!("{}{}: {}", indent, style(key).dim(), style("...").dim());
-                            }
+                        if !debug && s.len() > get_tool_params_max_length() {
+                            println!("{}{}: {}", indent, style(key).dim(), style("...").dim());
                         } else {
                             println!("{}{}: {}", indent, style(key).dim(), style(s).green());
                         }
