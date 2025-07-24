@@ -23,21 +23,23 @@ impl EditorModel {
         original_code: &str,
         old_str: &str,
         update_snippet: &str,
+        instruction: &str,
     ) -> Result<String, String> {
         match self {
             EditorModel::MorphLLM(editor) => {
+                // Only MorphLLM uses the instruction parameter
                 editor
-                    .edit_code(original_code, old_str, update_snippet)
+                    .edit_code(original_code, old_str, update_snippet, instruction)
                     .await
             }
             EditorModel::OpenAICompatible(editor) => {
                 editor
-                    .edit_code(original_code, old_str, update_snippet)
+                    .edit_code(original_code, old_str, update_snippet, instruction)
                     .await
             }
             EditorModel::Relace(editor) => {
                 editor
-                    .edit_code(original_code, old_str, update_snippet)
+                    .edit_code(original_code, old_str, update_snippet, instruction)
                     .await
             }
         }
@@ -51,6 +53,15 @@ impl EditorModel {
             EditorModel::Relace(editor) => editor.get_str_replace_description(),
         }
     }
+
+    /// Check if this editor supports/requires the instruction parameter
+    pub fn supports_instruction_parameter(&self) -> bool {
+        match self {
+            EditorModel::MorphLLM(_) => true,
+            EditorModel::OpenAICompatible(_) => false,
+            EditorModel::Relace(_) => false,
+        }
+    }
 }
 
 /// Trait for individual editor implementations
@@ -61,6 +72,7 @@ pub trait EditorModelImpl {
         original_code: &str,
         old_str: &str,
         update_snippet: &str,
+        instruction: &str,
     ) -> Result<String, String>;
 
     /// Get the description for the str_replace command when this editor is active
