@@ -1,19 +1,9 @@
-import { SubRecipe } from '../api';
-import { getApiUrl, getSecretKey } from '../config';
+import { addSubRecipes, SubRecipe } from '../api';
 
-export async function addSubRecipes(subRecipes: SubRecipe[]) {
-  const add_sub_recipe_response = await fetch(getApiUrl('/agent/add_sub_recipes'), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Secret-Key': getSecretKey(),
-    },
-    body: JSON.stringify({
-      sub_recipes: subRecipes,
-    }),
-  });
-  if (!add_sub_recipe_response.ok) {
-    console.warn(`Failed to add sub recipes: ${add_sub_recipe_response.statusText}`);
+export async function addSubRecipesToAgent(subRecipes: SubRecipe[]) {
+  const add_sub_recipe_response = await addSubRecipes({ body: { sub_recipes: subRecipes } });
+  if (add_sub_recipe_response.error) {
+    console.warn(`Failed to add sub recipes: ${add_sub_recipe_response.error}`);
   } else {
     console.log('Added sub recipes');
   }

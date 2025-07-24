@@ -16,7 +16,7 @@ import {
   SubRecipe,
   addExtension as apiAddExtension,
 } from '../api';
-import { addSubRecipes } from '../recipe/add_sub_recipe_on_agent';
+import { addSubRecipesToAgent } from '../recipe/add_sub_recipe_on_agent';
 
 export interface Provider {
   id: string; // Lowercase key (e.g., "openai")
@@ -116,13 +116,12 @@ export const updateSystemPromptWithParameters = async (
   if (subRecipes && subRecipes?.length > 0) {
     for (const subRecipe of subRecipes) {
       if (subRecipe.values) {
-        // Iterate over each key in subRecipe.values and substitute parameters
         for (const key in subRecipe.values) {
           subRecipe.values[key] = substituteParameters(subRecipe.values[key], recipeParameters);
         }
       }
     }
-    await addSubRecipes(subRecipes);
+    await addSubRecipesToAgent(subRecipes);
   }
 };
 
@@ -240,7 +239,7 @@ export const initializeSystem = async (
       console.log('Extended system prompt with desktop-specific information');
     }
     if (!hasParameters && hasSubRecipes) {
-      await addSubRecipes(subRecipes);
+      await addSubRecipesToAgent(subRecipes);
     }
     // Configure session with response config if present
     if (responseConfig?.json_schema) {

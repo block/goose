@@ -2,6 +2,7 @@ use goose::agents::subagent_execution_tool::lib::TaskStatus;
 use goose::agents::subagent_execution_tool::notification_events::{
     TaskExecutionNotificationEvent, TaskInfo,
 };
+use goose::utils::safe_truncate;
 use serde_json::Value;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -50,11 +51,7 @@ fn process_output_for_display(output: &str) -> String {
 
 fn truncate_with_ellipsis(text: &str, max_len: usize) -> String {
     if text.len() > max_len {
-        let mut end = max_len.saturating_sub(3);
-        while end > 0 && !text.is_char_boundary(end) {
-            end -= 1;
-        }
-        format!("{}...", &text[..end])
+        format!("{}...", safe_truncate(text, max_len))
     } else {
         text.to_string()
     }

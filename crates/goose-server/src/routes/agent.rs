@@ -35,13 +35,13 @@ struct ExtendPromptResponse {
     success: bool,
 }
 
-#[derive(Deserialize)]
-struct AddSubRecipesRequest {
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct AddSubRecipesRequest {
     sub_recipes: Vec<SubRecipe>,
 }
 
-#[derive(Serialize)]
-struct AddSubRecipesResponse {
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct AddSubRecipesResponse {
     success: bool,
 }
 
@@ -98,6 +98,15 @@ async fn get_versions() -> Json<VersionsResponse> {
     })
 }
 
+#[utoipa::path(
+    post,
+    path = "/agent/add_sub_recipes",
+    request_body = AddSubRecipesRequest,
+    responses(
+        (status = 200, description = "added sub recipes to agent successfully", body = AddSubRecipesResponse),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+    ),
+)]
 async fn add_sub_recipes(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,

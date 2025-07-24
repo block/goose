@@ -8,6 +8,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::agents::subagent_execution_tool::task_execution_tracker::TaskExecutionTracker;
 use crate::agents::subagent_execution_tool::task_types::{Task, TaskResult, TaskStatus};
+use crate::agents::subagent_execution_tool::utils::strip_ansi_codes;
 use crate::agents::subagent_handler::run_complete_subagent_task;
 use crate::agents::subagent_task_config::TaskConfig;
 
@@ -267,59 +268,5 @@ fn process_output(stdout_output: String) -> Result<Value, String> {
         Ok(Value::String(json_string))
     } else {
         Ok(Value::String(stdout_output))
-    }
-}
-
-fn strip_ansi_codes(text: &str) -> String {
-    let mut result = String::new();
-    let mut chars = text.chars();
-
-    while let Some(ch) = chars.next() {
-        if ch == '\x1b' {
-            if let Some(next_ch) = chars.next() {
-                if next_ch == '[' {
-                    // This is an ANSI escape sequence, consume until alphabetic character
-                    loop {
-                        match chars.next() {
-                            Some(c) if c.is_ascii_alphabetic() => break,
-                            Some(_) => continue,
-                            None => break,
-                        }
-                    }
-                } else {
-                    // Not an ANSI sequence, keep both characters
-                    result.push(ch);
-                    result.push(next_ch);
-                }
-            } else {
-                // End of string after \x1b
-                result.push(ch);
-            }
-        } else {
-            result.push(ch);
-        }
-    }
-
-    result
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn test_strip_ansi_codes() {
-        assert_eq!(strip_ansi_codes("hello world"), "hello world");
-        assert_eq!(strip_ansi_codes("\x1b[31mred text\x1b[0m"), "red text");
-        assert_eq!(
-            strip_ansi_codes("\x1b[1;32mbold green\x1b[0m"),
-            "bold green"
-        );
-        assert_eq!(
-            strip_ansi_codes("normal\x1b[33myellow\x1b[0mnormal"),
-            "normalyellownormal"
-        );
-        assert_eq!(strip_ansi_codes("\x1bhello"), "\x1bhello");
-        assert_eq!(strip_ansi_codes("hello\x1b"), "hello\x1b");
-        assert_eq!(strip_ansi_codes(""), "");
     }
 }

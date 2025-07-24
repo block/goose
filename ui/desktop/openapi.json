@@ -13,6 +13,39 @@
     "version": "1.1.0"
   },
   "paths": {
+    "/agent/add_sub_recipes": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "add_sub_recipes",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddSubRecipesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "added sub recipes to agent successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddSubRecipesResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          }
+        }
+      }
+    },
     "/agent/tools": {
       "get": {
         "tags": [
@@ -1033,6 +1066,31 @@
   },
   "components": {
     "schemas": {
+      "AddSubRecipesRequest": {
+        "type": "object",
+        "required": [
+          "sub_recipes"
+        ],
+        "properties": {
+          "sub_recipes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubRecipe"
+            }
+          }
+        }
+      },
+      "AddSubRecipesResponse": {
+        "type": "object",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          }
+        }
+      },
       "Annotations": {
         "type": "object",
         "properties": {
