@@ -91,6 +91,15 @@ Anyone. We welcome individuals, working on their own or in small teams, as long 
 
 [Submit your application here](https://forms.gle/psHBhj8xFY8q1nHP7)
 
+
+<br/>
+  <Link className="button button--primary button-grant">
+    ## contact us
+  </Link>
+<br/>
+
+If you have additional questions, feel free to reach out in [Discord](https://discord.com/channels/1287729918100246654/1397943505216868444) in the #goose-grants forum.
+
 <head>
   <meta property="og:title" content="goose grant program" />
   <meta property="og:type" content="article" />
