@@ -5,17 +5,6 @@ use goose::agents::subagent_execution_tool::notification_events::{
 use serde_json::json;
 
 #[test]
-fn test_truncate_with_ellipsis() {
-    assert_eq!(truncate_with_ellipsis("hello", 10), "hello");
-    assert_eq!(truncate_with_ellipsis("hello", 5), "hello");
-    assert_eq!(truncate_with_ellipsis("hello world", 8), "hello...");
-    assert_eq!(truncate_with_ellipsis("hello", 3), "...");
-    assert_eq!(truncate_with_ellipsis("hello", 2), "...");
-    assert_eq!(truncate_with_ellipsis("hello", 1), "...");
-    assert_eq!(truncate_with_ellipsis("", 5), "");
-}
-
-#[test]
 fn test_process_output_for_display() {
     assert_eq!(process_output_for_display("hello world"), "hello world");
     assert_eq!(

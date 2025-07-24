@@ -46,15 +46,7 @@ fn process_output_for_display(output: &str) -> String {
     };
 
     let clean_output = recent_lines.join(" ... ");
-    truncate_with_ellipsis(&clean_output, OUTPUT_PREVIEW_LENGTH)
-}
-
-fn truncate_with_ellipsis(text: &str, max_len: usize) -> String {
-    if text.len() > max_len {
-        format!("{}...", safe_truncate(text, max_len))
-    } else {
-        text.to_string()
-    }
+    safe_truncate(&clean_output, OUTPUT_PREVIEW_LENGTH)
 }
 
 pub fn format_task_execution_notification(
@@ -196,7 +188,7 @@ fn format_task_display(task: &TaskInfo) -> String {
 
     if matches!(task.status, TaskStatus::Failed) {
         if let Some(error) = &task.error {
-            let error_preview = truncate_with_ellipsis(error, 80);
+            let error_preview = safe_truncate(error, 80);
             task_display.push_str(&format!(
                 "   ⚠️  {}{}\n",
                 error_preview.replace('\n', " "),
