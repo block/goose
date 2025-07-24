@@ -16,7 +16,7 @@ import {
   SubRecipe,
   addExtension as apiAddExtension,
 } from '../api';
-import { addSubRecipes } from '../recipe/update_agent';
+import { addSubRecipes } from '../recipe/add_sub_recipe_on_agent';
 
 export interface Provider {
   id: string; // Lowercase key (e.g., "openai")
