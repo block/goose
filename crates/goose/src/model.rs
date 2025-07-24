@@ -91,6 +91,7 @@ impl ModelConfig {
     ) -> Result<Self, ConfigError> {
         let context_limit = Self::parse_context_limit(&model_name, context_env_var)?;
         let temperature = Self::parse_temperature()?;
+        let max_tokens = Self::parse_max_tokens()?;
         let toolshim = Self::parse_toolshim()?;
         let toolshim_model = Self::parse_toolshim_model()?;
 
@@ -98,7 +99,7 @@ impl ModelConfig {
             model_name,
             context_limit,
             temperature,
-            max_tokens: None,
+            max_tokens,
             toolshim,
             toolshim_model,
         })
@@ -108,12 +109,14 @@ impl ModelConfig {
         model_name: &str,
         custom_env_var: Option<&str>,
     ) -> Result<Option<usize>, ConfigError> {
+        let config = crate::config::Config::global();
+        
         if let Some(env_var) = custom_env_var {
-            if let Ok(val) = std::env::var(env_var) {
+            if let Ok(val) = config.get_param::<String>(env_var) {
                 return Self::validate_context_limit(&val, env_var).map(Some);
             }
         }
-        if let Ok(val) = std::env::var("GOOSE_CONTEXT_LIMIT") {
+        if let Ok(val) = config.get_param::<String>("GOOSE_CONTEXT_LIMIT") {
             return Self::validate_context_limit(&val, "GOOSE_CONTEXT_LIMIT").map(Some);
         }
         Ok(Self::get_model_specific_limit(model_name))
@@ -139,7 +142,9 @@ impl ModelConfig {
     }
 
     fn parse_temperature() -> Result<Option<f32>, ConfigError> {
-        if let Ok(val) = std::env::var("GOOSE_TEMPERATURE") {
+        let config = crate::config::Config::global();
+        
+        if let Ok(val) = config.get_param::<String>("GOOSE_TEMPERATURE") {
             let temp = val.parse::<f32>().map_err(|_| {
                 ConfigError::InvalidValue(
                     "GOOSE_TEMPERATURE".to_string(),
@@ -159,8 +164,33 @@ impl ModelConfig {
         }
     }
 
+    fn parse_max_tokens() -> Result<Option<i32>, ConfigError> {
+        let config = crate::config::Config::global();
+        
+        if let Ok(val) = config.get_param::<String>("GOOSE_MAX_TOKENS") {
+            let tokens = val.parse::<i32>().map_err(|_| {
+                ConfigError::InvalidValue(
+                    "GOOSE_MAX_TOKENS".to_string(),
+                    val.clone(),
+                    "must be a valid positive integer".to_string(),
+                )
+            })?;
+            if tokens <= 0 {
+                return Err(ConfigError::InvalidRange(
+                    "GOOSE_MAX_TOKENS".to_string(),
+                    "must be greater than 0".to_string(),
+                ));
+            }
+            Ok(Some(tokens))
+        } else {
+            Ok(None)
+        }
+    }
+
     fn parse_toolshim() -> Result<bool, ConfigError> {
-        if let Ok(val) = std::env::var("GOOSE_TOOLSHIM") {
+        let config = crate::config::Config::global();
+        
+        if let Ok(val) = config.get_param::<String>("GOOSE_TOOLSHIM") {
             match val.to_lowercase().as_str() {
                 "1" | "true" | "yes" | "on" => Ok(true),
                 "0" | "false" | "no" | "off" => Ok(false),
@@ -176,7 +206,9 @@ impl ModelConfig {
     }
 
     fn parse_toolshim_model() -> Result<Option<String>, ConfigError> {
-        match std::env::var("GOOSE_TOOLSHIM_OLLAMA_MODEL") {
+        let config = crate::config::Config::global();
+        
+        match config.get_param::<String>("GOOSE_TOOLSHIM_OLLAMA_MODEL") {
             Ok(val) if val.trim().is_empty() => Err(ConfigError::InvalidValue(
                 "GOOSE_TOOLSHIM_OLLAMA_MODEL".to_string(),
                 val,
@@ -345,17 +377,52 @@ mod tests {
 
     #[test]
     #[serial]
+    fn test_invalid_max_tokens() {
+        with_var("GOOSE_MAX_TOKENS", Some("not_a_number"), || {
+            let result = ModelConfig::new("test-model");
+            assert!(result.is_err());
+            if let Err(ConfigError::InvalidValue(var, val, msg)) = result {
+                assert_eq!(var, "GOOSE_MAX_TOKENS");
+                assert_eq!(val, "not_a_number");
+                assert!(msg.contains("positive integer"));
+            }
+        });
+
+        with_var("GOOSE_MAX_TOKENS", Some("-1"), || {
+            let result = ModelConfig::new("test-model");
+            assert!(result.is_err());
+            assert!(matches!(
+                result.unwrap_err(),
+                ConfigError::InvalidRange(_, _)
+            ));
+        });
+
+        with_var("GOOSE_MAX_TOKENS", Some("0"), || {
+            let result = ModelConfig::new("test-model");
+            assert!(result.is_err());
+            assert!(matches!(
+                result.unwrap_err(),
+                ConfigError::InvalidRange(_, _)
+            ));
+        });
+    }
+
+    #[test]
+    #[serial]
     fn test_valid_configurations() {
         // Test with environment variables set
         with_var("GOOSE_CONTEXT_LIMIT", Some("50000"), || {
             with_var("GOOSE_TEMPERATURE", Some("0.7"), || {
-                with_var("GOOSE_TOOLSHIM", Some("true"), || {
-                    with_var("GOOSE_TOOLSHIM_OLLAMA_MODEL", Some("llama3"), || {
-                        let config = ModelConfig::new("test-model").unwrap();
-                        assert_eq!(config.context_limit(), 50_000);
-                        assert_eq!(config.temperature, Some(0.7));
-                        assert!(config.toolshim);
-                        assert_eq!(config.toolshim_model, Some("llama3".to_string()));
+                with_var("GOOSE_MAX_TOKENS", Some("1000"), || {
+                    with_var("GOOSE_TOOLSHIM", Some("true"), || {
+                        with_var("GOOSE_TOOLSHIM_OLLAMA_MODEL", Some("llama3"), || {
+                            let config = ModelConfig::new("test-model").unwrap();
+                            assert_eq!(config.context_limit(), 50_000);
+                            assert_eq!(config.temperature, Some(0.7));
+                            assert_eq!(config.max_tokens, Some(1000));
+                            assert!(config.toolshim);
+                            assert_eq!(config.toolshim_model, Some("llama3".to_string()));
+                        });
                     });
                 });
             });
