@@ -85,11 +85,15 @@ impl ModelConfig {
             .ok()
             .and_then(|val| val.parse::<f32>().ok());
 
+        let max_tokens = std::env::var("GOOSE_MAX_TOKENS")
+            .ok()
+            .and_then(|val| val.parse::<i32>().ok());
+
         Self {
             model_name,
             context_limit,
             temperature,
-            max_tokens: None,
+            max_tokens,
             toolshim,
             toolshim_model,
         }
