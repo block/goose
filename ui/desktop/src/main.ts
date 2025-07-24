@@ -259,7 +259,6 @@ async function handleProtocolUrl(url: string) {
   const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
   if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
-    console.log('======parsedUrl', parsedUrl);
     // For bot/recipe URLs, get existing window or create new one
     const existingWindows = BrowserWindow.getAllWindows();
     const targetWindow =

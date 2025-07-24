@@ -240,7 +240,7 @@ export const initializeSystem = async (
       console.log('Extended system prompt with desktop-specific information');
     }
     if (!hasParameters && hasSubRecipes) {
-      addSubRecipes(subRecipes);
+      await addSubRecipes(subRecipes);
     }
     // Configure session with response config if present
     if (responseConfig?.json_schema) {
