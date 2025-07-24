@@ -38,7 +38,7 @@ use mcp_server::Router;
 
 use mcp_core::role::Role;
 
-use self::editor_models::{create_editor_model, EditorModel, EditorModelImpl};
+use self::editor_models::{create_editor_model, EditorModel};
 use self::shell::{expand_path, get_shell_config, is_absolute_path, normalize_line_endings};
 use indoc::indoc;
 use std::process::Stdio;
@@ -261,8 +261,8 @@ impl DeveloperRouter {
 
         // Create text editor tool with different descriptions and schemas based on editor API configuration
         let (text_editor_desc, schema_properties) = match &editor_model {
-            Some(EditorModel::MorphLLM(editor)) => {
-                // MorphLLM-specific configuration with instruction parameter
+            Some(editor) if editor.supports_instruction_parameter() => {
+                // Editors that support/require instruction parameter (like MorphLLM)
                 (
                     formatdoc! {r#"
                     Perform text editing operations on files.
@@ -966,15 +966,14 @@ impl DeveloperRouter {
                         ToolError::InvalidParameters("Missing 'new_str' parameter".into())
                     })?;
 
-                // Only extract instruction parameter when MorphLLM is being used
+                // Only extract instruction parameter when editors that support it are being used
                 let instruction = match &self.editor_model {
-                    Some(EditorModel::MorphLLM(_)) => params
+                    Some(editor) if editor.supports_instruction_parameter() => params
                         .get("instruction")
                         .and_then(|v| v.as_str())
                         .ok_or_else(|| {
                             ToolError::InvalidParameters(
-                                "Missing 'instruction' parameter required for MorphLLM editor"
-                                    .into(),
+                                "Missing 'instruction' parameter required for this editor".into(),
                             )
                         })?,
                     _ => "", // Empty instruction for other editors or no editor

@@ -53,6 +53,15 @@ impl EditorModel {
             EditorModel::Relace(editor) => editor.get_str_replace_description(),
         }
     }
+
+    /// Check if this editor supports/requires the instruction parameter
+    pub fn supports_instruction_parameter(&self) -> bool {
+        match self {
+            EditorModel::MorphLLM(_) => true,
+            EditorModel::OpenAICompatible(_) => false,
+            EditorModel::Relace(_) => false,
+        }
+    }
 }
 
 /// Trait for individual editor implementations
