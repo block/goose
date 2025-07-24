@@ -93,19 +93,10 @@ async fn handle_text_instruction_task(
             return Err("Task cancelled".to_string());
         }
     };
-
     match result {
-        Ok(contents) => {
-            let final_text = if contents.is_empty() {
-                "Task completed (no text output)".to_string()
-            } else {
-                contents
-            };
-
-            Ok(serde_json::json!({
-                "result": final_text
-            }))
-        }
+        Ok(result_text) => Ok(serde_json::json!({
+            "result": result_text
+        })),
         Err(e) => {
             let error_msg = format!("Subagent execution failed: {}", e);
             Err(error_msg)

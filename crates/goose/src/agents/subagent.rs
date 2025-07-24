@@ -130,7 +130,7 @@ impl SubAgent {
         &self,
         message: String,
         task_config: TaskConfig,
-    ) -> Result<Message, anyhow::Error> {
+    ) -> Result<Vec<Message>, anyhow::Error> {
         debug!("Processing message for subagent {}", self.id);
 
         // Get provider from task config
@@ -170,6 +170,7 @@ impl SubAgent {
         // Generate response from provider with loop for tool processing (max_turns iterations)
         let mut loop_count = 0;
         let max_turns = self.config.max_turns.unwrap_or(DEFAULT_SUBAGENT_MAX_TURNS);
+        let mut last_error: Option<anyhow::Error> = None;
 
         // Generate response from provider
         loop {
@@ -201,11 +202,12 @@ impl SubAgent {
                     // If there are no tool requests, we're done
                     if tool_requests.is_empty() || loop_count >= max_turns {
                         self.add_message(response.clone()).await;
+                        messages.push(response.clone());
 
-                        // Set status back to ready and return the final response
+                        // Set status back to ready
                         self.set_status(SubAgentStatus::Completed("Completed!".to_string()))
                             .await;
-                        break Ok(response);
+                        break;
                     }
 
                     // Add the assistant message with tool calls to the conversation
@@ -252,23 +254,30 @@ impl SubAgent {
                         "Context length exceeded".to_string(),
                     ))
                     .await;
-                    break Ok(Message::assistant().with_context_length_exceeded(
-                        "The context length of the model has been exceeded. Please start a new session and try again.",
-                    ));
+                    last_error = Some(anyhow::anyhow!("Context length exceeded"));
+                    break;
                 }
                 Err(ProviderError::RateLimitExceeded(_)) => {
                     self.set_status(SubAgentStatus::Completed("Rate limit exceeded".to_string()))
                         .await;
-                    break Ok(Message::assistant()
-                        .with_text("Rate limit exceeded. Please try again later."));
+                    last_error = Some(anyhow::anyhow!("Rate limit exceeded"));
+                    break;
                 }
                 Err(e) => {
                     self.set_status(SubAgentStatus::Completed(format!("Error: {}", e)))
                         .await;
                     error!("Error: {}", e);
-                    break Ok(Message::assistant().with_text(format!("Ran into this error: {e}.\n\nPlease retry if you think this is a transient or recoverable error.")));
+                    last_error = Some(anyhow::anyhow!("Provider error: {}", e));
+                    break;
                 }
             }
+        }
+
+        // Handle error cases or return the last message
+        if let Some(error) = last_error {
+            Err(error)
+        } else {
+            Ok(messages)
         }
     }
 
