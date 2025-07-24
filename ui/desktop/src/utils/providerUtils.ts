@@ -10,7 +10,8 @@ import { extractExtensionConfig } from '../components/settings/extensions/utils'
 import type { ExtensionConfig, FixedExtensionEntry } from '../components/ConfigContext';
 // TODO: remove when removing migration logic
 import { toastService } from '../toasts';
-import { ExtensionQuery, SubRecipe, addExtension as apiAddExtension } from '../api';
+import { ExtensionQuery, RecipeParameter, SubRecipe, addExtension as apiAddExtension } from '../api';
+import { addSubRecipes } from '../recipe/update_agent';
 
 export interface Provider {
   id: string; // Lowercase key (e.g., "openai")
@@ -72,14 +73,13 @@ const substituteParameters = (text: string, params: Record<string, string>): str
 export const updateSystemPromptWithParameters = async (
   recipeParameters: Record<string, string>
 ): Promise<void> => {
-  try {
-    const recipeConfig = window.appConfig?.get?.('recipe');
+  const recipeConfig = window.appConfig?.get?.('recipe');
+    const subRecipes = (recipeConfig as { sub_recipes?: SubRecipe[] })?.sub_recipes;
     const originalInstructions = (recipeConfig as { instructions?: string })?.instructions;
-
+  try {
     if (!originalInstructions) {
       return;
     }
-
     // Substitute parameters in the instructions
     const substitutedInstructions = substituteParameters(originalInstructions, recipeParameters);
 
@@ -100,6 +100,17 @@ export const updateSystemPromptWithParameters = async (
     }
   } catch (error) {
     console.error('Error updating system prompt with parameters:', error);
+  }
+  if (subRecipes && subRecipes?.length > 0) {
+    for (const subRecipe of subRecipes) {
+      if (subRecipe.values) {
+      // Iterate over each key in subRecipe.values and substitute parameters
+      for (const key in subRecipe.values) {
+          subRecipe.values[key] = substituteParameters(subRecipe.values[key], recipeParameters);
+        }
+      }
+    }
+    await addSubRecipes(subRecipes);
   }
 };
 
@@ -190,9 +201,15 @@ export const initializeSystem = async (
 
     // Get recipeConfig directly here
     const recipeConfig = window.appConfig?.get?.('recipe');
-    const botPrompt = (recipeConfig as { instructions?: string })?.instructions;
+    const recipe_instructions = (recipeConfig as { instructions?: string })?.instructions;
     const responseConfig = (recipeConfig as { response?: { json_schema?: unknown } })?.response;
     const subRecipes = (recipeConfig as { sub_recipes?: SubRecipe[] })?.sub_recipes;
+    const parameters = (recipeConfig as { parameters?: RecipeParameter[] })?.parameters;
+    const hasParameters = parameters && parameters?.length > 0;
+    const hasSubRecipes = subRecipes && subRecipes?.length > 0;
+    let prompt = desktopPrompt;
+    if (!hasParameters && recipe_instructions) {
+      prompt = `${desktopPromptBot}\nIMPORTANT instructions for you to operate as agent:\n${recipe_instructions}`;
 
     // Extend the system prompt with desktop-specific information
     const response = await fetch(getApiUrl('/agent/prompt'), {
@@ -202,35 +219,17 @@ export const initializeSystem = async (
         'X-Secret-Key': getSecretKey(),
       },
       body: JSON.stringify({
-        extension: botPrompt
-          ? `${desktopPromptBot}\nIMPORTANT instructions for you to operate as agent:\n${botPrompt}`
-          : desktopPrompt,
+        extension: prompt,
       }),
     });
-    console.log('======subRecipes', subRecipes);
-    if (subRecipes && subRecipes.length > 0) {
-      const add_sub_recipe_response = await fetch(getApiUrl('/agent/add_sub_recipes'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Secret-Key': getSecretKey(),
-        },
-        body: JSON.stringify({
-          sub_recipes: subRecipes,
-        }),
-      });
-      console.log('======add_sub_recipe_response', add_sub_recipe_response);
-    }
-
     if (!response.ok) {
       console.warn(`Failed to extend system prompt: ${response.statusText}`);
     } else {
       console.log('Extended system prompt with desktop-specific information');
-      if (botPrompt) {
-        console.log('Added custom bot prompt to system prompt');
-      }
     }
-
+    if (!hasParameters && hasSubRecipes) {
+      addSubRecipes(subRecipes);
+    }
     // Configure session with response config if present
     if (responseConfig?.json_schema) {
       const sessionConfigResponse = await fetch(getApiUrl('/agent/session_config'), {
