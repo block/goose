@@ -86,10 +86,21 @@ async fn handle_text_instruction_task(
 
     // Start tracking the task
     task_execution_tracker.start_task(&task.id).await;
-    match run_complete_subagent_task(text_instruction.to_string(), task_config).await {
-        Ok(result_text) => Ok(serde_json::json!({
-            "result": result_text
-        })),
+
+    let result = tokio::select! {
+        result = run_complete_subagent_task(text_instruction.to_string(), task_config) => result,
+        _ = cancellation_token.cancelled() => {
+            return Err("Task cancelled".to_string());
+        }
+    };
+
+    match result {
+        Ok(contents) => {
+            // contents is already a String, so we can use it directly
+            Ok(serde_json::json!({
+                "result": contents
+            }))
+        }
         Err(e) => {
             let error_msg = format!("Subagent execution failed: {}", e);
             Err(error_msg)
