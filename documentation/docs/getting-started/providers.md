@@ -306,7 +306,7 @@ Ollama and Ramalama are both options to provide local LLMs, each which requires 
 2. Run any [model supporting tool-calling](https://ollama.com/search?c=tools):
 
 :::warning Limited Support for models without tool calling
-Goose extensively uses tool calling, so models without it can only do chat completion. If using models without tool calling, all Goose extensions must be disabled.
+Goose extensively uses tool calling, so models without it can only do chat completion. If using models without tool calling, all Goose [extensions must be disabled](/docs/getting-started/using-extensions#enablingdisabling-extensions).
 :::
 
 Example:
@@ -407,7 +407,7 @@ If you notice that Goose is having trouble using extensions or is ignoring [.goo
 2. Run any Ollama [model supporting tool-calling](https://ollama.com/search?c=tools) or [GGUF format HuggingFace Model](https://huggingface.co/search/full-text?q=%22tools+support%22+%2B+%22gguf%22&type=model) :
 
 :::warning Limited Support for models without tool calling
-Goose extensively uses tool calling, so models without it can only do chat completion. If using models without tool calling, all Goose extensions must be disabled.
+Goose extensively uses tool calling, so models without it can only do chat completion. If using models without tool calling, all Goose [extensions must be disabled](/docs/getting-started/using-extensions#enablingdisabling-extensions).
 :::
 
 Example:
