@@ -562,5 +562,15 @@
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": []
+  },
+  {
+    "id": "goose-docs",
+    "name": "Goose Docs",
+    "description": "GitMCP for Goose documentation",
+    "command": "npx mcp-remote https://block.gitmcp.io/goose/",
+    "link": "https://github.com/idosal/git-mcp",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
   }
 ]
