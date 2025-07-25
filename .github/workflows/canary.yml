@@ -8,7 +8,7 @@ on:
       - "documentation/**"
     branches:
       - main
-      - fherzfeld/block-managed-osx-signing # temp for testing
+  workflow_dispatch: {}
     
 name: Canary
 
