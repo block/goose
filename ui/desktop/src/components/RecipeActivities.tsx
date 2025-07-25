@@ -6,14 +6,13 @@ import MarkdownContent from './MarkdownContent';
 // Register GSAP plugins
 gsap.registerPlugin();
 
-interface SplashProps {
+interface RecipeActivitiesProps {
   append: (text: string) => void;
   activities: string[] | null;
   title?: string;
-  instructions?: string | null | undefined;
 }
 
-export default function Splash({ append, activities, instructions }: SplashProps) {
+export default function RecipeActivities({ append, activities }: RecipeActivitiesProps) {
   const pills = activities || [];
 
   // Find any pill that starts with "message:"
@@ -27,7 +26,7 @@ export default function Splash({ append, activities, instructions }: SplashProps
       : pills;
 
   // If we have activities or instructions (recipe mode), show a simplified version without greeting
-  if ((activities && activities.length > 0) || instructions) {
+  if (activities && activities.length > 0) {
     return (
       <div className="flex flex-col px-6">
         {/* Animated goose icon */}
