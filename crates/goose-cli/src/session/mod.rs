@@ -36,7 +36,6 @@ use goose::providers::pricing::initialize_pricing_cache;
 use goose::session;
 use input::InputResult;
 use mcp_core::handler::ToolError;
-use rmcp::model::GetMeta;
 use rmcp::model::PromptMessage;
 use rmcp::model::ServerNotification;
 
@@ -1125,15 +1124,13 @@ impl Session {
                                     let progress = notification.params.progress;
                                     let text = notification.params.message.as_ref().map(|m| m.as_str());
                                     let total = notification.params.total;
-                                    let token = message.get_meta().get_progress_token();
-                                    if let Some(token) = token {
-                                        progress_bars.update(
-                                            &token.0.to_string(),
-                                            progress,
-                                            total,
-                                            text,
-                                        );
-                                    }
+                                    let token = &notification.params.progress_token;
+                                    progress_bars.update(
+                                        &token.0.to_string(),
+                                        progress,
+                                        total,
+                                        text,
+                                    );
                                 },
                                 _ => (),
                             }
