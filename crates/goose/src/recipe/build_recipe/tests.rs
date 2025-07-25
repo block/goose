@@ -1,6 +1,8 @@
 #[cfg(test)]
 mod tests {
-    use crate::recipe::build_recipe::{build_recipe_from_template, RecipeError};
+    use crate::recipe::build_recipe::{
+        build_recipe_from_template, resolve_sub_recipe_path, RecipeError,
+    };
     use crate::recipe::read_recipe_file_content::RecipeFile;
     use crate::recipe::{RecipeParameterInputType, RecipeParameterRequirement};
     use tempfile::TempDir;
@@ -80,7 +82,6 @@ mod tests {
         assert_eq!(recipe.title, "Test Recipe");
         assert_eq!(recipe.description, "A test recipe");
         assert_eq!(recipe.instructions.unwrap(), "Test instructions with value");
-        // Verify parameters match recipe definition
         assert_eq!(recipe.parameters.as_ref().unwrap().len(), 1);
         let param = &recipe.parameters.as_ref().unwrap()[0];
         assert_eq!(param.key, "my_name");
@@ -348,5 +349,94 @@ mod tests {
             child_recipe.parameters.as_ref().unwrap()[1].key,
             "is_enabled"
         );
+    }
+
+    mod sub_recipe_path_resolution {
+        use super::*;
+
+        fn create_recipe_file(
+            temp_path: &std::path::Path,
+            recipe_folder: &str,
+            recipe_file_name: &str,
+            content: &str,
+        ) -> std::path::PathBuf {
+            let recipes_dir = temp_path.join(recipe_folder);
+            std::fs::create_dir_all(&recipes_dir).unwrap();
+            let recipe_path = recipes_dir.join(recipe_file_name);
+            std::fs::write(&recipe_path, content).unwrap();
+            recipe_path
+        }
+
+        #[test]
+        fn test_resolve_sub_recipe_path_relative() {
+            let temp_dir = tempfile::tempdir().unwrap();
+            let parent_dir = temp_dir.path();
+
+            let result = resolve_sub_recipe_path("./sub-recipes/child.yaml", parent_dir);
+            assert!(result.is_ok());
+
+            let expected_path = parent_dir.join("./sub-recipes/child.yaml");
+            assert_eq!(result.unwrap(), expected_path.to_str().unwrap());
+        }
+
+        #[test]
+        fn test_resolve_sub_recipe_path_absolute() {
+            let temp_dir = tempfile::tempdir().unwrap();
+            let parent_dir = temp_dir.path();
+            let absolute_path = "/absolute/path/to/recipe.yaml";
+
+            let result = resolve_sub_recipe_path(absolute_path, parent_dir);
+            assert!(result.is_ok());
+            assert_eq!(result.unwrap(), absolute_path);
+        }
+
+        #[test]
+        fn test_build_recipe_with_relative_sub_recipe_path() {
+            let temp_dir = tempfile::tempdir().unwrap();
+            let temp_path = temp_dir.path();
+            let sub_recipe_content = r#"
+version: 1.0.0
+title: Child Recipe
+description: A child recipe
+instructions: Child instructions
+            "#;
+            create_recipe_file(temp_path, "sub-recipes", "child.yaml", sub_recipe_content);
+            let main_recipe_content = r#"{
+                "version": "1.0.0",
+                "title": "Main Recipe",
+                "description": "Main recipe with sub-recipe",
+                "instructions": "Main instructions",
+                "sub_recipes": [
+                    {
+                        "name": "child",
+                        "path": "./sub-recipes/child.yaml"
+                    }
+                ]
+            }"#;
+            let main_recipe_path =
+                create_recipe_file(temp_path, "main", "main.json", main_recipe_content);
+
+            let recipe_file = RecipeFile {
+                content: main_recipe_content.to_string(),
+                parent_dir: temp_path.to_path_buf(),
+                file_path: main_recipe_path,
+            };
+
+            let recipe =
+                build_recipe_from_template(recipe_file, Vec::new(), NO_USER_PROMPT).unwrap();
+
+            assert_eq!(recipe.title, "Main Recipe");
+            assert!(recipe.sub_recipes.is_some());
+
+            let sub_recipes = recipe.sub_recipes.unwrap();
+            assert_eq!(sub_recipes.len(), 1);
+            assert_eq!(sub_recipes[0].name, "child");
+
+            let expected_absolute_path = temp_path.join("./sub-recipes/child.yaml");
+            assert_eq!(
+                sub_recipes[0].path,
+                expected_absolute_path.to_str().unwrap()
+            );
+        }
     }
 }
