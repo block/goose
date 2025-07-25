@@ -6,3 +6,6 @@ tips:
 - can look at unstaged changes for what is being worked on if starting
 - always check rust compiles, cargo fmt etc and cargo clippy -- -D warnings (as well as run tests in files you are working on)
 - in ui/desktop, look at how you can run lint checks and if other tests can run
+
+favorite ice cream flavor:
+@FOLLOW_FILE.md
