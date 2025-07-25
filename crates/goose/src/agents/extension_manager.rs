@@ -2,7 +2,7 @@ use anyhow::Result;
 use chrono::{DateTime, TimeZone, Utc};
 use futures::stream::{FuturesUnordered, StreamExt};
 use futures::{future, FutureExt};
-use mcp_core::protocol::GetPromptResult;
+use rmcp::model::GetPromptResult;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::LazyLock;
@@ -19,8 +19,8 @@ use crate::config::{Config, ExtensionConfigManager};
 use crate::prompt_template;
 use mcp_client::client::{ClientCapabilities, ClientInfo, McpClient, McpClientTrait};
 use mcp_client::transport::{SseTransport, StdioTransport, StreamableHttpTransport, Transport};
-use mcp_core::{Tool, ToolCall, ToolError};
-use rmcp::model::{Content, Prompt, Resource, ResourceContents};
+use mcp_core::{ToolCall, ToolError};
+use rmcp::model::{Content, Prompt, Resource, ResourceContents, Tool};
 use serde_json::Value;
 
 // By default, we set it to Jan 1, 2020 if the resource does not have a timestamp
@@ -380,13 +380,18 @@ impl ExtensionManager {
                 let mut client_tools = client_guard.list_tools(None).await?;
 
                 loop {
-                    for tool in client_tools.tools {
-                        tools.push(Tool::new(
-                            format!("{}__{}", name, tool.name),
-                            &tool.description,
-                            tool.input_schema,
-                            tool.annotations,
-                        ));
+                    for client_tool in client_tools.tools {
+                        let mut tool = Tool::new(
+                            format!("{}__{}", name, client_tool.name),
+                            client_tool.description.unwrap_or_default(),
+                            client_tool.input_schema,
+                        );
+
+                        if tool.annotations.is_some() {
+                            tool = tool.annotate(client_tool.annotations.unwrap())
+                        }
+
+                        tools.push(tool);
                     }
 
                     // Exit loop when there are no more pages
@@ -827,10 +832,10 @@ mod tests {
     use mcp_client::client::Error;
     use mcp_client::client::McpClientTrait;
     use mcp_core::protocol::{
-        CallToolResult, GetPromptResult, InitializeResult, ListPromptsResult, ListResourcesResult,
-        ListToolsResult, ReadResourceResult,
+        CallToolResult, InitializeResult, ListPromptsResult, ListResourcesResult, ListToolsResult,
+        ReadResourceResult,
     };
-    use rmcp::model::JsonRpcMessage;
+    use rmcp::model::{GetPromptResult, JsonRpcMessage};
     use serde_json::json;
     use tokio::sync::mpsc;
 

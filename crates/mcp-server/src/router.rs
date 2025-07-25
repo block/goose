@@ -8,14 +8,14 @@ type PromptFuture = Pin<Box<dyn Future<Output = Result<String, PromptError>> + S
 use mcp_core::{
     handler::{PromptError, ResourceError, ToolError},
     protocol::{
-        CallToolResult, GetPromptResult, Implementation, InitializeResult, ListPromptsResult,
-        ListResourcesResult, ListToolsResult, PromptsCapability, ReadResourceResult,
-        ResourcesCapability, ServerCapabilities, ToolsCapability,
+        CallToolResult, Implementation, InitializeResult, ListPromptsResult, ListResourcesResult,
+        ListToolsResult, PromptsCapability, ReadResourceResult, ResourcesCapability,
+        ServerCapabilities, ToolsCapability,
     },
 };
 use rmcp::model::{
-    Content, JsonRpcMessage, JsonRpcRequest, JsonRpcResponse, JsonRpcVersion2_0, Prompt,
-    PromptMessage, PromptMessageRole, RequestId, Resource, ResourceContents,
+    Content, GetPromptResult, JsonRpcMessage, JsonRpcRequest, JsonRpcResponse, JsonRpcVersion2_0,
+    Prompt, PromptMessage, PromptMessageRole, RequestId, Resource, ResourceContents,
 };
 use serde_json::Value;
 use tokio::sync::mpsc;
@@ -86,7 +86,7 @@ pub trait Router: Send + Sync + 'static {
     // in the protocol, instructions are optional but we make it required
     fn instructions(&self) -> String;
     fn capabilities(&self) -> ServerCapabilities;
-    fn list_tools(&self) -> Vec<mcp_core::tool::Tool>;
+    fn list_tools(&self) -> Vec<rmcp::model::Tool>;
     fn call_tool(
         &self,
         tool_name: &str,

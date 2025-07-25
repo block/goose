@@ -1,0 +1,72 @@
+{
+  "month": "June 2025",
+  "communityStars": [
+    {
+      "name": "Audi_Guy",
+      "handle": "TBD",
+      "avatarUrl": "https://cdn.discordapp.com/avatars/1383038503650197584/7c2cadbe1e8515b3565b9f39daa774af?size=1024"
+    },
+    {
+      "name": "jwoehr",
+      "handle": "jwoehr"
+    },
+    {
+      "name": "harkamals",
+      "handle": "harkamals"
+    },
+    {
+      "name": "SalvatoreT",
+      "handle": "SalvatoreT"
+    },
+    {
+      "name": "sfc-gh-twhite",
+      "handle": "sfc-gh-twhite"
+    }
+  ],
+  "teamStars": [
+    {
+      "name": "jackjackbits",
+      "handle": "jackjackbits"
+    },
+    {
+      "name": "GaryZhous",
+      "handle": "GaryZhous"
+    },
+    {
+      "name": "AaronGoldsmith",
+      "handle": "AaronGoldsmith"
+    },
+    {
+      "name": "wpfleger96",
+      "handle": "wpfleger96"
+    },
+    {
+      "name": "joahg",
+      "handle": "joahg"
+    }
+  ],
+  "leaderboard": [
+    { "handle": "jackjackbits", "rank": 1, "medal": "🥇" },
+    { "handle": "SalvatoreT", "rank": 2, "medal": "🥈" },
+    { "handle": "GaryZhous", "rank": 3, "medal": "🥉" },
+    { "handle": "AaronGoldsmith", "rank": 4 },
+    { "handle": "wpfleger96", "rank": 5 },
+    { "handle": "joahg", "rank": 6 },
+    { "handle": "The-Best-Codes", "rank": 7 },
+    { "handle": "tiensi", "rank": 8 },
+    { "handle": "sfc-gh-twhite", "rank": 9 },
+    { "handle": "dhanji", "rank": 10 },
+    { "handle": "danielcorin", "rank": 11 },
+    { "handle": "toyamagu-2021", "rank": 12 },
+    { "handle": "chaitanyarahalkar", "rank": 13 },
+    { "handle": "rsb-23", "rank": 14 },
+    { "handle": "sambradbury", "rank": 15 },
+    { "handle": "charlie-lobo", "rank": 16 },
+    { "handle": "alexrrouse", "rank": 17 },
+    { "handle": "alexgleason", "rank": 18 },
+    { "handle": "damienrj", "rank": 19 },
+    { "handle": "Jay4242", "rank": 20 },
+    { "handle": "blockbtheriault", "rank": 21 },
+    { "handle": "btdeviant", "rank": 22 }
+  ]
+}

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use dotenv::dotenv;
+use dotenvy::dotenv;
 use futures::StreamExt;
 use goose::agents::{Agent, AgentEvent, ExtensionConfig};
 use goose::config::{DEFAULT_EXTENSION_DESCRIPTION, DEFAULT_EXTENSION_TIMEOUT};

@@ -21,7 +21,7 @@ use crate::providers::formats::gcpvertexai::{
 use crate::providers::formats::gcpvertexai::GcpLocation::Iowa;
 use crate::providers::gcpauth::GcpAuth;
 use crate::providers::utils::emit_debug_trace;
-use mcp_core::tool::Tool;
+use rmcp::model::Tool;
 
 /// Base URL for GCP Vertex AI documentation
 const GCP_VERTEX_AI_DOC_URL: &str = "https://cloud.google.com/vertex-ai";

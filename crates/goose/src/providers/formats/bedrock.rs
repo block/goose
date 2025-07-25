@@ -6,8 +6,8 @@ use aws_sdk_bedrockruntime::types as bedrock;
 use aws_smithy_types::{Document, Number};
 use base64::Engine;
 use chrono::Utc;
-use mcp_core::{Tool, ToolCall, ToolError, ToolResult};
-use rmcp::model::{Content, RawContent, ResourceContents, Role};
+use mcp_core::{ToolCall, ToolError, ToolResult};
+use rmcp::model::{Content, RawContent, ResourceContents, Role, Tool};
 use serde_json::Value;
 
 use super::super::base::Usage;
@@ -184,9 +184,14 @@ pub fn to_bedrock_tool(tool: &Tool) -> Result<bedrock::Tool> {
     Ok(bedrock::Tool::ToolSpec(
         bedrock::ToolSpecification::builder()
             .name(tool.name.to_string())
-            .description(tool.description.to_string())
+            .description(
+                tool.description
+                    .as_ref()
+                    .map(|d| d.to_string())
+                    .unwrap_or_default(),
+            )
             .input_schema(bedrock::ToolInputSchema::Json(to_bedrock_json(
-                &tool.input_schema,
+                &Value::Object(tool.input_schema.as_ref().clone()),
             )))
             .build()?,
     ))

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use dotenv::dotenv;
+use dotenvy::dotenv;
 use goose_llm::extractors::generate_session_name;
 use goose_llm::message::Message;
 use goose_llm::providers::errors::ProviderError;

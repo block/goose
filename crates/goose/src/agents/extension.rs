@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use mcp_client::client::Error as ClientError;
-use mcp_core::tool::Tool;
+use rmcp::model::Tool;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::warn;
