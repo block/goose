@@ -7,6 +7,71 @@ use crate::recipes::recipe::load_recipe_for_validation;
 use crate::recipes::search_recipe::list_available_recipes;
 use goose::recipe_deeplink;
 
+/// Trait for clipboard operations to enable mocking in tests
+pub trait ClipboardProvider {
+    fn set_text(&mut self, text: &str) -> Result<(), Box<dyn std::error::Error>>;
+}
+
+/// Real clipboard implementation
+pub struct RealClipboard {
+    clipboard: Clipboard,
+}
+
+impl RealClipboard {
+    pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
+        Ok(RealClipboard {
+            clipboard: Clipboard::new()?,
+        })
+    }
+}
+
+impl ClipboardProvider for RealClipboard {
+    fn set_text(&mut self, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+        self.clipboard.set_text(text)?;
+        Ok(())
+    }
+}
+
+/// Mock clipboard for testing
+#[cfg(test)]
+pub struct MockClipboard {
+    pub should_fail: bool,
+    pub last_text: std::rc::Rc<std::cell::RefCell<Option<String>>>,
+}
+
+#[cfg(test)]
+impl MockClipboard {
+    pub fn new() -> Self {
+        MockClipboard {
+            should_fail: false,
+            last_text: std::rc::Rc::new(std::cell::RefCell::new(None)),
+        }
+    }
+
+    pub fn new_failing() -> Self {
+        MockClipboard {
+            should_fail: true,
+            last_text: std::rc::Rc::new(std::cell::RefCell::new(None)),
+        }
+    }
+
+    pub fn get_last_text(&self) -> Option<String> {
+        self.last_text.borrow().clone()
+    }
+}
+
+#[cfg(test)]
+impl ClipboardProvider for MockClipboard {
+    fn set_text(&mut self, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+        if self.should_fail {
+            Err("Mock clipboard failure".into())
+        } else {
+            *self.last_text.borrow_mut() = Some(text.to_string());
+            Ok(())
+        }
+    }
+}
+
 /// Validates a recipe file
 ///
 /// # Arguments
@@ -40,6 +105,27 @@ pub fn handle_validate(recipe_name: &str) -> Result<()> {
 ///
 /// Result indicating success or failure
 pub fn handle_deeplink(recipe_name: &str) -> Result<String> {
+    handle_deeplink_with_clipboard(recipe_name, RealClipboard::new)
+}
+
+/// Generates a deeplink for a recipe file with a custom clipboard provider
+///
+/// # Arguments
+///
+/// * `recipe_name` - Path to the recipe file
+/// * `clipboard_factory` - Function that creates a clipboard provider
+///
+/// # Returns
+///
+/// Result indicating success or failure
+pub fn handle_deeplink_with_clipboard<F, C>(
+    recipe_name: &str,
+    clipboard_factory: F,
+) -> Result<String>
+where
+    F: FnOnce() -> Result<C, Box<dyn std::error::Error>>,
+    C: ClipboardProvider,
+{
     // Load the recipe file first to validate it
     match load_recipe_for_validation(recipe_name) {
         Ok(recipe) => match recipe_deeplink::encode(&recipe) {
@@ -53,7 +139,7 @@ pub fn handle_deeplink(recipe_name: &str) -> Result<String> {
                 println!("{}", full_url);
 
                 // Copy to clipboard
-                match Clipboard::new() {
+                match clipboard_factory() {
                     Ok(mut clipboard) => match clipboard.set_text(&full_url) {
                         Ok(_) => {
                             println!("{} Deeplink copied to clipboard", style("📋").cyan().bold());
@@ -218,6 +304,45 @@ response:
         assert!(url.starts_with("goose://recipe?config="));
         let encoded_part = url.strip_prefix("goose://recipe?config=").unwrap();
         assert!(encoded_part.len() > 0);
+    }
+
+    #[test]
+    fn test_handle_deeplink_clipboard_success() {
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+        let recipe_path =
+            create_test_recipe_file(&temp_dir, "test_recipe.yaml", VALID_RECIPE_CONTENT);
+
+        let mock_clipboard = MockClipboard::new();
+        let clipboard_state = mock_clipboard.last_text.clone();
+
+        let result = handle_deeplink_with_clipboard(&recipe_path, || Ok(mock_clipboard));
+
+        assert!(result.is_ok());
+        let url = result.unwrap();
+        assert!(url.starts_with("goose://recipe?config="));
+
+        // Now we can check the clipboard state!
+        assert_eq!(clipboard_state.borrow().as_ref(), Some(&url));
+    }
+
+    #[test]
+    fn test_handle_deeplink_clipboard_failure() {
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+        let recipe_path =
+            create_test_recipe_file(&temp_dir, "test_recipe.yaml", VALID_RECIPE_CONTENT);
+
+        let mock_clipboard = MockClipboard::new_failing();
+        let clipboard_state = mock_clipboard.last_text.clone();
+
+        let result = handle_deeplink_with_clipboard(&recipe_path, || Ok(mock_clipboard));
+
+        // Should still succeed even if clipboard fails
+        assert!(result.is_ok());
+        let url = result.unwrap();
+        assert!(url.starts_with("goose://recipe?config="));
+
+        // Clipboard should remain empty since the operation failed
+        assert_eq!(clipboard_state.borrow().as_ref(), None);
     }
 
     #[test]
