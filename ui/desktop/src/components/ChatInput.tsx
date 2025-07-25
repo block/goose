@@ -75,6 +75,8 @@ interface ChatInputProps {
   setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
   disableAnimation?: boolean;
   recipeConfig?: Recipe | null;
+  recipeAccepted?: boolean;
+  initialPrompt?: string;
 }
 
 export default function ChatInput({
@@ -95,6 +97,8 @@ export default function ChatInput({
   sessionCosts,
   setIsGoosehintsModalOpen,
   recipeConfig,
+  recipeAccepted,
+  initialPrompt,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -199,6 +203,18 @@ export default function ChatInput({
     setIsInGlobalHistory(false);
     setHasUserTyped(false);
   }, [initialValue]); // Keep only initialValue as a dependency
+
+  // Handle recipe prompt updates
+  useEffect(() => {
+    // If recipe is accepted and we have an initial prompt, and no messages yet, set the prompt
+    if (recipeAccepted && initialPrompt && messages.length === 0 && !displayValue.trim()) {
+      setDisplayValue(initialPrompt);
+      setValue(initialPrompt);
+      setTimeout(() => {
+        textAreaRef.current?.focus();
+      }, 0);
+    }
+  }, [recipeAccepted, initialPrompt, messages.length, displayValue]);
 
   // Draft functionality - load draft if no initial value or recipe
   useEffect(() => {

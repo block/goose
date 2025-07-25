@@ -256,7 +256,7 @@ export default function ModelsBottomBar({
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleViewRecipe}>
-                <span>View Recipe</span>
+                <span>View/Edit Recipe</span>
                 <Eye className="ml-auto h-4 w-4" />
               </DropdownMenuItem>
               <DropdownMenuItem onClick={handleSaveRecipeClick}>

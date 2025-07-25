@@ -61,6 +61,7 @@ import { MainPanelLayout } from './Layout/MainPanelLayout';
 import ChatInput from './ChatInput';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
 import { RecipeWarningModal } from './ui/RecipeWarningModal';
+import ParameterInputModal from './ParameterInputModal';
 import { useChatEngine } from '../hooks/useChatEngine';
 import { useRecipeManager } from '../hooks/useRecipeManager';
 import { useSessionContinuation } from '../hooks/useSessionContinuation';
@@ -188,6 +189,9 @@ function BaseChatContent({
     recipeConfig,
     initialPrompt,
     isGeneratingRecipe,
+    isParameterModalOpen,
+    setIsParameterModalOpen,
+    handleParameterSubmit,
     handleAutoExecution,
     recipeError,
     setRecipeError,
@@ -520,7 +524,7 @@ function BaseChatContent({
             chatState={chatState}
             onStop={onStopGoose}
             commandHistory={commandHistory}
-            initialValue={_input || (messages.length === 0 ? initialPrompt : '')}
+            initialValue={_input || ''}
             setView={setView}
             numTokens={sessionTokenCount}
             inputTokens={sessionInputTokens || localInputTokens}
@@ -533,6 +537,8 @@ function BaseChatContent({
             sessionCosts={sessionCosts}
             setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
             recipeConfig={recipeConfig}
+            recipeAccepted={recipeAccepted}
+            initialPrompt={initialPrompt}
             {...customChatInputProps}
           />
         </div>
@@ -559,6 +565,15 @@ function BaseChatContent({
           instructions: recipeConfig?.instructions || undefined,
         }}
       />
+
+      {/* Recipe Parameter Modal */}
+      {isParameterModalOpen && recipeConfig?.parameters && (
+        <ParameterInputModal
+          parameters={recipeConfig.parameters}
+          onSubmit={handleParameterSubmit}
+          onClose={() => setIsParameterModalOpen(false)}
+        />
+      )}
 
       {/* Recipe Error Modal */}
       {recipeError && (
