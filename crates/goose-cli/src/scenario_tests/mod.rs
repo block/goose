@@ -11,7 +11,7 @@ use goose::providers::{create, testprovider::TestProvider};
 use std::collections::HashMap;
 use std::future::Future;
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 #[derive(Debug, Clone)]
 struct ProviderConfig {
@@ -34,9 +34,11 @@ impl ProviderConfig {
             env_modifications: None,
         }
     }
-}
 
-use std::sync::LazyLock;
+    fn name_for_factory(&self) -> &str {
+        self.factory_name.unwrap_or(&self.name.to_lowercase())
+    }
+}
 
 static PROVIDER_CONFIGS: LazyLock<Vec<ProviderConfig>> = LazyLock::new(|| {
     vec![
@@ -81,7 +83,7 @@ impl ScenarioResult {
 
 async fn run_all_providers_scenario<F, Fut>(test_name: &str, test_fn: F) -> Result<()>
 where
-    F: Fn(String, String) -> Fut,
+    F: Fn(String, String, String) -> Fut,
     Fut: Future<Output = Result<ScenarioResult>>,
 {
     if let Ok(only_provider) = std::env::var("GOOSE_TEST_PROVIDER") {
@@ -139,7 +141,7 @@ async fn run_provider_scenario<F, Fut>(
     test_name: &str,
 ) -> Result<ScenarioResult>
 where
-    F: Fn(String, String) -> Fut,
+    F: Fn(String, String, String) -> Fut,
     Fut: Future<Output = Result<ScenarioResult>>,
 {
     if let Ok(path) = dotenvy::dotenv() {
@@ -187,9 +189,12 @@ where
         });
     }
 
-    std::env::set_var("GOOSE_PROVIDER", config.factory_name);
-
-    let result = test_fn(test_name.to_string(), config.name.to_string()).await;
+    let result = test_fn(
+        test_name.to_string(),
+        config.name.to_string(),
+        config.name_for_factory().to_string(),
+    )
+    .await;
 
     for (&var, value) in original_env.iter() {
         std::env::set_var(var, value);
@@ -205,33 +210,16 @@ where
     result
 }
 
-pub async fn run_test_scenario(test_name: &str, inputs: &[&str]) -> Result<ScenarioResult> {
-    let (result, provider_for_saving) =
-        run_single_provider_scenario(test_name, "default", inputs).await?;
-
-    if let Some(provider) = provider_for_saving {
-        if result.error.is_none() {
-            if result.error.is_none() {
-                Arc::try_unwrap(provider)
-                    .map_err(|_| anyhow::anyhow!("Failed to unwrap provider for recording"))?
-                    .finish_recording()?;
-            }
-        }
-    }
-
-    Ok(result)
-}
-
 async fn run_single_provider_scenario(
     test_name: &str,
-    provider_name: &str,
+    factory_name: &str,
     inputs: &[&str],
 ) -> Result<(ScenarioResult, Option<Arc<TestProvider>>)> {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let file_path = format!(
         "{}/src/scenario_tests/recordings/{}/{}.json",
         manifest_dir,
-        provider_name.to_lowercase(),
+        factory_name.to_lowercase(),
         test_name
     );
 
@@ -247,7 +235,7 @@ async fn run_single_provider_scenario(
                 let _ = std::fs::remove_file(&file_path);
                 return Err(anyhow::anyhow!(
                     "Test replay failed for '{}' ({}): {}. File deleted - re-run test to record fresh data.",
-                    test_name, provider_name, e
+                    test_name, factory_name, e
                 ));
             }
         }
@@ -259,20 +247,7 @@ async fn run_single_provider_scenario(
                 file_path
             );
         }
-        let config = Config::global();
-
-        let (provider_name, model_name): (String, String) = match (
-            config.get_param::<String>("GOOSE_PROVIDER"),
-            config.get_param::<String>("GOOSE_MODEL"),
-        ) {
-            (Ok(provider), Ok(model)) => (provider, model),
-            _ => {
-                panic!("Provider or model not configured. Run 'goose configure' first");
-            }
-        };
-
-        let model_config = ModelConfig::new(model_name);
-        let inner_provider = create(&provider_name, model_config)?;
+        let inner_provider = create(factory_name, ModelConfig::default())?;
         let test_provider = Arc::new(TestProvider::new_recording(inner_provider, &file_path));
         (test_provider.clone(), Some(test_provider))
     };
@@ -299,7 +274,7 @@ async fn run_single_provider_scenario(
             let _ = std::fs::remove_file(&file_path);
             return Err(anyhow::anyhow!(
                 "Test replay failed for '{}' ({}) - missing recorded interaction: {}. File deleted - re-run test to record fresh data.",
-                test_name, provider_name, err_msg
+                test_name, factory_name, err_msg
             ));
         }
     }
@@ -318,13 +293,13 @@ where
 {
     let inputs_owned: Vec<String> = inputs.iter().map(|s| s.to_string()).collect();
 
-    run_all_providers_scenario(test_name, |name, provider| {
+    run_all_providers_scenario(test_name, |name, provider, factory_name| {
         let inputs = inputs_owned.clone();
         let validator = &validator;
         async move {
             let (result, provider_for_saving) = run_single_provider_scenario(
                 &name,
-                &provider,
+                &factory_name,
                 &inputs.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
             )
             .await?;
