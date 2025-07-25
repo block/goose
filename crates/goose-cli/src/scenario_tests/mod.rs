@@ -16,53 +16,52 @@ use std::sync::Arc;
 #[derive(Debug, Clone)]
 struct ProviderConfig {
     name: &'static str,
-    factory_name: &'static str,
+    factory_name: Option<&'static str>,
     required_env_vars: &'static [&'static str],
     env_modifications: Option<HashMap<&'static str, Option<String>>>,
 }
 
-static PROVIDER_CONFIGS: &[ProviderConfig] = &[
-    ProviderConfig {
-        name: "OpenAI",
-        factory_name: "openai",
-        required_env_vars: &["OPENAI_API_KEY"],
-        env_modifications: None,
-    },
-    ProviderConfig {
-        name: "Anthropic",
-        factory_name: "anthropic",
-        required_env_vars: &["ANTHROPIC_API_KEY"],
-        env_modifications: None,
-    },
-    ProviderConfig {
-        name: "Azure",
-        factory_name: "azure_openai",
-        required_env_vars: &[
-            "AZURE_OPENAI_API_KEY",
-            "AZURE_OPENAI_ENDPOINT",
-            "AZURE_OPENAI_DEPLOYMENT_NAME",
-        ],
-        env_modifications: None,
-    },
-    ProviderConfig {
-        name: "Bedrock",
-        factory_name: "aws_bedrock",
-        required_env_vars: &["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"],
-        env_modifications: None,
-    },
-    ProviderConfig {
-        name: "Google",
-        factory_name: "google",
-        required_env_vars: &["GOOGLE_API_KEY"],
-        env_modifications: None,
-    },
-    ProviderConfig {
-        name: "Groq",
-        factory_name: "groq",
-        required_env_vars: &["GROQ_API_KEY"],
-        env_modifications: None,
-    },
-];
+impl ProviderConfig {
+    fn simple(name: &'static str) -> Self {
+        let key = format!("{}_API_KEY", name.to_uppercase());
+        let required_env_vars =
+            Box::leak(vec![Box::leak(key.into_boxed_str()) as &str].into_boxed_slice());
+
+        Self {
+            name,
+            factory_name: None,
+            required_env_vars,
+            env_modifications: None,
+        }
+    }
+}
+
+use std::sync::LazyLock;
+
+static PROVIDER_CONFIGS: LazyLock<Vec<ProviderConfig>> = LazyLock::new(|| {
+    vec![
+        ProviderConfig::simple("OpenAI"),
+        ProviderConfig::simple("Anthropic"),
+        ProviderConfig {
+            name: "Azure",
+            factory_name: Some("azure_openai"),
+            required_env_vars: &[
+                "AZURE_OPENAI_API_KEY",
+                "AZURE_OPENAI_ENDPOINT",
+                "AZURE_OPENAI_DEPLOYMENT_NAME",
+            ],
+            env_modifications: None,
+        },
+        ProviderConfig {
+            name: "Bedrock",
+            factory_name: Some("aws_bedrock"),
+            required_env_vars: &["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"],
+            env_modifications: None,
+        },
+        ProviderConfig::simple("Google"),
+        ProviderConfig::simple("Groq"),
+    ]
+});
 
 #[derive(Debug, Clone)]
 pub struct ScenarioResult {
@@ -109,7 +108,7 @@ where
 
     let mut failures = Vec::new();
 
-    for config in PROVIDER_CONFIGS {
+    for config in &*PROVIDER_CONFIGS {
         match run_provider_scenario(config, &test_fn, test_name).await {
             Ok(_) => println!("✅ {} - {}", test_name, config.name),
             Err(e) => {
