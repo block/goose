@@ -45,7 +45,7 @@ use crate::tool_monitor::{ToolCall, ToolMonitor};
 use crate::utils::is_token_cancelled;
 use mcp_core::{ToolError, ToolResult};
 use regex::Regex;
-use rmcp::model::{Content, GetPromptResult, Prompt, ServerNotification};
+use rmcp::model::{Content, GetPromptResult, Prompt, ServerNotification, Tool};
 use serde_json::Value;
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tokio_util::sync::CancellationToken;
