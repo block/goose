@@ -42,34 +42,30 @@ Unlike `.goosehints`, which is static and loaded entirely with every request, Me
 
 At a very high level, when you have a conversation with Goose, it processes your request in two main steps:
 
-Goose interprets your request to detect tags or keywords needed for possible Memory Extension lookups. Then it loads your entire `.goosehints` file, and sends that, along with any relevant Memory Extension entries to the LLM to generate a response.
+Goose interprets your request to detect tags or keywords needed for possible Memory Extension lookups. Then it loads your entire `.goosehints` file, and sends that, along with all Memory Extension entries to the LLM to generate a response.
 
-![how a user interaction works with Goose](goosehints-vs-memory.png)
+Why send both? Because the LLM interaction is stateless, and needs the full context of both the goosehints and Memory Extension to generate an appropriate response. The `.goosehints` file provides static, project-wide context, while the Memory Extension provides dynamic, user-specific context.
 
-## The Implications of .goosehints
 
-To reiterate, **every single line in your `.goosehints` file gets sent with every request to Goose**. If you write a ton of rules and ideas with all your project preferences, coding standards, and workflow documentation and so on into the .goosehints file, the ENTIRE file is being transmitted and processed every time you ask Goose anything, even something as simple as "what time is it?"
+## The Implications of .goosehints vs Memory Extension
 
-This is particularly important for users who are paying for their own LLM access (like ChatGPT or Gemini). Here's why:
+Since the entire `.goosehints` file and all of the memories get sent with every request, why have two different ways to provide rules and context?
 
-- **Input Tokens = Real Money**: Every line in your `.goosehints` file consumes input tokens. The LLM must process these tokens as part of its system instructions before it even looks at your question. While a small `.goosehints` file might not seem like a big deal, it can quickly add up if you're not careful. All-day vibe coding sessions are going to be using lots of tokens just interpreting that whole `.goosehints` file every time.
+The key difference lies in **scope** and **flexibility**:
 
-- **Context Window Impact**: Large `.goosehints` files eat into your [context window](https://zapier.com/blog/context-window/#:~:text=The%20cons%20of%20a%20large%20context%20window%20in%20AI&text=The%20requirements%20to%20process%20AI,request%2C%20things%20quickly%20add%20up.), which is the amount of information the LLM can consider at one time. If your `.goosehints` file is too big, it can push out important context from your actual question or task, leading to less accurate or helpful responses.
+- **.goosehints**: This file is your project's static context. It's great for defining overarching rules, standards, and documentation that apply to all interactions with Goose. However, because it's static, any changes require editing the file and reloading it. You CAN create a global `.goosehints` file that applies to all projects, but you can also create a project-specific `.goosehints` file that only applies to a specific project. This is useful for defining project-wide coding standards, documentation preferences, or other static rules that you want to apply consistently across all interactions.
 
-This means a large `.goosehints` file can:
-- Increase your AI costs
-- Reduce the amount of context available for actual work
-- Limit the complexity of tasks you can perform
+- **Memory Extension**: This is your dynamic context. It allows you to store and retrieve information on-the-fly, making it perfect for user-specific preferences, temporary context, or information that changes frequently. You can update memories without modifying the `.goosehints` file, providing greater flexibility. The memories are generally tied to the specific user, though they could be shared if your team chooses to do so (but this isn't the norm).
 
 ## Where I went wrong with my .goosehints
 
-When I first started using Goose, I treated `.goosehints` like a catch-all for everything I wanted Goose to remember. I included:
+When I first started using Goose, I treated `.goosehints` like a catch-all for everything I wanted Goose to remember, because I didn't know about the Memory Extension. My `.goosehints` file included:
 - rules on writing outlines for blog posts
 - how I like Python code written and formatted
 - notes about frontend development
 - etc
 
-That meant that every request I would make asking Goose to help come up with a catchy blog title was sending all of my rules about Python and using Tailwind CSS.
+The file was enormous and hard to update.
 
 ### So what "belongs" in .goosehints?
 
@@ -122,7 +118,7 @@ The first line starts with a hash `#` and a space-separated list of keywords and
 
 ## To hint, or not to hint?
 
-While `.goosehints` is powerful, it's important to use it judiciously. By moving appropriate content to the Memory Extension, you can optimize your Goose experience and keep your AI context use more efficient. Remember: every line in `.goosehints` is sent with every request, so choose wisely what goes there.
+Since both the `.goosehints` file and the Memory Extension files are sent with every request, whether to use one or the other really comes down to how you want to manage your context. Since you can create a project-specific `.goosehints` file, you can use it to define project-wide rules and standards that you want to apply consistently across all interactions with Goose. This is useful for defining project-wide coding standards, documentation preferences, or other static rules that you want to apply consistently across all interactions. Meanwhile you can maintain a personal set of standards for writing and coding in your Memory Extension that you can update and change as needed without affecting the project-wide rules.
 
 Share your own `.goosehints` optimization stories in the [Goose community on Discord](http://discord.gg/block-opensource)!
 
