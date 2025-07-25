@@ -1004,32 +1004,67 @@ impl Agent {
                     (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
                 }
                 if !added_message {
-                    if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
-                        if final_output_tool.final_output.is_none() {
+                    // Handle final output tool logic if one is configured
+                    let final_output_tool_guard = self.final_output_tool.lock().await;
+                    let has_final_output_tool = final_output_tool_guard.is_some();
+                    let final_output_completed = final_output_tool_guard
+                        .as_ref()
+                        .map(|tool| tool.final_output.is_some())
+                        .unwrap_or(false);
+                    drop(final_output_tool_guard);
+
+                    if has_final_output_tool {
+                        if !final_output_completed {
                             tracing::warn!("Final output tool has not been called yet. Continuing agent loop.");
                             let message = Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE);
                             messages_to_add.push(message.clone());
                             yield AgentEvent::Message(message);
                             continue
                         } else {
-                            let message = Message::assistant().with_text(final_output_tool.final_output.clone().unwrap());
+                            let final_output_tool_guard = self.final_output_tool.lock().await;
+                            let final_output = final_output_tool_guard
+                                .as_ref()
+                                .and_then(|tool| tool.final_output.clone())
+                                .unwrap_or_default();
+                            drop(final_output_tool_guard);
+                            
+                            let message = Message::assistant().with_text(final_output);
                             messages_to_add.push(message.clone());
                             yield AgentEvent::Message(message);
                         }
                     }
 
-                    match self.handle_retry_logic(&mut messages, &session, &initial_messages).await {
-                        Ok(should_retry) => {
-                            if should_retry {
-                                info!("Retry logic triggered, restarting agent loop");
-                                continue;
+                    // Only run retry logic if:
+                    // 1. There's a session with retry configuration
+                    // 2. We have a final output tool that has been called (indicating completion)
+                    // 3. We're not in the middle of normal processing
+                    let should_run_retry = session
+                        .as_ref()
+                        .and_then(|s| s.retry_config.as_ref())
+                        .is_some()
+                        && has_final_output_tool
+                        && final_output_completed;
+
+                    debug!("Retry logic evaluation: should_run_retry={}, has_session_retry_config={}, has_final_output_tool={}, final_output_completed={}", 
+                           should_run_retry,
+                           session.as_ref().and_then(|s| s.retry_config.as_ref()).is_some(),
+                           has_final_output_tool,
+                           final_output_completed);
+
+                    if should_run_retry {
+                        match self.handle_retry_logic(&mut messages, &session, &initial_messages).await {
+                            Ok(should_retry) => {
+                                if should_retry {
+                                    info!("Retry logic triggered, restarting agent loop");
+                                    continue;
+                                }
                             }
-                        }
-                        Err(e) => {
-                            error!("Retry logic failed: {}", e);
-                            yield AgentEvent::Message(Message::assistant().with_text(
-                                format!("Retry logic encountered an error: {}", e)
-                            ));
+                            Err(e) => {
+                                error!("Retry logic failed: {}", e);
+                                yield AgentEvent::Message(Message::assistant().with_text(
+                                    format!("Retry logic encountered an error: {}", e)
+                                ));
+                            }
                         }
                     }
                     break;

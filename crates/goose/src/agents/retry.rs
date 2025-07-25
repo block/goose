@@ -115,13 +115,16 @@ impl RetryManager {
         final_output_tool: &Arc<Mutex<Option<crate::agents::final_output_tool::FinalOutputTool>>>,
     ) -> Result<RetryResult> {
         let Some(session_config) = session else {
+            debug!("No session config provided, skipping retry logic");
             return Ok(RetryResult::Skipped);
         };
 
         let Some(retry_config) = &session_config.retry_config else {
+            debug!("No retry config in session, skipping retry logic");
             return Ok(RetryResult::Skipped);
         };
 
+        debug!("Executing {} success checks", retry_config.checks.len());
         let success = execute_success_checks(&retry_config.checks, retry_config).await?;
 
         if success {
@@ -130,6 +133,8 @@ impl RetryManager {
         }
 
         let current_attempts = self.get_attempts().await;
+        info!("Success checks failed, current retry attempts: {}/{}", current_attempts, retry_config.max_retries);
+        
         if current_attempts >= retry_config.max_retries {
             let error_msg = Message::assistant().with_text(format!(
                 "Maximum retry attempts ({}) exceeded. Unable to complete the task successfully.",
