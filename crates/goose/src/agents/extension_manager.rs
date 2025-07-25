@@ -835,7 +835,7 @@ mod tests {
         CallToolResult, GetPromptResult, InitializeResult, ListPromptsResult, ListResourcesResult,
         ListToolsResult, ReadResourceResult,
     };
-    use rmcp::model::JsonRpcMessage;
+    use rmcp::model::ServerNotification;
     use serde_json::json;
     use tokio::sync::mpsc;
 
@@ -891,7 +891,7 @@ mod tests {
             Err(Error::NotInitialized)
         }
 
-        async fn subscribe(&self) -> mpsc::Receiver<JsonRpcMessage> {
+        async fn subscribe(&self) -> mpsc::Receiver<ServerNotification> {
             mpsc::channel(1).1
         }
     }

@@ -672,6 +672,7 @@ impl DeveloperRouter {
                                 notification: Notification {
                                     method: "notifications/message".to_string(),
                                     params: object!({
+                                        "level": "info",
                                         "data": {
                                             "type": "shell",
                                             "stream": "stdout",
@@ -698,6 +699,7 @@ impl DeveloperRouter {
                                 notification: Notification {
                                     method: "notifications/message".to_string(),
                                     params: object!({
+                                        "level": "info",
                                         "data": {
                                             "type": "shell",
                                             "stream": "stderr",
