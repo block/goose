@@ -117,7 +117,13 @@ mod tests {
         assert!(sub_recipes.is_some());
         let sub_recipes = sub_recipes.unwrap();
         assert!(sub_recipes.len() == 1);
-        assert_eq!(sub_recipes[0].path, "existing_sub_recipe.yaml".to_string());
+        let full_sub_recipe_path = recipe_path
+            .parent()
+            .unwrap()
+            .join("existing_sub_recipe.yaml")
+            .to_string_lossy()
+            .to_string();
+        assert_eq!(sub_recipes[0].path, full_sub_recipe_path);
         assert_eq!(sub_recipes[0].name, "existing_sub_recipe".to_string());
         assert!(sub_recipes[0].values.is_none());
         assert!(response.is_some());
@@ -135,14 +141,13 @@ mod tests {
 
     #[test]
     fn test_extract_recipe_info_from_cli_with_additional_sub_recipes() {
-        let (_temp_dir, recipe_path) = create_recipe();
+        let (temp_dir, recipe_path) = create_recipe();
 
-        // Create actual sub-recipe files in the temp directory
-        std::fs::create_dir_all(_temp_dir.path().join("path/to")).unwrap();
-        std::fs::create_dir_all(_temp_dir.path().join("another")).unwrap();
+        std::fs::create_dir_all(temp_dir.path().join("path/to")).unwrap();
+        std::fs::create_dir_all(temp_dir.path().join("another")).unwrap();
 
-        let sub_recipe1_path = _temp_dir.path().join("path/to/sub_recipe1.yaml");
-        let sub_recipe2_path = _temp_dir.path().join("another/sub_recipe2.yaml");
+        let sub_recipe1_path = temp_dir.path().join("path/to/sub_recipe1.yaml");
+        let sub_recipe2_path = temp_dir.path().join("another/sub_recipe2.yaml");
 
         std::fs::write(&sub_recipe1_path, "title: Sub Recipe 1").unwrap();
         std::fs::write(&sub_recipe2_path, "title: Sub Recipe 2").unwrap();
@@ -176,7 +181,13 @@ mod tests {
         assert!(sub_recipes.is_some());
         let sub_recipes = sub_recipes.unwrap();
         assert!(sub_recipes.len() == 3);
-        assert_eq!(sub_recipes[0].path, "existing_sub_recipe.yaml".to_string());
+        let full_sub_recipe_path = recipe_path
+            .parent()
+            .unwrap()
+            .join("existing_sub_recipe.yaml")
+            .to_string_lossy()
+            .to_string();
+        assert_eq!(sub_recipes[0].path, full_sub_recipe_path);
         assert_eq!(sub_recipes[0].name, "existing_sub_recipe".to_string());
         assert!(sub_recipes[0].values.is_none());
         assert_eq!(
