@@ -100,7 +100,6 @@ pub fn get_valid_sorted_sessions(sort_order: SortOrder) -> Result<Vec<SessionInf
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::session::SessionMetadata;
     use std::fs;
     use tempfile::tempdir;

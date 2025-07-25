@@ -4,9 +4,10 @@ use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
 use crate::providers::utils::{is_valid_function_name, sanitize_function_name};
 use anyhow::Result;
-use mcp_core::tool::{Tool, ToolCall};
+use mcp_core::tool::ToolCall;
 use rand::{distributions::Alphanumeric, Rng};
-use rmcp::model::{AnnotateAble, RawContent, Role};
+use rmcp::model::{AnnotateAble, RawContent, Role, Tool};
+
 use serde_json::{json, Map, Value};
 use std::ops::Deref;
 
@@ -132,18 +133,17 @@ pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
             let mut parameters = Map::new();
             parameters.insert("name".to_string(), json!(tool.name));
             parameters.insert("description".to_string(), json!(tool.description));
-            if let Some(tool_input_schema) = tool.input_schema.as_object() {
-                // Only add the parameters key if the tool schema has non-empty properties.
-                if tool_input_schema
-                    .get("properties")
-                    .and_then(|v| v.as_object())
-                    .is_some_and(|p| !p.is_empty())
-                {
-                    parameters.insert(
-                        "parameters".to_string(),
-                        process_map(tool_input_schema, None),
-                    );
-                }
+            let tool_input_schema = &tool.input_schema;
+            // Only add the parameters key if the tool schema has non-empty properties.
+            if tool_input_schema
+                .get("properties")
+                .and_then(|v| v.as_object())
+                .is_some_and(|p| !p.is_empty())
+            {
+                parameters.insert(
+                    "parameters".to_string(),
+                    process_map(tool_input_schema, None),
+                );
             }
             json!(parameters)
         })
@@ -320,7 +320,7 @@ pub fn create_request(
     }
     let mut generation_config = Map::new();
     if let Some(temp) = model_config.temperature {
-        generation_config.insert("temperature".to_string(), json!(temp));
+        generation_config.insert("temperature".to_string(), json!(temp as f64));
     }
     if let Some(tokens) = model_config.max_tokens {
         generation_config.insert("maxOutputTokens".to_string(), json!(tokens));
@@ -329,13 +329,14 @@ pub fn create_request(
         payload.insert("generationConfig".to_string(), json!(generation_config));
     }
 
-    Ok(Value::Object(payload))
+    Ok(json!(payload))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use rmcp::model::Content;
+    use rmcp::object;
     use serde_json::json;
 
     fn set_up_text_message(text: &str, role: Role) -> Message {
@@ -374,17 +375,6 @@ mod tests {
         )
     }
 
-    fn set_up_tool(name: &str, description: &str, params: Value) -> Tool {
-        Tool {
-            name: name.to_string(),
-            description: description.to_string(),
-            input_schema: json!({
-                "properties": params
-            }),
-            annotations: None,
-        }
-    }
-
     #[test]
     fn test_get_usage() {
         let data = json!({
@@ -420,8 +410,11 @@ mod tests {
             "param1": "value1"
         });
         let messages = vec![
-            set_up_tool_request_message("id", ToolCall::new("tool_name", json!(arguments))),
-            set_up_tool_confirmation_message("id2", ToolCall::new("tool_name_2", json!(arguments))),
+            set_up_tool_request_message("id", ToolCall::new("tool_name", arguments.clone())),
+            set_up_tool_confirmation_message(
+                "id2",
+                ToolCall::new("tool_name_2", arguments.clone()),
+            ),
         ];
         let payload = format_messages(&messages);
         assert_eq!(payload.len(), 1);
@@ -478,100 +471,106 @@ mod tests {
 
     #[test]
     fn test_tools_to_google_spec_with_valid_tools() {
-        let params1 = json!({
-            "param1": {
-                "type": "string",
-                "description": "A parameter",
-                "field_does_not_accept": ["value1", "value2"]
-            }
-        });
-        let params2 = json!({
-            "param2": {
-                "type": "string",
-                "description": "B parameter",
-            }
-        });
-        let params3 = json!({
-            "body": {
-                "description": "Review comment text",
-                "type": "string"
-            },
-            "comments": {
-                "description": "Line-specific comments array of objects to place comments on pull request changes. Requires path and body. For line comments use line or position. For multi-line comments use start_line and line with optional side parameters.",
-                "type": "array",
-                "items": {
-                    "additionalProperties": false,
-                    "properties": {
-                        "body": {
-                            "description": "comment body",
-                            "type": "string"
-                        },
-                        "line": {
-                            "anyOf": [
-                                { "type": "number" },
-                                { "type": "null" }
-                            ],
-                            "description": "line number in the file to comment on. For multi-line comments, the end of the line range"
-                        },
-                        "path": {
-                            "description": "path to the file",
-                            "type": "string"
-                        },
-                        "position": {
-                            "anyOf": [
-                                { "type": "number" },
-                                { "type": "null" }
-                            ],
-                            "description": "position of the comment in the diff"
-                        },
-                        "side": {
-                            "anyOf": [
-                                { "type": "string" },
-                                { "type": "null" }
-                            ],
-                            "description": "The side of the diff on which the line resides. For multi-line comments, this is the side for the end of the line range. (LEFT or RIGHT)"
-                        },
-                        "start_line": {
-                            "anyOf": [
-                                { "type": "number" },
-                                { "type": "null" }
-                            ],
-                            "description": "The first line of the range to which the comment refers. Required for multi-line comments."
-                        },
-                        "start_side": {
-                            "anyOf": [
-                                { "type": "string" },
-                                { "type": "null" }
-                            ],
-                            "description": "The side of the diff on which the start line resides for multi-line comments. (LEFT or RIGHT)"
-                        }
-                    },
-                    "required": ["path", "body", "position", "line", "side", "start_line", "start_side"],
-                    "type": "object"
+        let params1 = object!({
+            "properties": {
+                "param1": {
+                    "type": "string",
+                    "description": "A parameter",
+                    "field_does_not_accept": ["value1", "value2"]
                 }
-            },
-            "commitId": {
-                "description": "SHA of commit to review",
-                "type": "string"
-            },
-            "event": {
-                "description": "Review action to perform",
-                "enum": ["APPROVE", "REQUEST_CHANGES", "COMMENT"],
-                "type": "string"
-            },
-            "owner": {
-                "description": "Repository owner",
-                "type": "string"
-            },
-            "pullNumber": {
-                "description": "Pull request number",
-                "type": "number"
+            }
+        });
+        let params2 = object!({
+            "properties": {
+                "param2": {
+                    "type": "string",
+                    "description": "B parameter",
+                }
+            }
+        });
+        let params3 = object!({
+            "properties": {
+                "body": {
+                    "description": "Review comment text",
+                    "type": "string"
+                },
+                "comments": {
+                    "description": "Line-specific comments array of objects to place comments on pull request changes. Requires path and body. For line comments use line or position. For multi-line comments use start_line and line with optional side parameters.",
+                    "type": "array",
+                    "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "body": {
+                                "description": "comment body",
+                                "type": "string"
+                            },
+                            "line": {
+                                "anyOf": [
+                                    { "type": "number" },
+                                    { "type": "null" }
+                                ],
+                                "description": "line number in the file to comment on. For multi-line comments, the end of the line range"
+                            },
+                            "path": {
+                                "description": "path to the file",
+                                "type": "string"
+                            },
+                            "position": {
+                                "anyOf": [
+                                    { "type": "number" },
+                                    { "type": "null" }
+                                ],
+                                "description": "position of the comment in the diff"
+                            },
+                            "side": {
+                                "anyOf": [
+                                    { "type": "string" },
+                                    { "type": "null" }
+                                ],
+                                "description": "The side of the diff on which the line resides. For multi-line comments, this is the side for the end of the line range. (LEFT or RIGHT)"
+                            },
+                            "start_line": {
+                                "anyOf": [
+                                    { "type": "number" },
+                                    { "type": "null" }
+                                ],
+                                "description": "The first line of the range to which the comment refers. Required for multi-line comments."
+                            },
+                            "start_side": {
+                                "anyOf": [
+                                    { "type": "string" },
+                                    { "type": "null" }
+                                ],
+                                "description": "The side of the diff on which the start line resides for multi-line comments. (LEFT or RIGHT)"
+                            }
+                        },
+                        "required": ["path", "body", "position", "line", "side", "start_line", "start_side"],
+                        "type": "object"
+                    }
+                },
+                "commitId": {
+                    "description": "SHA of commit to review",
+                    "type": "string"
+                },
+                "event": {
+                    "description": "Review action to perform",
+                    "enum": ["APPROVE", "REQUEST_CHANGES", "COMMENT"],
+                    "type": "string"
+                },
+                "owner": {
+                    "description": "Repository owner",
+                    "type": "string"
+                },
+                "pullNumber": {
+                    "description": "Pull request number",
+                    "type": "number"
+                }
             }
         });
         let tools = vec![
-            set_up_tool("tool1", "description1", params1),
-            set_up_tool("tool2", "description2", params2),
-            set_up_tool("tool3", "description3", params3),
+            Tool::new("tool1", "description1", params1),
+            Tool::new("tool2", "description2", params2),
+            Tool::new("tool3", "description3", params3),
         ];
         let result = format_tools(&tools);
         assert_eq!(result.len(), 3);
@@ -681,14 +680,19 @@ mod tests {
 
     #[test]
     fn test_tools_to_google_spec_with_empty_properties() {
-        let tools = vec![Tool {
-            name: "tool1".to_string(),
-            description: "description1".to_string(),
-            input_schema: json!({
-                "properties": {}
-            }),
-            annotations: None,
-        }];
+        use rmcp::model::object;
+        use std::borrow::Cow;
+        use std::sync::Arc;
+
+        let schema = json!({
+            "properties": {}
+        });
+
+        let tools = vec![Tool::new(
+            Cow::Borrowed("tool1"),
+            Cow::Borrowed("description1"),
+            Arc::new(object(schema)),
+        )];
         let result = format_tools(&tools);
         assert_eq!(result.len(), 1);
         assert_eq!(result[0]["name"], "tool1");

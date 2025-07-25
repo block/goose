@@ -3,7 +3,7 @@ use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use anyhow::{Context, Result};
-use mcp_core::tool::Tool;
+use rmcp::model::Tool;
 use serde_json::Value;
 
 use std::fmt;

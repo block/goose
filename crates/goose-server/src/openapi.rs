@@ -305,6 +305,7 @@ derive_utoipa!(ResourceContents as ResourceContentsSchema);
         super::routes::config_management::providers,
         super::routes::config_management::upsert_permissions,
         super::routes::agent::get_tools,
+        super::routes::agent::add_sub_recipes,
         super::routes::reply::confirm_permission,
         super::routes::context::manage_context,
         super::routes::session::list_sessions,
@@ -394,6 +395,8 @@ derive_utoipa!(ResourceContents as ResourceContentsSchema);
         goose::recipe::SubRecipe,
         goose::agents::types::RetryConfig,
         goose::agents::types::SuccessCheck,
+        super::routes::agent::AddSubRecipesRequest,
+        super::routes::agent::AddSubRecipesResponse,
     ))
 )]
 pub struct ApiDoc;

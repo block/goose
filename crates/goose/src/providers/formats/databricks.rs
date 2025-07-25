@@ -5,10 +5,8 @@ use crate::providers::utils::{
     sanitize_function_name, ImageFormat,
 };
 use anyhow::{anyhow, Error};
-use mcp_core::ToolError;
-use mcp_core::{Tool, ToolCall};
-use rmcp::model::Role;
-use rmcp::model::{AnnotateAble, Content, RawContent, ResourceContents};
+use mcp_core::{ToolCall, ToolError};
+use rmcp::model::{AnnotateAble, Content, RawContent, ResourceContents, Role, Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -589,6 +587,7 @@ pub fn create_request(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rmcp::object;
     use serde_json::json;
 
     #[test]
@@ -703,7 +702,7 @@ mod tests {
         let tool = Tool::new(
             "test_tool",
             "A test tool",
-            json!({
+            object!({
                 "type": "object",
                 "properties": {
                     "input": {
@@ -713,7 +712,6 @@ mod tests {
                 },
                 "required": ["input"]
             }),
-            None,
         );
 
         let spec = format_tools(&[tool])?;
@@ -795,7 +793,7 @@ mod tests {
         let tool1 = Tool::new(
             "test_tool",
             "Test tool",
-            json!({
+            object!({
                 "type": "object",
                 "properties": {
                     "input": {
@@ -805,13 +803,12 @@ mod tests {
                 },
                 "required": ["input"]
             }),
-            None,
         );
 
         let tool2 = Tool::new(
             "test_tool",
             "Test tool",
-            json!({
+            object!({
                 "type": "object",
                 "properties": {
                     "input": {
@@ -821,7 +818,6 @@ mod tests {
                 },
                 "required": ["input"]
             }),
-            None,
         );
 
         let result = format_tools(&[tool1, tool2]);
