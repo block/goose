@@ -525,7 +525,7 @@ impl Message {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcp_core::handler::ToolError;
+    use rmcp::model::{ErrorData, ErrorCode};
     use rmcp::model::{PromptMessage, PromptMessageContent, RawEmbeddedResource, ResourceContents};
     use serde_json::{json, Value};
 
@@ -573,9 +573,7 @@ mod tests {
     fn test_error_serialization() {
         let message = Message::assistant().with_tool_request(
             "tool123",
-            Err(ToolError::ExecutionError(
-                "Something went wrong".to_string(),
-            )),
+            Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, "Something went wrong".to_string(), None)),
         );
 
         let json_str = serde_json::to_string_pretty(&message).unwrap();

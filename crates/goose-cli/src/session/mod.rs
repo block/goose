@@ -35,11 +35,8 @@ use goose::message::{Message, MessageContent};
 use goose::providers::pricing::initialize_pricing_cache;
 use goose::session;
 use input::InputResult;
-use mcp_core::handler::ToolError;
-use rmcp::model::PromptMessage;
-use rmcp::model::ServerNotification;
-
 use rand::{distributions::Alphanumeric, Rng};
+use rmcp::model::{JsonRpcMessage, JsonRpcNotification, ErrorData, ErrorCode, Notification, PromptMessage, ServerNotification};
 use rustyline::EditMode;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -901,7 +898,7 @@ impl Session {
                                     let mut response_message = Message::user();
                                     response_message.content.push(MessageContent::tool_response(
                                         confirmation.id.clone(),
-                                        Err(ToolError::ExecutionError("Tool call cancelled by user".to_string()))
+                                        Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, "Tool call cancelled by user".to_string(), None))
                                     ));
                                     push_message(&mut self.messages, response_message);
                                     if let Some(session_file) = &self.session_file {
@@ -1211,7 +1208,7 @@ impl Session {
             for (req_id, _) in &tool_requests {
                 response_message.content.push(MessageContent::tool_response(
                     req_id.clone(),
-                    Err(ToolError::ExecutionError(notification.clone())),
+                    Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, notification.clone(), None)),
                 ));
             }
             self.push_message(response_message);

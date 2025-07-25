@@ -1,8 +1,8 @@
-use mcp_core::handler::{ToolError, ToolResult};
+use rmcp::model::{ErrorData, ErrorCode};
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-pub fn serialize<T, S>(value: &ToolResult<T>, serializer: S) -> Result<S::Ok, S::Error>
+pub fn serialize<T, S>(value: &Result<T, ErrorData>, serializer: S) -> Result<S::Ok, S::Error>
 where
     T: Serialize,
     S: Serializer,
@@ -17,14 +17,14 @@ where
         Err(err) => {
             let mut state = serializer.serialize_struct("ToolResult", 2)?;
             state.serialize_field("status", "error")?;
-            state.serialize_field("error", &err.to_string())?;
+            state.serialize_field("error", &err.message)?;
             state.end()
         }
     }
 }
 
 // For deserialization, let's use a simpler approach that works with the format we're serializing to
-pub fn deserialize<'de, T, D>(deserializer: D) -> Result<ToolResult<T>, D::Error>
+pub fn deserialize<'de, T, D>(deserializer: D) -> Result<Result<T, ErrorData>, D::Error>
 where
     T: Deserialize<'de>,
     D: Deserializer<'de>,
@@ -52,7 +52,7 @@ where
         }
         ResultFormat::Error { status, error } => {
             if status == "error" {
-                Ok(Err(ToolError::ExecutionError(error)))
+                Ok(Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, error, None)))
             } else {
                 Err(serde::de::Error::custom(format!(
                     "Expected status 'error', got '{}'",
