@@ -85,7 +85,6 @@ where
     F: Fn(String, String) -> Fut,
     Fut: Future<Output = Result<ScenarioResult>>,
 {
-    // Check if we should only run a specific provider
     if let Ok(only_provider) = std::env::var("GOOSE_TEST_PROVIDER") {
         let config = PROVIDER_CONFIGS
             .iter()
@@ -208,14 +207,27 @@ where
 }
 
 pub async fn run_test_scenario(test_name: &str, inputs: &[&str]) -> Result<ScenarioResult> {
-    run_single_provider_scenario(test_name, "default", inputs).await
+    let (result, provider_for_saving) =
+        run_single_provider_scenario(test_name, "default", inputs).await?;
+
+    if let Some(provider) = provider_for_saving {
+        if result.error.is_none() {
+            if result.error.is_none() {
+                Arc::try_unwrap(provider)
+                    .map_err(|_| anyhow::anyhow!("Failed to unwrap provider for recording"))?
+                    .finish_recording()?;
+            }
+        }
+    }
+
+    Ok(result)
 }
 
 async fn run_single_provider_scenario(
     test_name: &str,
     provider_name: &str,
     inputs: &[&str],
-) -> Result<ScenarioResult> {
+) -> Result<(ScenarioResult, Option<Arc<TestProvider>>)> {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let file_path = format!(
         "{}/src/scenario_tests/recordings/{}/{}.json",
@@ -229,11 +241,9 @@ async fn run_single_provider_scenario(
     }
 
     let replay_mode = Path::new(&file_path).exists();
-    let provider = if replay_mode {
+    let (provider_arc, provider_for_saving) = if replay_mode {
         match TestProvider::new_replaying(&file_path) {
-            Ok(test_provider) => {
-                Arc::new(test_provider) as Arc<dyn goose::providers::base::Provider>
-            }
+            Ok(test_provider) => (Arc::new(test_provider), None),
             Err(e) => {
                 let _ = std::fs::remove_file(&file_path);
                 return Err(anyhow::anyhow!(
@@ -264,11 +274,14 @@ async fn run_single_provider_scenario(
 
         let model_config = ModelConfig::new(model_name);
         let inner_provider = create(&provider_name, model_config)?;
-        Arc::new(TestProvider::new_recording(inner_provider, &file_path))
+        let test_provider = Arc::new(TestProvider::new_recording(inner_provider, &file_path));
+        (test_provider.clone(), Some(test_provider))
     };
 
     let agent = Agent::new();
-    agent.update_provider(provider).await?;
+    agent
+        .update_provider(provider_arc as Arc<dyn goose::providers::base::Provider>)
+        .await?;
 
     let mut session = Session::new(agent, None, false, None, None, None, None);
 
@@ -292,7 +305,8 @@ async fn run_single_provider_scenario(
         }
     }
 
-    Ok(ScenarioResult { messages, error })
+    let result = ScenarioResult { messages, error };
+    Ok((result, provider_for_saving))
 }
 
 pub async fn run_multi_provider_scenario<F>(
@@ -309,7 +323,7 @@ where
         let inputs = inputs_owned.clone();
         let validator = &validator;
         async move {
-            let result = run_single_provider_scenario(
+            let (result, provider_for_saving) = run_single_provider_scenario(
                 &name,
                 &provider,
                 &inputs.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
@@ -317,6 +331,19 @@ where
             .await?;
 
             validator(&result)?;
+
+            if let Some(provider) = provider_for_saving {
+                if result.error.is_none() {
+                    if result.error.is_none() {
+                        Arc::try_unwrap(provider)
+                            .map_err(|_| {
+                                anyhow::anyhow!("Failed to unwrap provider for recording")
+                            })?
+                            .finish_recording()?;
+                    }
+                }
+            }
+
             Ok(result)
         }
     })

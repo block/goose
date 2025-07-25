@@ -80,6 +80,9 @@ impl AnthropicProvider {
             ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
         })?;
 
+        let url_as_str = url.as_str();
+        tracing::debug!("🔍 Sending request to Anthropic: {}", url_as_str);
+
         let response = self
             .client
             .post(url)
@@ -90,6 +93,16 @@ impl AnthropicProvider {
 
         let status = response.status();
         let payload: Option<Value> = response.json().await.ok();
+
+        let payload_str = payload
+            .as_ref()
+            .map(|p| serde_json::to_string(p).unwrap_or_else(|_| "Invalid JSON".to_string()));
+
+        tracing::debug!(
+            "🔍 Received response from Anthropic: status={}, payload={:?}",
+            status,
+            payload_str
+        );
 
         // https://docs.anthropic.com/en/api/errors
         match status {
