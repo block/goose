@@ -54,6 +54,66 @@ pub enum RunMode {
     Plan,
 }
 
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+struct ConversationState {
+    message_count: usize,
+    token_usage: Option<goose::providers::base::Usage>,
+    stream_active: bool,
+    pending_operations: Vec<String>,
+    interrupted_message: Option<Message>,
+}
+
+impl ConversationState {
+    fn capture(session: &Session, interrupted_message: Option<Message>) -> Self {
+        let mut pending_operations = Vec::new();
+
+        if let Some(ref msg) = interrupted_message {
+            for content in &msg.content {
+                if let MessageContent::ToolRequest(tool_req) = content {
+                    match &tool_req.tool_call {
+                        Ok(tool_call) => {
+                            pending_operations.push(format!("Tool call: {}", tool_call.name));
+                        }
+                        Err(_) => {
+                            pending_operations.push("Tool call: <invalid>".to_string());
+                        }
+                    }
+                }
+            }
+        }
+
+        Self {
+            message_count: session.messages.len(),
+            token_usage: None,
+            stream_active: true,
+            pending_operations,
+            interrupted_message,
+        }
+    }
+
+    fn validate_recovery(&self, session: &Session) -> Result<()> {
+        if session.messages.len() > self.message_count {
+            return Err(anyhow::anyhow!(
+                "Unexpected message count increase after context recovery: was {}, now {}",
+                self.message_count,
+                session.messages.len()
+            ));
+        }
+
+        // Log the change for debugging
+        if session.messages.len() != self.message_count {
+            eprintln!(
+                "Context recovery: message count changed from {} to {}",
+                self.message_count,
+                session.messages.len()
+            );
+        }
+
+        Ok(())
+    }
+}
+
 pub struct Session {
     agent: Agent,
     messages: Vec<Message>,
@@ -684,6 +744,13 @@ impl Session {
 
                     continue;
                 }
+                InputResult::ShowTokens => {
+                    save_history(&mut editor);
+
+                    let token_status = self.agent.token_status().await;
+                    output::render_message(&Message::assistant().with_text(token_status), false);
+                    continue;
+                }
                 InputResult::Summarize => {
                     save_history(&mut editor);
 
@@ -924,10 +991,30 @@ impl Session {
                                         permission,
                                     },).await;
                                 }
-                            } else if let Some(MessageContent::ContextLengthExceeded(_)) = message.content.first() {
+                            } else if let Some(MessageContent::ContextLengthExceeded(context_error)) = message.content.first() {
                                 output::hide_thinking();
 
-                                // Check for user-configured default context strategy
+                                let conversation_state = ConversationState::capture(self, Some(message.clone()));
+
+                                let mut error_message = format!("Context Length Error: {}", context_error.msg);
+
+                                if let (Some(current), Some(max)) = (context_error.current_tokens, context_error.max_tokens) {
+                                    error_message.push_str(&format!("\nUsed {} tokens out of {} maximum", current, max));
+                                }
+
+                                output::render_text(&error_message, Some(Color::Red), true);
+
+                                if let Some(ref suggestions) = context_error.suggested_actions {
+                                    if !suggestions.is_empty() {
+                                        output::render_text("Suggestions:", Some(Color::Yellow), true);
+                                        for suggestion in suggestions {
+                                            output::render_text(&format!("  • {}", suggestion), Some(Color::Yellow), true);
+                                        }
+                                    }
+                                }
+
+                                output::render_text("", Some(Color::Yellow), true);
+
                                 let config = Config::global();
                                 let context_strategy = config.get_param::<String>("GOOSE_CONTEXT_STRATEGY")
                                     .unwrap_or_else(|_| if interactive { "prompt".to_string() } else { "summarize".to_string() });
@@ -936,15 +1023,30 @@ impl Session {
                                     "clear" => "clear",
                                     "truncate" => "truncate",
                                     "summarize" => "summarize",
+                                    "middle-out" => {
+                                        // Check if we're using OpenRouter
+                                        if self.agent.provider_name() == "openrouter" {
+                                            "middle-out"
+                                        } else {
+                                            // Fall back to summarize for non-OpenRouter providers
+                                            "summarize"
+                                        }
+                                    }
                                     _ => {
                                         if interactive {
                                             // In interactive mode with no default, ask the user what to do
                                             let prompt = "The model's context length is maxed out. You will need to reduce the # msgs. Do you want to?".to_string();
-                                            cliclack::select(prompt)
+                                            let mut select = cliclack::select(prompt)
                                                 .item("clear", "Clear Session", "Removes all messages from Goose's memory")
                                                 .item("truncate", "Truncate Messages", "Removes old messages till context is within limits")
-                                                .item("summarize", "Summarize Session", "Summarize the session to reduce context length")
-                                                .interact()?
+                                                .item("summarize", "Summarize Session", "Summarize the session to reduce context length");
+
+                                            // Add middle-out option only for OpenRouter
+                                            if self.agent.provider_name() == "openrouter" {
+                                                select = select.item("middle-out", "Middle-out compress (OpenRouter)", "Retry with OpenRouter's middle-out transform");
+                                            }
+
+                                            select.interact()?
                                         } else {
                                             // In headless mode, default to summarize
                                             "summarize"
@@ -986,9 +1088,44 @@ impl Session {
                                         };
                                         Self::summarize_context_messages(&mut self.messages, &self.agent, message_suffix).await?;
                                     }
+                                    "middle-out" => {
+                                        // Enable middle-out transform and retry
+                                        output::render_text("Retrying with OpenRouter's middle-out transform...", Some(Color::Yellow), true);
+                                        output::render_text("Note: This will remove messages from the middle of the conversation to fit within context limits.", Some(Color::White), true);
+
+                                        // Create a new OpenRouter provider with middle-out enabled
+                                        let config = Config::global();
+                                        let model_name = config.get_param::<String>("GOOSE_MODEL")
+                                            .unwrap_or_else(|_| "anthropic/claude-3.5-sonnet".to_string());
+                                        let temperature = config.get_param::<f32>("GOOSE_TEMPERATURE").unwrap_or(0.5);
+                                        let model_config = goose::model::ModelConfig::new(model_name)
+                                            .with_temperature(Some(temperature));
+
+                                        let provider_options = goose::providers::factory::ProviderOptions {
+                                            enable_middle_out: true,
+                                        };
+
+                                        match goose::providers::factory::create_with_options("openrouter", model_config, provider_options) {
+                                            Ok(provider) => {
+                                                self.agent.update_provider(provider).await?;
+                                            }
+                                            Err(e) => {
+                                                output::render_error(&format!("Failed to create OpenRouter provider with middle-out: {}", e));
+                                                break;
+                                            }
+                                        }
+                                    }
                                     _ => {
                                         unreachable!()
                                     }
+                                }
+
+                                // Drop the current stream before recovery to avoid borrowing conflicts
+                                drop(stream);
+
+                                // Implement recovery validation and handle interrupted tool calls
+                                if let Err(recovery_error) = self.recover_from_context_handling(&conversation_state).await {
+                                    output::render_error(&format!("Warning: Context recovery issue: {}", recovery_error));
                                 }
 
                                 // Restart the stream after handling ContextLengthExceeded
@@ -1537,6 +1674,56 @@ impl Session {
 
     fn push_message(&mut self, message: Message) {
         push_message(&mut self.messages, message);
+    }
+
+    async fn recover_from_context_handling(
+        &mut self,
+        conversation_state: &ConversationState,
+    ) -> Result<()> {
+        conversation_state.validate_recovery(self)?;
+
+        self.agent.reset_retry_attempts().await;
+
+        if !conversation_state.pending_operations.is_empty() {
+            output::render_text(
+                "Recovery Summary - The following operations were interrupted by context limit:",
+                Some(Color::Yellow),
+                true,
+            );
+
+            for operation in &conversation_state.pending_operations {
+                output::render_text(&format!("  • {}", operation), Some(Color::Yellow), true);
+            }
+
+            output::render_text(
+                "These operations have been cleared and will need to be retried by the assistant.",
+                Some(Color::Yellow),
+                true,
+            );
+            output::render_text("", Some(Color::White), true); // Add spacing
+        }
+
+        // Display recovery summary to the user
+        let recovery_msg = match self.messages.len().cmp(&conversation_state.message_count) {
+            std::cmp::Ordering::Less => {
+                format!(
+                    "Context recovery complete. {} messages were removed during context handling.",
+                    conversation_state.message_count - self.messages.len()
+                )
+            }
+            std::cmp::Ordering::Equal => {
+                "Context recovery complete. Conversation state preserved.".to_string()
+            }
+            std::cmp::Ordering::Greater => {
+                // This shouldn't happen, but handle it gracefully
+                "Context recovery complete. Conversation state may have been modified.".to_string()
+            }
+        };
+
+        output::render_text(&recovery_msg, Some(Color::Green), true);
+        output::render_text("", Some(Color::White), true); // Add spacing
+
+        Ok(())
     }
 }
 

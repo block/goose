@@ -7,7 +7,7 @@ pub mod claude_code;
 pub mod databricks;
 pub mod embedding;
 pub mod errors;
-mod factory;
+pub mod factory;
 pub mod formats;
 mod gcpauth;
 pub mod gcpvertexai;

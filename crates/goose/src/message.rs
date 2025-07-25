@@ -91,6 +91,10 @@ pub struct FrontendToolRequest {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct ContextLengthExceeded {
     pub msg: String,
+    pub current_tokens: Option<u32>,
+    pub max_tokens: Option<u32>,
+    pub provider_name: Option<String>,
+    pub suggested_actions: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -176,7 +180,29 @@ impl MessageContent {
     }
 
     pub fn context_length_exceeded<S: Into<String>>(msg: S) -> Self {
-        MessageContent::ContextLengthExceeded(ContextLengthExceeded { msg: msg.into() })
+        MessageContent::ContextLengthExceeded(ContextLengthExceeded {
+            msg: msg.into(),
+            current_tokens: None,
+            max_tokens: None,
+            provider_name: None,
+            suggested_actions: None,
+        })
+    }
+
+    pub fn context_length_exceeded_with_details<S: Into<String>>(
+        msg: S,
+        current_tokens: Option<u32>,
+        max_tokens: Option<u32>,
+        provider_name: Option<String>,
+        suggested_actions: Option<Vec<String>>,
+    ) -> Self {
+        MessageContent::ContextLengthExceeded(ContextLengthExceeded {
+            msg: msg.into(),
+            current_tokens,
+            max_tokens,
+            provider_name,
+            suggested_actions,
+        })
     }
 
     pub fn summarization_requested<S: Into<String>>(msg: S) -> Self {
@@ -444,6 +470,24 @@ impl Message {
     /// Add context length exceeded content to the message
     pub fn with_context_length_exceeded<S: Into<String>>(self, msg: S) -> Self {
         self.with_content(MessageContent::context_length_exceeded(msg))
+    }
+
+    /// Add context length exceeded content with detailed information to the message
+    pub fn with_context_length_exceeded_details<S: Into<String>>(
+        self,
+        msg: S,
+        current_tokens: Option<u32>,
+        max_tokens: Option<u32>,
+        provider_name: Option<String>,
+        suggested_actions: Option<Vec<String>>,
+    ) -> Self {
+        self.with_content(MessageContent::context_length_exceeded_with_details(
+            msg,
+            current_tokens,
+            max_tokens,
+            provider_name,
+            suggested_actions,
+        ))
     }
 
     /// Get the concatenated text content of the message, separated by newlines

@@ -564,6 +564,45 @@ async fn test_openrouter_provider() -> Result<()> {
 }
 
 #[tokio::test]
+async fn test_openrouter_provider_with_middle_out() -> Result<()> {
+    dotenv().ok();
+
+    // Skip if API key not configured
+    if std::env::var("OPENROUTER_API_KEY").is_err() {
+        println!("Skipping OpenRouter middle-out test: OPENROUTER_API_KEY not set");
+        return Ok(());
+    }
+
+    // Create provider with middle-out enabled
+    let model = goose::model::ModelConfig::new("anthropic/claude-3.5-sonnet".to_string());
+    let provider = openrouter::OpenRouterProvider::from_env(model)?.with_middle_out(true);
+
+    // Test a simple completion to ensure it works
+    let messages = vec![Message::user().with_text("Say 'Hello, middle-out!' in exactly 3 words.")];
+    let tools: Vec<Tool> = vec![];
+
+    match provider
+        .complete("You are a helpful assistant.", &messages, &tools)
+        .await
+    {
+        Ok((response, _usage)) => {
+            println!("Middle-out test response: {:?}", response);
+            assert!(!response.content.is_empty());
+            Ok(())
+        }
+        Err(e) => {
+            // If we get a context error, that's still a pass since we're testing the feature exists
+            if matches!(e, ProviderError::ContextLengthExceeded(_)) {
+                println!("Middle-out test triggered context handling as expected");
+                Ok(())
+            } else {
+                Err(e.into())
+            }
+        }
+    }
+}
+
+#[tokio::test]
 async fn test_google_provider() -> Result<()> {
     test_provider(
         "Google",

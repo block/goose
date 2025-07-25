@@ -36,6 +36,8 @@ pub struct OpenRouterProvider {
     host: String,
     api_key: String,
     model: ModelConfig,
+    #[serde(skip)]
+    enable_middle_out: bool,
 }
 
 impl Default for OpenRouterProvider {
@@ -46,6 +48,11 @@ impl Default for OpenRouterProvider {
 }
 
 impl OpenRouterProvider {
+    pub fn with_middle_out(mut self, enable: bool) -> Self {
+        self.enable_middle_out = enable;
+        self
+    }
+
     pub fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("OPENROUTER_API_KEY")?;
@@ -62,6 +69,7 @@ impl OpenRouterProvider {
             host,
             api_key,
             model,
+            enable_middle_out: false,
         })
     }
 
@@ -256,7 +264,14 @@ impl Provider for OpenRouterProvider {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         // Create the base payload
-        let payload = create_request_based_on_model(self, system, messages, tools)?;
+        let mut payload = create_request_based_on_model(self, system, messages, tools)?;
+
+        // Add transforms field if middle-out is enabled
+        if self.enable_middle_out {
+            if let Some(obj) = payload.as_object_mut() {
+                obj.insert("transforms".to_string(), json!(["middle-out"]));
+            }
+        }
 
         // Make request
         let response = self.post(&payload).await?;

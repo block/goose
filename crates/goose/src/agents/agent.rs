@@ -29,6 +29,7 @@ use crate::agents::subagent_execution_tool::subagent_execute_task_tool::{
     self, SUBAGENT_EXECUTE_TASK_TOOL_NAME,
 };
 use crate::agents::subagent_execution_tool::tasks_manager::TasksManager;
+use crate::agents::token_tracker::{create_shared_tracker, SharedTokenTracker};
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::tool_vectordb::generate_table_id;
 use crate::agents::types::SessionConfig;
@@ -39,6 +40,7 @@ use crate::permission::permission_judge::check_tool_permissions;
 use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
+use crate::providers::utils::{generate_context_suggestions, parse_token_info_from_error};
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::tool_monitor::{ToolCall, ToolMonitor};
@@ -77,6 +79,7 @@ pub struct Agent {
     pub(super) router_tool_selector: Mutex<Option<Arc<Box<dyn RouterToolSelector>>>>,
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
     pub(super) retry_manager: RetryManager,
+    pub(super) token_tracker: SharedTokenTracker,
 }
 
 #[derive(Clone, Debug)]
@@ -152,6 +155,7 @@ impl Agent {
             router_tool_selector: Mutex::new(None),
             scheduler_service: Mutex::new(None),
             retry_manager,
+            token_tracker: create_shared_tracker(),
         }
     }
 
@@ -186,6 +190,16 @@ impl Agent {
         self.retry_manager.get_attempts().await
     }
 
+    pub async fn token_status(&self) -> String {
+        let tracker = self.token_tracker.read().await;
+        tracker.status()
+    }
+
+    pub async fn reset_tokens(&self) {
+        let mut tracker = self.token_tracker.write().await;
+        tracker.reset();
+    }
+
     /// Handle retry logic for the agent reply loop
     async fn handle_retry_logic(
         &self,
@@ -218,6 +232,21 @@ impl Agent {
             Some(provider) => Ok(Arc::clone(provider)),
             None => Err(anyhow!("Provider not set")),
         }
+    }
+
+    /// Get the provider name
+    pub fn provider_name(&self) -> String {
+        // Get the provider name from config
+        let config = Config::global();
+        config
+            .get_param::<String>("GOOSE_PROVIDER")
+            .unwrap_or_else(|_| "unknown".to_string())
+    }
+
+    /// Enable middle-out transform for OpenRouter provider
+    pub fn enable_middle_out_transform(&self) {
+        // This will be handled by creating a new provider instance with middle-out enabled
+        // in the next request. The actual implementation will happen in the session module.
     }
 
     /// Check if a tool is a frontend tool
@@ -813,6 +842,19 @@ impl Agent {
                                 }
                             }
 
+                            // Update token tracker and check for warnings
+                            if let Some(ref usage) = usage {
+                                let mut tracker = self.token_tracker.write().await;
+                                tracker.update_usage(usage);
+
+                                // Check if we need to show a warning
+                                if let Some(warning_msg) = tracker.check_warning() {
+                                    yield AgentEvent::Message(
+                                        Message::assistant().with_text(warning_msg)
+                                    );
+                                }
+                            }
+
                             if let Some(response) = response {
                                 let (tools_with_readonly_annotation, tools_without_annotation) =
                                     Self::categorize_tools_by_annotation(&tools);
@@ -985,10 +1027,28 @@ impl Agent {
                                 push_message(&mut messages_to_add, final_message_tool_resp);
                             }
                         }
-                        Err(ProviderError::ContextLengthExceeded(_)) => {
-                            yield AgentEvent::Message(Message::assistant().with_context_length_exceeded(
-                                    "The context length of the model has been exceeded. Please start a new session and try again.",
-                                ));
+                        Err(ProviderError::ContextLengthExceeded(provider_msg)) => {
+                            // Parse token information from error message
+                            let (current_tokens, max_tokens) = parse_token_info_from_error(&provider_msg);
+
+                            // Update token tracker with context limit if we found it
+                            if let Some(max_tokens) = max_tokens {
+                                let mut tracker = self.token_tracker.write().await;
+                                tracker.set_context_limit(max_tokens as usize);
+                            }
+
+                            // Get provider name for specific suggestions
+                            let provider_name_str = self.provider_name();
+                            let provider_name = Some(provider_name_str.clone());
+                            let suggested_actions = Some(generate_context_suggestions(&provider_name_str));
+
+                            yield AgentEvent::Message(Message::assistant().with_context_length_exceeded_details(
+                                &provider_msg,
+                                current_tokens,
+                                max_tokens,
+                                provider_name,
+                                suggested_actions,
+                            ));
                             break;
                         }
                         Err(e) => {
@@ -1063,6 +1123,11 @@ impl Agent {
     pub async fn update_provider(&self, provider: Arc<dyn Provider>) -> Result<()> {
         let mut current_provider = self.provider.lock().await;
         *current_provider = Some(provider.clone());
+
+        // Try to get context limit from model config
+        let _model_config = provider.get_model_config();
+        // Note: We'll need to add a method to get context limit from the provider
+        // For now, we'll leave it unset and rely on error messages
 
         self.update_router_tool_selector(Some(provider), None)
             .await?;

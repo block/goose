@@ -76,6 +76,29 @@ pub fn create(name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>> {
     create_provider(name, model)
 }
 
+pub fn create_with_options(
+    name: &str,
+    model: ModelConfig,
+    options: ProviderOptions,
+) -> Result<Arc<dyn Provider>> {
+    let config = crate::config::Config::global();
+
+    // Check for lead model environment variables
+    if let Ok(lead_model_name) = config.get_param::<String>("GOOSE_LEAD_MODEL") {
+        tracing::info!("Creating lead/worker provider from environment variables");
+
+        return create_lead_worker_from_env(name, &model, &lead_model_name);
+    }
+
+    // Create provider with options
+    create_provider_with_options(name, model, options)
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ProviderOptions {
+    pub enable_middle_out: bool,
+}
+
 /// Create a lead/worker provider from environment variables
 fn create_lead_worker_from_env(
     default_provider_name: &str,
@@ -150,6 +173,14 @@ fn create_lead_worker_from_env(
 }
 
 fn create_provider(name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>> {
+    create_provider_with_options(name, model, ProviderOptions::default())
+}
+
+fn create_provider_with_options(
+    name: &str,
+    model: ModelConfig,
+    options: ProviderOptions,
+) -> Result<Arc<dyn Provider>> {
     // We use Arc instead of Box to be able to clone for multiple async tasks
     match name {
         "openai" => Ok(Arc::new(OpenAiProvider::from_env(model)?)),
@@ -162,7 +193,20 @@ fn create_provider(name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>> 
         "groq" => Ok(Arc::new(GroqProvider::from_env(model)?)),
         "litellm" => Ok(Arc::new(LiteLLMProvider::from_env(model)?)),
         "ollama" => Ok(Arc::new(OllamaProvider::from_env(model)?)),
-        "openrouter" => Ok(Arc::new(OpenRouterProvider::from_env(model)?)),
+        "openrouter" => {
+            let mut provider = OpenRouterProvider::from_env(model)?;
+
+            // Check if middle-out should be enabled by default
+            let config = crate::config::Config::global();
+            let enable_middle_out_default = config
+                .get_param::<bool>("OPENROUTER_ENABLE_MIDDLE_OUT")
+                .unwrap_or(false);
+
+            if options.enable_middle_out || enable_middle_out_default {
+                provider = provider.with_middle_out(true);
+            }
+            Ok(Arc::new(provider))
+        }
         "gcp_vertex_ai" => Ok(Arc::new(GcpVertexAIProvider::from_env(model)?)),
         "google" => Ok(Arc::new(GoogleProvider::from_env(model)?)),
         "sagemaker_tgi" => Ok(Arc::new(SageMakerTgiProvider::from_env(model)?)),

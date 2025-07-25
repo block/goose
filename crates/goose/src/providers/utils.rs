@@ -347,6 +347,63 @@ pub fn emit_debug_trace<T1, T2>(
     );
 }
 
+/// Parse token information from common error message formats
+pub fn parse_token_info_from_error(error_msg: &str) -> (Option<u32>, Option<u32>) {
+    // OpenRouter format: "This endpoint's maximum context length is 200000 tokens. However, you requested about 201326 tokens"
+    if let Some(captures) =
+        regex::Regex::new(r"maximum context length is (\d+) tokens.*requested about (\d+) tokens")
+            .ok()
+            .and_then(|re| re.captures(error_msg))
+    {
+        let max_tokens = captures.get(1).and_then(|m| m.as_str().parse().ok());
+        let current_tokens = captures.get(2).and_then(|m| m.as_str().parse().ok());
+        return (current_tokens, max_tokens);
+    }
+
+    // Anthropic/Claude format: "messages: tokens (X) > max_tokens (Y)"
+    if let Some(captures) = regex::Regex::new(r"tokens \((\d+)\) > max_tokens \((\d+)\)")
+        .ok()
+        .and_then(|re| re.captures(error_msg))
+    {
+        let current_tokens = captures.get(1).and_then(|m| m.as_str().parse().ok());
+        let max_tokens = captures.get(2).and_then(|m| m.as_str().parse().ok());
+        return (current_tokens, max_tokens);
+    }
+
+    // Generic patterns for "X tokens" and "Y maximum"
+    let current_tokens = regex::Regex::new(r"(\d+)\s+tokens")
+        .ok()
+        .and_then(|re| re.find(error_msg))
+        .and_then(|m| error_msg[m.range()].split_whitespace().next()?.parse().ok());
+
+    let max_tokens = regex::Regex::new(r"maximum.*?(\d+)")
+        .ok()
+        .and_then(|re| re.captures(error_msg))
+        .and_then(|caps| caps.get(1)?.as_str().parse().ok());
+
+    (current_tokens, max_tokens)
+}
+
+/// Generate provider-specific suggestions for context limit errors
+pub fn generate_context_suggestions(provider_name: &str) -> Vec<String> {
+    match provider_name.to_lowercase().as_str() {
+        "openrouter" => vec![
+            "Use middle-out transform to compress the conversation".to_string(),
+            "Try a model with higher context length".to_string(),
+            "Summarize or truncate older messages".to_string(),
+        ],
+        "anthropic" | "claude" => vec![
+            "Summarize the conversation to reduce token usage".to_string(),
+            "Remove older messages from the conversation".to_string(),
+            "Break down your request into smaller parts".to_string(),
+        ],
+        _ => vec![
+            "Summarize or truncate the conversation".to_string(),
+            "Remove unnecessary context from messages".to_string(),
+        ],
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
