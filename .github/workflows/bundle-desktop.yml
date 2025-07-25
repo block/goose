@@ -26,6 +26,9 @@ on:
         required: false
         type: string
         default: ''
+    secrets:
+      OSX_CODESIGN_ROLE:
+        required: false
 
 name: Reusable workflow to bundle desktop app
 
@@ -280,7 +283,7 @@ jobs:
 
           # download the signed app from S3
           echo "⬇️ downloading signed app"
-          aws s3 cp --quiet "${signed_url}" ui/desktop/out/Goose-darwin-x64/Goose.zip
+          aws s3 cp --quiet "${signed_url}" out/Goose-darwin-amd64/Goose.zip
         working-directory: external-goose/ui/desktop
 
       - name: Final cleanup before artifact upload

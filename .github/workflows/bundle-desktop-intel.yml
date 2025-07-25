@@ -25,6 +25,9 @@ on:
         type: string
         required: false
         default: ''
+    secrets:
+      OSX_CODESIGN_ROLE:
+        required: false
 
 name: Reusable workflow to bundle desktop app for Intel Mac
 
