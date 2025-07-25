@@ -4,27 +4,144 @@ use std::collections::HashSet;
 
 pub struct ConversationFixer;
 
+const PLACEHOLDER_USER_MESSAGE: &str = "Hello";
+
 impl ConversationFixer {
     /// Fix a conversation that we're about to send to an LLM. So the last and first
     /// messages should always be from the user.
     pub fn fix_conversation(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
-        let mut fixed_messages: std::vec::Vec<Message> = Vec::new();
+        let (messages, empty_removed) = Self::remove_empty_messages(messages);
+        let (messages, tool_calling_fixed) = Self::fix_tool_calling(messages);
+        let (messages, messages_merged) = Self::merge_consecutive_messages(messages);
+        let (messages, lead_trail_fixed) = Self::fix_lead_trail(messages);
+
+        let mut issues = Vec::new();
+        issues.extend(empty_removed);
+        issues.extend(tool_calling_fixed);
+        issues.extend(messages_merged);
+        issues.extend(lead_trail_fixed);
+
+        (messages, issues)
+    }
+
+    fn remove_empty_messages(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
+        let mut issues = Vec::new();
+        let filtered_messages = messages
+            .into_iter()
+            .filter(|msg| {
+                if msg.content.is_empty() {
+                    issues.push("Removed empty message".to_string());
+                    false
+                } else {
+                    true
+                }
+            })
+            .collect();
+        (filtered_messages, issues)
+    }
+
+    fn fix_tool_calling(mut messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
         let mut issues = Vec::new();
         let mut pending_tool_requests: HashSet<String> = HashSet::new();
 
-        for message in messages {
-            let mut fixed_message = message.clone();
-            let mut message_issues = Vec::new();
+        for message in &mut messages {
+            let mut content_to_remove = Vec::new();
 
-            if fixed_message.content.is_empty() {
-                issues.push("Removed empty message".to_string());
-                continue;
+            match message.role {
+                Role::User => {
+                    for (idx, content) in message.content.iter().enumerate() {
+                        match content {
+                            MessageContent::ToolRequest(req) => {
+                                content_to_remove.push(idx);
+                                issues.push(format!(
+                                    "Removed tool request '{}' from user message",
+                                    req.id
+                                ));
+                            }
+                            MessageContent::ToolConfirmationRequest(req) => {
+                                content_to_remove.push(idx);
+                                issues.push(format!(
+                                    "Removed tool confirmation request '{}' from user message",
+                                    req.id
+                                ));
+                            }
+                            MessageContent::Thinking(_) | MessageContent::RedactedThinking(_) => {
+                                content_to_remove.push(idx);
+                                issues
+                                    .push("Removed thinking content from user message".to_string());
+                            }
+                            MessageContent::ToolResponse(resp) => {
+                                if pending_tool_requests.contains(&resp.id) {
+                                    pending_tool_requests.remove(&resp.id);
+                                } else {
+                                    content_to_remove.push(idx);
+                                    issues.push(format!(
+                                        "Removed orphaned tool response '{}'",
+                                        resp.id
+                                    ));
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                Role::Assistant => {
+                    for (idx, content) in message.content.iter().enumerate() {
+                        match content {
+                            MessageContent::ToolResponse(resp) => {
+                                content_to_remove.push(idx);
+                                issues.push(format!(
+                                    "Removed tool response '{}' from assistant message",
+                                    resp.id
+                                ));
+                            }
+                            MessageContent::FrontendToolRequest(req) => {
+                                content_to_remove.push(idx);
+                                issues.push(format!(
+                                    "Removed frontend tool request '{}' from assistant message",
+                                    req.id
+                                ));
+                            }
+                            MessageContent::ToolRequest(req) => {
+                                pending_tool_requests.insert(req.id.clone());
+                            }
+                            _ => {}
+                        }
+                    }
+                }
             }
 
-            if let Some(last_msg) = fixed_messages.last_mut() {
-                if last_msg.role == fixed_message.role {
-                    last_msg.content.extend(fixed_message.content);
-                    let role_name = match fixed_message.role {
+            // Remove invalid content (in reverse order)
+            for &idx in content_to_remove.iter().rev() {
+                message.content.remove(idx);
+            }
+        }
+
+        // Remove messages that became empty after content filtering
+        let filtered_messages = messages
+            .into_iter()
+            .filter(|msg| {
+                if msg.content.is_empty() {
+                    issues.push("Removed message after content filtering".to_string());
+                    false
+                } else {
+                    true
+                }
+            })
+            .collect();
+
+        (filtered_messages, issues)
+    }
+
+    fn merge_consecutive_messages(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
+        let mut issues = Vec::new();
+        let mut merged_messages: Vec<Message> = Vec::new();
+
+        for message in messages {
+            if let Some(last) = merged_messages.last_mut() {
+                if last.role == message.role {
+                    last.content.extend(message.content);
+                    let role_name = match message.role {
                         Role::User => "user",
                         Role::Assistant => "assistant",
                     };
@@ -32,110 +149,54 @@ impl ConversationFixer {
                     continue;
                 }
             }
-
-            let mut content_to_remove = Vec::new();
-            let mut check_content =
-                |idx: usize, should_remove: bool, content_name: String, role_name: &str| {
-                    if should_remove {
-                        content_to_remove.push(idx);
-                        message_issues.push(format!(
-                            "Removed {} from {} message",
-                            content_name, role_name
-                        ));
-                    }
-                };
-
-            match fixed_message.role {
-                Role::User => {
-                    for (idx, content) in fixed_message.content.iter().enumerate() {
-                        let (should_remove, content_name) = match content {
-                            MessageContent::ToolRequest(req) => {
-                                (true, format!("tool request '{}'", req.id))
-                            }
-                            MessageContent::ToolConfirmationRequest(req) => {
-                                (true, format!("tool confirmation request '{}'", req.id))
-                            }
-                            MessageContent::Thinking(_) => (true, "thinking content".to_string()),
-                            MessageContent::RedactedThinking(_) => {
-                                (true, "redacted thinking content".to_string())
-                            }
-                            MessageContent::ToolResponse(resp) => {
-                                if !pending_tool_requests.contains(&resp.id) {
-                                    (true, format!("orphaned tool response '{}'", resp.id))
-                                } else {
-                                    pending_tool_requests.remove(&resp.id);
-                                    (false, String::new())
-                                }
-                            }
-                            _ => (false, String::new()),
-                        };
-
-                        check_content(idx, should_remove, content_name, "user");
-                    }
-                }
-                Role::Assistant => {
-                    for (idx, content) in fixed_message.content.iter().enumerate() {
-                        let (should_remove, content_name) = match content {
-                            MessageContent::ToolResponse(resp) => {
-                                (true, format!("tool response '{}'", resp.id))
-                            }
-                            MessageContent::FrontendToolRequest(req) => {
-                                (true, format!("frontend tool request '{}'", req.id))
-                            }
-                            MessageContent::ToolRequest(req) => {
-                                pending_tool_requests.insert(req.id.clone());
-                                (false, String::new())
-                            }
-                            _ => (false, String::new()),
-                        };
-
-                        check_content(idx, should_remove, content_name, "assistant");
-                    }
-                }
-            }
-            for &idx in content_to_remove.iter().rev() {
-                fixed_message.content.remove(idx);
-            }
-            if fixed_message.content.is_empty() {
-                message_issues.push("Removed message after content filtering".to_string());
-                issues.extend(message_issues);
-                continue;
-            }
-
-            if fixed_messages.is_empty() && fixed_message.role != Role::User {
-                issues.push(
-                    "Conversation should start with user message, prepending placeholder"
-                        .to_string(),
-                );
-                let placeholder = Message::user().with_text("Hello");
-                fixed_messages.push(placeholder);
-            }
-
-            issues.extend(message_issues);
-            fixed_messages.push(fixed_message);
+            merged_messages.push(message);
         }
 
-        for unmatched_id in pending_tool_requests {
-            issues.push(format!(
-                "Tool request '{}' has no corresponding response",
-                unmatched_id
-            ));
+        (merged_messages, issues)
+    }
+
+    fn fix_lead_trail(mut messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
+        let mut issues = Vec::new();
+
+        if let Some(first) = messages.first() {
+            if first.role == Role::Assistant {
+                messages.remove(0);
+                issues.push("Removed leading assistant message".to_string());
+            }
         }
 
-        if let Some(last_msg) = fixed_messages.last() {
-            if last_msg.role == Role::Assistant {
-                fixed_messages.pop();
+        if let Some(last) = messages.last() {
+            if last.role == Role::Assistant {
+                messages.pop();
                 issues.push("Removed trailing assistant message".to_string());
             }
         }
-        (fixed_messages, issues)
+
+        if messages.is_empty() {
+            issues.push("Added placeholder user message to empty conversation".to_string());
+            messages.push(Message::user().with_text(PLACEHOLDER_USER_MESSAGE));
+        }
+
+        (messages, issues)
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use mcp_core::tool::ToolCall;
     use serde_json::json;
+
+    pub fn run_verify(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
+        let (fixed, issues) = ConversationFixer::fix_conversation(messages);
+        assert_eq!(
+            issues.len(),
+            0,
+            "Fixed conversation should have no issues, but found: {:?}",
+            issues
+        );
+        (fixed, issues)
+    }
 
     #[test]
     fn test_valid_conversation() {
@@ -189,7 +250,7 @@ mod tests {
                 .with_text("User with bad tool request"),
         ];
 
-        let (fixed, issues) = ConversationFixer::fix_conversation(messages);
+        let (fixed, issues) = run_verify(messages);
 
         assert_eq!(fixed.len(), 3);
         assert_eq!(issues.len(), 4);
@@ -227,7 +288,7 @@ mod tests {
                 .with_tool_request("search_2", Ok(ToolCall::new("search", json!({})))),
         ];
 
-        let (fixed, issues) = ConversationFixer::fix_conversation(messages);
+        let (fixed, issues) = run_verify(messages);
 
         assert_eq!(fixed.len(), 1);
         assert_eq!(issues.len(), 7);
@@ -242,5 +303,35 @@ mod tests {
 
         assert_eq!(fixed[0].role, Role::User);
         assert_eq!(fixed[0].as_concat_text(), "Hello");
+    }
+
+    #[test]
+    fn test_real_world_consecutive_assistant_messages() {
+        let messages = vec![
+            Message::user().with_text("run ls in the current directory and then run a word count on the smallest file"),
+            Message::assistant()
+                .with_text("I'll help you run `ls` in the current directory and then perform a word count on the smallest file. Let me start by listing the directory contents.")
+                .with_tool_request("toolu_bdrk_018adWbP4X26CfoJU5hkhu3i", Ok(ToolCall::new("developer__shell", json!({"command": "ls -la"})))),
+            Message::assistant()
+                .with_text("Now I'll identify the smallest file by size. Looking at the output, I can see that both `slack.yaml` and `subrecipes.yaml` have a size of 0 bytes, making them the smallest files. I'll run a word count on one of them:")
+                .with_tool_request("toolu_bdrk_01KgDYHs4fAodi22NqxRzmwx", Ok(ToolCall::new("developer__shell", json!({"command": "wc slack.yaml"})))),
+            Message::user()
+                .with_tool_response("toolu_bdrk_01KgDYHs4fAodi22NqxRzmwx", Ok(vec![])),
+            Message::assistant()
+                .with_text("I ran `ls -la` in the current directory and found several files. Looking at the file sizes, I can see that both `slack.yaml` and `subrecipes.yaml` are 0 bytes (the smallest files). I ran a word count on `slack.yaml` which shows: **0 lines**, **0 words**, **0 characters**"),
+        ];
+
+        let (fixed, issues) = ConversationFixer::fix_conversation(messages);
+
+        assert_eq!(fixed.len(), 4);
+        assert_eq!(issues.len(), 1);
+        assert!(issues[0].contains("Merged consecutive assistant messages"));
+
+        assert_eq!(fixed[0].role, Role::User);
+        assert_eq!(fixed[1].role, Role::Assistant);
+        assert_eq!(fixed[2].role, Role::User);
+        assert_eq!(fixed[3].role, Role::Assistant);
+
+        assert_eq!(fixed[1].content.len(), 4);
     }
 }
