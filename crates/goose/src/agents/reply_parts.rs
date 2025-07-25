@@ -18,6 +18,7 @@ use crate::session;
 use rmcp::model::Tool;
 
 use super::super::agents::Agent;
+use super::developer_tools;
 
 async fn toolshim_postprocess(
     response: Message,
@@ -61,6 +62,18 @@ impl Agent {
             }
             _ => self.list_tools(None).await,
         };
+
+        // Add developer tools directly
+        tools.extend([
+            developer_tools::shell_tool(),
+            developer_tools::glob_tool(),
+            developer_tools::grep_tool(),
+            developer_tools::text_editor_tool(),
+            developer_tools::list_windows_tool(),
+            developer_tools::screen_capture_tool(),
+            developer_tools::image_processor_tool(),
+        ]);
+
         // Add frontend tools
         let frontend_tools = self.frontend_tools.lock().await;
         for frontend_tool in frontend_tools.values() {

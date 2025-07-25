@@ -78,6 +78,13 @@ aws-sdk-sagemakerruntime = "1.62.0"
 # For GCP Vertex AI provider auth
 jsonwebtoken = "9.3.1"
 
+# For developer tools
+shellexpand = "3.1.0"
+xcap = "0.0.14"
+ignore = "0.4"
+image = "0.24.9"
+glob = "0.3"
+
 blake3 = "1.5"
 fs2 = "0.4.3"
 tokio-stream = "0.1.17"

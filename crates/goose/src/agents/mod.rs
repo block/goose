@@ -1,5 +1,7 @@
 mod agent;
 mod context;
+mod developer_tool_handlers;
+pub mod developer_tools;
 pub mod extension;
 pub mod extension_manager;
 pub mod final_output_tool;
