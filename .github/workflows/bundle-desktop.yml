@@ -226,7 +226,7 @@ jobs:
 
           echo "⬆️ uploading unsigned app"
           source_job_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          unsigned_url="s3://squareup-goose-releases-artifacts-bucket-production/unsigned/goose-${GITHUB_SHA}-${{ github.run_id }}-intel.zip"
+          unsigned_url="s3://block-goose-artifacts-bucket-productionket-production/unsigned/goose-${GITHUB_SHA}-${{ github.run_id }}-arm64.zip"
 
           zip -q -u -r out/Goose-darwin-*/Goose*.zip entitlements.plist
 
@@ -280,7 +280,7 @@ jobs:
 
           # download the signed app from S3
           echo "⬇️ downloading signed app"
-          aws s3 cp --quiet "${signed_url}" ui/desktop/out/Goose-darwin-x64/Goose_intel_mac.zip
+          aws s3 cp --quiet "${signed_url}" ui/desktop/out/Goose-darwin-x64/Goose.zip
         working-directory: external-goose/ui/desktop
 
       - name: Final cleanup before artifact upload

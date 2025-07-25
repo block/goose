@@ -194,7 +194,7 @@ jobs:
 
           echo "⬆️ uploading unsigned app"
           source_job_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          unsigned_url="s3://squareup-goose-releases-artifacts-bucket-production/unsigned/goose-${GITHUB_SHA}-${{ github.run_id }}-intel.zip"
+          unsigned_url="s3://block-goose-artifacts-bucket-production/unsigned/goose-${GITHUB_SHA}-${{ github.run_id }}-intel.zip"
 
           zip -q -u -r out/Goose-darwin-*/Goose*.zip entitlements.plist
 
