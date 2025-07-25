@@ -2881,11 +2881,9 @@
       },
       "Tool": {
         "type": "object",
-        "description": "A tool that can be used by a model.",
         "required": [
-          "name",
-          "description",
-          "inputSchema"
+          "inputSchema",
+          "name"
         ],
         "properties": {
           "annotations": {
@@ -2893,46 +2891,37 @@
               {
                 "$ref": "#/components/schemas/ToolAnnotations"
               }
-            ],
-            "nullable": true
+            ]
           },
           "description": {
-            "type": "string",
-            "description": "A description of what the tool does"
+            "type": "string"
           },
           "inputSchema": {
-            "description": "A JSON Schema object defining the expected parameters for the tool"
+            "type": "object",
+            "additionalProperties": true
           },
           "name": {
-            "type": "string",
-            "description": "The name of the tool"
+            "type": "string"
           }
         }
       },
       "ToolAnnotations": {
         "type": "object",
-        "description": "Additional properties describing a tool to clients.\n\nNOTE: all properties in ToolAnnotations are **hints**.\nThey are not guaranteed to provide a faithful description of\ntool behavior (including descriptive properties like `title`).\n\nClients should never make tool use decisions based on ToolAnnotations\nreceived from untrusted servers.",
         "properties": {
           "destructiveHint": {
-            "type": "boolean",
-            "description": "If true, the tool may perform destructive updates to its environment.\nIf false, the tool performs only additive updates.\n\n(This property is meaningful only when `read_only_hint == false`)\n\nDefault: true"
+            "type": "boolean"
           },
           "idempotentHint": {
-            "type": "boolean",
-            "description": "If true, calling the tool repeatedly with the same arguments\nwill have no additional effect on its environment.\n\n(This property is meaningful only when `read_only_hint == false`)\n\nDefault: false"
+            "type": "boolean"
           },
           "openWorldHint": {
-            "type": "boolean",
-            "description": "If true, this tool may interact with an \"open world\" of external\nentities. If false, the tool's domain of interaction is closed.\nFor example, the world of a web search tool is open, whereas that\nof a memory tool is not.\n\nDefault: true"
+            "type": "boolean"
           },
           "readOnlyHint": {
-            "type": "boolean",
-            "description": "If true, the tool does not modify its environment.\n\nDefault: false"
+            "type": "boolean"
           },
           "title": {
-            "type": "string",
-            "description": "A human-readable title for the tool.",
-            "nullable": true
+            "type": "string"
           }
         }
       },

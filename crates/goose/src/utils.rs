@@ -1,3 +1,5 @@
+use tokio_util::sync::CancellationToken;
+
 /// Safely truncate a string at character boundaries, not byte boundaries
 ///
 /// This function ensures that multi-byte UTF-8 characters (like Japanese, emoji, etc.)
@@ -16,6 +18,12 @@ pub fn safe_truncate(s: &str, max_chars: usize) -> String {
         let truncated: String = s.chars().take(max_chars.saturating_sub(3)).collect();
         format!("{}...", truncated)
     }
+}
+
+pub fn is_token_cancelled(cancellation_token: &Option<CancellationToken>) -> bool {
+    cancellation_token
+        .as_ref()
+        .is_some_and(|t| t.is_cancelled())
 }
 
 #[cfg(test)]
