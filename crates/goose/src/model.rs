@@ -85,6 +85,10 @@ impl ModelConfig {
         Self::new_with_context_env(model_name.to_string(), None)
     }
 
+    /// Create a new ModelConfig with the specified model name and custom context limit env var
+    ///
+    /// This is useful for specific model purposes like lead, worker, planner models
+    /// that may have their own context limit environment variables.
     pub fn new_with_context_env(
         model_name: String,
         context_env_var: Option<&str>,
