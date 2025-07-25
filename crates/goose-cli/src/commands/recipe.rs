@@ -1,4 +1,5 @@
 use anyhow::Result;
+use arboard::Clipboard;
 use console::style;
 
 use crate::recipes::github_recipe::RecipeSource;
@@ -50,6 +51,30 @@ pub fn handle_deeplink(recipe_name: &str) -> Result<String> {
                 );
                 let full_url = format!("goose://recipe?config={}", encoded);
                 println!("{}", full_url);
+
+                // Copy to clipboard
+                match Clipboard::new() {
+                    Ok(mut clipboard) => match clipboard.set_text(&full_url) {
+                        Ok(_) => {
+                            println!("{} Deeplink copied to clipboard", style("📋").cyan().bold());
+                        }
+                        Err(e) => {
+                            println!(
+                                "{} Failed to copy to clipboard: {}",
+                                style("⚠").yellow().bold(),
+                                e
+                            );
+                        }
+                    },
+                    Err(e) => {
+                        println!(
+                            "{} Failed to access clipboard: {}",
+                            style("⚠").yellow().bold(),
+                            e
+                        );
+                    }
+                }
+
                 Ok(full_url)
             }
             Err(err) => {
