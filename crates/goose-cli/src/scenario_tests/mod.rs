@@ -296,11 +296,9 @@ pub async fn run_test_scenario(test_name: &str, inputs: &[&str]) -> Result<Scena
 
     if let Some(provider) = provider_for_saving {
         if result.error.is_none() {
-            if result.error.is_none() {
-                Arc::try_unwrap(provider)
-                    .map_err(|_| anyhow::anyhow!("Failed to unwrap provider for recording"))?
-                    .finish_recording()?;
-            }
+            Arc::try_unwrap(provider)
+                .map_err(|_| anyhow::anyhow!("Failed to unwrap provider for recording"))?
+                .finish_recording()?;
         }
     }
 
@@ -333,13 +331,9 @@ where
 
             if let Some(provider) = provider_for_saving {
                 if result.error.is_none() {
-                    if result.error.is_none() {
-                        Arc::try_unwrap(provider)
-                            .map_err(|_| {
-                                anyhow::anyhow!("Failed to unwrap provider for recording")
-                            })?
-                            .finish_recording()?;
-                    }
+                    Arc::try_unwrap(provider)
+                        .map_err(|_| anyhow::anyhow!("Failed to unwrap provider for recording"))?
+                        .finish_recording()?;
                 }
             }
 
