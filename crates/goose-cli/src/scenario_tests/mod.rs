@@ -4,7 +4,6 @@ use dotenvy::dotenv;
 use crate::session::Session;
 use anyhow::Result;
 use goose::agents::Agent;
-use goose::config::Config;
 use goose::message::Message;
 use goose::model::ModelConfig;
 use goose::providers::{create, testprovider::TestProvider};
@@ -17,12 +16,13 @@ use std::sync::{Arc, LazyLock};
 struct ProviderConfig {
     name: &'static str,
     factory_name: Option<&'static str>,
+    model_name: &'static str,
     required_env_vars: &'static [&'static str],
     env_modifications: Option<HashMap<&'static str, Option<String>>>,
 }
 
 impl ProviderConfig {
-    fn simple(name: &'static str) -> Self {
+    fn simple(name: &'static str, model_name: &'static str) -> Self {
         let key = format!("{}_API_KEY", name.to_uppercase());
         let required_env_vars =
             Box::leak(vec![Box::leak(key.into_boxed_str()) as &str].into_boxed_slice());
@@ -30,23 +30,27 @@ impl ProviderConfig {
         Self {
             name,
             factory_name: None,
+            model_name,
             required_env_vars,
             env_modifications: None,
         }
     }
 
-    fn name_for_factory(&self) -> &str {
-        self.factory_name.unwrap_or(&self.name.to_lowercase())
+    fn name_for_factory(&self) -> String {
+        self.factory_name
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| self.name.to_lowercase())
     }
 }
 
 static PROVIDER_CONFIGS: LazyLock<Vec<ProviderConfig>> = LazyLock::new(|| {
     vec![
-        ProviderConfig::simple("OpenAI"),
-        ProviderConfig::simple("Anthropic"),
+        ProviderConfig::simple("OpenAI", "gpt-4o"),
+        ProviderConfig::simple("Anthropic", "claude-3-5-sonnet-20241022"),
         ProviderConfig {
             name: "Azure",
             factory_name: Some("azure_openai"),
+            model_name: "gpt-4o",
             required_env_vars: &[
                 "AZURE_OPENAI_API_KEY",
                 "AZURE_OPENAI_ENDPOINT",
@@ -57,11 +61,12 @@ static PROVIDER_CONFIGS: LazyLock<Vec<ProviderConfig>> = LazyLock::new(|| {
         ProviderConfig {
             name: "Bedrock",
             factory_name: Some("aws_bedrock"),
+            model_name: "anthropic.claude-3-5-sonnet-20241022-v2:0",
             required_env_vars: &["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"],
             env_modifications: None,
         },
-        ProviderConfig::simple("Google"),
-        ProviderConfig::simple("Groq"),
+        ProviderConfig::simple("Google", "gemini-1.5-pro"),
+        ProviderConfig::simple("Groq", "llama-3.1-70b-versatile"),
     ]
 });
 
@@ -83,7 +88,7 @@ impl ScenarioResult {
 
 async fn run_all_providers_scenario<F, Fut>(test_name: &str, test_fn: F) -> Result<()>
 where
-    F: Fn(String, String, String) -> Fut,
+    F: Fn(String, String, String, String) -> Fut,
     Fut: Future<Output = Result<ScenarioResult>>,
 {
     if let Ok(only_provider) = std::env::var("GOOSE_TEST_PROVIDER") {
@@ -141,7 +146,7 @@ async fn run_provider_scenario<F, Fut>(
     test_name: &str,
 ) -> Result<ScenarioResult>
 where
-    F: Fn(String, String, String) -> Fut,
+    F: Fn(String, String, String, String) -> Fut,
     Fut: Future<Output = Result<ScenarioResult>>,
 {
     if let Ok(path) = dotenvy::dotenv() {
@@ -192,7 +197,8 @@ where
     let result = test_fn(
         test_name.to_string(),
         config.name.to_string(),
-        config.name_for_factory().to_string(),
+        config.name_for_factory(),
+        config.model_name.to_string(),
     )
     .await;
 
@@ -213,6 +219,7 @@ where
 async fn run_single_provider_scenario(
     test_name: &str,
     factory_name: &str,
+    model_name: &str,
     inputs: &[&str],
 ) -> Result<(ScenarioResult, Option<Arc<TestProvider>>)> {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
@@ -247,7 +254,7 @@ async fn run_single_provider_scenario(
                 file_path
             );
         }
-        let inner_provider = create(factory_name, ModelConfig::default())?;
+        let inner_provider = create(factory_name, ModelConfig::new(model_name.to_string()))?;
         let test_provider = Arc::new(TestProvider::new_recording(inner_provider, &file_path));
         (test_provider.clone(), Some(test_provider))
     };
@@ -283,6 +290,23 @@ async fn run_single_provider_scenario(
     Ok((result, provider_for_saving))
 }
 
+pub async fn run_test_scenario(test_name: &str, inputs: &[&str]) -> Result<ScenarioResult> {
+    let (result, provider_for_saving) =
+        run_single_provider_scenario(test_name, "default", "default", inputs).await?;
+
+    if let Some(provider) = provider_for_saving {
+        if result.error.is_none() {
+            if result.error.is_none() {
+                Arc::try_unwrap(provider)
+                    .map_err(|_| anyhow::anyhow!("Failed to unwrap provider for recording"))?
+                    .finish_recording()?;
+            }
+        }
+    }
+
+    Ok(result)
+}
+
 pub async fn run_multi_provider_scenario<F>(
     test_name: &str,
     inputs: &[&str],
@@ -293,13 +317,14 @@ where
 {
     let inputs_owned: Vec<String> = inputs.iter().map(|s| s.to_string()).collect();
 
-    run_all_providers_scenario(test_name, |name, provider, factory_name| {
+    run_all_providers_scenario(test_name, |name, provider, factory_name, model_name| {
         let inputs = inputs_owned.clone();
         let validator = &validator;
         async move {
             let (result, provider_for_saving) = run_single_provider_scenario(
                 &name,
                 &factory_name,
+                &model_name,
                 &inputs.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
             )
             .await?;

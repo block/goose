@@ -5,7 +5,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_basic_greeting() -> Result<()> {
-        run_multi_provider_scenario("multi_basic_greeting", &["hello", "goodbye"], |result| {
+        run_multi_provider_scenario("basic_greeting", &["hello", "goodbye"], |result| {
             assert!(result
                 .message_contents()
                 .iter()
