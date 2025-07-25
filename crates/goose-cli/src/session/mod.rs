@@ -1141,20 +1141,10 @@ impl Session {
                                 eprintln!("Model changed to {} in {} mode", model, mode);
                             }
                         }
-
                         Some(Err(e)) => {
                             eprintln!("Error: {}", e);
                             cancel_token_clone.cancel();
                             drop(stream);
-                            if let Err(e) = self.handle_interrupted_messages(false).await {
-                                eprintln!("Error handling interruption: {}", e);
-                            }
-                            output::render_error(
-                                "The error above was an exception we were not able to handle.\n\
-                                These errors are often related to connection or authentication\n\
-                                We've removed the conversation up to the most recent user message\n\
-                                - depending on the error you may be able to continue",
-                            );
                             break;
                         }
                         None => break,
@@ -1163,134 +1153,12 @@ impl Session {
                 _ = tokio::signal::ctrl_c() => {
                     cancel_token_clone.cancel();
                     drop(stream);
-                    if let Err(e) = self.handle_interrupted_messages(true).await {
-                        eprintln!("Error handling interruption: {}", e);
-                    }
                     break;
                 }
             }
         }
         println!();
 
-        Ok(())
-    }
-
-    async fn handle_interrupted_messages(&mut self, interrupt: bool) -> Result<()> {
-        // First, get any tool requests from the last message if it exists
-        let tool_requests = self
-            .messages
-            .last()
-            .filter(|msg| msg.role == rmcp::model::Role::Assistant)
-            .map_or(Vec::new(), |msg| {
-                msg.content
-                    .iter()
-                    .filter_map(|content| {
-                        if let MessageContent::ToolRequest(req) = content {
-                            Some((req.id.clone(), req.tool_call.clone()))
-                        } else {
-                            None
-                        }
-                    })
-                    .collect()
-            });
-
-        if !tool_requests.is_empty() {
-            // Interrupted during a tool request
-            // Create tool responses for all interrupted tool requests
-            let mut response_message = Message::user();
-            let last_tool_name = tool_requests
-                .last()
-                .and_then(|(_, tool_call)| tool_call.as_ref().ok().map(|tool| tool.name.clone()))
-                .unwrap_or_else(|| "tool".to_string());
-
-            let notification = if interrupt {
-                "Interrupted by the user to make a correction".to_string()
-            } else {
-                "An uncaught error happened during tool use".to_string()
-            };
-            for (req_id, _) in &tool_requests {
-                response_message.content.push(MessageContent::tool_response(
-                    req_id.clone(),
-                    Err(ToolError::ExecutionError(notification.clone())),
-                ));
-            }
-            self.push_message(response_message);
-
-            // No need for description update here
-            if let Some(session_file) = &self.session_file {
-                let working_dir = std::env::current_dir().ok();
-                session::persist_messages_with_schedule_id(
-                    session_file,
-                    &self.messages,
-                    None,
-                    self.scheduled_job_id.clone(),
-                    working_dir,
-                )
-                .await?;
-            }
-
-            let prompt = format!(
-                "The existing call to {} was interrupted. How would you like to proceed?",
-                last_tool_name
-            );
-            self.push_message(Message::assistant().with_text(&prompt));
-
-            // No need for description update here
-            if let Some(session_file) = &self.session_file {
-                let working_dir = std::env::current_dir().ok();
-                session::persist_messages_with_schedule_id(
-                    session_file,
-                    &self.messages,
-                    None,
-                    self.scheduled_job_id.clone(),
-                    working_dir,
-                )
-                .await?;
-            }
-
-            output::render_message(&Message::assistant().with_text(&prompt), self.debug);
-        } else {
-            // An interruption occurred outside of a tool request-response.
-            if let Some(last_msg) = self.messages.last() {
-                if last_msg.role == rmcp::model::Role::User {
-                    match last_msg.content.first() {
-                        Some(MessageContent::ToolResponse(_)) => {
-                            // Interruption occurred after a tool had completed but not assistant reply
-                            let prompt = "The tool calling loop was interrupted. How would you like to proceed?";
-                            self.push_message(Message::assistant().with_text(prompt));
-
-                            // No need for description update here
-                            if let Some(session_file) = &self.session_file {
-                                let working_dir = std::env::current_dir().ok();
-                                session::persist_messages_with_schedule_id(
-                                    session_file,
-                                    &self.messages,
-                                    None,
-                                    self.scheduled_job_id.clone(),
-                                    working_dir,
-                                )
-                                .await?;
-                            }
-
-                            output::render_message(
-                                &Message::assistant().with_text(prompt),
-                                self.debug,
-                            );
-                        }
-                        Some(_) => {
-                            // A real users message
-                            self.messages.pop();
-                            let prompt = "Interrupted before the model replied and removed the last message.";
-                            output::render_message(
-                                &Message::assistant().with_text(prompt),
-                                self.debug,
-                            );
-                        }
-                        None => panic!("No content in last message"),
-                    }
-                }
-            }
-        }
         Ok(())
     }
 
