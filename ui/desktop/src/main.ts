@@ -564,18 +564,11 @@ const createChat = async (
     goosedProcess = newGoosedProcess;
   }
 
-  // Decode recipe from deeplink if needed
+  // Create window config with loading state for recipe deeplinks
+  let isLoadingRecipe = false;
   if (!recipe && recipeDeeplink) {
-    const decodedRecipe = await decodeRecipeMain(recipeDeeplink, port);
-    if (decodedRecipe) {
-      recipe = decodedRecipe;
-
-      // Handle scheduled job parameters if present
-      if (scheduledJobId) {
-        recipe.scheduledJobId = scheduledJobId;
-        recipe.isScheduledExecution = true;
-      }
-    }
+    isLoadingRecipe = true;
+    console.log('[Main] Creating window with recipe loading state for deeplink:', recipeDeeplink);
   }
 
   // Load and manage window state
@@ -770,6 +763,61 @@ const createChat = async (
   });
 
   windowMap.set(windowId, mainWindow);
+
+  // Handle recipe decoding in the background after window is created
+  if (isLoadingRecipe && recipeDeeplink) {
+    console.log('[Main] Starting background recipe decoding for:', recipeDeeplink);
+
+    // Decode recipe asynchronously after window is created
+    decodeRecipeMain(recipeDeeplink, port)
+      .then((decodedRecipe) => {
+        if (decodedRecipe) {
+          console.log('[Main] Recipe decoded successfully, updating window config');
+
+          // Handle scheduled job parameters if present
+          if (scheduledJobId) {
+            decodedRecipe.scheduledJobId = scheduledJobId;
+            decodedRecipe.isScheduledExecution = true;
+          }
+
+          // Update the window config with the decoded recipe
+          const updatedConfig = {
+            ...windowConfig,
+            recipe: decodedRecipe,
+          };
+
+          // Send the decoded recipe to the renderer process
+          mainWindow.webContents.send('recipe-decoded', decodedRecipe);
+
+          // Update localStorage with the decoded recipe
+          const configStr = JSON.stringify(updatedConfig).replace(/'/g, "\\'");
+          mainWindow.webContents
+            .executeJavaScript(
+              `
+            try {
+              localStorage.setItem('gooseConfig', '${configStr}');
+              console.log('[Renderer] Recipe decoded and config updated');
+            } catch (e) {
+              console.error('[Renderer] Failed to update config with decoded recipe:', e);
+            }
+          `
+            )
+            .catch((error) => {
+              console.error('[Main] Failed to update localStorage with decoded recipe:', error);
+            });
+        } else {
+          console.error('[Main] Failed to decode recipe from deeplink');
+          // Send error to renderer
+          mainWindow.webContents.send('recipe-decode-error', 'Failed to decode recipe');
+        }
+      })
+      .catch((error) => {
+        console.error('[Main] Error decoding recipe:', error);
+        // Send error to renderer
+        mainWindow.webContents.send('recipe-decode-error', error.message || 'Unknown error');
+      });
+  }
+
   // Handle window closure
   mainWindow.on('closed', () => {
     windowMap.delete(windowId);
