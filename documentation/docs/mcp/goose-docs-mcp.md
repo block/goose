@@ -30,16 +30,27 @@ This tutorial covers how to add the [Goose Docs MCP Server](https://github.com/i
 
 ## Configuration
 
-<GooseDesktopInstaller
-  extensionId="goose-docs"
-  extensionName="Goose Docs"
-  extensionDescription="GitMCP for Goose documentation"
-  command="npx"
-  args={["mcp-remote", "https://block.gitmcp.io/goose/"]}
-  cliCommand="npx mcp-remote https://block.gitmcp.io/goose/"
-  timeout={300}
-  note="Note that you'll need Node.js installed on your system to run this command, as it uses npx."
-/>
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+    <GooseDesktopInstaller
+      extensionId="goose-docs"
+      extensionName="Goose Docs"
+      extensionDescription="GitMCP for Goose documentation"
+      command="npx"
+      args={["mcp-remote", "https://block.gitmcp.io/goose/"]}
+      cliCommand="npx mcp-remote https://block.gitmcp.io/goose/"
+      timeout={300}
+      note="Note that you'll need Node.js installed on your system to run this command, as it uses npx."
+    />
+ </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+      <CLIExtensionInstructions
+        name="Goose Docs"
+        command="npx mcp-remote https://block.gitmcp.io/goose/"
+        timeout={300}
+      />
+  </TabItem>
+</Tabs>
 
 
 ## Example Usage

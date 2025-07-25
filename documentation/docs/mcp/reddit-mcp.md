@@ -47,7 +47,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     />
   </TabItem>
 
-  <TabItem value="cli" label="Goose CLI (No Env Vars)">
+  <TabItem value="cli" label="Goose CLI">
     <CLIExtensionInstructions
       name="Reddit MCP"
       command="uvx --from git+https://github.com/adhikasp/mcp-reddit.git mcp-reddit"
