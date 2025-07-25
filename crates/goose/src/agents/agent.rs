@@ -57,6 +57,7 @@ use super::platform_tools;
 use super::router_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::subagent_task_config::TaskConfig;
+use crate::conversation_fixer::ConversationFixer;
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 
@@ -714,7 +715,12 @@ impl Agent {
         session: Option<SessionConfig>,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        let mut messages = messages.to_vec();
+        let (mut messages, issues) = ConversationFixer::fix_conversation(Vec::from(messages));
+        if !issues.is_empty() {
+            for issue in &issues {
+                tracing::warn!("Conversation issue fixed: {}", issue);
+            }
+        }
         let initial_messages = messages.clone();
         let reply_span = tracing::Span::current();
         self.reset_retry_attempts().await;
