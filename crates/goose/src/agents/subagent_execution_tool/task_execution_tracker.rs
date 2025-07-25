@@ -1,5 +1,7 @@
-use rmcp::model::{JsonRpcMessage, JsonRpcNotification, JsonRpcVersion2_0, Notification};
-use rmcp::object;
+use rmcp::model::{
+    LoggingLevel, LoggingMessageNotification, LoggingMessageNotificationMethod,
+    LoggingMessageNotificationParam, ServerNotification,
+};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
@@ -52,7 +54,7 @@ fn format_task_metadata(task_info: &TaskInfo) -> String {
 pub struct TaskExecutionTracker {
     tasks: Arc<RwLock<HashMap<String, TaskInfo>>>,
     last_refresh: Arc<RwLock<Instant>>,
-    notifier: mpsc::Sender<JsonRpcMessage>,
+    notifier: mpsc::Sender<ServerNotification>,
     display_mode: DisplayMode,
     cancellation_token: Option<CancellationToken>,
 }
@@ -61,7 +63,7 @@ impl TaskExecutionTracker {
     pub fn new(
         tasks: Vec<Task>,
         display_mode: DisplayMode,
-        notifier: Sender<JsonRpcMessage>,
+        notifier: Sender<ServerNotification>,
         cancellation_token: Option<CancellationToken>,
     ) -> Self {
         let task_map = tasks
@@ -97,7 +99,7 @@ impl TaskExecutionTracker {
 
     fn log_notification_error(
         &self,
-        error: &mpsc::error::TrySendError<JsonRpcMessage>,
+        error: &mpsc::error::TrySendError<ServerNotification>,
         context: &str,
     ) {
         if !self.is_cancelled() {
@@ -108,16 +110,17 @@ impl TaskExecutionTracker {
     fn try_send_notification(&self, event: TaskExecutionNotificationEvent, context: &str) {
         if let Err(e) = self
             .notifier
-            .try_send(JsonRpcMessage::Notification(JsonRpcNotification {
-                jsonrpc: JsonRpcVersion2_0,
-                notification: Notification {
-                    method: "notifications/message".to_string(),
-                    params: object!({
-                        "data": event.to_notification_data()
-                    }),
+            .try_send(ServerNotification::LoggingMessageNotification(
+                LoggingMessageNotification {
+                    method: LoggingMessageNotificationMethod,
+                    params: LoggingMessageNotificationParam {
+                        data: event.to_notification_data(),
+                        level: LoggingLevel::Info,
+                        logger: None,
+                    },
                     extensions: Default::default(),
                 },
-            }))
+            ))
         {
             self.log_notification_error(&e, context);
         }
