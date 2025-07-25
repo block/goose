@@ -1,11 +1,11 @@
 use mcp_core::protocol::{
-    CallToolResult, GetPromptResult, Implementation, InitializeResult, ListPromptsResult,
-    ListResourcesResult, ListToolsResult, ReadResourceResult, ServerCapabilities, METHOD_NOT_FOUND,
+    CallToolResult, Implementation, InitializeResult, ListPromptsResult, ListResourcesResult,
+    ListToolsResult, ReadResourceResult, ServerCapabilities, METHOD_NOT_FOUND,
 };
-
 use rmcp::model::{
-    JsonRpcError, JsonRpcMessage, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse,
-    JsonRpcVersion2_0, Notification, NumberOrString, Request, RequestId, ServerNotification,
+    GetPromptResult, JsonRpcError, JsonRpcMessage, JsonRpcNotification, JsonRpcRequest,
+    JsonRpcResponse, JsonRpcVersion2_0, Notification, NumberOrString, Request, RequestId,
+    ServerNotification,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
