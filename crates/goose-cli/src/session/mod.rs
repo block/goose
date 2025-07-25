@@ -1078,7 +1078,7 @@ impl Session {
                                             } else if let Some(Value::String(output)) = o.get("output") {
                                                 // Fallback for other MCP notification types
                                                 (output.to_owned(), None, None)
-                                            } else if let Some(result) = format_task_execution_notification(&data) {
+                                            } else if let Some(result) = format_task_execution_notification(data) {
                                                 result
                                             } else {
                                                 (data.to_string(), None, None)
@@ -1122,7 +1122,7 @@ impl Session {
                                 },
                                 ServerNotification::ProgressNotification(notification) => {
                                     let progress = notification.params.progress;
-                                    let text = notification.params.message.as_ref().map(|m| m.as_str());
+                                    let text = notification.params.message.as_deref();
                                     let total = notification.params.total;
                                     let token = &notification.params.progress_token;
                                     progress_bars.update(
