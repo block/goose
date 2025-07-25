@@ -283,8 +283,8 @@ jobs:
 
           # download the signed app from S3
           echo "⬇️ downloading signed app"
-          aws s3 cp --quiet "${signed_url}" out/Goose-darwin-amd64/Goose.zip
-        working-directory: external-goose/ui/desktop
+          aws s3 cp --quiet "${signed_url}" out/Goose-darwin-arm64/Goose.zip
+        working-directory: ui/desktop
 
       - name: Final cleanup before artifact upload
         run: |
