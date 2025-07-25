@@ -1,6 +1,5 @@
 use mcp_core::ToolError;
-use rmcp::model::Content;
-use rmcp::model::Tool;
+use rmcp::model::{Content, Tool, ErrorData, ErrorCode};
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -24,11 +23,11 @@ pub enum RouterToolSelectionStrategy {
 
 #[async_trait]
 pub trait RouterToolSelector: Send + Sync {
-    async fn select_tools(&self, params: Value) -> Result<Vec<Content>, ToolError>;
-    async fn index_tools(&self, tools: &[Tool], extension_name: &str) -> Result<(), ToolError>;
-    async fn remove_tool(&self, tool_name: &str) -> Result<(), ToolError>;
-    async fn record_tool_call(&self, tool_name: &str) -> Result<(), ToolError>;
-    async fn get_recent_tool_calls(&self, limit: usize) -> Result<Vec<String>, ToolError>;
+    async fn select_tools(&self, params: Value) -> Result<Vec<Content>, ErrorData>;
+    async fn index_tools(&self, tools: &[Tool], extension_name: &str) -> Result<(), ErrorData>;
+    async fn remove_tool(&self, tool_name: &str) -> Result<(), ErrorData>;
+    async fn record_tool_call(&self, tool_name: &str) -> Result<(), ErrorData>;
+    async fn get_recent_tool_calls(&self, limit: usize) -> Result<Vec<String>, ErrorData>;
     fn selector_type(&self) -> RouterToolSelectionStrategy;
 }
 
@@ -71,11 +70,11 @@ impl VectorToolSelector {
 
 #[async_trait]
 impl RouterToolSelector for VectorToolSelector {
-    async fn select_tools(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+    async fn select_tools(&self, params: Value) -> Result<Vec<Content>, ErrorData> {
         let query = params
             .get("query")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| ToolError::InvalidParameters("Missing 'query' parameter".to_string()))?;
+            .ok_or_else(|| ErrorData::("Missing 'query' parameter".to_string()))?;
 
         let k = params.get("k").and_then(|v| v.as_u64()).unwrap_or(5) as usize;
 
@@ -84,9 +83,7 @@ impl RouterToolSelector for VectorToolSelector {
 
         // Check if provider supports embeddings
         if !self.embedding_provider.supports_embeddings() {
-            return Err(ToolError::ExecutionError(
-                "Embedding provider does not support embeddings".to_string(),
-            ));
+            return Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, "Embedding provider does not support embeddings".to_string(), None));
         }
 
         let embeddings = self
