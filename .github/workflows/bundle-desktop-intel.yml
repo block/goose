@@ -165,8 +165,7 @@ jobs:
       - name: Check disk space before bundling
         run: df -h
 
-      - name: Make Unsigned App
-        if: ${{ !inputs.signing }}
+      - name: Build App
         run: |
           source ../../bin/activate-hermit
           attempt=0
@@ -190,7 +189,7 @@ jobs:
           role-to-assume: "${{ secrets.OSX_CODESIGN_ROLE }}"
           aws-region: us-west-2
 
-      - name: Make Signed App
+      - name: Codesigning and Notarization
         if: ${{ inputs.signing }}
         run: |
           set -e
@@ -198,8 +197,6 @@ jobs:
           echo "⬆️ uploading unsigned app"
           source_job_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           unsigned_url="s3://block-goose-artifacts-bucket-production/unsigned/goose-${GITHUB_SHA}-${{ github.run_id }}-intel.zip"
-
-          gfind -name '*.zip' out/ || find out/ | grep .zip
 
           zip -q -u -r out/Goose-darwin-x64/Goose_intel_mac.zip entitlements.plist
 
