@@ -74,22 +74,24 @@ impl ModelConfig {
     /// that may have their own context limit environment variables.
     pub fn new_with_context_env(model_name: String, context_env_var: Option<&str>) -> Self {
         let context_limit = Self::get_context_limit_with_env_override(&model_name, context_env_var);
+        let config = crate::config::Config::global();
 
-        let toolshim = std::env::var("GOOSE_TOOLSHIM")
-            .map(|val| val == "1" || val.to_lowercase() == "true")
+        let toolshim = config
+            .get_param("GOOSE_TOOLSHIM")
+            .map(|val: String| val == "1" || val.to_lowercase() == "true")
             .unwrap_or(false);
 
-        let toolshim_model = std::env::var("GOOSE_TOOLSHIM_OLLAMA_MODEL").ok();
+        let toolshim_model = config.get_param("GOOSE_TOOLSHIM_OLLAMA_MODEL").ok();
 
-        let temperature = std::env::var("GOOSE_TEMPERATURE")
-            .ok()
-            .and_then(|val| val.parse::<f32>().ok());
+        let temperature = config.get_param::<f32>("GOOSE_TEMPERATURE").ok();
+
+        let max_tokens = config.get_param::<i32>("GOOSE_MAX_TOKENS").ok();
 
         Self {
             model_name,
             context_limit,
             temperature,
-            max_tokens: None,
+            max_tokens,
             toolshim,
             toolshim_model,
         }
