@@ -6,6 +6,7 @@ use std::sync::Arc;
 use anyhow::{anyhow, Result};
 use futures::stream::BoxStream;
 use futures::{stream, FutureExt, Stream, StreamExt, TryStreamExt};
+use uuid::Uuid;
 
 use crate::agents::extension::{ExtensionConfig, ExtensionError, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
@@ -850,7 +851,9 @@ impl Agent {
                                     continue;
                                 }
 
-                                let message_tool_response = Arc::new(Mutex::new(Message::user()));
+                                let message_tool_response = Arc::new(Mutex::new(Message::user().with_id(
+                                    format!("msg_{}", Uuid::new_v4())
+                                )));
 
                                 let mut frontend_tool_stream = self.handle_frontend_tool_requests(
                                     &frontend_requests,

@@ -372,6 +372,11 @@ impl Message {
         }
     }
 
+    pub fn with_id<S: Into<String>>(mut self, id: S) -> Self {
+        self.id = Some(id.into());
+        self
+    }
+
     /// Add any MessageContent to the message
     pub fn with_content(mut self, content: MessageContent) -> Self {
         self.content.push(content);
