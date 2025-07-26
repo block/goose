@@ -57,7 +57,7 @@ use super::platform_tools;
 use super::router_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::subagent_task_config::TaskConfig;
-use crate::conversation_fixer::ConversationFixer;
+use crate::conversation_fixer::{debug_conversation_fix, ConversationFixer};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 
@@ -708,18 +708,20 @@ impl Agent {
         }
     }
 
-    #[instrument(skip(self, messages, session), fields(user_message))]
+    #[instrument(skip(self, unfixed_messages, session), fields(user_message))]
     pub async fn reply(
         &self,
-        messages: &[Message],
+        unfixed_messages: &[Message],
         session: Option<SessionConfig>,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        let (mut messages, issues) = ConversationFixer::fix_conversation(Vec::from(messages));
+        let (mut messages, issues) =
+            ConversationFixer::fix_conversation(Vec::from(unfixed_messages));
         if !issues.is_empty() {
-            for issue in &issues {
-                tracing::warn!("Conversation issue fixed: {}", issue);
-            }
+            tracing::warn!(
+                "Conversation issue fixed: {}",
+                debug_conversation_fix(&messages, &unfixed_messages, &issues)
+            );
         }
         let initial_messages = messages.clone();
         let reply_span = tracing::Span::current();

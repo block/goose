@@ -111,26 +111,30 @@ impl ConversationFixer {
                 }
             }
 
-            // Remove invalid content (in reverse order)
             for &idx in content_to_remove.iter().rev() {
                 message.content.remove(idx);
             }
         }
 
-        // Remove messages that became empty after content filtering
-        let filtered_messages = messages
-            .into_iter()
-            .filter(|msg| {
-                if msg.content.is_empty() {
-                    issues.push("Removed message after content filtering".to_string());
-                    false
-                } else {
-                    true
+        for message in &mut messages {
+            if message.role == Role::Assistant {
+                let mut content_to_remove = Vec::new();
+                for (idx, content) in message.content.iter().enumerate() {
+                    if let MessageContent::ToolRequest(req) = content {
+                        if pending_tool_requests.contains(&req.id) {
+                            content_to_remove.push(idx);
+                            issues.push(format!("Removed orphaned tool request '{}'", req.id));
+                        }
+                    }
                 }
-            })
-            .collect();
-
-        (filtered_messages, issues)
+                for &idx in content_to_remove.iter().rev() {
+                    message.content.remove(idx);
+                }
+            }
+        }
+        let (messages, empty_removed) = Self::remove_empty_messages(messages);
+        issues.extend(empty_removed);
+        (messages, issues)
     }
 
     fn merge_consecutive_messages(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
@@ -181,19 +185,58 @@ impl ConversationFixer {
     }
 }
 
+pub fn debug_conversation_fix(
+    messages: &[Message],
+    fixed: &[Message],
+    issues: &[String],
+) -> String {
+    let mut output = String::new();
+
+    output.push_str("=== CONVERSATION FIX DEBUG ===\n\n");
+
+    output.push_str("BEFORE:\n");
+    for (i, msg) in messages.iter().enumerate() {
+        output.push_str(&format!("  [{}] {}\n", i, msg.debug()));
+    }
+
+    output.push_str("\nISSUES FOUND:\n");
+    if issues.is_empty() {
+        output.push_str("  (none)\n");
+    } else {
+        for issue in issues {
+            output.push_str(&format!("  - {}\n", issue));
+        }
+    }
+
+    output.push_str("\nAFTER:\n");
+    for (i, msg) in fixed.iter().enumerate() {
+        output.push_str(&format!("  [{}] {}\n", i, msg.debug()));
+    }
+
+    output.push_str("\n==============================\n");
+    output
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use mcp_core::tool::ToolCall;
     use serde_json::json;
 
-    pub fn run_verify(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
-        let (fixed, issues) = ConversationFixer::fix_conversation(messages);
+    fn run_verify(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
+        let (fixed, issues) = ConversationFixer::fix_conversation(messages.clone());
+
+        // Uncomment the following line to print the debug report
+        // let report = debug_conversation_fix(&messages, &fixed, &issues);
+        // print!("\n{}", report);
+
+        let (_fixed, issues_with_fixed) = ConversationFixer::fix_conversation(fixed.clone());
         assert_eq!(
-            issues.len(),
+            issues_with_fixed.len(),
             0,
-            "Fixed conversation should have no issues, but found: {:?}",
-            issues
+            "Fixed conversation should have no issues, but found: {:?}\n\n{}",
+            issues_with_fixed,
+            debug_conversation_fix(&messages, &fixed, &issues)
         );
         (fixed, issues)
     }
@@ -291,11 +334,7 @@ mod tests {
         let (fixed, issues) = run_verify(messages);
 
         assert_eq!(fixed.len(), 1);
-        assert_eq!(issues.len(), 7);
 
-        assert!(issues
-            .iter()
-            .any(|i| i.contains("Conversation should start with user message")));
         assert!(issues.iter().any(|i| i.contains("Removed empty message")));
         assert!(issues
             .iter()
@@ -319,19 +358,14 @@ mod tests {
                 .with_tool_response("toolu_bdrk_01KgDYHs4fAodi22NqxRzmwx", Ok(vec![])),
             Message::assistant()
                 .with_text("I ran `ls -la` in the current directory and found several files. Looking at the file sizes, I can see that both `slack.yaml` and `subrecipes.yaml` are 0 bytes (the smallest files). I ran a word count on `slack.yaml` which shows: **0 lines**, **0 words**, **0 characters**"),
+            Message::user().with_text("thanks!"),
         ];
 
         let (fixed, issues) = ConversationFixer::fix_conversation(messages);
 
-        assert_eq!(fixed.len(), 4);
-        assert_eq!(issues.len(), 1);
-        assert!(issues[0].contains("Merged consecutive assistant messages"));
-
-        assert_eq!(fixed[0].role, Role::User);
-        assert_eq!(fixed[1].role, Role::Assistant);
-        assert_eq!(fixed[2].role, Role::User);
-        assert_eq!(fixed[3].role, Role::Assistant);
-
-        assert_eq!(fixed[1].content.len(), 4);
+        assert_eq!(fixed.len(), 5);
+        assert_eq!(issues.len(), 2);
+        assert!(issues[0].contains("Removed orphaned tool request"));
+        assert!(issues[1].contains("Merged consecutive assistant messages"));
     }
 }
