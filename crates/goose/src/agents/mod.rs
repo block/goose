@@ -17,6 +17,7 @@ pub mod subagent;
 pub mod subagent_execution_tool;
 pub mod subagent_handler;
 mod subagent_task_config;
+pub mod task_tracker_tool;
 mod tool_execution;
 mod tool_router_index_manager;
 pub(crate) mod tool_vectordb;

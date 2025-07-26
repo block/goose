@@ -29,6 +29,7 @@ use crate::agents::subagent_execution_tool::subagent_execute_task_tool::{
     self, SUBAGENT_EXECUTE_TASK_TOOL_NAME,
 };
 use crate::agents::subagent_execution_tool::tasks_manager::TasksManager;
+use crate::agents::task_tracker_tool::{TaskTracker, TASK_TRACKER_TOOL_NAME};
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::tool_vectordb::generate_table_id;
 use crate::agents::types::SessionConfig;
@@ -78,6 +79,7 @@ pub struct Agent {
     pub(super) router_tool_selector: Mutex<Option<Arc<Box<dyn RouterToolSelector>>>>,
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
     pub(super) retry_manager: RetryManager,
+    pub(super) task_tracker: TaskTracker,
 }
 
 #[derive(Clone, Debug)]
@@ -154,6 +156,7 @@ impl Agent {
             router_tool_selector: Mutex::new(None),
             scheduler_service: Mutex::new(None),
             retry_manager,
+            task_tracker: TaskTracker::new(),
         }
     }
 
@@ -369,6 +372,8 @@ impl Agent {
             ToolCallResult::from(Err(ToolError::ExecutionError(
                 "Frontend tool execution required".to_string(),
             )))
+        } else if tool_call.name == TASK_TRACKER_TOOL_NAME {
+            ToolCallResult::from(self.task_tracker.execute(tool_call.arguments.clone()).await)
         } else if tool_call.name == ROUTER_VECTOR_SEARCH_TOOL_NAME
             || tool_call.name == ROUTER_LLM_SEARCH_TOOL_NAME
         {
@@ -624,6 +629,9 @@ impl Agent {
                 prefixed_tools.push(final_output_tool.tool());
             }
             prefixed_tools.push(subagent_execute_task_tool::create_subagent_execute_task_tool());
+
+            // Add task tracker tool
+            prefixed_tools.push(TaskTracker::tool());
         }
 
         prefixed_tools
