@@ -162,4 +162,6 @@ jobs:
     uses: ./.github/workflows/bundle-desktop.yml
     if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
     with:
-      signing: false
+      signing: true
+    secrets:
+      OSX_CODESIGN_ROLE: ${{ secrets.OSX_CODESIGN_ROLE }}
