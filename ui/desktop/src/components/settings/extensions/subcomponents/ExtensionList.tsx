@@ -45,7 +45,12 @@ export function getFriendlyTitle(extension: FixedExtensionEntry): string {
   let name = '';
 
   // if it's a builtin, check if there's a display_name (old configs didn't have this field)
-  if (extension.bundled === true && 'display_name' in extension && extension.display_name) {
+  if (
+    'bundled' in extension &&
+    extension.bundled === true &&
+    'display_name' in extension &&
+    extension.display_name
+  ) {
     // If we have a display_name for a builtin, use it directly
     return extension.display_name;
   } else {

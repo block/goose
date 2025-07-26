@@ -43,7 +43,7 @@ export async function syncBundledExtensions(
       const existingExt = existingExtensions.find((ext) => nameToKey(ext.name) === bundledExt.id);
 
       // Skip if extension exists and is already marked as bundled
-      if (existingExt?.bundled) continue;
+      if (existingExt && 'bundled' in existingExt && existingExt.bundled) continue;
 
       // Create the config for this extension
       let extConfig: ExtensionConfig;

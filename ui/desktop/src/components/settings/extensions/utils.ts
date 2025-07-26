@@ -100,7 +100,10 @@ export function extensionToFormData(extension: FixedExtensionEntry): ExtensionFo
       extension.type === 'stdio' || extension.type === 'sse' || extension.type === 'streamable_http'
         ? extension.description || ''
         : '',
-    type: extension.type === 'frontend' ? 'stdio' : extension.type,
+    type:
+      extension.type === 'frontend' || extension.type === 'inline_python'
+        ? 'stdio'
+        : extension.type,
     cmd: extension.type === 'stdio' ? combineCmdAndArgs(extension.cmd, extension.args) : undefined,
     endpoint:
       extension.type === 'sse' || extension.type === 'streamable_http' ? extension.uri : undefined,

@@ -81,6 +81,7 @@ jsonwebtoken = "9.3.1"
 blake3 = "1.5"
 fs2 = "0.4.3"
 tokio-stream = "0.1.17"
+tempfile = "3.15.0"
 dashmap = "6.1"
 ahash = "0.8"
 tokio-util = "0.7.15"
@@ -94,7 +95,6 @@ winapi = { version = "0.3", features = ["wincred"] }
 
 [dev-dependencies]
 criterion = "0.5"
-tempfile = "3.15.0"
 serial_test = "3.2.0"
 mockall = "0.13.1"
 wiremock = "0.6.0"

@@ -1702,6 +1702,51 @@
                 ]
               }
             }
+          },
+          {
+            "type": "object",
+            "description": "Inline Python code that will be executed using uvx",
+            "required": [
+              "name",
+              "code",
+              "type"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "The Python code to execute"
+              },
+              "dependencies": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Python package dependencies required by this extension",
+                "nullable": true
+              },
+              "description": {
+                "type": "string",
+                "description": "Description of what the extension does",
+                "nullable": true
+              },
+              "name": {
+                "type": "string",
+                "description": "The name used to identify this extension"
+              },
+              "timeout": {
+                "type": "integer",
+                "format": "int64",
+                "description": "Timeout in seconds",
+                "nullable": true,
+                "minimum": 0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "inline_python"
+                ]
+              }
+            }
           }
         ],
         "description": "Represents the different types of MCP extensions that can be added to the manager",

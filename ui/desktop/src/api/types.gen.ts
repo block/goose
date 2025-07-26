@@ -217,6 +217,28 @@ export type ExtensionConfig = {
      */
     tools: Array<Tool>;
     type: 'frontend';
+} | {
+    /**
+     * The Python code to execute
+     */
+    code: string;
+    /**
+     * Python package dependencies required by this extension
+     */
+    dependencies?: Array<string> | null;
+    /**
+     * Description of what the extension does
+     */
+    description?: string | null;
+    /**
+     * The name used to identify this extension
+     */
+    name: string;
+    /**
+     * Timeout in seconds
+     */
+    timeout?: number | null;
+    type: 'inline_python';
 };
 
 export type ExtensionEntry = ExtensionConfig & {
