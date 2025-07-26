@@ -88,10 +88,9 @@ impl GroqProvider {
                 Err(ProviderError::ServerError(format!("{:?}", payload)))
             }
             _ => {
-                tracing::debug!(
-                    "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
-                );
-                Err(ProviderError::RequestFailed(format!("Request failed with status: {}", status)))
+                let error_msg = format!("Provider request failed with status: {}. Payload: {:?}", status, payload);
+                tracing::debug!(error_msg);
+                Err(ProviderError::RequestFailed(error_msg))
             }
         }
     }

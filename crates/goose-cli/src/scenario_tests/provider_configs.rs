@@ -8,7 +8,7 @@ pub struct ProviderConfig {
     pub model_name: &'static str,
     pub required_env_vars: &'static [&'static str],
     pub env_modifications: Option<HashMap<&'static str, Option<String>>>,
-    pub skip: bool,
+    pub skip_reason: Option<&'static str>,
 }
 
 impl ProviderConfig {
@@ -23,20 +23,18 @@ impl ProviderConfig {
             model_name,
             required_env_vars,
             env_modifications: None,
-            skip: false,
+            skip_reason: None,
         }
-    }
-
-    fn simple_skip(name: &'static str, model_name: &'static str) -> Self {
-        let mut config = Self::simple(name, model_name);
-        config.skip = true;
-        config
     }
 
     pub fn name_for_factory(&self) -> String {
         self.factory_name
             .map(|s| s.to_string())
             .unwrap_or_else(|| self.name.to_lowercase())
+    }
+
+    pub fn is_skipped(&self) -> bool {
+        self.skip_reason.is_some()
     }
 }
 
@@ -54,7 +52,7 @@ static PROVIDER_CONFIGS: LazyLock<Vec<ProviderConfig>> = LazyLock::new(|| {
                 "AZURE_OPENAI_DEPLOYMENT_NAME",
             ],
             env_modifications: None,
-            skip: false,
+            skip_reason: None,
         },
         ProviderConfig {
             name: "Bedrock",
@@ -62,20 +60,17 @@ static PROVIDER_CONFIGS: LazyLock<Vec<ProviderConfig>> = LazyLock::new(|| {
             model_name: "anthropic.claude-3-5-sonnet-20241022-v2:0",
             required_env_vars: &["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"],
             env_modifications: None,
-            skip: false,
+            skip_reason: Some("No valid keys around"),
         },
         ProviderConfig::simple("Google", "gemini-2.5-flash"),
-        ProviderConfig::simple_skip("Groq", "llama-3.1-70b-versatile"),
+        ProviderConfig::simple("Groq", "llama-3.3-70b-versatile"),
+        ProviderConfig::simple("OpenRouter", "anthropic/claude-3.5-sonnet"),
     ]
 });
 
-pub fn get_provider_configs() -> &'static [ProviderConfig] {
-    &PROVIDER_CONFIGS
-}
-
-pub fn get_active_provider_configs() -> Vec<&'static ProviderConfig> {
+pub fn get_provider_configs() -> Vec<&'static ProviderConfig> {
     PROVIDER_CONFIGS
         .iter()
-        .filter(|config| !config.skip)
+        .filter(|config| !config.is_skipped())
         .collect()
 }
