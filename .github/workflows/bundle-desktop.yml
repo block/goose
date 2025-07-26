@@ -224,12 +224,14 @@ jobs:
       - name: Codesigning and Notarization
         if: ${{ inputs.signing }}
         run: |
-          set -e
+          set -ex
+
+          find out/ | grep zip
 
           echo "⬆️ uploading unsigned app"
           source_job_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           unsigned_url="s3://block-goose-artifacts-bucket-productionket-production/unsigned/goose-${GITHUB_SHA}-${{ github.run_id }}-arm64.zip"
-
+          
           zip -q -u -r out/Goose-darwin-arm64/Goose.zip entitlements.plist
 
           # upload unsigned goose to transfer bucket so it can be passed to lambda
