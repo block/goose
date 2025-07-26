@@ -556,9 +556,9 @@
     "id": "youtube-transcript-mcp",
     "name": "YouTube Transcript",
     "description": "YouTube video transcript extraction",
-    "command": "npx -y youtube-transcript-mcp",
+    "command": "uvx --from git+https://github.com/jkawamoto/mcp-youtube-transcript mcp-youtube-transcript",
     "link": "https://github.com/jkawamoto/mcp-youtube-transcript",
-    "installation_notes": "Install using npx package manager.",
+    "installation_notes": "Install using uv package manager.",
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": []
