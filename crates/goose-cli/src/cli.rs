@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
 
-use goose::config::{Config, ExtensionConfig};
+use goose::config::Config;
 
 use crate::commands::bench::agent_generator;
 use crate::commands::configure::handle_configure;
@@ -273,7 +273,7 @@ enum RecipeCommand {
 enum Command {
     /// Configure Goose settings
     #[command(about = "Configure Goose settings")]
-    Configure {},
+    Configure,
 
     /// Display Goose configuration information
     #[command(about = "Display Goose information")]
@@ -681,7 +681,7 @@ enum CliProviderVariant {
 #[derive(Debug)]
 pub struct InputConfig {
     pub contents: Option<String>,
-    pub extensions_override: Option<Vec<ExtensionConfig>>,
+    pub extensions_override: Option<Vec<goose::config::ExtensionConfig>>,
     pub additional_system_prompt: Option<String>,
 }
 
@@ -702,7 +702,7 @@ pub async fn cli() -> Result<()> {
     }
 
     match cli.command {
-        Some(Command::Configure {}) => {
+        Some(Command::Configure) => {
             let _ = handle_configure().await;
             return Ok(());
         }
