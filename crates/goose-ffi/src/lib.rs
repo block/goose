@@ -269,7 +269,9 @@ pub unsafe extern "C" fn goose_agent_send_message(
                 Ok(AgentEvent::ModelChange { .. }) => {
                     // Model change events are informational, just continue
                 }
-
+                Ok(AgentEvent::HistoryReplaced(_)) => {
+                    // Handle history replacement events if needed
+                }
                 Err(e) => {
                     full_response.push_str(&format!("\nError in message stream: {}", e));
                 }

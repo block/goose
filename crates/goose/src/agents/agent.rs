@@ -34,6 +34,7 @@ use crate::agents::tool_vectordb::generate_table_id;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, ToolResultReceiver};
 use crate::config::{Config, ExtensionConfigManager, PermissionManager};
+use crate::context_mgmt::auto_compact;
 use crate::message::{push_message, Message};
 use crate::permission::permission_judge::check_tool_permissions;
 use crate::permission::PermissionConfirmation;
@@ -84,6 +85,7 @@ pub enum AgentEvent {
     Message(Message),
     McpNotification((String, ServerNotification)),
     ModelChange { model: String, mode: String },
+    HistoryReplaced(Vec<Message>),
 }
 
 impl Default for Agent {
@@ -714,9 +716,61 @@ impl Agent {
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         let mut messages = messages.to_vec();
+        let _initial_messages = messages.clone();
+        let _reply_span = tracing::Span::current();
+        self.reset_retry_attempts().await;
+        let _config = Config::global();
+
+        // Handle auto-compaction before processing
+        let compact_result =
+            auto_compact::check_and_compact_messages(self, &messages, None).await?;
+        if compact_result.compacted {
+            messages = compact_result.messages;
+
+            // Create compaction notification message
+            let compaction_msg = if let (Some(before), Some(after)) =
+                (compact_result.tokens_before, compact_result.tokens_after)
+            {
+                format!(
+                    "Auto-compacted context: {} → {} tokens ({:.0}% reduction)",
+                    before,
+                    after,
+                    (1.0 - (after as f64 / before as f64)) * 100.0
+                )
+            } else {
+                "Auto-compacted context to reduce token usage".to_string()
+            };
+
+            // Create a new AgentEvent type to signal message history replacement
+            return Ok(Box::pin(async_stream::try_stream! {
+                yield AgentEvent::Message(Message::assistant().with_text(compaction_msg));
+
+                // Yield a special event to indicate the session should replace its message history
+                // with the compacted messages
+                yield AgentEvent::HistoryReplaced(messages.clone());
+
+                // Continue with normal reply processing using compacted messages
+                let mut reply_stream = self.reply_internal(&messages, session, cancel_token).await?;
+                while let Some(event) = reply_stream.next().await {
+                    yield event?;
+                }
+            }));
+        }
+
+        // No compaction needed, proceed with normal processing
+        self.reply_internal(&messages, session, cancel_token).await
+    }
+
+    /// Internal reply method that handles the actual agent processing
+    async fn reply_internal(
+        &self,
+        messages: &[Message],
+        session: Option<SessionConfig>,
+        cancel_token: Option<CancellationToken>,
+    ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
+        let mut messages = messages.to_vec();
         let initial_messages = messages.clone();
         let reply_span = tracing::Span::current();
-        self.reset_retry_attempts().await;
         let config = Config::global();
 
         let (mut tools, mut toolshim_tools, mut system_prompt) =

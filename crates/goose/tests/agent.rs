@@ -142,7 +142,9 @@ async fn run_truncate_test(
             Ok(AgentEvent::ModelChange { .. }) => {
                 // Model change events are informational, just continue
             }
-
+            Ok(AgentEvent::HistoryReplaced(_)) => {
+                // Handle history replacement events if needed
+            }
             Err(e) => {
                 println!("Error: {:?}", e);
                 return Err(e);
@@ -1042,6 +1044,7 @@ mod max_turns_tests {
                 }
                 Ok(AgentEvent::McpNotification(_)) => {}
                 Ok(AgentEvent::ModelChange { .. }) => {}
+                Ok(AgentEvent::HistoryReplaced(_)) => {}
                 Err(e) => {
                     return Err(e);
                 }
