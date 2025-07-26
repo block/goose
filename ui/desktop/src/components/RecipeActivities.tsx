@@ -1,18 +1,18 @@
 import { Card } from './ui/card';
 import { gsap } from 'gsap';
-import { Greeting } from './common/Greeting';
 import GooseLogo from './GooseLogo';
+import MarkdownContent from './MarkdownContent';
 
 // Register GSAP plugins
 gsap.registerPlugin();
 
-interface SplashProps {
+interface RecipeActivitiesProps {
   append: (text: string) => void;
   activities: string[] | null;
   title?: string;
 }
 
-export default function Splash({ append, activities, title }: SplashProps) {
+export default function RecipeActivities({ append, activities }: RecipeActivitiesProps) {
   const pills = activities || [];
 
   // Find any pill that starts with "message:"
@@ -25,7 +25,7 @@ export default function Splash({ append, activities, title }: SplashProps) {
       ? [...pills.slice(0, messagePillIndex), ...pills.slice(messagePillIndex + 1)]
       : pills;
 
-  // If we have activities (recipe mode), show a simplified version without greeting
+  // If we have activities or instructions (recipe mode), show a simplified version without greeting
   if (activities && activities.length > 0) {
     return (
       <div className="flex flex-col px-6">
@@ -36,7 +36,10 @@ export default function Splash({ append, activities, title }: SplashProps) {
 
         {messagePill && (
           <div className="mb-4 p-3 rounded-lg border animate-[fadein_500ms_ease-in_forwards]">
-            {messagePill.replace(/^message:/i, '').trim()}
+            <MarkdownContent
+              content={messagePill.replace(/^message:/i, '').trim()}
+              className="text-sm"
+            />
           </div>
         )}
 
@@ -56,23 +59,5 @@ export default function Splash({ append, activities, title }: SplashProps) {
     );
   }
 
-  // Default splash screen (no recipe) - show greeting and title if provided
-  return (
-    <div className="flex flex-col">
-      {title && (
-        <div className="flex items-center px-4 py-2 mb-4">
-          <span className="w-2 h-2 rounded-full bg-blockTeal mr-2" />
-          <span className="text-sm">
-            <span className="text-text-muted">Agent</span>{' '}
-            <span className="text-text-default">{title}</span>
-          </span>
-        </div>
-      )}
-
-      {/* Compact greeting section */}
-      <div className="flex flex-col px-6 mb-0">
-        <Greeting className="text-text-prominent text-4xl font-light mb-2" />
-      </div>
-    </div>
-  );
+  return null;
 }
