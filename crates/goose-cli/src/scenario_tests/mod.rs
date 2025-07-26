@@ -8,7 +8,6 @@ use goose::message::Message;
 use goose::model::ModelConfig;
 use goose::providers::{create, testprovider::TestProvider};
 use std::collections::HashMap;
-use std::future::Future;
 use std::path::Path;
 use std::sync::{Arc, LazyLock};
 
@@ -86,11 +85,16 @@ impl ScenarioResult {
     }
 }
 
-async fn run_all_providers_scenario<F, Fut>(test_name: &str, test_fn: F) -> Result<()>
+pub async fn run_multi_provider_scenario<F>(
+    test_name: &str,
+    inputs: &[&str],
+    validator: F,
+) -> Result<()>
 where
-    F: Fn(String, String, String, String) -> Fut,
-    Fut: Future<Output = Result<ScenarioResult>>,
+    F: Fn(&ScenarioResult) -> Result<()> + Send + Sync + 'static,
 {
+    let inputs_owned: Vec<String> = inputs.iter().map(|s| s.to_string()).collect();
+
     if let Ok(only_provider) = std::env::var("GOOSE_TEST_PROVIDER") {
         let config = PROVIDER_CONFIGS
             .iter()
@@ -108,15 +112,16 @@ where
             })?;
 
         println!("Running test '{}' for provider: {}", test_name, config.name);
-        return run_provider_scenario(config, &test_fn, test_name)
-            .await
-            .map(|_| ());
+        run_provider_scenario_with_validation(config, test_name, &inputs_owned, &validator).await?;
+        return Ok(());
     }
 
     let mut failures = Vec::new();
 
     for config in &*PROVIDER_CONFIGS {
-        match run_provider_scenario(config, &test_fn, test_name).await {
+        match run_provider_scenario_with_validation(config, test_name, &inputs_owned, &validator)
+            .await
+        {
             Ok(_) => println!("✅ {} - {}", test_name, config.name),
             Err(e) => {
                 println!("❌ {} - {} FAILED: {}", test_name, config.name, e);
@@ -140,16 +145,16 @@ where
     Ok(())
 }
 
-async fn run_provider_scenario<F, Fut>(
+async fn run_provider_scenario_with_validation<F>(
     config: &ProviderConfig,
-    test_fn: &F,
     test_name: &str,
-) -> Result<ScenarioResult>
+    inputs: &[String],
+    validator: &F,
+) -> Result<()>
 where
-    F: Fn(String, String, String, String) -> Fut,
-    Fut: Future<Output = Result<ScenarioResult>>,
+    F: Fn(&ScenarioResult) -> Result<()>,
 {
-    if let Ok(path) = dotenvy::dotenv() {
+    if let Ok(path) = dotenv() {
         println!("Loaded environment from {:?}", path);
     }
 
@@ -188,40 +193,10 @@ where
             "Skipping {} scenario - credentials not configured",
             config.name
         );
-        return Ok(ScenarioResult {
-            messages: vec![],
-            error: Some("Skipped - credentials not configured".to_string()),
-        });
+        return Ok(());
     }
 
-    let result = test_fn(
-        test_name.to_string(),
-        config.name.to_string(),
-        config.name_for_factory(),
-        config.model_name.to_string(),
-    )
-    .await;
-
-    for (&var, value) in original_env.iter() {
-        std::env::set_var(var, value);
-    }
-    if let Some(mods) = &config.env_modifications {
-        for &var in mods.keys() {
-            if !original_env.contains_key(var) {
-                std::env::remove_var(var);
-            }
-        }
-    }
-
-    result
-}
-
-async fn run_single_provider_scenario(
-    test_name: &str,
-    factory_name: &str,
-    model_name: &str,
-    inputs: &[&str],
-) -> Result<(ScenarioResult, Option<Arc<TestProvider>>)> {
+    let factory_name = config.name_for_factory();
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let file_path = format!(
         "{}/src/scenario_tests/recordings/{}/{}.json",
@@ -240,6 +215,16 @@ async fn run_single_provider_scenario(
             Ok(test_provider) => (Arc::new(test_provider), None),
             Err(e) => {
                 let _ = std::fs::remove_file(&file_path);
+                for (&var, value) in original_env.iter() {
+                    std::env::set_var(var, value);
+                }
+                if let Some(mods) = &config.env_modifications {
+                    for &var in mods.keys() {
+                        if !original_env.contains_key(var) {
+                            std::env::remove_var(var);
+                        }
+                    }
+                }
                 return Err(anyhow::anyhow!(
                     "Test replay failed for '{}' ({}): {}. File deleted - re-run test to record fresh data.",
                     test_name, factory_name, e
@@ -254,7 +239,10 @@ async fn run_single_provider_scenario(
                 file_path
             );
         }
-        let inner_provider = create(factory_name, ModelConfig::new(model_name.to_string()))?;
+        let inner_provider = create(
+            &factory_name,
+            ModelConfig::new(config.model_name.to_string()),
+        )?;
         let test_provider = Arc::new(TestProvider::new_recording(inner_provider, &file_path));
         (test_provider.clone(), Some(test_provider))
     };
@@ -279,6 +267,16 @@ async fn run_single_provider_scenario(
     if let Some(ref err_msg) = error {
         if err_msg.contains("No recorded response found") {
             let _ = std::fs::remove_file(&file_path);
+            for (&var, value) in original_env.iter() {
+                std::env::set_var(var, value);
+            }
+            if let Some(mods) = &config.env_modifications {
+                for &var in mods.keys() {
+                    if !original_env.contains_key(var) {
+                        std::env::remove_var(var);
+                    }
+                }
+            }
             return Err(anyhow::anyhow!(
                 "Test replay failed for '{}' ({}) - missing recorded interaction: {}. File deleted - re-run test to record fresh data.",
                 test_name, factory_name, err_msg
@@ -287,12 +285,8 @@ async fn run_single_provider_scenario(
     }
 
     let result = ScenarioResult { messages, error };
-    Ok((result, provider_for_saving))
-}
 
-pub async fn run_test_scenario(test_name: &str, inputs: &[&str]) -> Result<ScenarioResult> {
-    let (result, provider_for_saving) =
-        run_single_provider_scenario(test_name, "default", "default", inputs).await?;
+    validator(&result)?;
 
     if let Some(provider) = provider_for_saving {
         if result.error.is_none() {
@@ -302,43 +296,16 @@ pub async fn run_test_scenario(test_name: &str, inputs: &[&str]) -> Result<Scena
         }
     }
 
-    Ok(result)
-}
-
-pub async fn run_multi_provider_scenario<F>(
-    test_name: &str,
-    inputs: &[&str],
-    validator: F,
-) -> Result<()>
-where
-    F: Fn(&ScenarioResult) -> Result<()> + Send + Sync + 'static,
-{
-    let inputs_owned: Vec<String> = inputs.iter().map(|s| s.to_string()).collect();
-
-    run_all_providers_scenario(test_name, |name, provider, factory_name, model_name| {
-        let inputs = inputs_owned.clone();
-        let validator = &validator;
-        async move {
-            let (result, provider_for_saving) = run_single_provider_scenario(
-                &name,
-                &factory_name,
-                &model_name,
-                &inputs.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
-            )
-            .await?;
-
-            validator(&result)?;
-
-            if let Some(provider) = provider_for_saving {
-                if result.error.is_none() {
-                    Arc::try_unwrap(provider)
-                        .map_err(|_| anyhow::anyhow!("Failed to unwrap provider for recording"))?
-                        .finish_recording()?;
-                }
+    for (&var, value) in original_env.iter() {
+        std::env::set_var(var, value);
+    }
+    if let Some(mods) = &config.env_modifications {
+        for &var in mods.keys() {
+            if !original_env.contains_key(var) {
+                std::env::remove_var(var);
             }
-
-            Ok(result)
         }
-    })
-    .await
+    }
+
+    Ok(())
 }
