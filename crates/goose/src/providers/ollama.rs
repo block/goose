@@ -1,6 +1,6 @@
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
-use super::utils::{get_model, handle_response_openai_compat};
+use super::utils::{build_http_client, get_model, handle_response_openai_compat, MutualTlsConfig};
 use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use reqwest::Client;
 use rmcp::model::Tool;
 use serde_json::Value;
-use std::time::Duration;
+
 use url::Url;
 
 pub const OLLAMA_HOST: &str = "localhost";
@@ -42,10 +42,16 @@ impl OllamaProvider {
             .get_param("OLLAMA_HOST")
             .unwrap_or_else(|_| OLLAMA_HOST.to_string());
 
-        let timeout: Duration =
-            Duration::from_secs(config.get_param("OLLAMA_TIMEOUT").unwrap_or(OLLAMA_TIMEOUT));
+        // Configure mutual TLS
+        let mtls_config = MutualTlsConfig {
+            client_cert_path: config.get_param("OLLAMA_CLIENT_CERT_PATH").ok(),
+            client_key_path: config.get_param("OLLAMA_CLIENT_KEY_PATH").ok(),
+            ca_cert_path: config.get_param("OLLAMA_CA_CERT_PATH").ok(),
+        };
 
-        let client = Client::builder().timeout(timeout).build()?;
+        let timeout: u64 = config.get_param("OLLAMA_TIMEOUT").unwrap_or(OLLAMA_TIMEOUT);
+
+        let client = build_http_client(timeout, Some(&mtls_config))?;
 
         Ok(Self {
             client,
@@ -114,6 +120,9 @@ impl Provider for OllamaProvider {
                     false,
                     Some(&(OLLAMA_TIMEOUT.to_string())),
                 ),
+                ConfigKey::new("OLLAMA_CLIENT_CERT_PATH", false, false, None),
+                ConfigKey::new("OLLAMA_CLIENT_KEY_PATH", false, false, None),
+                ConfigKey::new("OLLAMA_CA_CERT_PATH", false, false, None),
             ],
         )
     }
