@@ -72,23 +72,15 @@ module.exports = {
   makers: [
     {
       name: '@electron-forge/maker-zip',
-      platforms: ['darwin', 'win32'],
+      platforms: ['linux'],
       config: {
-        arch: process.env.ELECTRON_ARCH === 'x64' ? ['x64'] : ['arm64'],
         options: {
-          icon: 'src/images/icon.ico',
+          icon: 'src/images/icon.png',
         },
       },
     },
     {
       name: '@electron-forge/maker-deb',
-      config: {
-        name: 'Goose',
-        bin: 'Goose',
-      },
-    },
-    {
-      name: '@electron-forge/maker-rpm',
       config: {
         name: 'Goose',
         bin: 'Goose',
