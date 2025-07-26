@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use mcp_client::client::Error as ClientError;
 use rmcp::model::Tool;
+use rmcp::service::ClientInitializeError;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::warn;
@@ -14,20 +15,28 @@ use crate::config::permission::PermissionLevel;
 /// Errors from Extension operation
 #[derive(Error, Debug)]
 pub enum ExtensionError {
-    #[error("Failed to start the MCP server from configuration `{0}` `{1}`")]
-    Initialization(Box<ExtensionConfig>, ClientError),
     #[error("Failed a client call to an MCP server: {0}")]
     Client(#[from] ClientError),
     #[error("User Message exceeded context-limit. History could not be truncated to accommodate.")]
     ContextLimit,
-    #[error("Transport error: {0}")]
-    Transport(#[from] mcp_client::transport::Error),
     #[error("Environment variable `{0}` is not allowed to be overridden.")]
     InvalidEnvVar(String),
     #[error("Error during extension setup: {0}")]
     SetupError(String),
     #[error("Join error occurred during task execution: {0}")]
     TaskJoinError(#[from] tokio::task::JoinError),
+
+    #[error("Failed to create MCP client: {0}")]
+    ClientCreationError(String),
+}
+
+impl<T> From<ClientInitializeError<T>> for ExtensionError
+where
+    T: std::fmt::Display + std::fmt::Debug + Send + Sync + 'static,
+{
+    fn from(err: ClientInitializeError<T>) -> Self {
+        ExtensionError::ClientCreationError(err.to_string())
+    }
 }
 
 pub type ExtensionResult<T> = Result<T, ExtensionError>;

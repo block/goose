@@ -97,11 +97,7 @@ impl TaskExecutionTracker {
         is_token_cancelled(&self.cancellation_token)
     }
 
-    fn log_notification_error(
-        &self,
-        error: &mpsc::error::TrySendError<ServerNotification>,
-        context: &str,
-    ) {
+    fn log_notification_error<T>(&self, error: &mpsc::error::TrySendError<T>, context: &str) {
         if !self.is_cancelled() {
             tracing::warn!("Failed to send {} notification: {}", context, error);
         }

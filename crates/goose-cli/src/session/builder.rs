@@ -1,5 +1,4 @@
 use console::style;
-use goose::agents::extension::ExtensionError;
 use goose::agents::types::RetryConfig;
 use goose::agents::Agent;
 use goose::config::{Config, ExtensionConfig, ExtensionConfigManager};
@@ -7,7 +6,6 @@ use goose::providers::create;
 use goose::recipe::{Response, SubRecipe};
 use goose::session;
 use goose::session::Identifier;
-use mcp_client::transport::Error as McpClientError;
 use rustyline::EditMode;
 use std::process;
 use std::sync::Arc;
@@ -354,10 +352,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
 
     for extension in extensions_to_run {
         if let Err(e) = agent.add_extension(extension.clone()).await {
-            let err = match e {
-                ExtensionError::Transport(McpClientError::StdioProcessError(inner)) => inner,
-                _ => e.to_string(),
-            };
+            let err = e.to_string();
             eprintln!(
                 "{}",
                 style(format!(

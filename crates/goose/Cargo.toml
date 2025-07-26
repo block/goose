@@ -17,7 +17,12 @@ reqwest = { version = "0.12.9", features = ["json", "rustls-tls-native-roots"], 
 [dependencies]
 mcp-client = { path = "../mcp-client" }
 mcp-core = { path = "../mcp-core" }
-rmcp = { workspace = true }
+rmcp = { workspace = true, features = [
+    "reqwest",
+    "transport-child-process",
+    "transport-sse-client",
+    "transport-streamable-http-client",
+] }
 anyhow = "1.0"
 thiserror = "1.0"
 futures = "0.3"
