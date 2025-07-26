@@ -1,6 +1,9 @@
+mod provider_configs;
 mod scenarios;
+
 use dotenvy::dotenv;
 
+use crate::scenario_tests::provider_configs::{ProviderConfig, PROVIDER_CONFIGS};
 use crate::session::Session;
 use anyhow::Result;
 use goose::agents::Agent;
@@ -9,65 +12,7 @@ use goose::model::ModelConfig;
 use goose::providers::{create, testprovider::TestProvider};
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::{Arc, LazyLock};
-
-#[derive(Debug, Clone)]
-struct ProviderConfig {
-    name: &'static str,
-    factory_name: Option<&'static str>,
-    model_name: &'static str,
-    required_env_vars: &'static [&'static str],
-    env_modifications: Option<HashMap<&'static str, Option<String>>>,
-}
-
-impl ProviderConfig {
-    fn simple(name: &'static str, model_name: &'static str) -> Self {
-        let key = format!("{}_API_KEY", name.to_uppercase());
-        let required_env_vars =
-            Box::leak(vec![Box::leak(key.into_boxed_str()) as &str].into_boxed_slice());
-
-        Self {
-            name,
-            factory_name: None,
-            model_name,
-            required_env_vars,
-            env_modifications: None,
-        }
-    }
-
-    fn name_for_factory(&self) -> String {
-        self.factory_name
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| self.name.to_lowercase())
-    }
-}
-
-static PROVIDER_CONFIGS: LazyLock<Vec<ProviderConfig>> = LazyLock::new(|| {
-    vec![
-        ProviderConfig::simple("OpenAI", "gpt-4o"),
-        ProviderConfig::simple("Anthropic", "claude-3-5-sonnet-20241022"),
-        ProviderConfig {
-            name: "Azure",
-            factory_name: Some("azure_openai"),
-            model_name: "gpt-4o",
-            required_env_vars: &[
-                "AZURE_OPENAI_API_KEY",
-                "AZURE_OPENAI_ENDPOINT",
-                "AZURE_OPENAI_DEPLOYMENT_NAME",
-            ],
-            env_modifications: None,
-        },
-        ProviderConfig {
-            name: "Bedrock",
-            factory_name: Some("aws_bedrock"),
-            model_name: "anthropic.claude-3-5-sonnet-20241022-v2:0",
-            required_env_vars: &["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"],
-            env_modifications: None,
-        },
-        ProviderConfig::simple("Google", "gemini-1.5-pro"),
-        ProviderConfig::simple("Groq", "llama-3.1-70b-versatile"),
-    ]
-});
+use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub struct ScenarioResult {
@@ -158,6 +103,104 @@ where
         println!("Loaded environment from {:?}", path);
     }
 
+    let factory_name = config.name_for_factory();
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let file_path = format!(
+        "{}/src/scenario_tests/recordings/{}/{}.json",
+        manifest_dir,
+        factory_name.to_lowercase(),
+        test_name
+    );
+
+    if let Some(parent) = Path::new(&file_path).parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    let replay_mode = Path::new(&file_path).exists();
+    let (provider_arc, provider_for_saving, original_env) = if replay_mode {
+        match TestProvider::new_replaying(&file_path) {
+            Ok(test_provider) => (Arc::new(test_provider), None, None),
+            Err(e) => {
+                let _ = std::fs::remove_file(&file_path);
+                return Err(anyhow::anyhow!(
+                    "Test replay failed for '{}' ({}): {}. File deleted - re-run test to record fresh data.",
+                    test_name, factory_name, e
+                ));
+            }
+        }
+    } else {
+        if std::env::var("GITHUB_ACTIONS").is_ok() {
+            panic!(
+                "Test recording is not supported on CI. \
+            Did you forget to add the file {} to the repository and were expecting that to replay?",
+                file_path
+            );
+        }
+
+        let original_env = setup_environment(config)?;
+
+        let inner_provider = create(
+            &factory_name,
+            ModelConfig::new(config.model_name.to_string()),
+        )?;
+
+        let test_provider = Arc::new(TestProvider::new_recording(inner_provider, &file_path));
+        (
+            test_provider.clone(),
+            Some(test_provider),
+            Some(original_env),
+        )
+    };
+
+    let agent = Agent::new();
+    agent
+        .update_provider(provider_arc as Arc<dyn goose::providers::base::Provider>)
+        .await?;
+
+    let mut session = Session::new(agent, None, false, None, None, None, None);
+
+    let mut error = None;
+    for input in inputs {
+        if let Err(e) = session.headless(input.to_string()).await {
+            error = Some(e.to_string());
+            break;
+        }
+    }
+
+    let messages = session.message_history().to_vec();
+
+    if let Some(ref err_msg) = error {
+        if err_msg.contains("No recorded response found") {
+            let _ = std::fs::remove_file(&file_path);
+            return Err(anyhow::anyhow!(
+                "Test replay failed for '{}' ({}) - missing recorded interaction: {}. File deleted - re-run test to record fresh data.",
+                test_name, factory_name, err_msg
+            ));
+        }
+    }
+
+    let result = ScenarioResult { messages, error };
+
+    validator(&result)?;
+
+    drop(session);
+
+    if let Some(provider) = provider_for_saving {
+        if result.error.is_none() {
+            Arc::try_unwrap(provider)
+                .map_err(|_| anyhow::anyhow!("Failed to unwrap provider for recording"))?
+                .finish_recording()?;
+        }
+    }
+
+    if let Some(env) = original_env {
+        restore_environment(config, &env);
+    }
+
+    Ok(())
+}
+
+fn setup_environment(config: &ProviderConfig) -> Result<HashMap<&'static str, String>> {
     let mut original_env = HashMap::new();
 
     for &var in config.required_env_vars {
@@ -193,109 +236,13 @@ where
             "Skipping {} scenario - credentials not configured",
             config.name
         );
-        return Ok(());
+        return Err(anyhow::anyhow!("Missing required environment variables"));
     }
 
-    let factory_name = config.name_for_factory();
-    let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    let file_path = format!(
-        "{}/src/scenario_tests/recordings/{}/{}.json",
-        manifest_dir,
-        factory_name.to_lowercase(),
-        test_name
-    );
+    Ok(original_env)
+}
 
-    if let Some(parent) = Path::new(&file_path).parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-
-    let replay_mode = Path::new(&file_path).exists();
-    let (provider_arc, provider_for_saving) = if replay_mode {
-        match TestProvider::new_replaying(&file_path) {
-            Ok(test_provider) => (Arc::new(test_provider), None),
-            Err(e) => {
-                let _ = std::fs::remove_file(&file_path);
-                for (&var, value) in original_env.iter() {
-                    std::env::set_var(var, value);
-                }
-                if let Some(mods) = &config.env_modifications {
-                    for &var in mods.keys() {
-                        if !original_env.contains_key(var) {
-                            std::env::remove_var(var);
-                        }
-                    }
-                }
-                return Err(anyhow::anyhow!(
-                    "Test replay failed for '{}' ({}): {}. File deleted - re-run test to record fresh data.",
-                    test_name, factory_name, e
-                ));
-            }
-        }
-    } else {
-        if std::env::var("GITHUB_ACTIONS").is_ok() {
-            panic!(
-                "Test recording is not supported on CI. \
-            Did you forget to add the file {} to the repository and were expecting that to replay?",
-                file_path
-            );
-        }
-        let inner_provider = create(
-            &factory_name,
-            ModelConfig::new(config.model_name.to_string()),
-        )?;
-        let test_provider = Arc::new(TestProvider::new_recording(inner_provider, &file_path));
-        (test_provider.clone(), Some(test_provider))
-    };
-
-    let agent = Agent::new();
-    agent
-        .update_provider(provider_arc as Arc<dyn goose::providers::base::Provider>)
-        .await?;
-
-    let mut session = Session::new(agent, None, false, None, None, None, None);
-
-    let mut error = None;
-    for input in inputs {
-        if let Err(e) = session.headless(input.to_string()).await {
-            error = Some(e.to_string());
-            break;
-        }
-    }
-
-    let messages = session.message_history().to_vec();
-
-    if let Some(ref err_msg) = error {
-        if err_msg.contains("No recorded response found") {
-            let _ = std::fs::remove_file(&file_path);
-            for (&var, value) in original_env.iter() {
-                std::env::set_var(var, value);
-            }
-            if let Some(mods) = &config.env_modifications {
-                for &var in mods.keys() {
-                    if !original_env.contains_key(var) {
-                        std::env::remove_var(var);
-                    }
-                }
-            }
-            return Err(anyhow::anyhow!(
-                "Test replay failed for '{}' ({}) - missing recorded interaction: {}. File deleted - re-run test to record fresh data.",
-                test_name, factory_name, err_msg
-            ));
-        }
-    }
-
-    let result = ScenarioResult { messages, error };
-
-    validator(&result)?;
-
-    if let Some(provider) = provider_for_saving {
-        if result.error.is_none() {
-            Arc::try_unwrap(provider)
-                .map_err(|_| anyhow::anyhow!("Failed to unwrap provider for recording"))?
-                .finish_recording()?;
-        }
-    }
-
+fn restore_environment(config: &ProviderConfig, original_env: &HashMap<&'static str, String>) {
     for (&var, value) in original_env.iter() {
         std::env::set_var(var, value);
     }
@@ -306,6 +253,4 @@ where
             }
         }
     }
-
-    Ok(())
 }
