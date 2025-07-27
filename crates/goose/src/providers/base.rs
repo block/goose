@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use super::errors::ProviderError;
 use crate::message::Message;
 use crate::model::ModelConfig;
+use crate::utils::safe_truncate;
 use rmcp::model::Tool;
 use utoipa::ToSchema;
 
@@ -337,6 +338,64 @@ pub trait Provider: Send + Sync {
         } else {
             self.get_model_config().model_name
         }
+    }
+
+    /// Generate a session name/description based on the conversation history
+    ///
+    /// This method can be overridden by providers to implement custom session naming strategies.
+    /// The default implementation creates a prompt asking for a concise description in 4 words or less.
+    ///
+    /// # Arguments
+    /// * `messages` - The conversation history as a sequence of messages
+    ///
+    /// # Returns
+    /// A string containing the session name/description, sanitized and truncated to be safe for use
+    ///
+    /// # Errors
+    /// ProviderError if the session name generation fails
+    async fn generate_session_name(&self, messages: &[Message]) -> Result<String, ProviderError> {
+        // Create a special message asking for a concise description
+        let mut description_prompt = "Based on the conversation so far, provide a concise description of this session in 4 words or less. This will be used for finding the session later in a UI with limited space - reply *ONLY* with the description".to_string();
+
+        // Get context from messages so far, limiting each message to 300 chars for security
+        let context: Vec<String> = messages
+            .iter()
+            .filter(|m| m.role == rmcp::model::Role::User)
+            .take(3) // Use up to first 3 user messages for context
+            .map(|m| {
+                let text = m.as_concat_text();
+                safe_truncate(&text, 300)
+            })
+            .collect();
+
+        if !context.is_empty() {
+            description_prompt = format!(
+                "Here are the first few user messages:\n{}\n\n{}",
+                context.join("\n"),
+                description_prompt
+            );
+        }
+
+        // Generate the description
+        let message = Message::user().with_text(&description_prompt);
+        let result = self
+            .complete(
+                "Reply with only a description in four words or less",
+                &[message],
+                &[],
+            )
+            .await?;
+
+        let description = result.0.as_concat_text();
+
+        // Validate description length for security and usability
+        let sanitized_description = if description.chars().count() > 100 {
+            safe_truncate(&description, 100)
+        } else {
+            description
+        };
+
+        Ok(sanitized_description)
     }
 }
 
