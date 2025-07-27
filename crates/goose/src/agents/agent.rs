@@ -61,7 +61,7 @@ const DEFAULT_MAX_TURNS: u32 = 1000;
 /// The main goose Agent
 pub struct Agent {
     pub(super) provider: Mutex<Option<Arc<dyn Provider>>>,
-    pub(super) extension_manager: Arc<RwLock<ExtensionManager>>,
+    pub extension_manager: Arc<RwLock<ExtensionManager>>,
     pub(super) sub_recipe_manager: Mutex<SubRecipeManager>,
     pub(super) tasks_manager: TasksManager,
     pub(super) final_output_tool: Arc<Mutex<Option<FinalOutputTool>>>,

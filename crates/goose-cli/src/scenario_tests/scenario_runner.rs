@@ -1,5 +1,6 @@
 use dotenvy::dotenv;
 
+use crate::scenario_tests::mock_client::weather_client;
 use crate::scenario_tests::provider_configs::{get_provider_configs, ProviderConfig};
 use crate::session::Session;
 use anyhow::Result;
@@ -24,6 +25,14 @@ impl ScenarioResult {
             .flat_map(|msg| &msg.content)
             .map(|content| content.as_text().unwrap_or("").to_string())
             .collect()
+    }
+
+    pub fn last_message(&self) -> Result<String, anyhow::Error> {
+        let message_contents = self.message_contents();
+        message_contents
+            .last()
+            .cloned()
+            .ok_or_else(|| anyhow::anyhow!("No messages found in scenario result"))
     }
 }
 
@@ -146,7 +155,14 @@ where
         )
     };
 
+    let mock_client = weather_client();
+
     let agent = Agent::new();
+    {
+        let mut extension_manager = agent.extension_manager.write().await;
+        extension_manager.add_client("weather_extension".to_string(), Box::new(mock_client));
+    }
+
     agent
         .update_provider(provider_arc as Arc<dyn goose::providers::base::Provider>)
         .await?;

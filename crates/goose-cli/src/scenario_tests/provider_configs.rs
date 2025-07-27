@@ -12,7 +12,11 @@ pub struct ProviderConfig {
 }
 
 impl ProviderConfig {
-    fn simple(name: &'static str, model_name: &'static str) -> Self {
+    fn simple_skip(
+        name: &'static str,
+        model_name: &'static str,
+        skip_reason: Option<&'static str>,
+    ) -> Self {
         let key = format!("{}_API_KEY", name.to_uppercase());
         let required_env_vars =
             Box::leak(vec![Box::leak(key.into_boxed_str()) as &str].into_boxed_slice());
@@ -23,8 +27,12 @@ impl ProviderConfig {
             model_name,
             required_env_vars,
             env_modifications: None,
-            skip_reason: None,
+            skip_reason,
         }
+    }
+
+    pub fn simple(name: &'static str, model_name: &'static str) -> Self {
+        Self::simple_skip(name, model_name, None)
     }
 
     pub fn name_for_factory(&self) -> String {
@@ -64,7 +72,11 @@ static PROVIDER_CONFIGS: LazyLock<Vec<ProviderConfig>> = LazyLock::new(|| {
         },
         ProviderConfig::simple("Google", "gemini-2.5-flash"),
         ProviderConfig::simple("Groq", "llama-3.3-70b-versatile"),
-        ProviderConfig::simple("OpenRouter", "anthropic/claude-3.5-sonnet"),
+        ProviderConfig::simple_skip(
+            "OpenRouter",
+            "anthropic/claude-3.5-sonnet",
+            Some("Key is no longer valid"),
+        ),
     ]
 });
 
