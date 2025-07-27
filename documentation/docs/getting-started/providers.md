@@ -293,93 +293,13 @@ To set up Google Gemini with Goose, follow these steps:
 
 ### Local LLMs
 
-Docker Model Runner, Ollama, and Ramalama are options to provide local LLMs, each which requires a bit more set up before you can use one of them with Goose.
+Goose is a local AI agent, and by using a local LLM, you keep your data private, maintain full control over your environment, and can work entirely offline without relying on cloud access.
 
-#### Docker 
+Here are some local providers we support:
 
-1. [Get Docker](https://docs.docker.com/get-started/get-docker/)
-2. [Enable Docker Model Runner](https://docs.docker.com/ai/model-runner/#enable-dmr-in-docker-desktop)
-3. [Pull a model](https://docs.docker.com/ai/model-runner/#pull-a-model), for example, from Docker Hub [AI namespace](https://hub.docker.com/u/ai), [Unsloth](https://hub.docker.com/u/unsloth), or [from HuggingFace](https://www.docker.com/blog/docker-model-runner-on-hugging-face/)
-
-:::warning Limited Support for models without tool calling
-Goose extensively uses tool calling, so models without it can only do chat completion. If using models without tool calling, all Goose [extensions must be disabled](/docs/getting-started/using-extensions#enablingdisabling-extensions).
-:::
-
-Example:
-
-```sh
-docker model pull hf.co/unsloth/gemma-3n-e4b-it-gguf:q6_k
-```
-
-4. Configure Goose to use Docker Model Runner, using the OpenAI API compatible endpoint: 
-
-```sh
-goose configure
-```
-
-4. Choose to `Configure Providers`
-
-```
-┌   goose-configure 
-│
-◆  What would you like to configure?
-│  ● Configure Providers (Change provider or update credentials)
-│  ○ Toggle Extensions 
-│  ○ Add Extension 
-└  
-```
-
-5. Choose `OpenAI` as the model provider: 
-
-```
-┌   goose-configure
-│
-◇  What would you like to configure?
-│  Configure Providers
-│
-◆  Which model provider should we use?
-│  ○ Anthropic
-│  ○ Amazon Bedrock
-│  ○ Claude Code
-│  ● OpenAI (GPT-4 and other OpenAI models, including OpenAI compatible ones)
-│  ○ OpenRouter
-```
-
-6. Configure Docker Model Runner endpoint as the `OPENAI_HOST`: 
-┌   goose-configure
-│
-◇  What would you like to configure?
-│  Configure Providers
-│
-◇  Which model provider should we use?
-│  OpenAI
-│
-◆  Provider OpenAI requires OPENAI_HOST, please enter a value
-│  https://api.openai.com (default)
-└
-
-The default value for the host-side port Docker Model Runner is 12434, so the `OPENAI_HOST` value could be: 
-`http://localhost:12434`. 
-
-7. Configure the base path: 
-
-```
-◆  Provider OpenAI requires OPENAI_BASE_PATH, please enter a value
-│  v1/chat/completions (default)
-└
-```
-
-Docker model runner uses `/engines/llama.cpp/v1/chat/completions` for the base path.
-
-8. Finally configure the model available in Docker Model Runner to be used by Goose: `hf.co/unsloth/gemma-3n-e4b-it-gguf:q6_k`
-
-```
-│
-◇  Enter a model from that provider:
-│  gpt-4o
-│
-◒  Checking your configuration...                                                                                                                           └  Configuration saved successfully
-```
+- [Ollama](#ollama)
+- [Ramalama](#ramalama)
+- [Docker Model Runner](#docker-model-runner)
 
 #### Ollama
 
@@ -387,7 +307,7 @@ Docker model runner uses `/engines/llama.cpp/v1/chat/completions` for the base p
 2. Run any [model supporting tool-calling](https://ollama.com/search?c=tools):
 
 :::warning Limited Support for models without tool calling
-Goose extensively uses tool calling, so models without it (e.g. `DeepSeek-r1`) can only do chat completion. If using models without tool calling, all Goose [extensions must be disabled](/docs/getting-started/using-extensions#enablingdisabling-extensions). As an alternative, you can use a [custom DeepSeek-r1 model](/docs/getting-started/providers#deepseek-r1) we've made specifically for Goose.
+Goose extensively uses tool calling, so models without it can only do chat completion. If using models without tool calling, all Goose [extensions must be disabled](/docs/getting-started/using-extensions#enablingdisabling-extensions).
 :::
 
 Example:
@@ -478,103 +398,9 @@ If you're running Ollama on a different server, you'll have to set `OLLAMA_HOST=
 └  Configuration saved successfully
 ```
 
-#### Ramalama
+---
 
-1. [Download Ramalama](https://github.com/containers/ramalama?tab=readme-ov-file#install).
-2. Run any Ollama [model supporting tool-calling](https://ollama.com/search?c=tools) or [GGUF format HuggingFace Model](https://huggingface.co/search/full-text?q=%22tools+support%22+%2B+%22gguf%22&type=model) :
-
-:::warning Limited Support for models without tool calling
-Goose extensively uses tool calling, so models without it (e.g. `DeepSeek-r1`) can only do chat completion. If using models without tool calling, all Goose [extensions must be disabled](/docs/getting-started/using-extensions#enablingdisabling-extensions). As an alternative, you can use a [custom DeepSeek-r1 model](/docs/getting-started/providers#deepseek-r1) we've made specifically for Goose.
-:::
-
-Example:
-
-```sh
-# NOTE: the --runtime-args="--jinja" flag is required for Ramalama to work with the Goose Ollama provider.
-ramalama serve --runtime-args="--jinja" ollama://qwen2.5
-```
-
-3. In a separate terminal window, configure with Goose:
-
-```sh
-goose configure
-```
-
-4. Choose to `Configure Providers`
-
-```
-┌   goose-configure
-│
-◆  What would you like to configure?
-│  ● Configure Providers (Change provider or update credentials)
-│  ○ Toggle Extensions
-│  ○ Add Extension
-└
-```
-
-5. Choose `Ollama` as the model provider since Ramalama is API compatible and can use the Goose Ollama provider
-
-```
-┌   goose-configure
-│
-◇  What would you like to configure?
-│  Configure Providers
-│
-◆  Which model provider should we use?
-│  ○ Anthropic
-│  ○ Databricks
-│  ○ Google Gemini
-│  ○ Groq
-│  ● Ollama (Local open source models)
-│  ○ OpenAI
-│  ○ OpenRouter
-└
-```
-
-5. Enter the host where your model is running
-
-:::info Endpoint
-For the Ollama provider, if you don't provide a host, we set it to `localhost:11434`. When constructing the URL, we preprend `http://` if the scheme is not `http` or `https`. Since Ramalama's default port to serve on is 8080, we set `OLLAMA_HOST=http://0.0.0.0:8080`
-:::
-
-```
-┌   goose-configure
-│
-◇  What would you like to configure?
-│  Configure Providers
-│
-◇  Which model provider should we use?
-│  Ollama
-│
-◆  Provider Ollama requires OLLAMA_HOST, please enter a value
-│  http://0.0.0.0:8080
-└
-```
-
-
-6. Enter the model you have running
-
-```
-┌   goose-configure
-│
-◇  What would you like to configure?
-│  Configure Providers
-│
-◇  Which model provider should we use?
-│  Ollama
-│
-◇  Provider Ollama requires OLLAMA_HOST, please enter a value
-│  http://0.0.0.0:8080
-│
-◇  Enter a model from that provider:
-│  qwen2.5
-│
-◇  Welcome! You're all set to explore and utilize my capabilities. Let's get started on solving your problems together!
-│
-└  Configuration saved successfully
-```
-
-### DeepSeek-R1
+#### DeepSeek-R1
 
 Ollama provides open source LLMs, such as `DeepSeek-r1`, that you can install and run locally.
 Note that the native `DeepSeek-r1` model doesn't support tool calling, however, we have a [custom model](https://ollama.com/michaelneale/deepseek-r1-goose) you can use with Goose. 
@@ -674,6 +500,196 @@ ollama run michaelneale/deepseek-r1-goose
     ```
   </TabItem>
 </Tabs>
+
+---
+
+#### Ramalama
+
+1. [Download Ramalama](https://github.com/containers/ramalama?tab=readme-ov-file#install).
+2. Run any Ollama [model supporting tool-calling](https://ollama.com/search?c=tools) or [GGUF format HuggingFace Model](https://huggingface.co/search/full-text?q=%22tools+support%22+%2B+%22gguf%22&type=model) :
+
+:::warning Limited Support for models without tool calling
+Goose extensively uses tool calling, so models without it (e.g. `DeepSeek-r1`) can only do chat completion. If using models without tool calling, all Goose [extensions must be disabled](/docs/getting-started/using-extensions#enablingdisabling-extensions). As an alternative, you can use a [custom DeepSeek-r1 model](/docs/getting-started/providers#deepseek-r1) we've made specifically for Goose.
+:::
+
+Example:
+
+```sh
+# NOTE: the --runtime-args="--jinja" flag is required for Ramalama to work with the Goose Ollama provider.
+ramalama serve --runtime-args="--jinja" ollama://qwen2.5
+```
+
+3. In a separate terminal window, configure with Goose:
+
+```sh
+goose configure
+```
+
+4. Choose to `Configure Providers`
+
+```
+┌   goose-configure
+│
+◆  What would you like to configure?
+│  ● Configure Providers (Change provider or update credentials)
+│  ○ Toggle Extensions
+│  ○ Add Extension
+└
+```
+
+5. Choose `Ollama` as the model provider since Ramalama is API compatible and can use the Goose Ollama provider
+
+```
+┌   goose-configure
+│
+◇  What would you like to configure?
+│  Configure Providers
+│
+◆  Which model provider should we use?
+│  ○ Anthropic
+│  ○ Databricks
+│  ○ Google Gemini
+│  ○ Groq
+│  ● Ollama (Local open source models)
+│  ○ OpenAI
+│  ○ OpenRouter
+└
+```
+
+5. Enter the host where your model is running
+
+:::info Endpoint
+For the Ollama provider, if you don't provide a host, we set it to `localhost:11434`. When constructing the URL, we preprend `http://` if the scheme is not `http` or `https`. Since Ramalama's default port to serve on is 8080, we set `OLLAMA_HOST=http://0.0.0.0:8080`
+:::
+
+```
+┌   goose-configure
+│
+◇  What would you like to configure?
+│  Configure Providers
+│
+◇  Which model provider should we use?
+│  Ollama
+│
+◆  Provider Ollama requires OLLAMA_HOST, please enter a value
+│  http://0.0.0.0:8080
+└
+```
+
+
+6. Enter the model you have running
+
+```
+┌   goose-configure
+│
+◇  What would you like to configure?
+│  Configure Providers
+│
+◇  Which model provider should we use?
+│  Ollama
+│
+◇  Provider Ollama requires OLLAMA_HOST, please enter a value
+│  http://0.0.0.0:8080
+│
+◇  Enter a model from that provider:
+│  qwen2.5
+│
+◇  Welcome! You're all set to explore and utilize my capabilities. Let's get started on solving your problems together!
+│
+└  Configuration saved successfully
+```
+
+---
+
+#### Docker Model Runner
+
+1. [Get Docker](https://docs.docker.com/get-started/get-docker/)
+2. [Enable Docker Model Runner](https://docs.docker.com/ai/model-runner/#enable-dmr-in-docker-desktop)
+3. [Pull a model](https://docs.docker.com/ai/model-runner/#pull-a-model), for example, from Docker Hub [AI namespace](https://hub.docker.com/u/ai), [Unsloth](https://hub.docker.com/u/unsloth), or [from HuggingFace](https://www.docker.com/blog/docker-model-runner-on-hugging-face/)
+
+:::warning Limited Support for models without tool calling
+Goose extensively uses tool calling, so models without it can only do chat completion. If using models without tool calling, all Goose [extensions must be disabled](/docs/getting-started/using-extensions#enablingdisabling-extensions).
+:::
+
+Example:
+
+```sh
+docker model pull hf.co/unsloth/gemma-3n-e4b-it-gguf:q6_k
+```
+
+4. Configure Goose to use Docker Model Runner, using the OpenAI API compatible endpoint: 
+
+```sh
+goose configure
+```
+
+4. Choose to `Configure Providers`
+
+```
+┌   goose-configure 
+│
+◆  What would you like to configure?
+│  ● Configure Providers (Change provider or update credentials)
+│  ○ Toggle Extensions 
+│  ○ Add Extension 
+└  
+```
+
+5. Choose `OpenAI` as the model provider: 
+
+```
+┌   goose-configure
+│
+◇  What would you like to configure?
+│  Configure Providers
+│
+◆  Which model provider should we use?
+│  ○ Anthropic
+│  ○ Amazon Bedrock
+│  ○ Claude Code
+│  ● OpenAI (GPT-4 and other OpenAI models, including OpenAI compatible ones)
+│  ○ OpenRouter
+```
+
+6. Configure Docker Model Runner endpoint as the `OPENAI_HOST`: 
+
+```
+┌   goose-configure
+│
+◇  What would you like to configure?
+│  Configure Providers
+│
+◇  Which model provider should we use?
+│  OpenAI
+│
+◆  Provider OpenAI requires OPENAI_HOST, please enter a value
+│  https://api.openai.com (default)
+└
+```
+
+The default value for the host-side port Docker Model Runner is 12434, so the `OPENAI_HOST` value could be: 
+`http://localhost:12434`. 
+
+7. Configure the base path: 
+
+```
+◆  Provider OpenAI requires OPENAI_BASE_PATH, please enter a value
+│  v1/chat/completions (default)
+└
+```
+
+Docker model runner uses `/engines/llama.cpp/v1/chat/completions` for the base path.
+
+8. Finally configure the model available in Docker Model Runner to be used by Goose: `hf.co/unsloth/gemma-3n-e4b-it-gguf:q6_k`
+
+```
+│
+◇  Enter a model from that provider:
+│  gpt-4o
+│
+◒  Checking your configuration...                                                                                                            └  Configuration saved successfully
+```
+---
 
 ## Azure OpenAI Credential Chain
 
