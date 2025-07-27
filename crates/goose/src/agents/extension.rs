@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use mcp_client::client::Error as ClientError;
-use mcp_core::tool::Tool;
+use rmcp::model::Tool;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::warn;
@@ -163,6 +163,7 @@ pub enum ExtensionConfig {
         /// The name used to identify this extension
         name: String,
         display_name: Option<String>, // needed for the UI
+        description: Option<String>,
         timeout: Option<u64>,
         /// Whether this extension is bundled with Goose
         #[serde(default)]
@@ -208,6 +209,7 @@ impl Default for ExtensionConfig {
         Self::Builtin {
             name: config::DEFAULT_EXTENSION.to_string(),
             display_name: Some(config::DEFAULT_DISPLAY_NAME.to_string()),
+            description: None,
             timeout: Some(config::DEFAULT_EXTENSION_TIMEOUT),
             bundled: Some(true),
         }

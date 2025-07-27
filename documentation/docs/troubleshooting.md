@@ -172,7 +172,7 @@ When the keyring is disabled, secrets are stored here:
 Many of the external extensions require a package runner. For example, if you run into an error like this one:
 
 ```
-Failed to start extension: {extension name}, "No such file or directory (os error 2)"
+Failed to start extension `{extension name}`: Could not run extension command (`{extension command}`): No such file or directory (os error 2)
 Please check extension configuration for {extension name}.
 ```
 

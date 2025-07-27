@@ -7,7 +7,6 @@ import { ProviderDetails } from '../../../api/types.gen';
 import { initializeSystem } from '../../../utils/providerUtils';
 import WelcomeGooseLogo from '../../WelcomeGooseLogo';
 import { toastService } from '../../../toasts';
-import MoreMenuLayout from '../../more_menu/MoreMenuLayout';
 
 interface ProviderSettingsProps {
   onClose: () => void;
@@ -74,23 +73,31 @@ export default function ProviderSettings({ onClose, isOnboarding }: ProviderSett
           getExtensions,
           addExtension,
         });
+
+        toastService.configure({ silent: false });
+        toastService.success({
+          title: 'Success!',
+          msg: `Started goose with ${model} by ${provider.metadata.display_name}. You can change the model via the lower right corner.`,
+        });
+
+        onClose();
       } catch (error) {
         console.error(`Failed to initialize with provider ${provider_name}:`, error);
+
+        // Show error toast
+        toastService.configure({ silent: false });
+        toastService.error({
+          title: 'Initialization Failed',
+          msg: `Failed to initialize with ${provider.metadata.display_name}: ${error instanceof Error ? error.message : String(error)}`,
+          traceback: error instanceof Error ? error.stack || '' : '',
+        });
       }
-      toastService.configure({ silent: false });
-      toastService.success({
-        title: 'Success!',
-        msg: `Started goose with ${model} by ${provider.metadata.display_name}. You can change the model via the lower right corner.`,
-      });
-      onClose();
     },
     [onClose, upsert, getExtensions, addExtension]
   );
 
   return (
     <div className="h-screen w-full flex flex-col">
-      <MoreMenuLayout showMenu={false} />
-
       <ScrollArea className="flex-1 w-full">
         {isOnboarding && (
           <div className="group/logo flex justify-left pl-8">
@@ -99,7 +106,7 @@ export default function ProviderSettings({ onClose, isOnboarding }: ProviderSett
         )}
         <div className="px-8 pt-6 pb-4">
           {/* Only show back button if not in onboarding mode */}
-          {!isOnboarding && <BackButton onClick={onClose} />}
+          {!isOnboarding && <BackButton className={'mt-[42px]'} onClick={onClose} />}
           <h1
             className="text-3xl font-medium text-textStandard mt-1"
             data-testid="provider-selection-heading"

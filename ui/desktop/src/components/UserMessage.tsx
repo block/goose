@@ -31,14 +31,14 @@ export default function UserMessage({ message }: UserMessageProps) {
   const urls = extractUrls(displayText, []);
 
   return (
-    <div className="flex justify-end mt-[16px] w-full opacity-0 animate-[appear_150ms_ease-in_forwards]">
-      <div className="flex-col max-w-[85%]">
+    <div className="message flex justify-end mt-[16px] w-full opacity-0 animate-[appear_150ms_ease-in_forwards]">
+      <div className="flex-col max-w-[85%] w-fit">
         <div className="flex flex-col group">
-          <div className="flex bg-slate text-white rounded-xl rounded-br-none py-2 px-3">
+          <div className="flex bg-background-accent text-text-on-accent rounded-xl py-2.5 px-4">
             <div ref={contentRef}>
               <MarkdownContent
                 content={displayText}
-                className="text-white prose-a:text-white prose-headings:text-white prose-strong:text-white prose-em:text-white user-message"
+                className="text-text-on-accent prose-a:text-text-on-accent prose-headings:text-text-on-accent prose-strong:text-text-on-accent prose-em:text-text-on-accent user-message"
               />
             </div>
           </div>
@@ -52,8 +52,8 @@ export default function UserMessage({ message }: UserMessageProps) {
             </div>
           )}
 
-          <div className="relative h-[22px] flex justify-end">
-            <div className="absolute right-0 text-xs text-textSubtle pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
+          <div className="relative h-[22px] flex justify-end text-right">
+            <div className="absolute w-40 font-mono right-0 text-xs text-text-muted pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
               {timestamp}
             </div>
             <div className="absolute right-0 pt-1">

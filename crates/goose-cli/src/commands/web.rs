@@ -209,7 +209,7 @@ async fn serve_static(axum::extract::Path(path): axum::extract::Path<String>) ->
             include_bytes!("../../../../documentation/static/img/logo_light.png").to_vec(),
         )
             .into_response(),
-        _ => (axum::http::StatusCode::NOT_FOUND, "Not found").into_response(),
+        _ => (http::StatusCode::NOT_FOUND, "Not found").into_response(),
     }
 }
 
@@ -475,19 +475,25 @@ async fn process_message_streaming(
     }
 
     let provider = provider.unwrap();
-    session::persist_messages(&session_file, &messages, Some(provider.clone())).await?;
+    let working_dir = Some(std::env::current_dir()?);
+    session::persist_messages(
+        &session_file,
+        &messages,
+        Some(provider.clone()),
+        working_dir.clone(),
+    )
+    .await?;
 
-    // Create a session config
     let session_config = SessionConfig {
         id: session::Identifier::Path(session_file.clone()),
         working_dir: std::env::current_dir()?,
         schedule_id: None,
         execution_mode: None,
         max_turns: None,
+        retry_config: None,
     };
 
-    // Get response from agent
-    match agent.reply(&messages, Some(session_config)).await {
+    match agent.reply(&messages, Some(session_config), None).await {
         Ok(mut stream) => {
             while let Some(result) = stream.next().await {
                 match result {
@@ -503,7 +509,13 @@ async fn process_message_streaming(
                             let session_msgs = session_messages.lock().await;
                             session_msgs.clone()
                         };
-                        session::persist_messages(&session_file, &current_messages, None).await?;
+                        session::persist_messages(
+                            &session_file,
+                            &current_messages,
+                            None,
+                            working_dir.clone(),
+                        )
+                        .await?;
                         // Handle different message content types
                         for content in &message.content {
                             match content {

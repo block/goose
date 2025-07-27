@@ -25,7 +25,7 @@ jobs:
 
   rust-build-and-test:
     name: Build and Test Rust Project
-    runs-on: ubuntu-latest
+    runs-on: goose
     steps:
       # Add disk space cleanup before linting
       - name: Check disk space before build
@@ -95,7 +95,9 @@ jobs:
       - name: Build and Test
         run: |
           gnome-keyring-daemon --components=secrets --daemonize --unlock <<< 'foobar'
-          source ../bin/activate-hermit && cargo test
+          source ../bin/activate-hermit
+          export CARGO_INCREMENTAL=0
+          cargo test --jobs 2
         working-directory: crates
 
       - name: Check disk space before cleanup
@@ -125,8 +127,20 @@ jobs:
         run: df -h
 
       - name: Lint
-        run: source ./bin/activate-hermit && cargo clippy -- -D warnings
+        run: |
+          source ./bin/activate-hermit
+          export CARGO_INCREMENTAL=0
+          cargo clippy --jobs 2 -- -D warnings
 
+      - name: Install Node.js Dependencies for OpenAPI Check
+        run: source ../../bin/activate-hermit && npm ci
+        working-directory: ui/desktop
+
+      - name: Check OpenAPI Schema is Up-to-Date
+        run: |
+          source ./bin/activate-hermit
+          just check-openapi-schema
+          
   desktop-lint:
     name: Lint Electron Desktop App
     runs-on: macos-latest
@@ -141,6 +155,7 @@ jobs:
       - name: Run Lint
         run: source ../../bin/activate-hermit && npm run lint:check
         working-directory: ui/desktop
+
 
   # Faster Desktop App build for PRs only
   bundle-desktop-unsigned:

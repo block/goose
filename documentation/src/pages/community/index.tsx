@@ -8,11 +8,13 @@ import Heading from "@theme/Heading";
 import communityConfig from "./data/config.json";
 import april2025Data from "./data/april-2025.json";
 import may2025Data from "./data/may-2025.json";
+import june2025Data from "./data/june-2025.json";
 
 // Create a data map for easy access
 const communityDataMap = {
   "april-2025": april2025Data,
   "may-2025": may2025Data,
+  "june-2025": june2025Data,
 };
 
 function UpcomingEventsSection() {

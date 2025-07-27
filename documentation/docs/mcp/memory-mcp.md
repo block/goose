@@ -6,6 +6,7 @@ description: Use Memory MCP Server as a Goose Extension
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
 
 <YouTubeShortEmbed videoUrl="https://youtube.com/embed/BZ0yrSLXQwk" />
 
@@ -15,14 +16,12 @@ This tutorial covers enabling and using the Memory MCP Server, which is a built-
 
 ## Configuration
 
-1. Ensure extension is enabled:
-
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  1. Click `...` in the upper right corner
-  2. Click `Advanced Settings`
-  3. Under `Extensions`, toggle `Memory` to on.
-  4. Scroll to the top and click `Exit` from the upper left corner
+  <GooseBuiltinInstaller
+    extensionName="Memory"
+    description="Store and recall personalized information for consistent assistance"
+  />
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
 
@@ -43,7 +42,8 @@ This tutorial covers enabling and using the Memory MCP Server, which is a built-
   │  ● Built-in Extension (Use an extension that comes with Goose)
   // highlight-end  
   │  ○ Command-line Extension 
-  │  ○ Remote Extension 
+  │  ○ Remote Extension (SSE) 
+  │  ○ Remote Extension (Streaming HTTP)  
   └  
   ```
 

@@ -5,6 +5,7 @@ description: Add Browserbase MCP Server as a Goose Extension for Web Automation
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 This tutorial covers how to add the Browserbase MCP Server as a Goose extension for browser automation, enabling programmatic control over navigation, page interactions, and content capture.
 
@@ -32,11 +33,19 @@ This tutorial covers how to add the Browserbase MCP Server as a Goose extension 
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  1. [Launch the installer](goose://extension?cmd=npx&arg=@browserbasehq/mcp&id=browserbase&name=Browserbase&description=Automate%20web%20browsing%20and%20data%20extraction&env=BROWSERBASE_PROJECT_ID%3DBrowserbase%20Project%20ID&env=BROWSERBASE_API_KEY%3DBrowserbase%20API%20Key)
-  2. Press `Yes` to confirm the installation
-  3. Obtain your [Browserbase Project ID and Browserbase API Key](https://browserbase.io/dashboard) and paste them in
-  4. Click `Save Configuration`
-  5. Scroll to the top and click `Exit` from the upper left corner
+  <GooseDesktopInstaller
+    extensionId="browserbase"
+    extensionName="Browserbase"
+    description="Automate web browsing and data extraction"
+    command="npx"
+    args={["@browserbasehq/mcp"]}
+    envVars={[
+      { name: "BROWSERBASE_PROJECT_ID", label: "Browserbase Project ID" },
+      { name: "BROWSERBASE_API_KEY", label: "Browserbase API Key" }
+    ]}
+    apiKeyLink="https://browserbase.io/dashboard"
+    apiKeyLinkText="Get your Browserbase credentials"
+  />
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
@@ -56,7 +65,8 @@ This tutorial covers how to add the Browserbase MCP Server as a Goose extension 
     // highlight-start    
     │  ● Command-line Extension (Run a local command or script)
     // highlight-end    
-    │  ○ Remote Extension 
+    │  ○ Remote Extension (SSE) 
+    │  ○ Remote Extension (Streaming HTTP) 
     └ 
   ```
 

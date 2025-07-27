@@ -7,10 +7,7 @@ use crate::{
     providers::{
         base::Usage,
         errors::ProviderError,
-        utils::{
-            convert_image, detect_image_path, is_valid_function_name, load_image_file,
-            sanitize_function_name, ImageFormat,
-        },
+        utils::{convert_image, is_valid_function_name, sanitize_function_name, ImageFormat},
     },
     types::core::{Content, Role, Tool, ToolCall, ToolError},
 };
@@ -31,22 +28,12 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
             match content {
                 MessageContent::Text(text) => {
                     if !text.text.is_empty() {
-                        // Check for image paths in the text
-                        if let Some(image_path) = detect_image_path(&text.text) {
-                            // Try to load and convert the image
-                            if let Ok(image) = load_image_file(image_path) {
-                                converted["content"] = json!([
-                                    {"type": "text", "text": text.text},
-                                    convert_image(&image, image_format)
-                                ]);
-                            } else {
-                                // If image loading fails, just use the text
-                                converted["content"] = json!(text.text);
-                            }
-                        } else {
-                            converted["content"] = json!(text.text);
-                        }
+                        converted["content"] = json!(text.text);
                     }
+                }
+                MessageContent::Image(image) => {
+                    // Handle direct image content
+                    converted["content"] = json!([convert_image(image, image_format)]);
                 }
                 MessageContent::Thinking(_) => {
                     // Thinking blocks are not directly used in OpenAI format
@@ -133,10 +120,6 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                             }));
                         }
                     }
-                }
-                MessageContent::Image(image) => {
-                    // Handle direct image content
-                    converted["content"] = json!([convert_image(image, image_format)]);
                 }
             }
         }
@@ -661,40 +644,6 @@ mod tests {
     fn test_format_tools_empty() -> anyhow::Result<()> {
         let spec = format_tools(&[])?;
         assert!(spec.is_empty());
-        Ok(())
-    }
-
-    #[test]
-    fn test_format_messages_with_image_path() -> anyhow::Result<()> {
-        // Create a temporary PNG file with valid PNG magic numbers
-        let temp_dir = tempfile::tempdir()?;
-        let png_path = temp_dir.path().join("test.png");
-        let png_data = [
-            0x89, 0x50, 0x4E, 0x47, // PNG magic number
-            0x0D, 0x0A, 0x1A, 0x0A, // PNG header
-            0x00, 0x00, 0x00, 0x0D, // Rest of fake PNG data
-        ];
-        std::fs::write(&png_path, png_data)?;
-        let png_path_str = png_path.to_str().unwrap();
-
-        // Create message with image path
-        let message = Message::user().with_text(format!("Here is an image: {}", png_path_str));
-        let spec = format_messages(&[message], &ImageFormat::OpenAi);
-
-        assert_eq!(spec.len(), 1);
-        assert_eq!(spec[0]["role"], "user");
-
-        // Content should be an array with text and image
-        let content = spec[0]["content"].as_array().unwrap();
-        assert_eq!(content.len(), 2);
-        assert_eq!(content[0]["type"], "text");
-        assert!(content[0]["text"].as_str().unwrap().contains(png_path_str));
-        assert_eq!(content[1]["type"], "image_url");
-        assert!(content[1]["image_url"]["url"]
-            .as_str()
-            .unwrap()
-            .starts_with("data:image/png;base64,"));
-
         Ok(())
     }
 

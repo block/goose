@@ -37,10 +37,13 @@ pub async fn agent_generator(
         no_session: false,
         extensions: requirements.external,
         remote_extensions: requirements.remote,
+        streamable_http_extensions: Vec::new(),
         builtins: requirements.builtin,
         extensions_override: None,
         additional_system_prompt: None,
         settings: None,
+        provider: None,
+        model: None,
         debug: false,
         max_tool_repetitions: None,
         interactive: false, // Benchmarking is non-interactive
@@ -49,6 +52,7 @@ pub async fn agent_generator(
         quiet: false,
         sub_recipes: None,
         final_output_response: None,
+        retry_config: None,
     })
     .await;
 

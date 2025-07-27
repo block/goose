@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Recipe } from '../../recipe';
-import { generateDeepLink } from '../ui/DeepLinkModal';
+import { Recipe, generateDeepLink } from '../../recipe';
 import Copy from '../icons/Copy';
 import { Check } from 'lucide-react';
 
@@ -24,24 +23,29 @@ export const ScheduleFromRecipeModal: React.FC<ScheduleFromRecipeModalProps> = (
   const [deepLink, setDeepLink] = useState('');
 
   useEffect(() => {
-    if (isOpen && recipe) {
-      // Convert Recipe to the format expected by generateDeepLink
-      const recipeConfig = {
-        id: recipe.title?.toLowerCase().replace(/[^a-z0-9-]/g, '-') || 'recipe',
-        title: recipe.title,
-        description: recipe.description,
-        instructions: recipe.instructions,
-        activities: recipe.activities || [],
-        prompt: recipe.prompt,
-        extensions: recipe.extensions,
-        goosehints: recipe.goosehints,
-        context: recipe.context,
-        profile: recipe.profile,
-        author: recipe.author,
-      };
-      const link = generateDeepLink(recipeConfig);
-      setDeepLink(link);
-    }
+    let isCancelled = false;
+
+    const generateLink = async () => {
+      if (isOpen && recipe) {
+        try {
+          const link = await generateDeepLink(recipe);
+          if (!isCancelled) {
+            setDeepLink(link);
+          }
+        } catch (error) {
+          console.error('Failed to generate deeplink:', error);
+          if (!isCancelled) {
+            setDeepLink('Error generating deeplink');
+          }
+        }
+      }
+    };
+
+    generateLink();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [isOpen, recipe]);
 
   const handleCopy = () => {
@@ -69,8 +73,8 @@ export const ScheduleFromRecipeModal: React.FC<ScheduleFromRecipeModalProps> = (
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md bg-bgApp shadow-xl rounded-lg z-50 flex flex-col">
+    <div className="fixed inset-0 bg-black/50 z-40 flex items-center justify-center p-4">
+      <Card className="w-full max-w-md bg-background-default shadow-xl rounded-lg z-50 flex flex-col">
         <div className="px-6 pt-6 pb-4">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
             Create Schedule from Recipe
@@ -123,7 +127,7 @@ export const ScheduleFromRecipeModal: React.FC<ScheduleFromRecipeModalProps> = (
           <Button
             type="button"
             onClick={handleCreateSchedule}
-            className="flex-1 bg-bgAppInverse text-sm text-textProminentInverse rounded-xl hover:bg-bgStandardInverse transition-colors"
+            className="flex-1 bg-background-defaultInverse text-sm text-textProminentInverse rounded-xl hover:bg-bgStandardInverse transition-colors"
           >
             Create Schedule
           </Button>

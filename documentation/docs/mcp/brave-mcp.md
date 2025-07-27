@@ -6,6 +6,7 @@ description: Add Brave Search API as a Goose Extension
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/kD2YA61NTLU" />
 
@@ -37,11 +38,16 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-brave-search&id=brave-search&name=Brave%20Search&description=Brave%20Search%20API&env=BRAVE_API_KEY%3DYour%20API%20Key)
-  2. Press `Yes` to confirm the installation
-  3. Get your [Brave Search API Key](https://api-dashboard.search.brave.com/app/keys) and paste it in
-  4. Click `Save Configuration`
-  5. Scroll to the top and click `Exit` from the upper left corner
+  <GooseDesktopInstaller
+    extensionId="brave-search"
+    extensionName="Brave Search"
+    description="Brave Search API"
+    command="npx"
+    args={["-y", "@modelcontextprotocol/server-brave-search"]}
+    envVars={[{ name: "BRAVE_API_KEY", label: "Your Brave Search API Key" }]}
+    apiKeyLink="https://api-dashboard.search.brave.com/app/keys"
+    apiKeyLinkText="Get your Brave Search API Key"
+  />
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
@@ -61,7 +67,8 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     // highlight-start    
     │  ● Command-line Extension (Run a local command or script)
     // highlight-end    
-    │  ○ Remote Extension 
+    │  ○ Remote Extension (SSE) 
+    │  ○ Remote Extension (Streaming HTTP) 
     └ 
   ```
 

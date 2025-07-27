@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use mcp_core::Tool;
+use rmcp::model::Tool;
 
 use crate::{
     message::Message,

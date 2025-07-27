@@ -10,7 +10,8 @@ use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
-use mcp_core::{tool::Tool, Role, ToolCall, ToolResult};
+use mcp_core::{ToolCall, ToolResult};
+use rmcp::model::{Role, Tool};
 
 // ---------- Capability Flags ----------
 #[derive(Debug)]
@@ -557,11 +558,7 @@ impl Provider for VeniceProvider {
         };
 
         Ok((
-            Message {
-                role: Role::Assistant,
-                created: Utc::now().timestamp(),
-                content,
-            },
+            Message::new(Role::Assistant, Utc::now().timestamp(), content),
             ProviderUsage::new(strip_flags(&self.model.model_name).to_string(), usage),
         ))
     }

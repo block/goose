@@ -3,6 +3,7 @@ import { Switch } from '../../../ui/switch';
 import { Gear } from '../../../icons/Gear';
 import { FixedExtensionEntry } from '../../../ConfigContext';
 import { getSubtitle, getFriendlyTitle } from './ExtensionList';
+import { Card, CardHeader, CardTitle, CardContent, CardAction } from '../../../ui/card';
 
 interface ExtensionItemProps {
   extension: FixedExtensionEntry;
@@ -70,34 +71,33 @@ export default function ExtensionItem({
   const editable = !(extension.type === 'builtin' || extension.bundled) && !isStatic;
 
   return (
-    <div
-      className="flex justify-between rounded-lg transition-colors border border-borderSubtle p-4 pt-3 hover:border-borderProminent hover:cursor-pointer"
+    <Card
+      className="transition-all duration-200 hover:shadow-default hover:cursor-pointer min-h-[120px]"
       onClick={() => handleToggle(extension)}
     >
-      <div className="flex flex-col w-max-[90%] word-break">
-        <h3 className="text-textStandard">{getFriendlyTitle(extension)}</h3>
-        <p className="text-xs text-textSubtle">{renderSubtitle()}</p>
-      </div>
+      <CardHeader>
+        <CardTitle className="">{getFriendlyTitle(extension)}</CardTitle>
 
-      <div
-        className="flex items-center justify-end gap-2 w-max-[10%]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {editable && (
-          <button
-            className="text-textSubtle hover:text-textStandard"
-            onClick={() => (onConfigure ? onConfigure(extension) : () => {})}
-          >
-            <Gear className="h-4 w-4" />
-          </button>
-        )}
-        <Switch
-          checked={(isToggling && visuallyEnabled) || extension.enabled}
-          onCheckedChange={() => handleToggle(extension)}
-          disabled={isToggling}
-          variant="mono"
-        />
-      </div>
-    </div>
+        <CardAction onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-end gap-2">
+            {editable && (
+              <button
+                className="text-textSubtle hover:text-textStandard"
+                onClick={() => (onConfigure ? onConfigure(extension) : () => {})}
+              >
+                <Gear className="h-4 w-4" />
+              </button>
+            )}
+            <Switch
+              checked={(isToggling && visuallyEnabled) || extension.enabled}
+              onCheckedChange={() => handleToggle(extension)}
+              disabled={isToggling}
+              variant="mono"
+            />
+          </div>
+        </CardAction>
+      </CardHeader>
+      <CardContent className="px-4 text-sm text-text-muted">{renderSubtitle()}</CardContent>
+    </Card>
   );
 }

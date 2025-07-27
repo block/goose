@@ -17,5 +17,13 @@ export async function initializeAgent({ model, provider }: initializeAgentProps)
       model: model,
     }),
   });
+
+  if (!response.ok) {
+    const responseText = await response.text();
+    throw new Error(
+      `Failed to initialize agent: ${response.status} ${response.statusText} - ${responseText}`
+    );
+  }
+
   return response;
 }

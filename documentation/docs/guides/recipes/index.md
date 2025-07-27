@@ -47,6 +47,11 @@ import styles from '@site/src/components/Card/styles.module.css';
       description="Learn how a recipe can use sub-recipes to do specific tasks."
       link="/docs/guides/recipes/sub-recipes"
     />
+    <Card 
+      title="Saving Recipes"
+      description="Learn how to save, organize, and find your Goose recipes for easy access and reuse."
+      link="/docs/guides/recipes/storing-recipes"
+    />
   </div>
 </div>
 

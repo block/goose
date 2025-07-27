@@ -2741,12 +2741,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dotenv"
-version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77c90badedccf4105eca100756a0b1289e191f6fcbdadd3cee1d2f614f97da8f"
-
-[[package]]
 name = "dotenvy"
 version = "0.15.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2819,7 +2813,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "33d852cb9b869c2a9b3df2f71a3074817f01e1844f839a144f5fcef059a4eb5d"
 dependencies = [
  "libc",
- "windows-sys 0.59.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3434,7 +3428,7 @@ dependencies = [
 
 [[package]]
 name = "goose"
-version = "1.0.35"
+version = "1.1.0"
 dependencies = [
  "ahash",
  "anyhow",
@@ -3453,7 +3447,7 @@ dependencies = [
  "ctor",
  "dashmap 6.1.0",
  "dirs 5.0.1",
- "dotenv",
+ "dotenvy",
  "etcetera",
  "fs2",
  "futures",
@@ -3473,6 +3467,7 @@ dependencies = [
  "rand 0.8.5",
  "regex",
  "reqwest 0.12.12",
+ "rmcp",
  "serde",
  "serde_json",
  "serde_urlencoded",
@@ -3486,9 +3481,11 @@ dependencies = [
  "tokio",
  "tokio-cron-scheduler",
  "tokio-stream",
+ "tokio-util",
  "tracing",
  "tracing-subscriber",
  "url",
+ "urlencoding",
  "utoipa",
  "uuid",
  "webbrowser 0.8.15",
@@ -3498,7 +3495,7 @@ dependencies = [
 
 [[package]]
 name = "goose-bench"
-version = "1.0.35"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3511,6 +3508,7 @@ dependencies = [
  "once_cell",
  "paste",
  "regex",
+ "rmcp",
  "serde",
  "serde_json",
  "tokio",
@@ -3522,7 +3520,7 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.0.35"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3552,6 +3550,7 @@ dependencies = [
  "rand 0.8.5",
  "regex",
  "reqwest 0.12.12",
+ "rmcp",
  "rustyline",
  "serde",
  "serde_json",
@@ -3563,18 +3562,18 @@ dependencies = [
  "test-case",
  "tokio",
  "tokio-stream",
+ "tokio-util",
  "tower-http",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
- "urlencoding",
  "webbrowser 1.0.4",
  "winapi",
 ]
 
 [[package]]
 name = "goose-ffi"
-version = "1.0.35"
+version = "1.1.0"
 dependencies = [
  "cbindgen",
  "futures",
@@ -3588,7 +3587,7 @@ dependencies = [
 
 [[package]]
 name = "goose-llm"
-version = "1.0.35"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3596,7 +3595,8 @@ dependencies = [
  "chrono",
  "criterion",
  "ctor",
- "dotenv",
+ "dotenvy",
+ "goose",
  "include_dir",
  "indoc 1.0.9",
  "lazy_static",
@@ -3617,7 +3617,7 @@ dependencies = [
 
 [[package]]
 name = "goose-mcp"
-version = "1.0.35"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3625,6 +3625,7 @@ dependencies = [
  "chrono",
  "docx-rs",
  "etcetera",
+ "glob",
  "google-apis-common",
  "google-docs1",
  "google-drive3",
@@ -3645,6 +3646,7 @@ dependencies = [
  "once_cell",
  "regex",
  "reqwest 0.11.27",
+ "rmcp",
  "serde",
  "serde_json",
  "serde_with",
@@ -3659,7 +3661,6 @@ dependencies = [
  "tracing-subscriber",
  "umya-spreadsheet",
  "url",
- "urlencoding",
  "utoipa",
  "webbrowser 0.8.15",
  "which 6.0.3",
@@ -3668,7 +3669,7 @@ dependencies = [
 
 [[package]]
 name = "goose-server"
-version = "1.0.35"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3689,6 +3690,7 @@ dependencies = [
  "mcp-server",
  "once_cell",
  "reqwest 0.12.12",
+ "rmcp",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -3696,6 +3698,7 @@ dependencies = [
  "tokio",
  "tokio-cron-scheduler",
  "tokio-stream",
+ "tokio-util",
  "tower 0.5.2",
  "tower-http",
  "tracing",
@@ -4446,7 +4449,7 @@ checksum = "e19b23d53f35ce9f56aebc7d1bb4e6ac1e9c0db7ac85c8d1760c04379edced37"
 dependencies = [
  "hermit-abi 0.4.0",
  "libc",
- "windows-sys 0.59.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -5185,7 +5188,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.6",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
@@ -5385,6 +5388,7 @@ dependencies = [
  "nix 0.30.1",
  "rand 0.8.5",
  "reqwest 0.11.27",
+ "rmcp",
  "serde",
  "serde_json",
  "serde_urlencoded",
@@ -5408,6 +5412,7 @@ dependencies = [
  "async-trait",
  "base64 0.21.7",
  "chrono",
+ "rmcp",
  "schemars",
  "serde",
  "serde_json",
@@ -5418,22 +5423,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mcp-macros"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "convert_case",
- "mcp-core",
- "proc-macro2",
- "quote",
- "schemars",
- "serde",
- "serde_json",
- "syn 2.0.99",
- "tokio",
-]
-
-[[package]]
 name = "mcp-server"
 version = "0.1.0"
 dependencies = [
@@ -5441,8 +5430,8 @@ dependencies = [
  "async-trait",
  "futures",
  "mcp-core",
- "mcp-macros",
  "pin-project",
+ "rmcp",
  "schemars",
  "serde",
  "serde_json",
@@ -6000,9 +5989,9 @@ checksum = "b410bbe7e14ab526a0e86877eb47c6996a2bd7746f027ba551028c925390e4e9"
 
 [[package]]
 name = "openssl"
-version = "0.10.71"
+version = "0.10.73"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5e14130c6a98cd258fdcb0fb6d744152343ff729cbfcb28c656a9d12b999fbcd"
+checksum = "8505734d46c8ab1e19a1dce3aef597ad87dcb4c37e7188231769bd6bd51cebf8"
 dependencies = [
  "bitflags 2.9.0",
  "cfg-if",
@@ -6041,9 +6030,9 @@ dependencies = [
 
 [[package]]
 name = "openssl-sys"
-version = "0.9.106"
+version = "0.9.109"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8bb61ea9811cc39e3c2069f40b8b8e2e70d8569b361f879786cc7ed48b777cdd"
+checksum = "90096e2e47630d78b7d1c20952dc621f957103f8bc2c8359ec81290d75238571"
 dependencies = [
  "cc",
  "libc",
@@ -6693,7 +6682,7 @@ dependencies = [
  "once_cell",
  "socket2 0.5.8",
  "tracing",
- "windows-sys 0.59.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -7116,6 +7105,40 @@ dependencies = [
 ]
 
 [[package]]
+name = "rmcp"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37f2048a81a7ff7e8ef6bc5abced70c3d9114c8f03d85d7aaaafd9fd04f12e9e"
+dependencies = [
+ "base64 0.22.1",
+ "chrono",
+ "futures",
+ "paste",
+ "pin-project-lite",
+ "rmcp-macros",
+ "schemars",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.12",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "rmcp-macros"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72398e694b9f6dbb5de960cf158c8699e6a1854cb5bbaac7de0646b2005763c4"
+dependencies = [
+ "darling",
+ "proc-macro2",
+ "quote",
+ "serde_json",
+ "syn 2.0.99",
+]
+
+[[package]]
 name = "roaring"
 version = "0.10.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7208,7 +7231,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.4.15",
- "windows-sys 0.59.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -7221,7 +7244,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.9.4",
- "windows-sys 0.59.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -7398,6 +7421,7 @@ version = "0.8.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3fbf2ae1b8bc8e02df939598064d22402220cd5bbcca1c76f7d6a310974d5615"
 dependencies = [
+ "chrono",
  "dyn-clone",
  "schemars_derive",
  "serde",
@@ -8267,7 +8291,7 @@ dependencies = [
  "getrandom 0.3.1",
  "once_cell",
  "rustix 0.38.44",
- "windows-sys 0.59.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -8604,9 +8628,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-util"
-version = "0.7.13"
+version = "0.7.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7fcaa8d55a2bdd6b83ace262b016eca0d79ee02818c5c1bcdf0305114081078"
+checksum = "66a539a9ad6d5d281510d5bd368c973d636c02dbf8a67300bfb6b950696ad7df"
 dependencies = [
  "bytes",
  "futures-core",
@@ -9457,7 +9481,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]

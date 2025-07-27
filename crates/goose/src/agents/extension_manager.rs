@@ -2,7 +2,7 @@ use anyhow::Result;
 use chrono::{DateTime, TimeZone, Utc};
 use futures::stream::{FuturesUnordered, StreamExt};
 use futures::{future, FutureExt};
-use mcp_core::protocol::GetPromptResult;
+use rmcp::model::GetPromptResult;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::LazyLock;
@@ -19,7 +19,8 @@ use crate::config::{Config, ExtensionConfigManager};
 use crate::prompt_template;
 use mcp_client::client::{ClientCapabilities, ClientInfo, McpClient, McpClientTrait};
 use mcp_client::transport::{SseTransport, StdioTransport, StreamableHttpTransport, Transport};
-use mcp_core::{prompt::Prompt, Content, Tool, ToolCall, ToolError};
+use mcp_core::{ToolCall, ToolError};
+use rmcp::model::{Content, Prompt, Resource, ResourceContents, Tool};
 use serde_json::Value;
 
 // By default, we set it to Jan 1, 2020 if the resource does not have a timestamp
@@ -241,6 +242,7 @@ impl ExtensionManager {
             ExtensionConfig::Builtin {
                 name,
                 display_name: _,
+                description: _,
                 timeout,
                 bundled: _,
             } => {
@@ -378,13 +380,18 @@ impl ExtensionManager {
                 let mut client_tools = client_guard.list_tools(None).await?;
 
                 loop {
-                    for tool in client_tools.tools {
-                        tools.push(Tool::new(
-                            format!("{}__{}", name, tool.name),
-                            &tool.description,
-                            tool.input_schema,
-                            tool.annotations,
-                        ));
+                    for client_tool in client_tools.tools {
+                        let mut tool = Tool::new(
+                            format!("{}__{}", name, client_tool.name),
+                            client_tool.description.unwrap_or_default(),
+                            client_tool.input_schema,
+                        );
+
+                        if tool.annotations.is_some() {
+                            tool = tool.annotate(client_tool.annotations.unwrap())
+                        }
+
+                        tools.push(tool);
                     }
 
                     // Exit loop when there are no more pages
@@ -426,23 +433,15 @@ impl ExtensionManager {
             for resource in resources.resources {
                 // Skip reading the resource if it's not marked active
                 // This avoids blowing up the context with inactive resources
-                if !resource.is_active() {
+                if !resource_is_active(&resource) {
                     continue;
                 }
 
                 if let Ok(contents) = client_guard.read_resource(&resource.uri).await {
                     for content in contents.contents {
                         let (uri, content_str) = match content {
-                            mcp_core::resource::ResourceContents::TextResourceContents {
-                                uri,
-                                text,
-                                ..
-                            } => (uri, text),
-                            mcp_core::resource::ResourceContents::BlobResourceContents {
-                                uri,
-                                blob,
-                                ..
-                            } => (uri, blob),
+                            ResourceContents::TextResourceContents { uri, text, .. } => (uri, text),
+                            ResourceContents::BlobResourceContents { uri, blob, .. } => (uri, blob),
                         };
 
                         result.push(ResourceItem::new(
@@ -549,8 +548,7 @@ impl ExtensionManager {
         let mut result = Vec::new();
         for content in read_result.contents {
             // Only reading the text resource content; skipping the blob content cause it's too long
-            if let mcp_core::resource::ResourceContents::TextResourceContents { text, .. } = content
-            {
+            if let ResourceContents::TextResourceContents { text, .. } = content {
                 let content_str = format!("{}\n\n{}", uri, text);
                 result.push(Content::text(content_str));
             }
@@ -824,15 +822,20 @@ impl ExtensionManager {
     }
 }
 
+fn resource_is_active(resource: &Resource) -> bool {
+    resource.priority().is_some_and(|p| (p - 1.0).abs() < 1e-6)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use mcp_client::client::Error;
     use mcp_client::client::McpClientTrait;
     use mcp_core::protocol::{
-        CallToolResult, GetPromptResult, InitializeResult, JsonRpcMessage, ListPromptsResult,
-        ListResourcesResult, ListToolsResult, ReadResourceResult,
+        CallToolResult, InitializeResult, ListPromptsResult, ListResourcesResult, ListToolsResult,
+        ReadResourceResult,
     };
+    use rmcp::model::{GetPromptResult, ServerNotification};
     use serde_json::json;
     use tokio::sync::mpsc;
 
@@ -888,7 +891,7 @@ mod tests {
             Err(Error::NotInitialized)
         }
 
-        async fn subscribe(&self) -> mpsc::Receiver<JsonRpcMessage> {
+        async fn subscribe(&self) -> mpsc::Receiver<ServerNotification> {
             mpsc::channel(1).1
         }
     }

@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 
 use console::style;
-use goose::recipe::Recipe;
-
-use crate::recipes::recipe::BUILT_IN_RECIPE_DIR_PARAM;
+use goose::recipe::{Recipe, BUILT_IN_RECIPE_DIR_PARAM};
 
 pub fn print_recipe_explanation(recipe: &Recipe) {
     println!(
@@ -80,4 +78,19 @@ pub fn missing_parameters_command_line(missing_params: Vec<String>) -> String {
         .map(|key| format!("--params {}=your_value", key))
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+pub fn print_recipe_info(recipe: &Recipe, params: Vec<(String, String)>) {
+    println!(
+        "{} {}",
+        style("Loading recipe:").green().bold(),
+        style(&recipe.title).green()
+    );
+    println!("{} {}", style("Description:").bold(), &recipe.description);
+
+    if !params.is_empty() {
+        println!("{}", style("Parameters used to load this recipe:").bold());
+        print_parameters_with_values(params.into_iter().collect());
+    }
+    println!();
 }

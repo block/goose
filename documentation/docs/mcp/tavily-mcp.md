@@ -6,6 +6,7 @@ description: Add Tavily MCP Server as a Goose Extension
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 <YouTubeShortEmbed videoUrl="https://youtube.com/embed/mxS2G9afGxE" />
 
@@ -37,12 +38,19 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=tavily-mcp&id=tavily&name=Tavily%20Web%20Search&description=Search%20the%20web%20with%20Tavily%20MCP&env=TAVILY_API_KEY%3DTavily%20API%20Key)
-  2. Press `Yes` to confirm the installation
-  3. Obtain a [TAVILY_API_KEY](https://tavily.com/) and paste it in
-  4. Click `Save Configuration`
-  5. Scroll to the top and click `Exit` from the upper left corner
-  </TabItem>
+  <GooseDesktopInstaller
+    extensionId="tavily"
+    extensionName="Tavily Web Search"
+    description="Search the web with Tavily MCP"
+    command="npx"
+    args={["-y", "tavily-mcp"]}
+    envVars={[
+      { name: "TAVILY_API_KEY", label: "Tavily API Key" }
+    ]}
+    apiKeyLink="https://tavily.com/"
+    apiKeyLinkText="Tavily API Key"
+  />
+</TabItem>
   <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
   ```sh
@@ -61,7 +69,8 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     // highlight-start    
     │  ● Command-line Extension (Run a local command or script)
     // highlight-end    
-    │  ○ Remote Extension 
+    │  ○ Remote Extension (SSE) 
+    │  ○ Remote Extension (Streaming HTTP) 
     └ 
   ```
 
