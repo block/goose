@@ -106,6 +106,7 @@ These variables control how Goose manages conversation sessions and context.
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
 | `GOOSE_CONTEXT_STRATEGY` | Controls how Goose handles context limit exceeded situations | "summarize", "truncate", "clear", "prompt" | "prompt" (interactive), "summarize" (headless) |
+| `GOOSE_RANDOM_THINKING_MESSAGES` | Controls whether to show amusing random messages during processing | "true", "false" | "true" |
 | `GOOSE_MAX_TURNS` | [Maximum number of turns](/docs/guides/smart-context-management#maximum-turns) allowed without user input | Integer (e.g., 10, 50, 100) | 1000 |
 | `GOOSE_CLI_THEME` | [Theme](/docs/guides/goose-cli-commands#themes) for CLI response  markdown | "light", "dark", "ansi" | "dark" |
 | `GOOSE_SCHEDULER_TYPE` | Controls which scheduler Goose uses for [scheduled recipes](/docs/guides/recipes/session-recipes.md#schedule-recipe) | "legacy" or "temporal" | "legacy" (Goose's built-in cron scheduler) | 
@@ -119,6 +120,9 @@ export GOOSE_CONTEXT_STRATEGY=summarize
 
 # Always prompt user to choose (default for interactive mode)
 export GOOSE_CONTEXT_STRATEGY=prompt
+
+# Disable random thinking messages for less distraction
+export GOOSE_RANDOM_THINKING_MESSAGES=false
 
 # Set a low limit for step-by-step control
 export GOOSE_MAX_TURNS=5
