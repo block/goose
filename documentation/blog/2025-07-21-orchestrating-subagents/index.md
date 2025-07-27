@@ -178,7 +178,7 @@ What will you build with subagents?
 <head>
   <meta property="og:title" content="Orchestrating 6 Subagents to Build a Collaborative API Playground for Kids" />
   <meta property="og:type" content="article" />
-  <meta property="og:url" content="https://block.github.io/goose/blog/2025/03/06/goose-tips" />
+  <meta property="og:url" content="https://block.github.io/goose/blog/2025/07/21/orchestrating-subagents" />
   <meta property="og:description" content="Delegating backend, frontend, docs, and tests so six subagents could build collaborative API tool for kids." />
   <meta property="og:image" content="https://block.github.io/goose/assets/images/built-by-subagents-869a01d4b147ebdb54334dcc22dc521e.png" />
   <meta name="twitter:card" content="summary_large_image" />
