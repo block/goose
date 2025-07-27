@@ -269,7 +269,7 @@ const config: Config = {
           },
           {
             from: '/docs/tutorials/vscode-mcp',
-            to: '/docs/mcp/vscode-mcp'
+            to: '/docs/mcp/vs-code-mcp'
           },
           {
             from: '/docs/tutorials/youtube-transcript',
