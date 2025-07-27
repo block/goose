@@ -50,7 +50,7 @@ tokio = { version = "1.43", features = ["time", "sync"] }
 [dev-dependencies]
 criterion = "0.5"
 tempfile = "3.15.0"
-dotenv = "0.15"
+dotenvy = "0.15.7"
 lazy_static = "1.5"
 ctor = "0.2.7"
 tokio = { version = "1.43", features = ["full"] }

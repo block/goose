@@ -1,11 +1,8 @@
 use crate::agents::tool_execution::ToolCallResult;
 use crate::recipe::Response;
 use indoc::formatdoc;
-use mcp_core::{
-    tool::{Tool, ToolAnnotations},
-    ToolCall, ToolError,
-};
-use rmcp::model::Content;
+use mcp_core::{ToolCall, ToolError};
+use rmcp::model::{Content, Tool, ToolAnnotations};
 use serde_json::Value;
 
 pub const FINAL_OUTPUT_TOOL_NAME: &str = "recipe__final_output";
@@ -64,15 +61,21 @@ impl FinalOutputTool {
         Tool::new(
             FINAL_OUTPUT_TOOL_NAME.to_string(),
             instructions,
-            self.response.json_schema.as_ref().unwrap().clone(),
-            Some(ToolAnnotations {
-                title: Some("Final Output".to_string()),
-                read_only_hint: false,
-                destructive_hint: false,
-                idempotent_hint: true,
-                open_world_hint: false,
-            }),
+            self.response
+                .json_schema
+                .as_ref()
+                .unwrap()
+                .as_object()
+                .unwrap()
+                .clone(),
         )
+        .annotate(ToolAnnotations {
+            title: Some("Final Output".to_string()),
+            read_only_hint: Some(false),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(true),
+            open_world_hint: Some(false),
+        })
     }
 
     pub fn system_prompt(&self) -> String {

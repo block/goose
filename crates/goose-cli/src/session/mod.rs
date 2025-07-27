@@ -36,7 +36,8 @@ use goose::providers::pricing::initialize_pricing_cache;
 use goose::session;
 use input::InputResult;
 use mcp_core::handler::ToolError;
-use rmcp::model::{JsonRpcMessage, JsonRpcNotification, Notification, PromptMessage};
+use rmcp::model::PromptMessage;
+use rmcp::model::ServerNotification;
 
 use rand::{distributions::Alphanumeric, Rng};
 use rustyline::EditMode;
@@ -1023,126 +1024,115 @@ impl Session {
                             }
                         }
                         Some(Ok(AgentEvent::McpNotification((_id, message)))) => {
-                                if let JsonRpcMessage::Notification( JsonRpcNotification {
-                                    notification: Notification {
-                                        method,
-                                        params: o,..
-                                    },..
-                                }) = message {
-                                match method.as_str() {
-                                    "notifications/message" => {
-                                        let data = o.get("data").unwrap_or(&Value::Null);
-                                        let (formatted_message, subagent_id, message_notification_type) = match data {
-                                            Value::String(s) => (s.clone(), None, None),
-                                            Value::Object(o) => {
-                                                // Check for subagent notification structure first
-                                                if let Some(Value::String(msg)) = o.get("message") {
-                                                    // Extract subagent info for better display
-                                                    let subagent_id = o.get("subagent_id")
-                                                        .and_then(|v| v.as_str())
-                                                        .unwrap_or("unknown");
-                                                    let notification_type = o.get("type")
-                                                        .and_then(|v| v.as_str())
-                                                        .unwrap_or("");
+                            match &message {
+                                ServerNotification::LoggingMessageNotification(notification) => {
+                                    let data = &notification.params.data;
+                                    let (formatted_message, subagent_id, message_notification_type) = match data {
+                                        Value::String(s) => (s.clone(), None, None),
+                                        Value::Object(o) => {
+                                            // Check for subagent notification structure first
+                                            if let Some(Value::String(msg)) = o.get("message") {
+                                                // Extract subagent info for better display
+                                                let subagent_id = o.get("subagent_id")
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("unknown");
+                                                let notification_type = o.get("type")
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("");
 
-                                                    let formatted = match notification_type {
-                                                        "subagent_created" | "completed" | "terminated" => {
-                                                            format!("🤖 {}", msg)
-                                                        }
-                                                        "tool_usage" | "tool_completed" | "tool_error" => {
-                                                            format!("🔧 {}", msg)
-                                                        }
-                                                        "message_processing" | "turn_progress" => {
-                                                            format!("💭 {}", msg)
-                                                        }
-                                                        "response_generated" => {
-                                                            // Check verbosity setting for subagent response content
-                                                            let config = Config::global();
-                                                            let min_priority = config
-                                                                .get_param::<f32>("GOOSE_CLI_MIN_PRIORITY")
-                                                                .ok()
-                                                                .unwrap_or(0.5);
+                                                let formatted = match notification_type {
+                                                    "subagent_created" | "completed" | "terminated" => {
+                                                        format!("🤖 {}", msg)
+                                                    }
+                                                    "tool_usage" | "tool_completed" | "tool_error" => {
+                                                        format!("🔧 {}", msg)
+                                                    }
+                                                    "message_processing" | "turn_progress" => {
+                                                        format!("💭 {}", msg)
+                                                    }
+                                                    "response_generated" => {
+                                                        // Check verbosity setting for subagent response content
+                                                        let config = Config::global();
+                                                        let min_priority = config
+                                                            .get_param::<f32>("GOOSE_CLI_MIN_PRIORITY")
+                                                            .ok()
+                                                            .unwrap_or(0.5);
 
-                                                            if min_priority > 0.1 && !self.debug {
-                                                                // High/Medium verbosity: show truncated response
-                                                                if let Some(response_content) = msg.strip_prefix("Responded: ") {
-                                                                    format!("🤖 Responded: {}", safe_truncate(response_content, 100))
-                                                                } else {
-                                                                    format!("🤖 {}", msg)
-                                                                }
+                                                        if min_priority > 0.1 && !self.debug {
+                                                            // High/Medium verbosity: show truncated response
+                                                            if let Some(response_content) = msg.strip_prefix("Responded: ") {
+                                                                format!("🤖 Responded: {}", safe_truncate(response_content, 100))
                                                             } else {
-                                                                // All verbosity or debug: show full response
                                                                 format!("🤖 {}", msg)
                                                             }
+                                                        } else {
+                                                            // All verbosity or debug: show full response
+                                                            format!("🤖 {}", msg)
                                                         }
-                                                        _ => {
-                                                            msg.to_string()
-                                                        }
-                                                    };
-                                                    (formatted, Some(subagent_id.to_string()), Some(notification_type.to_string()))
-                                                } else if let Some(Value::String(output)) = o.get("output") {
-                                                    // Fallback for other MCP notification types
-                                                    (output.to_owned(), None, None)
-                                                } else if let Some(result) = format_task_execution_notification(data) {
-                                                    result
-                                                } else {
-                                                    (data.to_string(), None, None)
-                                                }
-                                            },
-                                            v => {
-                                                (v.to_string(), None, None)
-                                            },
-                                        };
+                                                    }
+                                                    _ => {
+                                                        msg.to_string()
+                                                    }
+                                                };
+                                                (formatted, Some(subagent_id.to_string()), Some(notification_type.to_string()))
+                                            } else if let Some(Value::String(output)) = o.get("output") {
+                                                // Fallback for other MCP notification types
+                                                (output.to_owned(), None, None)
+                                            } else if let Some(result) = format_task_execution_notification(data) {
+                                                result
+                                            } else {
+                                                (data.to_string(), None, None)
+                                            }
+                                        },
+                                        v => {
+                                            (v.to_string(), None, None)
+                                        },
+                                    };
 
-                                        // Handle subagent notifications - show immediately
-                                        if let Some(_id) = subagent_id {
-                                            // TODO: proper display for subagent notifications
+                                    // Handle subagent notifications - show immediately
+                                    if let Some(_id) = subagent_id {
+                                        // TODO: proper display for subagent notifications
+                                        if interactive {
+                                            let _ = progress_bars.hide();
+                                            println!("{}", console::style(&formatted_message).green().dim());
+                                        } else {
+                                            progress_bars.log(&formatted_message);
+                                        }
+                                    } else if let Some(ref notification_type) = message_notification_type {
+                                        if notification_type == TASK_EXECUTION_NOTIFICATION_TYPE {
                                             if interactive {
                                                 let _ = progress_bars.hide();
-                                                println!("{}", console::style(&formatted_message).green().dim());
+                                                print!("{}", formatted_message);
+                                                std::io::stdout().flush().unwrap();
                                             } else {
-                                                progress_bars.log(&formatted_message);
-                                            }
-                                        } else if let Some(ref notification_type) = message_notification_type {
-                                            if notification_type == TASK_EXECUTION_NOTIFICATION_TYPE {
-                                                if interactive {
-                                                    let _ = progress_bars.hide();
-                                                    print!("{}", formatted_message);
-                                                    std::io::stdout().flush().unwrap();
-                                                } else {
-                                                    print!("{}", formatted_message);
-                                                    std::io::stdout().flush().unwrap();
-                                                }
+                                                print!("{}", formatted_message);
+                                                std::io::stdout().flush().unwrap();
                                             }
                                         }
-                                        else {
-                                            // Non-subagent notification, display immediately with compact spacing
-                                            if interactive {
-                                                let _ = progress_bars.hide();
-                                                println!("{}", console::style(&formatted_message).green().dim());
-                                            } else {
-                                                progress_bars.log(&formatted_message);
-                                            }
+                                    }
+                                    else {
+                                        // Non-subagent notification, display immediately with compact spacing
+                                        if interactive {
+                                            let _ = progress_bars.hide();
+                                            println!("{}", console::style(&formatted_message).green().dim());
+                                        } else {
+                                            progress_bars.log(&formatted_message);
                                         }
-                                    },
-                                    "notifications/progress" => {
-                                        let progress = o.get("progress").and_then(|v| v.as_f64());
-                                        let token = o.get("progressToken").map(|v| v.to_string());
-                                        let message = o.get("message").and_then(|v| v.as_str());
-                                        let total = o
-                                            .get("total")
-                                            .and_then(|v| v.as_f64());
-                                        if let (Some(progress), Some(token)) = (progress, token) {
-                                            progress_bars.update(
-                                                token.as_str(),
-                                                progress,
-                                                total,
-                                                message,
-                                            );
-                                        }
-                                    },
-                                    _ => (),
-                                }
+                                    }
+                                },
+                                ServerNotification::ProgressNotification(notification) => {
+                                    let progress = notification.params.progress;
+                                    let text = notification.params.message.as_deref();
+                                    let total = notification.params.total;
+                                    let token = &notification.params.progress_token;
+                                    progress_bars.update(
+                                        &token.0.to_string(),
+                                        progress,
+                                        total,
+                                        text,
+                                    );
+                                },
+                                _ => (),
                             }
                         }
                         Some(Ok(AgentEvent::ModelChange { model, mode })) => {

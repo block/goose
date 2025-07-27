@@ -3,8 +3,8 @@ use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
 use anyhow::{anyhow, Result};
-use mcp_core::tool::{Tool, ToolCall};
-use rmcp::model::Role;
+use mcp_core::tool::ToolCall;
+use rmcp::model::{Role, Tool};
 use serde_json::{json, Value};
 use std::collections::HashSet;
 
@@ -676,6 +676,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rmcp::object;
     use serde_json::json;
 
     #[test]
@@ -858,7 +859,7 @@ mod tests {
             Tool::new(
                 "calculator",
                 "Calculate mathematical expressions",
-                json!({
+                object!({
                     "type": "object",
                     "properties": {
                         "expression": {
@@ -867,12 +868,11 @@ mod tests {
                         }
                     }
                 }),
-                None,
             ),
             Tool::new(
                 "weather",
                 "Get weather information",
-                json!({
+                object!({
                     "type": "object",
                     "properties": {
                         "location": {
@@ -881,7 +881,6 @@ mod tests {
                         }
                     }
                 }),
-                None,
             ),
         ];
 

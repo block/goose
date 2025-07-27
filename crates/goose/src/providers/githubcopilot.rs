@@ -20,7 +20,7 @@ use crate::config::{Config, ConfigError};
 use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::base::ConfigKey;
-use mcp_core::tool::Tool;
+use rmcp::model::Tool;
 
 pub const GITHUB_COPILOT_DEFAULT_MODEL: &str = "gpt-4o";
 pub const GITHUB_COPILOT_KNOWN_MODELS: &[&str] = &[

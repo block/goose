@@ -19,7 +19,7 @@ use goose::{
     session,
 };
 use mcp_core::ToolResult;
-use rmcp::model::{Content, JsonRpcMessage};
+use rmcp::model::{Content, ServerNotification};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
@@ -97,7 +97,7 @@ enum MessageEvent {
     },
     Notification {
         request_id: String,
-        message: JsonRpcMessage,
+        message: ServerNotification,
     },
 }
 
@@ -404,7 +404,6 @@ mod tests {
             errors::ProviderError,
         },
     };
-    use mcp_core::tool::Tool;
 
     #[derive(Clone)]
     struct MockProvider {
@@ -421,7 +420,7 @@ mod tests {
             &self,
             _system: &str,
             _messages: &[Message],
-            _tools: &[Tool],
+            _tools: &[rmcp::model::Tool],
         ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
             Ok((
                 Message::assistant().with_text("Mock response"),
