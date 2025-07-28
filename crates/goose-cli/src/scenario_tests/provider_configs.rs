@@ -4,7 +4,6 @@ use std::sync::LazyLock;
 #[derive(Debug, Clone)]
 pub struct ProviderConfig {
     pub name: &'static str,
-    pub factory_name: Option<&'static str>,
     pub model_name: &'static str,
     pub required_env_vars: &'static [&'static str],
     pub env_modifications: Option<HashMap<&'static str, Option<String>>>,
@@ -23,7 +22,6 @@ impl ProviderConfig {
 
         Self {
             name,
-            factory_name: None,
             model_name,
             required_env_vars,
             env_modifications: None,
@@ -33,12 +31,6 @@ impl ProviderConfig {
 
     pub fn simple(name: &'static str, model_name: &'static str) -> Self {
         Self::simple_skip(name, model_name, None)
-    }
-
-    pub fn name_for_factory(&self) -> String {
-        self.factory_name
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| self.name.to_lowercase())
     }
 
     pub fn is_skipped(&self) -> bool {
@@ -51,8 +43,7 @@ static PROVIDER_CONFIGS: LazyLock<Vec<ProviderConfig>> = LazyLock::new(|| {
         ProviderConfig::simple("OpenAI", "gpt-4o"),
         ProviderConfig::simple("Anthropic", "claude-3-5-sonnet-20241022"),
         ProviderConfig {
-            name: "Azure",
-            factory_name: Some("azure_openai"),
+            name: "azure_openai",
             model_name: "gpt-4o",
             required_env_vars: &[
                 "AZURE_OPENAI_API_KEY",
@@ -63,8 +54,7 @@ static PROVIDER_CONFIGS: LazyLock<Vec<ProviderConfig>> = LazyLock::new(|| {
             skip_reason: None,
         },
         ProviderConfig {
-            name: "Bedrock",
-            factory_name: Some("aws_bedrock"),
+            name: "aws_bedrock",
             model_name: "anthropic.claude-3-5-sonnet-20241022-v2:0",
             required_env_vars: &["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"],
             env_modifications: None,

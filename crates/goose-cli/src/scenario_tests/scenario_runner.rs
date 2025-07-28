@@ -1,5 +1,6 @@
 use dotenvy::dotenv;
 
+use crate::scenario_tests::message_generator::MessageGenerator;
 use crate::scenario_tests::mock_client::weather_client;
 use crate::scenario_tests::provider_configs::{get_provider_configs, ProviderConfig};
 use crate::session::Session;
@@ -8,9 +9,11 @@ use goose::agents::Agent;
 use goose::message::Message;
 use goose::model::ModelConfig;
 use goose::providers::{create, testprovider::TestProvider};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::Arc;
+
+pub const SCENARIO_TESTS_DIR: &str = "src/scenario_tests";
 
 #[derive(Debug, Clone)]
 pub struct ScenarioResult {
@@ -36,12 +39,15 @@ impl ScenarioResult {
     }
 }
 
-pub async fn run_scenario<F>(test_name: &str, inputs: &[&str], validator: F) -> Result<()>
+pub async fn run_scenario<F>(
+    test_name: &str,
+    message_generator: MessageGenerator<'_>,
+    providers_to_skip: Option<&[&str]>,
+    validator: F,
+) -> Result<()>
 where
     F: Fn(&ScenarioResult) -> Result<()> + Send + Sync + 'static,
 {
-    let inputs_owned: Vec<String> = inputs.iter().map(|s| s.to_string()).collect();
-
     if let Ok(only_provider) = std::env::var("GOOSE_TEST_PROVIDER") {
         let active_providers = get_provider_configs();
         let config = active_providers
@@ -60,15 +66,39 @@ where
             })?;
 
         println!("Running test '{}' for provider: {}", test_name, config.name);
-        run_provider_scenario_with_validation(config, test_name, &inputs_owned, &validator).await?;
+        run_provider_scenario_with_validation(config, test_name, &message_generator, &validator)
+            .await?;
         return Ok(());
     }
 
+    let configs_to_test: Vec<_> = if let Some(to_skip) = providers_to_skip {
+        let excluded_providers: HashSet<String> =
+            to_skip.iter().map(|name| name.to_lowercase()).collect();
+
+        let filtered: Vec<_> = get_provider_configs()
+            .into_iter()
+            .filter(|c| !excluded_providers.contains(&c.name.to_lowercase()))
+            .collect();
+
+        if filtered.len() != get_provider_configs().len() - to_skip.len() {
+            return Err(anyhow::anyhow!("Some providers in skip list don't exist"));
+        }
+
+        filtered
+    } else {
+        get_provider_configs()
+    };
+
     let mut failures = Vec::new();
 
-    for config in get_provider_configs() {
-        match run_provider_scenario_with_validation(config, test_name, &inputs_owned, &validator)
-            .await
+    for config in configs_to_test {
+        match run_provider_scenario_with_validation(
+            config,
+            test_name,
+            &message_generator,
+            &validator,
+        )
+        .await
         {
             Ok(_) => println!("✅ {} - {}", test_name, config.name),
             Err(e) => {
@@ -96,7 +126,7 @@ where
 async fn run_provider_scenario_with_validation<F>(
     config: &ProviderConfig,
     test_name: &str,
-    inputs: &[String],
+    message_generator: &MessageGenerator<'_>,
     validator: &F,
 ) -> Result<()>
 where
@@ -106,11 +136,12 @@ where
         println!("Loaded environment from {:?}", path);
     }
 
-    let factory_name = config.name_for_factory();
+    let factory_name = config.name.to_lowercase();
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let file_path = format!(
-        "{}/src/scenario_tests/recordings/{}/{}.json",
+        "{}/{}/recordings/{}/{}.json",
         manifest_dir,
+        SCENARIO_TESTS_DIR,
         factory_name.to_lowercase(),
         test_name
     );
@@ -155,6 +186,9 @@ where
         )
     };
 
+    // Generate messages using the provider
+    let messages = vec![message_generator(&*provider_arc)];
+
     let mock_client = weather_client();
 
     let agent = Agent::new();
@@ -170,14 +204,15 @@ where
     let mut session = Session::new(agent, None, false, None, None, None, None);
 
     let mut error = None;
-    for input in inputs {
-        if let Err(e) = session.headless(input.to_string()).await {
+    for message in &messages {
+        if let Err(e) = session.process_message(message.clone()).await {
             error = Some(e.to_string());
             break;
         }
     }
 
-    let messages = session.message_history().to_vec();
+    // Rest of the function remains the same...
+    let updated_messages = session.message_history().to_vec();
 
     if let Some(ref err_msg) = error {
         if err_msg.contains("No recorded response found") {
@@ -189,7 +224,10 @@ where
         }
     }
 
-    let result = ScenarioResult { messages, error };
+    let result = ScenarioResult {
+        messages: updated_messages,
+        error,
+    };
 
     validator(&result)?;
 
