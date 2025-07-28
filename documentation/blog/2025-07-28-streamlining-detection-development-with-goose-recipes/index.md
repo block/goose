@@ -300,12 +300,12 @@ This sub-recipe bridges the gap between detection requirements and implementatio
 {
   "status": { "success": true },
   "data": {
-    "schemas_found": [{
+    "log_schemas": [{
       "log_type": "AWS.CloudTrail",
       "schema_summary": "Contains eventName, sourceIPAddress, userIdentity fields",
       "relevance": "Essential for detecting privilege escalation patterns"
     }],
-    "sample_events": [{
+    "example_logs": [{
       "log_type": "AWS.CloudTrail", 
       "event_summary": "AssumeRole events with cross-account access",
       "key_fields": ["eventName", "sourceIPAddress", "userIdentity.type"]
