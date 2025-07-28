@@ -1204,10 +1204,11 @@ async fn run_scheduled_job_internal(
             schedule_id: Some(job.id.clone()),
             execution_mode: job.execution_mode.clone(),
             max_turns: None,
+            retry_config: None,
         };
 
         match agent
-            .reply(&all_session_messages, Some(session_config.clone()))
+            .reply(&all_session_messages, Some(session_config.clone()), None)
             .await
         {
             Ok(mut stream) => {
@@ -1331,7 +1332,7 @@ mod tests {
         providers::base::{ProviderMetadata, ProviderUsage, Usage},
         providers::errors::ProviderError,
     };
-    use mcp_core::tool::Tool;
+    use rmcp::model::Tool;
     use rmcp::model::{AnnotateAble, RawTextContent, Role};
     // Removed: use crate::session::storage::{get_most_recent_session, read_metadata};
     // `read_metadata` is still used by the test itself, so keep it or its module.
@@ -1424,6 +1425,7 @@ mod tests {
             settings: None,
             response: None,
             sub_recipes: None,
+            retry: None,
         };
         let mut recipe_file = File::create(&recipe_filename)?;
         writeln!(

@@ -13,7 +13,7 @@ use super::formats::openai::{create_request, get_usage, response_to_message};
 use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
 use crate::message::Message;
 use crate::model::ModelConfig;
-use mcp_core::tool::Tool;
+use rmcp::model::Tool;
 
 pub const AZURE_DEFAULT_MODEL: &str = "gpt-4o";
 pub const AZURE_DOC_URL: &str =
@@ -87,7 +87,7 @@ impl AzureProvider {
         })
     }
 
-    async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
+    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
         let mut base_url = url::Url::parse(&self.endpoint)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
 
@@ -143,7 +143,7 @@ impl AzureProvider {
                 }
             }
 
-            let response_result = request_builder.json(&payload).send().await;
+            let response_result = request_builder.json(payload).send().await;
 
             match response_result {
                 Ok(response) => match handle_response_openai_compat(response).await {
@@ -249,9 +249,9 @@ impl Provider for AzureProvider {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let payload = create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi)?;
-        let response = self.post(payload.clone()).await?;
+        let response = self.post(&payload).await?;
 
-        let message = response_to_message(response.clone())?;
+        let message = response_to_message(&response)?;
         let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
             tracing::debug!("Failed to get usage data");
             Usage::default()

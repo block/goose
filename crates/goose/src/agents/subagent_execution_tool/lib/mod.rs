@@ -6,16 +6,18 @@ use crate::agents::subagent_execution_tool::{
     tasks_manager::TasksManager,
 };
 use crate::agents::subagent_task_config::TaskConfig;
-use mcp_core::protocol::JsonRpcMessage;
+use rmcp::model::ServerNotification;
 use serde_json::{json, Value};
-use tokio::sync::mpsc;
+use tokio::sync::mpsc::Sender;
+use tokio_util::sync::CancellationToken;
 
 pub async fn execute_tasks(
     input: Value,
     execution_mode: ExecutionMode,
-    notifier: mpsc::Sender<JsonRpcMessage>,
+    notifier: Sender<ServerNotification>,
     task_config: TaskConfig,
     tasks_manager: &TasksManager,
+    cancellation_token: Option<CancellationToken>,
 ) -> Result<Value, String> {
     let task_ids: Vec<String> = serde_json::from_value(
         input
@@ -25,24 +27,14 @@ pub async fn execute_tasks(
     )
     .map_err(|e| format!("Failed to parse task_ids: {}", e))?;
 
-    let mut tasks = Vec::new();
-    for task_id in &task_ids {
-        match tasks_manager.get_task(task_id).await {
-            Some(task) => tasks.push(task),
-            None => {
-                return Err(format!(
-                    "Task with ID '{}' not found in TasksManager",
-                    task_id
-                ))
-            }
-        }
-    }
+    let tasks = tasks_manager.get_tasks(&task_ids).await?;
 
     let task_count = tasks.len();
     match execution_mode {
         ExecutionMode::Sequential => {
             if task_count == 1 {
-                let response = execute_single_task(&tasks[0], notifier, task_config).await;
+                let response =
+                    execute_single_task(&tasks[0], notifier, task_config, cancellation_token).await;
                 handle_response(response)
             } else {
                 Err("Sequential execution mode requires exactly one task".to_string())
@@ -58,8 +50,13 @@ pub async fn execute_tasks(
                     }
                 ))
             } else {
-                let response: ExecutionResponse =
-                    execute_tasks_in_parallel(tasks, notifier.clone(), task_config).await;
+                let response: ExecutionResponse = execute_tasks_in_parallel(
+                    tasks,
+                    notifier.clone(),
+                    task_config,
+                    cancellation_token,
+                )
+                .await;
                 handle_response(response)
             }
         }

@@ -48,11 +48,13 @@ interface CleanExtension {
   bundled?: boolean;
 }
 
+// TODO: This 'Recipe' interface should be converted to match the OpenAPI spec for Recipe
+// once we have separated the recipe from the schedule in the frontend.
 // Interface for clean recipe in YAML
 interface CleanRecipe {
   title: string;
   description: string;
-  instructions: string;
+  instructions?: string;
   prompt?: string;
   activities?: string[];
   extensions?: CleanExtension[];
@@ -131,8 +133,11 @@ function recipeToYaml(recipe: Recipe, executionMode: ExecutionMode): string {
   const cleanRecipe: CleanRecipe = {
     title: recipe.title,
     description: recipe.description,
-    instructions: recipe.instructions,
   };
+
+  if (recipe.instructions) {
+    cleanRecipe.instructions = recipe.instructions;
+  }
 
   if (recipe.prompt) {
     cleanRecipe.prompt = recipe.prompt;
@@ -211,7 +216,7 @@ function recipeToYaml(recipe: Recipe, executionMode: ExecutionMode): string {
       }
 
       // Add common optional fields
-      if (ext.env_keys && ext.env_keys.length > 0) {
+      if ('env_keys' in ext && ext.env_keys && ext.env_keys.length > 0) {
         cleanExt.env_keys = ext.env_keys;
       }
 
@@ -244,7 +249,10 @@ function recipeToYaml(recipe: Recipe, executionMode: ExecutionMode): string {
   }
 
   if (recipe.author) {
-    cleanRecipe.author = recipe.author;
+    cleanRecipe.author = {
+      contact: recipe.author.contact || undefined,
+      metadata: recipe.author.metadata || undefined,
+    };
   }
 
   // Add schedule configuration based on execution mode

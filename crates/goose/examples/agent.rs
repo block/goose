@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use dotenv::dotenv;
+use dotenvy::dotenv;
 use futures::StreamExt;
 use goose::agents::{Agent, AgentEvent, ExtensionConfig};
 use goose::config::{DEFAULT_EXTENSION_DESCRIPTION, DEFAULT_EXTENSION_TIMEOUT};
@@ -35,7 +35,7 @@ async fn main() {
     let messages = vec![Message::user()
         .with_text("can you summarize the readme.md in this dir using just a haiku?")];
 
-    let mut stream = agent.reply(&messages, None).await.unwrap();
+    let mut stream = agent.reply(&messages, None, None).await.unwrap();
     while let Some(Ok(AgentEvent::Message(message))) = stream.next().await {
         println!("{}", serde_json::to_string_pretty(&message).unwrap());
         println!("\n");

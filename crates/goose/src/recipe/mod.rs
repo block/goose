@@ -4,8 +4,10 @@ use std::collections::HashMap;
 use std::fmt;
 
 use crate::agents::extension::ExtensionConfig;
+use crate::agents::types::RetryConfig;
 use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 pub mod build_recipe;
 pub mod read_recipe_file_content;
@@ -36,7 +38,7 @@ fn default_version() -> String {
 /// * `author` - Information about the Recipe's creator and metadata
 /// * `parameters` - Additional parameters for the Recipe
 /// * `response` - Response configuration including JSON schema validation
-///
+/// * `retry` - Retry configuration for automated validation and recovery
 /// # Example
 ///
 ///
@@ -65,9 +67,10 @@ fn default_version() -> String {
 ///     parameters: None,
 ///     response: None,
 ///     sub_recipes: None,
+///     retry: None,
 /// };
 ///
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
 pub struct Recipe {
     // Required fields
     #[serde(default = "default_version")]
@@ -108,9 +111,12 @@ pub struct Recipe {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sub_recipes: Option<Vec<SubRecipe>>, // sub-recipes for the recipe
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retry: Option<RetryConfig>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
 pub struct Author {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub contact: Option<String>, // creator/contact information of the recipe
@@ -119,7 +125,7 @@ pub struct Author {
     pub metadata: Option<String>, // any additional metadata for the author
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
 pub struct Settings {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub goose_provider: Option<String>,
@@ -131,13 +137,13 @@ pub struct Settings {
     pub temperature: Option<f32>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
 pub struct Response {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub json_schema: Option<serde_json::Value>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
 pub struct SubRecipe {
     pub name: String,
     pub path: String,
@@ -145,6 +151,8 @@ pub struct SubRecipe {
     pub values: Option<HashMap<String, String>>,
     #[serde(default)]
     pub sequential_when_repeated: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
 }
 
 fn deserialize_value_map_as_string<'de, D>(
@@ -172,7 +180,7 @@ where
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum RecipeParameterRequirement {
     Required,
@@ -190,7 +198,7 @@ impl fmt::Display for RecipeParameterRequirement {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum RecipeParameterInputType {
     String,
@@ -198,6 +206,7 @@ pub enum RecipeParameterInputType {
     Boolean,
     Date,
     File,
+    Select,
 }
 
 impl fmt::Display for RecipeParameterInputType {
@@ -210,7 +219,7 @@ impl fmt::Display for RecipeParameterInputType {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
 pub struct RecipeParameter {
     pub key: String,
     pub input_type: RecipeParameterInputType,
@@ -218,6 +227,8 @@ pub struct RecipeParameter {
     pub description: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub options: Option<Vec<String>>,
 }
 
 /// Builder for creating Recipe instances
@@ -238,6 +249,7 @@ pub struct RecipeBuilder {
     parameters: Option<Vec<RecipeParameter>>,
     response: Option<Response>,
     sub_recipes: Option<Vec<SubRecipe>>,
+    retry: Option<RetryConfig>,
 }
 
 impl Recipe {
@@ -270,26 +282,39 @@ impl Recipe {
             parameters: None,
             response: None,
             sub_recipes: None,
+            retry: None,
         }
     }
     pub fn from_content(content: &str) -> Result<Self> {
-        if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(content) {
-            if let Some(nested_recipe) = json_value.get("recipe") {
-                Ok(serde_json::from_value(nested_recipe.clone())?)
+        let recipe: Recipe =
+            if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(content) {
+                if let Some(nested_recipe) = json_value.get("recipe") {
+                    serde_json::from_value(nested_recipe.clone())?
+                } else {
+                    serde_json::from_str(content)?
+                }
+            } else if let Ok(yaml_value) = serde_yaml::from_str::<serde_yaml::Value>(content) {
+                if let Some(nested_recipe) = yaml_value.get("recipe") {
+                    serde_yaml::from_value(nested_recipe.clone())?
+                } else {
+                    serde_yaml::from_str(content)?
+                }
             } else {
-                Ok(serde_json::from_str(content)?)
+                return Err(anyhow::anyhow!(
+                    "Unsupported format. Expected JSON or YAML."
+                ));
+            };
+
+        if let Some(ref retry_config) = recipe.retry {
+            if let Err(validation_error) = retry_config.validate() {
+                return Err(anyhow::anyhow!(
+                    "Invalid retry configuration: {}",
+                    validation_error
+                ));
             }
-        } else if let Ok(yaml_value) = serde_yaml::from_str::<serde_yaml::Value>(content) {
-            if let Some(nested_recipe) = yaml_value.get("recipe") {
-                Ok(serde_yaml::from_value(nested_recipe.clone())?)
-            } else {
-                Ok(serde_yaml::from_str(content)?)
-            }
-        } else {
-            Err(anyhow::anyhow!(
-                "Unsupported format. Expected JSON or YAML."
-            ))
         }
+
+        Ok(recipe)
     }
 }
 
@@ -368,6 +393,12 @@ impl RecipeBuilder {
         self
     }
 
+    /// Sets the retry configuration for the Recipe
+    pub fn retry(mut self, retry: RetryConfig) -> Self {
+        self.retry = Some(retry);
+        self
+    }
+
     /// Builds the Recipe instance
     ///
     /// Returns an error if any required fields are missing
@@ -393,6 +424,7 @@ impl RecipeBuilder {
             parameters: self.parameters,
             response: self.response,
             sub_recipes: self.sub_recipes,
+            retry: self.retry,
         })
     }
 }
@@ -400,6 +432,7 @@ impl RecipeBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
 
     #[test]
     fn test_from_content_with_json() {
@@ -619,6 +652,52 @@ sub_recipes:
         assert!(recipe.author.is_some());
         let author = recipe.author.unwrap();
         assert_eq!(author.contact, Some("test@example.com".to_string()));
+    }
+
+    #[test]
+    fn test_inline_python_extension() {
+        let content = r#"{
+            "version": "1.0.0",
+            "title": "Test Recipe",
+            "description": "A test recipe",
+            "instructions": "Test instructions",
+            "extensions": [
+                {
+                    "type": "inline_python",
+                    "name": "test_python",
+                    "code": "print('hello world')",
+                    "timeout": 300,
+                    "description": "Test python extension",
+                    "dependencies": ["numpy", "matplotlib"]
+                }
+            ]
+        }"#;
+
+        let recipe = Recipe::from_content(content).unwrap();
+
+        assert!(recipe.extensions.is_some());
+        let extensions = recipe.extensions.unwrap();
+        assert_eq!(extensions.len(), 1);
+
+        match &extensions[0] {
+            ExtensionConfig::InlinePython {
+                name,
+                code,
+                description,
+                timeout,
+                dependencies,
+            } => {
+                assert_eq!(name, "test_python");
+                assert_eq!(code, "print('hello world')");
+                assert_eq!(description.as_deref(), Some("Test python extension"));
+                assert_eq!(timeout, &Some(300));
+                assert!(dependencies.is_some());
+                let deps = dependencies.as_ref().unwrap();
+                assert!(deps.contains(&"numpy".to_string()));
+                assert!(deps.contains(&"matplotlib".to_string()));
+            }
+            _ => panic!("Expected InlinePython extension"),
+        }
     }
 
     #[test]

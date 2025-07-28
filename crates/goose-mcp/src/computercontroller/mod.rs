@@ -2,7 +2,7 @@ use base64::Engine;
 use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::{formatdoc, indoc};
 use reqwest::{Client, Url};
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::{
     collections::HashMap, fs, future::Future, path::PathBuf, pin::Pin, sync::Arc, sync::Mutex,
 };
@@ -13,14 +13,14 @@ use std::os::unix::fs::PermissionsExt;
 
 use mcp_core::{
     handler::{PromptError, ResourceError, ToolError},
-    prompt::Prompt,
-    protocol::{JsonRpcMessage, ServerCapabilities},
-    resource::Resource,
-    tool::{Tool, ToolAnnotations},
+    protocol::ServerCapabilities,
 };
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
-use rmcp::model::Content;
+use rmcp::model::{
+    AnnotateAble, Content, JsonRpcMessage, Prompt, RawResource, Resource, Tool, ToolAnnotations,
+};
+use rmcp::object;
 
 mod docx_tool;
 mod pdf_tool;
@@ -60,7 +60,7 @@ impl ComputerControllerRouter {
                 The content is cached locally and can be accessed later using the cache_path
                 returned in the response.
             "#},
-            json!({
+            object!({
                 "type": "object",
                 "required": ["url"],
                 "properties": {
@@ -76,14 +76,14 @@ impl ComputerControllerRouter {
                     }
                 }
             }),
-            Some(ToolAnnotations {
-                title: Some("Web Scrape".to_string()),
-                read_only_hint: true,
-                destructive_hint: false,
-                idempotent_hint: false,
-                open_world_hint: true,
-            }),
-        );
+        )
+        .annotate(ToolAnnotations {
+            title: Some("Web Scrape".to_string()),
+            read_only_hint: Some(true),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(false),
+            open_world_hint: Some(true),
+        });
 
         let computer_control_desc = match std::env::consts::OS {
             "windows" => indoc! {r#"
@@ -133,7 +133,7 @@ impl ComputerControllerRouter {
         let computer_control_tool = Tool::new(
             "computer_control",
             computer_control_desc.to_string(),
-            json!({
+            object!({
                 "type": "object",
                 "required": ["script"],
                 "properties": {
@@ -148,7 +148,6 @@ impl ComputerControllerRouter {
                     }
                 }
             }),
-            None,
         );
 
         let quick_script_desc = match std::env::consts::OS {
@@ -179,7 +178,7 @@ impl ComputerControllerRouter {
         let quick_script_tool = Tool::new(
             "automation_script",
             quick_script_desc.to_string(),
-            json!({
+            object!({
                 "type": "object",
                 "required": ["language", "script"],
                 "properties": {
@@ -199,7 +198,6 @@ impl ComputerControllerRouter {
                     }
                 }
             }),
-            None,
         );
 
         let cache_tool = Tool::new(
@@ -211,7 +209,7 @@ impl ComputerControllerRouter {
                 - delete: Delete a cached file
                 - clear: Clear all cached files
             "#},
-            json!({
+            object!({
                 "type": "object",
                 "required": ["command"],
                 "properties": {
@@ -226,7 +224,6 @@ impl ComputerControllerRouter {
                     }
                 }
             }),
-            None,
         );
 
         let pdf_tool = Tool::new(
@@ -239,7 +236,7 @@ impl ComputerControllerRouter {
 
                 Use this when there is a .pdf file or files that need to be processed.
             "#},
-            json!({
+            object!({
                 "type": "object",
                 "required": ["path", "operation"],
                 "properties": {
@@ -254,14 +251,14 @@ impl ComputerControllerRouter {
                     }
                 }
             }),
-            Some(ToolAnnotations {
-                title: Some("PDF process".to_string()),
-                read_only_hint: true,
-                destructive_hint: false,
-                idempotent_hint: true,
-                open_world_hint: false,
-            }),
-        );
+        )
+        .annotate(ToolAnnotations {
+            title: Some("PDF process".to_string()),
+            read_only_hint: Some(true),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(true),
+            open_world_hint: Some(false),
+        });
 
         let docx_tool = Tool::new(
             "docx_tool",
@@ -278,7 +275,7 @@ impl ComputerControllerRouter {
 
                 Use this when there is a .docx file that needs to be processed or created.
             "#},
-            json!({
+            object!({
                 "type": "object",
                 "required": ["path", "operation"],
                 "properties": {
@@ -359,7 +356,6 @@ impl ComputerControllerRouter {
                     }
                 }
             }),
-            None,
         );
 
         let xlsx_tool = Tool::new(
@@ -377,7 +373,7 @@ impl ComputerControllerRouter {
 
                 Use this when working with Excel spreadsheets to analyze or modify data.
             "#},
-            json!({
+            object!({
                 "type": "object",
                 "required": ["path", "operation"],
                 "properties": {
@@ -421,7 +417,6 @@ impl ComputerControllerRouter {
                     }
                 }
             }),
-            None,
         );
 
         // choose_app_strategy().cache_dir()
@@ -586,14 +581,16 @@ impl ComputerControllerRouter {
             .map_err(|_| ToolError::ExecutionError("Invalid cache path".into()))?
             .to_string();
 
-        let resource = Resource::new(
-            uri.clone(),
-            Some(mime_type.to_string()),
-            Some(cache_path.to_string_lossy().into_owned()),
-        )
-        .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
-
-        self.active_resources.lock().unwrap().insert(uri, resource);
+        let mut resource = RawResource::new(uri.clone(), cache_path.to_string_lossy().into_owned());
+        resource.mime_type = Some(if mime_type == "blob" {
+            "blob".to_string()
+        } else {
+            "text".to_string()
+        });
+        self.active_resources
+            .lock()
+            .unwrap()
+            .insert(uri, resource.no_annotation());
         Ok(())
     }
 
@@ -1176,17 +1173,17 @@ impl Router for ComputerControllerRouter {
                 .to_file_path()
                 .map_err(|_| ResourceError::NotFound("Invalid file path in URI".into()))?;
 
-            match resource.mime_type.as_str() {
-                "text" | "json" => fs::read_to_string(&path).map_err(|e| {
+            match resource.raw.mime_type.as_deref() {
+                Some("text") | Some("json") | None => fs::read_to_string(&path).map_err(|e| {
                     ResourceError::ExecutionError(format!("Failed to read file: {}", e))
                 }),
-                "binary" => {
+                Some("binary") => {
                     let bytes = fs::read(&path).map_err(|e| {
                         ResourceError::ExecutionError(format!("Failed to read file: {}", e))
                     })?;
                     Ok(base64::prelude::BASE64_STANDARD.encode(bytes))
                 }
-                mime_type => Err(ResourceError::NotFound(format!(
+                Some(mime_type) => Err(ResourceError::NotFound(format!(
                     "Unsupported mime type: {}",
                     mime_type
                 ))),

@@ -3,7 +3,7 @@ use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use anyhow::{Context, Result};
-use mcp_core::tool::Tool;
+use rmcp::model::Tool;
 use serde_json::Value;
 
 use std::fmt;
@@ -332,7 +332,7 @@ pub fn create_request(
 /// * `Result<Message>` - Converted message
 pub fn response_to_message(response: Value, request_context: RequestContext) -> Result<Message> {
     match request_context.provider() {
-        ModelProvider::Anthropic => anthropic::response_to_message(response),
+        ModelProvider::Anthropic => anthropic::response_to_message(&response),
         ModelProvider::Google => google::response_to_message(response),
     }
 }

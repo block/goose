@@ -3,8 +3,8 @@ use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
 use anyhow::{anyhow, Result};
-use mcp_core::tool::{Tool, ToolCall};
-use rmcp::model::Role;
+use mcp_core::tool::ToolCall;
+use rmcp::model::{Role, Tool};
 use serde_json::{json, Value};
 use std::collections::HashSet;
 
@@ -207,7 +207,7 @@ pub fn format_system(system: &str) -> Value {
 }
 
 /// Convert Anthropic's API response to internal Message format
-pub fn response_to_message(response: Value) -> Result<Message> {
+pub fn response_to_message(response: &Value) -> Result<Message> {
     let content_blocks = response
         .get(CONTENT_FIELD)
         .and_then(|c| c.as_array())
@@ -467,6 +467,7 @@ where
         let mut accumulated_tool_calls: std::collections::HashMap<String, (String, String)> = std::collections::HashMap::new();
         let mut current_tool_id: Option<String> = None;
         let mut final_usage: Option<crate::providers::base::ProviderUsage> = None;
+        let mut message_id: Option<String> = None;
 
         while let Some(line_result) = stream.next().await {
             let line = line_result?;
@@ -496,6 +497,11 @@ where
                 "message_start" => {
                     // Message started, we can extract initial metadata and usage if needed
                     if let Some(message_data) = event.data.get("message") {
+                        // Extract message ID
+                        if let Some(id) = message_data.get("id").and_then(|v| v.as_str()) {
+                            message_id = Some(id.to_string());
+                        }
+
                         if let Some(usage_data) = message_data.get("usage") {
                             let usage = get_usage(usage_data).unwrap_or_default();
                             tracing::debug!("🔍 Anthropic message_start parsed usage: input_tokens={:?}, output_tokens={:?}, total_tokens={:?}",
@@ -532,12 +538,13 @@ where
                             if let Some(text) = delta.get("text").and_then(|v| v.as_str()) {
                                 accumulated_text.push_str(text);
 
-                                // Yield partial text message
-                                let message = Message::new(
+                                // Yield partial text message with the same ID from message_start
+                                let mut message = Message::new(
                                     Role::Assistant,
                                     chrono::Utc::now().timestamp(),
                                     vec![MessageContent::text(text)],
                                 );
+                                message.id = message_id.clone();
                                 yield (Some(message), None);
                             }
                         } else if delta.get("type") == Some(&json!("input_json_delta")) {
@@ -568,11 +575,12 @@ where
                                         let error = mcp_core::handler::ToolError::InvalidParameters(
                                             format!("Could not parse tool arguments: {}", args)
                                         );
-                                        let message = Message::new(
+                                        let mut message = Message::new(
                                             Role::Assistant,
                                             chrono::Utc::now().timestamp(),
                                             vec![MessageContent::tool_request(tool_id, Err(error))],
                                         );
+                                        message.id = message_id.clone();
                                         yield (Some(message), None);
                                         continue;
                                     }
@@ -580,11 +588,12 @@ where
                             };
 
                             let tool_call = ToolCall::new(&name, parsed_args);
-                            let message = Message::new(
+                            let mut message = Message::new(
                                 rmcp::model::Role::Assistant,
                                 chrono::Utc::now().timestamp(),
                                 vec![MessageContent::tool_request(tool_id, Ok(tool_call))],
                             );
+                            message.id = message_id.clone();
                             yield (Some(message), None);
                         }
                     }
@@ -667,6 +676,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rmcp::object;
     use serde_json::json;
 
     #[test]
@@ -690,7 +700,7 @@ mod tests {
             }
         });
 
-        let message = response_to_message(response.clone())?;
+        let message = response_to_message(&response)?;
         let usage = get_usage(&response)?;
 
         if let MessageContent::Text(text) = &message.content[0] {
@@ -731,7 +741,7 @@ mod tests {
             }
         });
 
-        let message = response_to_message(response.clone())?;
+        let message = response_to_message(&response)?;
         let usage = get_usage(&response)?;
 
         if let MessageContent::ToolRequest(tool_request) = &message.content[0] {
@@ -781,7 +791,7 @@ mod tests {
             }
         });
 
-        let message = response_to_message(response.clone())?;
+        let message = response_to_message(&response)?;
         let usage = get_usage(&response)?;
 
         assert_eq!(message.content.len(), 3);
@@ -849,7 +859,7 @@ mod tests {
             Tool::new(
                 "calculator",
                 "Calculate mathematical expressions",
-                json!({
+                object!({
                     "type": "object",
                     "properties": {
                         "expression": {
@@ -858,12 +868,11 @@ mod tests {
                         }
                     }
                 }),
-                None,
             ),
             Tool::new(
                 "weather",
                 "Get weather information",
-                json!({
+                object!({
                     "type": "object",
                     "properties": {
                         "location": {
@@ -872,7 +881,6 @@ mod tests {
                         }
                     }
                 }),
-                None,
             ),
         ];
 

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use dotenv::dotenv;
+use dotenvy::dotenv;
 use goose::{
     message::Message,
     providers::{

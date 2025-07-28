@@ -13,7 +13,7 @@ use super::utils::{
 use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
-use mcp_core::tool::Tool;
+use rmcp::model::Tool;
 use url::Url;
 
 pub const OPENROUTER_DEFAULT_MODEL: &str = "anthropic/claude-3.5-sonnet";
@@ -65,7 +65,7 @@ impl OpenRouterProvider {
         })
     }
 
-    async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
+    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
         let base_url = Url::parse(&self.host)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
         let url = base_url.join("api/v1/chat/completions").map_err(|e| {
@@ -79,12 +79,12 @@ impl OpenRouterProvider {
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("HTTP-Referer", "https://block.github.io/goose")
             .header("X-Title", "Goose")
-            .json(&payload)
+            .json(payload)
             .send()
             .await?;
 
         // Handle Google-compatible model responses differently
-        if is_google_model(&payload) {
+        if is_google_model(payload) {
             return handle_response_google_compat(response).await;
         }
 
@@ -259,10 +259,10 @@ impl Provider for OpenRouterProvider {
         let payload = create_request_based_on_model(self, system, messages, tools)?;
 
         // Make request
-        let response = self.post(payload.clone()).await?;
+        let response = self.post(&payload).await?;
 
         // Parse response
-        let message = response_to_message(response.clone())?;
+        let message = response_to_message(&response)?;
         let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
             tracing::debug!("Failed to get usage data");
             Usage::default()

@@ -5,19 +5,18 @@ use std::{
 };
 
 type PromptFuture = Pin<Box<dyn Future<Output = Result<String, PromptError>> + Send + 'static>>;
-
 use mcp_core::{
     handler::{PromptError, ResourceError, ToolError},
-    prompt::{Prompt, PromptMessage, PromptMessageRole},
     protocol::{
-        CallToolResult, GetPromptResult, Implementation, InitializeResult, JsonRpcMessage,
-        JsonRpcRequest, JsonRpcResponse, ListPromptsResult, ListResourcesResult, ListToolsResult,
-        PromptsCapability, ReadResourceResult, ResourcesCapability, ServerCapabilities,
-        ToolsCapability,
+        CallToolResult, Implementation, InitializeResult, ListPromptsResult, ListResourcesResult,
+        ListToolsResult, PromptsCapability, ReadResourceResult, ResourcesCapability,
+        ServerCapabilities, ToolsCapability,
     },
-    ResourceContents,
 };
-use rmcp::model::Content;
+use rmcp::model::{
+    Content, GetPromptResult, JsonRpcMessage, JsonRpcRequest, JsonRpcResponse, JsonRpcVersion2_0,
+    Prompt, PromptMessage, PromptMessageRole, RequestId, Resource, ResourceContents,
+};
 use serde_json::Value;
 use tokio::sync::mpsc;
 use tower_service::Service;
@@ -87,14 +86,14 @@ pub trait Router: Send + Sync + 'static {
     // in the protocol, instructions are optional but we make it required
     fn instructions(&self) -> String;
     fn capabilities(&self) -> ServerCapabilities;
-    fn list_tools(&self) -> Vec<mcp_core::tool::Tool>;
+    fn list_tools(&self) -> Vec<rmcp::model::Tool>;
     fn call_tool(
         &self,
         tool_name: &str,
         arguments: Value,
         notifier: mpsc::Sender<JsonRpcMessage>,
     ) -> Pin<Box<dyn Future<Output = Result<Vec<Content>, ToolError>> + Send + 'static>>;
-    fn list_resources(&self) -> Vec<mcp_core::resource::Resource>;
+    fn list_resources(&self) -> Vec<Resource>;
     fn read_resource(
         &self,
         uri: &str,
@@ -103,13 +102,30 @@ pub trait Router: Send + Sync + 'static {
     fn get_prompt(&self, prompt_name: &str) -> PromptFuture;
 
     // Helper method to create base response
-    fn create_response(&self, id: Option<u64>) -> JsonRpcResponse {
+    fn create_response(&self, id: RequestId) -> JsonRpcResponse {
         JsonRpcResponse {
-            jsonrpc: "2.0".to_string(),
+            jsonrpc: JsonRpcVersion2_0,
             id,
-            result: None,
-            error: None,
+            result: serde_json::Map::new(),
         }
+    }
+
+    // Helper method to set result on response
+    fn set_result<T: serde::Serialize>(
+        &self,
+        response: &mut JsonRpcResponse,
+        result: T,
+    ) -> Result<(), RouterError> {
+        let value = serde_json::to_value(result)
+            .map_err(|e| RouterError::Internal(format!("JSON serialization error: {}", e)))?;
+
+        if let Some(obj) = value.as_object() {
+            response.result = obj.clone();
+        } else {
+            return Err(RouterError::Internal("Result must be a JSON object".into()));
+        }
+
+        Ok(())
     }
 
     fn handle_initialize(
@@ -128,11 +144,7 @@ pub trait Router: Send + Sync + 'static {
             };
 
             let mut response = self.create_response(req.id);
-            response.result =
-                Some(serde_json::to_value(result).map_err(|e| {
-                    RouterError::Internal(format!("JSON serialization error: {}", e))
-                })?);
-
+            self.set_result(&mut response, result)?;
             Ok(response)
         }
     }
@@ -149,11 +161,7 @@ pub trait Router: Send + Sync + 'static {
                 next_cursor: None,
             };
             let mut response = self.create_response(req.id);
-            response.result =
-                Some(serde_json::to_value(result).map_err(|e| {
-                    RouterError::Internal(format!("JSON serialization error: {}", e))
-                })?);
-
+            self.set_result(&mut response, result)?;
             Ok(response)
         }
     }
@@ -164,9 +172,7 @@ pub trait Router: Send + Sync + 'static {
         notifier: mpsc::Sender<JsonRpcMessage>,
     ) -> impl Future<Output = Result<JsonRpcResponse, RouterError>> + Send {
         async move {
-            let params = req
-                .params
-                .ok_or_else(|| RouterError::InvalidParams("Missing parameters".into()))?;
+            let params = &req.request.params;
 
             let name = params
                 .get("name")
@@ -187,11 +193,7 @@ pub trait Router: Send + Sync + 'static {
             };
 
             let mut response = self.create_response(req.id);
-            response.result =
-                Some(serde_json::to_value(result).map_err(|e| {
-                    RouterError::Internal(format!("JSON serialization error: {}", e))
-                })?);
-
+            self.set_result(&mut response, result)?;
             Ok(response)
         }
     }
@@ -208,11 +210,7 @@ pub trait Router: Send + Sync + 'static {
                 next_cursor: None,
             };
             let mut response = self.create_response(req.id);
-            response.result =
-                Some(serde_json::to_value(result).map_err(|e| {
-                    RouterError::Internal(format!("JSON serialization error: {}", e))
-                })?);
-
+            self.set_result(&mut response, result)?;
             Ok(response)
         }
     }
@@ -222,9 +220,7 @@ pub trait Router: Send + Sync + 'static {
         req: JsonRpcRequest,
     ) -> impl Future<Output = Result<JsonRpcResponse, RouterError>> + Send {
         async move {
-            let params = req
-                .params
-                .ok_or_else(|| RouterError::InvalidParams("Missing parameters".into()))?;
+            let params = &req.request.params;
 
             let uri = params
                 .get("uri")
@@ -242,11 +238,7 @@ pub trait Router: Send + Sync + 'static {
             };
 
             let mut response = self.create_response(req.id);
-            response.result =
-                Some(serde_json::to_value(result).map_err(|e| {
-                    RouterError::Internal(format!("JSON serialization error: {}", e))
-                })?);
-
+            self.set_result(&mut response, result)?;
             Ok(response)
         }
     }
@@ -261,11 +253,7 @@ pub trait Router: Send + Sync + 'static {
             let result = ListPromptsResult { prompts };
 
             let mut response = self.create_response(req.id);
-            response.result =
-                Some(serde_json::to_value(result).map_err(|e| {
-                    RouterError::Internal(format!("JSON serialization error: {}", e))
-                })?);
-
+            self.set_result(&mut response, result)?;
             Ok(response)
         }
     }
@@ -276,9 +264,7 @@ pub trait Router: Send + Sync + 'static {
     ) -> impl Future<Output = Result<JsonRpcResponse, RouterError>> + Send {
         async move {
             // Validate and extract parameters
-            let params = req
-                .params
-                .ok_or_else(|| RouterError::InvalidParams("Missing parameters".into()))?;
+            let params = &req.request.params;
 
             // Extract "name" field
             let prompt_name = params
@@ -383,13 +369,11 @@ pub trait Router: Send + Sync + 'static {
 
             // Build the final response
             let mut response = self.create_response(req.id);
-            response.result = Some(
-                serde_json::to_value(GetPromptResult {
-                    description: Some(description_filled),
-                    messages,
-                })
-                .map_err(|e| RouterError::Internal(format!("JSON serialization error: {}", e)))?,
-            );
+            let result = GetPromptResult {
+                description: Some(description_filled),
+                messages,
+            };
+            self.set_result(&mut response, result)?;
             Ok(response)
         }
     }
@@ -418,7 +402,7 @@ where
         let this = self.0.clone();
 
         Box::pin(async move {
-            let result = match req.request.method.as_str() {
+            let result = match req.request.request.method.as_str() {
                 "initialize" => this.handle_initialize(req.request).await,
                 "tools/list" => this.handle_tools_list(req.request).await,
                 "tools/call" => this.handle_tools_call(req.request, req.notifier).await,
@@ -427,9 +411,9 @@ where
                 "prompts/list" => this.handle_prompts_list(req.request).await,
                 "prompts/get" => this.handle_prompts_get(req.request).await,
                 _ => {
-                    let mut response = this.create_response(req.request.id);
-                    response.error = Some(RouterError::MethodNotFound(req.request.method).into());
-                    Ok(response)
+                    return Err(
+                        RouterError::MethodNotFound(req.request.request.method.clone()).into(),
+                    );
                 }
             };
 

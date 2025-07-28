@@ -37,9 +37,9 @@ use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::create_request;
 use anyhow::Result;
-use mcp_core::tool::{Tool, ToolCall};
+use mcp_core::tool::ToolCall;
 use reqwest::Client;
-use rmcp::model::RawContent;
+use rmcp::model::{RawContent, Tool};
 use serde_json::{json, Value};
 use std::ops::Deref;
 use std::time::Duration;
@@ -89,12 +89,12 @@ impl OllamaInterpreter {
 
         // Format the URL correctly with http:// prefix if needed
         let base = if host.starts_with("http://") || host.starts_with("https://") {
-            host.clone()
+            &host
         } else {
-            format!("http://{}", host)
+            &format!("http://{}", host)
         };
 
-        let mut base_url = url::Url::parse(&base)
+        let mut base_url = url::Url::parse(base)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
 
         // Set the default port if missing
@@ -297,7 +297,7 @@ pub fn format_tool_info(tools: &[Tool]) -> String {
     let mut tool_info = String::new();
     for tool in tools {
         tool_info.push_str(&format!(
-            "Tool Name: {}\nSchema: {}\nDescription: {}\n\n",
+            "Tool Name: {}\nSchema: {}\nDescription: {:?}\n\n",
             tool.name,
             serde_json::to_string_pretty(&tool.input_schema).unwrap_or_default(),
             tool.description
