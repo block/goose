@@ -38,6 +38,13 @@ import Time from './Time';
 import { Gear } from './Gear';
 import Youtube from './Youtube';
 import { Microphone } from './Microphone';
+import { Watch0 } from './Watch0';
+import { Watch1 } from './Watch1';
+import { Watch2 } from './Watch2';
+import { Watch3 } from './Watch3';
+import { Watch4 } from './Watch4';
+import { Watch5 } from './Watch5';
+import { Watch6 } from './Watch6';
 
 export {
   ArrowDown,
@@ -79,5 +86,12 @@ export {
   Send,
   Settings,
   Time,
+  Watch0,
+  Watch1,
+  Watch2,
+  Watch3,
+  Watch4,
+  Watch5,
+  Watch6,
   Youtube,
 };

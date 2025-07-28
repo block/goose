@@ -22,7 +22,7 @@ use crate::model::ModelConfig;
 use crate::providers::base::MessageStream;
 use crate::providers::formats::openai::response_to_streaming_message;
 use crate::providers::utils::handle_status_openai_compat;
-use mcp_core::tool::Tool;
+use rmcp::model::Tool;
 
 pub const OPEN_AI_DEFAULT_MODEL: &str = "gpt-4o";
 pub const OPEN_AI_KNOWN_MODELS: &[&str] = &[

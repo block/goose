@@ -4,7 +4,7 @@ use std::sync::Arc;
 use async_stream::try_stream;
 use futures::stream::{self, BoxStream};
 use futures::{Stream, StreamExt};
-use rmcp::model::JsonRpcMessage;
+use rmcp::model::ServerNotification;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
@@ -19,7 +19,7 @@ use rmcp::model::Content;
 // can be used to receive notifications from the tool.
 pub struct ToolCallResult {
     pub result: Box<dyn Future<Output = ToolResult<Vec<Content>>> + Send + Unpin>,
-    pub notification_stream: Option<Box<dyn Stream<Item = JsonRpcMessage> + Send + Unpin>>,
+    pub notification_stream: Option<Box<dyn Stream<Item = ServerNotification> + Send + Unpin>>,
 }
 
 impl From<ToolResult<Vec<Content>>> for ToolCallResult {

@@ -1,6 +1,6 @@
 use crate::session;
-use mcp_core::{Tool, ToolResult};
-use rmcp::model::Content;
+use mcp_core::ToolResult;
+use rmcp::model::{Content, Tool};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Arc;

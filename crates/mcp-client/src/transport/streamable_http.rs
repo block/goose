@@ -1,5 +1,5 @@
 use crate::oauth::{authenticate_service, ServiceConfig};
-use crate::transport::Error;
+use crate::transport::{Error, TransportMessageRecv};
 use async_trait::async_trait;
 use eventsource_client::{Client, SSE};
 use futures::TryStreamExt;
@@ -25,7 +25,7 @@ pub struct StreamableHttpActor {
     /// Receives messages (requests/notifications) from the handle
     receiver: mpsc::Receiver<String>,
     /// Sends messages (responses) back to the handle
-    sender: mpsc::Sender<JsonRpcMessage>,
+    sender: mpsc::Sender<TransportMessageRecv>,
     /// MCP endpoint URL
     mcp_endpoint: String,
     /// HTTP client for sending requests
@@ -41,7 +41,7 @@ pub struct StreamableHttpActor {
 impl StreamableHttpActor {
     pub fn new(
         receiver: mpsc::Receiver<String>,
-        sender: mpsc::Sender<JsonRpcMessage>,
+        sender: mpsc::Sender<TransportMessageRecv>,
         mcp_endpoint: String,
         session_id: Arc<RwLock<Option<String>>>,
         env: HashMap<String, String>,
@@ -84,8 +84,8 @@ impl StreamableHttpActor {
         debug!("Sending message to MCP endpoint: {}", message_str);
 
         // Parse the message to determine if it's a request that expects a response
-        let parsed_message: JsonRpcMessage =
-            serde_json::from_str(&message_str).map_err(Error::Serialization)?;
+        let parsed_message = serde_json::from_str::<TransportMessageRecv>(&message_str)
+            .map_err(Error::Serialization)?;
 
         let expects_response = matches!(
             parsed_message,
@@ -196,8 +196,8 @@ impl StreamableHttpActor {
             })?;
 
             if !response_text.is_empty() {
-                let json_message: JsonRpcMessage =
-                    serde_json::from_str(&response_text).map_err(Error::Serialization)?;
+                let json_message = serde_json::from_str::<TransportMessageRecv>(&response_text)
+                    .map_err(Error::Serialization)?;
 
                 let _ = self.sender.send(json_message).await;
             }
@@ -267,7 +267,7 @@ impl StreamableHttpActor {
                 // Empty line indicates end of event
                 if !event_data.is_empty() {
                     // Parse the streamed data as JSON-RPC message
-                    match serde_json::from_str::<JsonRpcMessage>(&event_data) {
+                    match serde_json::from_str::<TransportMessageRecv>(&event_data) {
                         Ok(message) => {
                             debug!("Received streaming HTTP response message: {:?}", message);
                             let _ = self.sender.send(message).await;
@@ -301,7 +301,7 @@ impl StreamableHttpActor {
 #[derive(Clone)]
 pub struct StreamableHttpTransportHandle {
     sender: mpsc::Sender<String>,
-    receiver: Arc<Mutex<mpsc::Receiver<JsonRpcMessage>>>,
+    receiver: Arc<Mutex<mpsc::Receiver<TransportMessageRecv>>>,
     session_id: Arc<RwLock<Option<String>>>,
     mcp_endpoint: String,
     http_client: HttpClient,
@@ -314,7 +314,7 @@ impl TransportHandle for StreamableHttpTransportHandle {
         serialize_and_send(&self.sender, message).await
     }
 
-    async fn receive(&self) -> Result<JsonRpcMessage, Error> {
+    async fn receive(&self) -> Result<TransportMessageRecv, Error> {
         let mut receiver = self.receiver.lock().await;
         receiver.recv().await.ok_or(Error::ChannelClosed)
     }

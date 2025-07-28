@@ -7,7 +7,7 @@ use crate::agents::subagent_execution_tool::task_execution_tracker::{
 use crate::agents::subagent_execution_tool::tasks::process_task;
 use crate::agents::subagent_execution_tool::workers::spawn_worker;
 use crate::agents::subagent_task_config::TaskConfig;
-use rmcp::model::JsonRpcMessage;
+use rmcp::model::ServerNotification;
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -20,7 +20,7 @@ const DEFAULT_MAX_WORKERS: usize = 10;
 
 pub async fn execute_single_task(
     task: &Task,
-    notifier: mpsc::Sender<JsonRpcMessage>,
+    notifier: mpsc::Sender<ServerNotification>,
     task_config: TaskConfig,
     cancellation_token: Option<CancellationToken>,
 ) -> ExecutionResponse {
@@ -56,7 +56,7 @@ pub async fn execute_single_task(
 
 pub async fn execute_tasks_in_parallel(
     tasks: Vec<Task>,
-    notifier: Sender<JsonRpcMessage>,
+    notifier: Sender<ServerNotification>,
     task_config: TaskConfig,
     cancellation_token: Option<CancellationToken>,
 ) -> ExecutionResponse {
@@ -193,15 +193,7 @@ async fn collect_results(
     expected_count: usize,
 ) -> Vec<TaskResult> {
     let mut results = Vec::new();
-    while let Some(mut result) = result_rx.recv().await {
-        // Truncate data to 650 chars if needed
-        if let Some(data) = result.data.as_mut() {
-            if let Some(data_str) = data.as_str() {
-                if data_str.len() > 650 {
-                    *data = serde_json::Value::String(format!("{}...", &data_str[..650]));
-                }
-            }
-        }
+    while let Some(result) = result_rx.recv().await {
         task_execution_tracker
             .complete_task(&result.task_id, result.clone())
             .await;

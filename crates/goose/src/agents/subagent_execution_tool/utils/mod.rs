@@ -23,5 +23,38 @@ pub fn count_by_status(tasks: &HashMap<String, TaskInfo>) -> (usize, usize, usiz
     (total, pending, running, completed, failed)
 }
 
+pub fn strip_ansi_codes(text: &str) -> String {
+    let mut result = String::new();
+    let mut chars = text.chars();
+
+    while let Some(ch) = chars.next() {
+        if ch == '\x1b' {
+            if let Some(next_ch) = chars.next() {
+                if next_ch == '[' {
+                    // This is an ANSI escape sequence, consume until alphabetic character
+                    loop {
+                        match chars.next() {
+                            Some(c) if c.is_ascii_alphabetic() => break,
+                            Some(_) => continue,
+                            None => break,
+                        }
+                    }
+                } else {
+                    // Not an ANSI sequence, keep both characters
+                    result.push(ch);
+                    result.push(next_ch);
+                }
+            } else {
+                // End of string after \x1b
+                result.push(ch);
+            }
+        } else {
+            result.push(ch);
+        }
+    }
+
+    result
+}
+
 #[cfg(test)]
 mod tests;

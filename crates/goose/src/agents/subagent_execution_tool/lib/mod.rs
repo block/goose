@@ -6,7 +6,7 @@ use crate::agents::subagent_execution_tool::{
     tasks_manager::TasksManager,
 };
 use crate::agents::subagent_task_config::TaskConfig;
-use rmcp::model::JsonRpcMessage;
+use rmcp::model::ServerNotification;
 use serde_json::{json, Value};
 use tokio::sync::mpsc::Sender;
 use tokio_util::sync::CancellationToken;
@@ -14,7 +14,7 @@ use tokio_util::sync::CancellationToken;
 pub async fn execute_tasks(
     input: Value,
     execution_mode: ExecutionMode,
-    notifier: Sender<JsonRpcMessage>,
+    notifier: Sender<ServerNotification>,
     task_config: TaskConfig,
     tasks_manager: &TasksManager,
     cancellation_token: Option<CancellationToken>,
