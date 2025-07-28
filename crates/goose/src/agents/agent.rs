@@ -56,13 +56,14 @@ use super::platform_tools;
 use super::router_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::subagent_task_config::TaskConfig;
+use crate::conversation_fixer::{debug_conversation_fix, ConversationFixer};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 
 /// The main goose Agent
 pub struct Agent {
     pub(super) provider: Mutex<Option<Arc<dyn Provider>>>,
-    pub(super) extension_manager: Arc<RwLock<ExtensionManager>>,
+    pub extension_manager: Arc<RwLock<ExtensionManager>>,
     pub(super) sub_recipe_manager: Mutex<SubRecipeManager>,
     pub(super) tasks_manager: TasksManager,
     pub(super) final_output_tool: Arc<Mutex<Option<FinalOutputTool>>>,
@@ -706,14 +707,21 @@ impl Agent {
         }
     }
 
-    #[instrument(skip(self, messages, session), fields(user_message))]
+    #[instrument(skip(self, unfixed_messages, session), fields(user_message))]
     pub async fn reply(
         &self,
-        messages: &[Message],
+        unfixed_messages: &[Message],
         session: Option<SessionConfig>,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        let mut messages = messages.to_vec();
+        let (mut messages, issues) =
+            ConversationFixer::fix_conversation(Vec::from(unfixed_messages));
+        if !issues.is_empty() {
+            tracing::warn!(
+                "Conversation issue fixed: {}",
+                debug_conversation_fix(&messages, unfixed_messages, &issues)
+            );
+        }
         let initial_messages = messages.clone();
         let reply_span = tracing::Span::current();
         self.reset_retry_attempts().await;

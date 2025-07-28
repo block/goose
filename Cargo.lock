@@ -3444,6 +3444,7 @@ dependencies = [
  "clap 4.5.31",
  "cliclack",
  "console",
+ "dotenvy",
  "etcetera",
  "futures",
  "goose",

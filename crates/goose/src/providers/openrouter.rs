@@ -93,6 +93,13 @@ impl OpenRouterProvider {
             .await
             .map_err(|e| ProviderError::RequestFailed(format!("Failed to parse response: {e}")))?;
 
+        let _debug = format!(
+            "OpenRouter request with payload: {} and response: {}",
+            serde_json::to_string_pretty(payload).unwrap_or_else(|_| "Invalid JSON".to_string()),
+            serde_json::to_string_pretty(&response_body)
+                .unwrap_or_else(|_| "Invalid JSON".to_string())
+        );
+
         // OpenRouter can return errors in 200 OK responses, so we have to check for errors explicitly
         // https://openrouter.ai/docs/api-reference/errors
         if let Some(error_obj) = response_body.get("error") {

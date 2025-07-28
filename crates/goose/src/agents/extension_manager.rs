@@ -338,10 +338,14 @@ impl ExtensionManager {
                 .insert(sanitized_name.clone());
         }
 
-        self.clients
-            .insert(sanitized_name.clone(), Arc::new(Mutex::new(client)));
-
+        self.add_client(sanitized_name, client);
         Ok(())
+    }
+
+    pub fn add_client(&mut self, client_name: String, client: Box<dyn McpClientTrait>) {
+        let sanitized_name = normalize(client_name);
+        self.clients
+            .insert(sanitized_name, Arc::new(Mutex::new(client)));
     }
 
     /// Get extensions info

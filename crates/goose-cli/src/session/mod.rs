@@ -364,8 +364,10 @@ impl Session {
     }
 
     /// Process a single message and get the response
-    async fn process_message(&mut self, message: String) -> Result<()> {
-        self.push_message(Message::user().with_text(&message));
+    pub(crate) async fn process_message(&mut self, message: Message) -> Result<()> {
+        let message_text = message.as_concat_text();
+
+        self.push_message(message);
         // Get the provider from the agent for description generation
         let provider = self.agent.provider().await?;
 
@@ -393,9 +395,10 @@ impl Session {
             .and_then(|s| s.to_str())
             .map(|s| s.to_string());
 
-        if let Err(e) =
-            crate::project_tracker::update_project_tracker(Some(&message), session_id.as_deref())
-        {
+        if let Err(e) = crate::project_tracker::update_project_tracker(
+            Some(&message_text),
+            session_id.as_deref(),
+        ) {
             eprintln!(
                 "Warning: Failed to update project tracker with instruction: {}",
                 e
@@ -407,9 +410,10 @@ impl Session {
     }
 
     /// Start an interactive session, optionally with an initial message
-    pub async fn interactive(&mut self, message: Option<String>) -> Result<()> {
+    pub async fn interactive(&mut self, prompt: Option<String>) -> Result<()> {
         // Process initial message if provided
-        if let Some(msg) = message {
+        if let Some(prompt) = prompt {
+            let msg = Message::user().with_text(&prompt);
             self.process_message(msg).await?;
         }
 
@@ -836,7 +840,8 @@ impl Session {
     }
 
     /// Process a single message and exit
-    pub async fn headless(&mut self, message: String) -> Result<()> {
+    pub async fn headless(&mut self, prompt: String) -> Result<()> {
+        let message = Message::user().with_text(&prompt);
         self.process_message(message).await
     }
 

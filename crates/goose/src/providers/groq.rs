@@ -70,28 +70,28 @@ impl GroqProvider {
             .await?;
 
         let status = response.status();
-        let payload: Option<Value> = response.json().await.ok();
+        let response_payload: Option<Value> = response.json().await.ok();
+        let formatted_payload = format!("{:?}", response_payload);
 
         match status {
-            StatusCode::OK => payload.ok_or_else( || ProviderError::RequestFailed("Response body is not valid JSON".to_string()) ),
+            StatusCode::OK => response_payload.ok_or_else( || ProviderError::RequestFailed("Response body is not valid JSON".to_string()) ),
             StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
                 Err(ProviderError::Authentication(format!("Authentication failed. Please ensure your API keys are valid and have the required permissions. \
-                    Status: {}. Response: {:?}", status, payload)))
+                    Status: {}. Response: {:?}", status, response_payload)))
             }
             StatusCode::PAYLOAD_TOO_LARGE => {
-                Err(ProviderError::ContextLengthExceeded(format!("{:?}", payload)))
+                Err(ProviderError::ContextLengthExceeded(formatted_payload))
             }
             StatusCode::TOO_MANY_REQUESTS => {
-                Err(ProviderError::RateLimitExceeded(format!("{:?}", payload)))
+                Err(ProviderError::RateLimitExceeded(formatted_payload))
             }
             StatusCode::INTERNAL_SERVER_ERROR | StatusCode::SERVICE_UNAVAILABLE => {
-                Err(ProviderError::ServerError(format!("{:?}", payload)))
+                Err(ProviderError::ServerError(formatted_payload))
             }
             _ => {
-                tracing::debug!(
-                    "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
-                );
-                Err(ProviderError::RequestFailed(format!("Request failed with status: {}", status)))
+                let error_msg = format!("Provider request failed with status: {}. Payload: {:?}", status, response_payload);
+                tracing::debug!(error_msg);
+                Err(ProviderError::RequestFailed(error_msg))
             }
         }
     }

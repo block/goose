@@ -58,6 +58,13 @@ impl TestProvider {
         })
     }
 
+    pub fn finish_recording(self) -> Result<()> {
+        if self.inner.is_some() {
+            self.save_records()?;
+        }
+        Ok(())
+    }
+
     fn hash_input(messages: &[Message]) -> String {
         let stable_messages: Vec<_> = messages
             .iter()
@@ -68,6 +75,7 @@ impl TestProvider {
         hasher.update(serialized.as_bytes());
         format!("{:x}", hasher.finalize())
     }
+
     fn load_records(file_path: &str) -> Result<HashMap<String, TestRecord>> {
         if !Path::new(file_path).exists() {
             return Ok(HashMap::new());
@@ -113,7 +121,6 @@ impl Provider for TestProvider {
         let hash = Self::hash_input(messages);
 
         if let Some(inner) = &self.inner {
-            // Recording mode
             let (message, usage) = inner.complete(system, messages, tools).await?;
 
             let record = TestRecord {
@@ -135,7 +142,6 @@ impl Provider for TestProvider {
 
             Ok((message, usage))
         } else {
-            // Replay mode
             let records = self.records.lock().unwrap();
             if let Some(record) = records.get(&hash) {
                 Ok((record.output.message.clone(), record.output.usage.clone()))
@@ -150,16 +156,6 @@ impl Provider for TestProvider {
 
     fn get_model_config(&self) -> ModelConfig {
         ModelConfig::new("test-model".to_string())
-    }
-}
-
-impl Drop for TestProvider {
-    fn drop(&mut self) {
-        if self.inner.is_some() {
-            if let Err(e) = self.save_records() {
-                eprintln!("Failed to save test records: {}", e);
-            }
-        }
     }
 }
 
@@ -231,7 +227,6 @@ mod tests {
             response: "Hello, world!".to_string(),
         });
 
-        // Record phase
         {
             let test_provider = TestProvider::new_recording(mock, &temp_file);
 
@@ -244,11 +239,10 @@ mod tests {
                 assert_eq!(content.text, "Hello, world!");
             }
 
-            test_provider.save_records().unwrap();
             assert_eq!(test_provider.get_record_count(), 1);
+            test_provider.finish_recording().unwrap();
         }
 
-        // Replay phase
         {
             let replay_provider = TestProvider::new_replaying(&temp_file).unwrap();
 
@@ -262,7 +256,6 @@ mod tests {
             }
         }
 
-        // Cleanup
         let _ = fs::remove_file(temp_file);
     }
 
@@ -286,7 +279,6 @@ mod tests {
             .to_string()
             .contains("No recorded response found"));
 
-        // Cleanup
         let _ = fs::remove_file(temp_file);
     }
 }

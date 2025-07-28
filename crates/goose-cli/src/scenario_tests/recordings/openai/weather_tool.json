@@ -1,43 +1,77 @@
 {
-  "d2c95695a2c9ad5d95248955d850d147d76e209f537dab9bcc70fc815f2d8de7": {
+  "e546a32d4a2c9d41338b6725f317c4d4f462ce7cc04c79f3f24dd47a1a32a795": {
     "input": {
-      "system": "You are a general-purpose AI agent called Goose, created by Block, the parent company of Square, CashApp, and Tidal. Goose is being developed as an open-source software project.\n\nThe current date is 2025-07-22 15:02:47.\n\nGoose uses LLM providers with tool calling capability. You can be used with different language models (gpt-4o, claude-3.5-sonnet, o1, llama-3.2, deepseek-r1, etc).\nThese models have varying knowledge cut-off dates depending on when they were trained, but typically it's between 5-10 months prior to the current date.\n\n# Extensions\n\nExtensions allow other applications to provide context to Goose. Extensions connect Goose to different data sources and tools.\nYou are capable of dynamically plugging into new extensions and learning how to use them. You solve higher level problems using the tools in these extensions, and can interact with multiple at once.\nUse the search_available_extensions tool to find additional extensions to enable to help with your task. To enable extensions, use the enable_extension tool and provide the extension_name. You should only enable extensions found from the search_available_extensions tool.\n\n\nNo extensions are defined. You should let the user know that they should add extensions.\n\n\n\n# Suggestion\n\"\"\n\n\n\n\n# Response Guidelines\n\n- Use Markdown formatting for all responses.\n- Follow best practices for Markdown, including:\n  - Using headers for organization.\n  - Bullet points for lists.\n  - Links formatted correctly, either as linked text (e.g., [this is linked text](https://example.com)) or automatic links using angle brackets (e.g., <http://example.com/>).\n- For code examples, use fenced code blocks by placing triple backticks (` ``` `) before and after the code. Include the language identifier after the opening backticks (e.g., ` ```python `) to enable syntax highlighting.\n- Ensure clarity, conciseness, and proper formatting to enhance readability and usability.\n\n# Additional Instructions:\n\nRight now you are *NOT* in the chat only mode and have access to tool use and system.",
+      "system": "You are a general-purpose AI agent called Goose, created by Block, the parent company of Square, CashApp, and Tidal. Goose is being developed as an open-source software project.\n\nThe current date is 2025-07-28 12:05:24.\n\nGoose uses LLM providers with tool calling capability. You can be used with different language models (gpt-4o, claude-3.5-sonnet, o1, llama-3.2, deepseek-r1, etc).\nThese models have varying knowledge cut-off dates depending on when they were trained, but typically it's between 5-10 months prior to the current date.\n\n# Extensions\n\nExtensions allow other applications to provide context to Goose. Extensions connect Goose to different data sources and tools.\nYou are capable of dynamically plugging into new extensions and learning how to use them. You solve higher level problems using the tools in these extensions, and can interact with multiple at once.\nUse the search_available_extensions tool to find additional extensions to enable to help with your task. To enable extensions, use the enable_extension tool and provide the extension_name. You should only enable extensions found from the search_available_extensions tool.\n\n\nBecause you dynamically load extensions, your conversation history may refer\nto interactions with extensions that are not currently active. The currently\nactive extensions are below. Each of these extensions provides tools that are\nin your tool specification.\n\n\n## weather_extension\n\n\n\n\n\n\n\n# Suggestion\n\"\"\n\n\n\n\n# Response Guidelines\n\n- Use Markdown formatting for all responses.\n- Follow best practices for Markdown, including:\n  - Using headers for organization.\n  - Bullet points for lists.\n  - Links formatted correctly, either as linked text (e.g., [this is linked text](https://example.com)) or automatic links using angle brackets (e.g., <http://example.com/>).\n- For code examples, use fenced code blocks by placing triple backticks (` ``` `) before and after the code. Include the language identifier after the opening backticks (e.g., ` ```python `) to enable syntax highlighting.\n- Ensure clarity, conciseness, and proper formatting to enhance readability and usability.\n\n# Additional Instructions:\n\nRight now you are *NOT* in the chat only mode and have access to tool use and system.",
       "messages": [
         {
           "id": null,
           "role": "user",
-          "created": 1753196567,
+          "created": 1753704324,
           "content": [
             {
               "type": "text",
-              "text": "hello"
+              "text": "tell me what the weather is in Berlin, Germany"
             }
           ]
         },
         {
           "id": null,
           "role": "assistant",
-          "created": 1753196578,
+          "created": 1753704326,
           "content": [
             {
-              "type": "text",
-              "text": "Hello! I'm Goose, an AI agent created by Block. I'm here to help you with various tasks and questions.\n\nI notice that you don't currently have any extensions enabled. Extensions allow me to connect to different data sources and tools to help you accomplish more complex tasks. \n\nHere's what I can help you with right now:\n- **General conversation and questions**\n- **Task management** - I can create and execute dynamic tasks\n- **Scheduling** - I can manage scheduled recipe execution\n- **Extension management** - I can search for and enable additional capabilities\n\nTo get the most out of our interaction, you might want to:\n1. Let me search for available extensions that could help with your specific needs\n2. Tell me what kind of tasks you're looking to accomplish\n\nWhat would you like to do today?"
+              "type": "toolRequest",
+              "id": "call_5hvVKt0aj0RGRmrKEZECeJKV",
+              "toolCall": {
+                "status": "success",
+                "value": {
+                  "name": "weather_extension__get_weather",
+                  "arguments": {
+                    "location": "Berlin, Germany"
+                  }
+                }
+              }
             }
           ]
         },
         {
           "id": null,
           "role": "user",
-          "created": 1753196578,
+          "created": 1753704326,
           "content": [
             {
-              "type": "text",
-              "text": "goodbye"
+              "type": "toolResponse",
+              "id": "call_5hvVKt0aj0RGRmrKEZECeJKV",
+              "toolResult": {
+                "status": "success",
+                "value": [
+                  {
+                    "type": "text",
+                    "text": "The weather in Berlin, Germany is cloudy and 18°C"
+                  }
+                ]
+              }
             }
           ]
         }
       ],
       "tools": [
+        {
+          "name": "weather_extension__get_weather",
+          "description": "Get the weather for a location",
+          "inputSchema": {
+            "properties": {
+              "location": {
+                "description": "The city and state, e.g. San Francisco, CA",
+                "type": "string"
+              }
+            },
+            "required": [
+              "location"
+            ],
+            "type": "object"
+          }
+        },
         {
           "name": "platform__search_available_extensions",
           "description": "Searches for additional extensions available to help complete tasks.\n        Use this tool when you're unable to find a specific feature or functionality you need to complete your task, or when standard approaches aren't working.\n        These extensions might provide the exact tools needed to solve your problem.\n        If you find a relevant one, consider using your tools to enable it.",
@@ -152,7 +186,7 @@
         },
         {
           "name": "dynamic_task__create_task",
-          "description": "Use this tool to create one or more dynamic tasks from a shared text instruction and varying parameters.How it works:\n            - Provide a single text instruction\n            - Use the 'task_parameters' field to pass an array of parameter sets\n            - Each resulting task will use the same instruction with different parameter values\n            This is useful when performing the same operation across many inputs (e.g., getting weather for multiple cities, searching multiple slack channels, iterating through various linear tickets, etc).\n            Once created, these tasks should be passed to the 'subagent__execute_task' tool for execution. Tasks can run sequentially or in parallel.\n            ---\n            What is a 'subagent'?\n            A 'subagent' is a stateless sub-process that executes a single task independently. Use subagents when:\n            - You want to parallelize similar work across different inputs\n            - You are not sure your search or operation will succeed on the first try\n            Each subagent receives a task with a defined payload and returns a result, which is not visible to the user unless explicitly summarized by the system.\n            ---\n            Examples of 'task_parameters' for a single task:\n                text_instruction: Search for the config file in the root directory.\n            Examples of 'task_parameters' for multiple tasks:\n                text_instruction: Get weather for Melbourne.\n                timeout_seconds: 300\n                text_instruction: Get weather for Los Angeles.\n                timeout_seconds: 300\n                text_instruction: Get weather for San Francisco.\n                timeout_seconds: 300\n            ",
+          "description": "Use this tool to create one or more dynamic tasks from a shared text instruction and varying parameters.How it works:\n            - Provide a single text instruction\n            - Use the 'task_parameters' field to pass an array of parameter sets\n            - Each resulting task will use the same instruction with different parameter values\n            This is useful when performing the same operation across many inputs (e.g., getting weather for multiple cities, searching multiple slack channels, iterating through various linear tickets, etc).\n            Once created, these tasks should be passed to the 'subagent__execute_task' tool for execution. Tasks can run sequentially or in parallel.\n            ---\n            What is a 'subagent'?\n            A 'subagent' is a stateless sub-process that executes a single task independently. Use subagents when:\n            - You want to parallelize similar work across different inputs\n            - You are not sure your search or operation will succeed on the first try\n            Each subagent receives a task with a defined payload and returns a result, which is not visible to the user unless explicitly summarized by the system.\n            ---\n            Examples of 'task_parameters' for a single task:\n                text_instruction: Search for the config file in the root directory.\n            Examples of 'task_parameters' for multiple tasks:\n                text_instruction: Get weather for Melbourne.\n                text_instruction: Get weather for Los Angeles.\n                text_instruction: Get weather for San Francisco.\n            ",
           "inputSchema": {
             "properties": {
               "task_parameters": {
@@ -162,11 +196,6 @@
                     "text_instruction": {
                       "description": "The text instruction to execute",
                       "type": "string"
-                    },
-                    "timeout_seconds": {
-                      "description": "Optional timeout for the task in seconds (default: 300)",
-                      "minimum": 1,
-                      "type": "integer"
                     }
                   },
                   "required": [
@@ -189,7 +218,7 @@
         },
         {
           "name": "subagent__execute_task",
-          "description": "Only use the subagent__execute_task tool when you execute sub recipe task or dynamic task.\nEXECUTION STRATEGY DECISION:\n1. If the tasks are created with execution_mode, use the execution_mode.\n2. Execute tasks sequentially unless user explicitly requests parallel execution. PARALLEL: User uses keywords like 'parallel', 'simultaneously', 'at the same time', 'concurrently'\n\nIMPLEMENTATION:\n- Sequential execution: Call this tool multiple times, passing exactly ONE task per call\n- Parallel execution: Call this tool once, passing an ARRAY of all tasks\n\nEXAMPLES:\nUser Intent Based:\n- User: 'get weather and tell me a joke' → Sequential (2 separate tool calls, 1 task each)\n- User: 'get weather and joke in parallel' → Parallel (1 tool call with array of 2 tasks)\n- User: 'run these simultaneously' → Parallel (1 tool call with task array)\n- User: 'do task A then task B' → Sequential (2 separate tool calls)",
+          "description": "Only use the subagent__execute_task tool when you execute sub recipe task or dynamic task.\n        EXECUTION STRATEGY DECISION:\n        1. If the tasks are created with execution_mode, use the execution_mode.\n        2. Execute tasks sequentially unless user explicitly requests parallel execution. PARALLEL: User uses keywords like 'parallel', 'simultaneously', 'at the same time', 'concurrently'\n\n        IMPLEMENTATION:\n        - Sequential execution: Call this tool multiple times, passing exactly ONE task per call\n        - Parallel execution: Call this tool once, passing an ARRAY of all tasks\n\n        EXAMPLES:\n        User Intent Based:\n        - User: 'get weather and tell me a joke' → Sequential (2 separate tool calls, 1 task each)\n        - User: 'get weather and joke in parallel' → Parallel (1 tool call with array of 2 tasks)\n        - User: 'run these simultaneously' → Parallel (1 tool call with task array)\n        - User: 'do task A then task B' → Sequential (2 separate tool calls)",
           "inputSchema": {
             "properties": {
               "execution_mode": {
@@ -228,41 +257,57 @@
       "message": {
         "id": null,
         "role": "assistant",
-        "created": 1753196580,
+        "created": 1753704328,
         "content": [
           {
             "type": "text",
-            "text": "Goodbye! It was nice chatting with you. Feel free to come back anytime if you need help with tasks, have questions, or want to explore what extensions might be useful for your work. Have a great day! 👋"
+            "text": "The weather in Berlin, Germany is currently cloudy with a temperature of 18°C."
           }
         ]
       },
       "usage": {
-        "model": "us.anthropic.claude-sonnet-4-20250514-v1:0",
+        "model": "gpt-4o-2024-08-06",
         "usage": {
-          "input_tokens": 2700,
-          "output_tokens": 52,
-          "total_tokens": 2752
+          "input_tokens": 1722,
+          "output_tokens": 18,
+          "total_tokens": 1740
         }
       }
     }
   },
-  "205407e3c76ac3acb35d9da9f560058217d3b267873f8e0a715a1946e2714ddd": {
+  "1bc400a528c54b25f4f1f609481e98e44222b3deaf7eee2c9e640e6345c73861": {
     "input": {
-      "system": "You are a general-purpose AI agent called Goose, created by Block, the parent company of Square, CashApp, and Tidal. Goose is being developed as an open-source software project.\n\nThe current date is 2025-07-22 15:02:47.\n\nGoose uses LLM providers with tool calling capability. You can be used with different language models (gpt-4o, claude-3.5-sonnet, o1, llama-3.2, deepseek-r1, etc).\nThese models have varying knowledge cut-off dates depending on when they were trained, but typically it's between 5-10 months prior to the current date.\n\n# Extensions\n\nExtensions allow other applications to provide context to Goose. Extensions connect Goose to different data sources and tools.\nYou are capable of dynamically plugging into new extensions and learning how to use them. You solve higher level problems using the tools in these extensions, and can interact with multiple at once.\nUse the search_available_extensions tool to find additional extensions to enable to help with your task. To enable extensions, use the enable_extension tool and provide the extension_name. You should only enable extensions found from the search_available_extensions tool.\n\n\nNo extensions are defined. You should let the user know that they should add extensions.\n\n\n\n# Suggestion\n\"\"\n\n\n\n\n# Response Guidelines\n\n- Use Markdown formatting for all responses.\n- Follow best practices for Markdown, including:\n  - Using headers for organization.\n  - Bullet points for lists.\n  - Links formatted correctly, either as linked text (e.g., [this is linked text](https://example.com)) or automatic links using angle brackets (e.g., <http://example.com/>).\n- For code examples, use fenced code blocks by placing triple backticks (` ``` `) before and after the code. Include the language identifier after the opening backticks (e.g., ` ```python `) to enable syntax highlighting.\n- Ensure clarity, conciseness, and proper formatting to enhance readability and usability.\n\n# Additional Instructions:\n\nRight now you are *NOT* in the chat only mode and have access to tool use and system.",
+      "system": "You are a general-purpose AI agent called Goose, created by Block, the parent company of Square, CashApp, and Tidal. Goose is being developed as an open-source software project.\n\nThe current date is 2025-07-28 12:05:24.\n\nGoose uses LLM providers with tool calling capability. You can be used with different language models (gpt-4o, claude-3.5-sonnet, o1, llama-3.2, deepseek-r1, etc).\nThese models have varying knowledge cut-off dates depending on when they were trained, but typically it's between 5-10 months prior to the current date.\n\n# Extensions\n\nExtensions allow other applications to provide context to Goose. Extensions connect Goose to different data sources and tools.\nYou are capable of dynamically plugging into new extensions and learning how to use them. You solve higher level problems using the tools in these extensions, and can interact with multiple at once.\nUse the search_available_extensions tool to find additional extensions to enable to help with your task. To enable extensions, use the enable_extension tool and provide the extension_name. You should only enable extensions found from the search_available_extensions tool.\n\n\nBecause you dynamically load extensions, your conversation history may refer\nto interactions with extensions that are not currently active. The currently\nactive extensions are below. Each of these extensions provides tools that are\nin your tool specification.\n\n\n## weather_extension\n\n\n\n\n\n\n\n# Suggestion\n\"\"\n\n\n\n\n# Response Guidelines\n\n- Use Markdown formatting for all responses.\n- Follow best practices for Markdown, including:\n  - Using headers for organization.\n  - Bullet points for lists.\n  - Links formatted correctly, either as linked text (e.g., [this is linked text](https://example.com)) or automatic links using angle brackets (e.g., <http://example.com/>).\n- For code examples, use fenced code blocks by placing triple backticks (` ``` `) before and after the code. Include the language identifier after the opening backticks (e.g., ` ```python `) to enable syntax highlighting.\n- Ensure clarity, conciseness, and proper formatting to enhance readability and usability.\n\n# Additional Instructions:\n\nRight now you are *NOT* in the chat only mode and have access to tool use and system.",
       "messages": [
         {
           "id": null,
           "role": "user",
-          "created": 1753196567,
+          "created": 1753704324,
           "content": [
             {
               "type": "text",
-              "text": "hello"
+              "text": "tell me what the weather is in Berlin, Germany"
             }
           ]
         }
       ],
       "tools": [
+        {
+          "name": "weather_extension__get_weather",
+          "description": "Get the weather for a location",
+          "inputSchema": {
+            "properties": {
+              "location": {
+                "description": "The city and state, e.g. San Francisco, CA",
+                "type": "string"
+              }
+            },
+            "required": [
+              "location"
+            ],
+            "type": "object"
+          }
+        },
         {
           "name": "platform__search_available_extensions",
           "description": "Searches for additional extensions available to help complete tasks.\n        Use this tool when you're unable to find a specific feature or functionality you need to complete your task, or when standard approaches aren't working.\n        These extensions might provide the exact tools needed to solve your problem.\n        If you find a relevant one, consider using your tools to enable it.",
@@ -377,7 +422,7 @@
         },
         {
           "name": "dynamic_task__create_task",
-          "description": "Use this tool to create one or more dynamic tasks from a shared text instruction and varying parameters.How it works:\n            - Provide a single text instruction\n            - Use the 'task_parameters' field to pass an array of parameter sets\n            - Each resulting task will use the same instruction with different parameter values\n            This is useful when performing the same operation across many inputs (e.g., getting weather for multiple cities, searching multiple slack channels, iterating through various linear tickets, etc).\n            Once created, these tasks should be passed to the 'subagent__execute_task' tool for execution. Tasks can run sequentially or in parallel.\n            ---\n            What is a 'subagent'?\n            A 'subagent' is a stateless sub-process that executes a single task independently. Use subagents when:\n            - You want to parallelize similar work across different inputs\n            - You are not sure your search or operation will succeed on the first try\n            Each subagent receives a task with a defined payload and returns a result, which is not visible to the user unless explicitly summarized by the system.\n            ---\n            Examples of 'task_parameters' for a single task:\n                text_instruction: Search for the config file in the root directory.\n            Examples of 'task_parameters' for multiple tasks:\n                text_instruction: Get weather for Melbourne.\n                timeout_seconds: 300\n                text_instruction: Get weather for Los Angeles.\n                timeout_seconds: 300\n                text_instruction: Get weather for San Francisco.\n                timeout_seconds: 300\n            ",
+          "description": "Use this tool to create one or more dynamic tasks from a shared text instruction and varying parameters.How it works:\n            - Provide a single text instruction\n            - Use the 'task_parameters' field to pass an array of parameter sets\n            - Each resulting task will use the same instruction with different parameter values\n            This is useful when performing the same operation across many inputs (e.g., getting weather for multiple cities, searching multiple slack channels, iterating through various linear tickets, etc).\n            Once created, these tasks should be passed to the 'subagent__execute_task' tool for execution. Tasks can run sequentially or in parallel.\n            ---\n            What is a 'subagent'?\n            A 'subagent' is a stateless sub-process that executes a single task independently. Use subagents when:\n            - You want to parallelize similar work across different inputs\n            - You are not sure your search or operation will succeed on the first try\n            Each subagent receives a task with a defined payload and returns a result, which is not visible to the user unless explicitly summarized by the system.\n            ---\n            Examples of 'task_parameters' for a single task:\n                text_instruction: Search for the config file in the root directory.\n            Examples of 'task_parameters' for multiple tasks:\n                text_instruction: Get weather for Melbourne.\n                text_instruction: Get weather for Los Angeles.\n                text_instruction: Get weather for San Francisco.\n            ",
           "inputSchema": {
             "properties": {
               "task_parameters": {
@@ -387,11 +432,6 @@
                     "text_instruction": {
                       "description": "The text instruction to execute",
                       "type": "string"
-                    },
-                    "timeout_seconds": {
-                      "description": "Optional timeout for the task in seconds (default: 300)",
-                      "minimum": 1,
-                      "type": "integer"
                     }
                   },
                   "required": [
@@ -414,7 +454,7 @@
         },
         {
           "name": "subagent__execute_task",
-          "description": "Only use the subagent__execute_task tool when you execute sub recipe task or dynamic task.\nEXECUTION STRATEGY DECISION:\n1. If the tasks are created with execution_mode, use the execution_mode.\n2. Execute tasks sequentially unless user explicitly requests parallel execution. PARALLEL: User uses keywords like 'parallel', 'simultaneously', 'at the same time', 'concurrently'\n\nIMPLEMENTATION:\n- Sequential execution: Call this tool multiple times, passing exactly ONE task per call\n- Parallel execution: Call this tool once, passing an ARRAY of all tasks\n\nEXAMPLES:\nUser Intent Based:\n- User: 'get weather and tell me a joke' → Sequential (2 separate tool calls, 1 task each)\n- User: 'get weather and joke in parallel' → Parallel (1 tool call with array of 2 tasks)\n- User: 'run these simultaneously' → Parallel (1 tool call with task array)\n- User: 'do task A then task B' → Sequential (2 separate tool calls)",
+          "description": "Only use the subagent__execute_task tool when you execute sub recipe task or dynamic task.\n        EXECUTION STRATEGY DECISION:\n        1. If the tasks are created with execution_mode, use the execution_mode.\n        2. Execute tasks sequentially unless user explicitly requests parallel execution. PARALLEL: User uses keywords like 'parallel', 'simultaneously', 'at the same time', 'concurrently'\n\n        IMPLEMENTATION:\n        - Sequential execution: Call this tool multiple times, passing exactly ONE task per call\n        - Parallel execution: Call this tool once, passing an ARRAY of all tasks\n\n        EXAMPLES:\n        User Intent Based:\n        - User: 'get weather and tell me a joke' → Sequential (2 separate tool calls, 1 task each)\n        - User: 'get weather and joke in parallel' → Parallel (1 tool call with array of 2 tasks)\n        - User: 'run these simultaneously' → Parallel (1 tool call with task array)\n        - User: 'do task A then task B' → Sequential (2 separate tool calls)",
           "inputSchema": {
             "properties": {
               "execution_mode": {
@@ -453,20 +493,29 @@
       "message": {
         "id": null,
         "role": "assistant",
-        "created": 1753196578,
+        "created": 1753704326,
         "content": [
           {
-            "type": "text",
-            "text": "Hello! I'm Goose, an AI agent created by Block. I'm here to help you with various tasks and questions.\n\nI notice that you don't currently have any extensions enabled. Extensions allow me to connect to different data sources and tools to help you accomplish more complex tasks. \n\nHere's what I can help you with right now:\n- **General conversation and questions**\n- **Task management** - I can create and execute dynamic tasks\n- **Scheduling** - I can manage scheduled recipe execution\n- **Extension management** - I can search for and enable additional capabilities\n\nTo get the most out of our interaction, you might want to:\n1. Let me search for available extensions that could help with your specific needs\n2. Tell me what kind of tasks you're looking to accomplish\n\nWhat would you like to do today?"
+            "type": "toolRequest",
+            "id": "call_5hvVKt0aj0RGRmrKEZECeJKV",
+            "toolCall": {
+              "status": "success",
+              "value": {
+                "name": "weather_extension__get_weather",
+                "arguments": {
+                  "location": "Berlin, Germany"
+                }
+              }
+            }
           }
         ]
       },
       "usage": {
-        "model": "us.anthropic.claude-sonnet-4-20250514-v1:0",
+        "model": "gpt-4o-2024-08-06",
         "usage": {
-          "input_tokens": 2517,
-          "output_tokens": 179,
-          "total_tokens": 2696
+          "input_tokens": 1680,
+          "output_tokens": 19,
+          "total_tokens": 1699
         }
       }
     }
