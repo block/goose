@@ -1,11 +1,7 @@
 ---
-title: Automate Development Tasks with Goose Headless Mode
-description: Automate using Goose in headless mode for server environments, CI/CD pipelines, and batch processing. All the power, with no human intervention required.
-authors: 
-    - ian
+title: Using Goose in "Headless" Mode for Automation
+description: Goose Headless Mode
 ---
-
-![goose headless](goose-headless.png)
 
 # Automate Development Tasks with Goose Headless Mode
 
@@ -154,6 +150,7 @@ For a recipe to work in headless mode, it **must** include a `prompt` field. Thi
 
 ```yaml
 # automation-recipe.yaml
+title: "Automated Code Quality Check"
 name: "Automated Code Quality Check"
 description: "Comprehensive code quality analysis and improvement"
 author:
@@ -173,16 +170,23 @@ instructions: |
   6. Create actionable tickets for the development team
 
 parameters:
-  - name: target_directory
+  - key: target_directory
+    input_type: string
+    requirement: required
     description: "Directory to analyze"
     default: "./src"
-  - name: output_format
+  - key: output_format
+    input_type: string
+    requirement: required
     description: "Report format (markdown, json, html)"
     default: "markdown"
 
 extensions:
-  - name: developer
-    builtin: true
+  - type: builtin
+    name: developer
+    display_name: Developer
+    timeout: 300
+    bundled: true
 ```
 
 ### Executing Recipes in Headless Mode
@@ -209,11 +213,11 @@ While headless mode is incredibly powerful, it's important to understand its con
 
 ### 1. No User Interaction Capability
 
-**What this means**: Goose cannot ask for clarification, approval, or additional input during execution.
+**What this means**: Goose cannot ask for clarification, approval, or additional input during execution. If it's unsure of what to do, the prompt result will usually show you a question like "How should I proceed?".
 
 **Impact**: If instructions are ambiguous or if unexpected situations arise, Goose will make its best judgment based on available context, which might not always align with your intentions.
 
-**Mitigation**: Provide extremely detailed instructions, and **test your automation thoroughly in non-production** environments first.
+**Mitigation**: Provide extremely detailed instructions, especially on what to do if it runs into a problem, and **test your automation thoroughly in non-production** environments first.
 
 ```bash
 # Problematic: Too vague
@@ -319,17 +323,3 @@ Whether you're looking to streamline your CI/CD pipelines, automate server maint
 4. **Integrate with your existing workflows** and watch your productivity soar
 
 Connect with us on our [Discord community](https://discord.gg/block-opensource) to share your headless mode success stories, ask questions, and collaborate with other developers who want to push the boundaries of AI automation.
-
-
-<head>
-  <meta property="og:title" content="Automate Development Tasks with Goose Headless Mode" />
-  <meta property="og:type" content="article" />
-  <meta property="og:url" content="https://block.github.io/goose/blog/2025/03/06/goose-tips" />
-  <meta property="og:description" content="Automate using Goose in headless mode for server environments, CI/CD pipelines, and batch processing. All the power, with no human intervention required." />
-  <meta property="og:image" content="https://block.github.io/goose/assets/images/built-by-subagents-869a01d4b147ebdb54334dcc22dc521e.png" />
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta property="twitter:domain" content="block.github.io/goose" />
-  <meta name="twitter:title" content="Automate Development Tasks with Goose Headless Mode" />
-  <meta name="twitter:description" content="Automate using Goose in headless mode for server environments, CI/CD pipelines, and batch processing. All the power, with no human intervention required." />
-  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/built-by-subagents-869a01d4b147ebdb54334dcc22dc521e.png" />
-</head>
