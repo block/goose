@@ -1,5 +1,6 @@
 import path from 'node:path';
 import fs from 'node:fs';
+import os from 'node:os';
 import Electron from 'electron';
 import log from './logger';
 
@@ -111,3 +112,15 @@ const addPaths = (
     }
   }
 };
+
+/**
+ * Expands tilde (~) to the user's home directory
+ * @param filePath - The file path that may contain tilde
+ * @returns The expanded path with tilde replaced by home directory
+ */
+export function expandTilde(filePath: string): string {
+  if (filePath.startsWith('~')) {
+    return path.join(os.homedir(), filePath.slice(1));
+  }
+  return filePath;
+}

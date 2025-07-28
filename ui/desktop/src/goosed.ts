@@ -3,7 +3,7 @@ import { createServer } from 'net';
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
-import { getBinaryPath } from './utils/binaryPath';
+import { getBinaryPath } from './utils/pathUtils';
 import log from './utils/logger';
 import { App } from 'electron';
 import { Buffer } from 'node:buffer';

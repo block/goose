@@ -24,7 +24,7 @@ import os from 'node:os';
 import { spawn } from 'child_process';
 import 'dotenv/config';
 import { startGoosed } from './goosed';
-import { getBinaryPath } from './utils/binaryPath';
+import { getBinaryPath, expandTilde } from './utils/pathUtils';
 import { loadShellEnv } from './utils/loadEnv';
 import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
@@ -1186,9 +1186,7 @@ ipcMain.handle('select-file-or-directory', async (_event, defaultPath?: string) 
   // Set default path if provided
   if (defaultPath) {
     // Expand tilde to home directory
-    const expandedPath = defaultPath.startsWith('~')
-      ? path.join(os.homedir(), defaultPath.slice(1))
-      : defaultPath;
+    const expandedPath = expandTilde(defaultPath);
 
     // Check if the path exists
     try {
@@ -1475,9 +1473,7 @@ ipcMain.handle('get-binary-path', (_event, binaryName) => {
 ipcMain.handle('read-file', (_event, filePath) => {
   return new Promise((resolve) => {
     // Expand tilde to home directory
-    const expandedPath = filePath.startsWith('~')
-      ? path.join(app.getPath('home'), filePath.slice(1))
-      : filePath;
+    const expandedPath = expandTilde(filePath);
 
     const cat = spawn('cat', [expandedPath]);
     let output = '';
@@ -1510,9 +1506,7 @@ ipcMain.handle('read-file', (_event, filePath) => {
 ipcMain.handle('write-file', (_event, filePath, content) => {
   return new Promise((resolve) => {
     // Expand tilde to home directory
-    const expandedPath = filePath.startsWith('~')
-      ? path.join(app.getPath('home'), filePath.slice(1))
-      : filePath;
+    const expandedPath = expandTilde(filePath);
 
     // Create a write stream to the file
     // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -1531,9 +1525,7 @@ ipcMain.handle('write-file', (_event, filePath, content) => {
 ipcMain.handle('ensure-directory', async (_event, dirPath) => {
   try {
     // Expand tilde to home directory
-    const expandedPath = dirPath.startsWith('~')
-      ? path.join(app.getPath('home'), dirPath.slice(1))
-      : dirPath;
+    const expandedPath = expandTilde(dirPath);
 
     await fs.mkdir(expandedPath, { recursive: true });
     return true;
@@ -1546,9 +1538,7 @@ ipcMain.handle('ensure-directory', async (_event, dirPath) => {
 ipcMain.handle('list-files', async (_event, dirPath, extension) => {
   try {
     // Expand tilde to home directory
-    const expandedPath = dirPath.startsWith('~')
-      ? path.join(app.getPath('home'), dirPath.slice(1))
-      : dirPath;
+    const expandedPath = expandTilde(dirPath);
 
     const files = await fs.readdir(expandedPath);
     if (extension) {
