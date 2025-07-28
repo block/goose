@@ -71,23 +71,26 @@ where
         return Ok(());
     }
 
-    let configs_to_test: Vec<_> = if let Some(to_skip) = providers_to_skip {
-        let excluded_providers: HashSet<String> =
-            to_skip.iter().map(|name| name.to_lowercase()).collect();
+    let excluded_providers: HashSet<_> = providers_to_skip
+        .into_iter()
+        .flatten()
+        .map(|name| name.to_lowercase())
+        .collect();
 
-        let filtered: Vec<_> = get_provider_configs()
-            .into_iter()
-            .filter(|c| !excluded_providers.contains(&c.name.to_lowercase()))
-            .collect();
+    let all_configs = get_provider_configs();
 
-        if filtered.len() != get_provider_configs().len() - to_skip.len() {
+    let all_config_len = all_configs.len();
+
+    let configs_to_test: Vec<_> = all_configs
+        .into_iter()
+        .filter(|c| !excluded_providers.contains(&c.name.to_lowercase()))
+        .collect();
+
+    if let Some(to_skip) = providers_to_skip {
+        if configs_to_test.len() != all_config_len - to_skip.len() {
             return Err(anyhow::anyhow!("Some providers in skip list don't exist"));
         }
-
-        filtered
-    } else {
-        get_provider_configs()
-    };
+    }
 
     let mut failures = Vec::new();
 
@@ -210,8 +213,6 @@ where
             break;
         }
     }
-
-    // Rest of the function remains the same...
     let updated_messages = session.message_history().to_vec();
 
     if let Some(ref err_msg) = error {
