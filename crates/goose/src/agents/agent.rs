@@ -720,7 +720,7 @@ impl Agent {
         if !issues.is_empty() {
             tracing::warn!(
                 "Conversation issue fixed: {}",
-                debug_conversation_fix(&messages, &unfixed_messages, &issues)
+                debug_conversation_fix(&messages, unfixed_messages, &issues)
             );
         }
         let initial_messages = messages.clone();

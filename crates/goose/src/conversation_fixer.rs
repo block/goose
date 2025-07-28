@@ -14,12 +14,14 @@ impl ConversationFixer {
         let (messages, tool_calling_fixed) = Self::fix_tool_calling(messages);
         let (messages, messages_merged) = Self::merge_consecutive_messages(messages);
         let (messages, lead_trail_fixed) = Self::fix_lead_trail(messages);
+        let (messages, populated_if_empty) = Self::populate_if_empty(messages);
 
         let mut issues = Vec::new();
         issues.extend(empty_removed);
         issues.extend(tool_calling_fixed);
         issues.extend(messages_merged);
         issues.extend(lead_trail_fixed);
+        issues.extend(populated_if_empty);
 
         (messages, issues)
     }
@@ -176,11 +178,16 @@ impl ConversationFixer {
             }
         }
 
+        (messages, issues)
+    }
+
+    fn populate_if_empty(mut messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
+        let mut issues = Vec::new();
+
         if messages.is_empty() {
             issues.push("Added placeholder user message to empty conversation".to_string());
             messages.push(Message::user().with_text(PLACEHOLDER_USER_MESSAGE));
         }
-
         (messages, issues)
     }
 }
