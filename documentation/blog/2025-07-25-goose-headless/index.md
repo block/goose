@@ -107,7 +107,7 @@ Let's talk about the foundations of successful headless automation:
 
 ### 1. **Craft Crystal-Clear Instructions**
 
-Your instructions are the blueprint for a successful tool. Your prompt idea need to be specific, detailed, and unambiguous. If in doubt, try some [vibe prompting to get you started](https://www.youtube.com/watch?v=IjXmT0W4f2Q).
+Your instructions are the blueprint for a successful tool. Your prompt idea needs to be specific, detailed, and unambiguous. If in doubt, try some [vibe prompting to get you started](https://www.youtube.com/watch?v=IjXmT0W4f2Q).
 
 ```bash
 # Good: Specific and actionable
