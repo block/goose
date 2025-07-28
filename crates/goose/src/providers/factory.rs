@@ -71,8 +71,6 @@ pub fn create(name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>> {
 
         return create_lead_worker_from_env(name, &model, &lead_model_name);
     }
-
-    // Default: create regular provider
     create_provider(name, model)
 }
 

@@ -1,5 +1,5 @@
 //! Providers for the scenario tests. Keep in sync with
-//!
+//! goose/crates/goose/src/providers/factory.rs
 
 use std::collections::HashMap;
 use std::sync::LazyLock;
@@ -43,8 +43,8 @@ impl ProviderConfig {
 
 static PROVIDER_CONFIGS: LazyLock<Vec<ProviderConfig>> = LazyLock::new(|| {
     vec![
-        ProviderConfig::simple("OpenAI", "gpt-4o"),
-        ProviderConfig::simple("Anthropic", "claude-3-5-sonnet-20241022"),
+        ProviderConfig::simple("openai", "gpt-4o"),
+        ProviderConfig::simple("anthropic", "claude-3-5-sonnet-20241022"),
         ProviderConfig {
             name: "azure_openai",
             model_name: "gpt-4o",
@@ -63,13 +63,39 @@ static PROVIDER_CONFIGS: LazyLock<Vec<ProviderConfig>> = LazyLock::new(|| {
             env_modifications: None,
             skip_reason: Some("No valid keys around"),
         },
-        ProviderConfig::simple("Google", "gemini-2.5-flash"),
-        ProviderConfig::simple("Groq", "llama-3.3-70b-versatile"),
+        ProviderConfig::simple("google", "gemini-2.5-flash"),
+        ProviderConfig::simple("groq", "llama-3.3-70b-versatile"),
         ProviderConfig::simple_skip(
-            "OpenRouter",
+            "openrouter",
             "anthropic/claude-3.5-sonnet",
             Some("Key is no longer valid"),
         ),
+        ProviderConfig::simple_skip(
+            "claude-code",
+            "claude-3-5-sonnet",
+            Some("No keys available"),
+        ),
+        ProviderConfig::simple_skip(
+            "databricks",
+            "databricks-dbrx-instruct",
+            Some("No keys available"),
+        ),
+        ProviderConfig::simple_skip(
+            "gcp_vertex_ai",
+            "gemini-2.5-flash",
+            Some("No keys available"),
+        ),
+        ProviderConfig::simple_skip("gemini-cli", "gemini-2.5-flash", Some("No keys available")),
+        ProviderConfig::simple_skip("litellm", "gpt-4o", Some("No keys available")),
+        ProviderConfig::simple_skip("ollama", "qwen3", Some("Ollama not supported")),
+        ProviderConfig::simple_skip(
+            "sagemaker_tgi",
+            "meta-llama/Llama-2-7b-chat-hf",
+            Some("No keys available"),
+        ),
+        ProviderConfig::simple_skip("snowflake", "claude-3-7-sonnet", Some("No keys available")),
+        ProviderConfig::simple_skip("venice", "llama-3.3-70b", Some("No keys available")),
+        ProviderConfig::simple_skip("xai", "grok-3", Some("No keys available")),
     ]
 });
 
