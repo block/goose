@@ -1156,9 +1156,9 @@ export default function App() {
       );
 
       if (section && newView === 'settings') {
-        window.history.replaceState({}, '', `/settings?section=${section}`);
+        window.location.hash = `#/settings?section=${section}`;
       } else {
-        window.history.replaceState({}, '', `/${newView}`);
+        window.location.hash = `#/${newView}`;
       }
     };
     const urlParams = new URLSearchParams(window.location.search);
