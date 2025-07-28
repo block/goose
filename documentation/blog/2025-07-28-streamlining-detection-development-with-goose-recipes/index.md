@@ -631,3 +631,4 @@ Whether you're building your first Goose recipe or looking to optimize existing 
   <meta name="twitter:description" content="A comprehensive guide to using recipes in Goose to streamline security detection development" />
   <meta name="twitter:image" content="https://block.github.io/goose/assets/images/goose-recipes-detection-development-cover.png" />
   <meta name="twitter:image" content="https://block.github.io/goose/assets/images/goose-recipes-detection-development-cover-cac8a9bea2d090ec2758a0b907bc9da8.png" />
+</head>
