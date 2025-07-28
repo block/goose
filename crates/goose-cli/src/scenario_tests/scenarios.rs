@@ -1,11 +1,13 @@
+//! This module contains tests for the scenario runner and various scenarios.
+//! You can set the GOOSE_TEST_PROVIDER to just run a specific provider.
+
 #[cfg(test)]
 mod tests {
     use crate::scenario_tests::message_generator::{image, text};
-    /// This module contains tests for the scenario runner and various scenarios.
-    /// You can set the GOOSE_TEST_PROVIDER to just run a specific provider.
     use crate::scenario_tests::mock_client::WEATHER_TYPE;
     use crate::scenario_tests::scenario_runner::run_scenario;
     use anyhow::Result;
+    use goose::message::Message;
 
     #[tokio::test]
     async fn test_what_is_your_name() -> Result<()> {
@@ -68,6 +70,33 @@ mod tests {
                 assert!(result.error.is_none());
                 let last_message = result.last_message()?;
                 assert!(!last_message.is_empty());
+                Ok(())
+            },
+        )
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_context_length_exceeded_error() -> Result<()> {
+        run_scenario(
+            "context_length_exceeded",
+            Box::new(|provider| {
+                let model_config = provider.get_model_config();
+                let context_length = model_config.context_limit.unwrap_or(300_000);
+                // "hello " is only one token in most models, since the hello and space often
+                // occur together in the training data.
+                let large_message = "hello ".repeat(context_length + 100);
+                Message::user().with_text(&large_message)
+            }),
+            Some(&["OpenAI"]),
+            |result| {
+                // this is unfortunate; we don't seem to actually catch the errors in this path,
+                // but instead eat it:
+                assert_eq!(
+                    result.messages.len(),
+                    0,
+                    "Expected no messages due to compaction"
+                );
                 Ok(())
             },
         )
