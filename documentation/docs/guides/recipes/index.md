@@ -12,19 +12,17 @@ import styles from '@site/src/components/Card/styles.module.css';
   Recipes are reusable workflows that package extensions, prompts, and settings together. Share proven workflows with your team and reproduce successful results consistently.
 </p>
 
-
-<!-- will replace with Recipe video once live -->
-<!-- <div className="video-container margin-bottom--lg">
+ <div className="video-container margin-bottom--lg">
   <iframe 
     width="100%"
     height="400"
-    src="https://www.youtube.com/embed/D-DpDunrbpo"
-    title="Vibe coding with Goose"
+    src="https://www.youtube.com/embed/8rTliYrQ6Iw"
+    title="Create Reusable AI Agents with Recipes"
     frameBorder="0"
     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
     allowFullScreen
   ></iframe>
-</div> -->
+</div> 
 
 <div className={styles.categorySection}>
   <h2 className={styles.categoryTitle}>📚 Documentation & Guides</h2>

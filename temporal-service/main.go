@@ -331,12 +331,33 @@ func ensureTemporalServerRunning(ports *PortConfig) error {
 
 func main() {
 	log.Println("Starting Temporal service...")
+	log.Printf("Runtime OS: %s", runtime.GOOS)
+	log.Printf("Runtime ARCH: %s", runtime.GOARCH)
+	
+	// Log current working directory for debugging
+	if cwd, err := os.Getwd(); err == nil {
+		log.Printf("Current working directory: %s", cwd)
+	}
+	
+	// Log environment variables that might affect behavior
+	if port := os.Getenv("PORT"); port != "" {
+		log.Printf("PORT environment variable: %s", port)
+	}
+	if rustLog := os.Getenv("RUST_LOG"); rustLog != "" {
+		log.Printf("RUST_LOG environment variable: %s", rustLog)
+	}
+	if temporalLog := os.Getenv("TEMPORAL_LOG_LEVEL"); temporalLog != "" {
+		log.Printf("TEMPORAL_LOG_LEVEL environment variable: %s", temporalLog)
+	}
 
 	// Create Temporal service (this will find available ports automatically)
+	log.Println("Creating Temporal service...")
 	service, err := NewTemporalService()
 	if err != nil {
+		log.Printf("ERROR: Failed to create Temporal service: %v", err)
 		log.Fatalf("Failed to create Temporal service: %v", err)
 	}
+	log.Println("✓ Temporal service created successfully")
 
 	// Use the dynamically assigned HTTP port
 	httpPort := service.GetHTTPPort()

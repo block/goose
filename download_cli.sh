@@ -161,11 +161,19 @@ set -e  # Re-enable immediate exit on error
 
 rm "$FILE" # clean up the downloaded archive
 
+# Determine the extraction directory (handle subdirectory in Windows packages)
+# Windows releases may contain files in a 'goose-package' subdirectory
+EXTRACT_DIR="$TMP_DIR"
+if [ "$OS" = "windows" ] && [ -d "$TMP_DIR/goose-package" ]; then
+  echo "Found goose-package subdirectory, using that as extraction directory"
+  EXTRACT_DIR="$TMP_DIR/goose-package"
+fi
+
 # Make binary executable
 if [ "$OS" = "windows" ]; then
-  chmod +x "$TMP_DIR/goose.exe"
+  chmod +x "$EXTRACT_DIR/goose.exe"
 else
-  chmod +x "$TMP_DIR/goose"
+  chmod +x "$EXTRACT_DIR/goose"
 fi
 
 # --- 5) Install to $GOOSE_BIN_DIR ---
@@ -176,44 +184,44 @@ fi
 
 echo "Moving goose to $GOOSE_BIN_DIR/$OUT_FILE"
 if [ "$OS" = "windows" ]; then
-  mv "$TMP_DIR/goose.exe" "$GOOSE_BIN_DIR/$OUT_FILE"
+  mv "$EXTRACT_DIR/goose.exe" "$GOOSE_BIN_DIR/$OUT_FILE"
 else
-  mv "$TMP_DIR/goose" "$GOOSE_BIN_DIR/$OUT_FILE"
+  mv "$EXTRACT_DIR/goose" "$GOOSE_BIN_DIR/$OUT_FILE"
 fi
 
 # Also move temporal-service and temporal CLI if they exist
 if [ "$OS" = "windows" ]; then
-  if [ -f "$TMP_DIR/temporal-service.exe" ]; then
+  if [ -f "$EXTRACT_DIR/temporal-service.exe" ]; then
     echo "Moving temporal-service to $GOOSE_BIN_DIR/temporal-service.exe"
-    mv "$TMP_DIR/temporal-service.exe" "$GOOSE_BIN_DIR/temporal-service.exe"
+    mv "$EXTRACT_DIR/temporal-service.exe" "$GOOSE_BIN_DIR/temporal-service.exe"
     chmod +x "$GOOSE_BIN_DIR/temporal-service.exe"
   fi
   
   # Move temporal CLI if it exists
-  if [ -f "$TMP_DIR/temporal.exe" ]; then
+  if [ -f "$EXTRACT_DIR/temporal.exe" ]; then
     echo "Moving temporal CLI to $GOOSE_BIN_DIR/temporal.exe"
-    mv "$TMP_DIR/temporal.exe" "$GOOSE_BIN_DIR/temporal.exe"
+    mv "$EXTRACT_DIR/temporal.exe" "$GOOSE_BIN_DIR/temporal.exe"
     chmod +x "$GOOSE_BIN_DIR/temporal.exe"
   fi
   
   # Copy Windows runtime DLLs if they exist
-  for dll in "$TMP_DIR"/*.dll; do
+  for dll in "$EXTRACT_DIR"/*.dll; do
     if [ -f "$dll" ]; then
       echo "Moving Windows runtime DLL: $(basename "$dll")"
       mv "$dll" "$GOOSE_BIN_DIR/"
     fi
   done
 else
-  if [ -f "$TMP_DIR/temporal-service" ]; then
+  if [ -f "$EXTRACT_DIR/temporal-service" ]; then
     echo "Moving temporal-service to $GOOSE_BIN_DIR/temporal-service"
-    mv "$TMP_DIR/temporal-service" "$GOOSE_BIN_DIR/temporal-service"
+    mv "$EXTRACT_DIR/temporal-service" "$GOOSE_BIN_DIR/temporal-service"
     chmod +x "$GOOSE_BIN_DIR/temporal-service"
   fi
   
   # Move temporal CLI if it exists
-  if [ -f "$TMP_DIR/temporal" ]; then
+  if [ -f "$EXTRACT_DIR/temporal" ]; then
     echo "Moving temporal CLI to $GOOSE_BIN_DIR/temporal"
-    mv "$TMP_DIR/temporal" "$GOOSE_BIN_DIR/temporal"
+    mv "$EXTRACT_DIR/temporal" "$GOOSE_BIN_DIR/temporal"
     chmod +x "$GOOSE_BIN_DIR/temporal"
   fi
 fi

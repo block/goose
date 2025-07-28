@@ -16,6 +16,8 @@ Files should be named either:
 - `recipe.yaml`/`recipe.json` 
 - `<recipe_name>.yaml`/`<recipe_name>.json`
 
+After creating recipe files, you can use [`goose` CLI commands](/docs/guides/goose-cli-commands) to run or validate the files and to manage recipe sharing.
+
 ## Recipe Structure
 
 ### Required Fields
@@ -31,7 +33,7 @@ Files should be named either:
 | Field | Type | Description |
 |-------|------|-------------|
 | `instructions` | String | Template instructions that can include parameter substitutions |
-| `prompt` | String | A template prompt that can include parameter substitutions |
+| `prompt` | String | A template prompt that can include parameter substitutions; required in headless (non-interactive) mode |
 | `parameters` | Array | List of parameter definitions |
 | `extensions` | Array | List of extension configurations |
 

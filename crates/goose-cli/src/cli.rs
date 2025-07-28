@@ -17,9 +17,8 @@ use crate::commands::schedule::{
 };
 use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::logging::setup_logging;
-use crate::recipes::recipe::{
-    explain_recipe_with_parameters, load_recipe_as_template, load_recipe_content_as_template,
-};
+use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
+use crate::recipes::recipe::{explain_recipe_with_parameters, load_recipe_content_as_template};
 use crate::session;
 use crate::session::{build_session, SessionBuilderConfig, SessionSettings};
 use goose_bench::bench_config::BenchRunConfig;
@@ -519,6 +518,16 @@ enum Command {
             hide = true
         )]
         scheduled_job_id: Option<String>,
+
+        /// Additional sub-recipe file paths
+        #[arg(
+            long = "sub-recipe",
+            value_name = "FILE",
+            help = "Path to a sub-recipe YAML file (can be specified multiple times)",
+            long_help = "Specify paths to sub-recipe YAML files that contain additional recipe configuration or instructions to be used alongside the main recipe. Can be specified multiple times to include multiple sub-recipes.",
+            action = clap::ArgAction::Append
+        )]
+        additional_sub_recipes: Vec<String>,
     },
 
     /// Recipe utilities for validation and deeplinking
@@ -593,10 +602,10 @@ enum CliProviderVariant {
 }
 
 #[derive(Debug)]
-struct InputConfig {
-    contents: Option<String>,
-    extensions_override: Option<Vec<ExtensionConfig>>,
-    additional_system_prompt: Option<String>,
+pub struct InputConfig {
+    pub contents: Option<String>,
+    pub extensions_override: Option<Vec<ExtensionConfig>>,
+    pub additional_system_prompt: Option<String>,
 }
 
 pub async fn cli() -> Result<()> {
@@ -725,15 +734,14 @@ pub async fn cli() -> Result<()> {
             render_recipe,
             scheduled_job_id,
             quiet,
+            additional_sub_recipes,
         }) => {
             let (input_config, session_settings, sub_recipes) = match (
                 instructions,
                 input_text,
                 recipe,
-                explain,
-                render_recipe,
             ) {
-                (Some(file), _, _, _, _) if file == "-" => {
+                (Some(file), _, _) if file == "-" => {
                     let mut input = String::new();
                     std::io::stdin()
                         .read_to_string(&mut input)
@@ -749,7 +757,7 @@ pub async fn cli() -> Result<()> {
                         None,
                     )
                 }
-                (Some(file), _, _, _, _) => {
+                (Some(file), _, _) => {
                     let contents = std::fs::read_to_string(&file).unwrap_or_else(|err| {
                         eprintln!(
                             "Instruction file not found — did you mean to use goose run --text?\n{}",
@@ -767,7 +775,7 @@ pub async fn cli() -> Result<()> {
                         None,
                     )
                 }
-                (_, Some(text), _, _, _) => (
+                (_, Some(text), _) => (
                     InputConfig {
                         contents: Some(text),
                         extensions_override: None,
@@ -776,7 +784,7 @@ pub async fn cli() -> Result<()> {
                     None,
                     None,
                 ),
-                (_, _, Some(recipe_name), explain, render_recipe) => {
+                (_, _, Some(recipe_name)) => {
                     if explain {
                         explain_recipe_with_parameters(&recipe_name, params)?;
                         return Ok(());
@@ -790,26 +798,9 @@ pub async fn cli() -> Result<()> {
                         println!("{}", recipe);
                         return Ok(());
                     }
-                    let recipe =
-                        load_recipe_as_template(&recipe_name, params).unwrap_or_else(|err| {
-                            eprintln!("{}: {}", console::style("Error").red().bold(), err);
-                            std::process::exit(1);
-                        });
-                    (
-                        InputConfig {
-                            contents: recipe.prompt,
-                            extensions_override: recipe.extensions,
-                            additional_system_prompt: recipe.instructions,
-                        },
-                        recipe.settings.map(|s| SessionSettings {
-                            goose_provider: s.goose_provider,
-                            goose_model: s.goose_model,
-                            temperature: s.temperature,
-                        }),
-                        recipe.sub_recipes,
-                    )
+                    extract_recipe_info_from_cli(recipe_name, params, additional_sub_recipes)?
                 }
-                (None, None, None, _, _) => {
+                (None, None, None) => {
                     eprintln!("Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin.");
                     std::process::exit(1);
                 }

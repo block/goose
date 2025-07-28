@@ -17,7 +17,7 @@ export default function RecipePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const recipesPerPage = 20;
+  const recipesPerPage = 10;
 
   const uniqueExtensions = Array.from(
     new Set(

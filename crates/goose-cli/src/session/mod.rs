@@ -52,6 +52,7 @@ pub struct Session {
     debug: bool, // New field for debug mode
     run_mode: RunMode,
     scheduled_job_id: Option<String>, // ID of the scheduled job that triggered this session
+    save_session: bool,               // Whether to save session to file
 }
 
 // Cache structure for completion data
@@ -113,13 +114,19 @@ impl Session {
         session_file: PathBuf,
         debug: bool,
         scheduled_job_id: Option<String>,
+        save_session: bool,
     ) -> Self {
-        let messages = match session::read_messages(&session_file) {
-            Ok(msgs) => msgs,
-            Err(e) => {
-                eprintln!("Warning: Failed to load message history: {}", e);
-                Vec::new()
+        let messages = if save_session {
+            match session::read_messages(&session_file) {
+                Ok(msgs) => msgs,
+                Err(e) => {
+                    eprintln!("Warning: Failed to load message history: {}", e);
+                    Vec::new()
+                }
             }
+        } else {
+            // Don't try to read messages if we're not saving sessions
+            Vec::new()
         };
 
         Session {
@@ -130,6 +137,7 @@ impl Session {
             debug,
             run_mode: RunMode::Normal,
             scheduled_job_id,
+            save_session,
         }
     }
 
@@ -319,6 +327,7 @@ impl Session {
             &self.messages,
             Some(provider),
             self.scheduled_job_id.clone(),
+            self.save_session,
         )
         .await?;
 
@@ -431,6 +440,7 @@ impl Session {
                                 &self.messages,
                                 Some(provider),
                                 self.scheduled_job_id.clone(),
+                                self.save_session,
                             )
                             .await?;
 
@@ -619,6 +629,7 @@ impl Session {
                             &self.messages,
                             Some(provider),
                             self.scheduled_job_id.clone(),
+                            self.save_session,
                         )
                         .await?;
 
@@ -792,7 +803,7 @@ impl Session {
                                         Err(ToolError::ExecutionError("Tool call cancelled by user".to_string()))
                                     ));
                                     self.messages.push(response_message);
-                                    session::persist_messages_with_schedule_id(&self.session_file, &self.messages, None, self.scheduled_job_id.clone()).await?;
+                                    session::persist_messages_with_schedule_id(&self.session_file, &self.messages, None, self.scheduled_job_id.clone(), self.save_session).await?;
 
                                     drop(stream);
                                     break;
@@ -889,7 +900,7 @@ impl Session {
                                 self.messages.push(message.clone());
 
                                 // No need to update description on assistant messages
-                                session::persist_messages_with_schedule_id(&self.session_file, &self.messages, None, self.scheduled_job_id.clone()).await?;
+                                session::persist_messages_with_schedule_id(&self.session_file, &self.messages, None, self.scheduled_job_id.clone(), self.save_session).await?;
 
                                 if interactive {output::hide_thinking()};
                                 let _ = progress_bars.hide();
@@ -1093,6 +1104,7 @@ impl Session {
                 &self.messages,
                 None,
                 self.scheduled_job_id.clone(),
+                self.save_session,
             )
             .await?;
 
@@ -1108,6 +1120,7 @@ impl Session {
                 &self.messages,
                 None,
                 self.scheduled_job_id.clone(),
+                self.save_session,
             )
             .await?;
 
@@ -1128,6 +1141,7 @@ impl Session {
                                 &self.messages,
                                 None,
                                 self.scheduled_job_id.clone(),
+                                self.save_session,
                             )
                             .await?;
 

@@ -1,0 +1,65 @@
+version: 1.0.0
+title: Migrate Cypress tests to Playwright
+author:
+  contact: joahg
+description: Migrate Cypress tests to Playwright
+instructions: Your job is to migrate cypress tests to playwright tests.
+activities:
+  - Analyze Cypress test file
+  - Convert Cypress syntax to Playwright
+  - Migrate custom commands and helpers
+  - Update imports and async handling
+  - Save Playwright test in target directory
+extensions:
+- type: builtin
+  name: developer
+  display_name: Developer
+  timeout: 300
+  bundled: true
+prompt: |
+    You are tasked with migrating a Cypress test to Playwright. 
+    
+    Cypress test file: {{ cypress_test_file }}
+    Target directory: {{ target_directory }}
+    
+    Please follow these steps:
+    
+    1. **Analyze the Cypress test file**: Examine the Cypress test file at {{ cypress_test_file }}, including its structure, commands, and any custom helper functions used.
+    
+    2. **Migrate the test structure**: Convert Cypress test syntax to Playwright:
+       - Replace `describe()` and `it()` with Playwright's `test.describe()` and `test()`
+       - Convert `cy.visit()` to `page.goto()`
+       - Convert `cy.get()` to appropriate Playwright locators
+       - Convert assertions from Cypress format to Playwright's `expect()` assertions
+       - Handle async/await patterns properly in Playwright
+    
+    3. **Migrate Cypress commands**: Convert common Cypress commands to Playwright equivalents:
+       - `cy.click()` → `locator.click()`
+       - `cy.type()` → `locator.fill()` or `locator.type()`
+       - `cy.should()` → `expect(locator).to**()`
+       - `cy.wait()` → `page.waitForTimeout()` or better, specific wait conditions
+       - `cy.intercept()` → `page.route()`
+    
+    4. **Migrate helper functions**: If the Cypress test uses custom commands or helper functions:
+       - Convert Cypress custom commands to Playwright helper functions
+       - Ensure helper functions are properly imported and available in the target directory
+       - Update function signatures to work with Playwright's page object
+    
+    5. **Update imports and setup**: 
+       - Add proper Playwright imports (`import { test, expect } from '@playwright/test'`)
+       - Remove Cypress-specific imports
+       - Ensure proper test configuration and setup
+    
+    6. **Handle test data and fixtures**: Convert any Cypress fixtures or test data to work with Playwright
+    
+    Create the migrated Playwright test in the target directory, maintaining the same test coverage and functionality as the original Cypress test. Use the same base filename but with appropriate Playwright test naming conventions (e.g., .spec.ts or .test.ts).
+
+parameters:
+  - key: cypress_test_file
+    input_type: file
+    requirement: user_prompt
+    description: The specific Cypress test file to migrate (e.g., cypress/e2e/login.cy.js)
+  - key: target_directory
+    input_type: file
+    requirement: user_prompt
+    description: The target directory where the Playwright test should be created

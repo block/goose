@@ -341,13 +341,13 @@ export default function MoreMenu({
                   onClick={() => {
                     setOpen(false);
                     // Signal to ChatView that we want to make an agent from the current chat
-                    window.electron.logInfo('Make Agent button clicked');
+                    window.electron.logInfo('Make recipe button clicked');
                     window.dispatchEvent(new CustomEvent('make-agent-from-chat'));
                   }}
-                  subtitle="Make a custom agent you can share or reuse with a link"
+                  subtitle="Make a custom agent recipe you can share or reuse with a link"
                   icon={<Send className="w-4 h-4" />}
                 >
-                  Make Agent from this session
+                  Make recipe from this session
                 </MenuButton>
               )}
               <MenuButton
