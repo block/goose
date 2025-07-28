@@ -20,7 +20,7 @@ You're probably wondering how I got here.
 
 <!--truncate-->
 
-Before I explain, it’s better if I just show you:
+Before I explain, it’s better if I just show you.
 
 👉Try it yourself: https://api-playground-production.up.railway.app/ 
 
@@ -58,14 +58,14 @@ export GOOSE_ALPHA_FEATURES=true
 
 ## Instructing My Team
 
-There are a few ways to create subagents in Goose. You can use natural language prompts, define them through [recipes](/docs/guides/recipes/), or even spin up [external subagents](/docs/experimental/subagents/#external-subagents) like Codex or Claude Code.. 
+There are a few ways to create subagents in Goose. You can use natural language prompts, define them through [recipes](/docs/guides/recipes/), or even spin up [external subagents](/docs/experimental/subagents/#external-subagents) like Codex or Claude Code.
 
 I took the natural language prompt approach because it felt convenient to directly configure a subagent through one prompt. Here’s the prompt I used:
   
 ```
 Build a real-time collaborative API testing platform using 3 AI subagents working sequentially - like "Google Docs for Postman" where teams can test APIs together, but for kids. Make it so errors and results are explained in a way that kids can understand and the design is kid friendly using metaphors. 
 
-3 Sequential subagents 
+3 Sequential Subagents 
 
 - Subagent 1: Create a WebSocket backend server that handles API request execution (GET/POST/PUT/DELETE with headers, body, auth) AND real-time collaboration features (multiple users, shared collections, live updates). 
 
@@ -83,7 +83,7 @@ Build a real-time collaborative API testing platform using 3 AI subagents workin
 
 Final result should be a working web app where multiple people can test APIs together, see each other's requests and responses instantly, and collaborate without conflicts. Use HTML/CSS/JS for the frontend, no frameworks. 
 
-Set the time out to 9 minutes
+Set the time out to 9 minutes.
 ```
 
 :::note TLDR
@@ -178,7 +178,7 @@ What will you build with subagents?
 <head>
   <meta property="og:title" content="Orchestrating 6 Subagents to Build a Collaborative API Playground for Kids" />
   <meta property="og:type" content="article" />
-  <meta property="og:url" content="https://block.github.io/goose/blog/2025/03/06/goose-tips" />
+  <meta property="og:url" content="https://block.github.io/goose/blog/2025/07/21/orchestrating-subagents" />
   <meta property="og:description" content="Delegating backend, frontend, docs, and tests so six subagents could build collaborative API tool for kids." />
   <meta property="og:image" content="https://block.github.io/goose/assets/images/built-by-subagents-869a01d4b147ebdb54334dcc22dc521e.png" />
   <meta name="twitter:card" content="summary_large_image" />

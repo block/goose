@@ -3,13 +3,16 @@ use crate::recipes::print_recipe::{
     print_required_parameters_for_template,
 };
 use crate::recipes::search_recipe::retrieve_recipe_file;
+use crate::recipes::secret_discovery::{discover_recipe_secrets, SecretRequirement};
 use anyhow::Result;
+use goose::config::Config;
 use goose::recipe::build_recipe::{
     apply_values_to_parameters, build_recipe_from_template, validate_recipe_parameters, RecipeError,
 };
 use goose::recipe::read_recipe_file_content::RecipeFile;
 use goose::recipe::template_recipe::render_recipe_for_preview;
 use goose::recipe::Recipe;
+use serde_json::Value;
 use std::collections::HashMap;
 
 pub const RECIPE_FILE_EXTENSIONS: &[&str] = &["yaml", "json"];
@@ -35,13 +38,85 @@ fn load_recipe_file_with_dir(recipe_name: &str) -> Result<(RecipeFile, String)> 
 pub fn load_recipe(recipe_name: &str, params: Vec<(String, String)>) -> Result<Recipe> {
     let recipe_file = retrieve_recipe_file(recipe_name)?;
     match build_recipe_from_template(recipe_file, params, Some(create_user_prompt_callback())) {
-        Ok(recipe) => Ok(recipe),
+        Ok(recipe) => {
+            let secret_requirements = discover_recipe_secrets(&recipe);
+            if let Err(e) = collect_missing_secrets(&secret_requirements) {
+                eprintln!(
+                    "Warning: Failed to collect some secrets: {}. Recipe will continue to run.",
+                    e
+                );
+            }
+            Ok(recipe)
+        }
         Err(RecipeError::MissingParams { parameters }) => Err(anyhow::anyhow!(
             "Please provide the following parameters in the command line: {}",
             missing_parameters_command_line(parameters)
         )),
         Err(e) => Err(anyhow::anyhow!(e.to_string())),
     }
+}
+
+/// Collects missing secrets from the user interactively
+///
+/// This function checks if each required secret exists in the keyring.
+/// For missing secrets, it prompts the user interactively and stores them
+/// using the scoped key to prevent collisions.
+///
+/// # Arguments
+/// * `requirements` - Vector of SecretRequirement objects to collect
+///
+/// # Returns
+/// Result indicating success or failure of the collection process
+pub fn collect_missing_secrets(requirements: &[SecretRequirement]) -> Result<()> {
+    if requirements.is_empty() {
+        return Ok(());
+    }
+
+    let config = Config::global();
+    let mut missing_secrets = Vec::new();
+
+    for req in requirements {
+        match config.get_secret::<String>(&req.key) {
+            Ok(_) => continue, // Secret exists
+            Err(_) => missing_secrets.push(req),
+        }
+    }
+
+    if missing_secrets.is_empty() {
+        return Ok(());
+    }
+
+    println!(
+        "🔐 This recipe uses {} secret(s) that are not yet configured (press ESC to skip any that are optional):",
+        missing_secrets.len()
+    );
+
+    for req in &missing_secrets {
+        println!("\n📋 Extension: {}", req.extension_name);
+        println!("🔑 Secret: {}", req.key);
+
+        let value = cliclack::password(format!(
+            "Enter {} ({}) - press ESC to skip",
+            req.key,
+            req.description()
+        ))
+        .mask('▪')
+        .interact()
+        .unwrap_or_else(|_| String::new());
+
+        if !value.trim().is_empty() {
+            config.set_secret(&req.key, Value::String(value))?;
+            println!("✅ Secret stored securely for {}", req.extension_name);
+        } else {
+            println!("⏭️  Skipped {} for {}", req.key, req.extension_name);
+        }
+    }
+
+    if !missing_secrets.is_empty() {
+        println!("\n🎉 Secret collection complete! Recipe execution will now continue.");
+    }
+
+    Ok(())
 }
 
 pub fn render_recipe_as_yaml(recipe_name: &str, params: Vec<(String, String)>) -> Result<()> {

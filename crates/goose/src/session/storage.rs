@@ -32,6 +32,12 @@ fn get_home_dir() -> PathBuf {
         .to_path_buf()
 }
 
+fn get_current_working_dir() -> PathBuf {
+    std::env::current_dir()
+        .or_else(|_| Ok::<PathBuf, io::Error>(get_home_dir()))
+        .expect("could not determine the current working directory")
+}
+
 /// Metadata for a session, stored as the first line in the session file
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct SessionMetadata {
@@ -87,7 +93,7 @@ impl<'de> Deserialize<'de> for SessionMetadata {
         let working_dir = helper
             .working_dir
             .filter(|path| path.exists())
-            .unwrap_or_else(get_home_dir);
+            .unwrap_or_else(get_current_working_dir);
 
         Ok(SessionMetadata {
             description: helper.description,
@@ -132,7 +138,7 @@ impl SessionMetadata {
 
 impl Default for SessionMetadata {
     fn default() -> Self {
-        Self::new(get_home_dir())
+        Self::new(get_current_working_dir())
     }
 }
 
@@ -1288,51 +1294,14 @@ pub async fn generate_description_with_schedule_id(
         ));
     }
 
-    // Create a special message asking for a 3-word description
-    let mut description_prompt = "Based on the conversation so far, provide a concise description of this session in 4 words or less. This will be used for finding the session later in a UI with limited space - reply *ONLY* with the description".to_string();
-
-    // get context from messages so far, limiting each message to 300 chars for security
-    let context: Vec<String> = messages
-        .iter()
-        .filter(|m| m.role == rmcp::model::Role::User)
-        .take(3) // Use up to first 3 user messages for context
-        .map(|m| {
-            let text = m.as_concat_text();
-            safe_truncate(&text, 300)
-        })
-        .collect();
-
-    if !context.is_empty() {
-        description_prompt = format!(
-            "Here are the first few user messages:\n{}\n\n{}",
-            context.join("\n"),
-            description_prompt
-        );
-    }
-
-    // Generate the description with error handling
-    let message = Message::user().with_text(&description_prompt);
-    let result = provider
-        .complete(
-            "Reply with only a description in four words or less",
-            &[message],
-            &[],
-        )
+    // Use the provider's session naming capability
+    let sanitized_description = provider
+        .generate_session_name(messages)
         .await
         .map_err(|e| {
             tracing::error!("Failed to generate session description: {}", e);
             anyhow::anyhow!("Failed to generate session description")
         })?;
-
-    let description = result.0.as_concat_text();
-
-    // Validate description length for security
-    let sanitized_description = if description.chars().count() > 100 {
-        tracing::warn!("Generated description too long, truncating");
-        safe_truncate(&description, 100)
-    } else {
-        description
-    };
 
     // Create metadata with proper working_dir or read existing and update
     let mut metadata = if secure_path.exists() {
@@ -1702,6 +1671,7 @@ mod tests {
 
         // Create metadata with non-existent directory
         let invalid_dir = PathBuf::from("/path/that/does/not/exist");
+
         let metadata = SessionMetadata::new(invalid_dir.clone());
 
         // Should fall back to home directory
@@ -1724,7 +1694,7 @@ mod tests {
         // Read back - should fall back to home dir
         let read_metadata = read_metadata(&file_path)?;
         assert_ne!(read_metadata.working_dir, invalid_dir);
-        assert_eq!(read_metadata.working_dir, get_home_dir());
+        assert_eq!(read_metadata.working_dir, get_current_working_dir());
 
         Ok(())
     }

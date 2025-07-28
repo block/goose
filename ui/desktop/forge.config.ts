@@ -27,7 +27,7 @@ let cfg = {
     CFBundleDocumentTypes: [
       {
         CFBundleTypeName: "Folders",
-        CFBundleTypeRole: "Viewer", 
+        CFBundleTypeRole: "Viewer",
         LSHandlerRank: "Alternate",
         LSItemContentTypes: ["public.directory", "public.folder"]
       }
@@ -85,6 +85,19 @@ module.exports = {
       config: {
         name: 'Goose',
         bin: 'Goose',
+        maintainer: 'Block, Inc.',
+        homepage: 'https://block.github.io/goose/',
+        categories: ['Development']
+      },
+    },
+    {
+      name: '@electron-forge/maker-rpm',
+      config: {
+        name: 'Goose',
+        bin: 'Goose',
+        maintainer: 'Block, Inc.',
+        homepage: 'https://block.github.io/goose/',
+        categories: ['Development']
       },
     },
   ],

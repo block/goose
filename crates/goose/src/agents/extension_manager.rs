@@ -7,6 +7,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::LazyLock;
 use std::time::Duration;
+use tempfile::tempdir;
 use tokio::sync::Mutex;
 use tokio::task;
 use tokio_stream::wrappers::ReceiverStream;
@@ -35,6 +36,7 @@ pub struct ExtensionManager {
     clients: HashMap<String, McpClientBox>,
     instructions: HashMap<String, String>,
     resource_capable_extensions: HashSet<String>,
+    temp_dirs: HashMap<String, tempfile::TempDir>,
 }
 
 /// A flattened representation of a resource used by the agent to prepare inference
@@ -105,6 +107,7 @@ impl ExtensionManager {
             clients: HashMap::new(),
             instructions: HashMap::new(),
             resource_capable_extensions: HashSet::new(),
+            temp_dirs: HashMap::new(),
         }
     }
 
@@ -267,6 +270,49 @@ impl ExtensionManager {
                     .await?,
                 )
             }
+            ExtensionConfig::InlinePython {
+                name,
+                code,
+                timeout,
+                dependencies,
+                ..
+            } => {
+                let temp_dir = tempdir()?;
+                let file_path = temp_dir.path().join(format!("{}.py", name));
+                std::fs::write(&file_path, code)?;
+
+                let mut args = vec![];
+
+                let mut all_deps = vec!["mcp".to_string()];
+
+                if let Some(deps) = dependencies.as_ref() {
+                    all_deps.extend(deps.iter().cloned());
+                }
+
+                for dep in all_deps {
+                    args.push("--with".to_string());
+                    args.push(dep);
+                }
+
+                args.push("python".to_string());
+                args.push(file_path.to_str().unwrap().to_string());
+
+                let transport = StdioTransport::new("uvx", args, HashMap::new());
+                let handle = transport.start().await?;
+                let client = Box::new(
+                    McpClient::connect(
+                        handle,
+                        Duration::from_secs(
+                            timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
+                        ),
+                    )
+                    .await?,
+                );
+
+                self.temp_dirs.insert(sanitized_name.clone(), temp_dir);
+
+                client
+            }
             _ => unreachable!(),
         };
 
@@ -292,10 +338,14 @@ impl ExtensionManager {
                 .insert(sanitized_name.clone());
         }
 
-        self.clients
-            .insert(sanitized_name.clone(), Arc::new(Mutex::new(client)));
-
+        self.add_client(sanitized_name, client);
         Ok(())
+    }
+
+    pub fn add_client(&mut self, client_name: String, client: Box<dyn McpClientTrait>) {
+        let sanitized_name = normalize(client_name);
+        self.clients
+            .insert(sanitized_name, Arc::new(Mutex::new(client)));
     }
 
     /// Get extensions info
@@ -317,6 +367,7 @@ impl ExtensionManager {
         self.clients.remove(&sanitized_name);
         self.instructions.remove(&sanitized_name);
         self.resource_capable_extensions.remove(&sanitized_name);
+        self.temp_dirs.remove(&sanitized_name);
         Ok(())
     }
 
@@ -777,8 +828,11 @@ impl ExtensionManager {
                     }
                     | ExtensionConfig::Stdio {
                         description, name, ..
+                    }
+                    | ExtensionConfig::InlinePython {
+                        description, name, ..
                     } => {
-                        // For SSE/StreamableHttp/Stdio, use description if available
+                        // For SSE/StreamableHttp/Stdio/InlinePython, use description if available
                         description
                             .as_ref()
                             .map(|s| s.to_string())

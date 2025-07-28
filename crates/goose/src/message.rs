@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 /// Messages which represent the content sent back and forth to LLM provider
 ///
 /// We use these messages in the agent code, and interfaces which interact with
@@ -18,6 +16,8 @@ use rmcp::model::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::HashSet;
+use std::fmt;
 use utoipa::ToSchema;
 
 mod tool_result_serde;
@@ -112,6 +112,41 @@ pub enum MessageContent {
     RedactedThinking(RedactedThinkingContent),
     ContextLengthExceeded(ContextLengthExceeded),
     SummarizationRequested(SummarizationRequested),
+}
+
+impl fmt::Display for MessageContent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            MessageContent::Text(t) => write!(f, "{}", t.text),
+            MessageContent::Image(i) => write!(f, "[Image: {}]", i.mime_type),
+            MessageContent::ToolRequest(r) => {
+                write!(f, "[ToolRequest: {}]", r.to_readable_string())
+            }
+            MessageContent::ToolResponse(r) => write!(
+                f,
+                "[ToolResponse: {}]",
+                match &r.tool_result {
+                    Ok(contents) => format!("{} content item(s)", contents.len()),
+                    Err(e) => format!("Error: {e}"),
+                }
+            ),
+            MessageContent::ToolConfirmationRequest(r) => {
+                write!(f, "[ToolConfirmationRequest: {}]", r.tool_name)
+            }
+            MessageContent::FrontendToolRequest(r) => match &r.tool_call {
+                Ok(tool_call) => write!(f, "[FrontendToolRequest: {}]", tool_call.name),
+                Err(e) => write!(f, "[FrontendToolRequest: Error: {}]", e),
+            },
+            MessageContent::Thinking(t) => write!(f, "[Thinking: {}]", t.thinking),
+            MessageContent::RedactedThinking(_r) => write!(f, "[RedactedThinking]"),
+            MessageContent::ContextLengthExceeded(r) => {
+                write!(f, "[ContextLengthExceeded: {}]", r.msg)
+            }
+            MessageContent::SummarizationRequested(r) => {
+                write!(f, "[SummarizationRequested: {}]", r.msg)
+            }
+        }
+    }
 }
 
 impl MessageContent {
@@ -312,7 +347,7 @@ impl From<PromptMessage> for Message {
     }
 }
 
-#[derive(ToSchema, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(ToSchema, Clone, PartialEq, Serialize, Deserialize)]
 /// A message to or from an LLM
 #[serde(rename_all = "camelCase")]
 pub struct Message {
@@ -320,6 +355,19 @@ pub struct Message {
     pub role: Role,
     pub created: i64,
     pub content: Vec<MessageContent>,
+}
+
+impl fmt::Debug for Message {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let joined_content: String = self
+            .content
+            .iter()
+            .map(|c| format!("{c}"))
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        write!(f, "{:?}: {}", self.role, joined_content)
+    }
 }
 
 pub fn push_message(messages: &mut Vec<Message>, message: Message) {
@@ -350,6 +398,9 @@ impl Message {
             created,
             content,
         }
+    }
+    pub fn debug(&self) -> String {
+        format!("{:?}", self)
     }
 
     /// Create a new user message with the current timestamp
