@@ -36,9 +36,10 @@ interface SearchContainerElement extends HTMLDivElement {
 interface SessionListViewProps {
   setView: (view: View, viewOptions?: ViewOptions) => void;
   onSelectSession: (sessionId: string) => void;
+  selectedSessionId?: string | null;
 }
 
-const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSession }) => {
+const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSession, selectedSessionId }) => {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [filteredSessions, setFilteredSessions] = useState<Session[]>([]);
   const [dateGroups, setDateGroups] = useState<DateGroup[]>([]);
@@ -155,6 +156,23 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
     });
   }, [debouncedSearchTerm, caseSensitive, sessions]);
 
+  // Scroll to the selected session when returning from session history view
+  useEffect(() => {
+    if (selectedSessionId && showContent && !isLoading) {
+      const sessionElement = containerRef.current?.querySelector(
+          `[session-item-id="${selectedSessionId}"]`
+      ) as HTMLElement;
+
+      if (sessionElement) {
+        sessionElement.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+          inline: 'nearest',
+        });
+      }
+    }
+  }, [selectedSessionId, showContent, isLoading]);
+
   // Handle immediate search input (updates search term for debouncing)
   const handleSearch = useCallback((term: string, caseSensitive: boolean) => {
     setSearchTerm(term);
@@ -190,6 +208,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
       <Card
         onClick={() => onSelectSession(session.id)}
         className="session-item h-full py-3 px-4 hover:shadow-default cursor-pointer transition-all duration-150 flex flex-col justify-between"
+        session-item-id={session.id}
       >
         <div className="flex-1">
           <h3 className="text-base truncate mb-1">{session.metadata.description || session.id}</h3>
