@@ -1,16 +1,17 @@
+//! MockClient is a mock implementation of the McpClientTrait for testing purposes.
+//! add a tool you want to have around and then add the client to the extension router
+
 use mcp_client::client::{ClientCapabilities, ClientInfo, Error, McpClientTrait};
 use mcp_core::protocol::{
-    CallToolResult, GetPromptResult, Implementation, InitializeResult, ListPromptsResult,
-    ListResourcesResult, ListToolsResult, ReadResourceResult, ServerCapabilities, ToolsCapability,
+    CallToolResult, Implementation, InitializeResult, ListPromptsResult, ListResourcesResult,
+    ListToolsResult, ReadResourceResult, ServerCapabilities, ToolsCapability,
 };
 use mcp_core::{Tool, ToolError};
-use rmcp::model::{Content, JsonRpcMessage};
+use rmcp::model::{Content, GetPromptResult, ServerNotification};
 use serde_json::Value;
 use std::collections::HashMap;
 use tokio::sync::mpsc::{self, Receiver};
 
-// MockClient is a mock implementation of the McpClientTrait for testing purposes.
-// add a tool and then add the client to the extension router
 pub struct MockClient {
     tools: HashMap<String, Tool>,
     handlers: HashMap<String, Box<dyn Fn(&Value) -> Result<Vec<Content>, ToolError> + Send + Sync>>,
@@ -28,7 +29,7 @@ impl MockClient {
     where
         F: Fn(&Value) -> Result<Vec<Content>, ToolError> + Send + Sync + 'static,
     {
-        let tool_name = tool.name.clone();
+        let tool_name = tool.name.to_string();
         self.tools.insert(tool_name.clone(), tool);
         self.handlers.insert(tool_name, Box::new(handler));
         self
@@ -74,8 +75,26 @@ impl McpClientTrait for MockClient {
     }
 
     async fn list_tools(&self, _: Option<String>) -> Result<ListToolsResult, Error> {
+        let rmcp_tools: Vec<rmcp::model::Tool> = self
+            .tools
+            .values()
+            .map(|tool| {
+                let input_schema = if let serde_json::Value::Object(obj) = &tool.input_schema {
+                    std::sync::Arc::new(obj.clone())
+                } else {
+                    std::sync::Arc::new(serde_json::Map::new())
+                };
+
+                rmcp::model::Tool::new(
+                    tool.name.to_string(),
+                    tool.description.to_string(),
+                    input_schema,
+                )
+            })
+            .collect();
+
         Ok(ListToolsResult {
-            tools: self.tools.values().cloned().collect(),
+            tools: rmcp_tools,
             next_cursor: None,
         })
     }
@@ -107,7 +126,7 @@ impl McpClientTrait for MockClient {
         ))
     }
 
-    async fn subscribe(&self) -> Receiver<JsonRpcMessage> {
+    async fn subscribe(&self) -> Receiver<ServerNotification> {
         mpsc::channel(1).1
     }
 }
@@ -128,7 +147,7 @@ pub fn weather_client() -> MockClient {
                 }
             }
         }),
-        None,
+        None, // ToolAnnotations
     );
 
     let mock_client = MockClient::new().add_tool(weather_tool, |args| {

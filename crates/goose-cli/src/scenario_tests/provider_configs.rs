@@ -1,3 +1,6 @@
+//! Providers for the scenario tests. Keep in sync with
+//!
+
 use std::collections::HashMap;
 use std::sync::LazyLock;
 

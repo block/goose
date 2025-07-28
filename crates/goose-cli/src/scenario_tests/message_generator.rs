@@ -1,3 +1,6 @@
+//! Message generator for scenario tests with convenience methods to
+//! just generate an image or text message.
+
 use crate::scenario_tests::scenario_runner::SCENARIO_TESTS_DIR;
 use base64::engine::general_purpose;
 use base64::Engine;
