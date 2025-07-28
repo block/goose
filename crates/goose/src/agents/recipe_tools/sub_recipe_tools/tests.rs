@@ -152,4 +152,67 @@ mod tests {
             assert_eq!(result["required"][0], "key1");
         }
     }
+
+    mod create_sub_recipe_task_tests {
+        use super::*;
+        use crate::agents::recipe_tools::sub_recipe_tools::create_sub_recipe_task;
+        use crate::agents::sub_recipe_execution_tool::lib::Task;
+        use serde_json::json;
+
+        #[tokio::test]
+        async fn test_create_sub_recipe_task_with_timeout() {
+            let mut sub_recipe = setup_sub_recipe();
+            sub_recipe.values = Some(HashMap::from([
+                ("key1".to_string(), "value1".to_string()),
+                ("task_timeout".to_string(), "3600".to_string()),
+            ]));
+
+            let params = json!({
+                "key2": "value2"
+            });
+
+            let result = create_sub_recipe_task(&sub_recipe, params).await.unwrap();
+            let task: Task = serde_json::from_str(&result).unwrap();
+
+            assert_eq!(task.task_type, "sub_recipe");
+            let sub_recipe_obj = task.payload.get("sub_recipe").unwrap();
+            assert_eq!(sub_recipe_obj.get("name").unwrap(), "test_sub_recipe");
+            assert_eq!(sub_recipe_obj.get("task_timeout").unwrap(), 3600);
+            
+            let command_params = sub_recipe_obj.get("command_parameters").unwrap();
+            assert_eq!(command_params.get("key1").unwrap(), "value1");
+            assert_eq!(command_params.get("key2").unwrap(), "value2");
+        }
+
+        #[tokio::test]
+        async fn test_create_sub_recipe_task_without_timeout() {
+            let sub_recipe = setup_sub_recipe();
+            let params = json!({
+                "key2": "value2"
+            });
+
+            let result = create_sub_recipe_task(&sub_recipe, params).await.unwrap();
+            let task: Task = serde_json::from_str(&result).unwrap();
+
+            assert_eq!(task.task_type, "sub_recipe");
+            let sub_recipe_obj = task.payload.get("sub_recipe").unwrap();
+            assert!(sub_recipe_obj.get("task_timeout").is_none());
+        }
+
+        #[tokio::test]
+        async fn test_create_sub_recipe_task_invalid_timeout() {
+            let mut sub_recipe = setup_sub_recipe();
+            sub_recipe.values = Some(HashMap::from([
+                ("task_timeout".to_string(), "not_a_number".to_string()),
+            ]));
+
+            let params = json!({});
+
+            let result = create_sub_recipe_task(&sub_recipe, params).await.unwrap();
+            let task: Task = serde_json::from_str(&result).unwrap();
+
+            let sub_recipe_obj = task.payload.get("sub_recipe").unwrap();
+            assert!(sub_recipe_obj.get("task_timeout").is_none());
+        }
+    }
 }

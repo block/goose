@@ -29,6 +29,9 @@ impl Task {
     }
 }
 
+#[cfg(test)]
+mod tests;
+
 // Result for each task
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskResult {

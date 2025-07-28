@@ -9,6 +9,9 @@ use crate::agents::sub_recipe_execution_tool::lib::{
 use crate::agents::sub_recipe_execution_tool::tasks::process_task;
 use crate::agents::sub_recipe_execution_tool::workers::{run_scaler, spawn_worker, SharedState};
 
+#[cfg(test)]
+mod tests;
+
 pub async fn execute_single_task(task: &Task, config: Config) -> ExecutionResponse {
     let start_time = Instant::now();
     // Use task-specific timeout if available, otherwise use default

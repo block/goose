@@ -7,6 +7,9 @@ use tokio::time::timeout;
 
 use crate::agents::sub_recipe_execution_tool::types::{Task, TaskResult};
 
+#[cfg(test)]
+mod tests;
+
 // Process a single task based on its type
 pub async fn process_task(task: &Task, timeout_seconds: u64) -> TaskResult {
     let task_clone = task.clone();
