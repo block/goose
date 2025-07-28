@@ -10,6 +10,7 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
+use tracing::warn;
 
 pub static APP_STRATEGY: Lazy<AppStrategyArgs> = Lazy::new(|| AppStrategyArgs {
     top_level_domain: "Block".to_string(),
@@ -546,7 +547,17 @@ impl Config {
         let env_key = key.to_uppercase();
         if let Ok(val) = env::var(&env_key) {
             // Parse the environment variable value into a serde_json::Value
-            let value: Value = serde_json::from_str(&val).unwrap_or(Value::String(val));
+            let value: Value = match serde_json::from_str(&val) {
+                Ok(json_value) => json_value,
+                Err(_) => {
+                    warn!(
+                        "Failed to parse environment variable {}='{}' as JSON. \
+                         Treating as string. For numbers, use valid JSON format (e.g., '0.01' not '.01')",
+                        env_key, val
+                    );
+                    Value::String(val)
+                }
+            };
             return Ok(serde_json::from_value(value)?);
         }
 
