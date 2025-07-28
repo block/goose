@@ -11,7 +11,9 @@ use crate::agents::sub_recipe_execution_tool::workers::{run_scaler, spawn_worker
 
 pub async fn execute_single_task(task: &Task, config: Config) -> ExecutionResponse {
     let start_time = Instant::now();
-    let result = process_task(task, config.timeout_seconds).await;
+    // Use task-specific timeout if available, otherwise use default
+    let timeout_seconds = task.get_task_timeout().unwrap_or(config.timeout_seconds);
+    let result = process_task(task, timeout_seconds).await;
 
     let execution_time = start_time.elapsed().as_millis();
     let completed = if result.status == "success" { 1 } else { 0 };

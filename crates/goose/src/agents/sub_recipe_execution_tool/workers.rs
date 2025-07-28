@@ -61,7 +61,7 @@ pub fn spawn_worker(
     })
 }
 
-async fn worker_loop(state: Arc<SharedState>, _worker_id: usize, timeout_seconds: u64) {
+async fn worker_loop(state: Arc<SharedState>, _worker_id: usize, default_timeout_seconds: u64) {
     loop {
         // Try to receive a task
         let task = {
@@ -71,6 +71,9 @@ async fn worker_loop(state: Arc<SharedState>, _worker_id: usize, timeout_seconds
 
         match task {
             Some(task) => {
+                // Use task-specific timeout if available, otherwise use default
+                let timeout_seconds = task.get_task_timeout().unwrap_or(default_timeout_seconds);
+                
                 // Process the task
                 let result = process_task(&task, timeout_seconds).await;
 

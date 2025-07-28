@@ -96,13 +96,32 @@ fn prepare_command_params(
 
 pub async fn create_sub_recipe_task(sub_recipe: &SubRecipe, params: Value) -> Result<String> {
     let command_params = prepare_command_params(sub_recipe, params)?;
-    let payload = json!({
-        "sub_recipe": {
-            "name": sub_recipe.name.clone(),
-            "command_parameters": command_params,
-            "recipe_path": sub_recipe.path.clone(),
-        }
+    
+    // Extract task_timeout from sub_recipe values if present
+    let task_timeout = sub_recipe
+        .values
+        .as_ref()
+        .and_then(|values| values.get("task_timeout"))
+        .and_then(|timeout_str| timeout_str.parse::<u64>().ok());
+    
+    let mut sub_recipe_data = json!({
+        "name": sub_recipe.name.clone(),
+        "command_parameters": command_params,
+        "recipe_path": sub_recipe.path.clone(),
     });
+    
+    // Add task_timeout to the payload if present
+    if let Some(timeout_seconds) = task_timeout {
+        sub_recipe_data.as_object_mut().unwrap().insert(
+            "task_timeout".to_string(),
+            json!(timeout_seconds)
+        );
+    }
+    
+    let payload = json!({
+        "sub_recipe": sub_recipe_data
+    });
+    
     let task = Task {
         id: uuid::Uuid::new_v4().to_string(),
         task_type: "sub_recipe".to_string(),
