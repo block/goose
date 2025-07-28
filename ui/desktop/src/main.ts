@@ -15,9 +15,8 @@ import {
   shell,
   Tray,
 } from 'electron';
-import type { OpenDialogReturnValue } from 'electron';
-import { MouseUpEvent } from './types/electron';
 import { Buffer } from 'node:buffer';
+import { MouseUpEvent } from './types/electron';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import started from 'electron-squirrel-startup';
