@@ -623,7 +623,7 @@ Whether you're building your first Goose recipe or looking to optimize existing 
 <head>
   <meta property="og:title" content="Streamlining Detection Development with Goose Recipes" />
   <meta property="og:type" content="article" />
-  <meta property="og:url" content="https://block.github.io/goose/blog/2025/06/02/goose-panther-mcp" />
+  <meta property="og:url" content="https://block.github.io/goose/blog/2025/07/28/streamlining-detection-development-with-goose-recipes" />
   <meta property="og:description" content="A comprehensive guide to using recipes in Goose to streamline security detection development" />
   <meta property="og:image" content="https://block.github.io/goose/assets/images/goose-recipes-detection-development-cover.png" />
   <meta name="twitter:card" content="summary_large_image" />
