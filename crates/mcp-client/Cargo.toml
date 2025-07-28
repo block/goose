@@ -36,3 +36,4 @@ webbrowser = "1.0"
 serde_urlencoded = "0.7"
 
 [dev-dependencies]
+mockito = "1.5"
