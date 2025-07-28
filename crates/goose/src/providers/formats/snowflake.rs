@@ -3,9 +3,8 @@ use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
 use anyhow::{anyhow, Result};
-use mcp_core::content::Content;
-use mcp_core::role::Role;
-use mcp_core::tool::{Tool, ToolCall};
+use mcp_core::tool::ToolCall;
+use rmcp::model::{Role, Tool};
 use serde_json::{json, Value};
 use std::collections::HashSet;
 
@@ -39,10 +38,7 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                     if let Ok(result) = &tool_response.tool_result {
                         let text = result
                             .iter()
-                            .filter_map(|c| match c {
-                                Content::Text(t) => Some(t.text.clone()),
-                                _ => None,
-                            })
+                            .filter_map(|c| c.as_text().map(|t| t.text.clone()))
                             .collect::<Vec<_>>()
                             .join("\n");
 
@@ -202,7 +198,7 @@ pub fn parse_streaming_response(sse_data: &str) -> Result<Message> {
 }
 
 /// Convert Snowflake's API response to internal Message format
-pub fn response_to_message(response: Value) -> Result<Message> {
+pub fn response_to_message(response: &Value) -> Result<Message> {
     let mut message = Message::assistant();
 
     let content_list = response.get("content_list").and_then(|cl| cl.as_array());
@@ -363,6 +359,7 @@ pub fn create_request(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rmcp::object;
     use serde_json::json;
 
     #[test]
@@ -384,7 +381,7 @@ mod tests {
             }
         });
 
-        let message = response_to_message(response.clone())?;
+        let message = response_to_message(&response)?;
         let usage = get_usage(&response)?;
 
         if let MessageContent::Text(text) = &message.content[0] {
@@ -421,7 +418,7 @@ mod tests {
             }
         });
 
-        let message = response_to_message(response.clone())?;
+        let message = response_to_message(&response)?;
         let usage = get_usage(&response)?;
 
         if let MessageContent::ToolRequest(tool_request) = &message.content[0] {
@@ -464,7 +461,7 @@ mod tests {
             Tool::new(
                 "calculator",
                 "Calculate mathematical expressions",
-                json!({
+                object!({
                     "type": "object",
                     "properties": {
                         "expression": {
@@ -473,12 +470,11 @@ mod tests {
                         }
                     }
                 }),
-                None,
             ),
             Tool::new(
                 "weather",
                 "Get weather information",
-                json!({
+                object!({
                     "type": "object",
                     "properties": {
                         "location": {
@@ -487,7 +483,6 @@ mod tests {
                         }
                     }
                 }),
-                None,
             ),
         ];
 
@@ -561,7 +556,7 @@ data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-3-5-sonnet","
         let tools = vec![Tool::new(
             "get_stock_price",
             "Get stock price information",
-            json!({
+            object!({
                 "type": "object",
                 "properties": {
                     "symbol": {
@@ -571,7 +566,6 @@ data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-3-5-sonnet","
                 },
                 "required": ["symbol"]
             }),
-            None,
         )];
 
         let request = create_request(&model_config, system, &messages, &tools)?;
@@ -629,7 +623,7 @@ data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-3-5-sonnet","
             }
         });
 
-        let message = response_to_message(response.clone())?;
+        let message = response_to_message(&response)?;
 
         // Should have both text and tool request content
         assert_eq!(message.content.len(), 2);
@@ -668,8 +662,7 @@ data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-3-5-sonnet","
         let tools = vec![Tool::new(
             "test_tool",
             "Test tool",
-            json!({"type": "object", "properties": {}}),
-            None,
+            object!({"type": "object", "properties": {}}),
         )];
 
         let request = create_request(&model_config, system, &messages, &tools)?;

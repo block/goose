@@ -7,7 +7,7 @@ import RateLimits from '@site/src/components/RateLimits';
 import MacDesktopInstallButtons from '@site/src/components/MacDesktopInstallButtons';
 import WindowsDesktopInstallButtons from '@site/src/components/WindowsDesktopInstallButtons';
 import LinuxDesktopInstallButtons from '@site/src/components/LinuxDesktopInstallButtons';
-
+import { PanelLeft } from 'lucide-react';
 
 # Install Goose
 
@@ -145,10 +145,7 @@ import LinuxDesktopInstallButtons from '@site/src/components/LinuxDesktopInstall
         </div>
       </TabItem>
       <TabItem value="cli" label="Goose CLI">
-        Install the Goose CLI directly from the browser using our download script, or use WSL for a Linux-like experience.
-
-        <h3 style={{ marginTop: '1rem' }}>Option 1: Native Windows CLI (Recommended)</h3>
-        Run the following command in **Git Bash**, **MSYS2**, or **PowerShell** to install the latest version of Goose natively on Windows:
+        Run the following command in **Git Bash**, **MSYS2**, or **PowerShell** to install the Goose CLI natively on Windows:
 
         ```bash
         curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
@@ -169,38 +166,42 @@ import LinuxDesktopInstallButtons from '@site/src/components/LinuxDesktopInstall
         The script requires `curl` and `unzip` to be available in your environment.
         :::
 
-        <h3>Option 2: Windows Subsystem for Linux (WSL)</h3>
-        If you prefer a Linux-like environment, you can run Goose using WSL:
+        <details>
+        <summary>Install via Windows Subsystem for Linux (WSL)</summary>
 
-        1. Open [PowerShell](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-windows) as Administrator and install WSL and the default Ubuntu distribution:
+          We recommend running the Goose CLI natively on Windows, but you can use WSL if you prefer a Linux-like environment.
 
-        ```bash
-        wsl --install
-        ```
-
-        2. If prompted, restart your computer to complete the WSL installation. Once restarted, or if WSL is already installed, launch your Ubuntu shell by running:
-
-        ```bash
-        wsl -d Ubuntu
-        ```
-
-        3. Run the Goose installation script:
-        ```bash
-        curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
-        ```
-        :::tip
-          If you encounter any issues on download, you might need to install `bzip2` to extract the downloaded file:
+          1. Open [PowerShell](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-windows) as Administrator and install WSL and the default Ubuntu distribution:
 
           ```bash
-          sudo apt update && sudo apt install bzip2 -y
+          wsl --install
           ```
-        :::
 
-        If you'd like to install without interactive configuration, disable `CONFIGURE`:
+          2. If prompted, restart your computer to complete the WSL installation. Once restarted, or if WSL is already installed, launch your Ubuntu shell by running:
 
-        ```sh
-        curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
-        ```  
+          ```bash
+          wsl -d Ubuntu
+          ```
+
+          3. Run the Goose installation script:
+          ```bash
+          curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
+          ```
+          :::tip
+            If you encounter any issues on download, you might need to install `bzip2` to extract the downloaded file:
+
+            ```bash
+            sudo apt update && sudo apt install bzip2 -y
+            ```
+          :::
+
+          If you'd like to install without interactive configuration, disable `CONFIGURE`:
+
+          ```sh
+          curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
+          ```  
+
+        </details>
       </TabItem>
     </Tabs>
   </TabItem>
@@ -290,10 +291,12 @@ Goose works with a set of [supported LLM providers][providers], and you'll need 
   <TabItem value="ui" label="Goose Desktop" default>
   **To update your LLM provider and API key:**
 
-    1. Click on the three dots in the top-right corner.
-    2. Select `Provider Settings` from the menu.
-    2. Choose a provider from the list.
-    3. Click Edit, enter your API key, and click `Set as Active`.
+    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
+    2. Click the `Settings` button on the sidebar.
+    3. Click the `Models` tab.
+    4. Click `Configure Providers`
+    5. Choose your provider
+    6. Click `Configure`, enter your API key, and click `Submit`.
 
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
@@ -360,8 +363,8 @@ While core configurations are shared between interfaces, extensions have flexibi
 <Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
         Navigate to shared configurations through:
-        1. Click `...` in the upper right corner
-        2. Click `Advanced Settings`
+        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
+        2. Click the `Settings` button on the sidebar.
     </TabItem>
     <TabItem value="cli" label="Goose CLI">
         Use the following command to manage shared configurations:

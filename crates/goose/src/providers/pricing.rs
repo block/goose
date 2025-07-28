@@ -70,13 +70,13 @@ impl PricingCache {
                         let age_days = (now - cached.fetched_at) / (24 * 60 * 60);
 
                         if age_days < CACHE_TTL_DAYS {
-                            tracing::info!(
+                            tracing::debug!(
                                 "Loaded pricing data from disk cache (age: {} days)",
                                 age_days
                             );
                             Ok(Some(cached))
                         } else {
-                            tracing::info!("Disk cache expired (age: {} days)", age_days);
+                            tracing::debug!("Disk cache expired (age: {} days)", age_days);
                             Ok(None)
                         }
                     }
@@ -102,7 +102,7 @@ impl PricingCache {
         let json_data = serde_json::to_vec_pretty(data)?;
         tokio::fs::write(&cache_path, json_data).await?;
 
-        tracing::info!("Saved pricing data to disk cache");
+        tracing::debug!("Saved pricing data to disk cache");
         Ok(())
     }
 
@@ -177,7 +177,7 @@ impl PricingCache {
             .values()
             .map(|models| models.len())
             .sum();
-        tracing::info!(
+        tracing::debug!(
             "Fetched pricing for {} providers with {} total models from OpenRouter",
             cached_data.pricing.len(),
             total_models
@@ -201,7 +201,7 @@ impl PricingCache {
         if let Ok(Some(cached)) = self.load_from_disk().await {
             // Log how many models we have cached
             let total_models: usize = cached.pricing.values().map(|models| models.len()).sum();
-            tracing::info!(
+            tracing::debug!(
                 "Loaded {} providers with {} total models from disk cache",
                 cached.pricing.len(),
                 total_models
@@ -217,7 +217,7 @@ impl PricingCache {
         }
 
         // If no disk cache, fetch from OpenRouter
-        tracing::info!("No valid disk cache found, fetching from OpenRouter");
+        tracing::info!("Fetching pricing data from OpenRouter API");
         self.refresh().await
     }
 }
@@ -231,12 +231,16 @@ impl Default for PricingCache {
 // Global cache instance
 lazy_static::lazy_static! {
     static ref PRICING_CACHE: PricingCache = PricingCache::new();
-    static ref HTTP_CLIENT: Client = Client::builder()
+}
+
+/// Create a properly configured HTTP client for the current runtime
+fn create_http_client() -> Client {
+    Client::builder()
         .timeout(Duration::from_secs(30))
         .pool_idle_timeout(Duration::from_secs(90))
         .pool_max_idle_per_host(10)
         .build()
-        .unwrap();
+        .expect("Failed to create HTTP client")
 }
 
 /// OpenRouter model pricing information
@@ -270,7 +274,8 @@ pub struct OpenRouterModelsResponse {
 
 /// Internal function to fetch pricing data
 async fn fetch_openrouter_pricing_internal() -> Result<HashMap<String, OpenRouterModel>> {
-    let response = HTTP_CLIENT
+    let client = create_http_client();
+    let response = client
         .get("https://openrouter.ai/api/v1/models")
         .send()
         .await?;
@@ -376,6 +381,12 @@ mod tests {
             Some(("openai".to_string(), "gpt-4".to_string()))
         );
         assert_eq!(parse_model_id("invalid-format"), None);
+
+        // Test the specific model causing issues
+        assert_eq!(
+            parse_model_id("anthropic/claude-sonnet-4"),
+            Some(("anthropic".to_string(), "claude-sonnet-4".to_string()))
+        );
     }
 
     #[test]
@@ -383,5 +394,42 @@ mod tests {
         assert_eq!(convert_pricing("0.000003"), Some(0.000003));
         assert_eq!(convert_pricing("0.015"), Some(0.015));
         assert_eq!(convert_pricing("invalid"), None);
+    }
+
+    #[tokio::test]
+    async fn test_claude_sonnet_4_pricing_lookup() {
+        // Initialize the cache to load from disk
+        if let Err(e) = initialize_pricing_cache().await {
+            println!("Failed to initialize pricing cache: {}", e);
+            return;
+        }
+
+        // Test lookup for the specific model
+        let pricing = get_model_pricing("anthropic", "claude-sonnet-4").await;
+
+        println!(
+            "Pricing lookup result for anthropic/claude-sonnet-4: {:?}",
+            pricing
+        );
+
+        // Should find pricing data
+        if let Some(pricing_info) = pricing {
+            assert!(pricing_info.input_cost > 0.0);
+            assert!(pricing_info.output_cost > 0.0);
+            println!(
+                "Found pricing: input={}, output={}",
+                pricing_info.input_cost, pricing_info.output_cost
+            );
+        } else {
+            // Print debug info
+            let all_pricing = get_all_pricing().await;
+            if let Some(anthropic_models) = all_pricing.get("anthropic") {
+                println!("Available anthropic models in cache:");
+                for model_name in anthropic_models.keys() {
+                    println!("  {}", model_name);
+                }
+            }
+            panic!("Expected to find pricing for anthropic/claude-sonnet-4");
+        }
     }
 }

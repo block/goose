@@ -4,10 +4,6 @@ use std::collections::HashMap;
 
 const DEFAULT_CONTEXT_LIMIT: usize = 128_000;
 
-// Tokenizer names, used to infer from model name
-pub const GPT_4O_TOKENIZER: &str = "Xenova--gpt-4o";
-pub const CLAUDE_TOKENIZER: &str = "Xenova--claude-tokenizer";
-
 // Define the model limits as a static HashMap for reuse
 static MODEL_SPECIFIC_LIMITS: Lazy<HashMap<&'static str, usize>> = Lazy::new(|| {
     let mut map = HashMap::new();
@@ -41,10 +37,6 @@ static MODEL_SPECIFIC_LIMITS: Lazy<HashMap<&'static str, usize>> = Lazy::new(|| 
 pub struct ModelConfig {
     /// The name of the model to use
     pub model_name: String,
-    // Optional tokenizer name (corresponds to the sanitized HuggingFace tokenizer name)
-    // "Xenova/gpt-4o" -> "Xenova/gpt-4o"
-    // If not provided, best attempt will be made to infer from model name or default
-    pub tokenizer_name: String,
     /// Optional explicit context limit that overrides any defaults
     pub context_limit: Option<usize>,
     /// Optional temperature setting (0.0 - 1.0)
@@ -69,11 +61,19 @@ impl ModelConfig {
     ///
     /// The context limit is set with the following precedence:
     /// 1. Explicit context_limit if provided in config
-    /// 2. Model-specific default based on model name
-    /// 3. Global default (128_000) (in get_context_limit)
+    /// 2. Environment variable override (GOOSE_CONTEXT_LIMIT)
+    /// 3. Model-specific default based on model name
+    /// 4. Global default (128_000) (in get_context_limit)
     pub fn new(model_name: String) -> Self {
-        let context_limit = Self::get_model_specific_limit(&model_name);
-        let tokenizer_name = Self::infer_tokenizer_name(&model_name);
+        Self::new_with_context_env(model_name, None)
+    }
+
+    /// Create a new ModelConfig with the specified model name and custom context limit env var
+    ///
+    /// This is useful for specific model purposes like lead, worker, planner models
+    /// that may have their own context limit environment variables.
+    pub fn new_with_context_env(model_name: String, context_env_var: Option<&str>) -> Self {
+        let context_limit = Self::get_context_limit_with_env_override(&model_name, context_env_var);
 
         let toolshim = std::env::var("GOOSE_TOOLSHIM")
             .map(|val| val == "1" || val.to_lowercase() == "true")
@@ -87,21 +87,11 @@ impl ModelConfig {
 
         Self {
             model_name,
-            tokenizer_name: tokenizer_name.to_string(),
             context_limit,
             temperature,
             max_tokens: None,
             toolshim,
             toolshim_model,
-        }
-    }
-
-    fn infer_tokenizer_name(model_name: &str) -> &'static str {
-        if model_name.contains("claude") {
-            CLAUDE_TOKENIZER
-        } else {
-            // Default tokenizer
-            GPT_4O_TOKENIZER
         }
     }
 
@@ -161,15 +151,41 @@ impl ModelConfig {
         self
     }
 
-    /// Get the tokenizer name
-    pub fn tokenizer_name(&self) -> &str {
-        &self.tokenizer_name
-    }
-
     /// Get the context_limit for the current model
     /// If none are defined, use the DEFAULT_CONTEXT_LIMIT
     pub fn context_limit(&self) -> usize {
         self.context_limit.unwrap_or(DEFAULT_CONTEXT_LIMIT)
+    }
+
+    /// Get context limit with environment variable override support
+    ///
+    /// The context limit is resolved with the following precedence:
+    /// 1. Custom environment variable (if specified)
+    /// 2. GOOSE_CONTEXT_LIMIT (default environment variable)
+    /// 3. Model-specific default based on model name
+    /// 4. Global default (128_000)
+    fn get_context_limit_with_env_override(
+        model_name: &str,
+        custom_env_var: Option<&str>,
+    ) -> Option<usize> {
+        // 1. Check custom environment variable first (e.g., GOOSE_LEAD_CONTEXT_LIMIT)
+        if let Some(env_var) = custom_env_var {
+            if let Ok(limit_str) = std::env::var(env_var) {
+                if let Ok(limit) = limit_str.parse::<usize>() {
+                    return Some(limit);
+                }
+            }
+        }
+
+        // 2. Check default context limit environment variable
+        if let Ok(limit_str) = std::env::var("GOOSE_CONTEXT_LIMIT") {
+            if let Ok(limit) = limit_str.parse::<usize>() {
+                return Some(limit);
+            }
+        }
+
+        // 3. Fall back to model-specific defaults
+        Self::get_model_specific_limit(model_name)
     }
 }
 
@@ -256,5 +272,43 @@ mod tests {
         let gpt4_limit = limits.iter().find(|l| l.pattern == "gpt-4o");
         assert!(gpt4_limit.is_some());
         assert_eq!(gpt4_limit.unwrap().context_limit, 128_000);
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_model_config_context_limit_env_vars() {
+        use temp_env::with_vars;
+
+        // Test default context limit environment variable
+        with_vars([("GOOSE_CONTEXT_LIMIT", Some("250000"))], || {
+            let config = ModelConfig::new("unknown-model".to_string());
+            assert_eq!(config.context_limit(), 250_000);
+        });
+
+        // Test custom context limit environment variable
+        with_vars(
+            [
+                ("GOOSE_LEAD_CONTEXT_LIMIT", Some("300000")),
+                ("GOOSE_CONTEXT_LIMIT", Some("250000")),
+            ],
+            || {
+                let config = ModelConfig::new_with_context_env(
+                    "unknown-model".to_string(),
+                    Some("GOOSE_LEAD_CONTEXT_LIMIT"),
+                );
+                // Should use the custom env var, not the default one
+                assert_eq!(config.context_limit(), 300_000);
+            },
+        );
+
+        // Test fallback to model-specific when env var is invalid
+        with_vars([("GOOSE_CONTEXT_LIMIT", Some("invalid"))], || {
+            let config = ModelConfig::new("gpt-4o".to_string());
+            assert_eq!(config.context_limit(), 128_000); // Should use model-specific default
+        });
+
+        // Test fallback to default when no env vars and unknown model
+        let config = ModelConfig::new("unknown-model".to_string());
+        assert_eq!(config.context_limit(), DEFAULT_CONTEXT_LIMIT);
     }
 }

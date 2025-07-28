@@ -123,35 +123,7 @@ The Goose CLI and desktop apps are under active and continuous development. To g
         </div>
       </TabItem>
       <TabItem value="cli" label="Goose CLI">
-        There isn't native CLI support for Windows. You can run Goose CLI using WSL (Windows Subsystem for Linux).
-
-        **If you haven't set up WSL yet:**
-
-        1. Open [PowerShell](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-windows) as Administrator and install WSL and the default Ubuntu distribution:
-
-        ```bash
-        wsl --install
-        ```
-
-        2. If prompted, restart your computer to complete the WSL installation. Once restarted, or if WSL is already installed, launch your Ubuntu shell by running:
-
-        ```bash
-        wsl -d Ubuntu
-        ```
-
-        3. Run the Goose installation script:
-        ```bash
-        curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
-        ```
-        :::tip
-          If you encounter any issues on download, you might need to install `bzip2` to extract the downloaded file:
-
-          ```bash
-          sudo apt update && sudo apt install bzip2 -y
-          ```
-        :::
-
-        **If you already have Goose CLI installed in WSL, you can update it:**
+        You can update Goose by running:
 
         ```sh
         goose update
@@ -167,17 +139,28 @@ The Goose CLI and desktop apps are under active and continuous development. To g
         goose update --reconfigure
         ```
 
-        Or you can run the [installation](/docs/getting-started/installation) script again within WSL:
+        Or you can run the [installation](/docs/getting-started/installation) script again in **Git Bash**, **MSYS2**, or **PowerShell** to update the Goose CLI natively on Windows:
+
+        ```bash
+        curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
+        ```
+        
+        To check your current Goose version, use the following command:
+
+        ```sh
+        goose --version
+        ```        
+
+        <details>
+        <summary>Update via Windows Subsystem for Linux (WSL)</summary>
+
+        To update your WSL installation, use `goose update` or run the installation script again via WSL:
 
         ```sh
         curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
         ```
 
-        To check your current Goose version within WSL, use:
-
-        ```sh
-        goose --version
-        ```
+       </details>
       </TabItem>
     </Tabs>
   </TabItem>

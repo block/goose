@@ -1,5 +1,6 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use std::ops::Deref;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -7,7 +8,8 @@ use super::base::{LeadWorkerProviderTrait, Provider, ProviderMetadata, ProviderU
 use super::errors::ProviderError;
 use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
-use mcp_core::{tool::Tool, Content};
+use rmcp::model::Tool;
+use rmcp::model::{Content, RawContent};
 
 /// A provider that switches between a lead model and a worker model based on turn count
 /// and can fallback to lead model on consecutive failures
@@ -239,7 +241,7 @@ impl LeadWorkerProvider {
     /// Check if tool output contains error indicators
     fn contains_error_indicators(&self, contents: &[Content]) -> bool {
         for content in contents {
-            if let Content::Text(text_content) = content {
+            if let RawContent::Text(text_content) = content.deref() {
                 let text_lower = text_content.text.to_lowercase();
 
                 // Common error patterns in tool outputs
@@ -455,7 +457,7 @@ mod tests {
     use crate::message::MessageContent;
     use crate::providers::base::{ProviderMetadata, ProviderUsage, Usage};
     use chrono::Utc;
-    use mcp_core::{content::TextContent, Role};
+    use rmcp::model::{AnnotateAble, RawTextContent, Role};
 
     #[derive(Clone)]
     struct MockProvider {
@@ -480,14 +482,16 @@ mod tests {
             _tools: &[Tool],
         ) -> Result<(Message, ProviderUsage), ProviderError> {
             Ok((
-                Message {
-                    role: Role::Assistant,
-                    created: Utc::now().timestamp(),
-                    content: vec![MessageContent::Text(TextContent {
-                        text: format!("Response from {}", self.name),
-                        annotations: None,
-                    })],
-                },
+                Message::new(
+                    Role::Assistant,
+                    Utc::now().timestamp(),
+                    vec![MessageContent::Text(
+                        RawTextContent {
+                            text: format!("Response from {}", self.name),
+                        }
+                        .no_annotation(),
+                    )],
+                ),
                 ProviderUsage::new(self.name.clone(), Usage::default()),
             ))
         }
@@ -643,14 +647,16 @@ mod tests {
                 ))
             } else {
                 Ok((
-                    Message {
-                        role: Role::Assistant,
-                        created: Utc::now().timestamp(),
-                        content: vec![MessageContent::Text(TextContent {
-                            text: format!("Response from {}", self.name),
-                            annotations: None,
-                        })],
-                    },
+                    Message::new(
+                        Role::Assistant,
+                        Utc::now().timestamp(),
+                        vec![MessageContent::Text(
+                            RawTextContent {
+                                text: format!("Response from {}", self.name),
+                            }
+                            .no_annotation(),
+                        )],
+                    ),
                     ProviderUsage::new(self.name.clone(), Usage::default()),
                 ))
             }

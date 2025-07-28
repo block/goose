@@ -1,29 +1,36 @@
-import { Message } from '../types/message';
-import { getApiUrl } from '../config';
-import { FullExtensionConfig } from '../extensions';
+import {
+  createRecipe as apiCreateRecipe,
+  encodeRecipe as apiEncodeRecipe,
+  decodeRecipe as apiDecodeRecipe,
+} from '../api';
+import type {
+  CreateRecipeRequest as ApiCreateRecipeRequest,
+  CreateRecipeResponse as ApiCreateRecipeResponse,
+  RecipeParameter,
+  Message as ApiMessage,
+  Role,
+  MessageContent,
+} from '../api';
+import type { Message as FrontendMessage } from '../types/message';
 
-export interface Recipe {
-  title: string;
-  description: string;
-  instructions: string;
-  prompt?: string;
-  activities?: string[];
-  author?: {
-    contact?: string;
-    metadata?: string;
-  };
-  extensions?: FullExtensionConfig[];
-  goosehints?: string;
-  context?: string[];
-  profile?: string;
-  mcps?: number;
+// Re-export OpenAPI types with frontend-specific additions
+export type Parameter = RecipeParameter;
+export type Recipe = import('../api').Recipe & {
+  // TODO: Separate these from the raw recipe type
   // Properties added for scheduled execution
   scheduledJobId?: string;
   isScheduledExecution?: boolean;
-}
+  // TODO: Separate these from the raw recipe type
+  // Legacy frontend properties (not in OpenAPI schema)
+  profile?: string;
+  goosehints?: string;
+  mcps?: number;
+};
 
+// Create frontend-compatible type that accepts frontend Message until we can refactor.
 export interface CreateRecipeRequest {
-  messages: Message[];
+  // TODO: Fix this type to match Message OpenAPI spec
+  messages: FrontendMessage[];
   title: string;
   description: string;
   activities?: string[];
@@ -33,33 +40,100 @@ export interface CreateRecipeRequest {
   };
 }
 
-export interface CreateRecipeResponse {
-  recipe: Recipe | null;
-  error: string | null;
+export type CreateRecipeResponse = ApiCreateRecipeResponse;
+
+function convertFrontendMessageToApiMessage(frontendMessage: FrontendMessage): ApiMessage {
+  // TODO: Fix this type to match Message OpenAPI spec
+  return {
+    id: frontendMessage.id,
+    role: frontendMessage.role as Role,
+    content: frontendMessage.content.map((content) => ({
+      ...content,
+      // Convert toolCall to match API expectations
+      ...(content.type === 'toolRequest' && 'toolCall' in content
+        ? {
+            toolCall: content.toolCall as unknown as { [key: string]: unknown },
+          }
+        : {}),
+    })) as MessageContent[],
+    created: frontendMessage.created,
+  };
 }
 
 export async function createRecipe(request: CreateRecipeRequest): Promise<CreateRecipeResponse> {
-  const url = getApiUrl('/recipe/create');
-  console.log('Creating recipe at:', url);
-  console.log('Request:', JSON.stringify(request, null, 2));
+  console.log('Creating recipe with request:', JSON.stringify(request, null, 2));
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(request),
-  });
+  try {
+    const apiRequest: ApiCreateRecipeRequest = {
+      messages: request.messages.map(convertFrontendMessageToApiMessage),
+      title: request.title,
+      description: request.description,
+      activities: request.activities || undefined,
+      author: request.author
+        ? {
+            contact: request.author.contact || undefined,
+            metadata: request.author.metadata || undefined,
+          }
+        : undefined,
+    };
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Failed to create recipe:', {
-      status: response.status,
-      statusText: response.statusText,
-      error: errorText,
+    const response = await apiCreateRecipe({
+      body: apiRequest,
     });
-    throw new Error(`Failed to create recipe: ${response.statusText} (${errorText})`);
-  }
 
-  return response.json();
+    if (!response.data) {
+      throw new Error('No data returned from API');
+    }
+
+    return response.data;
+  } catch (error) {
+    console.error('Failed to create recipe:', error);
+    throw error;
+  }
+}
+
+export async function encodeRecipe(recipe: Recipe): Promise<string> {
+  try {
+    const response = await apiEncodeRecipe({
+      body: { recipe },
+    });
+
+    if (!response.data) {
+      throw new Error('No data returned from API');
+    }
+
+    return response.data.deeplink;
+  } catch (error) {
+    console.error('Failed to encode recipe:', error);
+    throw error;
+  }
+}
+
+export async function decodeRecipe(deeplink: string): Promise<Recipe> {
+  console.log('Decoding recipe from deeplink:', deeplink);
+
+  try {
+    const response = await apiDecodeRecipe({
+      body: { deeplink },
+    });
+
+    if (!response.data) {
+      throw new Error('No data returned from API');
+    }
+
+    if (!response.data.recipe) {
+      console.error('Decoded recipe is null:', response.data);
+      throw new Error('Decoded recipe is null');
+    }
+
+    return response.data.recipe as Recipe;
+  } catch (error) {
+    console.error('Failed to decode deeplink:', error);
+    throw error;
+  }
+}
+
+export async function generateDeepLink(recipe: Recipe): Promise<string> {
+  const encoded = await encodeRecipe(recipe);
+  return `goose://recipe?config=${encoded}`;
 }

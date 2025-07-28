@@ -9,4 +9,4 @@ pub use storage::{
     SessionMetadata,
 };
 
-pub use info::{get_session_info, SessionInfo};
+pub use info::{get_valid_sorted_sessions, SessionInfo};

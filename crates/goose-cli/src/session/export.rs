@@ -1,7 +1,6 @@
 use goose::message::{Message, MessageContent, ToolRequest, ToolResponse};
-use mcp_core::content::Content as McpContent;
-use mcp_core::resource::ResourceContents;
-use mcp_core::role::Role;
+use goose::utils::safe_truncate;
+use rmcp::model::{RawContent, ResourceContents, Role};
 use serde_json::Value;
 
 const MAX_STRING_LENGTH_MD_EXPORT: usize = 4096; // Generous limit for export
@@ -10,9 +9,9 @@ const REDACTED_PREFIX_LENGTH: usize = 100; // Show first 100 chars before trimmi
 fn value_to_simple_markdown_string(value: &Value, export_full_strings: bool) -> String {
     match value {
         Value::String(s) => {
-            if !export_full_strings && s.len() > MAX_STRING_LENGTH_MD_EXPORT {
-                let prefix = &s[..REDACTED_PREFIX_LENGTH.min(s.len())];
-                let trimmed_chars = s.len() - prefix.len();
+            if !export_full_strings && s.chars().count() > MAX_STRING_LENGTH_MD_EXPORT {
+                let prefix = safe_truncate(s, REDACTED_PREFIX_LENGTH);
+                let trimmed_chars = s.chars().count() - prefix.chars().count();
                 format!("`{}[ ... trimmed : {} chars ... ]`", prefix, trimmed_chars)
             } else {
                 // Escape backticks and newlines for inline code.
@@ -40,7 +39,7 @@ fn value_to_markdown(value: &Value, depth: usize, export_full_strings: bool) -> 
                     md_string.push_str(&format!("{}*   **{}**: ", base_indent_str, key));
                     match val {
                         Value::String(s) => {
-                            if s.contains('\n') || s.len() > 80 {
+                            if s.contains('\n') || s.chars().count() > 80 {
                                 // Heuristic for block
                                 md_string.push_str(&format!(
                                     "\n{}    ```\n{}{}\n{}    ```\n",
@@ -74,7 +73,7 @@ fn value_to_markdown(value: &Value, depth: usize, export_full_strings: bool) -> 
                     md_string.push_str(&format!("{}*   - ", base_indent_str));
                     match item {
                         Value::String(s) => {
-                            if s.contains('\n') || s.len() > 80 {
+                            if s.contains('\n') || s.chars().count() > 80 {
                                 // Heuristic for block
                                 md_string.push_str(&format!(
                                     "\n{}      ```\n{}{}\n{}      ```\n",
@@ -218,8 +217,8 @@ pub fn tool_response_to_markdown(resp: &ToolResponse, export_all_content: bool) 
                     }
                 }
 
-                match content {
-                    McpContent::Text(text_content) => {
+                match &content.raw {
+                    RawContent::Text(text_content) => {
                         let trimmed_text = text_content.text.trim();
                         if (trimmed_text.starts_with('{') && trimmed_text.ends_with('}'))
                             || (trimmed_text.starts_with('[') && trimmed_text.ends_with(']'))
@@ -235,7 +234,7 @@ pub fn tool_response_to_markdown(resp: &ToolResponse, export_all_content: bool) 
                             md.push_str("\n\n");
                         }
                     }
-                    McpContent::Image(image_content) => {
+                    RawContent::Image(image_content) => {
                         if image_content.mime_type.starts_with("image/") {
                             // For actual images, provide a placeholder that indicates it's an image
                             md.push_str(&format!(
@@ -251,7 +250,7 @@ pub fn tool_response_to_markdown(resp: &ToolResponse, export_all_content: bool) 
                             ));
                         }
                     }
-                    McpContent::Resource(resource) => {
+                    RawContent::Resource(resource) => {
                         match &resource.resource {
                             ResourceContents::TextResourceContents {
                                 uri,
@@ -297,6 +296,9 @@ pub fn tool_response_to_markdown(resp: &ToolResponse, export_all_content: bool) 
                                 ));
                             }
                         }
+                    }
+                    RawContent::Audio(_) => {
+                        md.push_str("[audio content not displayed in Markdown export]\n\n")
                     }
                 }
             }
@@ -359,8 +361,8 @@ pub fn message_to_markdown(message: &Message, export_all_content: bool) -> Strin
 mod tests {
     use super::*;
     use goose::message::{Message, ToolRequest, ToolResponse};
-    use mcp_core::content::{Content as McpContent, TextContent};
     use mcp_core::tool::ToolCall;
+    use rmcp::model::{Content, RawTextContent, TextContent};
     use serde_json::json;
 
     #[test]
@@ -397,7 +399,7 @@ mod tests {
         assert!(result.starts_with("`"));
         assert!(result.contains("[ ... trimmed : "));
         assert!(result.contains("4900 chars ... ]`"));
-        assert!(result.contains(&"a".repeat(100))); // Should contain the prefix
+        assert!(result.contains(&"a".repeat(97))); // Should contain the prefix (100 - 3 for "...")
     }
 
     #[test]
@@ -520,12 +522,14 @@ mod tests {
     #[test]
     fn test_tool_response_to_markdown_text() {
         let text_content = TextContent {
-            text: "Command executed successfully".to_string(),
+            raw: RawTextContent {
+                text: "Command executed successfully".to_string(),
+            },
             annotations: None,
         };
         let tool_response = ToolResponse {
             id: "test-id".to_string(),
-            tool_result: Ok(vec![McpContent::Text(text_content)]),
+            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
         };
 
         let result = tool_response_to_markdown(&tool_response, true);
@@ -537,12 +541,14 @@ mod tests {
     fn test_tool_response_to_markdown_json() {
         let json_text = r#"{"status": "success", "data": "test"}"#;
         let text_content = TextContent {
-            text: json_text.to_string(),
+            raw: RawTextContent {
+                text: json_text.to_string(),
+            },
             annotations: None,
         };
         let tool_response = ToolResponse {
             id: "test-id".to_string(),
-            tool_result: Ok(vec![McpContent::Text(text_content)]),
+            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
         };
 
         let result = tool_response_to_markdown(&tool_response, true);
@@ -639,12 +645,14 @@ if __name__ == "__main__":
     hello_world()"#;
 
         let text_content = TextContent {
-            text: python_code.to_string(),
+            raw: RawTextContent {
+                text: python_code.to_string(),
+            },
             annotations: None,
         };
         let tool_response = ToolResponse {
             id: "shell-cat".to_string(),
-            tool_result: Ok(vec![McpContent::Text(text_content)]),
+            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
         };
 
         let request_result = tool_request_to_markdown(&tool_request, true);
@@ -676,12 +684,14 @@ if __name__ == "__main__":
 
         let git_output = " M src/main.rs\n?? temp.txt\n A new_feature.rs";
         let text_content = TextContent {
-            text: git_output.to_string(),
+            raw: RawTextContent {
+                text: git_output.to_string(),
+            },
             annotations: None,
         };
         let tool_response = ToolResponse {
             id: "git-status".to_string(),
-            tool_result: Ok(vec![McpContent::Text(text_content)]),
+            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
         };
 
         let request_result = tool_request_to_markdown(&tool_request, true);
@@ -721,12 +731,14 @@ warning: unused variable `x`
     Finished dev [unoptimized + debuginfo] target(s) in 2.45s"#;
 
         let text_content = TextContent {
-            text: build_output.to_string(),
+            raw: RawTextContent {
+                text: build_output.to_string(),
+            },
             annotations: None,
         };
         let tool_response = ToolResponse {
             id: "cargo-build".to_string(),
-            tool_result: Ok(vec![McpContent::Text(text_content)]),
+            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
         };
 
         let response_result = tool_response_to_markdown(&tool_response, true);
@@ -764,12 +776,14 @@ warning: unused variable `x`
 }"#;
 
         let text_content = TextContent {
-            text: api_response.to_string(),
+            raw: RawTextContent {
+                text: api_response.to_string(),
+            },
             annotations: None,
         };
         let tool_response = ToolResponse {
             id: "curl-api".to_string(),
-            tool_result: Ok(vec![McpContent::Text(text_content)]),
+            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
         };
 
         let response_result = tool_response_to_markdown(&tool_response, true);
@@ -796,12 +810,14 @@ warning: unused variable `x`
         };
 
         let text_content = TextContent {
-            text: "File created successfully".to_string(),
+            raw: RawTextContent {
+                text: "File created successfully".to_string(),
+            },
             annotations: None,
         };
         let tool_response = ToolResponse {
             id: "editor-write".to_string(),
-            tool_result: Ok(vec![McpContent::Text(text_content)]),
+            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
         };
 
         let request_result = tool_request_to_markdown(&tool_request, true);
@@ -849,12 +865,14 @@ def process_data(data: List[Dict]) -> List[Dict]:
     return [item for item in data if item.get('active', False)]"#;
 
         let text_content = TextContent {
-            text: python_code.to_string(),
+            raw: RawTextContent {
+                text: python_code.to_string(),
+            },
             annotations: None,
         };
         let tool_response = ToolResponse {
             id: "editor-view".to_string(),
-            tool_result: Ok(vec![McpContent::Text(text_content)]),
+            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
         };
 
         let response_result = tool_response_to_markdown(&tool_response, true);
@@ -882,12 +900,14 @@ def process_data(data: List[Dict]) -> List[Dict]:
 Command failed with exit code 2"#;
 
         let text_content = TextContent {
-            text: error_output.to_string(),
+            raw: RawTextContent {
+                text: error_output.to_string(),
+            },
             annotations: None,
         };
         let tool_response = ToolResponse {
             id: "shell-error".to_string(),
-            tool_result: Ok(vec![McpContent::Text(text_content)]),
+            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
         };
 
         let response_result = tool_response_to_markdown(&tool_response, true);
@@ -918,12 +938,14 @@ Command failed with exit code 2"#;
 5^2 = 25"#;
 
         let text_content = TextContent {
-            text: script_output.to_string(),
+            raw: RawTextContent {
+                text: script_output.to_string(),
+            },
             annotations: None,
         };
         let tool_response = ToolResponse {
             id: "script-exec".to_string(),
-            tool_result: Ok(vec![McpContent::Text(text_content)]),
+            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
         };
 
         let request_result = tool_request_to_markdown(&tool_request, true);
@@ -961,12 +983,14 @@ drwx------   3 user  staff    96 Dec  6 16:20 com.apple.launchd.abc
 /tmp"#;
 
         let text_content = TextContent {
-            text: multi_output.to_string(),
+            raw: RawTextContent {
+                text: multi_output.to_string(),
+            },
             annotations: None,
         };
         let tool_response = ToolResponse {
             id: "multi-cmd".to_string(),
-            tool_result: Ok(vec![McpContent::Text(text_content)]),
+            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
         };
 
         let request_result = tool_request_to_markdown(&_tool_request, true);
@@ -1000,12 +1024,14 @@ src/database.rs:23:async fn query_users(pool: &Pool) -> Result<Vec<User>> {
 src/middleware.rs:12:async fn auth_middleware(req: Request, next: Next) -> Result<Response> {"#;
 
         let text_content = TextContent {
-            text: grep_output.to_string(),
+            raw: RawTextContent {
+                text: grep_output.to_string(),
+            },
             annotations: None,
         };
         let tool_response = ToolResponse {
             id: "grep-search".to_string(),
-            tool_result: Ok(vec![McpContent::Text(text_content)]),
+            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
         };
 
         let request_result = tool_request_to_markdown(&tool_request, true);
@@ -1036,12 +1062,14 @@ src/middleware.rs:12:async fn auth_middleware(req: Request, next: Next) -> Resul
 
         let json_output = r#"{"status": "success", "data": {"count": 42}}"#;
         let text_content = TextContent {
-            text: json_output.to_string(),
+            raw: RawTextContent {
+                text: json_output.to_string(),
+            },
             annotations: None,
         };
         let tool_response = ToolResponse {
             id: "json-test".to_string(),
-            tool_result: Ok(vec![McpContent::Text(text_content)]),
+            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
         };
 
         let response_result = tool_response_to_markdown(&tool_response, true);
@@ -1073,12 +1101,14 @@ src/middleware.rs:12:async fn auth_middleware(req: Request, next: Next) -> Resul
 found 0 vulnerabilities"#;
 
         let text_content = TextContent {
-            text: npm_output.to_string(),
+            raw: RawTextContent {
+                text: npm_output.to_string(),
+            },
             annotations: None,
         };
         let tool_response = ToolResponse {
             id: "npm-install".to_string(),
-            tool_result: Ok(vec![McpContent::Text(text_content)]),
+            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
         };
 
         let request_result = tool_request_to_markdown(&tool_request, true);

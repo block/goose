@@ -7,6 +7,7 @@
 
 use crate::message::Message;
 use crate::providers::base::Provider;
+use crate::utils::safe_truncate;
 use anyhow::Result;
 use chrono::Local;
 use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
@@ -14,6 +15,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::{self, BufRead, Write};
+use std::ops::DerefMut;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use utoipa::ToSchema;
@@ -30,6 +32,12 @@ fn get_home_dir() -> PathBuf {
         .to_path_buf()
 }
 
+fn get_current_working_dir() -> PathBuf {
+    std::env::current_dir()
+        .or_else(|_| Ok::<PathBuf, io::Error>(get_home_dir()))
+        .expect("could not determine the current working directory")
+}
+
 /// Metadata for a session, stored as the first line in the session file
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct SessionMetadata {
@@ -40,6 +48,8 @@ pub struct SessionMetadata {
     pub description: String,
     /// ID of the schedule that triggered this session, if any
     pub schedule_id: Option<String>,
+    /// ID of the project this session belongs to, if any
+    pub project_id: Option<String>,
     /// Number of messages in the session
     pub message_count: usize,
     /// The total number of tokens used in the session. Retrieved from the provider's last usage.
@@ -67,6 +77,7 @@ impl<'de> Deserialize<'de> for SessionMetadata {
             description: String,
             message_count: usize,
             schedule_id: Option<String>, // For backward compatibility
+            project_id: Option<String>,  // For backward compatibility
             total_tokens: Option<i32>,
             input_tokens: Option<i32>,
             output_tokens: Option<i32>,
@@ -82,12 +93,13 @@ impl<'de> Deserialize<'de> for SessionMetadata {
         let working_dir = helper
             .working_dir
             .filter(|path| path.exists())
-            .unwrap_or_else(get_home_dir);
+            .unwrap_or_else(get_current_working_dir);
 
         Ok(SessionMetadata {
             description: helper.description,
             message_count: helper.message_count,
             schedule_id: helper.schedule_id,
+            project_id: helper.project_id,
             total_tokens: helper.total_tokens,
             input_tokens: helper.input_tokens,
             output_tokens: helper.output_tokens,
@@ -112,6 +124,7 @@ impl SessionMetadata {
             working_dir,
             description: String::new(),
             schedule_id: None,
+            project_id: None,
             message_count: 0,
             total_tokens: None,
             input_tokens: None,
@@ -125,7 +138,7 @@ impl SessionMetadata {
 
 impl Default for SessionMetadata {
     fn default() -> Self {
-        Self::new(get_home_dir())
+        Self::new(get_current_working_dir())
     }
 }
 
@@ -158,14 +171,6 @@ pub fn get_path(id: Identifier) -> Result<PathBuf> {
             session_dir.join(format!("{}.jsonl", name))
         }
         Identifier::Path(path) => {
-            // Allow special paths for no-session mode
-            if let Some(path_str) = path.to_str() {
-                if path_str == "/dev/null" || path_str == "NUL" {
-                    // These are special paths used for --no-session mode
-                    return Ok(path);
-                }
-            }
-
             // In test mode, allow temporary directory paths
             #[cfg(test)]
             {
@@ -199,13 +204,9 @@ pub fn get_path(id: Identifier) -> Result<PathBuf> {
     };
 
     // Additional security check for file extension (skip for special no-session paths)
-    if let Some(path_str) = path.to_str() {
-        if path_str != "/dev/null" && path_str != "NUL" {
-            if let Some(ext) = path.extension() {
-                if ext != "jsonl" {
-                    return Err(anyhow::anyhow!("Invalid file extension"));
-                }
-            }
+    if let Some(ext) = path.extension() {
+        if ext != "jsonl" {
+            return Err(anyhow::anyhow!("Invalid file extension"));
         }
     }
 
@@ -617,7 +618,7 @@ pub fn read_messages_with_truncation(
         // Log details about corrupted lines (with limited detail for security)
         for (num, line) in &corrupted_lines {
             let preview = if line.len() > 50 {
-                format!("{}... (truncated)", &line[..50])
+                format!("{}... (truncated)", safe_truncate(line, 50))
             } else {
                 line.clone()
             };
@@ -685,16 +686,16 @@ fn parse_message_with_truncation(
 /// Truncate content within a message in place
 fn truncate_message_content_in_place(message: &mut Message, max_content_size: usize) {
     use crate::message::MessageContent;
-    use mcp_core::{Content, ResourceContents};
+    use rmcp::model::{RawContent, ResourceContents};
 
     for content in &mut message.content {
         match content {
             MessageContent::Text(text_content) => {
-                if text_content.text.len() > max_content_size {
+                if text_content.text.chars().count() > max_content_size {
                     let truncated = format!(
                         "{}\n\n[... content truncated during session loading from {} to {} characters ...]",
-                        &text_content.text[..max_content_size.min(text_content.text.len())],
-                        text_content.text.len(),
+                        safe_truncate(&text_content.text, max_content_size),
+                        text_content.text.chars().count(),
                         max_content_size
                     );
                     text_content.text = truncated;
@@ -703,27 +704,27 @@ fn truncate_message_content_in_place(message: &mut Message, max_content_size: us
             MessageContent::ToolResponse(tool_response) => {
                 if let Ok(ref mut result) = tool_response.tool_result {
                     for content_item in result {
-                        match content_item {
-                            Content::Text(ref mut text_content) => {
-                                if text_content.text.len() > max_content_size {
+                        match content_item.deref_mut() {
+                            RawContent::Text(ref mut text_content) => {
+                                if text_content.text.chars().count() > max_content_size {
                                     let truncated = format!(
                                         "{}\n\n[... tool response truncated during session loading from {} to {} characters ...]",
-                                        &text_content.text[..max_content_size.min(text_content.text.len())],
-                                        text_content.text.len(),
+                                        safe_truncate(&text_content.text, max_content_size),
+                                        text_content.text.chars().count(),
                                         max_content_size
                                     );
                                     text_content.text = truncated;
                                 }
                             }
-                            Content::Resource(ref mut resource_content) => {
+                            RawContent::Resource(ref mut resource_content) => {
                                 if let ResourceContents::TextResourceContents { text, .. } =
                                     &mut resource_content.resource
                                 {
-                                    if text.len() > max_content_size {
+                                    if text.chars().count() > max_content_size {
                                         let truncated = format!(
                                             "{}\n\n[... resource content truncated during session loading from {} to {} characters ...]",
-                                            &text[..max_content_size.min(text.len())],
-                                            text.len(),
+                                            safe_truncate(text, max_content_size),
+                                            text.chars().count(),
                                             max_content_size
                                         );
                                         *text = truncated;
@@ -763,7 +764,7 @@ fn attempt_corruption_recovery(json_str: &str, max_content_size: Option<usize>) 
     // Strategy 4: Create a placeholder message with the raw content
     println!("[SESSION] All recovery strategies failed, creating placeholder message");
     let preview = if json_str.len() > 200 {
-        format!("{}...", &json_str[..200])
+        format!("{}...", safe_truncate(json_str, 200))
     } else {
         json_str.to_string()
     };
@@ -868,11 +869,11 @@ fn try_extract_partial_message(json_str: &str) -> Result<Message> {
 
     // Try to extract role
     let role = if json_str.contains("\"role\":\"user\"") {
-        mcp_core::role::Role::User
+        rmcp::model::Role::User
     } else if json_str.contains("\"role\":\"assistant\"") {
-        mcp_core::role::Role::Assistant
+        rmcp::model::Role::Assistant
     } else {
-        mcp_core::role::Role::User // Default fallback
+        rmcp::model::Role::User // Default fallback
     };
 
     // Try to extract text content
@@ -907,8 +908,8 @@ fn try_extract_partial_message(json_str: &str) -> Result<Message> {
 
     if !extracted_text.is_empty() {
         let message = match role {
-            mcp_core::role::Role::User => Message::user(),
-            mcp_core::role::Role::Assistant => Message::assistant(),
+            rmcp::model::Role::User => Message::user(),
+            rmcp::model::Role::Assistant => Message::assistant(),
         };
 
         return Ok(message.with_text(format!("[PARTIALLY RECOVERED] {}", extracted_text)));
@@ -980,7 +981,7 @@ fn truncate_json_string(json_str: &str, max_content_size: usize) -> String {
             if text_content.len() > max_content_size {
                 let truncated_text = format!(
                     "{}\n\n[... content truncated during JSON parsing from {} to {} characters ...]",
-                    &text_content[..max_content_size.min(text_content.len())],
+                    safe_truncate(text_content, max_content_size),
                     text_content.len(),
                     max_content_size
                 );
@@ -1048,13 +1049,13 @@ pub fn read_metadata(session_file: &Path) -> Result<SessionMetadata> {
 ///
 /// Security features:
 /// - Validates file paths to prevent directory traversal
-/// - Uses secure file operations via persist_messages_with_schedule_id
 pub async fn persist_messages(
     session_file: &Path,
     messages: &[Message],
     provider: Option<Arc<dyn Provider>>,
+    working_dir: Option<PathBuf>,
 ) -> Result<()> {
-    persist_messages_with_schedule_id(session_file, messages, provider, None, true).await
+    persist_messages_with_schedule_id(session_file, messages, provider, None, working_dir).await
 }
 
 /// Write messages to a session file with metadata, including an optional scheduled job ID
@@ -1071,13 +1072,8 @@ pub async fn persist_messages_with_schedule_id(
     messages: &[Message],
     provider: Option<Arc<dyn Provider>>,
     schedule_id: Option<String>,
-    save_session: bool,
+    working_dir: Option<PathBuf>,
 ) -> Result<()> {
-    if !save_session {
-        tracing::debug!("Skipping session persistence (save_session=false)");
-        return Ok(());
-    }
-
     // Validate the session file path for security
     let secure_path = get_path(Identifier::Path(session_file.to_path_buf()))?;
 
@@ -1090,7 +1086,7 @@ pub async fn persist_messages_with_schedule_id(
     // Count user messages
     let user_message_count = messages
         .iter()
-        .filter(|m| m.role == mcp_core::role::Role::User && !m.as_concat_text().trim().is_empty())
+        .filter(|m| m.role == rmcp::model::Role::User && !m.as_concat_text().trim().is_empty())
         .count();
 
     // Check if we need to update the description (after 1st or 3rd user message)
@@ -1102,19 +1098,32 @@ pub async fn persist_messages_with_schedule_id(
                 messages,
                 provider,
                 schedule_id,
-                save_session,
+                working_dir,
             )
             .await
         }
         _ => {
-            // Read existing metadata
-            let mut metadata = read_metadata(&secure_path)?;
+            // Read existing metadata or create new with proper working_dir
+            let mut metadata = if secure_path.exists() {
+                read_metadata(&secure_path)?
+            } else {
+                // Create new metadata with the provided working_dir or fall back to home
+                let work_dir = working_dir.clone().unwrap_or_else(get_home_dir);
+                SessionMetadata::new(work_dir)
+            };
+
+            // Update the working_dir if provided (even for existing files)
+            if let Some(work_dir) = working_dir {
+                metadata.working_dir = work_dir;
+            }
+
             // Update the schedule_id if provided
             if schedule_id.is_some() {
                 metadata.schedule_id = schedule_id;
             }
+
             // Write the file with metadata and messages
-            save_messages_with_metadata(&secure_path, &metadata, messages, save_session)
+            save_messages_with_metadata(&secure_path, &metadata, messages)
         }
     }
 }
@@ -1136,13 +1145,7 @@ pub fn save_messages_with_metadata(
     session_file: &Path,
     metadata: &SessionMetadata,
     messages: &[Message],
-    save_session: bool,
 ) -> Result<()> {
-    if !save_session {
-        tracing::debug!("Skipping session file write (save_session=false)");
-        return Ok(());
-    }
-
     use fs2::FileExt;
 
     // Validate the path for security
@@ -1256,11 +1259,12 @@ pub async fn generate_description(
     session_file: &Path,
     messages: &[Message],
     provider: Arc<dyn Provider>,
+    working_dir: Option<PathBuf>,
 ) -> Result<()> {
-    generate_description_with_schedule_id(session_file, messages, provider, None, true).await
+    generate_description_with_schedule_id(session_file, messages, provider, None, working_dir).await
 }
 
-/// Generate a description for the session using the provider, including an optional scheduled job ID
+/// Generate a description for the session using the provider, including an optional scheduled job ID and working directory
 ///
 /// This function is called when appropriate to generate a short description
 /// of the session based on the conversation history.
@@ -1274,13 +1278,8 @@ pub async fn generate_description_with_schedule_id(
     messages: &[Message],
     provider: Arc<dyn Provider>,
     schedule_id: Option<String>,
-    save_session: bool,
+    working_dir: Option<PathBuf>,
 ) -> Result<()> {
-    if !save_session {
-        tracing::debug!("Skipping description generation (save_session=false)");
-        return Ok(());
-    }
-
     // Validate the path for security
     let secure_path = get_path(Identifier::Path(session_file.to_path_buf()))?;
 
@@ -1301,15 +1300,11 @@ pub async fn generate_description_with_schedule_id(
     // get context from messages so far, limiting each message to 300 chars for security
     let context: Vec<String> = messages
         .iter()
-        .filter(|m| m.role == mcp_core::role::Role::User)
+        .filter(|m| m.role == rmcp::model::Role::User)
         .take(3) // Use up to first 3 user messages for context
         .map(|m| {
             let text = m.as_concat_text();
-            if text.len() > 300 {
-                format!("{}...", &text[..300])
-            } else {
-                text
-            }
+            safe_truncate(&text, 300)
         })
         .collect();
 
@@ -1338,15 +1333,21 @@ pub async fn generate_description_with_schedule_id(
     let description = result.0.as_concat_text();
 
     // Validate description length for security
-    let sanitized_description = if description.len() > 100 {
+    let sanitized_description = if description.chars().count() > 100 {
         tracing::warn!("Generated description too long, truncating");
-        format!("{}...", &description[..97])
+        safe_truncate(&description, 100)
     } else {
         description
     };
 
-    // Read current metadata
-    let mut metadata = read_metadata(&secure_path)?;
+    // Create metadata with proper working_dir or read existing and update
+    let mut metadata = if secure_path.exists() {
+        read_metadata(&secure_path)?
+    } else {
+        // Create new metadata with the provided working_dir or fall back to home
+        let work_dir = working_dir.clone().unwrap_or_else(get_home_dir);
+        SessionMetadata::new(work_dir)
+    };
 
     // Update description and schedule_id
     metadata.description = sanitized_description;
@@ -1354,8 +1355,13 @@ pub async fn generate_description_with_schedule_id(
         metadata.schedule_id = schedule_id;
     }
 
+    // Update the working_dir if provided (even for existing files)
+    if let Some(work_dir) = working_dir {
+        metadata.working_dir = work_dir;
+    }
+
     // Update the file with the new metadata and existing messages
-    save_messages_with_metadata(&secure_path, &metadata, messages, save_session)
+    save_messages_with_metadata(&secure_path, &metadata, messages)
 }
 
 /// Update only the metadata in a session file, preserving all messages
@@ -1371,7 +1377,7 @@ pub async fn update_metadata(session_file: &Path, metadata: &SessionMetadata) ->
     let messages = read_messages(&secure_path)?;
 
     // Rewrite the file with the new metadata and existing messages
-    save_messages_with_metadata(&secure_path, metadata, &messages, true)
+    save_messages_with_metadata(&secure_path, metadata, &messages)
 }
 
 #[cfg(test)]
@@ -1416,9 +1422,9 @@ mod tests {
             println!(
                 "[TEST] Input: {}",
                 if corrupt_json.len() > 100 {
-                    &corrupt_json[..100]
+                    safe_truncate(corrupt_json, 100)
                 } else {
-                    corrupt_json
+                    corrupt_json.to_string()
                 }
             );
 
@@ -1465,7 +1471,7 @@ mod tests {
         ];
 
         // Write messages
-        persist_messages(&file_path, &messages, None).await?;
+        persist_messages(&file_path, &messages, None, None).await?;
 
         // Read them back
         let read_messages = read_messages(&file_path)?;
@@ -1563,7 +1569,7 @@ mod tests {
             "]}}\"\\n\\\"{[",
             "Edge case: } ] some text",
             "{\"foo\": \"} ]\"}",
-            "}]",   
+            "}]",
         ];
 
         let mut messages = Vec::new();
@@ -1573,7 +1579,7 @@ mod tests {
         }
 
         // Write messages with special characters
-        persist_messages(&file_path, &messages, None).await?;
+        persist_messages(&file_path, &messages, None, None).await?;
 
         // Read them back
         let read_messages = read_messages(&file_path)?;
@@ -1638,7 +1644,7 @@ mod tests {
         ];
 
         // Write messages
-        persist_messages(&file_path, &messages, None).await?;
+        persist_messages(&file_path, &messages, None, None).await?;
 
         // Read them back - should be truncated
         let read_messages = read_messages(&file_path)?;
@@ -1686,7 +1692,7 @@ mod tests {
         let messages = vec![Message::user().with_text("test")];
 
         // Write with special metadata
-        save_messages_with_metadata(&file_path, &metadata, &messages, true)?;
+        save_messages_with_metadata(&file_path, &metadata, &messages)?;
 
         // Read back metadata
         let read_metadata = read_metadata(&file_path)?;
@@ -1702,6 +1708,7 @@ mod tests {
 
         // Create metadata with non-existent directory
         let invalid_dir = PathBuf::from("/path/that/does/not/exist");
+
         let metadata = SessionMetadata::new(invalid_dir.clone());
 
         // Should fall back to home directory
@@ -1710,7 +1717,7 @@ mod tests {
 
         // Test deserialization of invalid directory
         let messages = vec![Message::user().with_text("test")];
-        save_messages_with_metadata(&file_path, &metadata, &messages, true)?;
+        save_messages_with_metadata(&file_path, &metadata, &messages)?;
 
         // Modify the file to include invalid directory
         let contents = fs::read_to_string(&file_path)?;
@@ -1724,7 +1731,163 @@ mod tests {
         // Read back - should fall back to home dir
         let read_metadata = read_metadata(&file_path)?;
         assert_ne!(read_metadata.working_dir, invalid_dir);
-        assert_eq!(read_metadata.working_dir, get_home_dir());
+        assert_eq!(read_metadata.working_dir, get_current_working_dir());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_working_dir_preservation() -> Result<()> {
+        let dir = tempdir()?;
+        let file_path = dir.path().join("test.jsonl");
+
+        // Create a temporary working directory
+        let working_dir = tempdir()?;
+        let working_dir_path = working_dir.path().to_path_buf();
+
+        // Create messages
+        let messages = vec![Message::user().with_text("test message")];
+
+        // Use persist_messages_with_schedule_id to set working dir
+        persist_messages_with_schedule_id(
+            &file_path,
+            &messages,
+            None,
+            None,
+            Some(working_dir_path.clone()),
+        )
+        .await?;
+
+        // Read back the metadata and verify working_dir is preserved
+        let metadata = read_metadata(&file_path)?;
+        assert_eq!(metadata.working_dir, working_dir_path);
+
+        // Verify the messages are also preserved
+        let read_messages = read_messages(&file_path)?;
+        assert_eq!(read_messages.len(), 1);
+        assert_eq!(read_messages[0].role, messages[0].role);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_working_dir_issue_fixed() -> Result<()> {
+        // This test demonstrates that the working_dir issue in jsonl files is fixed
+        let dir = tempdir()?;
+        let file_path = dir.path().join("test.jsonl");
+
+        // Create a temporary working directory (this simulates the actual working directory)
+        let working_dir = tempdir()?;
+        let working_dir_path = working_dir.path().to_path_buf();
+
+        // Create messages
+        let messages = vec![Message::user().with_text("test message")];
+
+        // Get the home directory for comparison
+        let home_dir = get_home_dir();
+
+        // Test 1: Using the old persist_messages function (without working_dir)
+        // This will fall back to home directory since no working_dir is provided
+        persist_messages(&file_path, &messages, None, None).await?;
+
+        // Read back the metadata - this should now have the home directory as working_dir
+        let metadata_old = read_metadata(&file_path)?;
+        assert_eq!(
+            metadata_old.working_dir, home_dir,
+            "persist_messages should use home directory when no working_dir is provided"
+        );
+
+        // Test 2: Using persist_messages_with_schedule_id function
+        // This should properly set the working_dir (this is the main fix)
+        persist_messages_with_schedule_id(
+            &file_path,
+            &messages,
+            None,
+            None,
+            Some(working_dir_path.clone()),
+        )
+        .await?;
+
+        // Read back the metadata - this should now have the correct working_dir
+        let metadata_new = read_metadata(&file_path)?;
+        assert_eq!(
+            metadata_new.working_dir, working_dir_path,
+            "persist_messages_with_schedule_id should use provided working_dir"
+        );
+        assert_ne!(
+            metadata_new.working_dir, home_dir,
+            "working_dir should be different from home directory"
+        );
+
+        // Test 3: Create a new session file without working_dir (should fall back to home)
+        let file_path_2 = dir.path().join("test2.jsonl");
+        persist_messages_with_schedule_id(
+            &file_path_2,
+            &messages,
+            None,
+            None,
+            None, // No working_dir provided
+        )
+        .await?;
+
+        let metadata_fallback = read_metadata(&file_path_2)?;
+        assert_eq!(metadata_fallback.working_dir, home_dir, "persist_messages_with_schedule_id should fall back to home directory when no working_dir is provided");
+
+        // Test 4: Test that the fix works for existing files
+        // Create a session file and then add to it with different working_dir
+        let file_path_3 = dir.path().join("test3.jsonl");
+
+        // First, create with home directory
+        persist_messages(&file_path_3, &messages, None, None).await?;
+        let metadata_initial = read_metadata(&file_path_3)?;
+        assert_eq!(
+            metadata_initial.working_dir, home_dir,
+            "Initial session should use home directory"
+        );
+
+        // Then update with a specific working_dir
+        persist_messages_with_schedule_id(
+            &file_path_3,
+            &messages,
+            None,
+            None,
+            Some(working_dir_path.clone()),
+        )
+        .await?;
+
+        let metadata_updated = read_metadata(&file_path_3)?;
+        assert_eq!(
+            metadata_updated.working_dir, working_dir_path,
+            "Updated session should use new working_dir"
+        );
+
+        // Test 5: Most important test - simulate the real-world scenario where
+        // CLI and web interfaces pass the current directory instead of None
+        let file_path_4 = dir.path().join("test4.jsonl");
+        let current_dir = std::env::current_dir()?;
+
+        // This is what web.rs and session/mod.rs do now after the fix
+        persist_messages_with_schedule_id(
+            &file_path_4,
+            &messages,
+            None,
+            None,
+            Some(current_dir.clone()),
+        )
+        .await?;
+
+        let metadata_current = read_metadata(&file_path_4)?;
+        assert_eq!(
+            metadata_current.working_dir, current_dir,
+            "Session should use current directory when explicitly provided"
+        );
+        // This should NOT be the home directory anymore (unless current_dir == home_dir)
+        if current_dir != home_dir {
+            assert_ne!(
+                metadata_current.working_dir, home_dir,
+                "working_dir should be different from home directory when current_dir is different"
+            );
+        }
 
         Ok(())
     }
@@ -1792,15 +1955,8 @@ mod tests {
 
         let metadata = SessionMetadata::default();
 
-        // Test with save_session = false - should not create file
-        save_messages_with_metadata(&file_path, &metadata, &messages, false)?;
-        assert!(
-            !file_path.exists(),
-            "File should not be created when save_session=false"
-        );
-
         // Test with save_session = true - should create file
-        save_messages_with_metadata(&file_path, &metadata, &messages, true)?;
+        save_messages_with_metadata(&file_path, &metadata, &messages)?;
         assert!(
             file_path.exists(),
             "File should be created when save_session=true"
@@ -1823,28 +1979,13 @@ mod tests {
             Message::assistant().with_text("Test response"),
         ];
 
-        // Test persist_messages_with_schedule_id with save_session = false
+        // Test persist_messages_with_schedule_id with working_dir parameter
         persist_messages_with_schedule_id(
             &file_path,
             &messages,
             None,
             Some("test_schedule".to_string()),
-            false,
-        )
-        .await?;
-
-        assert!(
-            !file_path.exists(),
-            "File should not be created when save_session=false"
-        );
-
-        // Test persist_messages_with_schedule_id with save_session = true
-        persist_messages_with_schedule_id(
-            &file_path,
-            &messages,
             None,
-            Some("test_schedule".to_string()),
-            true,
         )
         .await?;
 

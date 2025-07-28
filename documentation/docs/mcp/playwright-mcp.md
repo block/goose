@@ -6,6 +6,7 @@ description: Add Playwright MCP Server as a Goose Extension for Modern Web Testi
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/iAxiFMlTE1Q" />
 
@@ -33,9 +34,13 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=@playwright/mcp@latest&id=playwright&name=Playwright&description=Modern%20web%20testing%20and%20automation)
-  2. Press `Yes` to confirm the installation
-  3. Scroll to the top and click `Exit` from the upper left corner
+  <GooseDesktopInstaller
+    extensionId="playwright"
+    extensionName="Playwright"
+    description="Modern web testing and automation"
+    command="npx"
+    args={["-y", "@playwright/mcp@latest"]}
+  />
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
@@ -52,8 +57,11 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │
     ◆  What type of extension would you like to add?
     │  ○ Built-in Extension 
+    // highlight-start    
     │  ● Command-line Extension (Run a local command or script)
-    │  ○ Remote Extension 
+    // highlight-end    
+    │  ○ Remote Extension (SSE) 
+    │  ○ Remote Extension (Streaming HTTP) 
     └ 
   ```
 

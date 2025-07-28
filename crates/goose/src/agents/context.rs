@@ -16,10 +16,9 @@ impl Agent {
         messages: &[Message], // last message is a user msg that led to assistant message with_context_length_exceeded
     ) -> Result<(Vec<Message>, Vec<usize>), anyhow::Error> {
         let provider = self.provider().await?;
-        let token_counter =
-            create_async_token_counter(provider.get_model_config().tokenizer_name())
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to create token counter: {}", e))?;
+        let token_counter = create_async_token_counter()
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to create token counter: {}", e))?;
         let target_context_limit = estimate_target_context_limit(provider);
         let token_counts = get_messages_token_counts_async(&token_counter, messages);
 
@@ -54,10 +53,9 @@ impl Agent {
         messages: &[Message], // last message is a user msg that led to assistant message with_context_length_exceeded
     ) -> Result<(Vec<Message>, Vec<usize>), anyhow::Error> {
         let provider = self.provider().await?;
-        let token_counter =
-            create_async_token_counter(provider.get_model_config().tokenizer_name())
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to create token counter: {}", e))?;
+        let token_counter = create_async_token_counter()
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to create token counter: {}", e))?;
         let target_context_limit = estimate_target_context_limit(provider.clone());
 
         let (mut new_messages, mut new_token_counts) =

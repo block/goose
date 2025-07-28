@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   create-recipe-pr:
-    if: github.event.label.name == 'recipe submission' || github.event.issue.labels.*.name contains 'recipe submission'
+    if: ${{ github.event.label.name == 'recipe submission' || contains(github.event.issue.labels.*.name, 'recipe submission') }}
     runs-on: ubuntu-latest
 
     env:

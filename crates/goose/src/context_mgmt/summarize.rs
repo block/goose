@@ -3,7 +3,7 @@ use crate::message::{Message, MessageContent};
 use crate::providers::base::Provider;
 use crate::token_counter::{AsyncTokenCounter, TokenCounter};
 use anyhow::Result;
-use mcp_core::Role;
+use rmcp::model::Role;
 use std::sync::Arc;
 
 // Constants for the summarization prompt and a follow-up user message.
@@ -216,12 +216,14 @@ pub async fn summarize_messages_async(
 mod tests {
     use super::*;
     use crate::message::{Message, MessageContent};
-    use crate::model::{ModelConfig, GPT_4O_TOKENIZER};
+    use crate::model::ModelConfig;
     use crate::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
     use crate::providers::errors::ProviderError;
     use chrono::Utc;
-    use mcp_core::{tool::Tool, Role};
-    use mcp_core::{Content, TextContent, ToolCall};
+    use mcp_core::ToolCall;
+    use rmcp::model::Role;
+    use rmcp::model::Tool;
+    use rmcp::model::{AnnotateAble, Content, RawTextContent};
     use serde_json::json;
     use std::sync::Arc;
 
@@ -247,14 +249,16 @@ mod tests {
             _tools: &[Tool],
         ) -> Result<(Message, ProviderUsage), ProviderError> {
             Ok((
-                Message {
-                    role: Role::Assistant,
-                    created: Utc::now().timestamp(),
-                    content: vec![MessageContent::Text(TextContent {
-                        text: "Summarized content".to_string(),
-                        annotations: None,
-                    })],
-                },
+                Message::new(
+                    Role::Assistant,
+                    Utc::now().timestamp(),
+                    vec![MessageContent::Text(
+                        RawTextContent {
+                            text: "Summarized content".to_string(),
+                        }
+                        .no_annotation(),
+                    )],
+                ),
                 ProviderUsage::new("mock".to_string(), Usage::default()),
             ))
         }
@@ -277,36 +281,32 @@ mod tests {
     }
 
     fn set_up_text_message(text: &str, role: Role) -> Message {
-        Message {
-            role,
-            created: 0,
-            content: vec![MessageContent::text(text.to_string())],
-        }
+        Message::new(role, 0, vec![MessageContent::text(text.to_string())])
     }
 
     fn set_up_tool_request_message(id: &str, tool_call: ToolCall) -> Message {
-        Message {
-            role: Role::Assistant,
-            created: 0,
-            content: vec![MessageContent::tool_request(id.to_string(), Ok(tool_call))],
-        }
+        Message::new(
+            Role::Assistant,
+            0,
+            vec![MessageContent::tool_request(id.to_string(), Ok(tool_call))],
+        )
     }
 
     fn set_up_tool_response_message(id: &str, tool_response: Vec<Content>) -> Message {
-        Message {
-            role: Role::User,
-            created: 0,
-            content: vec![MessageContent::tool_response(
+        Message::new(
+            Role::User,
+            0,
+            vec![MessageContent::tool_response(
                 id.to_string(),
                 Ok(tool_response),
             )],
-        }
+        )
     }
 
     #[tokio::test]
     async fn test_summarize_messages_single_chunk() {
         let provider = create_mock_provider();
-        let token_counter = TokenCounter::new(GPT_4O_TOKENIZER);
+        let token_counter = TokenCounter::new();
         let context_limit = 100; // Set a high enough limit to avoid chunking.
         let messages = create_test_messages();
 
@@ -342,7 +342,7 @@ mod tests {
     #[tokio::test]
     async fn test_summarize_messages_multiple_chunks() {
         let provider = create_mock_provider();
-        let token_counter = TokenCounter::new(GPT_4O_TOKENIZER);
+        let token_counter = TokenCounter::new();
         let context_limit = 30;
         let messages = create_test_messages();
 
@@ -378,7 +378,7 @@ mod tests {
     #[tokio::test]
     async fn test_summarize_messages_empty_input() {
         let provider = create_mock_provider();
-        let token_counter = TokenCounter::new(GPT_4O_TOKENIZER);
+        let token_counter = TokenCounter::new();
         let context_limit = 100;
         let messages: Vec<Message> = Vec::new();
 
@@ -448,14 +448,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_reintegrate_removed_messages() {
-        let summarized_messages = vec![Message {
-            role: Role::Assistant,
-            created: Utc::now().timestamp(),
-            content: vec![MessageContent::Text(TextContent {
-                text: "Summary".to_string(),
-                annotations: None,
-            })],
-        }];
+        let summarized_messages = vec![Message::new(
+            Role::Assistant,
+            Utc::now().timestamp(),
+            vec![MessageContent::Text(
+                RawTextContent {
+                    text: "Summary".to_string(),
+                }
+                .no_annotation(),
+            )],
+        )];
         let arguments = json!({
             "param1": "value1"
         });

@@ -6,6 +6,7 @@ description: Add Asana MCP Server as a Goose Extension
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 <!--<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/VIDEO_ID" />-->
 
@@ -39,14 +40,21 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40roychri%2Fmcp-server-asana&id=asana&name=Asana&description=enable%20task%20automation%2C%20project%20tracking%2C%20and%20team%20collaboration&env=ASANA_ACCESS_TOKEN%3DAsana%20Access%20Token)
-  2. Press `Yes` to confirm the installation
-  3. Obtain a [Asana Access Token](https://app.asana.com/0/my-apps) and paste it in
+  <GooseDesktopInstaller
+    extensionId="asana"
+    extensionName="Asana"
+    description="enable task automation, project tracking, and team collaboration"
+    command="npx"
+    args={["-y", "@roychri/mcp-server-asana"]}
+    envVars={[
+      { name: "ASANA_ACCESS_TOKEN", label: "Asana Access Token" }
+    ]}
+    apiKeyLink="https://app.asana.com/0/my-apps"
+    apiKeyLinkText="Asana Access Token"
+  />
   :::info
   See [Asana's developer docs](https://developers.asana.com/docs/personal-access-token) if you need detailed instructions on creating an access token.
   :::
-  4. Click `Save Configuration`
-  5. Scroll to the top and click `Exit` from the upper left corner
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
@@ -66,7 +74,8 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     // highlight-start    
     │  ● Command-line Extension (Run a local command or script)
     // highlight-end    
-    │  ○ Remote Extension 
+    │  ○ Remote Extension (SSE) 
+    │  ○ Remote Extension (Streaming HTTP) 
     └ 
   ```
 

@@ -11,6 +11,7 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import MacDesktopInstallButtons from '@site/src/components/MacDesktopInstallButtons';
 import WindowsDesktopInstallButtons from '@site/src/components/WindowsDesktopInstallButtons';
 import LinuxDesktopInstallButtons from '@site/src/components/LinuxDesktopInstallButtons';
+import { PanelLeft } from 'lucide-react';
 
 # Goose in 5 minutes
 
@@ -73,6 +74,8 @@ Let's begin 🚀
   </TabItem>
 
   <TabItem value="windows" label="Windows">
+    Choose to install Goose on CLI and/or Desktop:
+
     <Tabs groupId="interface">
       <TabItem value="ui" label="Goose Desktop" default>
         <WindowsDesktopInstallButtons/>
@@ -82,27 +85,15 @@ Let's begin 🚀
         </div>
       </TabItem>
       <TabItem value="cli" label="Goose CLI">
-        There isn't native installation support for Windows, however you can run Goose using WSL (Windows Subsystem for Linux).
+        
+        Run the following command in **Git Bash**, **MSYS2**, or **PowerShell** to install the Goose CLI natively on Windows:
 
-        1. Open [PowerShell](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-windows) as Administrator and install WSL and the default Ubuntu distribution:
-
-        ```bash
-        wsl --install
-        ```
-
-        2. Restart your computer if prompted.
-
-        3. Run the Goose installation script:
         ```bash
         curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
         ```
-        :::tip
-          If you encounter any issues on download, you might need to install `bzip2` to extract the downloaded file:
+        
+        Learn about prerequisites in the [installation guide](/docs/getting-started/installation).
 
-          ```bash
-          sudo apt update && sudo apt install bzip2 -y
-          ```
-        :::
       </TabItem>
     </Tabs>
   </TabItem>
@@ -193,10 +184,10 @@ While you're able to manually navigate to your working directory and open the HT
 <Tabs groupId="interface">
 
     <TabItem value="ui" label="Goose Desktop" default>
-        1. Locate the menu (`...`) in the top right corner of the Goose Desktop.
-        2. Select `Advanced settings` from the menu.
-        3. Under the `Extensions` section, toggle the `Computer Controller` extension to enable it. This [extension](https://block.github.io/goose/v1/extensions/detail/nondeveloper) enables webscraping, file caching, and automations.
-        4. Scroll back to the top and click `<- Back` in the upper left corner to return to your session.
+        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
+        2. Click `Extensions` in the sidebar menu.
+        3. Toggle the `Computer Controller` extension to enable it. This [extension](https://block.github.io/goose/v1/extensions/detail/nondeveloper) enables webscraping, file caching, and automations.
+        4. Return to your session to continue.
         5. Now that Goose has browser capabilities, let's ask it to launch your game in a browser:
     </TabItem>
     <TabItem value="cli" label="Goose CLI">

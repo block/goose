@@ -6,13 +6,14 @@ use crate::model::ModelConfig;
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
 use anyhow::Result;
 use async_trait::async_trait;
-use mcp_core::tool::Tool;
 use reqwest::Client;
+use rmcp::model::Tool;
 use serde_json::Value;
 use std::time::Duration;
 use url::Url;
 
 pub const OLLAMA_HOST: &str = "localhost";
+pub const OLLAMA_TIMEOUT: u64 = 600; // seconds
 pub const OLLAMA_DEFAULT_PORT: u16 = 11434;
 pub const OLLAMA_DEFAULT_MODEL: &str = "qwen2.5";
 // Ollama can run many models, we only provide the default
@@ -41,9 +42,10 @@ impl OllamaProvider {
             .get_param("OLLAMA_HOST")
             .unwrap_or_else(|_| OLLAMA_HOST.to_string());
 
-        let client = Client::builder()
-            .timeout(Duration::from_secs(600))
-            .build()?;
+        let timeout: Duration =
+            Duration::from_secs(config.get_param("OLLAMA_TIMEOUT").unwrap_or(OLLAMA_TIMEOUT));
+
+        let client = Client::builder().timeout(timeout).build()?;
 
         Ok(Self {
             client,
@@ -56,12 +58,12 @@ impl OllamaProvider {
     fn get_base_url(&self) -> Result<Url, ProviderError> {
         // OLLAMA_HOST is sometimes just the 'host' or 'host:port' without a scheme
         let base = if self.host.starts_with("http://") || self.host.starts_with("https://") {
-            self.host.clone()
+            &self.host
         } else {
-            format!("http://{}", self.host)
+            &format!("http://{}", self.host)
         };
 
-        let mut base_url = Url::parse(&base)
+        let mut base_url = Url::parse(base)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
 
         // Set the default port if missing
@@ -80,7 +82,7 @@ impl OllamaProvider {
         Ok(base_url)
     }
 
-    async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
+    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
         // TODO: remove this later when the UI handles provider config refresh
         let base_url = self.get_base_url()?;
 
@@ -88,7 +90,7 @@ impl OllamaProvider {
             ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
         })?;
 
-        let response = self.client.post(url).json(&payload).send().await?;
+        let response = self.client.post(url).json(payload).send().await?;
 
         handle_response_openai_compat(response).await
     }
@@ -104,12 +106,15 @@ impl Provider for OllamaProvider {
             OLLAMA_DEFAULT_MODEL,
             OLLAMA_KNOWN_MODELS.to_vec(),
             OLLAMA_DOC_URL,
-            vec![ConfigKey::new(
-                "OLLAMA_HOST",
-                true,
-                false,
-                Some(OLLAMA_HOST),
-            )],
+            vec![
+                ConfigKey::new("OLLAMA_HOST", true, false, Some(OLLAMA_HOST)),
+                ConfigKey::new(
+                    "OLLAMA_TIMEOUT",
+                    false,
+                    false,
+                    Some(&(OLLAMA_TIMEOUT.to_string())),
+                ),
+            ],
         )
     }
 
@@ -127,25 +132,24 @@ impl Provider for OllamaProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
+        let config = crate::config::Config::global();
+        let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
+        let filtered_tools = if goose_mode == "chat" { &[] } else { tools };
+
         let payload = create_request(
             &self.model,
             system,
             messages,
-            tools,
+            filtered_tools,
             &super::utils::ImageFormat::OpenAi,
         )?;
+        let response = self.post(&payload).await?;
+        let message = response_to_message(&response)?;
 
-        let response = self.post(payload.clone()).await?;
-        let message = response_to_message(response.clone())?;
-
-        let usage = match get_usage(&response) {
-            Ok(usage) => usage,
-            Err(ProviderError::UsageError(e)) => {
-                tracing::debug!("Failed to get usage data: {}", e);
-                Usage::default()
-            }
-            Err(e) => return Err(e),
-        };
+        let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
+            tracing::debug!("Failed to get usage data");
+            Usage::default()
+        });
         let model = get_model(&response);
         super::utils::emit_debug_trace(&self.model, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(model, usage)))

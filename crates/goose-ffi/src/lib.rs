@@ -247,7 +247,7 @@ pub unsafe extern "C" fn goose_agent_send_message(
 
     // Block on the async call using our global runtime
     let response = get_runtime().block_on(async {
-        let mut stream = match agent.reply(&messages, None).await {
+        let mut stream = match agent.reply(&messages, None, None).await {
             Ok(stream) => stream,
             Err(e) => return format!("Error getting reply from agent: {}", e),
         };

@@ -3,7 +3,7 @@ import { Select } from '../../../ui/Select';
 
 interface ExtensionInfoFieldsProps {
   name: string;
-  type: 'stdio' | 'sse' | 'builtin';
+  type: 'stdio' | 'sse' | 'streamable_http' | 'builtin';
   description: string;
   onChange: (key: string, value: string) => void;
   submitAttempted: boolean;
@@ -43,7 +43,17 @@ export default function ExtensionInfoFields({
         <div className="w-[200px]">
           <label className="text-sm font-medium mb-2 block text-textStandard">Type</label>
           <Select
-            value={{ value: type, label: type.toUpperCase() }}
+            value={{
+              value: type,
+              label:
+                type === 'stdio'
+                  ? 'STDIO'
+                  : type === 'sse'
+                    ? 'SSE'
+                    : type === 'streamable_http'
+                      ? 'HTTP'
+                      : type.toUpperCase(),
+            }}
             onChange={(newValue: unknown) => {
               const option = newValue as { value: string; label: string } | null;
               if (option) {
@@ -53,6 +63,7 @@ export default function ExtensionInfoFields({
             options={[
               { value: 'stdio', label: 'Standard IO (STDIO)' },
               { value: 'sse', label: 'Server-Sent Events (SSE)' },
+              { value: 'streamable_http', label: 'Streamable HTTP' },
             ]}
             isSearchable={false}
           />

@@ -6,6 +6,7 @@ description: Control a MakeBlock mbot2 rover through MQTT and MCP as a Goose Ext
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/QKg2Q6YCzdw" />
 
@@ -35,11 +36,18 @@ This tutorial will get you started with [deemkeen's MQTT MCP server](https://git
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  1. [Launch the installer](goose://extension?cmd=/path/to/java&arg=-jar&arg=/path/to/mbotmcp-0.0.1-SNAPSHOT.jar&name=mbot2&description=mbot2&env=MQTT_SERVER_URI%3Dtcp://1.2.3.4:1883&env=MQTT_USERNAME%3Dyour_username&env=MQTT_PASSWORD%3Dyour_password)
-  2. Press `Yes` to confirm the installation
-  3. Get your MQTT server URI, and your username/password if your MQTT uses authentication
-  4. Click `Save Configuration`
-  5. Scroll to the top and click `Exit` from the upper left corner
+  <GooseDesktopInstaller
+    extensionId="mbot2"
+    extensionName="mbot2"
+    description="mbot2"
+    command="/path/to/java"
+    args={["-jar", "/path/to/mbotmcp-0.0.1-SNAPSHOT.jar"]}
+    envVars={[
+      { name: "MQTT_SERVER_URI", label: "tcp://1.2.3.4:1883" },
+      { name: "MQTT_USERNAME", label: "your_username" },
+      { name: "MQTT_PASSWORD", label: "your_password" }
+    ]}
+  />
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
@@ -59,7 +67,8 @@ This tutorial will get you started with [deemkeen's MQTT MCP server](https://git
     // highlight-start    
     │  ● Command-line Extension (Run a local command or script)
     // highlight-end    
-    │  ○ Remote Extension 
+    │  ○ Remote Extension (SSE) 
+    │  ○ Remote Extension (Streaming HTTP) 
     └ 
   ```
 
@@ -204,13 +213,13 @@ This tutorial will get you started with [deemkeen's MQTT MCP server](https://git
     │
     └  Added mbot2 extension
   ```  
-    :::info 
-    MQTT_USERNAME and MQTT_PASSWORD are required to exist, but can be empty strings if your MQTT server does not require authentication.
-    :::
 
   </TabItem>
 </Tabs>
 
+    :::info 
+    MQTT_USERNAME and MQTT_PASSWORD are required to exist, but can be empty strings if your MQTT server does not require authentication.
+    :::
 
 ## Example Usage
 

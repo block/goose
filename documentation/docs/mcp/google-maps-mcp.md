@@ -6,6 +6,7 @@ description: Add Google Maps MCP Server as a Goose Extension
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 
 This tutorial covers how to add the [Google Maps MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/google-maps) as a Goose extension to enable geocoding, place searching, distance calculations, elevation data retrieval, and directions.
@@ -36,11 +37,18 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 <Tabs groupId="interface" defaultValue="ui">
   <TabItem value="ui" label="Goose Desktop">
-  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-google-maps&id=google-maps&name=Google%20Maps&description=Google%20Maps%20API%20integration&env=GOOGLE_MAPS_API_KEY%3DGoogle%20Maps%20API%20key)
-  2. Press `Yes` to confirm the installation
-  3. Obtain a [GOOGLE_MAPS_API_KEY](https://developers.google.com/maps/documentation/javascript/get-api-key) and paste it in
-  4. Click `Save Configuration`
-  5. Scroll to the top and click `Exit` from the upper left corner
+  <GooseDesktopInstaller
+    extensionId="google-maps"
+    extensionName="Google Maps"
+    description="Google Maps API integration"
+    command="npx"
+    args={["-y", "@modelcontextprotocol/server-google-maps"]}
+    envVars={[
+      { name: "GOOGLE_MAPS_API_KEY", label: "Google Maps API Key" }
+    ]}
+    apiKeyLink="https://developers.google.com/maps/documentation/javascript/get-api-key"
+    apiKeyLinkText="Google Maps API Key"
+  />
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
@@ -60,7 +68,8 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     // highlight-start    
     │  ● Command-line Extension (Run a local command or script)
     // highlight-end    
-    │  ○ Remote Extension 
+    │  ○ Remote Extension (SSE) 
+    │  ○ Remote Extension (Streaming HTTP) 
     └ 
   ```
 

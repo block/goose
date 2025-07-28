@@ -196,11 +196,6 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
         'Access Azure OpenAI models using API key or Azure credentials. If no API key is provided, Azure credential chain will be used.',
       parameters: [
         {
-          name: 'AZURE_OPENAI_API_KEY',
-          is_secret: true,
-          required: false,
-        },
-        {
           name: 'AZURE_OPENAI_ENDPOINT',
           is_secret: false,
         },
@@ -212,6 +207,11 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
           name: 'AZURE_OPENAI_API_VERSION',
           is_secret: false,
           default: '2024-10-21',
+        },
+        {
+          name: 'AZURE_OPENAI_API_KEY',
+          is_secret: true,
+          default: '',
         },
       ],
     },

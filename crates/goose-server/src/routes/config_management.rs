@@ -13,7 +13,9 @@ use goose::config::{extensions::name_to_key, PermissionManager};
 use goose::config::{ExtensionConfigManager, ExtensionEntry};
 use goose::model::ModelConfig;
 use goose::providers::base::ProviderMetadata;
-use goose::providers::pricing::{get_all_pricing, get_model_pricing, refresh_pricing};
+use goose::providers::pricing::{
+    get_all_pricing, get_model_pricing, parse_model_id, refresh_pricing,
+};
 use goose::providers::providers as get_providers;
 use goose::{agents::ExtensionConfig, config::permission::PermissionLevel};
 use http::{HeaderMap, StatusCode};
@@ -390,8 +392,22 @@ pub async fn get_pricing(
             }
 
             for model_info in &metadata.known_models {
-                // Try to get pricing from cache
-                if let Some(pricing) = get_model_pricing(&metadata.name, &model_info.name).await {
+                // Handle OpenRouter models specially - they store full provider/model names
+                let (lookup_provider, lookup_model) = if metadata.name == "openrouter" {
+                    // For OpenRouter, parse the model name to extract real provider/model
+                    if let Some((provider, model)) = parse_model_id(&model_info.name) {
+                        (provider, model)
+                    } else {
+                        // Fallback if parsing fails
+                        (metadata.name.clone(), model_info.name.clone())
+                    }
+                } else {
+                    // For other providers, use names as-is
+                    (metadata.name.clone(), model_info.name.clone())
+                };
+
+                // Only get pricing from OpenRouter cache
+                if let Some(pricing) = get_model_pricing(&lookup_provider, &lookup_model).await {
                     pricing_data.push(PricingData {
                         provider: metadata.name.clone(),
                         model: model_info.name.clone(),
@@ -401,27 +417,12 @@ pub async fn get_pricing(
                         context_length: pricing.context_length,
                     });
                 }
-                // Check if the model has embedded pricing data
-                else if let (Some(input_cost), Some(output_cost)) =
-                    (model_info.input_token_cost, model_info.output_token_cost)
-                {
-                    pricing_data.push(PricingData {
-                        provider: metadata.name.clone(),
-                        model: model_info.name.clone(),
-                        input_token_cost: input_cost,
-                        output_token_cost: output_cost,
-                        currency: model_info
-                            .currency
-                            .clone()
-                            .unwrap_or_else(|| "$".to_string()),
-                        context_length: Some(model_info.context_limit as u32),
-                    });
-                }
+                // No fallback to hardcoded prices
             }
         }
     }
 
-    tracing::info!(
+    tracing::debug!(
         "Returning pricing for {} models{}",
         pricing_data.len(),
         if configured_only {

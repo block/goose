@@ -6,6 +6,7 @@ description: Use Computer Controller MCP Server as a Goose Extension
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/EuMzToNOQtw" />
 
@@ -19,13 +20,12 @@ Let Goose complete its tasks without interruption - avoid using your mouse or ke
 
 ## Configuration
 
-1. Ensure extension is enabled:
-
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  1. Click `...` in the upper right corner
-  2. Click `Advanced Settings`
-  3. Under `Extensions`, toggle `Computer Controller` to on.
+  <GooseBuiltinInstaller
+    extensionName="Computer Controller"
+    description="Automate everyday computer tasks and web interactions"
+  />
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
 
@@ -46,7 +46,8 @@ Let Goose complete its tasks without interruption - avoid using your mouse or ke
   │  ● Built-in Extension (Use an extension that comes with Goose)
   // highlight-end  
   │  ○ Command-line Extension 
-  │  ○ Remote Extension 
+  │  ○ Remote Extension (SSE) 
+  │  ○ Remote Extension (Streaming HTTP) 
   └  
   ```
 

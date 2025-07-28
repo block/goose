@@ -1,41 +1,60 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { Buffer } from 'buffer';
+import React, { useState, useEffect, useRef } from 'react';
 import Copy from '../icons/Copy';
 import { Card } from './card';
-
-interface RecipeConfig {
-  instructions?: string;
-  activities?: string[];
-  [key: string]: unknown;
-}
+import { Recipe, generateDeepLink } from '../../recipe';
 
 interface DeepLinkModalProps {
-  recipeConfig: RecipeConfig;
+  recipe: Recipe;
   onClose: () => void;
 }
 
-// Function to generate a deep link from a bot config
-export function generateDeepLink(recipeConfig: RecipeConfig): string {
-  const configBase64 = Buffer.from(JSON.stringify(recipeConfig)).toString('base64');
-  return `goose://bot?config=${configBase64}`;
-}
-
-export function DeepLinkModal({ recipeConfig: initialRecipeConfig, onClose }: DeepLinkModalProps) {
-  // Create editable state for the bot config
-  const [recipeConfig, setRecipeConfig] = useState(initialRecipeConfig);
-  const [instructions, setInstructions] = useState(initialRecipeConfig.instructions || '');
-  const [activities, setActivities] = useState<string[]>(initialRecipeConfig.activities || []);
+export function DeepLinkModal({ recipe: initialRecipe, onClose }: DeepLinkModalProps) {
+  // Create editable state for the recipe
+  const [recipe, setRecipe] = useState(initialRecipe);
+  const [instructions, setInstructions] = useState(initialRecipe.instructions || '');
+  const [activities, setActivities] = useState<string[]>(initialRecipe.activities || []);
   const [activityInput, setActivityInput] = useState('');
 
+  // State for the deep link
+  const [deepLink, setDeepLink] = useState('');
+  const [isGeneratingLink, setIsGeneratingLink] = useState(false);
+
   // Generate the deep link using the current bot config
-  const deepLink = useMemo(() => {
-    const currentConfig = {
-      ...recipeConfig,
-      instructions,
-      activities,
+  useEffect(() => {
+    let isCancelled = false;
+
+    const generateLink = async () => {
+      setIsGeneratingLink(true);
+      try {
+        const currentConfig = {
+          ...recipe,
+          instructions,
+          activities,
+          title: recipe.title || 'Generated Recipe',
+          description: recipe.description || 'Recipe created from chat',
+        };
+        const link = await generateDeepLink(currentConfig);
+        if (!isCancelled) {
+          setDeepLink(link);
+        }
+      } catch (error) {
+        console.error('Failed to generate deeplink:', error);
+        if (!isCancelled) {
+          setDeepLink('Error generating deeplink');
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsGeneratingLink(false);
+        }
+      }
     };
-    return generateDeepLink(currentConfig);
-  }, [recipeConfig, instructions, activities]);
+
+    generateLink();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [recipe, instructions, activities]);
 
   // Handle Esc key press
   useEffect(() => {
@@ -54,10 +73,10 @@ export function DeepLinkModal({ recipeConfig: initialRecipeConfig, onClose }: De
     };
   }, [onClose]);
 
-  // Update the bot config when instructions or activities change
+  // Update the recipe when instructions or activities change
   useEffect(() => {
-    setRecipeConfig({
-      ...recipeConfig,
+    setRecipe({
+      ...recipe,
       instructions,
       activities,
     });
@@ -96,7 +115,7 @@ export function DeepLinkModal({ recipeConfig: initialRecipeConfig, onClose }: De
     >
       <Card
         ref={modalRef}
-        className="relative w-[700px] max-w-full bg-bgApp rounded-xl my-10 max-h-[90vh] flex flex-col shadow-lg"
+        className="relative w-[700px] max-w-full bg-background-default rounded-xl my-10 max-h-[90vh] flex flex-col shadow-lg"
       >
         <div className="p-8 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 32px)' }}>
           <div className="flex flex-col">
@@ -113,16 +132,21 @@ export function DeepLinkModal({ recipeConfig: initialRecipeConfig, onClose }: De
               <div className="flex items-center">
                 <input
                   type="text"
-                  value={deepLink}
+                  value={isGeneratingLink ? 'Generating deeplink...' : deepLink}
                   readOnly
                   className="flex-1 p-3 border border-borderSubtle rounded-l-md bg-transparent text-textStandard"
                 />
                 <button
                   onClick={() => {
-                    navigator.clipboard.writeText(deepLink);
-                    window.electron.logInfo('Deep link copied to clipboard');
+                    if (!isGeneratingLink && deepLink && deepLink !== 'Error generating deeplink') {
+                      navigator.clipboard.writeText(deepLink);
+                      window.electron.logInfo('Deep link copied to clipboard');
+                    }
                   }}
-                  className="p-2 bg-blue-500 text-white rounded-r-md hover:bg-blue-600 flex items-center justify-center min-w-[100px]"
+                  disabled={
+                    isGeneratingLink || !deepLink || deepLink === 'Error generating deeplink'
+                  }
+                  className="p-2 bg-blue-500 text-white rounded-r-md hover:bg-blue-600 flex items-center justify-center min-w-[100px] disabled:bg-gray-400 disabled:cursor-not-allowed"
                 >
                   <Copy className="w-5 h-5 mr-1" />
                   Copy
@@ -134,15 +158,13 @@ export function DeepLinkModal({ recipeConfig: initialRecipeConfig, onClose }: De
             <div className="flex mb-6">
               <button
                 onClick={() => {
-                  // Open the deep link with the current bot config
+                  // Open the deep link with the current recipe config
                   const currentConfig = {
-                    id: 'deeplink-recipe',
-                    name: 'DeepLink Recipe',
-                    title: 'DeepLink Recipe',
-                    description: 'Recipe from deep link',
-                    ...recipeConfig,
+                    ...recipe,
                     instructions,
                     activities,
+                    title: recipe.title || 'DeepLink Recipe',
+                    description: recipe.description || 'Recipe from deep link',
                   };
                   window.electron.createChatWindow(
                     undefined,

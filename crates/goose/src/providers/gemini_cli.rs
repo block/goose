@@ -1,6 +1,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use serde_json::json;
+use std::path::PathBuf;
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
@@ -10,12 +11,11 @@ use super::errors::ProviderError;
 use super::utils::emit_debug_trace;
 use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
-use mcp_core::content::TextContent;
-use mcp_core::tool::Tool;
-use mcp_core::Role;
+use rmcp::model::Role;
+use rmcp::model::Tool;
 
-pub const GEMINI_CLI_DEFAULT_MODEL: &str = "default";
-pub const GEMINI_CLI_KNOWN_MODELS: &[&str] = &["default"];
+pub const GEMINI_CLI_DEFAULT_MODEL: &str = "gemini-2.5-pro";
+pub const GEMINI_CLI_KNOWN_MODELS: &[&str] = &["gemini-2.5-pro"];
 
 pub const GEMINI_CLI_DOC_URL: &str = "https://ai.google.dev/gemini-api/docs";
 
@@ -34,9 +34,76 @@ impl Default for GeminiCliProvider {
 
 impl GeminiCliProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
-        let command = "gemini".to_string(); // Fixed command, no configuration needed
+        let config = crate::config::Config::global();
+        let command: String = config
+            .get_param("GEMINI_CLI_COMMAND")
+            .unwrap_or_else(|_| "gemini".to_string());
 
-        Ok(Self { command, model })
+        let resolved_command = if !command.contains('/') {
+            Self::find_gemini_executable(&command).unwrap_or(command)
+        } else {
+            command
+        };
+
+        Ok(Self {
+            command: resolved_command,
+            model,
+        })
+    }
+
+    /// Search for gemini executable in common installation locations
+    fn find_gemini_executable(command_name: &str) -> Option<String> {
+        let home = std::env::var("HOME").ok()?;
+
+        // Common locations where gemini might be installed
+        let search_paths = vec![
+            format!("{}/.gemini/local/{}", home, command_name),
+            format!("{}/.local/bin/{}", home, command_name),
+            format!("{}/bin/{}", home, command_name),
+            format!("/usr/local/bin/{}", command_name),
+            format!("/usr/bin/{}", command_name),
+            format!("/opt/gemini/{}", command_name),
+            format!("/opt/google/{}", command_name),
+        ];
+
+        for path in search_paths {
+            let path_buf = PathBuf::from(&path);
+            if path_buf.exists() && path_buf.is_file() {
+                // Check if it's executable
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    if let Ok(metadata) = std::fs::metadata(&path_buf) {
+                        let permissions = metadata.permissions();
+                        if permissions.mode() & 0o111 != 0 {
+                            tracing::info!("Found gemini executable at: {}", path);
+                            return Some(path);
+                        }
+                    }
+                }
+                #[cfg(not(unix))]
+                {
+                    // On non-Unix systems, just check if file exists
+                    tracing::info!("Found gemini executable at: {}", path);
+                    return Some(path);
+                }
+            }
+        }
+
+        // If not found in common locations, check if it's in PATH
+        if let Ok(path_var) = std::env::var("PATH") {
+            for dir in path_var.split(':') {
+                let full_path = format!("{}/{}", dir, command_name);
+                let path_buf = PathBuf::from(&full_path);
+                if path_buf.exists() && path_buf.is_file() {
+                    tracing::info!("Found gemini executable in PATH at: {}", full_path);
+                    return Some(full_path);
+                }
+            }
+        }
+
+        tracing::warn!("Could not find gemini executable in common locations");
+        None
     }
 
     /// Filter out the Extensions section from the system prompt
@@ -103,7 +170,11 @@ impl GeminiCliProvider {
         }
 
         let mut cmd = Command::new(&self.command);
-        cmd.arg("-p").arg(&full_prompt).arg("--yolo");
+        cmd.arg("-m")
+            .arg(&self.model.model_name)
+            .arg("-p")
+            .arg(&full_prompt)
+            .arg("--yolo");
 
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
@@ -126,7 +197,7 @@ impl GeminiCliProvider {
                 Ok(0) => break, // EOF
                 Ok(_) => {
                     let trimmed = line.trim();
-                    if !trimmed.is_empty() {
+                    if !trimmed.is_empty() && !trimmed.starts_with("Loaded cached credentials") {
                         lines.push(trimmed.to_string());
                     }
                 }
@@ -169,14 +240,11 @@ impl GeminiCliProvider {
             ));
         }
 
-        let message = Message {
-            role: Role::Assistant,
-            created: chrono::Utc::now().timestamp(),
-            content: vec![MessageContent::Text(TextContent {
-                text: response_text,
-                annotations: None,
-            })],
-        };
+        let message = Message::new(
+            Role::Assistant,
+            chrono::Utc::now().timestamp(),
+            vec![MessageContent::text(response_text)],
+        );
 
         let usage = Usage::default(); // No usage info available for gemini CLI
 
@@ -214,14 +282,11 @@ impl GeminiCliProvider {
             println!("================================");
         }
 
-        let message = Message {
-            role: Role::Assistant,
-            created: chrono::Utc::now().timestamp(),
-            content: vec![MessageContent::Text(TextContent {
-                text: description.clone(),
-                annotations: None,
-            })],
-        };
+        let message = Message::new(
+            Role::Assistant,
+            chrono::Utc::now().timestamp(),
+            vec![MessageContent::text(description.clone())],
+        );
 
         let usage = Usage::default();
 
@@ -247,8 +312,8 @@ impl Provider for GeminiCliProvider {
     }
 
     fn get_model_config(&self) -> ModelConfig {
-        // Return a custom config with 1M token limit for Gemini CLI
-        ModelConfig::new("gemini-1.5-pro".to_string()).with_context_limit(Some(1_000_000))
+        // Return the model config with appropriate context limit for Gemini models
+        self.model.clone()
     }
 
     #[tracing::instrument(
@@ -301,7 +366,8 @@ mod tests {
         let provider = GeminiCliProvider::default();
         let config = provider.get_model_config();
 
-        assert_eq!(config.model_name, "gemini-1.5-pro");
-        assert_eq!(config.context_limit(), 1_000_000);
+        assert_eq!(config.model_name, "gemini-2.5-pro");
+        // Context limit should be set by the ModelConfig
+        assert!(config.context_limit() > 0);
     }
 }

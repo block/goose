@@ -8,7 +8,7 @@ use crate::commands::configure::handle_configure;
 use crate::commands::info::handle_info;
 use crate::commands::mcp::run_server;
 use crate::commands::project::{handle_project_default, handle_projects_interactive};
-use crate::commands::recipe::{handle_deeplink, handle_validate};
+use crate::commands::recipe::{handle_deeplink, handle_list, handle_validate};
 // Import the new handlers from commands::schedule
 use crate::commands::schedule::{
     handle_schedule_add, handle_schedule_cron_help, handle_schedule_list, handle_schedule_remove,
@@ -18,7 +18,7 @@ use crate::commands::schedule::{
 use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::logging::setup_logging;
 use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
-use crate::recipes::recipe::{explain_recipe_with_parameters, load_recipe_content_as_template};
+use crate::recipes::recipe::{explain_recipe, render_recipe_as_yaml};
 use crate::session;
 use crate::session::{build_session, SessionBuilderConfig, SessionSettings};
 use goose_bench::bench_config::BenchRunConfig;
@@ -246,6 +246,27 @@ enum RecipeCommand {
         )]
         recipe_name: String,
     },
+
+    /// List available recipes
+    #[command(about = "List available recipes")]
+    List {
+        /// Output format (text, json)
+        #[arg(
+            long = "format",
+            value_name = "FORMAT",
+            help = "Output format (text, json)",
+            default_value = "text"
+        )]
+        format: String,
+
+        /// Show verbose information including recipe descriptions
+        #[arg(
+            short,
+            long,
+            help = "Show verbose information including recipe descriptions"
+        )]
+        verbose: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -312,6 +333,15 @@ enum Command {
         )]
         max_tool_repetitions: Option<u32>,
 
+        /// Maximum number of turns (iterations) allowed in a single response
+        #[arg(
+            long = "max-turns",
+            value_name = "NUMBER",
+            help = "Maximum number of turns allowed without user input (default: 1000)",
+            long_help = "Set a limit on how many turns (iterations) the agent can take without asking for user input to continue."
+        )]
+        max_turns: Option<u32>,
+
         /// Add stdio extensions with environment variables and commands
         #[arg(
             long = "with-extension",
@@ -331,6 +361,16 @@ enum Command {
             action = clap::ArgAction::Append
         )]
         remote_extensions: Vec<String>,
+
+        /// Add streamable HTTP extensions with a URL
+        #[arg(
+            long = "with-streamable-http-extension",
+            value_name = "URL",
+            help = "Add streamable HTTP extensions (can be specified multiple times)",
+            long_help = "Add streamable HTTP extensions from a URL. Can be specified multiple times. Format: 'url...'",
+            action = clap::ArgAction::Append
+        )]
+        streamable_http_extensions: Vec<String>,
 
         /// Add builtin extensions by name
         #[arg(
@@ -422,7 +462,7 @@ enum Command {
             long = "no-session",
             help = "Run without storing a session file",
             long_help = "Execute commands without creating or using a session file. Useful for automated runs.",
-            conflicts_with_all = ["resume", "name", "path"] 
+            conflicts_with_all = ["resume", "name", "path"]
         )]
         no_session: bool,
 
@@ -448,6 +488,15 @@ enum Command {
             long_help = "Set a limit on how many times the same tool can be called consecutively with identical parameters. Helps prevent infinite loops."
         )]
         max_tool_repetitions: Option<u32>,
+
+        /// Maximum number of turns (iterations) allowed in a single response
+        #[arg(
+            long = "max-turns",
+            value_name = "NUMBER",
+            help = "Maximum number of turns allowed without user input (default: 1000)",
+            long_help = "Set a limit on how many turns (iterations) the agent can take without asking for user input to continue."
+        )]
+        max_turns: Option<u32>,
 
         /// Identifier for this run session
         #[command(flatten)]
@@ -491,6 +540,16 @@ enum Command {
         )]
         remote_extensions: Vec<String>,
 
+        /// Add streamable HTTP extensions
+        #[arg(
+            long = "with-streamable-http-extension",
+            value_name = "URL",
+            help = "Add streamable HTTP extensions (can be specified multiple times)",
+            long_help = "Add streamable HTTP extensions. Can be specified multiple times. Format: 'url...'",
+            action = clap::ArgAction::Append
+        )]
+        streamable_http_extensions: Vec<String>,
+
         /// Add builtin extensions by name
         #[arg(
             long = "with-builtin",
@@ -522,12 +581,30 @@ enum Command {
         /// Additional sub-recipe file paths
         #[arg(
             long = "sub-recipe",
-            value_name = "FILE",
-            help = "Path to a sub-recipe YAML file (can be specified multiple times)",
-            long_help = "Specify paths to sub-recipe YAML files that contain additional recipe configuration or instructions to be used alongside the main recipe. Can be specified multiple times to include multiple sub-recipes.",
+            value_name = "RECIPE",
+            help = "Sub-recipe name or file path (can be specified multiple times)",
+            long_help = "Specify sub-recipes to include alongside the main recipe. Can be:\n  - Recipe names from GitHub (if GOOSE_RECIPE_GITHUB_REPO is configured)\n  - Local file paths to YAML files\nCan be specified multiple times to include multiple sub-recipes.",
             action = clap::ArgAction::Append
         )]
         additional_sub_recipes: Vec<String>,
+
+        /// Provider to use for this run (overrides environment variable)
+        #[arg(
+            long = "provider",
+            value_name = "PROVIDER",
+            help = "Specify the LLM provider to use (e.g., 'openai', 'anthropic')",
+            long_help = "Override the GOOSE_PROVIDER environment variable for this run. Available providers include openai, anthropic, ollama, databricks, gemini-cli, claude-code, and others."
+        )]
+        provider: Option<String>,
+
+        /// Model to use for this run (overrides environment variable)
+        #[arg(
+            long = "model",
+            value_name = "MODEL",
+            help = "Specify the model to use (e.g., 'gpt-4o', 'claude-3.5-sonnet')",
+            long_help = "Override the GOOSE_MODEL environment variable for this run. The model must be supported by the specified provider."
+        )]
+        model: Option<String>,
     },
 
     /// Recipe utilities for validation and deeplinking
@@ -608,6 +685,14 @@ pub struct InputConfig {
     pub additional_system_prompt: Option<String>,
 }
 
+#[derive(Debug)]
+pub struct RecipeInfo {
+    pub session_settings: Option<SessionSettings>,
+    pub sub_recipes: Option<Vec<goose::recipe::SubRecipe>>,
+    pub final_output_response: Option<goose::recipe::Response>,
+    pub retry_config: Option<goose::agents::types::RetryConfig>,
+}
+
 pub async fn cli() -> Result<()> {
     let cli = Cli::parse();
 
@@ -635,8 +720,10 @@ pub async fn cli() -> Result<()> {
             history,
             debug,
             max_tool_repetitions,
+            max_turns,
             extensions,
             remote_extensions,
+            streamable_http_extensions,
             builtins,
         }) => {
             return match command {
@@ -677,20 +764,30 @@ pub async fn cli() -> Result<()> {
                         no_session: false,
                         extensions,
                         remote_extensions,
+                        streamable_http_extensions,
                         builtins,
                         extensions_override: None,
                         additional_system_prompt: None,
                         settings: None,
+                        provider: None,
+                        model: None,
                         debug,
                         max_tool_repetitions,
+                        max_turns,
                         scheduled_job_id: None,
                         interactive: true,
                         quiet: false,
                         sub_recipes: None,
+                        final_output_response: None,
+                        retry_config: None,
                     })
                     .await;
                     setup_logging(
-                        session.session_file().file_stem().and_then(|s| s.to_str()),
+                        session
+                            .session_file()
+                            .as_ref()
+                            .and_then(|p| p.file_stem())
+                            .and_then(|s| s.to_str()),
                         None,
                     )?;
 
@@ -726,8 +823,10 @@ pub async fn cli() -> Result<()> {
             no_session,
             debug,
             max_tool_repetitions,
+            max_turns,
             extensions,
             remote_extensions,
+            streamable_http_extensions,
             builtins,
             params,
             explain,
@@ -735,27 +834,22 @@ pub async fn cli() -> Result<()> {
             scheduled_job_id,
             quiet,
             additional_sub_recipes,
+            provider,
+            model,
         }) => {
-            let (input_config, session_settings, sub_recipes) = match (
-                instructions,
-                input_text,
-                recipe,
-            ) {
+            let (input_config, recipe_info) = match (instructions, input_text, recipe) {
                 (Some(file), _, _) if file == "-" => {
                     let mut input = String::new();
                     std::io::stdin()
                         .read_to_string(&mut input)
                         .expect("Failed to read from stdin");
 
-                    (
-                        InputConfig {
-                            contents: Some(input),
-                            extensions_override: None,
-                            additional_system_prompt: system,
-                        },
-                        None,
-                        None,
-                    )
+                    let input_config = InputConfig {
+                        contents: Some(input),
+                        extensions_override: None,
+                        additional_system_prompt: system,
+                    };
+                    (input_config, None)
                 }
                 (Some(file), _, _) => {
                     let contents = std::fs::read_to_string(&file).unwrap_or_else(|err| {
@@ -765,40 +859,36 @@ pub async fn cli() -> Result<()> {
                         );
                         std::process::exit(1);
                     });
-                    (
-                        InputConfig {
-                            contents: Some(contents),
-                            extensions_override: None,
-                            additional_system_prompt: None,
-                        },
-                        None,
-                        None,
-                    )
+                    let input_config = InputConfig {
+                        contents: Some(contents),
+                        extensions_override: None,
+                        additional_system_prompt: None,
+                    };
+                    (input_config, None)
                 }
-                (_, Some(text), _) => (
-                    InputConfig {
+                (_, Some(text), _) => {
+                    let input_config = InputConfig {
                         contents: Some(text),
                         extensions_override: None,
                         additional_system_prompt: system,
-                    },
-                    None,
-                    None,
-                ),
+                    };
+                    (input_config, None)
+                }
                 (_, _, Some(recipe_name)) => {
                     if explain {
-                        explain_recipe_with_parameters(&recipe_name, params)?;
+                        explain_recipe(&recipe_name, params)?;
                         return Ok(());
                     }
                     if render_recipe {
-                        let recipe = load_recipe_content_as_template(&recipe_name, params)
-                            .unwrap_or_else(|err| {
-                                eprintln!("{}: {}", console::style("Error").red().bold(), err);
-                                std::process::exit(1);
-                            });
-                        println!("{}", recipe);
+                        if let Err(err) = render_recipe_as_yaml(&recipe_name, params) {
+                            eprintln!("{}: {}", console::style("Error").red().bold(), err);
+                            std::process::exit(1);
+                        }
                         return Ok(());
                     }
-                    extract_recipe_info_from_cli(recipe_name, params, additional_sub_recipes)?
+                    let (input_config, recipe_info) =
+                        extract_recipe_info_from_cli(recipe_name, params, additional_sub_recipes)?;
+                    (input_config, Some(recipe_info))
                 }
                 (None, None, None) => {
                     eprintln!("Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin.");
@@ -812,21 +902,35 @@ pub async fn cli() -> Result<()> {
                 no_session,
                 extensions,
                 remote_extensions,
+                streamable_http_extensions,
                 builtins,
                 extensions_override: input_config.extensions_override,
                 additional_system_prompt: input_config.additional_system_prompt,
-                settings: session_settings,
+                settings: recipe_info
+                    .as_ref()
+                    .and_then(|r| r.session_settings.clone()),
+                provider,
+                model,
                 debug,
                 max_tool_repetitions,
+                max_turns,
                 scheduled_job_id,
                 interactive, // Use the interactive flag from the Run command
                 quiet,
-                sub_recipes,
+                sub_recipes: recipe_info.as_ref().and_then(|r| r.sub_recipes.clone()),
+                final_output_response: recipe_info
+                    .as_ref()
+                    .and_then(|r| r.final_output_response.clone()),
+                retry_config: recipe_info.as_ref().and_then(|r| r.retry_config.clone()),
             })
             .await;
 
             setup_logging(
-                session.session_file().file_stem().and_then(|s| s.to_str()),
+                session
+                    .session_file()
+                    .as_ref()
+                    .and_then(|p| p.file_stem())
+                    .and_then(|s| s.to_str()),
                 None,
             )?;
 
@@ -912,6 +1016,9 @@ pub async fn cli() -> Result<()> {
                 RecipeCommand::Deeplink { recipe_name } => {
                     handle_deeplink(&recipe_name)?;
                 }
+                RecipeCommand::List { format, verbose } => {
+                    handle_list(&format, verbose)?;
+                }
             }
             return Ok(());
         }
@@ -931,20 +1038,30 @@ pub async fn cli() -> Result<()> {
                     no_session: false,
                     extensions: Vec::new(),
                     remote_extensions: Vec::new(),
+                    streamable_http_extensions: Vec::new(),
                     builtins: Vec::new(),
                     extensions_override: None,
                     additional_system_prompt: None,
                     settings: None::<SessionSettings>,
+                    provider: None,
+                    model: None,
                     debug: false,
                     max_tool_repetitions: None,
+                    max_turns: None,
                     scheduled_job_id: None,
                     interactive: true, // Default case is always interactive
                     quiet: false,
                     sub_recipes: None,
+                    final_output_response: None,
+                    retry_config: None,
                 })
                 .await;
                 setup_logging(
-                    session.session_file().file_stem().and_then(|s| s.to_str()),
+                    session
+                        .session_file()
+                        .as_ref()
+                        .and_then(|p| p.file_stem())
+                        .and_then(|s| s.to_str()),
                     None,
                 )?;
                 if let Err(e) = session.interactive(None).await {

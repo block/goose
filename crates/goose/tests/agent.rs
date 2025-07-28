@@ -129,7 +129,7 @@ async fn run_truncate_test(
         ),
     ];
 
-    let reply_stream = agent.reply(&messages, None).await?;
+    let reply_stream = agent.reply(&messages, None, None).await?;
     tokio::pin!(reply_stream);
 
     let mut responses = Vec::new();
@@ -448,6 +448,8 @@ mod schedule_tool_tests {
         let tool = schedule_tool.unwrap();
         assert!(tool
             .description
+            .clone()
+            .unwrap_or_default()
             .contains("Manage scheduled recipe execution"));
     }
 
@@ -478,6 +480,8 @@ mod schedule_tool_tests {
         let tool = schedule_tool.unwrap();
         assert!(tool
             .description
+            .clone()
+            .unwrap_or_default()
             .contains("Manage scheduled recipe execution"));
 
         // Verify the tool has the expected actions in its schema
@@ -529,5 +533,537 @@ mod schedule_tool_tests {
                     .contains("Session identifier for session_content action"));
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod final_output_tool_tests {
+    use super::*;
+    use futures::stream;
+    use goose::agents::final_output_tool::{
+        FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME,
+    };
+    use goose::providers::base::MessageStream;
+    use goose::recipe::Response;
+
+    #[tokio::test]
+    async fn test_final_output_assistant_message_in_reply() -> Result<()> {
+        use async_trait::async_trait;
+        use goose::model::ModelConfig;
+        use goose::providers::base::{Provider, ProviderUsage, Usage};
+        use goose::providers::errors::ProviderError;
+        use rmcp::model::Tool;
+
+        #[derive(Clone)]
+        struct MockProvider {
+            model_config: ModelConfig,
+        }
+
+        #[async_trait]
+        impl Provider for MockProvider {
+            fn metadata() -> goose::providers::base::ProviderMetadata {
+                goose::providers::base::ProviderMetadata::empty()
+            }
+
+            fn get_model_config(&self) -> ModelConfig {
+                self.model_config.clone()
+            }
+
+            async fn complete(
+                &self,
+                _system: &str,
+                _messages: &[Message],
+                _tools: &[Tool],
+            ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
+                Ok((
+                    Message::assistant().with_text("Task completed."),
+                    ProviderUsage::new("mock".to_string(), Usage::default()),
+                ))
+            }
+        }
+
+        let agent = Agent::new();
+
+        let model_config = ModelConfig::new("test-model".to_string());
+        let mock_provider = Arc::new(MockProvider { model_config });
+        agent.update_provider(mock_provider).await?;
+
+        let response = Response {
+            json_schema: Some(serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "result": {"type": "string"}
+                },
+                "required": ["result"]
+            })),
+        };
+        agent.add_final_output_tool(response).await;
+
+        // Simulate a final output tool call occurring.
+        let tool_call = mcp_core::tool::ToolCall::new(
+            FINAL_OUTPUT_TOOL_NAME,
+            serde_json::json!({
+                "result": "Test output"
+            }),
+        );
+        let (_, result) = agent
+            .dispatch_tool_call(tool_call, "request_id".to_string(), None)
+            .await;
+
+        assert!(result.is_ok(), "Tool call should succeed");
+        let final_result = result.unwrap().result.await;
+        assert!(final_result.is_ok(), "Tool execution should succeed");
+
+        let content = final_result.unwrap();
+        let text = content.first().unwrap().as_text().unwrap();
+        assert!(
+            text.text.contains("Final output successfully collected."),
+            "Tool result missing expected content: {}",
+            text.text
+        );
+
+        // Simulate the reply stream continuing after the final output tool call.
+        let reply_stream = agent.reply(&vec![], None, None).await?;
+        tokio::pin!(reply_stream);
+
+        let mut responses = Vec::new();
+        while let Some(response_result) = reply_stream.next().await {
+            match response_result {
+                Ok(AgentEvent::Message(response)) => responses.push(response),
+                Ok(_) => {}
+                Err(e) => return Err(e),
+            }
+        }
+
+        assert!(!responses.is_empty(), "Should have received responses");
+        let last_message = responses.last().unwrap();
+
+        // Check that the last message is an assistant message with our final output
+        assert_eq!(last_message.role, rmcp::model::Role::Assistant);
+        let message_text = last_message.as_concat_text();
+        assert_eq!(message_text, r#"{"result":"Test output"}"#);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_when_final_output_not_called_in_reply() -> Result<()> {
+        use async_trait::async_trait;
+        use goose::model::ModelConfig;
+        use goose::providers::base::{Provider, ProviderUsage};
+        use goose::providers::errors::ProviderError;
+        use rmcp::model::Tool;
+
+        #[derive(Clone)]
+        struct MockProvider {
+            model_config: ModelConfig,
+        }
+
+        #[async_trait]
+        impl Provider for MockProvider {
+            fn metadata() -> goose::providers::base::ProviderMetadata {
+                goose::providers::base::ProviderMetadata::empty()
+            }
+
+            fn get_model_config(&self) -> ModelConfig {
+                self.model_config.clone()
+            }
+
+            fn supports_streaming(&self) -> bool {
+                true
+            }
+
+            async fn stream(
+                &self,
+                _system: &str,
+                _messages: &[Message],
+                _tools: &[Tool],
+            ) -> Result<MessageStream, ProviderError> {
+                let deltas = vec![
+                    Ok((Some(Message::assistant().with_text("Hello")), None)),
+                    Ok((Some(Message::assistant().with_text("Hi!")), None)),
+                    Ok((
+                        Some(Message::assistant().with_text("What is the final output?")),
+                        None,
+                    )),
+                ];
+
+                let stream = stream::iter(deltas.into_iter());
+                Ok(Box::pin(stream))
+            }
+
+            async fn complete(
+                &self,
+                _system: &str,
+                _messages: &[Message],
+                _tools: &[Tool],
+            ) -> Result<(Message, ProviderUsage), ProviderError> {
+                Err(ProviderError::NotImplemented("Not implemented".to_string()))
+            }
+        }
+
+        let agent = Agent::new();
+
+        let model_config = ModelConfig::new("test-model".to_string());
+        let mock_provider = Arc::new(MockProvider { model_config });
+        agent.update_provider(mock_provider).await?;
+
+        let response = Response {
+            json_schema: Some(serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "result": {"type": "string"}
+                },
+                "required": ["result"]
+            })),
+        };
+        agent.add_final_output_tool(response).await;
+
+        // Simulate the reply stream being called.
+        let reply_stream = agent.reply(&vec![], None, None).await?;
+        tokio::pin!(reply_stream);
+
+        let mut responses = Vec::new();
+        let mut count = 0;
+        while let Some(response_result) = reply_stream.next().await {
+            match response_result {
+                Ok(AgentEvent::Message(response)) => {
+                    responses.push(response);
+                    count += 1;
+                    if count >= 4 {
+                        // Limit to 4 messages to avoid infinite loop due to mock provider
+                        break;
+                    }
+                }
+                Ok(_) => {}
+                Err(e) => return Err(e),
+            }
+        }
+
+        assert!(!responses.is_empty(), "Should have received responses");
+        println!("Responses: {:?}", responses);
+        let last_message = responses.last().unwrap();
+
+        // Check that the first 3 messages do not have FINAL_OUTPUT_CONTINUATION_MESSAGE
+        for (i, response) in responses.iter().take(3).enumerate() {
+            let message_text = response.as_concat_text();
+            assert_ne!(
+                message_text,
+                FINAL_OUTPUT_CONTINUATION_MESSAGE,
+                "Message {} should not be the continuation message, got: '{}'",
+                i + 1,
+                message_text
+            );
+        }
+
+        // Check that the last message after the llm stream is the message directing the agent to continue
+        assert_eq!(last_message.role, rmcp::model::Role::User);
+        let message_text = last_message.as_concat_text();
+        assert_eq!(message_text, FINAL_OUTPUT_CONTINUATION_MESSAGE);
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod retry_tests {
+    use super::*;
+    use async_trait::async_trait;
+    use goose::agents::types::{RetryConfig, SessionConfig, SuccessCheck};
+    use goose::model::ModelConfig;
+    use goose::providers::base::{Provider, ProviderUsage, Usage};
+    use goose::providers::errors::ProviderError;
+    use rmcp::model::Tool;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+
+    #[derive(Clone)]
+    struct MockRetryProvider {
+        model_config: ModelConfig,
+        call_count: Arc<AtomicUsize>,
+        fail_until: usize,
+    }
+
+    #[async_trait]
+    impl Provider for MockRetryProvider {
+        fn metadata() -> goose::providers::base::ProviderMetadata {
+            goose::providers::base::ProviderMetadata::empty()
+        }
+
+        fn get_model_config(&self) -> ModelConfig {
+            self.model_config.clone()
+        }
+
+        async fn complete(
+            &self,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
+            let count = self.call_count.fetch_add(1, Ordering::SeqCst);
+
+            if count < self.fail_until {
+                Ok((
+                    Message::assistant().with_text("Task failed - will retry."),
+                    ProviderUsage::new("mock".to_string(), Usage::default()),
+                ))
+            } else {
+                Ok((
+                    Message::assistant().with_text("Task completed successfully."),
+                    ProviderUsage::new("mock".to_string(), Usage::default()),
+                ))
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_retry_config_validation_integration() -> Result<()> {
+        let agent = Agent::new();
+
+        let model_config = ModelConfig::new("test-model".to_string());
+        let mock_provider = Arc::new(MockRetryProvider {
+            model_config,
+            call_count: Arc::new(AtomicUsize::new(0)),
+            fail_until: 0,
+        });
+        agent.update_provider(mock_provider.clone()).await?;
+
+        let retry_config = RetryConfig {
+            max_retries: 3,
+            checks: vec![SuccessCheck::Shell {
+                command: "echo 'success check'".to_string(),
+            }],
+            on_failure: Some("echo 'cleanup executed'".to_string()),
+            timeout_seconds: Some(30),
+            on_failure_timeout_seconds: Some(60),
+        };
+
+        assert!(
+            retry_config.validate().is_ok(),
+            "Valid config should pass validation"
+        );
+
+        let session_config = SessionConfig {
+            id: goose::session::Identifier::Name("test-retry".to_string()),
+            working_dir: std::env::current_dir()?,
+            schedule_id: None,
+            execution_mode: None,
+            max_turns: None,
+            retry_config: Some(retry_config),
+        };
+
+        let initial_messages = vec![Message::user().with_text("Complete this task")];
+
+        let reply_stream = agent
+            .reply(&initial_messages, Some(session_config), None)
+            .await?;
+        tokio::pin!(reply_stream);
+
+        let mut responses = Vec::new();
+        while let Some(response_result) = reply_stream.next().await {
+            match response_result {
+                Ok(AgentEvent::Message(response)) => responses.push(response),
+                Ok(_) => {}
+                Err(e) => return Err(e),
+            }
+        }
+
+        assert!(!responses.is_empty(), "Should have received responses");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_retry_success_check_execution() -> Result<()> {
+        use goose::agents::retry::execute_success_checks;
+
+        let retry_config = RetryConfig {
+            max_retries: 3,
+            checks: vec![],
+            on_failure: None,
+            timeout_seconds: Some(30),
+            on_failure_timeout_seconds: Some(60),
+        };
+
+        let success_checks = vec![SuccessCheck::Shell {
+            command: "echo 'test'".to_string(),
+        }];
+
+        let result = execute_success_checks(&success_checks, &retry_config).await;
+        assert!(result.is_ok(), "Success check should pass");
+        assert!(result.unwrap(), "Command should succeed");
+
+        let fail_checks = vec![SuccessCheck::Shell {
+            command: "false".to_string(),
+        }];
+
+        let result = execute_success_checks(&fail_checks, &retry_config).await;
+        assert!(result.is_ok(), "Success check execution should not error");
+        assert!(!result.unwrap(), "Command should fail");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_retry_logic_with_validation_errors() -> Result<()> {
+        let invalid_retry_config = RetryConfig {
+            max_retries: 0,
+            checks: vec![],
+            on_failure: None,
+            timeout_seconds: Some(0),
+            on_failure_timeout_seconds: None,
+        };
+
+        let validation_result = invalid_retry_config.validate();
+        assert!(
+            validation_result.is_err(),
+            "Should validate max_retries > 0"
+        );
+        assert!(validation_result
+            .unwrap_err()
+            .contains("max_retries must be greater than 0"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_retry_attempts_counter_reset() -> Result<()> {
+        let agent = Agent::new();
+
+        agent.reset_retry_attempts().await;
+        let initial_attempts = agent.get_retry_attempts().await;
+        assert_eq!(initial_attempts, 0);
+
+        let new_attempts = agent.increment_retry_attempts().await;
+        assert_eq!(new_attempts, 1);
+
+        agent.reset_retry_attempts().await;
+        let reset_attempts = agent.get_retry_attempts().await;
+        assert_eq!(reset_attempts, 0);
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod max_turns_tests {
+    use super::*;
+    use async_trait::async_trait;
+    use goose::message::MessageContent;
+    use goose::model::ModelConfig;
+    use goose::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
+    use goose::providers::errors::ProviderError;
+    use goose::session::storage::Identifier;
+    use mcp_core::tool::ToolCall;
+    use rmcp::model::Tool;
+    use std::path::PathBuf;
+
+    struct MockToolProvider {}
+
+    impl MockToolProvider {
+        fn new() -> Self {
+            Self {}
+        }
+    }
+
+    #[async_trait]
+    impl Provider for MockToolProvider {
+        async fn complete(
+            &self,
+            _system_prompt: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<(Message, ProviderUsage), ProviderError> {
+            let tool_call = ToolCall::new("test_tool", serde_json::json!({"param": "value"}));
+            let message = Message::assistant().with_tool_request("call_123", Ok(tool_call));
+
+            let usage = ProviderUsage::new(
+                "mock-model".to_string(),
+                Usage::new(Some(10), Some(5), Some(15)),
+            );
+
+            Ok((message, usage))
+        }
+
+        fn get_model_config(&self) -> ModelConfig {
+            ModelConfig::new("mock-model".to_string())
+        }
+
+        fn metadata() -> ProviderMetadata {
+            ProviderMetadata {
+                name: "mock".to_string(),
+                display_name: "Mock Provider".to_string(),
+                description: "Mock provider for testing".to_string(),
+                default_model: "mock-model".to_string(),
+                known_models: vec![],
+                model_doc_link: "".to_string(),
+                config_keys: vec![],
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_max_turns_limit() -> Result<()> {
+        let agent = Agent::new();
+        let provider = Arc::new(MockToolProvider::new());
+        agent.update_provider(provider).await?;
+        // The mock provider will call a non-existent tool, which will fail and allow the loop to continue
+
+        // Create session config with max_turns = 1
+        let session_config = goose::agents::SessionConfig {
+            id: Identifier::Name("test_session".to_string()),
+            working_dir: PathBuf::from("/tmp"),
+            schedule_id: None,
+            execution_mode: None,
+            max_turns: Some(1),
+            retry_config: None,
+        };
+        let messages = vec![Message::user().with_text("Hello")];
+
+        let reply_stream = agent.reply(&messages, Some(session_config), None).await?;
+        tokio::pin!(reply_stream);
+
+        let mut responses = Vec::new();
+        while let Some(response_result) = reply_stream.next().await {
+            match response_result {
+                Ok(AgentEvent::Message(response)) => {
+                    if let Some(MessageContent::ToolConfirmationRequest(ref req)) =
+                        response.content.first()
+                    {
+                        agent.handle_confirmation(
+                            req.id.clone(),
+                            goose::permission::PermissionConfirmation {
+                                principal_type: goose::permission::permission_confirmation::PrincipalType::Tool,
+                                permission: goose::permission::Permission::AllowOnce,
+                            }
+                        ).await;
+                    }
+                    responses.push(response);
+                }
+                Ok(AgentEvent::McpNotification(_)) => {}
+                Ok(AgentEvent::ModelChange { .. }) => {}
+                Err(e) => {
+                    return Err(e);
+                }
+            }
+        }
+
+        assert!(
+            responses.len() >= 1,
+            "Expected at least 1 response, got {}",
+            responses.len()
+        );
+
+        // Look for the max turns message as the last response
+        let last_response = responses.last().unwrap();
+        let last_content = last_response.content.first().unwrap();
+        if let MessageContent::Text(text_content) = last_content {
+            assert!(text_content.text.contains(
+                "I've reached the maximum number of actions I can do without user input"
+            ));
+        } else {
+            panic!("Expected text content in last message");
+        }
+        Ok(())
     }
 }

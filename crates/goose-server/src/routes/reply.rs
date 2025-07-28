@@ -11,14 +11,15 @@ use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
 use goose::{
     agents::{AgentEvent, SessionConfig},
-    message::{Message, MessageContent},
+    message::{push_message, Message},
     permission::permission_confirmation::PrincipalType,
 };
 use goose::{
     permission::{Permission, PermissionConfirmation},
     session,
 };
-use mcp_core::{protocol::JsonRpcMessage, role::Role, Content, ToolResult};
+use mcp_core::ToolResult;
+use rmcp::model::{Content, ServerNotification};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
@@ -33,9 +34,10 @@ use std::{
 use tokio::sync::mpsc;
 use tokio::time::timeout;
 use tokio_stream::wrappers::ReceiverStream;
+use tokio_util::sync::CancellationToken;
 use utoipa::ToSchema;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct ChatRequest {
     messages: Vec<Message>,
     session_id: Option<String>,
@@ -95,7 +97,7 @@ enum MessageEvent {
     },
     Notification {
         request_id: String,
-        message: JsonRpcMessage,
+        message: ServerNotification,
     },
 }
 
@@ -112,7 +114,7 @@ async fn stream_event(
     tx.send(format!("data: {}\n\n", json)).await
 }
 
-async fn handler(
+async fn reply_handler(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(request): Json<ChatRequest>,
@@ -121,71 +123,44 @@ async fn handler(
 
     let (tx, rx) = mpsc::channel(100);
     let stream = ReceiverStream::new(rx);
+    let cancel_token = CancellationToken::new();
 
     let messages = request.messages;
-    let session_working_dir = request.session_working_dir;
+    let session_working_dir = request.session_working_dir.clone();
 
     let session_id = request
         .session_id
         .unwrap_or_else(session::generate_session_id);
 
-    tokio::spawn(async move {
-        let agent = state.get_agent().await;
-        let agent = match agent {
-            Ok(agent) => {
-                let provider = agent.provider().await;
-                match provider {
-                    Ok(_) => agent,
-                    Err(_) => {
-                        let _ = stream_event(
-                            MessageEvent::Error {
-                                error: "No provider configured".to_string(),
-                            },
-                            &tx,
-                        )
-                        .await;
-                        let _ = stream_event(
-                            MessageEvent::Finish {
-                                reason: "error".to_string(),
-                            },
-                            &tx,
-                        )
-                        .await;
-                        return;
-                    }
-                }
-            }
+    let task_cancel = cancel_token.clone();
+    let task_tx = tx.clone();
+
+    std::mem::drop(tokio::spawn(async move {
+        let agent = match state.get_agent().await {
+            Ok(agent) => agent,
             Err(_) => {
                 let _ = stream_event(
                     MessageEvent::Error {
                         error: "No agent configured".to_string(),
                     },
-                    &tx,
-                )
-                .await;
-                let _ = stream_event(
-                    MessageEvent::Finish {
-                        reason: "error".to_string(),
-                    },
-                    &tx,
+                    &task_tx,
                 )
                 .await;
                 return;
             }
         };
 
-        let provider = agent.provider().await;
+        let session_config = SessionConfig {
+            id: session::Identifier::Name(session_id.clone()),
+            working_dir: PathBuf::from(&session_working_dir),
+            schedule_id: request.scheduled_job_id.clone(),
+            execution_mode: None,
+            max_turns: None,
+            retry_config: None,
+        };
 
         let mut stream = match agent
-            .reply(
-                &messages,
-                Some(SessionConfig {
-                    id: session::Identifier::Name(session_id.clone()),
-                    working_dir: PathBuf::from(session_working_dir),
-                    schedule_id: request.scheduled_job_id.clone(),
-                    execution_mode: None,
-                }),
-            )
+            .reply(&messages, Some(session_config), Some(task_cancel.clone()))
             .await
         {
             Ok(stream) => stream,
@@ -195,14 +170,7 @@ async fn handler(
                     MessageEvent::Error {
                         error: e.to_string(),
                     },
-                    &tx,
-                )
-                .await;
-                let _ = stream_event(
-                    MessageEvent::Finish {
-                        reason: "error".to_string(),
-                    },
-                    &tx,
+                    &task_tx,
                 )
                 .await;
                 return;
@@ -218,87 +186,100 @@ async fn handler(
                     MessageEvent::Error {
                         error: format!("Failed to get session path: {}", e),
                     },
-                    &tx,
+                    &task_tx,
                 )
                 .await;
                 return;
             }
         };
+        let saved_message_count = all_messages.len();
 
         loop {
             tokio::select! {
-                response = timeout(Duration::from_millis(500), stream.next()) => {
-                    match response {
-                        Ok(Some(Ok(AgentEvent::Message(message)))) => {
-                            all_messages.push(message.clone());
-                            if let Err(e) = stream_event(MessageEvent::Message { message }, &tx).await {
-                                tracing::error!("Error sending message through channel: {}", e);
-                                let _ = stream_event(
-                                    MessageEvent::Error {
-                                        error: e.to_string(),
-                                    },
-                                    &tx,
-                                ).await;
+                            _ = task_cancel.cancelled() => {
+                                tracing::info!("Agent task cancelled");
                                 break;
                             }
+            response = timeout(Duration::from_millis(500), stream.next()) => {
+                                match response {
+                                    Ok(Some(Ok(AgentEvent::Message(message)))) => {
+                                        push_message(&mut all_messages, message.clone());
+                                        if let Err(e) = stream_event(MessageEvent::Message { message }, &tx).await {
+                                            tracing::error!("Error sending message through channel: {}", e);
+                                            let _ = stream_event(
+                                                MessageEvent::Error {
+                                                    error: e.to_string(),
+                                                },
+                                                &tx,
+                                            ).await;
+                                            break;
+                                        }
+                                    }
+                                    Ok(Some(Ok(AgentEvent::ModelChange { model, mode }))) => {
+                                        if let Err(e) = stream_event(MessageEvent::ModelChange { model, mode }, &tx).await {
+                                            tracing::error!("Error sending model change through channel: {}", e);
+                                            let _ = stream_event(
+                                                MessageEvent::Error {
+                                                    error: e.to_string(),
+                                                },
+                                                &tx,
+                                            ).await;
+                                        }
+                                    }
+                                    Ok(Some(Ok(AgentEvent::McpNotification((request_id, n))))) => {
+                                        if let Err(e) = stream_event(MessageEvent::Notification{
+                                            request_id: request_id.clone(),
+                                            message: n,
+                                        }, &tx).await {
+                                            tracing::error!("Error sending message through channel: {}", e);
+                                            let _ = stream_event(
+                                                MessageEvent::Error {
+                                                    error: e.to_string(),
+                                                },
+                                                &tx,
+                                            ).await;
+                                        }
+                                    }
 
-
-                            let session_path = session_path.clone();
-                            let messages = all_messages.clone();
-                            let provider = Arc::clone(provider.as_ref().unwrap());
-                            tokio::spawn(async move {
-                                if let Err(e) = session::persist_messages(&session_path, &messages, Some(provider)).await {
-                                    tracing::error!("Failed to store session history: {:?}", e);
+                                    Ok(Some(Err(e))) => {
+                                        tracing::error!("Error processing message: {}", e);
+                                        let _ = stream_event(
+                                            MessageEvent::Error {
+                                                error: e.to_string(),
+                                            },
+                                            &tx,
+                                        ).await;
+                                        break;
+                                    }
+                                    Ok(None) => {
+                                        break;
+                                    }
+                                    Err(_) => {
+                                        if tx.is_closed() {
+                                            break;
+                                        }
+                                        continue;
+                                    }
                                 }
-                            });
-                        }
-                        Ok(Some(Ok(AgentEvent::ModelChange { model, mode }))) => {
-                            if let Err(e) = stream_event(MessageEvent::ModelChange { model, mode }, &tx).await {
-                                tracing::error!("Error sending model change through channel: {}", e);
-                                let _ = stream_event(
-                                    MessageEvent::Error {
-                                        error: e.to_string(),
-                                    },
-                                    &tx,
-                                ).await;
                             }
                         }
-                        Ok(Some(Ok(AgentEvent::McpNotification((request_id, n))))) => {
-                            if let Err(e) = stream_event(MessageEvent::Notification{
-                                request_id: request_id.clone(),
-                                message: n,
-                            }, &tx).await {
-                                tracing::error!("Error sending message through channel: {}", e);
-                                let _ = stream_event(
-                                    MessageEvent::Error {
-                                        error: e.to_string(),
-                                    },
-                                    &tx,
-                                ).await;
-                            }
-                        }
+        }
 
-                        Ok(Some(Err(e))) => {
-                            tracing::error!("Error processing message: {}", e);
-                            let _ = stream_event(
-                                MessageEvent::Error {
-                                    error: e.to_string(),
-                                },
-                                &tx,
-                            ).await;
-                            break;
-                        }
-                        Ok(None) => {
-                            break;
-                        }
-                        Err(_) => { // Heartbeat, used to detect disconnected clients
-                            if tx.is_closed() {
-                                break;
-                            }
-                            continue;
-                        }
+        if all_messages.len() > saved_message_count {
+            if let Ok(provider) = agent.provider().await {
+                let provider = Arc::clone(&provider);
+                tokio::spawn(async move {
+                    if let Err(e) = session::persist_messages(
+                        &session_path,
+                        &all_messages,
+                        Some(provider),
+                        Some(PathBuf::from(&session_working_dir)),
+                    )
+                    .await
+                    {
+                        tracing::error!("Failed to store session history: {:?}", e);
                     }
-                }
+                });
             }
         }
 
@@ -306,127 +287,11 @@ async fn handler(
             MessageEvent::Finish {
                 reason: "stop".to_string(),
             },
-            &tx,
+            &task_tx,
         )
         .await;
-    });
-
+    }));
     Ok(SseResponse::new(stream))
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-struct AskRequest {
-    prompt: String,
-    session_id: Option<String>,
-    session_working_dir: String,
-    scheduled_job_id: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-struct AskResponse {
-    response: String,
-}
-
-async fn ask_handler(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-    Json(request): Json<AskRequest>,
-) -> Result<Json<AskResponse>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
-    let session_working_dir = request.session_working_dir;
-
-    let session_id = request
-        .session_id
-        .unwrap_or_else(session::generate_session_id);
-
-    let agent = state
-        .get_agent()
-        .await
-        .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
-
-    let provider = agent.provider().await;
-
-    let messages = vec![Message::user().with_text(request.prompt)];
-
-    let mut response_text = String::new();
-    let mut stream = match agent
-        .reply(
-            &messages,
-            Some(SessionConfig {
-                id: session::Identifier::Name(session_id.clone()),
-                working_dir: PathBuf::from(session_working_dir),
-                schedule_id: request.scheduled_job_id.clone(),
-                execution_mode: None,
-            }),
-        )
-        .await
-    {
-        Ok(stream) => stream,
-        Err(e) => {
-            tracing::error!("Failed to start reply stream: {:?}", e);
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
-        }
-    };
-
-    let mut all_messages = messages.clone();
-    let mut response_message = Message::assistant();
-
-    while let Some(response) = stream.next().await {
-        match response {
-            Ok(AgentEvent::Message(message)) => {
-                if message.role == Role::Assistant {
-                    for content in &message.content {
-                        if let MessageContent::Text(text) = content {
-                            response_text.push_str(&text.text);
-                            response_text.push('\n');
-                        }
-                        response_message.content.push(content.clone());
-                    }
-                }
-            }
-            Ok(AgentEvent::ModelChange { model, mode }) => {
-                // Log model change for non-streaming
-                tracing::info!("Model changed to {} in {} mode", model, mode);
-            }
-            Ok(AgentEvent::McpNotification(n)) => {
-                // Handle notifications if needed
-                tracing::info!("Received notification: {:?}", n);
-            }
-
-            Err(e) => {
-                tracing::error!("Error processing as_ai message: {}", e);
-                return Err(StatusCode::INTERNAL_SERVER_ERROR);
-            }
-        }
-    }
-
-    if !response_message.content.is_empty() {
-        all_messages.push(response_message);
-    }
-
-    let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
-        Ok(path) => path,
-        Err(e) => {
-            tracing::error!("Failed to get session path: {}", e);
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
-        }
-    };
-
-    let session_path_clone = session_path.clone();
-    let messages = all_messages.clone();
-    let provider = Arc::clone(provider.as_ref().unwrap());
-    tokio::spawn(async move {
-        if let Err(e) =
-            session::persist_messages(&session_path_clone, &messages, Some(provider)).await
-        {
-            tracing::error!("Failed to store session history: {:?}", e);
-        }
-    });
-
-    Ok(Json(AskResponse {
-        response: response_text.trim().to_string(),
-    }))
 }
 
 #[derive(Debug, Deserialize, Serialize, ToSchema)]
@@ -491,7 +356,7 @@ struct ToolResultRequest {
 async fn submit_tool_result(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-    raw: axum::extract::Json<serde_json::Value>,
+    raw: Json<Value>,
 ) -> Result<Json<Value>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
@@ -522,8 +387,7 @@ async fn submit_tool_result(
 
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
-        .route("/reply", post(handler))
-        .route("/ask", post(ask_handler))
+        .route("/reply", post(reply_handler))
         .route("/confirm", post(confirm_permission))
         .route("/tool_result", post(submit_tool_result))
         .with_state(state)
@@ -540,7 +404,6 @@ mod tests {
             errors::ProviderError,
         },
     };
-    use mcp_core::tool::Tool;
 
     #[derive(Clone)]
     struct MockProvider {
@@ -553,20 +416,20 @@ mod tests {
             goose::providers::base::ProviderMetadata::empty()
         }
 
-        fn get_model_config(&self) -> ModelConfig {
-            self.model_config.clone()
-        }
-
         async fn complete(
             &self,
             _system: &str,
             _messages: &[Message],
-            _tools: &[Tool],
+            _tools: &[rmcp::model::Tool],
         ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
             Ok((
                 Message::assistant().with_text("Mock response"),
                 ProviderUsage::new("mock".to_string(), Usage::default()),
             ))
+        }
+
+        fn get_model_config(&self) -> ModelConfig {
+            self.model_config.clone()
         }
     }
 
@@ -577,7 +440,7 @@ mod tests {
         use tower::ServiceExt;
 
         #[tokio::test]
-        async fn test_ask_endpoint() {
+        async fn test_reply_endpoint() {
             let mock_model_config = ModelConfig::new("test-model".to_string());
             let mock_provider = Arc::new(MockProvider {
                 model_config: mock_model_config,
@@ -585,24 +448,17 @@ mod tests {
             let agent = Agent::new();
             let _ = agent.update_provider(mock_provider).await;
             let state = AppState::new(Arc::new(agent), "test-secret".to_string()).await;
-            let scheduler_path = goose::scheduler::get_default_scheduler_storage_path()
-                .expect("Failed to get default scheduler storage path");
-            let scheduler =
-                goose::scheduler_factory::SchedulerFactory::create_legacy(scheduler_path)
-                    .await
-                    .unwrap();
-            state.set_scheduler(scheduler).await;
 
             let app = routes(state);
 
             let request = Request::builder()
-                .uri("/ask")
+                .uri("/reply")
                 .method("POST")
                 .header("content-type", "application/json")
                 .header("x-secret-key", "test-secret")
                 .body(Body::from(
-                    serde_json::to_string(&AskRequest {
-                        prompt: "test prompt".to_string(),
+                    serde_json::to_string(&ChatRequest {
+                        messages: vec![Message::user().with_text("test message")],
                         session_id: Some("test-session".to_string()),
                         session_working_dir: "test-working-dir".to_string(),
                         scheduled_job_id: None,

@@ -1,273 +1,38 @@
 use ahash::AHasher;
 use dashmap::DashMap;
-use futures_util::stream::StreamExt;
-use include_dir::{include_dir, Dir};
-use mcp_core::Tool;
-use std::error::Error;
-use std::fs;
+use rmcp::model::Tool;
 use std::hash::{Hash, Hasher};
-use std::path::Path;
 use std::sync::Arc;
-use tokenizers::tokenizer::Tokenizer;
+use tiktoken_rs::CoreBPE;
 use tokio::sync::OnceCell;
 
 use crate::message::Message;
 
-// The embedded directory with all possible tokenizer files.
-// If one of them doesn’t exist, we’ll download it at startup.
-static TOKENIZER_FILES: Dir = include_dir!("$CARGO_MANIFEST_DIR/../../tokenizer_files");
-
-// Global tokenizer cache to avoid repeated downloads and loading
-static TOKENIZER_CACHE: OnceCell<Arc<DashMap<String, Arc<Tokenizer>>>> = OnceCell::const_new();
+// Global tokenizer instance to avoid repeated initialization
+static TOKENIZER: OnceCell<Arc<CoreBPE>> = OnceCell::const_new();
 
 // Cache size limits to prevent unbounded growth
 const MAX_TOKEN_CACHE_SIZE: usize = 10_000;
-const MAX_TOKENIZER_CACHE_SIZE: usize = 50;
 
 /// Async token counter with caching capabilities
 pub struct AsyncTokenCounter {
-    tokenizer: Arc<Tokenizer>,
+    tokenizer: Arc<CoreBPE>,
     token_cache: Arc<DashMap<u64, usize>>, // content hash -> token count
 }
 
 /// Legacy synchronous token counter for backward compatibility
 pub struct TokenCounter {
-    tokenizer: Tokenizer,
+    tokenizer: Arc<CoreBPE>,
 }
 
 impl AsyncTokenCounter {
     /// Creates a new async token counter with caching
-    pub async fn new(tokenizer_name: &str) -> Result<Self, Box<dyn Error + Send + Sync>> {
-        // Initialize global cache if not already done
-        let cache = TOKENIZER_CACHE
-            .get_or_init(|| async { Arc::new(DashMap::new()) })
-            .await;
-
-        // Check cache first - DashMap allows concurrent reads
-        if let Some(tokenizer) = cache.get(tokenizer_name) {
-            return Ok(Self {
-                tokenizer: tokenizer.clone(),
-                token_cache: Arc::new(DashMap::new()),
-            });
-        }
-
-        // Try embedded first
-        let tokenizer = match Self::load_from_embedded(tokenizer_name) {
-            Ok(tokenizer) => Arc::new(tokenizer),
-            Err(_) => {
-                // Download async if not found
-                Arc::new(Self::download_and_load_async(tokenizer_name).await?)
-            }
-        };
-
-        // Cache the tokenizer with size management
-        if cache.len() >= MAX_TOKENIZER_CACHE_SIZE {
-            // Simple eviction: remove oldest entry
-            if let Some(entry) = cache.iter().next() {
-                let old_key = entry.key().clone();
-                cache.remove(&old_key);
-            }
-        }
-        cache.insert(tokenizer_name.to_string(), tokenizer.clone());
-
+    pub async fn new() -> Result<Self, String> {
+        let tokenizer = get_tokenizer().await?;
         Ok(Self {
             tokenizer,
             token_cache: Arc::new(DashMap::new()),
         })
-    }
-
-    /// Load tokenizer bytes from the embedded directory
-    fn load_from_embedded(tokenizer_name: &str) -> Result<Tokenizer, Box<dyn Error + Send + Sync>> {
-        let tokenizer_file_path = format!("{}/tokenizer.json", tokenizer_name);
-        let file = TOKENIZER_FILES
-            .get_file(&tokenizer_file_path)
-            .ok_or_else(|| {
-                format!(
-                    "Tokenizer file not found in embedded: {}",
-                    tokenizer_file_path
-                )
-            })?;
-        let contents = file.contents();
-        let tokenizer = Tokenizer::from_bytes(contents)
-            .map_err(|e| format!("Failed to parse tokenizer bytes: {}", e))?;
-        Ok(tokenizer)
-    }
-
-    /// Async download that doesn't block the runtime
-    async fn download_and_load_async(
-        tokenizer_name: &str,
-    ) -> Result<Tokenizer, Box<dyn Error + Send + Sync>> {
-        let local_dir = std::env::temp_dir().join(tokenizer_name);
-        let local_json_path = local_dir.join("tokenizer.json");
-
-        // Check if file exists
-        if !tokio::fs::try_exists(&local_json_path)
-            .await
-            .unwrap_or(false)
-        {
-            eprintln!("Downloading tokenizer: {}", tokenizer_name);
-            let repo_id = tokenizer_name.replace("--", "/");
-            Self::download_tokenizer_async(&repo_id, &local_dir).await?;
-        }
-
-        // Load from disk asynchronously
-        let file_content = tokio::fs::read(&local_json_path).await?;
-        let tokenizer = Tokenizer::from_bytes(&file_content)
-            .map_err(|e| format!("Failed to parse tokenizer: {}", e))?;
-
-        Ok(tokenizer)
-    }
-
-    /// Robust async download with retry logic and network failure handling
-    async fn download_tokenizer_async(
-        repo_id: &str,
-        download_dir: &std::path::Path,
-    ) -> Result<(), Box<dyn Error + Send + Sync>> {
-        tokio::fs::create_dir_all(download_dir).await?;
-
-        let file_url = format!(
-            "https://huggingface.co/{}/resolve/main/tokenizer.json",
-            repo_id
-        );
-        let file_path = download_dir.join("tokenizer.json");
-
-        // Check if partial/corrupted file exists and remove it
-        if file_path.exists() {
-            if let Ok(existing_bytes) = tokio::fs::read(&file_path).await {
-                if Self::is_valid_tokenizer_json(&existing_bytes) {
-                    return Ok(()); // File is complete and valid
-                }
-            }
-            // Remove corrupted/incomplete file
-            let _ = tokio::fs::remove_file(&file_path).await;
-        }
-
-        // Create enhanced HTTP client with timeouts
-        let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(60))
-            .connect_timeout(std::time::Duration::from_secs(15))
-            .user_agent("goose-tokenizer/1.0")
-            .build()?;
-
-        // Download with retry logic
-        let response = Self::download_with_retry(&client, &file_url, 3).await?;
-
-        // Stream download with progress reporting for large files
-        let total_size = response.content_length();
-        let mut stream = response.bytes_stream();
-        let mut file = tokio::fs::File::create(&file_path).await?;
-        let mut downloaded = 0;
-
-        use tokio::io::AsyncWriteExt;
-
-        while let Some(chunk_result) = stream.next().await {
-            let chunk = chunk_result?;
-            file.write_all(&chunk).await?;
-            downloaded += chunk.len();
-
-            // Progress reporting for large downloads
-            if let Some(total) = total_size {
-                if total > 1024 * 1024 && downloaded % (256 * 1024) == 0 {
-                    // Report every 256KB for files >1MB
-                    eprintln!(
-                        "Downloaded {}/{} bytes ({:.1}%)",
-                        downloaded,
-                        total,
-                        (downloaded as f64 / total as f64) * 100.0
-                    );
-                }
-            }
-        }
-
-        file.flush().await?;
-
-        // Validate downloaded file
-        let final_bytes = tokio::fs::read(&file_path).await?;
-        if !Self::is_valid_tokenizer_json(&final_bytes) {
-            tokio::fs::remove_file(&file_path).await?;
-            return Err("Downloaded tokenizer file is invalid or corrupted".into());
-        }
-
-        eprintln!(
-            "Successfully downloaded tokenizer: {} ({} bytes)",
-            repo_id, downloaded
-        );
-        Ok(())
-    }
-
-    /// Download with exponential backoff retry logic
-    async fn download_with_retry(
-        client: &reqwest::Client,
-        url: &str,
-        max_retries: u32,
-    ) -> Result<reqwest::Response, Box<dyn Error + Send + Sync>> {
-        let mut delay = std::time::Duration::from_millis(200);
-
-        for attempt in 0..=max_retries {
-            match client.get(url).send().await {
-                Ok(response) if response.status().is_success() => {
-                    return Ok(response);
-                }
-                Ok(response) if response.status().is_server_error() => {
-                    // Retry on 5xx errors (server issues)
-                    if attempt < max_retries {
-                        eprintln!(
-                            "Server error {} on attempt {}/{}, retrying in {:?}",
-                            response.status(),
-                            attempt + 1,
-                            max_retries + 1,
-                            delay
-                        );
-                        tokio::time::sleep(delay).await;
-                        delay = std::cmp::min(delay * 2, std::time::Duration::from_secs(30)); // Cap at 30s
-                        continue;
-                    }
-                    return Err(format!(
-                        "Server error after {} retries: {}",
-                        max_retries,
-                        response.status()
-                    )
-                    .into());
-                }
-                Ok(response) => {
-                    // Don't retry on 4xx errors (client errors like 404, 403)
-                    return Err(format!("Client error: {} - {}", response.status(), url).into());
-                }
-                Err(e) if attempt < max_retries => {
-                    // Retry on network errors (timeout, connection refused, DNS, etc.)
-                    eprintln!(
-                        "Network error on attempt {}/{}: {}, retrying in {:?}",
-                        attempt + 1,
-                        max_retries + 1,
-                        e,
-                        delay
-                    );
-                    tokio::time::sleep(delay).await;
-                    delay = std::cmp::min(delay * 2, std::time::Duration::from_secs(30)); // Cap at 30s
-                    continue;
-                }
-                Err(e) => {
-                    return Err(
-                        format!("Network error after {} retries: {}", max_retries, e).into(),
-                    );
-                }
-            }
-        }
-        unreachable!()
-    }
-
-    /// Validate that the downloaded file is a valid tokenizer JSON
-    fn is_valid_tokenizer_json(bytes: &[u8]) -> bool {
-        // Basic validation: check if it's valid JSON and has tokenizer structure
-        if let Ok(json_str) = std::str::from_utf8(bytes) {
-            if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(json_str) {
-                // Check for basic tokenizer structure
-                return json_value.get("version").is_some()
-                    || json_value.get("vocab").is_some()
-                    || json_value.get("model").is_some();
-            }
-        }
-        false
     }
 
     /// Count tokens with optimized caching
@@ -283,8 +48,8 @@ impl AsyncTokenCounter {
         }
 
         // Compute and cache result with size management
-        let encoding = self.tokenizer.encode(text, false).unwrap_or_default();
-        let count = encoding.len();
+        let tokens = self.tokenizer.encode_with_special_tokens(text);
+        let count = tokens.len();
 
         // Manage cache size to prevent unbounded growth
         if self.token_cache.len() >= MAX_TOKEN_CACHE_SIZE {
@@ -314,9 +79,13 @@ impl AsyncTokenCounter {
             for tool in tools {
                 func_token_count += func_init;
                 let name = &tool.name;
-                let description = &tool.description.trim_end_matches('.');
+                let description = &tool
+                    .description
+                    .as_ref()
+                    .map(|d| d.as_ref())
+                    .unwrap_or_default()
+                    .trim_end_matches('.');
 
-                // Optimize: count components separately to avoid string allocation
                 // Note: the separator (:) is likely tokenized with adjacent tokens, so we use original approach for accuracy
                 let line = format!("{}:{}", name, description);
                 func_token_count += self.count_tokens(&line);
@@ -427,99 +196,24 @@ impl AsyncTokenCounter {
     }
 }
 
+impl Default for TokenCounter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TokenCounter {
-    /// Creates a new `TokenCounter` using the given HuggingFace tokenizer name.
-    ///
-    /// * `tokenizer_name` might look like "Xenova--gpt-4o"
-    ///   or "Qwen--Qwen2.5-Coder-32B-Instruct", etc.
-    pub fn new(tokenizer_name: &str) -> Self {
-        match Self::load_from_embedded(tokenizer_name) {
-            Ok(tokenizer) => Self { tokenizer },
-            Err(e) => {
-                println!(
-                    "Tokenizer '{}' not found in embedded dir: {}",
-                    tokenizer_name, e
-                );
-                println!("Attempting to download tokenizer and load...");
-                // Fallback to download tokenizer and load from disk
-                match Self::download_and_load(tokenizer_name) {
-                    Ok(counter) => counter,
-                    Err(e) => panic!("Failed to initialize tokenizer: {}", e),
-                }
-            }
-        }
-    }
-
-    /// Load tokenizer bytes from the embedded directory (via `include_dir!`).
-    fn load_from_embedded(tokenizer_name: &str) -> Result<Tokenizer, Box<dyn Error>> {
-        let tokenizer_file_path = format!("{}/tokenizer.json", tokenizer_name);
-        let file = TOKENIZER_FILES
-            .get_file(&tokenizer_file_path)
-            .ok_or_else(|| {
-                format!(
-                    "Tokenizer file not found in embedded: {}",
-                    tokenizer_file_path
-                )
-            })?;
-        let contents = file.contents();
-        let tokenizer = Tokenizer::from_bytes(contents)
-            .map_err(|e| format!("Failed to parse tokenizer bytes: {}", e))?;
-        Ok(tokenizer)
-    }
-
-    /// Fallback: If not found in embedded, we look in `base_dir` on disk.
-    /// If not on disk, we download from Hugging Face, then load from disk.
-    fn download_and_load(tokenizer_name: &str) -> Result<Self, Box<dyn Error>> {
-        let local_dir = std::env::temp_dir().join(tokenizer_name);
-        let local_json_path = local_dir.join("tokenizer.json");
-
-        // If the file doesn't already exist, we download from HF
-        if !Path::new(&local_json_path).exists() {
-            eprintln!("Tokenizer file not on disk, downloading…");
-            let repo_id = tokenizer_name.replace("--", "/");
-            // e.g. "Xenova--llama3-tokenizer" -> "Xenova/llama3-tokenizer"
-            Self::download_tokenizer(&repo_id, &local_dir)?;
-        }
-
-        // Load from disk
-        let file_content = fs::read(&local_json_path)?;
-        let tokenizer = Tokenizer::from_bytes(&file_content)
-            .map_err(|e| format!("Failed to parse tokenizer after download: {}", e))?;
-
-        Ok(Self { tokenizer })
-    }
-
-    /// DEPRECATED: Use AsyncTokenCounter for new code
-    /// Download from Hugging Face into the local directory if not already present.
-    /// This method still blocks but is kept for backward compatibility.
-    fn download_tokenizer(repo_id: &str, download_dir: &Path) -> Result<(), Box<dyn Error>> {
-        std::fs::create_dir_all(download_dir)?;
-
-        let file_url = format!(
-            "https://huggingface.co/{}/resolve/main/tokenizer.json",
-            repo_id
-        );
-        let file_path = download_dir.join("tokenizer.json");
-
-        // Use blocking reqwest client to avoid nested runtime
-        let client = reqwest::blocking::Client::new();
-        let response = client.get(&file_url).send()?;
-
-        if !response.status().is_success() {
-            let error_msg = format!("Failed to download tokenizer: status {}", response.status());
-            return Err(Box::<dyn Error>::from(error_msg));
-        }
-
-        let bytes = response.bytes()?;
-        std::fs::write(&file_path, bytes)?;
-
-        Ok(())
+    /// Creates a new `TokenCounter` using the fixed o200k_base encoding.
+    pub fn new() -> Self {
+        // Use blocking version of get_tokenizer
+        let tokenizer = get_tokenizer_blocking().expect("Failed to initialize tokenizer");
+        Self { tokenizer }
     }
 
     /// Count tokens for a piece of text using our single tokenizer.
     pub fn count_tokens(&self, text: &str) -> usize {
-        let encoding = self.tokenizer.encode(text, false).unwrap();
-        encoding.len()
+        let tokens = self.tokenizer.encode_with_special_tokens(text);
+        tokens.len()
     }
 
     pub fn count_tokens_for_tools(&self, tools: &[Tool]) -> usize {
@@ -536,7 +230,12 @@ impl TokenCounter {
             for tool in tools {
                 func_token_count += func_init; // Add tokens for start of each function
                 let name = &tool.name;
-                let description = &tool.description.trim_end_matches('.');
+                let description = &tool
+                    .description
+                    .as_ref()
+                    .map(|d| d.as_ref())
+                    .unwrap_or_default()
+                    .trim_end_matches('.');
                 let line = format!("{}:{}", name, description);
                 func_token_count += self.count_tokens(&line); // Add tokens for name and description
 
@@ -596,7 +295,6 @@ impl TokenCounter {
                 if let Some(content_text) = content.as_text() {
                     num_tokens += self.count_tokens(content_text);
                 } else if let Some(tool_request) = content.as_tool_request() {
-                    // TODO: count tokens for tool request
                     let tool_call = tool_request.tool_call.as_ref().unwrap();
                     let text = format!(
                         "{}:{}:{}",
@@ -641,79 +339,108 @@ impl TokenCounter {
     }
 }
 
+/// Get the global tokenizer instance (async version)
+/// Fixed encoding for all tokenization - using o200k_base for GPT-4o and o1 models
+async fn get_tokenizer() -> Result<Arc<CoreBPE>, String> {
+    let tokenizer = TOKENIZER
+        .get_or_init(|| async {
+            match tiktoken_rs::o200k_base() {
+                Ok(bpe) => Arc::new(bpe),
+                Err(e) => panic!("Failed to initialize o200k_base tokenizer: {}", e),
+            }
+        })
+        .await;
+    Ok(tokenizer.clone())
+}
+
+/// Get the global tokenizer instance (blocking version for backward compatibility)
+fn get_tokenizer_blocking() -> Result<Arc<CoreBPE>, String> {
+    // For the blocking version, we need to handle the case where the tokenizer hasn't been initialized yet
+    if let Some(tokenizer) = TOKENIZER.get() {
+        return Ok(tokenizer.clone());
+    }
+
+    // Initialize the tokenizer synchronously
+    match tiktoken_rs::o200k_base() {
+        Ok(bpe) => {
+            let tokenizer = Arc::new(bpe);
+            // Try to set it in the OnceCell, but it's okay if another thread beat us to it
+            let _ = TOKENIZER.set(tokenizer.clone());
+            Ok(tokenizer)
+        }
+        Err(e) => Err(format!("Failed to initialize o200k_base tokenizer: {}", e)),
+    }
+}
+
 /// Factory function for creating async token counters with proper error handling
-pub async fn create_async_token_counter(tokenizer_name: &str) -> Result<AsyncTokenCounter, String> {
-    AsyncTokenCounter::new(tokenizer_name)
-        .await
-        .map_err(|e| format!("Failed to initialize tokenizer '{}': {}", tokenizer_name, e))
+pub async fn create_async_token_counter() -> Result<AsyncTokenCounter, String> {
+    AsyncTokenCounter::new().await
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::message::{Message, MessageContent}; // or however your `Message` is imported
-    use crate::model::{CLAUDE_TOKENIZER, GPT_4O_TOKENIZER};
-    use mcp_core::role::Role;
-    use mcp_core::tool::Tool;
-    use serde_json::json;
+    use crate::message::{Message, MessageContent};
+    use rmcp::model::{Role, Tool};
+    use rmcp::object;
 
     #[test]
-    fn test_claude_tokenizer() {
-        let counter = TokenCounter::new(CLAUDE_TOKENIZER);
+    fn test_token_counter_basic() {
+        let counter = TokenCounter::new();
 
         let text = "Hello, how are you?";
         let count = counter.count_tokens(text);
         println!("Token count for '{}': {:?}", text, count);
 
-        // The old test expected 6 tokens
-        assert_eq!(count, 6, "Claude tokenizer token count mismatch");
+        // With o200k_base encoding, this should give us a reasonable count
+        assert!(count > 0, "Token count should be greater than 0");
     }
 
     #[test]
-    fn test_gpt_4o_tokenizer() {
-        let counter = TokenCounter::new(GPT_4O_TOKENIZER);
+    fn test_token_counter_simple_text() {
+        let counter = TokenCounter::new();
 
         let text = "Hey there!";
         let count = counter.count_tokens(text);
         println!("Token count for '{}': {:?}", text, count);
 
-        // The old test expected 3 tokens
-        assert_eq!(count, 3, "GPT-4o tokenizer token count mismatch");
+        // With o200k_base encoding, this should give us a reasonable count
+        assert!(count > 0, "Token count should be greater than 0");
     }
 
     #[test]
     fn test_count_chat_tokens() {
-        let counter = TokenCounter::new(GPT_4O_TOKENIZER);
+        let counter = TokenCounter::new();
 
         let system_prompt =
             "You are a helpful assistant that can answer questions about the weather.";
 
         let messages = vec![
-            Message {
-                role: Role::User,
-                created: 0,
-                content: vec![MessageContent::text(
+            Message::new(
+                Role::User,
+                0,
+                vec![MessageContent::text(
                     "What's the weather like in San Francisco?",
                 )],
-            },
-            Message {
-                role: Role::Assistant,
-                created: 1,
-                content: vec![MessageContent::text(
+            ),
+            Message::new(
+                Role::Assistant,
+                1,
+                vec![MessageContent::text(
                     "Looks like it's 60 degrees Fahrenheit in San Francisco.",
                 )],
-            },
-            Message {
-                role: Role::User,
-                created: 2,
-                content: vec![MessageContent::text("How about New York?")],
-            },
+            ),
+            Message::new(
+                Role::User,
+                2,
+                vec![MessageContent::text("How about New York?")],
+            ),
         ];
 
-        let tools = vec![Tool {
-            name: "get_current_weather".to_string(),
-            description: "Get the current weather in a given location".to_string(),
-            input_schema: json!({
+        let tools = vec![Tool::new(
+            "get_current_weather",
+            "Get the current weather in a given location",
+            object!({
                 "properties": {
                     "location": {
                         "type": "string",
@@ -727,8 +454,7 @@ mod tests {
                 },
                 "required": ["location"]
             }),
-            annotations: None,
-        }];
+        )];
 
         let token_count_without_tools = counter.count_chat_tokens(system_prompt, &messages, &[]);
         println!("Total tokens without tools: {}", token_count_without_tools);
@@ -736,65 +462,31 @@ mod tests {
         let token_count_with_tools = counter.count_chat_tokens(system_prompt, &messages, &tools);
         println!("Total tokens with tools: {}", token_count_with_tools);
 
-        // The old test used 56 / 124 for GPT-4o. Adjust if your actual tokenizer changes
-        assert_eq!(token_count_without_tools, 56);
-        assert_eq!(token_count_with_tools, 124);
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_panic_if_provided_tokenizer_doesnt_exist() {
-        // This should panic because the tokenizer doesn't exist
-        // in the embedded directory and the download fails
-
-        TokenCounter::new("nonexistent-tokenizer");
-    }
-
-    // Optional test to confirm that fallback download works if not found in embedded:
-    // Ignored cause this actually downloads a tokenizer from Hugging Face
-    #[test]
-    #[ignore]
-    fn test_download_tokenizer_successfully_if_not_embedded() {
-        let non_embedded_key = "openai-community/gpt2";
-        let counter = TokenCounter::new(non_embedded_key);
-
-        // If it downloads successfully, we can do a quick count to ensure it's valid
-        let text = "print('hello world')";
-        let count = counter.count_tokens(text);
-        println!(
-            "Downloaded tokenizer, token count for '{}': {}",
-            text, count
+        // Basic sanity checks - with o200k_base the exact counts may differ from the old tokenizer
+        assert!(
+            token_count_without_tools > 0,
+            "Should have some tokens without tools"
         );
-
-        // https://tiktokenizer.vercel.app/?model=gpt2
-        assert!(count == 5, "Expected 5 tokens from downloaded tokenizer");
+        assert!(
+            token_count_with_tools > token_count_without_tools,
+            "Should have more tokens with tools"
+        );
     }
 
     #[tokio::test]
-    async fn test_async_claude_tokenizer() {
-        let counter = create_async_token_counter(CLAUDE_TOKENIZER).await.unwrap();
+    async fn test_async_token_counter() {
+        let counter = create_async_token_counter().await.unwrap();
 
         let text = "Hello, how are you?";
         let count = counter.count_tokens(text);
         println!("Async token count for '{}': {:?}", text, count);
 
-        assert_eq!(count, 6, "Async Claude tokenizer token count mismatch");
-    }
-
-    #[tokio::test]
-    async fn test_async_gpt_4o_tokenizer() {
-        let counter = create_async_token_counter(GPT_4O_TOKENIZER).await.unwrap();
-
-        let text = "Hey there!";
-        let count = counter.count_tokens(text);
-        println!("Async token count for '{}': {:?}", text, count);
-
-        assert_eq!(count, 3, "Async GPT-4o tokenizer token count mismatch");
+        assert!(count > 0, "Async token count should be greater than 0");
     }
 
     #[tokio::test]
     async fn test_async_token_caching() {
-        let counter = create_async_token_counter(GPT_4O_TOKENIZER).await.unwrap();
+        let counter = create_async_token_counter().await.unwrap();
 
         let text = "This is a test for caching functionality";
 
@@ -815,37 +507,37 @@ mod tests {
 
     #[tokio::test]
     async fn test_async_count_chat_tokens() {
-        let counter = create_async_token_counter(GPT_4O_TOKENIZER).await.unwrap();
+        let counter = create_async_token_counter().await.unwrap();
 
         let system_prompt =
             "You are a helpful assistant that can answer questions about the weather.";
 
         let messages = vec![
-            Message {
-                role: Role::User,
-                created: 0,
-                content: vec![MessageContent::text(
+            Message::new(
+                Role::User,
+                0,
+                vec![MessageContent::text(
                     "What's the weather like in San Francisco?",
                 )],
-            },
-            Message {
-                role: Role::Assistant,
-                created: 1,
-                content: vec![MessageContent::text(
+            ),
+            Message::new(
+                Role::Assistant,
+                1,
+                vec![MessageContent::text(
                     "Looks like it's 60 degrees Fahrenheit in San Francisco.",
                 )],
-            },
-            Message {
-                role: Role::User,
-                created: 2,
-                content: vec![MessageContent::text("How about New York?")],
-            },
+            ),
+            Message::new(
+                Role::User,
+                2,
+                vec![MessageContent::text("How about New York?")],
+            ),
         ];
 
-        let tools = vec![Tool {
-            name: "get_current_weather".to_string(),
-            description: "Get the current weather in a given location".to_string(),
-            input_schema: json!({
+        let tools = vec![Tool::new(
+            "get_current_weather",
+            "Get the current weather in a given location",
+            object!({
                 "properties": {
                     "location": {
                         "type": "string",
@@ -859,8 +551,7 @@ mod tests {
                 },
                 "required": ["location"]
             }),
-            annotations: None,
-        }];
+        )];
 
         let token_count_without_tools = counter.count_chat_tokens(system_prompt, &messages, &[]);
         println!(
@@ -871,28 +562,20 @@ mod tests {
         let token_count_with_tools = counter.count_chat_tokens(system_prompt, &messages, &tools);
         println!("Async total tokens with tools: {}", token_count_with_tools);
 
-        // Should match the synchronous version
-        assert_eq!(token_count_without_tools, 56);
-        assert_eq!(token_count_with_tools, 124);
-    }
-
-    #[tokio::test]
-    async fn test_async_tokenizer_caching() {
-        // Create two counters with the same tokenizer name
-        let counter1 = create_async_token_counter(GPT_4O_TOKENIZER).await.unwrap();
-        let counter2 = create_async_token_counter(GPT_4O_TOKENIZER).await.unwrap();
-
-        // Both should work and give same results (tokenizer is cached globally)
-        let text = "Test tokenizer caching";
-        let count1 = counter1.count_tokens(text);
-        let count2 = counter2.count_tokens(text);
-
-        assert_eq!(count1, count2);
+        // Basic sanity checks
+        assert!(
+            token_count_without_tools > 0,
+            "Should have some tokens without tools"
+        );
+        assert!(
+            token_count_with_tools > token_count_without_tools,
+            "Should have more tokens with tools"
+        );
     }
 
     #[tokio::test]
     async fn test_async_cache_management() {
-        let counter = create_async_token_counter(GPT_4O_TOKENIZER).await.unwrap();
+        let counter = create_async_token_counter().await.unwrap();
 
         // Add some items to cache
         counter.count_tokens("First text");
@@ -915,9 +598,7 @@ mod tests {
     async fn test_concurrent_token_counter_creation() {
         // Test concurrent creation of token counters to verify no race conditions
         let handles: Vec<_> = (0..10)
-            .map(|_| {
-                tokio::spawn(async { create_async_token_counter(GPT_4O_TOKENIZER).await.unwrap() })
-            })
+            .map(|_| tokio::spawn(async { create_async_token_counter().await.unwrap() }))
             .collect();
 
         let counters: Vec<_> = futures::future::join_all(handles)
@@ -937,7 +618,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cache_eviction_behavior() {
-        let counter = create_async_token_counter(GPT_4O_TOKENIZER).await.unwrap();
+        let counter = create_async_token_counter().await.unwrap();
 
         // Fill cache beyond normal size to test eviction
         let mut cached_texts = Vec::new();
@@ -960,16 +641,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_async_error_handling() {
-        // Test with invalid tokenizer name
-        let result = create_async_token_counter("invalid/nonexistent-tokenizer").await;
-        assert!(result.is_err(), "Should fail with invalid tokenizer name");
-    }
-
-    #[tokio::test]
     async fn test_concurrent_cache_operations() {
-        let counter =
-            std::sync::Arc::new(create_async_token_counter(GPT_4O_TOKENIZER).await.unwrap());
+        let counter = std::sync::Arc::new(create_async_token_counter().await.unwrap());
 
         // Test concurrent token counting operations
         let handles: Vec<_> = (0..20)
@@ -999,90 +672,25 @@ mod tests {
     }
 
     #[test]
-    fn test_tokenizer_json_validation() {
-        // Test valid tokenizer JSON
-        let valid_json = r#"{"version": "1.0", "model": {"type": "BPE"}}"#;
-        assert!(AsyncTokenCounter::is_valid_tokenizer_json(
-            valid_json.as_bytes()
-        ));
+    fn test_tokenizer_consistency() {
+        // Test that both sync and async versions give the same results
+        let sync_counter = TokenCounter::new();
+        let text = "This is a test for tokenizer consistency";
+        let sync_count = sync_counter.count_tokens(text);
 
-        let valid_json2 = r#"{"vocab": {"hello": 1, "world": 2}}"#;
-        assert!(AsyncTokenCounter::is_valid_tokenizer_json(
-            valid_json2.as_bytes()
-        ));
+        // Test that the tokenizer is working correctly
+        assert!(sync_count > 0, "Sync tokenizer should produce tokens");
 
-        // Test invalid JSON
-        let invalid_json = r#"{"incomplete": true"#;
-        assert!(!AsyncTokenCounter::is_valid_tokenizer_json(
-            invalid_json.as_bytes()
-        ));
+        // Test with different text lengths
+        let short_text = "Hi";
+        let long_text = "This is a much longer text that should produce significantly more tokens than the short text";
 
-        // Test valid JSON but not tokenizer structure
-        let wrong_structure = r#"{"random": "data", "not": "tokenizer"}"#;
-        assert!(!AsyncTokenCounter::is_valid_tokenizer_json(
-            wrong_structure.as_bytes()
-        ));
+        let short_count = sync_counter.count_tokens(short_text);
+        let long_count = sync_counter.count_tokens(long_text);
 
-        // Test binary data
-        let binary_data = [0xFF, 0xFE, 0x00, 0x01];
-        assert!(!AsyncTokenCounter::is_valid_tokenizer_json(&binary_data));
-
-        // Test empty data
-        assert!(!AsyncTokenCounter::is_valid_tokenizer_json(&[]));
-    }
-
-    #[tokio::test]
-    async fn test_download_with_retry_logic() {
-        // This test would require mocking HTTP responses
-        // For now, we test the retry logic structure by verifying the function exists
-        // In a full test suite, you'd use wiremock or similar to simulate failures
-
-        // Test that the function exists and has the right signature
-        let client = reqwest::Client::new();
-
-        // Test with a known bad URL to verify error handling
-        let result =
-            AsyncTokenCounter::download_with_retry(&client, "https://httpbin.org/status/404", 1)
-                .await;
-
-        assert!(result.is_err(), "Should fail with 404 error");
-
-        let error_msg = result.unwrap_err().to_string();
         assert!(
-            error_msg.contains("Client error: 404"),
-            "Should contain client error message"
+            short_count < long_count,
+            "Longer text should have more tokens"
         );
-    }
-
-    #[tokio::test]
-    async fn test_network_resilience_with_timeout() {
-        // Test timeout handling with a slow endpoint
-        let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_millis(100)) // Very short timeout
-            .build()
-            .unwrap();
-
-        // Use httpbin delay endpoint that takes longer than our timeout
-        let result = AsyncTokenCounter::download_with_retry(
-            &client,
-            "https://httpbin.org/delay/1", // 1 second delay, but 100ms timeout
-            1,
-        )
-        .await;
-
-        assert!(result.is_err(), "Should timeout and fail");
-    }
-
-    #[tokio::test]
-    async fn test_successful_download_retry() {
-        // Test successful download after simulated retry
-        let client = reqwest::Client::new();
-
-        // Use a reliable endpoint that should succeed
-        let result =
-            AsyncTokenCounter::download_with_retry(&client, "https://httpbin.org/status/200", 2)
-                .await;
-
-        assert!(result.is_ok(), "Should succeed with 200 status");
     }
 }

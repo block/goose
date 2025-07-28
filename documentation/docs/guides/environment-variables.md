@@ -106,6 +106,11 @@ These variables control how Goose manages conversation sessions and context.
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
 | `GOOSE_CONTEXT_STRATEGY` | Controls how Goose handles context limit exceeded situations | "summarize", "truncate", "clear", "prompt" | "prompt" (interactive), "summarize" (headless) |
+| `GOOSE_MAX_TURNS` | [Maximum number of turns](/docs/guides/smart-context-management#maximum-turns) allowed without user input | Integer (e.g., 10, 50, 100) | 1000 |
+| `GOOSE_CLI_THEME` | [Theme](/docs/guides/goose-cli-commands#themes) for CLI response  markdown | "light", "dark", "ansi" | "dark" |
+| `GOOSE_SCHEDULER_TYPE` | Controls which scheduler Goose uses for [scheduled recipes](/docs/guides/recipes/session-recipes.md#schedule-recipe) | "legacy" or "temporal" | "legacy" (Goose's built-in cron scheduler) | 
+| `GOOSE_TEMPORAL_BIN` | Optional custom path to your Temporal binary | /path/to/temporal-service | None |
+| `GOOSE_RANDOM_THINKING_MESSAGES` | Controls whether to show amusing random messages during processing | "true", "false" | "true" |
 
 **Examples**
 
@@ -115,19 +120,68 @@ export GOOSE_CONTEXT_STRATEGY=summarize
 
 # Always prompt user to choose (default for interactive mode)
 export GOOSE_CONTEXT_STRATEGY=prompt
+
+# Set a low limit for step-by-step control
+export GOOSE_MAX_TURNS=5
+
+# Set a moderate limit for controlled automation
+export GOOSE_MAX_TURNS=25
+
+# Set a reasonable limit for production
+export GOOSE_MAX_TURNS=100
+
+# Set the ANSI theme for the session
+export GOOSE_CLI_THEME=ansi
+
+# Use Temporal for scheduled recipes
+export GOOSE_SCHEDULER_TYPE=temporal
+
+# Custom Temporal binary (optional)
+export GOOSE_TEMPORAL_BIN=/path/to/temporal-service
+
+# Disable random thinking messages for less distraction
+export GOOSE_RANDOM_THINKING_MESSAGES=false
 ```
+
+### Model Context Limit Overrides
+
+These variables allow you to override the default context window size (token limit) for your models. This is particularly useful when using [LiteLLM proxies](https://docs.litellm.ai/docs/providers/litellm_proxy) or custom models that don't match Goose's predefined model patterns.
+
+| Variable | Purpose | Values | Default |
+|----------|---------|---------|---------|
+| `GOOSE_CONTEXT_LIMIT` | Override context limit for the main model | Integer (number of tokens) | Model-specific default or 128,000 |
+| `GOOSE_LEAD_CONTEXT_LIMIT` | Override context limit for the lead model in [lead/worker mode](/docs/tutorials/lead-worker) | Integer (number of tokens) | Falls back to `GOOSE_CONTEXT_LIMIT` or model default |
+| `GOOSE_WORKER_CONTEXT_LIMIT` | Override context limit for the worker model in lead/worker mode | Integer (number of tokens) | Falls back to `GOOSE_CONTEXT_LIMIT` or model default |
+| `GOOSE_PLANNER_CONTEXT_LIMIT` | Override context limit for the [planner model](/docs/guides/creating-plans) | Integer (number of tokens) | Falls back to `GOOSE_CONTEXT_LIMIT` or model default |
+
+**Examples**
+
+```bash
+# Set context limit for main model (useful for LiteLLM proxies)
+export GOOSE_CONTEXT_LIMIT=200000
+
+# Set different context limits for lead/worker models
+export GOOSE_LEAD_CONTEXT_LIMIT=500000   # Large context for planning
+export GOOSE_WORKER_CONTEXT_LIMIT=128000 # Smaller context for execution
+
+# Set context limit for planner
+export GOOSE_PLANNER_CONTEXT_LIMIT=1000000
+```
+
+For more details and examples, see [Model Context Limit Overrides](/docs/guides/smart-context-management#model-context-limit-overrides).
 
 ## Tool Configuration
 
-These variables control how Goose handles [tool permissions](/docs/guides/tool-permissions) and their execution.
+These variables control how Goose handles [tool permissions](/docs/guides/managing-tools/tool-permissions) and their execution.
 
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
 | `GOOSE_MODE` | Controls how Goose handles tool execution | "auto", "approve", "chat", "smart_approve" | "smart_approve" |
 | `GOOSE_TOOLSHIM` | Enables/disables tool call interpretation | "1", "true" (case insensitive) to enable | false |
-| `GOOSE_TOOLSHIM_OLLAMA_MODEL` | Specifies the model for [tool call interpretation](/docs/guides/experimental-features/#ollama-tool-shim) | Model name (e.g. llama3.2, qwen2.5) | System default |
-| `GOOSE_CLI_MIN_PRIORITY` | Controls verbosity of [tool output](/docs/guides/adjust-tool-output) | Float between 0.0 and 1.0 | 0.0 |
+| `GOOSE_TOOLSHIM_OLLAMA_MODEL` | Specifies the model for [tool call interpretation](/docs/experimental/ollama) | Model name (e.g. llama3.2, qwen2.5) | System default |
+| `GOOSE_CLI_MIN_PRIORITY` | Controls verbosity of [tool output](/docs/guides/managing-tools/adjust-tool-output) | Float between 0.0 and 1.0 | 0.0 |
 | `GOOSE_CLI_TOOL_PARAMS_TRUNCATION_MAX_LENGTH` | Maximum length for tool parameter values before truncation in CLI output (not in debug mode) | Integer | 40 |
+| `GOOSE_CLI_SHOW_COST` | Toggles display of model cost estimates in CLI output | "true", "1" (case insensitive) to enable | false |
 
 **Examples**
 
@@ -138,7 +192,72 @@ export GOOSE_TOOLSHIM_OLLAMA_MODEL=llama3.2
 export GOOSE_MODE="auto"
 export GOOSE_CLI_MIN_PRIORITY=0.2  # Show only medium and high importance output
 export GOOSE_CLI_TOOL_PARAMS_MAX_LENGTH=100  # Show up to 100 characters for tool parameters in CLI output
+
+# Enable model cost display in CLI
+export GOOSE_CLI_SHOW_COST=true
 ```
+
+### Enhanced Code Editing
+
+These variables configure [AI-powered code editing](/docs/guides/enhanced-code-editing) for the Developer extension's `str_replace` tool. All three variables must be set and non-empty for the feature to activate.
+
+| Variable | Purpose | Values | Default |
+|----------|---------|---------|---------|
+| `GOOSE_EDITOR_API_KEY` | API key for the code editing model | API key string | None |
+| `GOOSE_EDITOR_HOST` | API endpoint for the code editing model | URL (e.g., "https://api.openai.com/v1") | None |
+| `GOOSE_EDITOR_MODEL` | Model to use for code editing | Model name (e.g., "gpt-4o", "claude-3-5-sonnet") | None |
+
+**Examples**
+
+This feature works with any OpenAI-compatible API endpoint, for example:
+
+```bash
+# OpenAI configuration
+export GOOSE_EDITOR_API_KEY="sk-..."
+export GOOSE_EDITOR_HOST="https://api.openai.com/v1"
+export GOOSE_EDITOR_MODEL="gpt-4o"
+
+# Anthropic configuration (via OpenAI-compatible proxy)
+export GOOSE_EDITOR_API_KEY="sk-ant-..."
+export GOOSE_EDITOR_HOST="https://api.anthropic.com/v1"
+export GOOSE_EDITOR_MODEL="claude-3-5-sonnet-20241022"
+
+# Local model configuration
+export GOOSE_EDITOR_API_KEY="your-key"
+export GOOSE_EDITOR_HOST="http://localhost:8000/v1"
+export GOOSE_EDITOR_MODEL="your-model"
+```
+
+
+## Tool Selection Strategy
+
+These variables configure the [tool selection strategy](/docs/guides/managing-tools/tool-router).
+
+| Variable | Purpose | Values | Default |
+|----------|---------|---------|--------|
+| `GOOSE_ROUTER_TOOL_SELECTION_STRATEGY` | The tool selection strategy to use | "default", "vector", "llm" | "default" |
+| `GOOSE_EMBEDDING_MODEL_PROVIDER` | The provider to use for generating embeddings for the "vector" strategy | [See available providers](/docs/getting-started/providers#available-providers) (must support embeddings) | "openai" |
+| `GOOSE_EMBEDDING_MODEL` | The model to use for generating embeddings for the "vector" strategy | Model name (provider-specific) | "text-embedding-3-small" |
+
+**Examples**
+
+```bash
+# Use vector-based tool selection with custom settings
+export GOOSE_ROUTER_TOOL_SELECTION_STRATEGY=vector
+export GOOSE_EMBEDDING_MODEL_PROVIDER=ollama
+export GOOSE_EMBEDDING_MODEL=nomic-embed-text
+
+# Or use LLM-based selection
+export GOOSE_ROUTER_TOOL_SELECTION_STRATEGY=llm
+```
+
+**Embedding Provider Support**
+
+The default embedding provider is OpenAI. If using a different provider:
+- Ensure the provider supports embeddings
+- Specify an appropriate embedding model for that provider
+- Ensure the provider is properly configured with necessary credentials
+
 ## Security Configuration
 
 These variables control security related features.
@@ -168,6 +287,23 @@ These variables configure the [Langfuse integration for observability](/docs/tut
 | `LANGFUSE_INIT_PROJECT_PUBLIC_KEY` | Alternative public key for Langfuse | String | None |
 | `LANGFUSE_INIT_PROJECT_SECRET_KEY` | Alternative secret key for Langfuse | String | None |
 
+## Experimental Features
+
+These variables enable experimental features that are in active development. These may change or be removed in future releases. Use with caution in production environments.
+
+| Variable | Purpose | Values | Default |
+|----------|---------|---------|---------|
+| `ALPHA_FEATURES` | Enables experimental alpha features like [subagents](/docs/experimental/subagents) | "true", "1" (case insensitive) to enable | false |
+
+**Examples**
+
+```bash
+# Enable alpha features
+export ALPHA_FEATURES=true
+
+# Or enable for a single session
+ALPHA_FEATURES=true goose session
+```
 
 ## Notes
 

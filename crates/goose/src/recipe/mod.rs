@@ -4,8 +4,16 @@ use std::collections::HashMap;
 use std::fmt;
 
 use crate::agents::extension::ExtensionConfig;
+use crate::agents::types::RetryConfig;
 use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
+
+pub mod build_recipe;
+pub mod read_recipe_file_content;
+pub mod template_recipe;
+
+pub const BUILT_IN_RECIPE_DIR_PARAM: &str = "recipe_dir";
 
 fn default_version() -> String {
     "1.0.0".to_string()
@@ -29,7 +37,8 @@ fn default_version() -> String {
 /// * `activities` - Activity labels that appear when loading the Recipe
 /// * `author` - Information about the Recipe's creator and metadata
 /// * `parameters` - Additional parameters for the Recipe
-///
+/// * `response` - Response configuration including JSON schema validation
+/// * `retry` - Retry configuration for automated validation and recovery
 /// # Example
 ///
 ///
@@ -56,9 +65,12 @@ fn default_version() -> String {
 ///     author: None,
 ///     settings: None,
 ///     parameters: None,
+///     response: None,
+///     sub_recipes: None,
+///     retry: None,
 /// };
 ///
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
 pub struct Recipe {
     // Required fields
     #[serde(default = "default_version")]
@@ -95,10 +107,16 @@ pub struct Recipe {
     pub parameters: Option<Vec<RecipeParameter>>, // any additional parameters for the recipe
 
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub response: Option<Response>, // response configuration including JSON schema
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub sub_recipes: Option<Vec<SubRecipe>>, // sub-recipes for the recipe
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retry: Option<RetryConfig>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
 pub struct Author {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub contact: Option<String>, // creator/contact information of the recipe
@@ -107,7 +125,7 @@ pub struct Author {
     pub metadata: Option<String>, // any additional metadata for the author
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
 pub struct Settings {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub goose_provider: Option<String>,
@@ -119,12 +137,22 @@ pub struct Settings {
     pub temperature: Option<f32>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
+pub struct Response {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub json_schema: Option<serde_json::Value>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
 pub struct SubRecipe {
     pub name: String,
     pub path: String,
     #[serde(default, deserialize_with = "deserialize_value_map_as_string")]
     pub values: Option<HashMap<String, String>>,
+    #[serde(default)]
+    pub sequential_when_repeated: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
 }
 
 fn deserialize_value_map_as_string<'de, D>(
@@ -152,7 +180,7 @@ where
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum RecipeParameterRequirement {
     Required,
@@ -170,7 +198,7 @@ impl fmt::Display for RecipeParameterRequirement {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum RecipeParameterInputType {
     String,
@@ -178,6 +206,7 @@ pub enum RecipeParameterInputType {
     Boolean,
     Date,
     File,
+    Select,
 }
 
 impl fmt::Display for RecipeParameterInputType {
@@ -190,7 +219,7 @@ impl fmt::Display for RecipeParameterInputType {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
 pub struct RecipeParameter {
     pub key: String,
     pub input_type: RecipeParameterInputType,
@@ -198,6 +227,8 @@ pub struct RecipeParameter {
     pub description: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub options: Option<Vec<String>>,
 }
 
 /// Builder for creating Recipe instances
@@ -216,7 +247,9 @@ pub struct RecipeBuilder {
     activities: Option<Vec<String>>,
     author: Option<Author>,
     parameters: Option<Vec<RecipeParameter>>,
+    response: Option<Response>,
     sub_recipes: Option<Vec<SubRecipe>>,
+    retry: Option<RetryConfig>,
 }
 
 impl Recipe {
@@ -247,19 +280,41 @@ impl Recipe {
             activities: None,
             author: None,
             parameters: None,
+            response: None,
             sub_recipes: None,
+            retry: None,
         }
     }
     pub fn from_content(content: &str) -> Result<Self> {
-        if serde_json::from_str::<serde_json::Value>(content).is_ok() {
-            Ok(serde_json::from_str(content)?)
-        } else if serde_yaml::from_str::<serde_yaml::Value>(content).is_ok() {
-            Ok(serde_yaml::from_str(content)?)
-        } else {
-            Err(anyhow::anyhow!(
-                "Unsupported format. Expected JSON or YAML."
-            ))
+        let recipe: Recipe =
+            if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(content) {
+                if let Some(nested_recipe) = json_value.get("recipe") {
+                    serde_json::from_value(nested_recipe.clone())?
+                } else {
+                    serde_json::from_str(content)?
+                }
+            } else if let Ok(yaml_value) = serde_yaml::from_str::<serde_yaml::Value>(content) {
+                if let Some(nested_recipe) = yaml_value.get("recipe") {
+                    serde_yaml::from_value(nested_recipe.clone())?
+                } else {
+                    serde_yaml::from_str(content)?
+                }
+            } else {
+                return Err(anyhow::anyhow!(
+                    "Unsupported format. Expected JSON or YAML."
+                ));
+            };
+
+        if let Some(ref retry_config) = recipe.retry {
+            if let Err(validation_error) = retry_config.validate() {
+                return Err(anyhow::anyhow!(
+                    "Invalid retry configuration: {}",
+                    validation_error
+                ));
+            }
         }
+
+        Ok(recipe)
     }
 }
 
@@ -327,8 +382,20 @@ impl RecipeBuilder {
         self.parameters = Some(parameters);
         self
     }
+
+    pub fn response(mut self, response: Response) -> Self {
+        self.response = Some(response);
+        self
+    }
+
     pub fn sub_recipes(mut self, sub_recipes: Vec<SubRecipe>) -> Self {
         self.sub_recipes = Some(sub_recipes);
+        self
+    }
+
+    /// Sets the retry configuration for the Recipe
+    pub fn retry(mut self, retry: RetryConfig) -> Self {
+        self.retry = Some(retry);
         self
     }
 
@@ -355,7 +422,9 @@ impl RecipeBuilder {
             activities: self.activities,
             author: self.author,
             parameters: self.parameters,
+            response: self.response,
             sub_recipes: self.sub_recipes,
+            retry: self.retry,
         })
     }
 }
@@ -363,6 +432,7 @@ impl RecipeBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
 
     #[test]
     fn test_from_content_with_json() {
@@ -390,6 +460,20 @@ mod tests {
                     "description": "A test parameter"
                 }
             ],
+            "response": {
+                "json_schema": {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string"
+                        },
+                        "age": {
+                            "type": "number"
+                        }
+                    },
+                    "required": ["name"]
+                }
+            },
             "sub_recipes": [
                 {
                     "name": "test_sub_recipe",
@@ -425,6 +509,16 @@ mod tests {
             RecipeParameterRequirement::Required
         ));
 
+        assert!(recipe.response.is_some());
+        let response = recipe.response.unwrap();
+        assert!(response.json_schema.is_some());
+        let json_schema = response.json_schema.unwrap();
+        assert_eq!(json_schema["type"], "object");
+        assert!(json_schema["properties"].is_object());
+        assert_eq!(json_schema["properties"]["name"]["type"], "string");
+        assert_eq!(json_schema["properties"]["age"]["type"], "number");
+        assert_eq!(json_schema["required"], serde_json::json!(["name"]));
+
         assert!(recipe.sub_recipes.is_some());
         let sub_recipes = recipe.sub_recipes.unwrap();
         assert_eq!(sub_recipes.len(), 1);
@@ -458,6 +552,16 @@ parameters:
     input_type: string
     requirement: required
     description: A test parameter
+response:
+  json_schema:
+    type: object
+    properties:
+      name:
+        type: string
+      age:
+        type: number
+    required:
+      - name
 sub_recipes:
   - name: test_sub_recipe
     path: test_sub_recipe.yaml
@@ -487,6 +591,16 @@ sub_recipes:
             parameters[0].requirement,
             RecipeParameterRequirement::Required
         ));
+
+        assert!(recipe.response.is_some());
+        let response = recipe.response.unwrap();
+        assert!(response.json_schema.is_some());
+        let json_schema = response.json_schema.unwrap();
+        assert_eq!(json_schema["type"], "object");
+        assert!(json_schema["properties"].is_object());
+        assert_eq!(json_schema["properties"]["name"]["type"], "string");
+        assert_eq!(json_schema["properties"]["age"]["type"], "number");
+        assert_eq!(json_schema["required"], serde_json::json!(["name"]));
 
         assert!(recipe.sub_recipes.is_some());
         let sub_recipes = recipe.sub_recipes.unwrap();
@@ -541,6 +655,52 @@ sub_recipes:
     }
 
     #[test]
+    fn test_inline_python_extension() {
+        let content = r#"{
+            "version": "1.0.0",
+            "title": "Test Recipe",
+            "description": "A test recipe",
+            "instructions": "Test instructions",
+            "extensions": [
+                {
+                    "type": "inline_python",
+                    "name": "test_python",
+                    "code": "print('hello world')",
+                    "timeout": 300,
+                    "description": "Test python extension",
+                    "dependencies": ["numpy", "matplotlib"]
+                }
+            ]
+        }"#;
+
+        let recipe = Recipe::from_content(content).unwrap();
+
+        assert!(recipe.extensions.is_some());
+        let extensions = recipe.extensions.unwrap();
+        assert_eq!(extensions.len(), 1);
+
+        match &extensions[0] {
+            ExtensionConfig::InlinePython {
+                name,
+                code,
+                description,
+                timeout,
+                dependencies,
+            } => {
+                assert_eq!(name, "test_python");
+                assert_eq!(code, "print('hello world')");
+                assert_eq!(description.as_deref(), Some("Test python extension"));
+                assert_eq!(timeout, &Some(300));
+                assert!(dependencies.is_some());
+                let deps = dependencies.as_ref().unwrap();
+                assert!(deps.contains(&"numpy".to_string()));
+                assert!(deps.contains(&"matplotlib".to_string()));
+            }
+            _ => panic!("Expected InlinePython extension"),
+        }
+    }
+
+    #[test]
     fn test_from_content_with_activities() {
         let content = r#"{
             "version": "1.0.0",
@@ -555,5 +715,35 @@ sub_recipes:
         assert!(recipe.activities.is_some());
         let activities = recipe.activities.unwrap();
         assert_eq!(activities, vec!["activity1", "activity2"]);
+    }
+
+    #[test]
+    fn test_from_content_with_nested_recipe_yaml() {
+        let content = r#"name: test_recipe
+recipe:
+  title: Nested Recipe Test
+  description: A test recipe with nested structure
+  instructions: Test instructions for nested recipe
+  activities:
+    - Test activity 1
+    - Test activity 2
+  prompt: Test prompt
+  extensions: []
+isGlobal: true"#;
+
+        let recipe = Recipe::from_content(content).unwrap();
+        assert_eq!(recipe.title, "Nested Recipe Test");
+        assert_eq!(recipe.description, "A test recipe with nested structure");
+        assert_eq!(
+            recipe.instructions,
+            Some("Test instructions for nested recipe".to_string())
+        );
+        assert_eq!(recipe.prompt, Some("Test prompt".to_string()));
+        assert!(recipe.activities.is_some());
+        let activities = recipe.activities.unwrap();
+        assert_eq!(activities, vec!["Test activity 1", "Test activity 2"]);
+        assert!(recipe.extensions.is_some());
+        let extensions = recipe.extensions.unwrap();
+        assert_eq!(extensions.len(), 0);
     }
 }

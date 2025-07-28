@@ -29,8 +29,16 @@ export const getBinaryPath = (app: Electron.App, binaryName: string): string => 
     if (binaryName === 'goosed') {
       return path.join(process.resourcesPath, 'bin', 'goosed.exe');
     }
-    // For other binaries (uvx, npx), rely on PATH we just patched
-    return binaryName;
+
+    // Map binary names to their Windows equivalents
+    const windowsBinaryMap: Record<string, string> = {
+      npx: 'npx.cmd',
+      uvx: 'uvx.exe',
+    };
+
+    // For other binaries, use Windows-specific extensions if available
+    const windowsBinary = windowsBinaryMap[binaryName] || binaryName;
+    return windowsBinary;
   }
 
   // For non-Windows platforms, use the original logic

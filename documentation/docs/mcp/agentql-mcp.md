@@ -5,6 +5,7 @@ description: Add AgentQL MCP Server as a Goose Extension
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 <!-- <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/VIDEO_ID" /> -->
 
@@ -37,11 +38,18 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=agentql-mcp&id=agentql&name=AgentQL&description=Transform%20unstructured%20web%20content%20into%20structured%20data&env=AGENTQL_API_KEY%3DAgentQL%20API%20Key)
-  2. Press `Yes` to confirm the installation
-  3. Obtain an [AGENTQL_API_KEY](https://dev.agentql.com/api-keys) and paste it in
-  4. Click `Save Configuration`
-  5. Scroll to the top and click `Exit` from the upper left corner
+  <GooseDesktopInstaller
+    extensionId="agentql"
+    extensionName="AgentQL"
+    description="Transform unstructured web content into structured data"
+    command="npx"
+    args={["-y", "agentql-mcp"]}
+    envVars={[
+      { name: "AGENTQL_API_KEY", label: "AgentQL API Key" }
+    ]}
+    apiKeyLink="https://dev.agentql.com/api-keys"
+    apiKeyLinkText="AGENTQL_API_KEY"
+  />
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
@@ -61,7 +69,8 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     // highlight-start    
     │  ● Command-line Extension (Run a local command or script)
     // highlight-end    
-    │  ○ Remote Extension 
+    │  ○ Remote Extension (SSE) 
+    │  ○ Remote Extension (Streaming HTTP) 
     └ 
   ```
 

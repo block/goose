@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useModelAndProvider } from '../ModelAndProviderContext';
 import { useConfig } from '../ConfigContext';
+import { CoinIcon } from '../icons';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/Tooltip';
 import {
   getCostForModel,
   initializeCostDatabase,
@@ -66,9 +68,7 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
     initializeCostDatabase();
 
     // Update costs for all models in background
-    updateAllModelCosts().catch((error) => {
-      console.error('Failed to update model costs:', error);
-    });
+    updateAllModelCosts().catch(() => {});
   }, [getProviders]);
 
   useEffect(() => {
@@ -78,18 +78,12 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
         return;
       }
 
-      console.log(`CostTracker: Loading cost info for ${currentProvider}/${currentModel}`);
-
       try {
         // First check sync cache
         let costData = getCostForModel(currentProvider, currentModel);
 
         if (costData) {
           // We have cached data
-          console.log(
-            `CostTracker: Found cached data for ${currentProvider}/${currentModel}:`,
-            costData
-          );
           setCostInfo(costData);
           setPricingFailed(false);
           setModelNotFound(false);
@@ -97,30 +91,19 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
           setHasAttemptedFetch(true);
         } else {
           // Need to fetch from backend
-          console.log(
-            `CostTracker: No cached data, fetching from backend for ${currentProvider}/${currentModel}`
-          );
           setIsLoading(true);
           const result = await fetchAndCachePricing(currentProvider, currentModel);
           setHasAttemptedFetch(true);
 
           if (result && result.costInfo) {
-            console.log(
-              `CostTracker: Fetched data for ${currentProvider}/${currentModel}:`,
-              result.costInfo
-            );
             setCostInfo(result.costInfo);
             setPricingFailed(false);
             setModelNotFound(false);
           } else if (result && result.error === 'model_not_found') {
-            console.log(
-              `CostTracker: Model not found in pricing data for ${currentProvider}/${currentModel}`
-            );
             // Model not found in pricing database, but API call succeeded
             setModelNotFound(true);
             setPricingFailed(false);
           } else {
-            console.log(`CostTracker: API failed for ${currentProvider}/${currentModel}`);
             // API call failed or other error
             const freeProviders = ['ollama', 'local', 'localhost'];
             if (!freeProviders.includes(currentProvider.toLowerCase())) {
@@ -131,7 +114,6 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
           setIsLoading(false);
         }
       } catch (error) {
-        console.error('Error loading cost info:', error);
         setHasAttemptedFetch(true);
         // Only set pricing failed if we're not dealing with a known free provider
         const freeProviders = ['ollama', 'local', 'localhost'];
@@ -190,11 +172,9 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
   };
 
   const formatCost = (cost: number): string => {
-    // Always show 6 decimal places for consistency
-    return cost.toFixed(6);
+    // Always show 4 decimal places for consistency
+    return cost.toFixed(4);
   };
-
-  // Debug logging removed
 
   // Show loading state or when we don't have model/provider info
   if (!currentModel || !currentProvider) {
@@ -204,9 +184,12 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
   // If still loading, show a placeholder
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-full text-textSubtle translate-y-[1px]">
-        <span className="text-xs font-mono">...</span>
-      </div>
+      <>
+        <div className="flex items-center justify-center h-full text-textSubtle translate-y-[1px]">
+          <span className="text-xs font-mono">...</span>
+        </div>
+        <div className="w-px h-4 bg-border-default mx-2" />
+      </>
     );
   }
 
@@ -219,12 +202,20 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
     const freeProviders = ['ollama', 'local', 'localhost'];
     if (freeProviders.includes(currentProvider.toLowerCase())) {
       return (
-        <div
-          className="flex items-center justify-center h-full text-textSubtle hover:text-textStandard transition-colors cursor-default translate-y-[1px]"
-          title={`Local model (${inputTokens.toLocaleString()} input, ${outputTokens.toLocaleString()} output tokens)`}
-        >
-          <span className="text-xs font-mono">$0.000000</span>
-        </div>
+        <>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center justify-center h-full text-text-default/70 hover:text-text-default transition-colors cursor-default translate-y-[1px]">
+                <CoinIcon className="mr-1" size={16} />
+                <span className="text-xs font-mono">0.0000</span>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              {`Local model (${inputTokens.toLocaleString()} input, ${outputTokens.toLocaleString()} output tokens)`}
+            </TooltipContent>
+          </Tooltip>
+          <div className="w-px h-4 bg-border-default mx-2" />
+        </>
       );
     }
 
@@ -238,16 +229,18 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
     };
 
     return (
-      <div
-        className={`flex items-center justify-center h-full transition-colors cursor-default translate-y-[1px] ${
-          (pricingFailed || modelNotFound) && hasAttemptedFetch && initialLoadComplete
-            ? 'text-red-500 hover:text-red-400'
-            : 'text-textSubtle hover:text-textStandard'
-        }`}
-        title={getUnavailableTooltip()}
-      >
-        <span className="text-xs font-mono">$0.000000</span>
-      </div>
+      <>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="flex items-center justify-center h-full transition-colors cursor-default translate-y-[1px] text-text-default/70 hover:text-text-default">
+              <CoinIcon className="mr-1" size={16} />
+              <span className="text-xs font-mono">0.0000</span>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>{getUnavailableTooltip()}</TooltipContent>
+        </Tooltip>
+        <div className="w-px h-4 bg-border-default mx-2" />
+      </>
     );
   }
 
@@ -293,18 +286,17 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
   };
 
   return (
-    <div
-      className={`flex items-center justify-center h-full transition-colors cursor-default translate-y-[1px] ${
-        (pricingFailed || modelNotFound) && hasAttemptedFetch && initialLoadComplete
-          ? 'text-red-500 hover:text-red-400'
-          : 'text-textSubtle hover:text-textStandard'
-      }`}
-      title={getTooltipContent()}
-    >
-      <span className="text-xs font-mono">
-        {costInfo.currency || '$'}
-        {formatCost(totalCost)}
-      </span>
-    </div>
+    <>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="flex items-center justify-center h-full transition-colors cursor-default translate-y-[1px] text-text-default/70 hover:text-text-default">
+            <CoinIcon className="mr-1" size={16} />
+            <span className="text-xs font-mono">{formatCost(totalCost)}</span>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent>{getTooltipContent()}</TooltipContent>
+      </Tooltip>
+      <div className="w-px h-4 bg-border-default mx-2" />
+    </>
   );
 }

@@ -100,7 +100,7 @@ goose run --no-session -t "your command here"
 
 ### Working with Extensions
 
-If you want to ensure specific extensions are available when running your task, you can indicate this with arguments. This can be done using the `--with-extension`, `--with-remote-extension`, or `--with-builtin` flags:
+If you want to ensure specific extensions are available when running your task, you can indicate this with arguments. This can be done using the `--with-extension`, `--with-remote-extension`, `--with-streamable-http-extension`, or `--with-builtin` flags:
 
 - Using built-in extensions e.g developer and computercontroller extensions
 
@@ -114,10 +114,16 @@ goose run --with-builtin "developer,computercontroller" -t "your instructions"
 goose run --with-extension "ENV1=value1 custom-extension-args" -t "your instructions"
 ```
 
-- Using remote extensions
+- Using remote SSE extensions
 
 ```bash
 goose run --with-remote-extension "url" -t "your instructions"
+```
+
+- Using streamable HTTP extensions
+
+```bash
+goose run --with-streamable-http-extension "https://example.com/streamable" -t "your instructions"
 ```
 
 ### Debug Mode

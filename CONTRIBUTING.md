@@ -44,11 +44,13 @@ And then once you have a connection to an LLM provider working, you can run a se
 ```
 
 These same commands can be recompiled and immediately run using `cargo run -p goose-cli` for iteration.
-As you make changes to the rust code, you can try it out on the CLI, or also run checks and tests:
+As you make changes to the rust code, you can try it out on the CLI, or also run checks, tests, and linter:
 
 ```
 cargo check  # do your changes compile
-cargo test  # do the tests pass with your changes.
+cargo test  # do the tests pass with your changes
+cargo fmt   # format your code
+cargo clippy  # run the linter
 ```
 
 ### Node
@@ -64,6 +66,21 @@ You should see the app open a window, and drop you into first time setup. When y
 you can talk to goose!
 
 You can now make changes in the code in ui/desktop to iterate on the GUI half of goose.
+
+### Regenerating the OpenAPI schema
+
+The file `ui/desktop/openapi.json` is automatically generated during the build.
+It is written by the `generate_schema` binary in `crates/goose-server`.
+If you need to update the spec without starting the UI, run:
+
+```
+just generate-openapi
+```
+
+This command regenerates `ui/desktop/openapi.json` and then runs the UI's
+`generate-api` script to rebuild the TypeScript client from that spec.
+
+Changes to the API should be made in the Rust source under `crates/goose-server/src/`.
 
 ## Creating a fork
 

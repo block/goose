@@ -100,8 +100,12 @@ export async function saveRecipe(recipe: Recipe, options: SaveRecipeOptions): Pr
   }
 
   // Validate recipe has required fields
-  if (!recipe.title || !recipe.description || !recipe.instructions) {
-    throw new Error('Recipe is missing required fields (title, description, instructions)');
+  if (!recipe.title || !recipe.description) {
+    throw new Error('Recipe is missing required fields (title, description)');
+  }
+
+  if (!recipe.instructions && !recipe.prompt) {
+    throw new Error('Recipe must have either instructions or prompt');
   }
 
   try {
@@ -142,12 +146,12 @@ export async function loadRecipe(recipeName: string, isGlobal: boolean): Promise
     }
 
     // Validate the loaded recipe has required fields
-    if (
-      !savedRecipe.recipe.title ||
-      !savedRecipe.recipe.description ||
-      !savedRecipe.recipe.instructions
-    ) {
+    if (!savedRecipe.recipe.title || !savedRecipe.recipe.description) {
       throw new Error('Loaded recipe is missing required fields');
+    }
+
+    if (!savedRecipe.recipe.instructions && !savedRecipe.recipe.prompt) {
+      throw new Error('Loaded recipe must have either instructions or prompt');
     }
 
     return savedRecipe.recipe;

@@ -1,9 +1,16 @@
 use anyhow::Result;
+use async_stream::try_stream;
 use async_trait::async_trait;
-use reqwest::Client;
-use serde_json::Value;
+use futures::TryStreamExt;
+use reqwest::{Client, Response};
+use serde_json::{json, Value};
 use std::collections::HashMap;
+use std::io;
 use std::time::Duration;
+use tokio::pin;
+use tokio_stream::StreamExt;
+use tokio_util::codec::{FramedRead, LinesCodec};
+use tokio_util::io::StreamReader;
 
 use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::embedding::{EmbeddingCapable, EmbeddingRequest, EmbeddingResponse};
@@ -12,7 +19,10 @@ use super::formats::openai::{create_request, get_usage, response_to_message};
 use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
 use crate::message::Message;
 use crate::model::ModelConfig;
-use mcp_core::tool::Tool;
+use crate::providers::base::MessageStream;
+use crate::providers::formats::openai::response_to_streaming_message;
+use crate::providers::utils::handle_status_openai_compat;
+use rmcp::model::Tool;
 
 pub const OPEN_AI_DEFAULT_MODEL: &str = "gpt-4o";
 pub const OPEN_AI_KNOWN_MODELS: &[&str] = &[
@@ -103,7 +113,7 @@ impl OpenAiProvider {
         request
     }
 
-    async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
+    async fn post(&self, payload: &Value) -> Result<Response, ProviderError> {
         let base_url = url::Url::parse(&self.host)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
         let url = base_url.join(&self.base_path).map_err(|e| {
@@ -117,9 +127,7 @@ impl OpenAiProvider {
 
         let request = self.add_headers(request);
 
-        let response = request.json(&payload).send().await?;
-
-        handle_response_openai_compat(response).await
+        Ok(request.json(&payload).send().await?)
     }
 }
 
@@ -132,13 +140,13 @@ impl Provider for OpenAiProvider {
             "GPT-4 and other OpenAI models, including OpenAI compatible ones",
             OPEN_AI_DEFAULT_MODEL,
             vec![
-                ModelInfo::with_cost("gpt-4o", 128000, 0.0000025, 0.00001),
-                ModelInfo::with_cost("gpt-4o-mini", 128000, 0.00000015, 0.0000006),
-                ModelInfo::with_cost("gpt-4-turbo", 128000, 0.00001, 0.00003),
-                ModelInfo::with_cost("gpt-3.5-turbo", 16385, 0.0000005, 0.0000015),
-                ModelInfo::with_cost("o1", 200000, 0.000015, 0.00006),
-                ModelInfo::with_cost("o3", 200000, 0.000015, 0.00006), // Using o1 pricing as placeholder
-                ModelInfo::with_cost("o4-mini", 128000, 0.000003, 0.000012), // Using o1-mini pricing as placeholder
+                ModelInfo::new("gpt-4o", 128000),
+                ModelInfo::new("gpt-4o-mini", 128000),
+                ModelInfo::new("gpt-4-turbo", 128000),
+                ModelInfo::new("gpt-3.5-turbo", 16385),
+                ModelInfo::new("o1", 200000),
+                ModelInfo::new("o3", 200000),
+                ModelInfo::new("o4-mini", 128000),
             ],
             OPEN_AI_DOC_URL,
             vec![
@@ -170,18 +178,14 @@ impl Provider for OpenAiProvider {
         let payload = create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi)?;
 
         // Make request
-        let response = self.post(payload.clone()).await?;
+        let response = handle_response_openai_compat(self.post(&payload).await?).await?;
 
         // Parse response
-        let message = response_to_message(response.clone())?;
-        let usage = match get_usage(&response) {
-            Ok(usage) => usage,
-            Err(ProviderError::UsageError(e)) => {
-                tracing::debug!("Failed to get usage data: {}", e);
-                Usage::default()
-            }
-            Err(e) => return Err(e),
-        };
+        let message = response_to_message(&response)?;
+        let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
+            tracing::debug!("Failed to get usage data");
+            Usage::default()
+        });
         let model = get_model(&response);
         emit_debug_trace(&self.model, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(model, usage)))
@@ -193,7 +197,7 @@ impl Provider for OpenAiProvider {
         let base_url =
             url::Url::parse(&self.host).map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
         let url = base_url
-            .join("v1/models")
+            .join(&self.base_path.replace("v1/chat/completions", "v1/models"))
             .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
         let mut request = self.client.get(url).bearer_auth(&self.api_key);
         if let Some(org) = &self.organization {
@@ -235,6 +239,43 @@ impl Provider for OpenAiProvider {
         EmbeddingCapable::create_embeddings(self, texts)
             .await
             .map_err(|e| ProviderError::ExecutionError(e.to_string()))
+    }
+
+    fn supports_streaming(&self) -> bool {
+        true
+    }
+
+    async fn stream(
+        &self,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<MessageStream, ProviderError> {
+        let mut payload =
+            create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi)?;
+        payload["stream"] = serde_json::Value::Bool(true);
+        payload["stream_options"] = json!({
+            "include_usage": true,
+        });
+
+        let response = handle_status_openai_compat(self.post(&payload).await?).await?;
+
+        let stream = response.bytes_stream().map_err(io::Error::other);
+
+        let model_config = self.model.clone();
+        // Wrap in a line decoder and yield lines inside the stream
+        Ok(Box::pin(try_stream! {
+            let stream_reader = StreamReader::new(stream);
+            let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
+
+            let message_stream = response_to_streaming_message(framed);
+            pin!(message_stream);
+            while let Some(message) = message_stream.next().await {
+                let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
+                super::utils::emit_debug_trace(&model_config, &payload, &message, &usage.as_ref().map(|f| f.usage).unwrap_or_default());
+                yield (message, usage);
+            }
+        }))
     }
 }
 

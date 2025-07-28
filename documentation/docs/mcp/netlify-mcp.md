@@ -6,8 +6,9 @@ description: Add Netlify MCP Server as a Goose Extension
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
-<!-- <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/izoQatKtJ2I" /> -->
+<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/iSUNmxOf6gw" />
 
 This tutorial covers how to add the [Netlify MCP Server](https://github.com/netlify/netlify-mcp) as a Goose extension to build, deploy, and manage Netlify sites.
 
@@ -41,8 +42,13 @@ netlify login
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40netlify%2Fmcp&id=netlify&name=Netlify&description=Build%2C%20deploy%2C%20and%20manage%20sites%20with%20Netlify%27s%20official%20MCP%20server.)
-  2. Press `OK` to confirm the installation
+  <GooseDesktopInstaller
+    extensionId="netlify"
+    extensionName="Netlify"
+    description="Build, deploy, and manage sites with Netlify's official MCP server."
+    command="npx"
+    args={["-y", "@netlify/mcp"]}
+  />
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
@@ -62,7 +68,8 @@ netlify login
     // highlight-start    
     │  ● Command-line Extension (Run a local command or script)
     // highlight-end    
-    │  ○ Remote Extension 
+    │  ○ Remote Extension (SSE) 
+    │  ○ Remote Extension (Streaming HTTP) 
     └ 
   ```
 
@@ -201,7 +208,7 @@ In this example, I’ll show you how to use Goose with the Netlify Extension to 
 :::note CLI
 
 <details>
-<summary>Tool Calls</summary>
+    <summary>Tool Calls</summary>
     I'll help you deploy your tic-tac-toe app to Netlify from your GitHub repository. Let me first check your Netlify account and then set up the deployment.
 
     ─── netlify-user-services | netlify ──────────────────────────

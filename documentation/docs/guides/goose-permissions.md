@@ -6,6 +6,7 @@ sidebar_label: Goose Permissions
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import { PanelLeft } from 'lucide-react';
 
 Goose’s permissions determine how much autonomy it has when modifying files, using extensions, and performing automated actions. By selecting a permission mode, you have full control over how Goose interacts with your development environment.
 
@@ -44,20 +45,22 @@ Here's how to configure:
 
     You can change modes before or during a session and it will take effect immediately.
 
-     <Tabs>
+     <Tabs groupId="method">
       <TabItem value="session" label="In Session" default>
+
       Click the Goose Mode option from the bottom menu. 
       </TabItem>
       <TabItem value="settings" label="From Settings">
-        1. Click `...` in the upper right corner
-        2. Click `Settings`
-        3. Under `Mode Selection`, choose the mode you'd like
+        1. Click the <PanelLeft className="inline" size={16} /> button on the top-left to open the sidebar.
+        2. Click the `Settings` button on the sidebar.
+        3. Click `Chat`.
+        4. Under `Mode`, choose the mode you'd like.
       </TabItem>
     </Tabs>   
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
 
-    <Tabs>
+    <Tabs groupId="method">
       <TabItem value="session" label="In Session" default>
         To change modes mid-session, use the `/mode` command.
 

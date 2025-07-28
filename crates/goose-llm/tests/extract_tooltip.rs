@@ -1,5 +1,5 @@
 use anyhow::Result;
-use dotenv::dotenv;
+use dotenvy::dotenv;
 use goose_llm::extractors::generate_tooltip;
 use goose_llm::message::{Message, MessageContent, ToolRequest};
 use goose_llm::providers::errors::ProviderError;
@@ -24,7 +24,7 @@ async fn _generate_tooltip(messages: &[Message]) -> Result<String, ProviderError
         "token": std::env::var("DATABRICKS_TOKEN").expect("Missing DATABRICKS_TOKEN"),
     });
 
-    generate_tooltip(provider_name, provider_config, messages).await
+    generate_tooltip(provider_name, provider_config, messages, None).await
 }
 
 #[tokio::test]

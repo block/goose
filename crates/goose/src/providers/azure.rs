@@ -13,7 +13,7 @@ use super::formats::openai::{create_request, get_usage, response_to_message};
 use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
 use crate::message::Message;
 use crate::model::ModelConfig;
-use mcp_core::tool::Tool;
+use rmcp::model::Tool;
 
 pub const AZURE_DEFAULT_MODEL: &str = "gpt-4o";
 pub const AZURE_DOC_URL: &str =
@@ -67,8 +67,10 @@ impl AzureProvider {
             .get_param("AZURE_OPENAI_API_VERSION")
             .unwrap_or_else(|_| AZURE_DEFAULT_API_VERSION.to_string());
 
-        // Try to get API key first, if not found use Azure credential chain
-        let api_key = config.get_secret("AZURE_OPENAI_API_KEY").ok();
+        let api_key = config
+            .get_secret("AZURE_OPENAI_API_KEY")
+            .ok()
+            .filter(|key: &String| !key.is_empty());
         let auth = AzureAuth::new(api_key)?;
 
         let client = Client::builder()
@@ -85,7 +87,7 @@ impl AzureProvider {
         })
     }
 
-    async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
+    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
         let mut base_url = url::Url::parse(&self.endpoint)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
 
@@ -141,7 +143,7 @@ impl AzureProvider {
                 }
             }
 
-            let response_result = request_builder.json(&payload).send().await;
+            let response_result = request_builder.json(payload).send().await;
 
             match response_result {
                 Ok(response) => match handle_response_openai_compat(response).await {
@@ -227,6 +229,7 @@ impl Provider for AzureProvider {
                 ConfigKey::new("AZURE_OPENAI_ENDPOINT", true, false, None),
                 ConfigKey::new("AZURE_OPENAI_DEPLOYMENT_NAME", true, false, None),
                 ConfigKey::new("AZURE_OPENAI_API_VERSION", true, false, Some("2024-10-21")),
+                ConfigKey::new("AZURE_OPENAI_API_KEY", true, true, Some("")),
             ],
         )
     }
@@ -246,17 +249,13 @@ impl Provider for AzureProvider {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let payload = create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi)?;
-        let response = self.post(payload.clone()).await?;
+        let response = self.post(&payload).await?;
 
-        let message = response_to_message(response.clone())?;
-        let usage = match get_usage(&response) {
-            Ok(usage) => usage,
-            Err(ProviderError::UsageError(e)) => {
-                tracing::debug!("Failed to get usage data: {}", e);
-                Usage::default()
-            }
-            Err(e) => return Err(e),
-        };
+        let message = response_to_message(&response)?;
+        let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
+            tracing::debug!("Failed to get usage data");
+            Usage::default()
+        });
         let model = get_model(&response);
         emit_debug_trace(&self.model, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(model, usage)))

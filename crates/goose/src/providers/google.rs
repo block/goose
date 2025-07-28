@@ -8,8 +8,9 @@ use crate::providers::utils::{
 };
 use anyhow::Result;
 use async_trait::async_trait;
-use mcp_core::tool::Tool;
+use axum::http::HeaderMap;
 use reqwest::Client;
+use rmcp::model::Tool;
 use serde_json::Value;
 use std::time::Duration;
 use url::Url;
@@ -51,7 +52,6 @@ pub struct GoogleProvider {
     #[serde(skip)]
     client: Client,
     host: String,
-    api_key: String,
     model: ModelConfig,
 }
 
@@ -70,26 +70,30 @@ impl GoogleProvider {
             .get_param("GOOGLE_HOST")
             .unwrap_or_else(|_| GOOGLE_API_HOST.to_string());
 
+        let mut headers = HeaderMap::new();
+        headers.insert("CONTENT_TYPE", "application/json".parse()?);
+        headers.insert("x-goog-api-key", api_key.parse()?);
+
         let client = Client::builder()
             .timeout(Duration::from_secs(600))
+            .default_headers(headers)
             .build()?;
 
         Ok(Self {
             client,
             host,
-            api_key,
             model,
         })
     }
 
-    async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
+    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
         let base_url = Url::parse(&self.host)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
 
         let url = base_url
             .join(&format!(
-                "v1beta/models/{}:generateContent?key={}",
-                self.model.model_name, self.api_key
+                "v1beta/models/{}:generateContent",
+                self.model.model_name
             ))
             .map_err(|e| {
                 ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
@@ -103,7 +107,6 @@ impl GoogleProvider {
             let response = self
                 .client
                 .post(url.clone()) // Clone the URL for each retry
-                .header("CONTENT_TYPE", "application/json")
                 .json(&payload)
                 .send()
                 .await;
@@ -175,7 +178,7 @@ impl Provider for GoogleProvider {
         let payload = create_request(&self.model, system, messages, tools)?;
 
         // Make request
-        let response = self.post(payload.clone()).await?;
+        let response = self.post(&payload).await?;
 
         // Parse response
         let message = response_to_message(unescape_json_values(&response))?;
@@ -192,7 +195,7 @@ impl Provider for GoogleProvider {
     /// Fetch supported models from Google Generative Language API; returns Err on failure, Ok(None) if not present
     async fn fetch_supported_models_async(&self) -> Result<Option<Vec<String>>, ProviderError> {
         // List models via the v1beta/models endpoint
-        let url = format!("{}/v1beta/models?key={}", self.host, self.api_key);
+        let url = format!("{}/v1beta/models", self.host);
         let response = self.client.get(&url).send().await?;
         let json: serde_json::Value = response.json().await?;
         // If 'models' field missing, return None

@@ -1,13 +1,16 @@
 use anyhow::Result;
+use futures::Stream;
 use serde::{Deserialize, Serialize};
 
 use super::errors::ProviderError;
 use crate::message::Message;
 use crate::model::ModelConfig;
-use mcp_core::tool::Tool;
+use rmcp::model::Tool;
 use utoipa::ToSchema;
 
 use once_cell::sync::Lazy;
+use std::ops::{Add, AddAssign};
+use std::pin::Pin;
 use std::sync::Mutex;
 
 /// A global store for the current model being used, we use this as when a provider returns, it tells us the real model, not an alias
@@ -38,6 +41,8 @@ pub struct ModelInfo {
     pub output_token_cost: Option<f64>,
     /// Currency for the costs (default: "$")
     pub currency: Option<String>,
+    /// Whether this model supports cache control
+    pub supports_cache_control: Option<bool>,
 }
 
 impl ModelInfo {
@@ -49,6 +54,7 @@ impl ModelInfo {
             input_token_cost: None,
             output_token_cost: None,
             currency: None,
+            supports_cache_control: None,
         }
     }
 
@@ -65,6 +71,7 @@ impl ModelInfo {
             input_token_cost: Some(input_cost),
             output_token_cost: Some(output_cost),
             currency: Some("$".to_string()),
+            supports_cache_control: None,
         }
     }
 }
@@ -112,6 +119,7 @@ impl ProviderMetadata {
                     input_token_cost: None,
                     output_token_cost: None,
                     currency: None,
+                    supports_cache_control: None,
                 })
                 .collect(),
             model_doc_link: model_doc_link.to_string(),
@@ -184,11 +192,41 @@ impl ProviderUsage {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, Copy)]
 pub struct Usage {
     pub input_tokens: Option<i32>,
     pub output_tokens: Option<i32>,
     pub total_tokens: Option<i32>,
+}
+
+fn sum_optionals<T>(a: Option<T>, b: Option<T>) -> Option<T>
+where
+    T: Add<Output = T> + Default,
+{
+    match (a, b) {
+        (Some(x), Some(y)) => Some(x + y),
+        (Some(x), None) => Some(x + T::default()),
+        (None, Some(y)) => Some(T::default() + y),
+        (None, None) => None,
+    }
+}
+
+impl Add for Usage {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        Self {
+            input_tokens: sum_optionals(self.input_tokens, other.input_tokens),
+            output_tokens: sum_optionals(self.output_tokens, other.output_tokens),
+            total_tokens: sum_optionals(self.total_tokens, other.total_tokens),
+        }
+    }
+}
+
+impl AddAssign for Usage {
+    fn add_assign(&mut self, rhs: Self) {
+        *self = *self + rhs;
+    }
 }
 
 impl Usage {
@@ -257,6 +295,11 @@ pub trait Provider: Send + Sync {
         false
     }
 
+    /// Check if this provider supports cache control
+    fn supports_cache_control(&self) -> bool {
+        false
+    }
+
     /// Create embeddings if supported. Default implementation returns an error.
     async fn create_embeddings(&self, _texts: Vec<String>) -> Result<Vec<Vec<f32>>, ProviderError> {
         Err(ProviderError::ExecutionError(
@@ -270,6 +313,21 @@ pub trait Provider: Send + Sync {
         None
     }
 
+    async fn stream(
+        &self,
+        _system: &str,
+        _messages: &[Message],
+        _tools: &[Tool],
+    ) -> Result<MessageStream, ProviderError> {
+        Err(ProviderError::NotImplemented(
+            "streaming not implemented".to_string(),
+        ))
+    }
+
+    fn supports_streaming(&self) -> bool {
+        false
+    }
+
     /// Get the currently active model name
     /// For regular providers, this returns the configured model
     /// For LeadWorkerProvider, this returns the currently active model (lead or worker)
@@ -280,6 +338,18 @@ pub trait Provider: Send + Sync {
             self.get_model_config().model_name
         }
     }
+}
+
+/// A message stream yields partial text content but complete tool calls, all within the Message object
+/// So a message with text will contain potentially just a word of a longer response, but tool calls
+/// messages will only be yielded once concatenated.
+pub type MessageStream = Pin<
+    Box<dyn Stream<Item = Result<(Option<Message>, Option<ProviderUsage>), ProviderError>> + Send>,
+>;
+
+pub fn stream_from_single_message(message: Message, usage: ProviderUsage) -> MessageStream {
+    let stream = futures::stream::once(async move { Ok((Some(message), Some(usage))) });
+    Box::pin(stream)
 }
 
 #[cfg(test)]
@@ -375,6 +445,7 @@ mod tests {
             input_token_cost: None,
             output_token_cost: None,
             currency: None,
+            supports_cache_control: None,
         };
         assert_eq!(info.context_limit, 1000);
 
@@ -385,6 +456,7 @@ mod tests {
             input_token_cost: None,
             output_token_cost: None,
             currency: None,
+            supports_cache_control: None,
         };
         assert_eq!(info, info2);
 
@@ -395,6 +467,7 @@ mod tests {
             input_token_cost: None,
             output_token_cost: None,
             currency: None,
+            supports_cache_control: None,
         };
         assert_ne!(info, info3);
     }

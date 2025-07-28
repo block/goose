@@ -18,7 +18,7 @@ pub struct BenchAgentError {
 #[async_trait]
 pub trait BenchBaseSession: Send + Sync {
     async fn headless(&mut self, message: String) -> anyhow::Result<()>;
-    fn session_file(&self) -> PathBuf;
+    fn session_file(&self) -> Option<PathBuf>;
     fn message_history(&self) -> Vec<Message>;
     fn get_total_token_usage(&self) -> anyhow::Result<Option<i32>>;
 }
@@ -52,7 +52,7 @@ impl BenchAgent {
     pub(crate) async fn get_token_usage(&self) -> Option<i32> {
         self.session.get_total_token_usage().ok().flatten()
     }
-    pub(crate) fn session_file(&self) -> PathBuf {
+    pub(crate) fn session_file(&self) -> Option<PathBuf> {
         self.session.session_file()
     }
 }

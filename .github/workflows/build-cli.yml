@@ -17,7 +17,7 @@ on:
       ref:
         type: string
         required: false
-        default: 'refs/heads/main'
+        default: ""
 
 name: "Reusable workflow to build CLI"
 

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use dotenv::dotenv;
+use dotenvy::dotenv;
 use goose_llm::message::{Message, MessageContent};
 use goose_llm::providers::base::Provider;
 use goose_llm::providers::errors::ProviderError;
@@ -91,7 +91,7 @@ impl ProviderTester {
 
         let response = self
             .provider
-            .complete("You are a helpful assistant.", &[message], &[])
+            .complete("You are a helpful assistant.", &[message], &[], None)
             .await?;
 
         // For a basic response, we expect a single text response
@@ -134,6 +134,7 @@ impl ProviderTester {
                 "You are a helpful weather assistant.",
                 &[message.clone()],
                 &[weather_tool.clone()],
+                None,
             )
             .await?;
 
@@ -156,7 +157,7 @@ impl ProviderTester {
             .content
             .iter()
             .filter_map(|message| message.as_tool_request())
-            .last()
+            .next_back()
             .expect("got tool request")
             .id;
 
@@ -182,6 +183,7 @@ impl ProviderTester {
                 "You are a helpful weather assistant.",
                 &[message, response1.message, weather],
                 &[weather_tool],
+                None,
             )
             .await?;
 
@@ -225,7 +227,7 @@ impl ProviderTester {
         // Test that we get ProviderError::ContextLengthExceeded when the context window is exceeded
         let result = self
             .provider
-            .complete("You are a helpful assistant.", &messages, &[])
+            .complete("You are a helpful assistant.", &messages, &[], None)
             .await;
 
         // Print some debug info

@@ -6,6 +6,7 @@ description: Add ElevenLabs MCP Server as a Goose Extension
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/1Z8XtjQ9El0" />
 
@@ -33,167 +34,18 @@ This tutorial covers how to add the [ElevenLabs MCP Server](https://github.com/y
 
 ## Configuration
 
-:::info
-Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on your system to run this command, as it uses `uvx`.
-:::
-
-<Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
-  1. [Launch the installer](goose://extension?cmd=uvx&arg=elevenlabs-mcp&id=elevenlabs&name=ElevenLabs&description=ElevenLabs%20voice%20synthesis%20server&env=ELEVENLABS_API_KEY)
-  2. Press `Yes` to confirm the installation
-  3. Click `Save Configuration`
-  4. Scroll to the top and click `Exit` from the upper left corner
-  </TabItem>
-  <TabItem value="cli" label="Goose CLI">
-  1. Run the `configure` command:
-  ```sh
-  goose configure
-  ```
-
-  2. Choose to add a `Command-line Extension`
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◆  What type of extension would you like to add?
-    │  ○ Built-in Extension 
-    // highlight-start    
-    │  ● Command-line Extension (Run a local command or script)
-    // highlight-end    
-    │  ○ Remote Extension 
-    └ 
-  ```
-
-  3. Give your extension a name
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    // highlight-start
-    ◆  What would you like to call this extension?
-    │  elevenlabs
-    // highlight-end
-    └ 
-  ```
-
-  4. Enter the command
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  elevenlabs
-    │
-    // highlight-start
-    ◆  What command should be run?
-    │  uvx elevenlabs-mcp
-    // highlight-end
-    └ 
-  ```  
-
-  5. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
-    ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  elevenlabs
-    │
-    ◇  What command should be run?
-    │  uvx elevenlabs-mcp
-    │
-    // highlight-start
-    ◆  Please set the timeout for this tool (in secs):
-    │  300
-    // highlight-end
-    │
-    └ 
-  ```
-
-  6. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
-  ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  elevenlabs
-    │
-    ◇  What command should be run?
-    │  uvx elevenlabs-mcp
-    │
-    ◆  Please set the timeout for this tool (in secs):
-    │  300
-    │
-    // highlight-start
-    ◇  Would you like to add a description?
-    │  No
-    // highlight-end
-    └ 
-  ```
-
-  7. Obtain an [ElevenLabs API Key](https://elevenlabs.io/app/settings/api-keys) and paste it in.
-
-   ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Add Extension (Connect to a new extension) 
-    │
-    ◇  What type of extension would you like to add?
-    │  Command-line Extension 
-    │
-    ◇  What would you like to call this extension?
-    │  elevenlabs
-    │
-    ◇  What command should be run?
-    │  uvx elevenlabs-mcp
-    │
-    ◇  Please set the timeout for this tool (in secs):
-    │  300
-    │  
-    ◇  Would you like to add a description?
-    │  No   
-    |   
-    // highlight-start
-    ◆  Would you like to add environment variables?
-    │  Yes 
-    │
-    ◇  Environment variable name:
-    │  ELEVENLABS_API_KEY
-    │
-    ◇  Environment variable value:
-    │  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
-    │
-    ◇  Add another environment variable?
-    │  No 
-    // highlight-end
-    └  Added elevenlabs extension
-  ```   
-
-  </TabItem>
-</Tabs>
+<GooseDesktopInstaller
+  extensionId="elevenlabs"
+  extensionName="ElevenLabs"
+  description="ElevenLabs voice synthesis server"
+  command="uvx"
+  args={["elevenlabs-mcp"]}
+  envVars={[
+    { name: "ELEVENLABS_API_KEY", label: "ElevenLabs API Key" }
+  ]}
+  apiKeyLink="https://elevenlabs.io/app/settings/api-keys"
+  apiKeyLinkText="Get your ElevenLabs API Key"
+/>
 
 ## Example Usage
 

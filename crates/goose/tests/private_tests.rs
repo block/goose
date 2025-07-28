@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-use mcp_core::{Content, ToolError};
+use mcp_core::ToolError;
 use serde_json::json;
 
 use goose::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
@@ -33,7 +33,7 @@ async fn test_schedule_tool_list_action() {
 
     let content = result.unwrap();
     assert_eq!(content.len(), 1);
-    if let Content::Text(text_content) = &content[0] {
+    if let Some(text_content) = content[0].as_text() {
         assert!(text_content.text.contains("Scheduled Jobs:"));
         assert!(text_content.text.contains("job1"));
         assert!(text_content.text.contains("job2"));
@@ -63,7 +63,7 @@ async fn test_schedule_tool_list_action_empty() {
 
     let content = result.unwrap();
     assert_eq!(content.len(), 1);
-    if let Content::Text(text_content) = &content[0] {
+    if let Some(text_content) = content[0].as_text() {
         assert!(text_content.text.contains("Scheduled Jobs:"));
     }
 
@@ -127,7 +127,7 @@ async fn test_schedule_tool_create_action() {
 
     let content = result.unwrap();
     assert_eq!(content.len(), 1);
-    if let Content::Text(text_content) = &content[0] {
+    if let Some(text_content) = content[0].as_text() {
         assert!(text_content
             .text
             .contains("Successfully created scheduled job"));
@@ -286,7 +286,7 @@ async fn test_schedule_tool_run_now_action() {
 
     let content = result.unwrap();
     assert_eq!(content.len(), 1);
-    if let Content::Text(text_content) = &content[0] {
+    if let Some(text_content) = content[0].as_text() {
         assert!(text_content
             .text
             .contains("Successfully started job 'job1'"));
@@ -370,7 +370,7 @@ async fn test_schedule_tool_pause_action() {
 
     let content = result.unwrap();
     assert_eq!(content.len(), 1);
-    if let Content::Text(text_content) = &content[0] {
+    if let Some(text_content) = content[0].as_text() {
         assert!(text_content.text.contains("Successfully paused job 'job1'"));
     }
 
@@ -455,7 +455,7 @@ async fn test_schedule_tool_unpause_action() {
 
     let content = result.unwrap();
     assert_eq!(content.len(), 1);
-    if let Content::Text(text_content) = &content[0] {
+    if let Some(text_content) = content[0].as_text() {
         assert!(text_content
             .text
             .contains("Successfully unpaused job 'job1'"));
@@ -487,7 +487,7 @@ async fn test_schedule_tool_delete_action() {
 
     let content = result.unwrap();
     assert_eq!(content.len(), 1);
-    if let Content::Text(text_content) = &content[0] {
+    if let Some(text_content) = content[0].as_text() {
         assert!(text_content
             .text
             .contains("Successfully deleted job 'job1'"));
@@ -521,7 +521,7 @@ async fn test_schedule_tool_kill_action() {
 
     let content = result.unwrap();
     assert_eq!(content.len(), 1);
-    if let Content::Text(text_content) = &content[0] {
+    if let Some(text_content) = content[0].as_text() {
         assert!(text_content
             .text
             .contains("Successfully killed running job 'job1'"));
@@ -585,7 +585,7 @@ async fn test_schedule_tool_inspect_action_running() {
 
     let content = result.unwrap();
     assert_eq!(content.len(), 1);
-    if let Content::Text(text_content) = &content[0] {
+    if let Some(text_content) = content[0].as_text() {
         assert!(text_content
             .text
             .contains("Job 'job1' is currently running"));
@@ -617,7 +617,7 @@ async fn test_schedule_tool_inspect_action_not_running() {
 
     let content = result.unwrap();
     assert_eq!(content.len(), 1);
-    if let Content::Text(text_content) = &content[0] {
+    if let Some(text_content) = content[0].as_text() {
         assert!(text_content
             .text
             .contains("Job 'job1' is not currently running"));
@@ -663,7 +663,7 @@ async fn test_schedule_tool_sessions_action() {
 
     let content = result.unwrap();
     assert_eq!(content.len(), 1);
-    if let Content::Text(text_content) = &content[0] {
+    if let Some(text_content) = content[0].as_text() {
         assert!(text_content.text.contains("Sessions for job 'job1'"));
         assert!(text_content.text.contains("session1"));
         assert!(text_content.text.contains("session2"));
@@ -738,7 +738,7 @@ async fn test_schedule_tool_sessions_action_empty() {
 
     let content = result.unwrap();
     assert_eq!(content.len(), 1);
-    if let Content::Text(text_content) = &content[0] {
+    if let Some(text_content) = content[0].as_text() {
         assert!(text_content
             .text
             .contains("No sessions found for job 'job1'"));
@@ -788,7 +788,7 @@ async fn test_schedule_tool_session_content_action_with_real_session() {
     ];
 
     // Save the session file
-    goose::session::storage::save_messages_with_metadata(&session_path, &metadata, &messages, true)
+    goose::session::storage::save_messages_with_metadata(&session_path, &metadata, &messages)
         .unwrap();
 
     // Test the session_content action
@@ -809,7 +809,7 @@ async fn test_schedule_tool_session_content_action_with_real_session() {
 
     if let Ok(content) = result {
         assert_eq!(content.len(), 1);
-        if let mcp_core::Content::Text(text_content) = &content[0] {
+        if let Some(text_content) = content[0].as_text() {
             assert!(text_content
                 .text
                 .contains("Session 'test_session_real' Content:"));
@@ -885,7 +885,7 @@ async fn test_schedule_tool_dispatch() {
     };
 
     let (request_id, result) = agent
-        .dispatch_tool_call(tool_call, "test_dispatch".to_string())
+        .dispatch_tool_call(tool_call, "test_dispatch".to_string(), None)
         .await;
     assert_eq!(request_id, "test_dispatch");
     assert!(result.is_ok());
