@@ -54,17 +54,35 @@ fn create_tasks_from_params(
     sub_recipe: &SubRecipe,
     command_params: &[std::collections::HashMap<String, String>],
 ) -> Vec<Task> {
+    // Extract task_timeout from sub_recipe values if present
+    let task_timeout = sub_recipe
+        .values
+        .as_ref()
+        .and_then(|values| values.get("task_timeout"))
+        .and_then(|timeout_str| timeout_str.parse::<u64>().ok());
+    
     let tasks: Vec<Task> = command_params
         .iter()
         .map(|task_command_param| {
-            let payload = json!({
-                "sub_recipe": {
-                    "name": sub_recipe.name.clone(),
-                    "command_parameters": task_command_param,
-                    "recipe_path": sub_recipe.path.clone(),
-                    "sequential_when_repeated": sub_recipe.sequential_when_repeated
-                }
+            let mut sub_recipe_data = json!({
+                "name": sub_recipe.name.clone(),
+                "command_parameters": task_command_param,
+                "recipe_path": sub_recipe.path.clone(),
+                "sequential_when_repeated": sub_recipe.sequential_when_repeated
             });
+            
+            // Add task_timeout to the payload if present
+            if let Some(timeout_seconds) = task_timeout {
+                sub_recipe_data.as_object_mut().unwrap().insert(
+                    "task_timeout".to_string(),
+                    json!(timeout_seconds)
+                );
+            }
+            
+            let payload = json!({
+                "sub_recipe": sub_recipe_data
+            });
+            
             Task {
                 id: uuid::Uuid::new_v4().to_string(),
                 task_type: "sub_recipe".to_string(),

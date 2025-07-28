@@ -129,4 +129,95 @@ mod tests {
             );
         }
     }
+
+    mod create_tasks_from_params {
+        use super::*;
+        use crate::agents::recipe_tools::sub_recipe_tools::create_tasks_from_params;
+
+        #[test]
+        fn test_creates_tasks_without_timeout() {
+            let sub_recipe = setup_default_sub_recipe();
+            let command_params = vec![
+                HashMap::from([("param1".to_string(), "value1".to_string())]),
+                HashMap::from([("param2".to_string(), "value2".to_string())]),
+            ];
+
+            let tasks = create_tasks_from_params(&sub_recipe, &command_params);
+
+            assert_eq!(tasks.len(), 2);
+            for (i, task) in tasks.iter().enumerate() {
+                assert_eq!(task.task_type, "sub_recipe");
+                let payload = task.payload.as_object().unwrap();
+                let sub_recipe_obj = payload.get("sub_recipe").unwrap().as_object().unwrap();
+                assert_eq!(sub_recipe_obj.get("name").unwrap(), "test_sub_recipe");
+                assert_eq!(sub_recipe_obj.get("recipe_path").unwrap(), "test_sub_recipe.yaml");
+                assert_eq!(sub_recipe_obj.get("sequential_when_repeated").unwrap(), true);
+                assert_eq!(sub_recipe_obj.get("command_parameters").unwrap(), &json!(command_params[i]));
+                assert!(sub_recipe_obj.get("task_timeout").is_none());
+            }
+        }
+
+        #[test]
+        fn test_creates_tasks_with_timeout() {
+            let mut sub_recipe = setup_default_sub_recipe();
+            sub_recipe.values = Some(HashMap::from([
+                ("key1".to_string(), "value1".to_string()),
+                ("task_timeout".to_string(), "3600".to_string()),
+            ]));
+            let command_params = vec![
+                HashMap::from([("param1".to_string(), "value1".to_string())]),
+            ];
+
+            let tasks = create_tasks_from_params(&sub_recipe, &command_params);
+
+            assert_eq!(tasks.len(), 1);
+            let task = &tasks[0];
+            assert_eq!(task.task_type, "sub_recipe");
+            let payload = task.payload.as_object().unwrap();
+            let sub_recipe_obj = payload.get("sub_recipe").unwrap().as_object().unwrap();
+            assert_eq!(sub_recipe_obj.get("task_timeout").unwrap(), 3600);
+        }
+
+        #[test]
+        fn test_ignores_invalid_timeout() {
+            let mut sub_recipe = setup_default_sub_recipe();
+            sub_recipe.values = Some(HashMap::from([
+                ("key1".to_string(), "value1".to_string()),
+                ("task_timeout".to_string(), "not_a_number".to_string()),
+            ]));
+            let command_params = vec![
+                HashMap::from([("param1".to_string(), "value1".to_string())]),
+            ];
+
+            let tasks = create_tasks_from_params(&sub_recipe, &command_params);
+
+            assert_eq!(tasks.len(), 1);
+            let task = &tasks[0];
+            let payload = task.payload.as_object().unwrap();
+            let sub_recipe_obj = payload.get("sub_recipe").unwrap().as_object().unwrap();
+            assert!(sub_recipe_obj.get("task_timeout").is_none());
+        }
+
+        #[test]
+        fn test_multiple_tasks_with_same_timeout() {
+            let mut sub_recipe = setup_default_sub_recipe();
+            sub_recipe.values = Some(HashMap::from([
+                ("task_timeout".to_string(), "7200".to_string()),
+            ]));
+            let command_params = vec![
+                HashMap::from([("param1".to_string(), "value1".to_string())]),
+                HashMap::from([("param2".to_string(), "value2".to_string())]),
+                HashMap::from([("param3".to_string(), "value3".to_string())]),
+            ];
+
+            let tasks = create_tasks_from_params(&sub_recipe, &command_params);
+
+            assert_eq!(tasks.len(), 3);
+            for task in tasks.iter() {
+                let payload = task.payload.as_object().unwrap();
+                let sub_recipe_obj = payload.get("sub_recipe").unwrap().as_object().unwrap();
+                assert_eq!(sub_recipe_obj.get("task_timeout").unwrap(), 7200);
+            }
+        }
+    }
 }
