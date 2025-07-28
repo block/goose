@@ -110,6 +110,7 @@ These variables control how Goose manages conversation sessions and context.
 | `GOOSE_CLI_THEME` | [Theme](/docs/guides/goose-cli-commands#themes) for CLI response  markdown | "light", "dark", "ansi" | "dark" |
 | `GOOSE_SCHEDULER_TYPE` | Controls which scheduler Goose uses for [scheduled recipes](/docs/guides/recipes/session-recipes.md#schedule-recipe) | "legacy" or "temporal" | "legacy" (Goose's built-in cron scheduler) | 
 | `GOOSE_TEMPORAL_BIN` | Optional custom path to your Temporal binary | /path/to/temporal-service | None |
+| `GOOSE_RANDOM_THINKING_MESSAGES` | Controls whether to show amusing random messages during processing | "true", "false" | "true" |
 
 **Examples**
 
@@ -137,6 +138,9 @@ export GOOSE_SCHEDULER_TYPE=temporal
 
 # Custom Temporal binary (optional)
 export GOOSE_TEMPORAL_BIN=/path/to/temporal-service
+
+# Disable random thinking messages for less distraction
+export GOOSE_RANDOM_THINKING_MESSAGES=false
 ```
 
 ### Model Context Limit Overrides

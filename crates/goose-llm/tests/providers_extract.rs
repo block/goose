@@ -1,7 +1,7 @@
 // tests/providers_extract.rs
 
 use anyhow::Result;
-use dotenv::dotenv;
+use dotenvy::dotenv;
 use goose_llm::message::Message;
 use goose_llm::providers::base::Provider;
 use goose_llm::providers::{databricks::DatabricksProvider, openai::OpenAiProvider};

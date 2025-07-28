@@ -5,6 +5,7 @@ import { Button } from './ui/button';
 import type { View } from '../App';
 import Stop from './ui/Stop';
 import { Attach, Send, Close, Microphone } from './icons';
+import { ChatState } from '../types/chatState';
 import { debounce } from 'lodash';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
 import { Message } from '../types/message';
@@ -52,7 +53,7 @@ interface ModelLimit {
 
 interface ChatInputProps {
   handleSubmit: (e: React.FormEvent) => void;
-  isLoading?: boolean;
+  chatState: ChatState;
   onStop?: () => void;
   commandHistory?: string[]; // Current chat's message history
   initialValue?: string;
@@ -78,7 +79,7 @@ interface ChatInputProps {
 
 export default function ChatInput({
   handleSubmit,
-  isLoading = false,
+  chatState = ChatState.Idle,
   onStop,
   commandHistory = [],
   initialValue = '',
@@ -99,6 +100,9 @@ export default function ChatInput({
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
   const [isFocused, setIsFocused] = useState(false);
   const [pastedImages, setPastedImages] = useState<PastedImage[]>([]);
+
+  // Derived state - chatState != Idle means we're in some form of loading state
+  const isLoading = chatState !== ChatState.Idle;
   const { alerts, addAlert, clearAlerts } = useAlerts();
   const dropdownRef = useRef<HTMLDivElement>(null);
   const toolCount = useToolCount();
@@ -382,7 +386,7 @@ export default function ChatInput({
   useEffect(() => {
     clearAlerts();
 
-    // Only show token alerts if we have loaded the real token limit
+    // Always show token alerts if we have loaded the real token limit and have tokens
     if (isTokenLimitLoaded && tokenLimit && numTokens && numTokens > 0) {
       if (numTokens >= tokenLimit) {
         // Only show error alert when limit reached
@@ -409,6 +413,16 @@ export default function ChatInput({
           },
         });
       }
+    } else if (isTokenLimitLoaded && tokenLimit) {
+      // Always show context window info even when no tokens are present (start of conversation)
+      addAlert({
+        type: AlertType.Info,
+        message: 'Context window',
+        progress: {
+          current: 0,
+          total: tokenLimit,
+        },
+      });
     }
 
     // Add tool count alert if we have the data

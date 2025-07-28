@@ -9,8 +9,8 @@ use crate::providers::utils::{
 use anyhow::Result;
 use async_trait::async_trait;
 use axum::http::HeaderMap;
-use mcp_core::tool::Tool;
 use reqwest::Client;
+use rmcp::model::Tool;
 use serde_json::Value;
 use std::time::Duration;
 use url::Url;

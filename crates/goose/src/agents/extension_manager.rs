@@ -2,11 +2,12 @@ use anyhow::Result;
 use chrono::{DateTime, TimeZone, Utc};
 use futures::stream::{FuturesUnordered, StreamExt};
 use futures::{future, FutureExt};
-use mcp_core::protocol::GetPromptResult;
+use rmcp::model::GetPromptResult;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::LazyLock;
 use std::time::Duration;
+use tempfile::tempdir;
 use tokio::sync::Mutex;
 use tokio::task;
 use tokio_stream::wrappers::ReceiverStream;
@@ -19,8 +20,8 @@ use crate::config::{Config, ExtensionConfigManager};
 use crate::prompt_template;
 use mcp_client::client::{ClientCapabilities, ClientInfo, McpClient, McpClientTrait};
 use mcp_client::transport::{SseTransport, StdioTransport, StreamableHttpTransport, Transport};
-use mcp_core::{Tool, ToolCall, ToolError};
-use rmcp::model::{Content, Prompt, Resource, ResourceContents};
+use mcp_core::{ToolCall, ToolError};
+use rmcp::model::{Content, Prompt, Resource, ResourceContents, Tool};
 use serde_json::Value;
 
 // By default, we set it to Jan 1, 2020 if the resource does not have a timestamp
@@ -35,6 +36,7 @@ pub struct ExtensionManager {
     clients: HashMap<String, McpClientBox>,
     instructions: HashMap<String, String>,
     resource_capable_extensions: HashSet<String>,
+    temp_dirs: HashMap<String, tempfile::TempDir>,
 }
 
 /// A flattened representation of a resource used by the agent to prepare inference
@@ -105,6 +107,7 @@ impl ExtensionManager {
             clients: HashMap::new(),
             instructions: HashMap::new(),
             resource_capable_extensions: HashSet::new(),
+            temp_dirs: HashMap::new(),
         }
     }
 
@@ -267,6 +270,49 @@ impl ExtensionManager {
                     .await?,
                 )
             }
+            ExtensionConfig::InlinePython {
+                name,
+                code,
+                timeout,
+                dependencies,
+                ..
+            } => {
+                let temp_dir = tempdir()?;
+                let file_path = temp_dir.path().join(format!("{}.py", name));
+                std::fs::write(&file_path, code)?;
+
+                let mut args = vec![];
+
+                let mut all_deps = vec!["mcp".to_string()];
+
+                if let Some(deps) = dependencies.as_ref() {
+                    all_deps.extend(deps.iter().cloned());
+                }
+
+                for dep in all_deps {
+                    args.push("--with".to_string());
+                    args.push(dep);
+                }
+
+                args.push("python".to_string());
+                args.push(file_path.to_str().unwrap().to_string());
+
+                let transport = StdioTransport::new("uvx", args, HashMap::new());
+                let handle = transport.start().await?;
+                let client = Box::new(
+                    McpClient::connect(
+                        handle,
+                        Duration::from_secs(
+                            timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
+                        ),
+                    )
+                    .await?,
+                );
+
+                self.temp_dirs.insert(sanitized_name.clone(), temp_dir);
+
+                client
+            }
             _ => unreachable!(),
         };
 
@@ -317,6 +363,7 @@ impl ExtensionManager {
         self.clients.remove(&sanitized_name);
         self.instructions.remove(&sanitized_name);
         self.resource_capable_extensions.remove(&sanitized_name);
+        self.temp_dirs.remove(&sanitized_name);
         Ok(())
     }
 
@@ -380,13 +427,18 @@ impl ExtensionManager {
                 let mut client_tools = client_guard.list_tools(None).await?;
 
                 loop {
-                    for tool in client_tools.tools {
-                        tools.push(Tool::new(
-                            format!("{}__{}", name, tool.name),
-                            &tool.description,
-                            tool.input_schema,
-                            tool.annotations,
-                        ));
+                    for client_tool in client_tools.tools {
+                        let mut tool = Tool::new(
+                            format!("{}__{}", name, client_tool.name),
+                            client_tool.description.unwrap_or_default(),
+                            client_tool.input_schema,
+                        );
+
+                        if tool.annotations.is_some() {
+                            tool = tool.annotate(client_tool.annotations.unwrap())
+                        }
+
+                        tools.push(tool);
                     }
 
                     // Exit loop when there are no more pages
@@ -772,8 +824,11 @@ impl ExtensionManager {
                     }
                     | ExtensionConfig::Stdio {
                         description, name, ..
+                    }
+                    | ExtensionConfig::InlinePython {
+                        description, name, ..
                     } => {
-                        // For SSE/StreamableHttp/Stdio, use description if available
+                        // For SSE/StreamableHttp/Stdio/InlinePython, use description if available
                         description
                             .as_ref()
                             .map(|s| s.to_string())
@@ -827,10 +882,10 @@ mod tests {
     use mcp_client::client::Error;
     use mcp_client::client::McpClientTrait;
     use mcp_core::protocol::{
-        CallToolResult, GetPromptResult, InitializeResult, ListPromptsResult, ListResourcesResult,
-        ListToolsResult, ReadResourceResult,
+        CallToolResult, InitializeResult, ListPromptsResult, ListResourcesResult, ListToolsResult,
+        ReadResourceResult,
     };
-    use rmcp::model::JsonRpcMessage;
+    use rmcp::model::{GetPromptResult, ServerNotification};
     use serde_json::json;
     use tokio::sync::mpsc;
 
@@ -886,7 +941,7 @@ mod tests {
             Err(Error::NotInitialized)
         }
 
-        async fn subscribe(&self) -> mpsc::Receiver<JsonRpcMessage> {
+        async fn subscribe(&self) -> mpsc::Receiver<ServerNotification> {
             mpsc::channel(1).1
         }
     }

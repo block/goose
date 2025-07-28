@@ -19,7 +19,7 @@ use super::formats::anthropic::{
 use super::utils::{emit_debug_trace, get_model};
 use crate::message::Message;
 use crate::model::ModelConfig;
-use mcp_core::tool::Tool;
+use rmcp::model::Tool;
 
 pub const ANTHROPIC_DEFAULT_MODEL: &str = "claude-3-5-sonnet-latest";
 pub const ANTHROPIC_KNOWN_MODELS: &[&str] = &[

@@ -13,7 +13,7 @@ use super::formats::openai::{create_request, get_usage, response_to_message};
 use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
 use crate::message::Message;
 use crate::model::ModelConfig;
-use mcp_core::tool::Tool;
+use rmcp::model::Tool;
 
 pub const AZURE_DEFAULT_MODEL: &str = "gpt-4o";
 pub const AZURE_DOC_URL: &str =

@@ -8,7 +8,7 @@ use super::base::{LeadWorkerProviderTrait, Provider, ProviderMetadata, ProviderU
 use super::errors::ProviderError;
 use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
-use mcp_core::tool::Tool;
+use rmcp::model::Tool;
 use rmcp::model::{Content, RawContent};
 
 /// A provider that switches between a lead model and a worker model based on turn count

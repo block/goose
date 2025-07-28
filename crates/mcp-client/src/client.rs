@@ -1,11 +1,11 @@
 use mcp_core::protocol::{
-    CallToolResult, GetPromptResult, Implementation, InitializeResult, ListPromptsResult,
-    ListResourcesResult, ListToolsResult, ReadResourceResult, ServerCapabilities, METHOD_NOT_FOUND,
+    CallToolResult, Implementation, InitializeResult, ListPromptsResult, ListResourcesResult,
+    ListToolsResult, ReadResourceResult, ServerCapabilities, METHOD_NOT_FOUND,
 };
-
 use rmcp::model::{
-    JsonRpcError, JsonRpcMessage, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse,
-    JsonRpcVersion2_0, Notification, NumberOrString, Request, RequestId,
+    GetPromptResult, JsonRpcError, JsonRpcMessage, JsonRpcNotification, JsonRpcRequest,
+    JsonRpcResponse, JsonRpcVersion2_0, Notification, NumberOrString, Request, RequestId,
+    ServerNotification,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -107,7 +107,7 @@ pub trait McpClientTrait: Send + Sync {
 
     async fn get_prompt(&self, name: &str, arguments: Value) -> Result<GetPromptResult, Error>;
 
-    async fn subscribe(&self) -> mpsc::Receiver<JsonRpcMessage>;
+    async fn subscribe(&self) -> mpsc::Receiver<ServerNotification>;
 }
 
 /// The MCP client is the interface for MCP operations.
@@ -119,7 +119,7 @@ where
     next_id_counter: AtomicU64, // Added for atomic ID generation
     server_capabilities: Option<ServerCapabilities>,
     server_info: Option<Implementation>,
-    notification_subscribers: Arc<Mutex<Vec<mpsc::Sender<JsonRpcMessage>>>>,
+    notification_subscribers: Arc<Mutex<Vec<mpsc::Sender<ServerNotification>>>>,
 }
 
 impl<T> McpClient<T>
@@ -130,7 +130,7 @@ where
         let service = McpService::new(transport.clone());
         let service_ptr = service.clone();
         let notification_subscribers =
-            Arc::new(Mutex::new(Vec::<mpsc::Sender<JsonRpcMessage>>::new()));
+            Arc::new(Mutex::new(Vec::<mpsc::Sender<ServerNotification>>::new()));
         let subscribers_ptr = notification_subscribers.clone();
 
         tokio::spawn(async move {
@@ -149,9 +149,22 @@ where
                             }) => {
                                 service_ptr.respond(&id.to_string(), Ok(message)).await;
                             }
-                            _ => {
+                            JsonRpcMessage::Notification(JsonRpcNotification {
+                                notification,
+                                ..
+                            }) => {
                                 let mut subs = subscribers_ptr.lock().await;
-                                subs.retain(|sub| sub.try_send(message.clone()).is_ok());
+                                if let Some(server_notification) = notification.into() {
+                                    subs.retain(|sub| {
+                                        sub.try_send(server_notification.clone()).is_ok()
+                                    });
+                                }
+                            }
+                            _ => {
+                                tracing::warn!(
+                                    "Received unexpected received message type: {:?}",
+                                    message
+                                );
                             }
                         }
                     }
@@ -438,7 +451,7 @@ where
         self.send_request("prompts/get", params).await
     }
 
-    async fn subscribe(&self) -> mpsc::Receiver<JsonRpcMessage> {
+    async fn subscribe(&self) -> mpsc::Receiver<ServerNotification> {
         let (tx, rx) = mpsc::channel(16);
         self.notification_subscribers.lock().await.push(tx);
         rx

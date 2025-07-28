@@ -3,6 +3,7 @@ use serde_json::{Map, Value};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 
 use crate::agents::subagent_execution_tool::task_execution_tracker::TaskExecutionTracker;
 
@@ -117,6 +118,7 @@ pub struct SharedState {
     pub result_sender: mpsc::Sender<TaskResult>,
     pub active_workers: Arc<AtomicUsize>,
     pub task_execution_tracker: Arc<TaskExecutionTracker>,
+    pub cancellation_token: CancellationToken,
 }
 
 impl SharedState {
