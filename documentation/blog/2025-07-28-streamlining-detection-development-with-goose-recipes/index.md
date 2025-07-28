@@ -18,7 +18,7 @@ Recipes are reusable, shareable configurations that package up a complete setup 
 
 Two notable ingredients of recipes are `instructions` and `prompt`. In short:
 
-- Instructions gets added to the system prompt and defines the agent’s roles and capabilities (influences the AI's behavior and personality)
+- Instructions get added to the system prompt and defines the agent’s roles and capabilities (influences the AI's behavior and personality)
 - The prompt becomes the initial user message with a specific task (starts the conversation)
 
 <details>
