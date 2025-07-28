@@ -22,6 +22,45 @@ Two notable ingredients of recipes are `instructions` and `prompt`. In short:
 - Instructions gets added to the system prompt and defines the agent’s roles and capabilities (influences the AI's behavior and personality)
 - The prompt becomes the initial user message with a specific task (starts the conversation)
 
+<details>
+<summary>
+Snippet from `workflow_setup` showing the difference 
+</summary>
+```
+instructions: |
+  Create a Panther detection rule that detects: {{ rule_description }}
+
+  Use the following context:
+  - Similar rules found: {{ similar_rules_found }}
+  - Rule analysis: {{ rule_analysis }}
+  - Log schemas: {{ log_schemas }}
+  - Standards summary: {{ standards_summary }}
+
+  **SCOPE BOUNDARIES:**
+  - ...
+
+prompt: |
+  ## Process:
+
+  1. **Rule Planning**:
+     - Follow "📝 Create Rule Files" guidance from `AGENTS.md`
+     - Use streaming rule type (default) unless otherwise specified
+     - Choose appropriate log source and severity level
+  2. **File Creation**:
+     - ...
+  ...
+  5. **Test Cases**:
+     - ...
+  ...
+  7. **🛑 STOP CONDITION**:
+      - ...
+
+  ## ✅ SUCCESS CRITERIA:
+      - ...
+```
+</details>
+
+
 The detection creation recipe demonstrates the power of this approach by coordinating six specialized sub-recipes, each handling a specific aspect of detection development:
 
 1. [**workflow_setup**](#1-workflow_setup-foundation-first) - Repository preparation and environment validation
@@ -37,21 +76,14 @@ In our [previous post](https://block.github.io/goose/blog/2025/06/02/goose-panth
 However, to minimize redundancy and avoid conflicting guidance, we adopted a single reference file, `AGENTS.md`, as the source of truth for all agents. Each agent is directed to consult this file, while still supporting agent-specific instructions through their default context files (e.g. `.goosehints`, `CLAUDE.md` etc.) or rules (e.g. `.cursor/rules/`).
 
 While these context files are important, they also come with some trade offs and limitations:
-1. **Context window pollution**
-    - _Context files_: The entire file is sent with each request, cluttering the context window.
-    - _Recipes_: Only task-relevant instructions, keeping prompts clear and focused
-2. **Signal-to-noise ratio**
-    - _Context files_: General preferences dilute focus and may create conflicting guidance
-    - _Recipes_: Every instruction is workflow-specific, eliminating noise
-3. **Cost and performance impact**
-    - _Context files_: May lead to higher token costs and slower processing from unnecessary context
-    - _Recipes_: Pay only for relevant tokens with faster response times
-4. **Cognitive load on the AI**
-    - _Context files_: Conflicting instructions cause decision paralysis
-    - _Recipes_: Clear, unified guidance enables decisive action
-5. **Task-specific optimization**
-    - _Context files_: Generic instructions lack specialized tools and parameters
-    - _Recipes_: Purpose-built with pre-configured tools for specific workflows
+
+| Aspect | Context Files | Recipes |
+|--------|---------------|---------|
+| **Context window pollution** | The entire file is sent with each request, cluttering the context window | Only task-relevant instructions, keeping prompts clear and focused |
+| **Signal-to-noise ratio** | General preferences dilute focus and may create conflicting guidance | Every instruction is workflow-specific, eliminating noise |
+| **Cost and performance impact** | May lead to higher token costs and slower processing from unnecessary context | Pay only for relevant tokens with faster response times |
+| **Cognitive load on the AI** | Conflicting instructions cause decision paralysis | Clear, unified guidance enables decisive action |
+| **Task-specific optimization** | Generic instructions lack specialized tools and parameters | Purpose-built with pre-configured tools for specific workflows |
 
 This centralized approach through `AGENTS.md` becomes the foundation for our recipe architecture, which we'll explore next.
 
@@ -66,7 +98,7 @@ This centralized approach through `AGENTS.md` becomes the foundation for our rec
 ### Why Sub-Recipes Matter
 The traditional approach to AI-assisted detection creation often involves a single, monolithic prompt (AKA “single-shot prompting”) that tries to handle everything at once. This leads to several problems:
 - **Context confusion**: The AI loses focus when juggling multiple responsibilities
-- **Inconsistent outputs**: Without clear boundaries, results vary significantly
+- **Inconsistent outputs**: Without clear boundaries, results vary significantly (e.g. one sub-recipe may try to complete the task that we're expecting another sub-recipe to accomplish)
 - **Difficult debugging**: When something fails, it's hard to identify the specific issue
 - **Poor maintainability**: Changes to one aspect affect the entire workflow
 
@@ -82,14 +114,21 @@ At a high level, a (non-parallel) version would look like:
 
 | Step | Component | Type | Description |
 |------|-----------|------|-------------|
-| **1** | `workflow_setup` | Required | Initialize workflow environment |
-| **2** | `similar_rule_analyzer` | *Conditional* | Analyze existing similar rules |
-| **3** | `schema_and_sample_events_analyzer` | *Conditional* | Process schema and sample data |
-| **4** | `rule_creator` | Required | Generate the detection rule |
-| **5** | `testing_validator` | Required | Validate and test the rule |
-| **6** | `pr_creator` | *Conditional* | Create pull request |
+| **1** | [`workflow_setup`](#1-workflow_setup-foundation-first) | Required | Initialize workflow environment |
+| **2** | [`similar_rule_analyzer`](#2-similar_rule_analyzer-learning-from-existing-patterns) | *Conditional* | Analyze existing similar rules |
+| **3** | [`schema_and_sample_events_analyzer`](#3-schema_and_sample_events_analyzer-data-driven-detection-logic) | *Conditional* | Process schema and sample data |
+| **4** | [`rule_creator`](#4-rule_creator-the-implementation-engine) | Required | Generate the detection rule |
+| **5** | [`testing_validator`](#5-testing_validator-quality-assurance) | Required | Validate and test the rule |
+| **6** | [`pr_creator`](#6-pr_creator-automated-pull-request-pipeline) | *Conditional* | Create pull request |
 
 > 💡 **Note:** *Conditional* steps may be skipped based on workflow configuration
+
+<details>
+<summary>
+Workflow visualized
+</summary>
+![workflow_diagram](workflow_diagram.png)
+</details>
 
 ## Data Flow and State Management
 Since sub-recipes currently run in isolation, data must be explicitly passed between them. The main recipe orchestrates this flow:
@@ -145,7 +184,7 @@ goose run --recipe recipe.yaml --params create_pr=true --rule_description="What 
 ```
 
 ### Runtime Conditions
-The workflow makes intelligent decisions based on previous step results:
+The workflow makes intelligent decisions based on results from previous steps:
 
 ```
 # Current implementation uses both parameter-based and runtime conditions
@@ -187,12 +226,16 @@ Additionally, Jinja support enables the codification of event triggers, ensuring
 
 ## Deep Dive: Key Sub-Recipes
 ### 1. `workflow_setup`: Foundation First
+|Input | Output
+--- | ---
+`rule_description` | `branch_name`, `standards_summary`, `repo_ready`, `mcp_panther`
+
 This sub-recipe handles all the foundational work:
 
 **Key responsibilities**:
 - Repository access verification
 - Git branch creation and management
-- Standards extraction from AGENTS.md
+- Standards extraction from `AGENTS.md`
 - Environment validation
 - Panther MCP access testing
 
@@ -210,6 +253,10 @@ This sub-recipe handles all the foundational work:
 ```
 
 ### 2. `similar_rule_analyzer`: Learning from Existing Patterns
+Input | Output
+--- | ---
+`rule_description`, `standards_summary`, `rule_type` | `similar_rules_found`, `rule_analysis`, `suggested_approach`
+
 This sub-recipe searches the repository for similar detection patterns:
 
 ```
@@ -231,6 +278,10 @@ This sub-recipe searches the repository for similar detection patterns:
 Even without direct access to the detection engine, users can develop new detections by leveraging existing ones, along with our established standards and test suite.
 
 ### 3. `schema_and_sample_events_analyzer`: Data-Driven Detection Logic
+Input | Output
+--- | ---
+`rule_description`, `similar_rules_found` | `log_schemas`, `example_logs`, `field_mapping`, `panther_mcp_usage`
+
 This sub-recipe bridges the gap between detection requirements and implementation by leveraging Panther's MCP integration:
 
 **Key responsibilities**:
@@ -272,6 +323,10 @@ This sub-recipe bridges the gap between detection requirements and implementatio
 _Fallback handling_: When Panther MCP is unavailable, it intelligently uses similar rule analysis to infer schema structure, ensuring the workflow continues with reduced but functional capability.
 
 ### 4. `rule_creator`: The Implementation Engine
+Input | Output
+--- | ---
+`rule_description`, `similar_rules_found`, `rule_analysis`, `log_schemas`, `standards_summary` | `rule_files_created`, `rule_implementation`, `test_cases_created`
+
 This is where the magic happens - this sub-recipe generates the required files containing the detection logic, metadata and unit tests.
 
 **Smart log source validation**:
@@ -316,6 +371,10 @@ To illustrate, the following example provides guidance for the last bullet point
 
 
 ### 5. `testing_validator`: Quality Assurance
+Input | Output
+--- | ---
+`rule_files_created` | `test_results`, `validation_status`, `issues_found`
+
 This sub-recipe serves as the critical quality gate, executing the mandatory testing pipeline that ensures every detection meets production standards.
 
 **Key responsibilities**:
@@ -324,7 +383,7 @@ This sub-recipe serves as the critical quality gate, executing the mandatory tes
 - Provide actionable feedback for fixing issues
 - Ensure compliance with security and coding requirements
 
-These checks ensure detections meet our standards, preventing subpar code from being merged. Should a check fail, the LLM will iterate, identifying and implementing necessary changes until compliance is achieved.
+These checks ensure detections meet our standards, preventing subpar code from being merged. Should a check fail, the LLM will iterate, identifying and implementing necessary changes until compliance is achieved as part of the same recipe run.
 
 **Intelligent failure analysis**: The sub-recipe doesn't just run tests - it analyzes failures and provides specific guidance:
 ```json
@@ -367,6 +426,10 @@ These checks ensure detections meet our standards, preventing subpar code from b
 ```
 
 ### 6. `pr_creator`: Automated Pull Request Pipeline
+Input | Output
+--- | ---
+`rule_files_created`, `rule_description`, `branch_name`, `create_pr`, `panther_mcp_usage` | `pr_created`, `pr_url`, `pr_number`, `summary`
+
 This sub-recipe handles the final workflow step with full adherence to team standards:
 
 **Key responsibilities**:
@@ -376,7 +439,7 @@ This sub-recipe handles the final workflow step with full adherence to team stan
 - Draft PR creation for team review
 
 **Intelligent PR creation**:
-- _Conditional execution_: Only creates PRs when create_pr=true, otherwise provides summary
+- _Conditional execution_: Only creates PRs when `create_pr=true`, otherwise provides summary
 - _Template compliance_: Automatically populates PR templates from `AGENTS.md` standards
 - _MCP usage reporting_: Documents whether Panther MCP was used in the workflow section (which is useful for PR reviewers to know)
 
@@ -476,12 +539,12 @@ The `workflow_setup` sub-recipe extracts key requirements from `AGENTS.md`:
 - **Code formatting**: Automatic formatting execution
 - **Linting**: Comprehensive linting validation
 - **Testing**: Mandatory test suite execution
-- **Security**: No PII in test cases, proper error handling
+- **Security**: No PII in test cases (based on LLM's determination) and proper error handling (e.g. ensuring default values are returned)
 - **Consistency**: Standardized file structures and naming
 
 ### Pull Request Automation
 The `pr_creator` sub-recipe follows team standards:
-- Proper branch naming (ai/\<description\>)
+- Proper branch naming (e.g. `ai/<description>`)
 - Template-based PR descriptions
 - Draft mode for review
 - Comprehensive change summaries
