@@ -20,7 +20,7 @@ use crate::config::ConfigError;
 use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{get_usage, response_to_streaming_message};
-use mcp_core::tool::Tool;
+use rmcp::model::Tool;
 use serde_json::json;
 use tokio::time::sleep;
 use tokio_stream::StreamExt;

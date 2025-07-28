@@ -1,5 +1,4 @@
 use serde_json::Value;
-use std::ops::Deref;
 use std::process::Stdio;
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -89,37 +88,16 @@ async fn handle_text_instruction_task(
     // Start tracking the task
     task_execution_tracker.start_task(&task.id).await;
 
-    // Create arguments for the subagent task
-    let task_arguments = serde_json::json!({
-        "text_instruction": text_instruction,
-        // "instructions": "You are a helpful assistant. Execute the given task and provide a clear, concise response.",
-    });
-
     let result = tokio::select! {
-        result = run_complete_subagent_task(task_arguments, task_config) => result,
+        result = run_complete_subagent_task(text_instruction.to_string(), task_config) => result,
         _ = cancellation_token.cancelled() => {
             return Err("Task cancelled".to_string());
         }
     };
-
     match result {
-        Ok(contents) => {
-            // Extract the text content from the result
-            let result_text = contents
-                .into_iter()
-                .filter_map(|content| match content.deref() {
-                    rmcp::model::RawContent::Text(raw_text_content) => {
-                        Some(raw_text_content.text.clone())
-                    }
-                    _ => None,
-                })
-                .collect::<Vec<_>>()
-                .join("\n");
-
-            Ok(serde_json::json!({
-                "result": result_text
-            }))
-        }
+        Ok(result_text) => Ok(serde_json::json!({
+            "result": result_text
+        })),
         Err(e) => {
             let error_msg = format!("Subagent execution failed: {}", e);
             Err(error_msg)

@@ -27,7 +27,7 @@ use anyhow::Result;
 #[cfg(test)]
 use super::errors::ProviderError;
 #[cfg(test)]
-use mcp_core::tool::Tool;
+use rmcp::model::Tool;
 
 fn default_lead_turns() -> usize {
     3

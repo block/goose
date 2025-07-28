@@ -6,7 +6,7 @@ use anyhow::Result;
 use base64::Engine;
 use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::formatdoc;
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::{
     collections::HashMap,
     future::Future,
@@ -25,7 +25,6 @@ use include_dir::{include_dir, Dir};
 use mcp_core::{
     handler::{PromptError, ResourceError, ToolError},
     protocol::ServerCapabilities,
-    tool::{Tool, ToolAnnotations},
 };
 
 use mcp_server::router::CapabilitiesBuilder;
@@ -33,7 +32,7 @@ use mcp_server::Router;
 
 use rmcp::model::{
     Content, JsonRpcMessage, JsonRpcNotification, JsonRpcVersion2_0, Notification, Prompt,
-    PromptArgument, PromptTemplate, Resource, Role,
+    PromptArgument, PromptTemplate, Resource, Role, Tool, ToolAnnotations,
 };
 use rmcp::object;
 
@@ -166,14 +165,13 @@ impl DeveloperRouter {
         let bash_tool = Tool::new(
             "shell".to_string(),
             shell_tool_desc.to_string(),
-            json!({
+            object!({
                 "type": "object",
                 "required": ["command"],
                 "properties": {
                     "command": {"type": "string"}
                 }
             }),
-            None,
         );
 
         let glob_tool = Tool::new(
@@ -193,22 +191,21 @@ impl DeveloperRouter {
                 
                 Use this tool when you need to locate files by name patterns rather than content.
             "#}.to_string(),
-            json!({
+            object!({
                 "type": "object",
                 "required": ["pattern"],
                 "properties": {
                     "pattern": {"type": "string", "description": "The glob pattern to search for"},
                     "path": {"type": "string", "description": "The directory to search in (defaults to current directory)"}
                 }
-            }),
-            Some(ToolAnnotations {
-                title: Some("Search files by pattern".to_string()),
-                read_only_hint: true,
-                destructive_hint: false,
-                idempotent_hint: true,
-                open_world_hint: false,
-            }),
-        );
+            })
+        ).annotate(ToolAnnotations {
+            title: Some("Search files by pattern".to_string()),
+            read_only_hint: Some(true),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(true),
+            open_world_hint: Some(false),
+        });
 
         let grep_tool = Tool::new(
             "grep".to_string(),
@@ -242,21 +239,20 @@ impl DeveloperRouter {
                 properly filters results to respect ignored files.
             "#}
             .to_string(),
-            json!({
+            object!({
                 "type": "object",
                 "required": ["command"],
                 "properties": {
                     "command": {"type": "string", "description": "The search command to execute (rg, grep, find, etc.)"}
                 }
-            }),
-            Some(ToolAnnotations {
-                title: Some("Search file contents".to_string()),
-                read_only_hint: true,
-                destructive_hint: false,
-                idempotent_hint: true,
-                open_world_hint: false,
-            }),
-        );
+            })
+        ).annotate(ToolAnnotations {
+            title: Some("Search file contents".to_string()),
+            read_only_hint: Some(true),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(true),
+            open_world_hint: Some(false),
+        });
 
         // Create text editor tool with different descriptions based on editor API configuration
         let (text_editor_desc, str_replace_command) = if let Some(ref editor) = editor_model {
@@ -307,7 +303,7 @@ impl DeveloperRouter {
         let text_editor_tool = Tool::new(
             "text_editor".to_string(),
             text_editor_desc.to_string(),
-            json!({
+            object!({
                 "type": "object",
                 "required": ["command", "path"],
                 "properties": {
@@ -336,7 +332,6 @@ impl DeveloperRouter {
                     "file_text": {"type": "string"}
                 }
             }),
-            None,
         );
 
         let list_windows_tool = Tool::new(
@@ -346,19 +341,19 @@ impl DeveloperRouter {
                 Returns a list of window titles that can be used with the window_title parameter
                 of the screen_capture tool.
             "#},
-            json!({
+            object!({
                 "type": "object",
                 "required": [],
                 "properties": {}
             }),
-            Some(ToolAnnotations {
-                title: Some("List available windows".to_string()),
-                read_only_hint: true,
-                destructive_hint: false,
-                idempotent_hint: false,
-                open_world_hint: false,
-            }),
-        );
+        )
+        .annotate(ToolAnnotations {
+            title: Some("List available windows".to_string()),
+            read_only_hint: Some(true),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(false),
+            open_world_hint: Some(false),
+        });
 
         let screen_capture_tool = Tool::new(
             "screen_capture",
@@ -370,7 +365,7 @@ impl DeveloperRouter {
 
                 Only one of display or window_title should be specified.
             "#},
-            json!({
+            object!({
                 "type": "object",
                 "required": [],
                 "properties": {
@@ -385,15 +380,14 @@ impl DeveloperRouter {
                         "description": "Optional: the exact title of the window to capture. use the list_windows tool to find the available windows."
                     }
                 }
-            }),
-            Some(ToolAnnotations {
-                title: Some("Capture a full screen".to_string()),
-                read_only_hint: true,
-                destructive_hint: false,
-                idempotent_hint: false,
-                open_world_hint: false,
-            }),
-        );
+            })
+        ).annotate(ToolAnnotations {
+            title: Some("Capture a full screen".to_string()),
+            read_only_hint: Some(true),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(false),
+            open_world_hint: Some(false),
+        });
 
         let image_processor_tool = Tool::new(
             "image_processor",
@@ -405,7 +399,7 @@ impl DeveloperRouter {
 
                 This allows processing image files for use in the conversation.
             "#},
-            json!({
+            object!({
                 "type": "object",
                 "required": ["path"],
                 "properties": {
@@ -415,14 +409,14 @@ impl DeveloperRouter {
                     }
                 }
             }),
-            Some(ToolAnnotations {
-                title: Some("Process Image".to_string()),
-                read_only_hint: true,
-                destructive_hint: false,
-                idempotent_hint: true,
-                open_world_hint: false,
-            }),
-        );
+        )
+        .annotate(ToolAnnotations {
+            title: Some("Process Image".to_string()),
+            read_only_hint: Some(true),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(true),
+            open_world_hint: Some(false),
+        });
 
         // Get base instructions and working directory
         let cwd = std::env::current_dir().expect("should have a current working dir");
@@ -678,6 +672,7 @@ impl DeveloperRouter {
                                 notification: Notification {
                                     method: "notifications/message".to_string(),
                                     params: object!({
+                                        "level": "info",
                                         "data": {
                                             "type": "shell",
                                             "stream": "stdout",
@@ -704,6 +699,7 @@ impl DeveloperRouter {
                                 notification: Notification {
                                     method: "notifications/message".to_string(),
                                     params: object!({
+                                        "level": "info",
                                         "data": {
                                             "type": "shell",
                                             "stream": "stderr",
@@ -2342,20 +2338,34 @@ mod tests {
         // Should use traditional description with str_replace command
         assert!(text_editor_tool
             .description
-            .contains("Replace a string in a file with a new string"));
+            .as_ref()
+            .map_or(false, |desc| desc
+                .contains("Replace a string in a file with a new string")));
         assert!(text_editor_tool
             .description
-            .contains("the `old_str` needs to exactly match one"));
-        assert!(text_editor_tool.description.contains("str_replace"));
+            .as_ref()
+            .map_or(false, |desc| desc
+                .contains("the `old_str` needs to exactly match one")));
+        assert!(text_editor_tool
+            .description
+            .as_ref()
+            .map_or(false, |desc| desc.contains("str_replace")));
 
         // Should not contain editor API description or edit_file command
         assert!(!text_editor_tool
             .description
-            .contains("Edit the file with the new content"));
-        assert!(!text_editor_tool.description.contains("edit_file"));
+            .as_ref()
+            .map_or(false, |desc| desc
+                .contains("Edit the file with the new content")));
         assert!(!text_editor_tool
             .description
-            .contains("work out how to place old_str with it intelligently"));
+            .as_ref()
+            .map_or(false, |desc| desc.contains("edit_file")));
+        assert!(!text_editor_tool
+            .description
+            .as_ref()
+            .map_or(false, |desc| desc
+                .contains("work out how to place old_str with it intelligently")));
 
         temp_dir.close().unwrap();
     }

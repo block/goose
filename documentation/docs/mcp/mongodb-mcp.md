@@ -7,7 +7,7 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
-The MongoDB MCP Server extension allows Goose to interact directly with your MongoDB databases, enabling comprehensive database operations including querying, document manipulation, collection management, and database administration. This makes it easy to work with your MongoDB databases through natural language interactions.
+The [MongoDB MCP Server](https://github.com/mongodb-js/mongodb-mcp-server) extension allows Goose to interact directly with your MongoDB databases, enabling comprehensive database operations including querying, document manipulation, collection management, and database administration. This makes it easy to work with your MongoDB databases through natural language interactions.
 
 :::tip TLDR
 <Tabs groupId="interface">
@@ -201,23 +201,23 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 The MongoDB extension provides comprehensive database management capabilities through natural language interactions. You can perform a wide range of operations including:
 
-### **Query Operations**
+### Query Operations
 - **Find documents** with complex filters and sorting
 - **Aggregate data** using MongoDB's powerful aggregation pipeline
 - **Count documents** in collections with optional filtering
 
-### **Document Management**
+### Document Management
 - **Insert** single or multiple documents
 - **Update** one or many documents with specified criteria
 - **Delete** specific documents or bulk deletions
 
-### **Collection & Database Administration**
+### Collection & Database Administration
 - **Create indexes** to optimize query performance
 - **Rename collections** for better organization
 - **Drop collections** when no longer needed
 - **Drop entire databases** (use with caution!)
 
-### **Schema & Analytics**
+### Schema & Analytics
 - **Analyze collection schemas** to understand document structure
 - **List databases and collections** for exploration
 - **View collection indexes** and their configurations

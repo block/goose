@@ -1,9 +1,7 @@
 use crate::providers::base::Provider;
-use rmcp::model::JsonRpcMessage;
 use std::env;
 use std::fmt;
 use std::sync::Arc;
-use tokio::sync::mpsc;
 use uuid::Uuid;
 
 /// Default maximum number of turns for task execution
@@ -17,7 +15,6 @@ pub const GOOSE_SUBAGENT_MAX_TURNS_ENV_VAR: &str = "GOOSE_SUBAGENT_MAX_TURNS";
 pub struct TaskConfig {
     pub id: String,
     pub provider: Option<Arc<dyn Provider>>,
-    pub mcp_tx: mpsc::Sender<JsonRpcMessage>,
     pub max_turns: Option<usize>,
 }
 
@@ -33,11 +30,10 @@ impl fmt::Debug for TaskConfig {
 
 impl TaskConfig {
     /// Create a new TaskConfig with all required dependencies
-    pub fn new(provider: Option<Arc<dyn Provider>>, mcp_tx: mpsc::Sender<JsonRpcMessage>) -> Self {
+    pub fn new(provider: Option<Arc<dyn Provider>>) -> Self {
         Self {
             id: Uuid::new_v4().to_string(),
             provider,
-            mcp_tx,
             max_turns: Some(
                 env::var(GOOSE_SUBAGENT_MAX_TURNS_ENV_VAR)
                     .ok()
@@ -50,10 +46,5 @@ impl TaskConfig {
     /// Get a reference to the provider
     pub fn provider(&self) -> Option<&Arc<dyn Provider>> {
         self.provider.as_ref()
-    }
-
-    /// Get a clone of the MCP sender
-    pub fn mcp_tx(&self) -> mpsc::Sender<JsonRpcMessage> {
-        self.mcp_tx.clone()
     }
 }

@@ -13,7 +13,7 @@ use super::utils::{
 use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
-use mcp_core::tool::Tool;
+use rmcp::model::Tool;
 use url::Url;
 
 pub const OPENROUTER_DEFAULT_MODEL: &str = "anthropic/claude-3.5-sonnet";

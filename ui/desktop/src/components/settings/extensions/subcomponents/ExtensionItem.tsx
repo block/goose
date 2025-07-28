@@ -68,7 +68,8 @@ export default function ExtensionItem({
   // Over time we can take the first part of the conditional away as people have bundled: true in their config.yaml entries
 
   // allow configuration editing if extension is not a builtin/bundled extension AND isStatic = false
-  const editable = !(extension.type === 'builtin' || extension.bundled) && !isStatic;
+  const editable =
+    !(extension.type === 'builtin' || ('bundled' in extension && extension.bundled)) && !isStatic;
 
   return (
     <Card

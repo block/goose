@@ -11,7 +11,7 @@ use super::base::{Provider, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
 use crate::message::Message;
 use crate::model::ModelConfig;
-use mcp_core::tool::Tool;
+use rmcp::model::Tool;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct TestInput {
