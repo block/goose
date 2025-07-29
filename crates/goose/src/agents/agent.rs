@@ -285,8 +285,7 @@ impl Agent {
         }
     }
 
-    /// Execute approved tools and handle denied tools
-    async fn execute_approved_tools(
+    async fn handle_approved_and_denied_tools(
         &self,
         permission_check_result: &PermissionCheckResult,
         message_tool_response: Arc<Mutex<Message>>,
@@ -975,7 +974,7 @@ impl Agent {
                                             self.provider().await?,
                                         ).await;
 
-                                    let mut tool_futures = self.execute_approved_tools(
+                                    let mut tool_futures = self.handle_approved_and_denied_tools(
                                         &permission_check_result,
                                         message_tool_response.clone(),
                                         cancel_token.clone()
