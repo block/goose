@@ -1962,7 +1962,6 @@ app.whenReady().then(async () => {
         label: 'Share Developer',
         accelerator: 'CmdOrCtrl+Shift+D',
         click() {
-          console.log('[Main] Share Developer menu item clicked');
           createShareDeveloperWindow();
         },
       })
