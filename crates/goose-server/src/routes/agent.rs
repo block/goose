@@ -14,9 +14,9 @@ use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
 };
+use goose::{config::Config, recipe::SubRecipe};
 use mcp_core::tool::ToolCall;
 use rmcp::model::Content;
-use goose::{config::Config, recipe::SubRecipe};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
