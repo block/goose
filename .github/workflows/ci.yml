@@ -32,7 +32,7 @@ jobs:
 
       - name: Activate hermit and set CARGO_HOME
         run: |
-          source ../bin/activate-hermit
+          source bin/activate-hermit
           echo "CARGO_HOME=$CARGO_HOME" >> $GITHUB_ENV
           echo "RUSTUP_HOME=$RUSTUP_HOME" >> $GITHUB_ENV
 
