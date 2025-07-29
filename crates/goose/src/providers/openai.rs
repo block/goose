@@ -49,6 +49,7 @@ pub struct OpenAiProvider {
     model: ModelConfig,
     custom_headers: Option<HashMap<String, String>>,
     enable_streaming: bool,
+    enable_embeddings: bool,
 }
 
 impl Default for OpenAiProvider {
@@ -80,6 +81,11 @@ impl OpenAiProvider {
             .unwrap_or_else(|_| "true".to_string())
             .parse()
             .unwrap_or(true);
+        let enable_embeddings: bool = config
+            .get_param("OPENAI_ENABLE_EMBEDDINGS")
+            .unwrap_or_else(|_| "true".to_string())
+            .parse()
+            .unwrap_or(true);
         let timeout_secs: u64 = config.get_param("OPENAI_TIMEOUT").unwrap_or(600);
         let client = Client::builder()
             .timeout(Duration::from_secs(timeout_secs))
@@ -95,6 +101,7 @@ impl OpenAiProvider {
             model,
             custom_headers,
             enable_streaming,
+            enable_embeddings,
         })
     }
 
@@ -164,6 +171,7 @@ impl Provider for OpenAiProvider {
                 ConfigKey::new("OPENAI_PROJECT", false, false, None),
                 ConfigKey::new("OPENAI_CUSTOM_HEADERS", false, true, None),
                 ConfigKey::new("OPENAI_ENABLE_STREAMING", false, false, Some("true")),
+                ConfigKey::new("OPENAI_ENABLE_EMBEDDINGS", false, false, Some("true")),
                 ConfigKey::new("OPENAI_TIMEOUT", false, false, Some("600")),
             ],
         )
@@ -240,7 +248,7 @@ impl Provider for OpenAiProvider {
     }
 
     fn supports_embeddings(&self) -> bool {
-        true
+        self.enable_embeddings
     }
 
     async fn create_embeddings(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, ProviderError> {
