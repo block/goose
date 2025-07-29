@@ -28,11 +28,10 @@ static MODEL_SPECIFIC_LIMITS: Lazy<HashMap<&'static str, usize>> = Lazy::new(|| 
     map.insert("llama3.3", 128_000);
 
     // x.ai Grok models, https://docs.x.ai/docs/overview
-    map.insert("grok", 131_072);
+    map.insert("grok-3", 131_072);
+    map.insert("grok-4", 256_000); // 256K
 
-    // Additional OpenRouter models
-    map.insert("qwen/qwen3-coder", 262_144); // 262K
-    map.insert("x-ai/grok-4", 256_000); // 256K
+    map.insert("qwen3-coder", 262_144); // 262K
 
     map
 });
