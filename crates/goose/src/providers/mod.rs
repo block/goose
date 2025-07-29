@@ -20,7 +20,6 @@ pub mod litellm;
 pub mod oauth;
 pub mod ollama;
 pub mod openai;
-pub mod openai_compatible;
 pub mod openrouter;
 pub mod pricing;
 pub mod sagemaker_tgi;

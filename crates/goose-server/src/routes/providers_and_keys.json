@@ -47,12 +47,6 @@
         "models": [],
         "required_keys": ["OPENROUTER_API_KEY"]
     },
-    "openai_compatible": {
-        "name": "OpenAI Compatible",
-        "description": "Work with any service that implements the OpenAI API specification",
-        "models": ["gpt-3.5-turbo"],
-        "required_keys": ["OPENAI_COMPATIBLE_API_KEY", "OPENAI_COMPATIBLE_BASE_URL"]
-    },
     "azure_openai": {
         "name": "Azure OpenAI",
         "description": "Connect to Azure OpenAI Service. If no API key is provided, Azure credential chain will be used.",
@@ -70,5 +64,5 @@
         "description": "Lorem ipsum",
         "models": ["grok-3"],
         "required_keys": ["XAI_API_KEY"]
-    }
+    },
 }
