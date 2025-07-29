@@ -458,7 +458,6 @@ impl Provider for GithubCopilotProvider {
 
         Ok(())
     }
-
     /// Fetch supported models from GitHub Copliot; returns Err on failure, Ok(None) if not present
     async fn fetch_supported_models_async(&self) -> Result<Option<Vec<String>>, ProviderError> {
         let (endpoint, token) = self.get_api_info().await?;
