@@ -216,7 +216,6 @@ impl Agent {
         }
     }
 
-    /// Prepare the context needed for the reply function
     async fn prepare_reply_context(
         &self,
         unfixed_messages: &[Message],
@@ -230,7 +229,6 @@ impl Agent {
             );
         }
         let initial_messages = messages.clone();
-        self.reset_retry_attempts().await;
         let config = Config::global();
 
         let (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
@@ -245,25 +243,6 @@ impl Agent {
             initial_messages,
             config,
         })
-    }
-
-    /// Create a provider stream for generating responses
-    async fn create_provider_stream(
-        &self,
-        system_prompt: &str,
-        messages: &[Message],
-        tools: &[Tool],
-        toolshim_tools: &[Tool],
-    ) -> Result<crate::providers::base::MessageStream, crate::providers::errors::ProviderError>
-    {
-        Self::stream_response_from_provider(
-            self.provider().await?,
-            system_prompt,
-            messages,
-            tools,
-            toolshim_tools,
-        )
-        .await
     }
 
     /// Process tool requests by categorizing them and recording them in the router selector
@@ -854,6 +833,7 @@ impl Agent {
         } = context;
 
         let reply_span = tracing::Span::current();
+        self.reset_retry_attempts().await;
 
         if let Some(content) = messages
             .last()
@@ -896,7 +876,13 @@ impl Agent {
                     break;
                 }
 
-                let mut stream = self.create_provider_stream(&system_prompt, &messages, &tools, &toolshim_tools).await?;
+                let mut stream = Self::stream_response_from_provider(
+                    self.provider().await?,
+                    &system_prompt,
+                    &messages,
+                    &tools,
+                    &toolshim_tools,
+                ).await?;
 
                 let mut added_message = false;
                 let mut messages_to_add = Vec::new();
@@ -978,7 +964,6 @@ impl Agent {
                                         );
                                     }
                                 } else {
-                                    // Check permissions first
                                     let mut permission_manager = PermissionManager::default();
                                     let (permission_check_result, enable_extension_request_ids) =
                                         check_tool_permissions(
@@ -990,7 +975,6 @@ impl Agent {
                                             self.provider().await?,
                                         ).await;
 
-                                    // Execute approved tools immediately
                                     let mut tool_futures = self.execute_approved_tools(
                                         &permission_check_result,
                                         message_tool_response.clone(),
