@@ -2,16 +2,14 @@ use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::{ProviderUsage, Usage};
 use crate::providers::utils::{
-    convert_image, detect_image_path, is_valid_function_name, load_image_file,
+    convert_image, detect_image_path, is_valid_function_name, load_image_file, safely_parse_json,
     sanitize_function_name, ImageFormat,
 };
 use anyhow::{anyhow, Error};
 use async_stream::try_stream;
 use futures::Stream;
-use mcp_core::ToolError;
-use mcp_core::{Tool, ToolCall};
-use rmcp::model::Role;
-use rmcp::model::{AnnotateAble, Content, RawContent, ResourceContents};
+use mcp_core::{ToolCall, ToolError};
+use rmcp::model::{AnnotateAble, Content, RawContent, ResourceContents, Role, Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::ops::Deref;
@@ -268,8 +266,8 @@ pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
 }
 
 /// Convert OpenAI's API response to internal Message format
-pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
-    let original = response["choices"][0]["message"].clone();
+pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
+    let original = &response["choices"][0]["message"];
     let mut content = Vec::new();
 
     if let Some(text) = original.get("content") {
@@ -286,14 +284,19 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
                     .as_str()
                     .unwrap_or_default()
                     .to_string();
-                let mut arguments = tool_call["function"]["arguments"]
+
+                // Get the raw arguments string from the LLM.
+                let arguments_str = tool_call["function"]["arguments"]
                     .as_str()
                     .unwrap_or_default()
                     .to_string();
-                // If arguments is empty, we will have invalid json parsing error later.
-                if arguments.is_empty() {
-                    arguments = "{}".to_string();
-                }
+
+                // If arguments_str is empty, default to an empty JSON object string.
+                let arguments_str = if arguments_str.is_empty() {
+                    "{}".to_string()
+                } else {
+                    arguments_str
+                };
 
                 if !is_valid_function_name(&function_name) {
                     let error = ToolError::NotFound(format!(
@@ -302,7 +305,7 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
                     ));
                     content.push(MessageContent::tool_request(id, Err(error)));
                 } else {
-                    match serde_json::from_str::<Value>(&arguments) {
+                    match safely_parse_json(&arguments_str) {
                         Ok(params) => {
                             content.push(MessageContent::tool_request(
                                 id,
@@ -311,8 +314,8 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
                         }
                         Err(e) => {
                             let error = ToolError::InvalidParameters(format!(
-                                "Could not interpret tool use parameters for id {}: {}",
-                                id, e
+                                "Could not interpret tool use parameters for id {}: {}. Raw arguments: '{}'",
+                                id, e, arguments_str
                             ));
                             content.push(MessageContent::tool_request(id, Err(error)));
                         }
@@ -437,56 +440,83 @@ where
             if chunk.choices.is_empty() {
                 yield (None, usage)
             } else if let Some(tool_calls) = &chunk.choices[0].delta.tool_calls {
-                let tool_call = &tool_calls[0];
-                let id = tool_call.id.clone().ok_or(anyhow!("No tool call ID"))?;
-                let function_name = tool_call.function.name.clone().ok_or(anyhow!("No function name"))?;
-                let mut arguments = tool_call.function.arguments.clone();
+                let mut tool_call_data: std::collections::HashMap<i32, (String, String, String)> = std::collections::HashMap::new();
 
-                while let Some(response_chunk) = stream.next().await {
-                    if response_chunk.as_ref().is_ok_and(|s| s == "data: [DONE]") {
-                        break 'outer;
-                    }
-                    let response_str = response_chunk?;
-                    if let Some(line) = strip_data_prefix(&response_str) {
-                        let tool_chunk: StreamingChunk = serde_json::from_str(line)
-                            .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
-                        let more_args = tool_chunk.choices[0].delta.tool_calls.as_ref()
-                            .and_then(|calls| calls.first())
-                            .map(|call| call.function.arguments.as_str());
-                        if let Some(more_args) = more_args {
-                            arguments.push_str(more_args);
-                        } else {
-                            break;
-                        }
+                for tool_call in tool_calls {
+                    if let (Some(index), Some(id), Some(name)) = (tool_call.index, &tool_call.id, &tool_call.function.name) {
+                        tool_call_data.insert(index, (id.clone(), name.clone(), tool_call.function.arguments.clone()));
                     }
                 }
 
-                let parsed = if arguments.is_empty() {
-                    Ok(json!({}))
-                } else {
-                    serde_json::from_str::<Value>(&arguments)
-                };
+                let mut done = false;
+                while !done {
+                    if let Some(response_chunk) = stream.next().await {
+                        if response_chunk.as_ref().is_ok_and(|s| s == "data: [DONE]") {
+                            break 'outer;
+                        }
+                        let response_str = response_chunk?;
+                        if let Some(line) = strip_data_prefix(&response_str) {
+                            let tool_chunk: StreamingChunk = serde_json::from_str(line)
+                                .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
 
-                let content = match parsed {
-                    Ok(params) => MessageContent::tool_request(
-                        id,
-                        Ok(ToolCall::new(function_name, params)),
-                    ),
-                    Err(e) => {
-                        let error = ToolError::InvalidParameters(format!(
-                            "Could not interpret tool use parameters for id {}: {}",
-                            id, e
-                        ));
-                        MessageContent::tool_request(id, Err(error))
+                            if let Some(delta_tool_calls) = &tool_chunk.choices[0].delta.tool_calls {
+                                for delta_call in delta_tool_calls {
+                                    if let Some(index) = delta_call.index {
+                                        if let Some((_, _, ref mut args)) = tool_call_data.get_mut(&index) {
+                                            args.push_str(&delta_call.function.arguments);
+                                        } else if let (Some(id), Some(name)) = (&delta_call.id, &delta_call.function.name) {
+                                            tool_call_data.insert(index, (id.clone(), name.clone(), delta_call.function.arguments.clone()));
+                                        }
+                                    }
+                                }
+                            } else {
+                                done = true;
+                            }
+
+                            if tool_chunk.choices[0].finish_reason == Some("tool_calls".to_string()) {
+                                done = true;
+                            }
+                        }
+                    } else {
+                        break;
                     }
-                };
+                }
+
+                let mut contents = Vec::new();
+                let mut sorted_indices: Vec<_> = tool_call_data.keys().cloned().collect();
+                sorted_indices.sort();
+
+                for index in sorted_indices {
+                    if let Some((id, function_name, arguments)) = tool_call_data.get(&index) {
+                        let parsed = if arguments.is_empty() {
+                            Ok(json!({}))
+                        } else {
+                            serde_json::from_str::<Value>(arguments)
+                        };
+
+                        let content = match parsed {
+                            Ok(params) => MessageContent::tool_request(
+                                id.clone(),
+                                Ok(ToolCall::new(function_name.clone(), params)),
+                            ),
+                            Err(e) => {
+                                let error = ToolError::InvalidParameters(format!(
+                                    "Could not interpret tool use parameters for id {}: {}",
+                                    id, e
+                                ));
+                                MessageContent::tool_request(id.clone(), Err(error))
+                            }
+                        };
+                        contents.push(content);
+                    }
+                }
 
                 yield (
                     Some(Message {
                         id: chunk.id,
                         role: Role::Assistant,
                         created: chrono::Utc::now().timestamp(),
-                        content: vec![content],
+                        content: contents,
                     }),
                     usage,
                 )
@@ -608,7 +638,10 @@ pub fn create_request(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rmcp::object;
     use serde_json::json;
+    use tokio::pin;
+    use tokio_stream::{self, StreamExt};
 
     #[test]
     fn test_validate_tool_schemas() {
@@ -722,7 +755,7 @@ mod tests {
         let tool = Tool::new(
             "test_tool",
             "A test tool",
-            json!({
+            object!({
                 "type": "object",
                 "properties": {
                     "input": {
@@ -732,7 +765,6 @@ mod tests {
                 },
                 "required": ["input"]
             }),
-            None,
         );
 
         let spec = format_tools(&[tool])?;
@@ -814,7 +846,7 @@ mod tests {
         let tool1 = Tool::new(
             "test_tool",
             "Test tool",
-            json!({
+            object!({
                 "type": "object",
                 "properties": {
                     "input": {
@@ -824,13 +856,12 @@ mod tests {
                 },
                 "required": ["input"]
             }),
-            None,
         );
 
         let tool2 = Tool::new(
             "test_tool",
             "Test tool",
-            json!({
+            object!({
                 "type": "object",
                 "properties": {
                     "input": {
@@ -840,7 +871,6 @@ mod tests {
                 },
                 "required": ["input"]
             }),
-            None,
         );
 
         let result = format_tools(&[tool1, tool2]);
@@ -910,7 +940,7 @@ mod tests {
             }
         });
 
-        let message = response_to_message(response)?;
+        let message = response_to_message(&response)?;
         assert_eq!(message.content.len(), 1);
         if let MessageContent::Text(text) = &message.content[0] {
             assert_eq!(text.text, "Hello from John Cena!");
@@ -925,7 +955,7 @@ mod tests {
     #[test]
     fn test_response_to_message_valid_toolrequest() -> anyhow::Result<()> {
         let response: Value = serde_json::from_str(OPENAI_TOOL_USE_RESPONSE)?;
-        let message = response_to_message(response)?;
+        let message = response_to_message(&response)?;
 
         assert_eq!(message.content.len(), 1);
         if let MessageContent::ToolRequest(request) = &message.content[0] {
@@ -945,7 +975,7 @@ mod tests {
         response["choices"][0]["message"]["tool_calls"][0]["function"]["name"] =
             json!("invalid fn");
 
-        let message = response_to_message(response)?;
+        let message = response_to_message(&response)?;
 
         if let MessageContent::ToolRequest(request) = &message.content[0] {
             match &request.tool_call {
@@ -967,7 +997,7 @@ mod tests {
         response["choices"][0]["message"]["tool_calls"][0]["function"]["arguments"] =
             json!("invalid json {");
 
-        let message = response_to_message(response)?;
+        let message = response_to_message(&response)?;
 
         if let MessageContent::ToolRequest(request) = &message.content[0] {
             match &request.tool_call {
@@ -989,7 +1019,7 @@ mod tests {
         response["choices"][0]["message"]["tool_calls"][0]["function"]["arguments"] =
             serde_json::Value::String("".to_string());
 
-        let message = response_to_message(response)?;
+        let message = response_to_message(&response)?;
 
         if let MessageContent::ToolRequest(request) = &message.content[0] {
             let tool_call = request.tool_call.as_ref().unwrap();
@@ -1095,5 +1125,55 @@ mod tests {
         }
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_streamed_multi_tool_response_to_messages() -> anyhow::Result<()> {
+        let response_lines = r#"
+data: {"model":"us.anthropic.claude-sonnet-4-20250514-v1:0","choices":[{"delta":{"role":"assistant","content":"I'll run both"},"index":0,"finish_reason":null}],"usage":{"prompt_tokens":4982,"completion_tokens":null,"total_tokens":null},"object":"chat.completion.chunk","id":"msg_bdrk_014pifLTHsNZz6Lmtw1ywgDJ","created":1753288340}
+data: {"model":"us.anthropic.claude-sonnet-4-20250514-v1:0","choices":[{"delta":{"role":"assistant","content":" `ls` commands in a"},"index":0,"finish_reason":null}],"usage":{"prompt_tokens":4982,"completion_tokens":null,"total_tokens":null},"object":"chat.completion.chunk","id":"msg_bdrk_014pifLTHsNZz6Lmtw1ywgDJ","created":1753288340}
+data: {"model":"us.anthropic.claude-sonnet-4-20250514-v1:0","choices":[{"delta":{"role":"assistant","content":" single turn for you -"},"index":0,"finish_reason":null}],"usage":{"prompt_tokens":4982,"completion_tokens":null,"total_tokens":null},"object":"chat.completion.chunk","id":"msg_bdrk_014pifLTHsNZz6Lmtw1ywgDJ","created":1753288340}
+data: {"model":"us.anthropic.claude-sonnet-4-20250514-v1:0","choices":[{"delta":{"role":"assistant","content":" one on the current directory an"},"index":0,"finish_reason":null}],"usage":{"prompt_tokens":4982,"completion_tokens":null,"total_tokens":null},"object":"chat.completion.chunk","id":"msg_bdrk_014pifLTHsNZz6Lmtw1ywgDJ","created":1753288340}
+data: {"model":"us.anthropic.claude-sonnet-4-20250514-v1:0","choices":[{"delta":{"role":"assistant","content":"d one on the `working_dir`."},"index":0,"finish_reason":null}],"usage":{"prompt_tokens":4982,"completion_tokens":null,"total_tokens":null},"object":"chat.completion.chunk","id":"msg_bdrk_014pifLTHsNZz6Lmtw1ywgDJ","created":1753288340}
+data: {"model":"us.anthropic.claude-sonnet-4-20250514-v1:0","choices":[{"delta":{"role":"assistant","content":null,"tool_calls":[{"index":1,"id":"toolu_bdrk_01RMTd7R9DzQjEEWgDwzcBsU","type":"function","function":{"name":"developer__shell","arguments":""}}]},"index":0,"finish_reason":null}],"usage":{"prompt_tokens":4982,"completion_tokens":null,"total_tokens":null},"object":"chat.completion.chunk","id":"msg_bdrk_014pifLTHsNZz6Lmtw1ywgDJ","created":1753288341}
+data: {"model":"us.anthropic.claude-sonnet-4-20250514-v1:0","choices":[{"delta":{"role":"assistant","content":null,"tool_calls":[{"index":1,"function":{"arguments":""}}]},"index":0,"finish_reason":null}],"usage":{"prompt_tokens":4982,"completion_tokens":null,"total_tokens":null},"object":"chat.completion.chunk","id":"msg_bdrk_014pifLTHsNZz6Lmtw1ywgDJ","created":1753288341}
+data: {"model":"us.anthropic.claude-sonnet-4-20250514-v1:0","choices":[{"delta":{"role":"assistant","content":null,"tool_calls":[{"index":1,"function":{"arguments":"{\""}}]},"index":0,"finish_reason":null}],"usage":{"prompt_tokens":4982,"completion_tokens":null,"total_tokens":null},"object":"chat.completion.chunk","id":"msg_bdrk_014pifLTHsNZz6Lmtw1ywgDJ","created":1753288341}
+data: {"model":"us.anthropic.claude-sonnet-4-20250514-v1:0","choices":[{"delta":{"role":"assistant","content":null,"tool_calls":[{"index":1,"function":{"arguments":"command\": \"l"}}]},"index":0,"finish_reason":null}],"usage":{"prompt_tokens":4982,"completion_tokens":null,"total_tokens":null},"object":"chat.completion.chunk","id":"msg_bdrk_014pifLTHsNZz6Lmtw1ywgDJ","created":1753288341}
+data: {"model":"us.anthropic.claude-sonnet-4-20250514-v1:0","choices":[{"delta":{"role":"assistant","content":null,"tool_calls":[{"index":1,"function":{"arguments":"s\"}"}}]},"index":0,"finish_reason":null}],"usage":{"prompt_tokens":4982,"completion_tokens":null,"total_tokens":null},"object":"chat.completion.chunk","id":"msg_bdrk_014pifLTHsNZz6Lmtw1ywgDJ","created":1753288341}
+data: {"model":"us.anthropic.claude-sonnet-4-20250514-v1:0","choices":[{"delta":{"role":"assistant","content":null,"tool_calls":[{"index":2,"id":"toolu_bdrk_016bgVTGZdpjP8ehjMWp9cWW","type":"function","function":{"name":"developer__shell","arguments":""}}]},"index":0,"finish_reason":null}],"usage":{"prompt_tokens":4982,"completion_tokens":null,"total_tokens":null},"object":"chat.completion.chunk","id":"msg_bdrk_014pifLTHsNZz6Lmtw1ywgDJ","created":1753288341}
+data: {"model":"us.anthropic.claude-sonnet-4-20250514-v1:0","choices":[{"delta":{"role":"assistant","content":null,"tool_calls":[{"index":2,"function":{"arguments":""}}]},"index":0,"finish_reason":null}],"usage":{"prompt_tokens":4982,"completion_tokens":null,"total_tokens":null},"object":"chat.completion.chunk","id":"msg_bdrk_014pifLTHsNZz6Lmtw1ywgDJ","created":1753288341}
+data: {"model":"us.anthropic.claude-sonnet-4-20250514-v1:0","choices":[{"delta":{"role":"assistant","content":null,"tool_calls":[{"index":2,"function":{"arguments":"{\""}}]},"index":0,"finish_reason":null}],"usage":{"prompt_tokens":4982,"completion_tokens":null,"total_tokens":null},"object":"chat.completion.chunk","id":"msg_bdrk_014pifLTHsNZz6Lmtw1ywgDJ","created":1753288342}
+data: {"model":"us.anthropic.claude-sonnet-4-20250514-v1:0","choices":[{"delta":{"role":"assistant","content":null,"tool_calls":[{"index":2,"function":{"arguments":"command\""}}]},"index":0,"finish_reason":null}],"usage":{"prompt_tokens":4982,"completion_tokens":null,"total_tokens":null},"object":"chat.completion.chunk","id":"msg_bdrk_014pifLTHsNZz6Lmtw1ywgDJ","created":1753288342}
+data: {"model":"us.anthropic.claude-sonnet-4-20250514-v1:0","choices":[{"delta":{"role":"assistant","content":null,"tool_calls":[{"index":2,"function":{"arguments":": \"ls wor"}}]},"index":0,"finish_reason":null}],"usage":{"prompt_tokens":4982,"completion_tokens":null,"total_tokens":null},"object":"chat.completion.chunk","id":"msg_bdrk_014pifLTHsNZz6Lmtw1ywgDJ","created":1753288342}
+data: {"model":"us.anthropic.claude-sonnet-4-20250514-v1:0","choices":[{"delta":{"role":"assistant","content":null,"tool_calls":[{"index":2,"function":{"arguments":"king_dir"}}]},"index":0,"finish_reason":null}],"usage":{"prompt_tokens":4982,"completion_tokens":null,"total_tokens":null},"object":"chat.completion.chunk","id":"msg_bdrk_014pifLTHsNZz6Lmtw1ywgDJ","created":1753288342}
+data: {"model":"us.anthropic.claude-sonnet-4-20250514-v1:0","choices":[{"delta":{"role":"assistant","content":null,"tool_calls":[{"index":2,"function":{"arguments":"\"}"}}]},"index":0,"finish_reason":null}],"usage":{"prompt_tokens":4982,"completion_tokens":null,"total_tokens":null},"object":"chat.completion.chunk","id":"msg_bdrk_014pifLTHsNZz6Lmtw1ywgDJ","created":1753288342}
+data: {"model":"us.anthropic.claude-sonnet-4-20250514-v1:0","choices":[{"delta":{"role":"assistant","content":""},"index":0,"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":4982,"completion_tokens":122,"total_tokens":5104},"object":"chat.completion.chunk","id":"msg_bdrk_014pifLTHsNZz6Lmtw1ywgDJ","created":1753288342}
+data: [DONE]
+"#;
+
+        let response_stream =
+            tokio_stream::iter(response_lines.lines().map(|line| Ok(line.to_string())));
+        let messages = response_to_streaming_message(response_stream);
+        pin!(messages);
+
+        while let Some(Ok((message, _usage))) = messages.next().await {
+            if let Some(msg) = message {
+                println!("{:?}", msg);
+                if msg.content.len() == 2 {
+                    if let (MessageContent::ToolRequest(req1), MessageContent::ToolRequest(req2)) =
+                        (&msg.content[0], &msg.content[1])
+                    {
+                        if req1.tool_call.is_ok() && req2.tool_call.is_ok() {
+                            // We expect two tool calls in the response
+                            assert_eq!(req1.tool_call.as_ref().unwrap().name, "developer__shell");
+                            assert_eq!(req2.tool_call.as_ref().unwrap().name, "developer__shell");
+                            return Ok(());
+                        }
+                    }
+                }
+            }
+        }
+
+        panic!("Expected tool call message with two calls, but did not see it");
     }
 }

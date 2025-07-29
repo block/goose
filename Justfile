@@ -147,6 +147,13 @@ run-ui-only:
     @echo "Running UI..."
     cd ui/desktop && npm install && npm run start-gui
 
+debug-ui:
+	@echo "🚀 Starting Goose frontend in external backend mode"
+	cd ui/desktop && \
+	export GOOSE_EXTERNAL_BACKEND=true && \
+	export GOOSE_EXTERNAL_PORT=3000 && \
+	npm install && \
+	npm run start-gui
 
 # Run UI with alpha changes
 run-ui-alpha temporal="true":
@@ -176,6 +183,10 @@ run-docs:
 run-server:
     @echo "Running server..."
     cargo run -p goose-server
+
+# Check if OpenAPI schema is up-to-date
+check-openapi-schema: generate-openapi
+    ./scripts/check-openapi-schema.sh
 
 # Generate OpenAPI specification without starting the UI
 generate-openapi:
@@ -361,16 +372,16 @@ set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
 ### Build the core code
 ### profile = --release or "" for debug
 ### allparam = OR/AND/ANY/NONE --workspace --all-features --all-targets
-win-bld profile allparam: 
+win-bld profile allparam:
   cargo run {{profile}} -p goose-server --bin  generate_schema
   cargo build {{profile}} {{allparam}}
 
 ### Build just debug
-win-bld-dbg: 
+win-bld-dbg:
   just win-bld " " " "
 
 ### Build debug and test, examples,...
-win-bld-dbg-all: 
+win-bld-dbg-all:
   just win-bld " " "--workspace --all-targets --all-features"
 
 ### Build just release
@@ -433,8 +444,8 @@ win-total-rls *allparam:
   just win-bld-rls{{allparam}}
   just win-run-rls
 
-### Build and run the Kotlin example with 
-### auto-generated bindings for goose-llm 
+### Build and run the Kotlin example with
+### auto-generated bindings for goose-llm
 kotlin-example:
     # Build Rust dylib and generate Kotlin bindings
     cargo build -p goose-llm

@@ -7,26 +7,23 @@ use base64::Engine;
 use chrono::NaiveDate;
 use indoc::indoc;
 use lazy_static::lazy_static;
-use mcp_core::protocol::JsonRpcMessage;
-use mcp_core::tool::ToolAnnotations;
+use mcp_core::{
+    handler::{PromptError, ResourceError, ToolError},
+    protocol::ServerCapabilities,
+};
+use mcp_server::router::CapabilitiesBuilder;
+use mcp_server::Router;
 use oauth_pkce::PkceOAuth2Client;
 use regex::Regex;
-use rmcp::model::Content;
+use rmcp::model::{
+    AnnotateAble, Content, JsonRpcMessage, Prompt, RawResource, Resource, Tool, ToolAnnotations,
+};
+use rmcp::object;
 use serde_json::{json, Value};
 use std::io::Cursor;
 use std::{env, fs, future::Future, path::Path, pin::Pin, sync::Arc};
 use storage::CredentialsManager;
 use tokio::sync::mpsc;
-
-use mcp_core::{
-    handler::{PromptError, ResourceError, ToolError},
-    prompt::Prompt,
-    protocol::ServerCapabilities,
-    resource::Resource,
-    tool::Tool,
-};
-use mcp_server::router::CapabilitiesBuilder;
-use mcp_server::Router;
 
 use google_docs1::{self, Docs};
 use google_drive3::common::ReadSeek;
@@ -223,8 +220,8 @@ impl GoogleDriveRouter {
             indoc! {r#"
                 List or search for files or labels in google drive by name, given an input search query. At least one of ('name', 'mimeType', or 'parent') are required for file searches.
             "#}
-            .to_string(),
-            json!({
+                .to_string(),
+            object!({
               "type": "object",
               "properties": {
                 "driveType": {
@@ -261,15 +258,14 @@ impl GoogleDriveRouter {
                 }
               },
               "required": ["driveType"],
-            }),
-            Some(ToolAnnotations {
-                    title: Some("Search GDrive".to_string()),
-                    read_only_hint: true,
-                    destructive_hint: false,
-                    idempotent_hint: false,
-                    open_world_hint: false,
-                }),
-        );
+            })
+        ).annotate(ToolAnnotations {
+            title: Some("Search GDrive".to_string()),
+            read_only_hint: Some(true),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(false),
+            open_world_hint: Some(false),
+        });
 
         let read_tool = Tool::new(
             "read".to_string(),
@@ -284,8 +280,8 @@ impl GoogleDriveRouter {
                 Pass in "gdrive:///1QG8d8wtWe7ZfmG93sW-1h2WXDJDUkOi-9hDnvJLmWrc"
                 Do not include any other path parameters when using URI.
             "#}
-            .to_string(),
-            json!({
+                .to_string(),
+            object!({
               "type": "object",
               "properties": {
                   "uri": {
@@ -301,23 +297,22 @@ impl GoogleDriveRouter {
                       "description": "Whether or not to include images as base64 encoded strings, defaults to false",
                   }
               },
-            }),
-            Some(ToolAnnotations {
-                title: Some("Read GDrive".to_string()),
-                read_only_hint: true,
-                destructive_hint: false,
-                idempotent_hint: false,
-                open_world_hint: false,
-            }),
-        );
+            })
+        ).annotate(ToolAnnotations {
+            title: Some("Read GDrive".to_string()),
+            read_only_hint: Some(true),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(false),
+            open_world_hint: Some(false)
+        });
 
         let create_file_tool = Tool::new(
             "create_file".to_string(),
             indoc! {r#"
                 Create a new file, including Document, Spreadsheet, Slides, folder, or shortcut, in Google Drive.
             "#}
-            .to_string(),
-            json!({
+                .to_string(),
+            object!({
               "type": "object",
               "properties": {
                   "name": {
@@ -350,23 +345,22 @@ impl GoogleDriveRouter {
                   }
               },
               "required": ["name", "mimeType"],
-            }),
-            Some(ToolAnnotations {
-                title: Some("Create new file in GDrive".to_string()),
-                read_only_hint: false,
-                destructive_hint: false,
-                idempotent_hint: false,
-                open_world_hint: false,
-            }),
-        );
+            })
+        ).annotate(ToolAnnotations {
+            title: Some("Create new file in GDrive".to_string()),
+            read_only_hint: Some(false),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(false),
+            open_world_hint: Some(false),
+        });
 
         let move_file_tool = Tool::new(
             "move_file".to_string(),
             indoc! {r#"
                 Move a Google Drive file, folder, or shortcut to a new parent folder. You cannot move a folder to a different drive.
             "#}
-            .to_string(),
-            json!({
+                .to_string(),
+            object!({
               "type": "object",
               "properties": {
                   "fileId": {
@@ -383,23 +377,22 @@ impl GoogleDriveRouter {
                   },
               },
               "required": ["fileId", "currentFolderId", "newFolderId"],
-            }),
-            Some(ToolAnnotations {
-                title: Some("Move file".to_string()),
-                read_only_hint: false,
-                destructive_hint: true,
-                idempotent_hint: false,
-                open_world_hint: false,
-            }),
-        );
+            })
+        ).annotate(ToolAnnotations {
+            title: Some("Move file".to_string()),
+            read_only_hint: Some(false),
+            destructive_hint: Some(true),
+            idempotent_hint: Some(false),
+            open_world_hint: Some(false),
+        });
 
         let update_file_tool = Tool::new(
             "update_file".to_string(),
             indoc! {r#"
                 Update an existing file in Google Drive with new content or edit the file's labels.
             "#}
-            .to_string(),
-            json!({
+                .to_string(),
+            object!({
               "type": "object",
               "properties": {
                   "fileId": {
@@ -490,15 +483,14 @@ impl GoogleDriveRouter {
                   "body": ["mimeType"],
                   "path": ["mimeType"]
               }
-            }),
-            Some(ToolAnnotations {
-                title: Some("Update a file's contents or labels".to_string()),
-                read_only_hint: false,
-                destructive_hint: true,
-                idempotent_hint: false,
-                open_world_hint: false,
-            }),
-        );
+            })
+        ).annotate(ToolAnnotations {
+            title: Some("Update a file's contents or labels".to_string()),
+            read_only_hint: Some(false),
+            destructive_hint: Some(true),
+            idempotent_hint: Some(false),
+            open_world_hint: Some(false),
+        });
 
         let sheets_tool = Tool::new(
             "sheets_tool".to_string(),
@@ -513,8 +505,8 @@ impl GoogleDriveRouter {
                 - add_sheet: Add a new sheet (tab) to a spreadsheet
                 - clear_values: Clear values from a range
             "#}
-            .to_string(),
-            json!({
+                .to_string(),
+            object!({
               "type": "object",
               "properties": {
                   "spreadsheetId": {
@@ -557,15 +549,14 @@ impl GoogleDriveRouter {
                   }
               },
               "required": ["spreadsheetId", "operation"],
-            }),
-            Some(ToolAnnotations {
-                title: Some("Work with Google Sheets data using various operations.".to_string()),
-                read_only_hint: false,
-                destructive_hint: true,
-                idempotent_hint: false,
-                open_world_hint: false,
-            }),
-        );
+            })
+        ).annotate(ToolAnnotations {
+            title: Some("Work with Google Sheets data using various operations.".to_string()),
+            read_only_hint: Some(false),
+            destructive_hint: Some(true),
+            idempotent_hint: Some(false),
+            open_world_hint: Some(false),
+        });
 
         let docs_tool = Tool::new(
             "docs_tool".to_string(),
@@ -579,8 +570,8 @@ impl GoogleDriveRouter {
                 - create_paragraph: Create a new paragraph
                 - delete_content: Delete content between positions
             "#}
-            .to_string(),
-            json!({
+                .to_string(),
+            object!({
               "type": "object",
               "properties": {
                   "documentId": {
@@ -614,15 +605,14 @@ impl GoogleDriveRouter {
                   }
               },
               "required": ["documentId", "operation"],
-            }),
-            Some(ToolAnnotations {
-                title: Some("Work with Google Docs data using various operations.".to_string()),
-                read_only_hint: false,
-                destructive_hint: true,
-                idempotent_hint: false,
-                open_world_hint: false,
-            }),
-        );
+            })
+        ).annotate(ToolAnnotations {
+            title: Some("Work with Google Docs data using various operations.".to_string()),
+            read_only_hint: Some(false),
+            destructive_hint: Some(true),
+            idempotent_hint: Some(false),
+            open_world_hint: Some(false),
+        });
 
         let get_comments_tool = Tool::new(
             "get_comments".to_string(),
@@ -630,7 +620,7 @@ impl GoogleDriveRouter {
                 List comments for a file in google drive.
             "#}
             .to_string(),
-            json!({
+            object!({
               "type": "object",
               "properties": {
                 "fileId": {
@@ -640,14 +630,14 @@ impl GoogleDriveRouter {
               },
               "required": ["fileId"],
             }),
-            Some(ToolAnnotations {
-                title: Some("List file comments".to_string()),
-                read_only_hint: true,
-                destructive_hint: false,
-                idempotent_hint: false,
-                open_world_hint: false,
-            }),
-        );
+        )
+        .annotate(ToolAnnotations {
+            title: Some("List file comments".to_string()),
+            read_only_hint: Some(true),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(false),
+            open_world_hint: Some(false),
+        });
 
         let manage_comment_tool = Tool::new(
             "manage_comment".to_string(),
@@ -658,8 +648,8 @@ impl GoogleDriveRouter {
                 - create: Create a comment for the latest revision of a Google Drive file. The Google Drive API only supports unanchored comments (they don't refer to a specific location in the file).
                 - reply: Add a reply to a comment thread, or resolve a comment.
             "#}
-            .to_string(),
-            json!({
+                .to_string(),
+            object!({
               "type": "object",
               "properties": {
                 "fileId": {
@@ -685,15 +675,14 @@ impl GoogleDriveRouter {
                 }
               },
               "required": ["fileId", "operation", "content"],
-            }),
-            Some(ToolAnnotations {
-                title: Some("Manage file comment".to_string()),
-                read_only_hint: false,
-                destructive_hint: false,
-                idempotent_hint: false,
-                open_world_hint: false,
-            }),
-        );
+            })
+        ).annotate(ToolAnnotations {
+            title: Some("Manage file comment".to_string()),
+            read_only_hint: Some(false),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(false),
+            open_world_hint: Some(false),
+        });
 
         let list_drives_tool = Tool::new(
             "list_drives".to_string(),
@@ -701,7 +690,7 @@ impl GoogleDriveRouter {
                 List shared Google drives.
             "#}
             .to_string(),
-            json!({
+            object!({
               "type": "object",
               "properties": {
                 "name_contains": {
@@ -710,14 +699,14 @@ impl GoogleDriveRouter {
                 }
               },
             }),
-            Some(ToolAnnotations {
-                title: Some("List shared google drives".to_string()),
-                read_only_hint: true,
-                destructive_hint: false,
-                idempotent_hint: false,
-                open_world_hint: false,
-            }),
-        );
+        )
+        .annotate(ToolAnnotations {
+            title: Some("List shared google drives".to_string()),
+            read_only_hint: Some(true),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(false),
+            open_world_hint: Some(false),
+        });
 
         let get_permissions_tool = Tool::new(
             "get_permissions".to_string(),
@@ -725,7 +714,7 @@ impl GoogleDriveRouter {
                 List sharing permissions for a file, folder, or shared drive.
             "#}
             .to_string(),
-            json!({
+            object!({
               "type": "object",
               "properties": {
                 "fileId": {
@@ -735,14 +724,14 @@ impl GoogleDriveRouter {
               },
               "required": ["fileId"],
             }),
-            Some(ToolAnnotations {
-                title: Some("List sharing permissions".to_string()),
-                read_only_hint: true,
-                destructive_hint: false,
-                idempotent_hint: false,
-                open_world_hint: false,
-            }),
-        );
+        )
+        .annotate(ToolAnnotations {
+            title: Some("List sharing permissions".to_string()),
+            read_only_hint: Some(true),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(false),
+            open_world_hint: Some(false),
+        });
 
         let sharing_tool = Tool::new(
             "sharing".to_string(),
@@ -754,8 +743,8 @@ impl GoogleDriveRouter {
                 - update: Update an existing permission to a different role. (You cannot change the type or to whom it is targeted).
                 - delete: Delete an existing permission.
             "#}
-            .to_string(),
-            json!({
+                .to_string(),
+            object!({
               "type": "object",
               "properties": {
                 "fileId": {
@@ -791,15 +780,14 @@ impl GoogleDriveRouter {
                 },
               },
               "required": ["fileId", "operation"],
-            }),
-            Some(ToolAnnotations {
-                title: Some("Manage file sharing".to_string()),
-                read_only_hint: false,
-                destructive_hint: false,
-                idempotent_hint: false,
-                open_world_hint: false,
-            }),
-        );
+            })
+        ).annotate(ToolAnnotations {
+            title: Some("Manage file sharing".to_string()),
+            read_only_hint: Some(false),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(false),
+            open_world_hint: Some(false),
+        });
 
         let instructions = indoc::formatdoc! {r#"
             Google Drive MCP Server Instructions
@@ -1889,12 +1877,15 @@ impl GoogleDriveRouter {
             Ok(r) => {
                 r.1.files
                     .map(|files| {
-                        files.into_iter().map(|f| Resource {
-                            uri: f.id.unwrap_or_default(),
-                            mime_type: f.mime_type.unwrap_or_default(),
-                            name: f.name.unwrap_or_default(),
-                            description: None,
-                            annotations: None,
+                        files.into_iter().map(|f| {
+                            RawResource {
+                                uri: f.id.unwrap_or_default(),
+                                mime_type: f.mime_type,
+                                name: f.name.unwrap_or_default(),
+                                description: None,
+                                size: None,
+                            }
+                            .no_annotation()
                         })
                     })
                     .into_iter()

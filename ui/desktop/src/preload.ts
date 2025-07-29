@@ -1,9 +1,6 @@
 import Electron, { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { Recipe } from './recipe';
 
-// RecipeConfig is used for window creation and should match Recipe interface
-type RecipeConfig = Recipe;
-
 interface NotificationData {
   title: string;
   body: string;
@@ -55,7 +52,7 @@ type ElectronAPI = {
     dir?: string,
     version?: string,
     resumeSessionId?: string,
-    recipeConfig?: RecipeConfig,
+    recipe?: Recipe,
     viewType?: string
   ) => void;
   logInfo: (txt: string) => void;
@@ -65,7 +62,7 @@ type ElectronAPI = {
   fetchMetadata: (url: string) => Promise<string>;
   reloadApp: () => void;
   checkForOllama: () => Promise<boolean>;
-  selectFileOrDirectory: () => Promise<string | null>;
+  selectFileOrDirectory: (defaultPath?: string) => Promise<string | null>;
   startPowerSaveBlocker: () => Promise<number>;
   stopPowerSaveBlocker: () => Promise<void>;
   getBinaryPath: (binaryName: string) => Promise<string>;
@@ -108,6 +105,10 @@ type ElectronAPI = {
   restartApp: () => void;
   onUpdaterEvent: (callback: (event: UpdaterEvent) => void) => void;
   getUpdateState: () => Promise<{ updateAvailable: boolean; latestVersion?: string } | null>;
+  // Recipe warning functions
+  closeWindow: () => void;
+  hasAcceptedRecipeBefore: (recipeConfig: Recipe) => Promise<boolean>;
+  recordRecipeHash: (recipeConfig: Recipe) => Promise<boolean>;
 };
 
 type AppConfigAPI = {
@@ -139,18 +140,10 @@ const electronAPI: ElectronAPI = {
     dir?: string,
     version?: string,
     resumeSessionId?: string,
-    recipeConfig?: RecipeConfig,
+    recipe?: Recipe,
     viewType?: string
   ) =>
-    ipcRenderer.send(
-      'create-chat-window',
-      query,
-      dir,
-      version,
-      resumeSessionId,
-      recipeConfig,
-      viewType
-    ),
+    ipcRenderer.send('create-chat-window', query, dir, version, resumeSessionId, recipe, viewType),
   logInfo: (txt: string) => ipcRenderer.send('logInfo', txt),
   showNotification: (data: NotificationData) => ipcRenderer.send('notify', data),
   showMessageBox: (options: MessageBoxOptions) => ipcRenderer.invoke('show-message-box', options),
@@ -158,7 +151,8 @@ const electronAPI: ElectronAPI = {
   fetchMetadata: (url: string) => ipcRenderer.invoke('fetch-metadata', url),
   reloadApp: () => ipcRenderer.send('reload-app'),
   checkForOllama: () => ipcRenderer.invoke('check-ollama'),
-  selectFileOrDirectory: () => ipcRenderer.invoke('select-file-or-directory'),
+  selectFileOrDirectory: (defaultPath?: string) =>
+    ipcRenderer.invoke('select-file-or-directory', defaultPath),
   startPowerSaveBlocker: () => ipcRenderer.invoke('start-power-save-blocker'),
   stopPowerSaveBlocker: () => ipcRenderer.invoke('stop-power-save-blocker'),
   getBinaryPath: (binaryName: string) => ipcRenderer.invoke('get-binary-path', binaryName),
@@ -226,6 +220,11 @@ const electronAPI: ElectronAPI = {
   getUpdateState: (): Promise<{ updateAvailable: boolean; latestVersion?: string } | null> => {
     return ipcRenderer.invoke('get-update-state');
   },
+  closeWindow: () => ipcRenderer.send('close-window'),
+  hasAcceptedRecipeBefore: (recipeConfig: Recipe) =>
+    ipcRenderer.invoke('has-accepted-recipe-before', recipeConfig),
+  recordRecipeHash: (recipeConfig: Recipe) =>
+    ipcRenderer.invoke('record-recipe-hash', recipeConfig),
 };
 
 const appConfigAPI: AppConfigAPI = {

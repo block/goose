@@ -5,10 +5,9 @@
     "description": "Built-in developer tools for file editing and shell command execution",
     "command": "",
     "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/developer",
-    "installation_notes": "This is a built-in extension that comes with goose by default. No installation required.",
+    "installation_notes": "This is a built-in extension that comes with Goose by default. No installation required.",
     "is_builtin": true,
     "endorsed": true,
-    "githubStars": 356,
     "environmentVariables": []
   },
   {
@@ -17,10 +16,9 @@
     "description": "Built-in computer controls for webscraping, file caching, and automations",
     "command": "",
     "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/computercontroller",
-    "installation_notes": "This is a built-in extension that comes with goose and can be enabled in the Settings page under 'Extensions'.",
+    "installation_notes": "This is a built-in extension that comes with Goose and can be enabled on the Extensions page.",
     "is_builtin": true,
     "endorsed": true,
-    "githubStars": 356,
     "environmentVariables": []
   },
   {
@@ -29,10 +27,9 @@
     "description": "Built-in memory system for persistent context and information storage",
     "command": "",
     "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/memory",
-    "installation_notes": "This is a built-in extension that comes with goose and can be enabled in the Settings page under 'Extensions'.",
+    "installation_notes": "This is a built-in extension that comes with Goose and can be enabled on the Extensions page.",
     "is_builtin": true,
     "endorsed": true,
-    "githubStars": 356,
     "environmentVariables": []
   },
   {
@@ -41,10 +38,9 @@
     "description": "Built-in JetBrains IDE integration for development workflows",
     "command": "",
     "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/jetbrains",
-    "installation_notes": "This is a built-in extension that comes with goose and can be enabled in the Settings page under 'Extensions'.",
+    "installation_notes": "This is a built-in extension that comes with Goose and can be enabled on the Extensions page.",
     "is_builtin": true,
     "endorsed": true,
-    "githubStars": 356,
     "environmentVariables": []
   },
   {
@@ -56,7 +52,6 @@
     "installation_notes": "Install using npx package manager. Note: Default memory graph location may be hard to find where npx installs the module.",
     "is_builtin": false,
     "endorsed": true,
-    "githubStars": 7271,
     "environmentVariables": []
   },
   {
@@ -68,19 +63,6 @@
     "installation_notes": "Install using uvx package manager. Note: Some sites may block access via robots.txt.",
     "is_builtin": false,
     "endorsed": true,
-    "githubStars": 7271,
-    "environmentVariables": []
-  },
-  {
-    "id": "git",
-    "name": "Git",
-    "description": "Git version control system integration",
-    "command": "uvx mcp-server-git",
-    "link": "https://github.com/modelcontextprotocol/servers/tree/main/src/git",
-    "installation_notes": "Install using npx package manager. Note: Does not support git push, merge or rebase operations.",
-    "is_builtin": false,
-    "endorsed": true,
-    "githubStars": 7271,
     "environmentVariables": []
   },
   {
@@ -92,7 +74,6 @@
     "installation_notes": "Install using uvx package manager. Requires Tavily API key.",
     "is_builtin": false,
     "endorsed": true,
-    "githubStars": 4,
     "environmentVariables": [
       {
         "name": "TAVILY_API_KEY",
@@ -106,11 +87,10 @@
     "name": "Figma",
     "description": "Figma design tool integration",
     "command": "npx -y @hapins/figma-mcp",
-    "link": "https://www.npmjs.com/package/@hapins/figma-mcp",
+    "link": "https://github.com/hapins/figma-mcp",
     "installation_notes": "Install using npx package manager. Requires Figma access token from user settings.",
     "is_builtin": false,
-    "endorsed": true,
-    "githubStars": 0,
+    "endorsed": false,
     "environmentVariables": [
       {
         "name": "FIGMA_ACCESS_TOKEN",
@@ -128,7 +108,6 @@
     "installation_notes": "Install using uvx package manager.",
     "is_builtin": false,
     "endorsed": true,
-    "githubStars": 1,
     "environmentVariables": []
   },
   {
@@ -139,8 +118,7 @@
     "link": "https://github.com/block/vscode-mcp",
     "installation_notes": "Install using npx package manager.",
     "is_builtin": false,
-    "endorsed": false,
-    "githubStars": 27,
+    "endorsed": true,
     "environmentVariables": []
   },
   {
@@ -152,19 +130,19 @@
     "installation_notes": "Install using uvx package manager. Requires PortAudio to be installed on your system for PyAudio to capture audio from your microphone.",
     "is_builtin": false,
     "endorsed": true,
-    "githubStars": 43,
     "environmentVariables": []
   },
   {
     "id": "pieces",
     "name": "Pieces",
-    "description": "Provides access to your Pieces Long-Term Memory. You need to have Pieces installed to use this.",
+    "description": "Provides access to your Pieces long-term memory. You need to have Pieces installed to use this.",
     "url": "http://localhost:39300/model_context_protocol/2024-11-05/sse",
     "link": "https://pieces.app?utm_source=goose&utm_medium=collab&utm_campaign=mcp",
     "installation_notes": "You need to install Pieces first, and have this running.",
     "is_builtin": false,
-    "endorsed": false,
-    "environmentVariables": []
+    "endorsed": true,
+    "environmentVariables": [],
+    "type": "remote"
   },
   {
     "id": "playwright",
@@ -175,7 +153,424 @@
     "installation_notes": "Install using npx package manager.",
     "is_builtin": false,
     "endorsed": true,
-    "githubStars": 12309,
+    "environmentVariables": []
+  },
+  {
+    "id": "agentql-mcp",
+    "name": "AgentQL",
+    "description": "Transform unstructured web content into structured data",
+    "command": "npx -y agentql-mcp",
+    "link": "https://github.com/tinyfish-io/agentql-mcp",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [
+      {
+        "name": "AGENTQL_API_KEY",
+        "description": "Required environment variable",
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": "alby-mcp",
+    "name": "Alby",
+    "description": "Bitcoin Lightning Network integration",
+    "command": "npx -y @getalby/alby-mcp-server",
+    "link": "https://github.com/getalby/mcp",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [
+      {
+        "name": "ALBY_API_TOKEN",
+        "description": "Required environment variable",
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": "asana-mcp",
+    "name": "Asana",
+    "description": "Task automation, project tracking, and team collaboration",
+    "command": "npx -y @roychri/mcp-server-asana",
+    "link": "https://github.com/roychri/mcp-server-asana",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [
+      {
+        "name": "ASANA_ACCESS_TOKEN",
+        "description": "Required environment variable",
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": "blender-mcp",
+    "name": "Blender",
+    "description": "3D modeling and animation integration",
+    "command": "npx -y blender-mcp",
+    "link": "https://github.com/ahujasid/blender-mcp",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
+    "id": "brave-mcp",
+    "name": "Brave Search",
+    "description": "Web search capabilities powered by Brave",
+    "command": "npx -y @brave/brave-search-mcp",
+    "link": "https://github.com/brave/brave-search-mcp",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": [
+      {
+        "name": "BRAVE_API_KEY",
+        "description": "Required environment variable",
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": "browserbase-mcp",
+    "name": "Browserbase",
+    "description": "Browser automation and web scraping",
+    "command": "npx -y @browserbasehq/mcp-server-browserbase",
+    "link": "https://github.com/browserbase/mcp-server-browserbase",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": [
+      {
+        "name": "BROWSERBASE_API_KEY",
+        "description": "Required environment variable",
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": "cloudflare-mcp",
+    "name": "Cloudflare",
+    "description": "Cloudflare API integration for DNS and domain management",
+    "command": "npx -y @cloudflare/mcp-server-cloudflare",
+    "link": "https://github.com/cloudflare/mcp-server-cloudflare",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": [
+      {
+        "name": "CLOUDFLARE_API_TOKEN",
+        "description": "Required environment variable",
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": "cloudinary-asset-management-mcp",
+    "name": "Cloudinary Asset Management",
+    "description": "Cloud-based image and video management",
+    "command": "npx -y cloudinary-asset-management-mcp",
+    "link": "https://github.com/cloudinary/asset-management-js",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": [
+      {
+        "name": "CLOUDINARY_CLOUD_NAME",
+        "description": "Required environment variable",
+        "required": true
+      },
+      {
+        "name": "CLOUDINARY_API_KEY",
+        "description": "Required environment variable",
+        "required": true
+      },
+      {
+        "name": "CLOUDINARY_API_SECRET",
+        "description": "Required environment variable",
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": "cognee-mcp",
+    "name": "Cognee",
+    "description": "Knowledge graph and cognitive AI capabilities",
+    "command": "uvx cognee-mcp",
+    "link": "https://github.com/topoteretes/cognee",
+    "installation_notes": "Install using uvx package manager.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
+    "id": "context7",
+    "name": "Context7",
+    "description": "Use up-to-date code and docs",
+    "command": "npx -y @upstash/context7-mcp",
+    "link": "https://github.com/upstash/context7",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": []
+  },
+  {
+    "id": "elevenlabs-mcp",
+    "name": "ElevenLabs",
+    "description": "Text-to-speech and voice synthesis",
+    "command": "npx -y elevenlabs-mcp",
+    "link": "https://github.com/elevenlabs/elevenlabs-mcp",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": [
+      {
+        "name": "ELEVENLABS_API_KEY",
+        "description": "Required environment variable",
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": "filesystem-mcp",
+    "name": "Filesystem",
+    "description": "File system operations and management",
+    "command": "uvx mcp-server-filesystem",
+    "link": "https://github.com/modelcontextprotocol/servers",
+    "installation_notes": "Install using uvx package manager.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": []
+  },
+  {
+    "id": "github-mcp",
+    "name": "GitHub",
+    "description": "GitHub repository management and operations",
+    "url": "https://api.githubcopilot.com/mcp/",
+    "link": "https://github.com/github/github-mcp-server",
+    "installation_notes": "This is a remote extension. Configure using the endpoint URL in Goose settings.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": [
+      {
+        "name": "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "description": "Required environment variable",
+        "required": true
+      }
+    ],
+    "type": "streamable-http"
+  },
+  {
+    "id": "google-drive-mcp",
+    "name": "Google Drive",
+    "description": "Google Drive file management and operations",
+    "command": "npx -y @google/drive-mcp",
+    "link": "https://github.com/google/drive-mcp",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": [
+      {
+        "name": "GOOGLE_DRIVE_CREDENTIALS",
+        "description": "Required environment variable",
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": "google-maps-mcp",
+    "name": "Google Maps",
+    "description": "Maps, geocoding, and location services",
+    "command": "npx -y @google/maps-mcp",
+    "link": "https://github.com/google/maps-mcp",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": [
+      {
+        "name": "GOOGLE_MAPS_API_KEY",
+        "description": "Required environment variable",
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": "mbot-mcp",
+    "name": "MBot",
+    "description": "Chatbot and conversational AI integration",
+    "command": "npx -y mbot-mcp",
+    "link": "https://github.com/deemkeen/mbotmcp",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
+    "id": "mongodb",
+    "name": "MongoDB",
+    "description": "MongoDB database integration",
+    "command": "npx -y mongodb-mcp-server --connection-string mongodb://localhost:27017",
+    "link": "https://github.com/mongodb-js/mongodb-mcp-server",
+    "installation_notes": "Install using npx package manager. Update connection-string as needed to match your MongoDB environment.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": []
+  },
+  {
+    "id": "netlify-mcp",
+    "name": "Netlify",
+    "description": "Web deployment and hosting automation",
+    "command": "npx -y netlify-mcp",
+    "link": "https://github.com/netlify/netlify-mcp",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [
+      {
+        "name": "NETLIFY_ACCESS_TOKEN",
+        "description": "Required environment variable",
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": "nostrbook-mcp",
+    "name": "NostrBook",
+    "description": "Nostr protocol integration for decentralized social",
+    "command": "npx -y nostrbook-mcp",
+    "link": "https://github.com/nostrbook/nostrbook-mcp",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
+    "id": "postgres-mcp",
+    "name": "PostgreSQL",
+    "description": "PostgreSQL database integration",
+    "command": "uvx mcp-server-postgres",
+    "link": "https://github.com/modelcontextprotocol/servers",
+    "installation_notes": "Install using uvx package manager.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [
+      {
+        "name": "POSTGRES_CONNECTION_STRING",
+        "description": "Required environment variable",
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": "puppeteer-mcp",
+    "name": "Puppeteer",
+    "description": "Browser automation and web scraping",
+    "command": "npx -y @puppeteer/mcp-server",
+    "link": "https://github.com/puppeteer/mcp-server",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
+    "id": "reddit-mcp",
+    "name": "Reddit",
+    "description": "Reddit API integration for posts and comments",
+    "command": "npx -y reddit-mcp",
+    "link": "https://github.com/adhikasp/mcp-reddit",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [
+      {
+        "name": "REDDIT_CLIENT_ID",
+        "description": "Required environment variable",
+        "required": true
+      },
+      {
+        "name": "REDDIT_CLIENT_SECRET",
+        "description": "Required environment variable",
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": "repomix-mcp",
+    "name": "Repomix",
+    "description": "Repository analysis and code organization",
+    "command": "npx -y repomix-mcp",
+    "link": "https://github.com/yamadashy/repomix",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
+    "id": "selenium-mcp",
+    "name": "Selenium",
+    "description": "Web browser automation and testing",
+    "command": "npx -y selenium-mcp",
+    "link": "https://github.com/angiejones/mcp-selenium",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
+    "id": "square-mcp",
+    "name": "Square",
+    "description": "Square API for payments and business management",
+    "command": "npx square-mcp-server start",
+    "link": "https://github.com/square/square-mcp-server",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [
+      {
+        "name": "ACCESS_TOKEN",
+        "description": "Required environment variable",
+        "required": true
+      },
+      {
+        "name": "SANDBOX",
+        "description": "Required environment variable",
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": "tutorial-mcp",
+    "name": "Tutorial",
+    "description": "Built-in tutorial and learning management system",
+    "command": "",
+    "link": "https://github.com/tutorial/tutorial-mcp",
+    "installation_notes": "This is a built-in extension that comes with Goose and can be enabled on the Extensions page.",
+    "is_builtin": true,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
+    "id": "youtube-transcript-mcp",
+    "name": "YouTube Transcript",
+    "description": "YouTube video transcript extraction",
+    "command": "uvx --from git+https://github.com/jkawamoto/mcp-youtube-transcript mcp-youtube-transcript",
+    "link": "https://github.com/jkawamoto/mcp-youtube-transcript",
+    "installation_notes": "Install using uv package manager.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
+    "id": "goose-docs",
+    "name": "Goose Docs",
+    "description": "GitMCP for Goose documentation",
+    "command": "npx mcp-remote https://block.gitmcp.io/goose/",
+    "link": "https://github.com/idosal/git-mcp",
+    "is_builtin": false,
+    "endorsed": false,
     "environmentVariables": []
   }
 ]

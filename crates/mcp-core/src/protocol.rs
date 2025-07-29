@@ -1,11 +1,6 @@
 /// The protocol messages exchanged between client and server
-use crate::{
-    prompt::{Prompt, PromptMessage},
-    resource::Resource,
-    resource::ResourceContents,
-    tool::Tool,
-};
-use rmcp::model::Content;
+use rmcp::model::Tool;
+use rmcp::model::{Content, ErrorData, Prompt, PromptMessage, Resource, ResourceContents};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -131,21 +126,6 @@ pub const INVALID_REQUEST: i32 = -32600;
 pub const METHOD_NOT_FOUND: i32 = -32601;
 pub const INVALID_PARAMS: i32 = -32602;
 pub const INTERNAL_ERROR: i32 = -32603;
-
-/// Error information for JSON-RPC error responses.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct ErrorData {
-    /// The error type that occurred.
-    pub code: i32,
-
-    /// A short description of the error. The message SHOULD be limited to a concise single sentence.
-    pub message: String,
-
-    /// Additional information about the error. The value of this member is defined by the
-    /// sender (e.g. detailed error information, nested errors etc.).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub data: Option<Value>,
-}
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]

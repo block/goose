@@ -4,8 +4,9 @@ use std::sync::Arc;
 use async_stream::try_stream;
 use futures::stream::{self, BoxStream};
 use futures::{Stream, StreamExt};
-use mcp_core::protocol::JsonRpcMessage;
+use rmcp::model::ServerNotification;
 use tokio::sync::Mutex;
+use tokio_util::sync::CancellationToken;
 
 use crate::config::permission::PermissionLevel;
 use crate::config::PermissionManager;
@@ -18,7 +19,7 @@ use rmcp::model::Content;
 // can be used to receive notifications from the tool.
 pub struct ToolCallResult {
     pub result: Box<dyn Future<Output = ToolResult<Vec<Content>>> + Send + Unpin>,
-    pub notification_stream: Option<Box<dyn Stream<Item = JsonRpcMessage> + Send + Unpin>>,
+    pub notification_stream: Option<Box<dyn Stream<Item = ServerNotification> + Send + Unpin>>,
 }
 
 impl From<ToolResult<Vec<Content>>> for ToolCallResult {
@@ -53,6 +54,7 @@ impl Agent {
         tool_futures: Arc<Mutex<Vec<(String, ToolStream)>>>,
         permission_manager: &'a mut PermissionManager,
         message_tool_response: Arc<Mutex<Message>>,
+        cancellation_token: Option<CancellationToken>,
     ) -> BoxStream<'a, anyhow::Result<Message>> {
         try_stream! {
             for request in tool_requests {
@@ -69,7 +71,7 @@ impl Agent {
                     while let Some((req_id, confirmation)) = rx.recv().await {
                         if req_id == request.id {
                             if confirmation.permission == Permission::AllowOnce || confirmation.permission == Permission::AlwaysAllow {
-                                let (req_id, tool_result) = self.dispatch_tool_call(tool_call.clone(), request.id.clone()).await;
+                                let (req_id, tool_result) = self.dispatch_tool_call(tool_call.clone(), request.id.clone(), cancellation_token.clone()).await;
                                 let mut futures = tool_futures.lock().await;
 
                                 futures.push((req_id, match tool_result {

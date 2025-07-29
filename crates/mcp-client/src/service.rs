@@ -1,12 +1,12 @@
 use futures::future::BoxFuture;
-use mcp_core::protocol::{JsonRpcMessage, JsonRpcRequest};
+use rmcp::model::{JsonRpcMessage, JsonRpcRequest};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use tokio::sync::{oneshot, RwLock};
 use tower::{timeout::Timeout, Service, ServiceBuilder};
 
-use crate::transport::{Error, TransportHandle};
+use crate::transport::{Error, TransportHandle, TransportMessageRecv};
 
 /// A wrapper service that implements Tower's Service trait for MCP transport
 #[derive(Clone)]
@@ -23,7 +23,7 @@ impl<T: TransportHandle> McpService<T> {
         }
     }
 
-    pub async fn respond(&self, id: &str, response: Result<JsonRpcMessage, Error>) {
+    pub async fn respond(&self, id: &str, response: Result<TransportMessageRecv, Error>) {
         self.pending_requests.respond(id, response).await
     }
 
@@ -36,7 +36,7 @@ impl<T> Service<JsonRpcMessage> for McpService<T>
 where
     T: TransportHandle + Send + Sync + 'static,
 {
-    type Response = JsonRpcMessage;
+    type Response = TransportMessageRecv;
     type Error = Error;
     type Future = BoxFuture<'static, Result<Self::Response, Self::Error>>;
 
@@ -50,8 +50,8 @@ where
         let pending_requests = self.pending_requests.clone();
 
         Box::pin(async move {
-            match request {
-                JsonRpcMessage::Request(JsonRpcRequest { id: Some(id), .. }) => {
+            match &request {
+                JsonRpcMessage::Request(JsonRpcRequest { id, .. }) => {
                     // Create a channel to receive the response
                     let (sender, receiver) = oneshot::channel();
                     pending_requests.insert(id.to_string(), sender).await;
@@ -59,15 +59,17 @@ where
                     transport.send(request).await?;
                     receiver.await.map_err(|_| Error::ChannelClosed)?
                 }
-                JsonRpcMessage::Request(_) => {
-                    // Handle notifications without waiting for a response
-                    transport.send(request).await?;
-                    Ok(JsonRpcMessage::Nil)
-                }
                 JsonRpcMessage::Notification(_) => {
                     // Handle notifications without waiting for a response
                     transport.send(request).await?;
-                    Ok(JsonRpcMessage::Nil)
+                    // Return a dummy response for notifications
+                    let dummy_response: Self::Response =
+                        JsonRpcMessage::Response(rmcp::model::JsonRpcResponse {
+                            jsonrpc: rmcp::model::JsonRpcVersion2_0,
+                            id: rmcp::model::RequestId::Number(0),
+                            result: serde_json::Map::new(),
+                        });
+                    Ok(dummy_response)
                 }
                 _ => Err(Error::UnsupportedMessage),
             }
@@ -89,7 +91,7 @@ where
 
 // A data structure to store pending requests and their response channels
 pub struct PendingRequests {
-    requests: RwLock<HashMap<String, oneshot::Sender<Result<JsonRpcMessage, Error>>>>,
+    requests: RwLock<HashMap<String, oneshot::Sender<Result<TransportMessageRecv, Error>>>>,
 }
 
 impl Default for PendingRequests {
@@ -105,11 +107,15 @@ impl PendingRequests {
         }
     }
 
-    pub async fn insert(&self, id: String, sender: oneshot::Sender<Result<JsonRpcMessage, Error>>) {
+    pub async fn insert(
+        &self,
+        id: String,
+        sender: oneshot::Sender<Result<TransportMessageRecv, Error>>,
+    ) {
         self.requests.write().await.insert(id, sender);
     }
 
-    pub async fn respond(&self, id: &str, response: Result<JsonRpcMessage, Error>) {
+    pub async fn respond(&self, id: &str, response: Result<TransportMessageRecv, Error>) {
         if let Some(tx) = self.requests.write().await.remove(id) {
             let _ = tx.send(response);
         }

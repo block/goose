@@ -3,7 +3,7 @@ import { createServer } from 'net';
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
-import { getBinaryPath } from './utils/binaryPath';
+import { getBinaryPath } from './utils/pathUtils';
 import log from './utils/logger';
 import { App } from 'electron';
 import { Buffer } from 'node:buffer';
@@ -59,8 +59,30 @@ const checkServerStatus = async (
   return false;
 };
 
+const connectToExternalBackend = async (
+  workingDir: string,
+  port: number = 3000
+): Promise<[number, string, ChildProcess]> => {
+  log.info(`Using external goosed backend on port ${port}`);
+
+  const isReady = await checkServerStatus(port);
+  if (!isReady) {
+    throw new Error(`External goosed server not accessible on port ${port}`);
+  }
+
+  const mockProcess = {
+    pid: undefined,
+    kill: () => {
+      log.info(`Not killing external process that is managed externally`);
+    },
+  } as ChildProcess;
+
+  return [port, workingDir, mockProcess];
+};
+
 interface GooseProcessEnv {
   [key: string]: string | undefined;
+
   HOME: string;
   USERPROFILE: string;
   APPDATA: string;
@@ -75,17 +97,18 @@ export const startGoosed = async (
   dir: string | null = null,
   env: Partial<GooseProcessEnv> = {}
 ): Promise<[number, string, ChildProcess]> => {
-  // we default to running goosed in home dir - if not specified
   const homeDir = os.homedir();
   const isWindows = process.platform === 'win32';
 
-  // Ensure dir is properly normalized for the platform and validate it
   if (!dir) {
     dir = homeDir;
   }
 
-  // Sanitize and validate the directory path
   dir = path.resolve(path.normalize(dir));
+
+  if (process.env.GOOSE_EXTERNAL_BACKEND) {
+    return connectToExternalBackend(dir, 3000);
+  }
 
   // Validate that the directory actually exists and is a directory
   try {

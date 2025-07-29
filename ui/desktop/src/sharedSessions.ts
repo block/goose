@@ -1,4 +1,5 @@
 import { Message } from './types/message';
+import { safeJsonParse } from './utils/jsonUtils';
 
 export interface SharedSessionDetails {
   share_token: string;
@@ -35,7 +36,10 @@ export async function fetchSharedSessionDetails(
       throw new Error(`Failed to fetch shared session: ${response.status} ${response.statusText}`);
     }
 
-    const data = await response.json();
+    const data = await safeJsonParse<SharedSessionDetails>(
+      response,
+      'Failed to parse shared session'
+    );
 
     if (baseUrl != data.base_url) {
       throw new Error(`Base URL mismatch for shared session: ${baseUrl} != ${data.base_url}`);
@@ -98,7 +102,10 @@ export async function createSharedSession(
       throw new Error(`Failed to create shared session: ${response.status} ${response.statusText}`);
     }
 
-    const data = await response.json();
+    const data = await safeJsonParse<{ share_token: string }>(
+      response,
+      'Failed to parse shared session response'
+    );
     return data.share_token;
   } catch (error) {
     console.error('Error creating shared session:', error);

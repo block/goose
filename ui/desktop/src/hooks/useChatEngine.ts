@@ -14,7 +14,7 @@ import {
   getTextContent,
   TextContent,
 } from '../types/message';
-import { ChatType } from '../components/hub';
+import { ChatType } from '../types/chat';
 
 // Helper function to determine if a message is a user message
 const isUserMessage = (message: Message): boolean => {
@@ -67,7 +67,7 @@ export const useChatEngine = ({
     messages,
     append: originalAppend,
     stop,
-    isLoading,
+    chatState,
     error,
     setMessages,
     input: _input,
@@ -77,6 +77,7 @@ export const useChatEngine = ({
     updateMessageStreamBody,
     notifications,
     sessionMetadata,
+    setError,
   } = useMessageStream({
     api: getApiUrl('/reply'),
     id: chat.id,
@@ -368,7 +369,7 @@ export const useChatEngine = ({
     // Message stream controls
     append,
     stop,
-    isLoading,
+    chatState,
     error,
     setMessages,
 
@@ -398,5 +399,8 @@ export const useChatEngine = ({
 
     // Utilities
     isUserMessage,
+
+    // Error management
+    clearError: () => setError(undefined),
   };
 };

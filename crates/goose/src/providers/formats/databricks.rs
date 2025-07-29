@@ -1,14 +1,12 @@
 use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::utils::{
-    convert_image, detect_image_path, is_valid_function_name, load_image_file,
+    convert_image, detect_image_path, is_valid_function_name, load_image_file, safely_parse_json,
     sanitize_function_name, ImageFormat,
 };
 use anyhow::{anyhow, Error};
-use mcp_core::ToolError;
-use mcp_core::{Tool, ToolCall};
-use rmcp::model::Role;
-use rmcp::model::{AnnotateAble, Content, RawContent, ResourceContents};
+use mcp_core::{ToolCall, ToolError};
+use rmcp::model::{AnnotateAble, Content, RawContent, ResourceContents, Role, Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -268,8 +266,8 @@ pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
 }
 
 /// Convert Databricks' API response to internal Message format
-pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
-    let original = response["choices"][0]["message"].clone();
+pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
+    let original = &response["choices"][0]["message"];
     let mut content = Vec::new();
 
     // Handle array-based content
@@ -326,14 +324,19 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
                     .as_str()
                     .unwrap_or_default()
                     .to_string();
-                let mut arguments = tool_call["function"]["arguments"]
+
+                // Get the raw arguments string from the LLM.
+                let arguments_str = tool_call["function"]["arguments"]
                     .as_str()
                     .unwrap_or_default()
                     .to_string();
-                // If arguments is empty, we will have invalid json parsing error later.
-                if arguments.is_empty() {
-                    arguments = "{}".to_string();
-                }
+
+                // If arguments_str is empty, default to an empty JSON object string.
+                let arguments_str = if arguments_str.is_empty() {
+                    "{}".to_string()
+                } else {
+                    arguments_str
+                };
 
                 if !is_valid_function_name(&function_name) {
                     let error = ToolError::NotFound(format!(
@@ -342,7 +345,7 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
                     ));
                     content.push(MessageContent::tool_request(id, Err(error)));
                 } else {
-                    match serde_json::from_str::<Value>(&arguments) {
+                    match safely_parse_json(&arguments_str) {
                         Ok(params) => {
                             content.push(MessageContent::tool_request(
                                 id,
@@ -351,8 +354,8 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
                         }
                         Err(e) => {
                             let error = ToolError::InvalidParameters(format!(
-                                "Could not interpret tool use parameters for id {}: {}",
-                                id, e
+                                "Could not interpret tool use parameters for id {}: {}. Raw arguments: '{}'",
+                                id, e, arguments_str
                             ));
                             content.push(MessageContent::tool_request(id, Err(error)));
                         }
@@ -589,6 +592,7 @@ pub fn create_request(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rmcp::object;
     use serde_json::json;
 
     #[test]
@@ -703,7 +707,7 @@ mod tests {
         let tool = Tool::new(
             "test_tool",
             "A test tool",
-            json!({
+            object!({
                 "type": "object",
                 "properties": {
                     "input": {
@@ -713,7 +717,6 @@ mod tests {
                 },
                 "required": ["input"]
             }),
-            None,
         );
 
         let spec = format_tools(&[tool])?;
@@ -737,7 +740,7 @@ mod tests {
 
         // Get the ID from the tool request to use in the response
         let tool_id = if let MessageContent::ToolRequest(request) = &messages[2].content[0] {
-            request.id.clone()
+            &request.id
         } else {
             panic!("should be tool request");
         };
@@ -770,7 +773,7 @@ mod tests {
 
         // Get the ID from the tool request to use in the response
         let tool_id = if let MessageContent::ToolRequest(request) = &messages[0].content[0] {
-            request.id.clone()
+            &request.id
         } else {
             panic!("should be tool request");
         };
@@ -795,7 +798,7 @@ mod tests {
         let tool1 = Tool::new(
             "test_tool",
             "Test tool",
-            json!({
+            object!({
                 "type": "object",
                 "properties": {
                     "input": {
@@ -805,13 +808,12 @@ mod tests {
                 },
                 "required": ["input"]
             }),
-            None,
         );
 
         let tool2 = Tool::new(
             "test_tool",
             "Test tool",
-            json!({
+            object!({
                 "type": "object",
                 "properties": {
                     "input": {
@@ -821,7 +823,6 @@ mod tests {
                 },
                 "required": ["input"]
             }),
-            None,
         );
 
         let result = format_tools(&[tool1, tool2]);
@@ -891,7 +892,7 @@ mod tests {
             }
         });
 
-        let message = response_to_message(response)?;
+        let message = response_to_message(&response)?;
         assert_eq!(message.content.len(), 1);
         if let MessageContent::Text(text) = &message.content[0] {
             assert_eq!(text.text, "Hello from John Cena!");
@@ -906,7 +907,7 @@ mod tests {
     #[test]
     fn test_response_to_message_valid_toolrequest() -> anyhow::Result<()> {
         let response: Value = serde_json::from_str(OPENAI_TOOL_USE_RESPONSE)?;
-        let message = response_to_message(response)?;
+        let message = response_to_message(&response)?;
 
         assert_eq!(message.content.len(), 1);
         if let MessageContent::ToolRequest(request) = &message.content[0] {
@@ -926,7 +927,7 @@ mod tests {
         response["choices"][0]["message"]["tool_calls"][0]["function"]["name"] =
             json!("invalid fn");
 
-        let message = response_to_message(response)?;
+        let message = response_to_message(&response)?;
 
         if let MessageContent::ToolRequest(request) = &message.content[0] {
             match &request.tool_call {
@@ -948,7 +949,7 @@ mod tests {
         response["choices"][0]["message"]["tool_calls"][0]["function"]["arguments"] =
             json!("invalid json {");
 
-        let message = response_to_message(response)?;
+        let message = response_to_message(&response)?;
 
         if let MessageContent::ToolRequest(request) = &message.content[0] {
             match &request.tool_call {
@@ -970,7 +971,7 @@ mod tests {
         response["choices"][0]["message"]["tool_calls"][0]["function"]["arguments"] =
             serde_json::Value::String("".to_string());
 
-        let message = response_to_message(response)?;
+        let message = response_to_message(&response)?;
 
         if let MessageContent::ToolRequest(request) = &message.content[0] {
             let tool_call = request.tool_call.as_ref().unwrap();
@@ -1107,7 +1108,7 @@ mod tests {
             }]
         });
 
-        let message = response_to_message(response)?;
+        let message = response_to_message(&response)?;
         assert_eq!(message.content.len(), 2);
 
         if let MessageContent::Thinking(thinking) = &message.content[0] {
@@ -1154,7 +1155,7 @@ mod tests {
             }]
         });
 
-        let message = response_to_message(response)?;
+        let message = response_to_message(&response)?;
         assert_eq!(message.content.len(), 2);
 
         if let MessageContent::RedactedThinking(redacted) = &message.content[0] {

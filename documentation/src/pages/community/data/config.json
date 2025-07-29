@@ -9,7 +9,12 @@
       "id": "may-2025",
       "display": "May 2025",
       "file": "may-2025.json"
+    },
+    {
+      "id": "june-2025",
+      "display": "June 2025",
+      "file": "june-2025.json"
     }
   ],
-  "defaultMonth": "may-2025"
+  "defaultMonth": "june-2025"
 }

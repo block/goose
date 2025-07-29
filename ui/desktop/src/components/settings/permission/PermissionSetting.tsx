@@ -62,8 +62,8 @@ export default function PermissionSettingsView({ onClose }: { onClose: () => voi
       if (a.type !== 'builtin' && b.type === 'builtin') return 1;
 
       // Then sort by bundled (handle null/undefined cases)
-      const aBundled = a.bundled === true;
-      const bBundled = b.bundled === true;
+      const aBundled = 'bundled' in a && a.bundled === true;
+      const bBundled = 'bundled' in b && b.bundled === true;
       if (aBundled && !bBundled) return -1;
       if (!aBundled && bBundled) return 1;
 

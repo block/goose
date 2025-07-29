@@ -6,9 +6,21 @@ sidebar_label: Using Goosehints
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-
+import { FolderKey } from 'lucide-react';
 
 `.goosehints` is a text file used to provide additional context about your project and improve the communication with Goose. The use of `goosehints` ensures that Goose understands your requirements better and can execute tasks more effectively.
+
+<details>
+  <summary>Goose Hints Video Walkthrough</summary>
+  <iframe
+  class="aspect-ratio"
+  src="https://www.youtube.com/embed/kWXJC5p0608"
+  title="Goose Hints"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+  ></iframe>
+</details>
 
 :::info Developer extension required
 To make use of the hints file, you need to have the `Developer` extension [enabled](/docs/getting-started/using-extensions).
@@ -36,7 +48,7 @@ You can use both global and local hints at the same time. When both exist, Goose
      #### Local hints file
 
     1. Change the directory to where you'd like to set up the file. You can do this by clicking the directory path on the bottom of the Goose window.
-    2. Click the `Configure goosehints` icon on the bottom right of the Goose window.
+    2. Click the <FolderKey size={16} /> icon on the bottom right of the Goose window.
     4. Enter your local tips into the text area.
     5. Click `Save`.
     6. Restart your session so Goose can read the updated `.goosehints`.

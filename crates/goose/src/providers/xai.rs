@@ -6,8 +6,8 @@ use crate::providers::formats::openai::{create_request, get_usage, response_to_m
 use crate::providers::utils::get_model;
 use anyhow::Result;
 use async_trait::async_trait;
-use mcp_core::Tool;
 use reqwest::{Client, StatusCode};
+use rmcp::model::Tool;
 use serde_json::Value;
 use std::time::Duration;
 use url::Url;
@@ -72,7 +72,7 @@ impl XaiProvider {
         })
     }
 
-    async fn post(&self, payload: Value) -> anyhow::Result<Value, ProviderError> {
+    async fn post(&self, payload: &Value) -> anyhow::Result<Value, ProviderError> {
         // Ensure the host ends with a slash for proper URL joining
         let host = if self.host.ends_with('/') {
             self.host.clone()
@@ -163,9 +163,9 @@ impl Provider for XaiProvider {
             &super::utils::ImageFormat::OpenAi,
         )?;
 
-        let response = self.post(payload.clone()).await?;
+        let response = self.post(&payload).await?;
 
-        let message = response_to_message(response.clone())?;
+        let message = response_to_message(&response)?;
         let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
             tracing::debug!("Failed to get usage data");
             Usage::default()

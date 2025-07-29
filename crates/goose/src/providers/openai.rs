@@ -22,7 +22,7 @@ use crate::model::ModelConfig;
 use crate::providers::base::MessageStream;
 use crate::providers::formats::openai::response_to_streaming_message;
 use crate::providers::utils::handle_status_openai_compat;
-use mcp_core::tool::Tool;
+use rmcp::model::Tool;
 
 pub const OPEN_AI_DEFAULT_MODEL: &str = "gpt-4o";
 pub const OPEN_AI_KNOWN_MODELS: &[&str] = &[
@@ -113,7 +113,7 @@ impl OpenAiProvider {
         request
     }
 
-    async fn post(&self, payload: Value) -> Result<Response, ProviderError> {
+    async fn post(&self, payload: &Value) -> Result<Response, ProviderError> {
         let base_url = url::Url::parse(&self.host)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
         let url = base_url.join(&self.base_path).map_err(|e| {
@@ -178,10 +178,10 @@ impl Provider for OpenAiProvider {
         let payload = create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi)?;
 
         // Make request
-        let response = handle_response_openai_compat(self.post(payload.clone()).await?).await?;
+        let response = handle_response_openai_compat(self.post(&payload).await?).await?;
 
         // Parse response
-        let message = response_to_message(response.clone())?;
+        let message = response_to_message(&response)?;
         let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
             tracing::debug!("Failed to get usage data");
             Usage::default()
@@ -197,7 +197,7 @@ impl Provider for OpenAiProvider {
         let base_url =
             url::Url::parse(&self.host).map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
         let url = base_url
-            .join("v1/models")
+            .join(&self.base_path.replace("v1/chat/completions", "v1/models"))
             .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
         let mut request = self.client.get(url).bearer_auth(&self.api_key);
         if let Some(org) = &self.organization {
@@ -258,7 +258,7 @@ impl Provider for OpenAiProvider {
             "include_usage": true,
         });
 
-        let response = handle_status_openai_compat(self.post(payload.clone()).await?).await?;
+        let response = handle_status_openai_compat(self.post(&payload).await?).await?;
 
         let stream = response.bytes_stream().map_err(io::Error::other);
 

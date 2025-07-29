@@ -685,6 +685,14 @@ pub struct InputConfig {
     pub additional_system_prompt: Option<String>,
 }
 
+#[derive(Debug)]
+pub struct RecipeInfo {
+    pub session_settings: Option<SessionSettings>,
+    pub sub_recipes: Option<Vec<goose::recipe::SubRecipe>>,
+    pub final_output_response: Option<goose::recipe::Response>,
+    pub retry_config: Option<goose::agents::types::RetryConfig>,
+}
+
 pub async fn cli() -> Result<()> {
     let cli = Cli::parse();
 
@@ -771,6 +779,7 @@ pub async fn cli() -> Result<()> {
                         quiet: false,
                         sub_recipes: None,
                         final_output_response: None,
+                        retry_config: None,
                     })
                     .await;
                     setup_logging(
@@ -828,27 +837,19 @@ pub async fn cli() -> Result<()> {
             provider,
             model,
         }) => {
-            let (input_config, session_settings, sub_recipes, final_output_response) = match (
-                instructions,
-                input_text,
-                recipe,
-            ) {
+            let (input_config, recipe_info) = match (instructions, input_text, recipe) {
                 (Some(file), _, _) if file == "-" => {
                     let mut input = String::new();
                     std::io::stdin()
                         .read_to_string(&mut input)
                         .expect("Failed to read from stdin");
 
-                    (
-                        InputConfig {
-                            contents: Some(input),
-                            extensions_override: None,
-                            additional_system_prompt: system,
-                        },
-                        None,
-                        None,
-                        None,
-                    )
+                    let input_config = InputConfig {
+                        contents: Some(input),
+                        extensions_override: None,
+                        additional_system_prompt: system,
+                    };
+                    (input_config, None)
                 }
                 (Some(file), _, _) => {
                     let contents = std::fs::read_to_string(&file).unwrap_or_else(|err| {
@@ -858,27 +859,21 @@ pub async fn cli() -> Result<()> {
                         );
                         std::process::exit(1);
                     });
-                    (
-                        InputConfig {
-                            contents: Some(contents),
-                            extensions_override: None,
-                            additional_system_prompt: None,
-                        },
-                        None,
-                        None,
-                        None,
-                    )
+                    let input_config = InputConfig {
+                        contents: Some(contents),
+                        extensions_override: None,
+                        additional_system_prompt: None,
+                    };
+                    (input_config, None)
                 }
-                (_, Some(text), _) => (
-                    InputConfig {
+                (_, Some(text), _) => {
+                    let input_config = InputConfig {
                         contents: Some(text),
                         extensions_override: None,
                         additional_system_prompt: system,
-                    },
-                    None,
-                    None,
-                    None,
-                ),
+                    };
+                    (input_config, None)
+                }
                 (_, _, Some(recipe_name)) => {
                     if explain {
                         explain_recipe(&recipe_name, params)?;
@@ -891,7 +886,9 @@ pub async fn cli() -> Result<()> {
                         }
                         return Ok(());
                     }
-                    extract_recipe_info_from_cli(recipe_name, params, additional_sub_recipes)?
+                    let (input_config, recipe_info) =
+                        extract_recipe_info_from_cli(recipe_name, params, additional_sub_recipes)?;
+                    (input_config, Some(recipe_info))
                 }
                 (None, None, None) => {
                     eprintln!("Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin.");
@@ -909,7 +906,9 @@ pub async fn cli() -> Result<()> {
                 builtins,
                 extensions_override: input_config.extensions_override,
                 additional_system_prompt: input_config.additional_system_prompt,
-                settings: session_settings,
+                settings: recipe_info
+                    .as_ref()
+                    .and_then(|r| r.session_settings.clone()),
                 provider,
                 model,
                 debug,
@@ -918,8 +917,11 @@ pub async fn cli() -> Result<()> {
                 scheduled_job_id,
                 interactive, // Use the interactive flag from the Run command
                 quiet,
-                sub_recipes,
-                final_output_response,
+                sub_recipes: recipe_info.as_ref().and_then(|r| r.sub_recipes.clone()),
+                final_output_response: recipe_info
+                    .as_ref()
+                    .and_then(|r| r.final_output_response.clone()),
+                retry_config: recipe_info.as_ref().and_then(|r| r.retry_config.clone()),
             })
             .await;
 
@@ -1051,6 +1053,7 @@ pub async fn cli() -> Result<()> {
                     quiet: false,
                     sub_recipes: None,
                     final_output_response: None,
+                    retry_config: None,
                 })
                 .await;
                 setup_logging(

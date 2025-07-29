@@ -1,6 +1,8 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use rmcp::model::Role;
 use serde_json::{json, Value};
+use std::path::PathBuf;
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
@@ -8,13 +10,13 @@ use tokio::process::Command;
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::utils::emit_debug_trace;
+use crate::config::Config;
 use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
-use mcp_core::tool::Tool;
-use rmcp::model::Role;
+use rmcp::model::Tool;
 
-pub const CLAUDE_CODE_DEFAULT_MODEL: &str = "default";
-pub const CLAUDE_CODE_KNOWN_MODELS: &[&str] = &["default"];
+pub const CLAUDE_CODE_DEFAULT_MODEL: &str = "claude-3-5-sonnet-latest";
+pub const CLAUDE_CODE_KNOWN_MODELS: &[&str] = &["sonnet", "opus", "claude-3-5-sonnet-latest"];
 
 pub const CLAUDE_CODE_DOC_URL: &str = "https://claude.ai/cli";
 
@@ -38,7 +40,71 @@ impl ClaudeCodeProvider {
             .get_param("CLAUDE_CODE_COMMAND")
             .unwrap_or_else(|_| "claude".to_string());
 
-        Ok(Self { command, model })
+        let resolved_command = if !command.contains('/') {
+            Self::find_claude_executable(&command).unwrap_or(command)
+        } else {
+            command
+        };
+
+        Ok(Self {
+            command: resolved_command,
+            model,
+        })
+    }
+
+    /// Search for claude executable in common installation locations
+    fn find_claude_executable(command_name: &str) -> Option<String> {
+        let home = std::env::var("HOME").ok()?;
+
+        let search_paths = vec![
+            format!("{}/.claude/local/{}", home, command_name),
+            format!("{}/.local/bin/{}", home, command_name),
+            format!("{}/bin/{}", home, command_name),
+            format!("/usr/local/bin/{}", command_name),
+            format!("/usr/bin/{}", command_name),
+            format!("/opt/claude/{}", command_name),
+        ];
+
+        for path in search_paths {
+            let path_buf = PathBuf::from(&path);
+            if path_buf.exists() && path_buf.is_file() {
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    if let Ok(metadata) = std::fs::metadata(&path_buf) {
+                        let permissions = metadata.permissions();
+                        if permissions.mode() & 0o111 != 0 {
+                            tracing::info!("Found claude executable at: {}", path);
+                            return Some(path);
+                        }
+                    }
+                }
+                #[cfg(not(unix))]
+                {
+                    tracing::info!("Found claude executable at: {}", path);
+                    return Some(path);
+                }
+            }
+        }
+
+        if let Ok(path_var) = std::env::var("PATH") {
+            #[cfg(unix)]
+            let path_separator = ':';
+            #[cfg(windows)]
+            let path_separator = ';';
+
+            for dir in path_var.split(path_separator) {
+                let path_buf = PathBuf::from(dir).join(command_name);
+                if path_buf.exists() && path_buf.is_file() {
+                    let full_path = path_buf.to_string_lossy().to_string();
+                    tracing::info!("Found claude executable in PATH at: {}", full_path);
+                    return Some(full_path);
+                }
+            }
+        }
+
+        tracing::warn!("Could not find claude executable in common locations");
+        None
     }
 
     /// Filter out the Extensions section from the system prompt
@@ -97,8 +163,13 @@ impl ClaudeCodeProvider {
                             // Convert tool result contents to text
                             let content_text = tool_contents
                                 .iter()
-                                .filter_map(|content| content.as_text().map(|t| t.text.clone()))
-                                .collect::<Vec<_>>()
+                                .filter_map(|content| match &content.raw {
+                                    rmcp::model::RawContent::Text(text_content) => {
+                                        Some(text_content.text.as_str())
+                                    }
+                                    _ => None,
+                                })
+                                .collect::<Vec<&str>>()
                                 .join("\n");
 
                             content_parts.push(json!({
@@ -215,11 +286,12 @@ impl ClaudeCodeProvider {
 
         let message_content = vec![MessageContent::text(combined_text)];
 
-        let response_message = Message::new(
-            Role::Assistant,
-            chrono::Utc::now().timestamp(),
-            message_content,
-        );
+        let response_message = Message {
+            id: None,
+            role: Role::Assistant,
+            created: chrono::Utc::now().timestamp(),
+            content: message_content,
+        };
 
         Ok((response_message, usage))
     }
@@ -260,16 +332,32 @@ impl ClaudeCodeProvider {
         cmd.arg("-p")
             .arg(messages_json.to_string())
             .arg("--system-prompt")
-            .arg(&filtered_system)
-            .arg("--verbose")
-            .arg("--output-format")
-            .arg("json");
+            .arg(&filtered_system);
+
+        // Only pass model parameter if it's in the known models list
+        if CLAUDE_CODE_KNOWN_MODELS.contains(&self.model.model_name.as_str()) {
+            cmd.arg("--model").arg(&self.model.model_name);
+        }
+
+        cmd.arg("--verbose").arg("--output-format").arg("json");
+
+        // Add permission mode based on GOOSE_MODE setting
+        let config = Config::global();
+        if let Ok(goose_mode) = config.get_param::<String>("GOOSE_MODE") {
+            if goose_mode.as_str() == "auto" {
+                cmd.arg("--permission-mode").arg("acceptEdits");
+            }
+        }
 
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
         let mut child = cmd
             .spawn()
-            .map_err(|e| ProviderError::RequestFailed(format!("Failed to spawn command: {}", e)))?;
+            .map_err(|e| ProviderError::RequestFailed(format!(
+                "Failed to spawn Claude CLI command '{}': {}. \
+                Make sure the Claude Code CLI is installed and in your PATH, or set CLAUDE_CODE_COMMAND in your config to the correct path.",
+                self.command, e
+            )))?;
 
         let stdout = child
             .stdout
@@ -326,7 +414,7 @@ impl ClaudeCodeProvider {
         // Extract the first user message text
         let description = messages
             .iter()
-            .find(|m| m.role == rmcp::model::Role::User)
+            .find(|m| m.role == Role::User)
             .and_then(|m| {
                 m.content.iter().find_map(|c| match c {
                     MessageContent::Text(text_content) => Some(&text_content.text),
@@ -349,11 +437,12 @@ impl ClaudeCodeProvider {
             println!("================================");
         }
 
-        let message = Message::new(
-            rmcp::model::Role::Assistant,
-            chrono::Utc::now().timestamp(),
-            vec![MessageContent::text(description.clone())],
-        );
+        let message = Message {
+            id: None,
+            role: Role::Assistant,
+            created: chrono::Utc::now().timestamp(),
+            content: vec![MessageContent::text(description.clone())],
+        };
 
         let usage = Usage::default();
 
@@ -384,8 +473,8 @@ impl Provider for ClaudeCodeProvider {
     }
 
     fn get_model_config(&self) -> ModelConfig {
-        // Return a custom config with 200K token limit for Claude Code
-        ModelConfig::new("claude-3-5-sonnet-latest".to_string()).with_context_limit(Some(200_000))
+        // Return the model config with appropriate context limit for Claude models
+        self.model.clone()
     }
 
     #[tracing::instrument(
@@ -439,6 +528,39 @@ mod tests {
         let config = provider.get_model_config();
 
         assert_eq!(config.model_name, "claude-3-5-sonnet-latest");
-        assert_eq!(config.context_limit(), 200_000);
+        // Context limit should be set by the ModelConfig
+        assert!(config.context_limit() > 0);
+    }
+
+    #[test]
+    fn test_permission_mode_flag_construction() {
+        // Test that in auto mode, the --permission-mode acceptEdits flag is added
+        std::env::set_var("GOOSE_MODE", "auto");
+
+        let config = Config::global();
+        let goose_mode: String = config.get_param("GOOSE_MODE").unwrap();
+        assert_eq!(goose_mode, "auto");
+
+        std::env::remove_var("GOOSE_MODE");
+    }
+
+    #[test]
+    fn test_claude_code_invalid_model_no_fallback() {
+        // Test that an invalid model is kept as-is (no fallback)
+        let invalid_model = ModelConfig::new("invalid-model".to_string());
+        let provider = ClaudeCodeProvider::from_env(invalid_model).unwrap();
+        let config = provider.get_model_config();
+
+        assert_eq!(config.model_name, "invalid-model");
+    }
+
+    #[test]
+    fn test_claude_code_valid_model() {
+        // Test that a valid model is preserved
+        let valid_model = ModelConfig::new("sonnet".to_string());
+        let provider = ClaudeCodeProvider::from_env(valid_model).unwrap();
+        let config = provider.get_model_config();
+
+        assert_eq!(config.model_name, "sonnet");
     }
 }

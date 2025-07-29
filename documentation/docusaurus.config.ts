@@ -14,7 +14,7 @@ const inkeepOrgId = process.env.INKEEP_ORG_ID;
 const config: Config = {
   title: "codename goose",
   tagline:
-    "Your local AI agent, automating engineering tasks seamlessly.",
+    "your local AI agent, automating engineering tasks seamlessly.",
   favicon: "img/favicon.ico",
 
   // Set the production url of your site here
@@ -65,10 +65,10 @@ const config: Config = {
             "./src/css/tailwind.css",
           ],
         },
-        gtag: {
+        gtag: process.env.NODE_ENV === 'production' ? {
           trackingID: 'G-ZS5D6SB4ZJ',
           anonymizeIP: true,
-        },
+        } : undefined,
       } satisfies Preset.Options,
     ],
   ],
@@ -269,7 +269,7 @@ const config: Config = {
           },
           {
             from: '/docs/tutorials/vscode-mcp',
-            to: '/docs/mcp/vscode-mcp'
+            to: '/docs/mcp/vs-code-mcp'
           },
           {
             from: '/docs/tutorials/youtube-transcript',
@@ -447,6 +447,14 @@ const config: Config = {
         ],
         quickQuestions: ["What is Goose?"],
       },
+    },
+    announcementBar: {
+      id: 'goose-grants',
+      content:
+        '✨ goose grant program now open: <a href="/goose/grants">apply now</a>! ✨',
+      backgroundColor: '#20232a',
+      textColor: '#fff',
+      isCloseable: false,
     },
   } satisfies Preset.ThemeConfig,
 };

@@ -5,8 +5,8 @@ import { Input } from '../ui/input';
 import { Select } from '../ui/Select';
 import cronstrue from 'cronstrue';
 import * as yaml from 'yaml';
-import { Buffer } from 'buffer';
-import { Recipe } from '../../recipe';
+import { Recipe, decodeRecipe } from '../../recipe';
+import { getStorageDirectory } from '../../recipe/recipeStorage';
 import ClockIcon from '../../assets/clock-icon.svg';
 
 type FrequencyValue = 'once' | 'every' | 'daily' | 'weekly' | 'monthly';
@@ -49,11 +49,13 @@ interface CleanExtension {
   bundled?: boolean;
 }
 
+// TODO: This 'Recipe' interface should be converted to match the OpenAPI spec for Recipe
+// once we have separated the recipe from the schedule in the frontend.
 // Interface for clean recipe in YAML
 interface CleanRecipe {
   title: string;
   description: string;
-  instructions: string;
+  instructions?: string;
   prompt?: string;
   activities?: string[];
   extensions?: CleanExtension[];
@@ -107,20 +109,19 @@ type SourceType = 'file' | 'deeplink';
 type ExecutionMode = 'background' | 'foreground';
 
 // Function to parse deep link and extract recipe config
-function parseDeepLink(deepLink: string): Recipe | null {
+async function parseDeepLink(deepLink: string): Promise<Recipe | null> {
   try {
     const url = new URL(deepLink);
     if (url.protocol !== 'goose:' || (url.hostname !== 'bot' && url.hostname !== 'recipe')) {
       return null;
     }
 
-    const configParam = url.searchParams.get('config');
-    if (!configParam) {
+    const recipeParam = url.searchParams.get('config');
+    if (!recipeParam) {
       return null;
     }
 
-    const configJson = Buffer.from(decodeURIComponent(configParam), 'base64').toString('utf-8');
-    return JSON.parse(configJson) as Recipe;
+    return await decodeRecipe(recipeParam);
   } catch (error) {
     console.error('Failed to parse deep link:', error);
     return null;
@@ -133,8 +134,11 @@ function recipeToYaml(recipe: Recipe, executionMode: ExecutionMode): string {
   const cleanRecipe: CleanRecipe = {
     title: recipe.title,
     description: recipe.description,
-    instructions: recipe.instructions,
   };
+
+  if (recipe.instructions) {
+    cleanRecipe.instructions = recipe.instructions;
+  }
 
   if (recipe.prompt) {
     cleanRecipe.prompt = recipe.prompt;
@@ -213,7 +217,7 @@ function recipeToYaml(recipe: Recipe, executionMode: ExecutionMode): string {
       }
 
       // Add common optional fields
-      if (ext.env_keys && ext.env_keys.length > 0) {
+      if ('env_keys' in ext && ext.env_keys && ext.env_keys.length > 0) {
         cleanExt.env_keys = ext.env_keys;
       }
 
@@ -246,7 +250,10 @@ function recipeToYaml(recipe: Recipe, executionMode: ExecutionMode): string {
   }
 
   if (recipe.author) {
-    cleanRecipe.author = recipe.author;
+    cleanRecipe.author = {
+      contact: recipe.author.contact || undefined,
+      metadata: recipe.author.metadata || undefined,
+    };
   }
 
   // Add schedule configuration based on execution mode
@@ -287,26 +294,33 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
   const [internalValidationError, setInternalValidationError] = useState<string | null>(null);
 
   const handleDeepLinkChange = useCallback(
-    (value: string) => {
+    async (value: string) => {
       setDeepLinkInput(value);
       setInternalValidationError(null);
 
       if (value.trim()) {
-        const recipe = parseDeepLink(value.trim());
-        if (recipe) {
-          setParsedRecipe(recipe);
-          // Auto-populate schedule ID from recipe title if available
-          if (recipe.title && !scheduleId) {
-            const cleanId = recipe.title
-              .toLowerCase()
-              .replace(/[^a-z0-9-]/g, '-')
-              .replace(/-+/g, '-');
-            setScheduleId(cleanId);
+        try {
+          const recipe = await parseDeepLink(value.trim());
+          if (recipe) {
+            setParsedRecipe(recipe);
+            // Auto-populate schedule ID from recipe title if available
+            if (recipe.title && !scheduleId) {
+              const cleanId = recipe.title
+                .toLowerCase()
+                .replace(/[^a-z0-9-]/g, '-')
+                .replace(/-+/g, '-');
+              setScheduleId(cleanId);
+            }
+          } else {
+            setParsedRecipe(null);
+            setInternalValidationError(
+              'Invalid deep link format. Please use a goose://bot or goose://recipe link.'
+            );
           }
-        } else {
+        } catch (error) {
           setParsedRecipe(null);
           setInternalValidationError(
-            'Invalid deep link format. Please use a goose://bot or goose://recipe link.'
+            'Failed to parse deep link. Please ensure using a goose://bot or goose://recipe link and try again.'
           );
         }
       } else {
@@ -348,7 +362,9 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
   };
 
   const handleBrowseFile = async () => {
-    const filePath = await window.electron.selectFileOrDirectory();
+    // Default to global recipes directory, but fallback to local if needed
+    const defaultPath = getStorageDirectory(true);
+    const filePath = await window.electron.selectFileOrDirectory(defaultPath);
     if (filePath) {
       if (filePath.endsWith('.yaml') || filePath.endsWith('.yml')) {
         setRecipeSourcePath(filePath);

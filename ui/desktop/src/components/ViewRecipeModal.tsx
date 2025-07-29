@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react';
-import { Recipe } from '../recipe';
+import { useState, useEffect, useCallback } from 'react';
+import { Recipe, generateDeepLink } from '../recipe';
 import { Parameter } from '../recipe/index';
-import { Buffer } from 'buffer';
 import { FullExtensionConfig } from '../extensions';
 import { Geese } from './icons/Geese';
 import Copy from './icons/Copy';
@@ -23,13 +22,6 @@ interface ViewRecipeModalProps {
   config: Recipe;
 }
 
-// Function to generate a deep link from a recipe
-function generateDeepLink(recipe: Recipe): string {
-  const configBase64 = Buffer.from(JSON.stringify(recipe)).toString('base64');
-  const urlSafe = encodeURIComponent(configBase64);
-  return `goose://recipe?config=${urlSafe}`;
-}
-
 export default function ViewRecipeModal({ isOpen, onClose, config }: ViewRecipeModalProps) {
   const { getExtensions } = useConfig();
   const [recipeConfig] = useState<Recipe | undefined>(config);
@@ -38,9 +30,7 @@ export default function ViewRecipeModal({ isOpen, onClose, config }: ViewRecipeM
   const [instructions, setInstructions] = useState(config?.instructions || '');
   const [prompt, setPrompt] = useState(config?.prompt || '');
   const [activities, setActivities] = useState<string[]>(config?.activities || []);
-  const [parameters, setParameters] = useState<Parameter[]>(
-    parseParametersFromInstructions(instructions)
-  );
+  const [parameters, setParameters] = useState<Parameter[]>(config?.parameters || []);
 
   const [extensionOptions, setExtensionOptions] = useState<FixedExtensionEntry[]>([]);
   const [extensionsLoaded, setExtensionsLoaded] = useState(false);
@@ -73,7 +63,7 @@ export default function ViewRecipeModal({ isOpen, onClose, config }: ViewRecipeM
       setInstructions(config.instructions || '');
       setPrompt(config.prompt || '');
       setActivities(config.activities || []);
-      setParameters(parseParametersFromInstructions(config.instructions || ''));
+      setParameters(config.parameters || []);
     }
   }, [config]);
 
@@ -102,28 +92,45 @@ export default function ViewRecipeModal({ isOpen, onClose, config }: ViewRecipeM
     }
   }, [isOpen, getExtensions, recipeExtensions, extensionsLoaded]);
 
-  // Use effect to set parameters whenever instructions or prompt changes
+  // Auto-detect new parameters from instructions and prompt
+  // This adds new parameters without overwriting existing ones
   useEffect(() => {
     const instructionsParams = parseParametersFromInstructions(instructions);
     const promptParams = parseParametersFromInstructions(prompt);
 
-    // Combine parameters, ensuring no duplicates by key
-    const allParams = [...instructionsParams];
-    promptParams.forEach((promptParam) => {
-      if (!allParams.some((param) => param.key === promptParam.key)) {
-        allParams.push(promptParam);
+    // Combine all detected parameters, ensuring no duplicates by key
+    const detectedParamsMap = new Map<string, Parameter>();
+
+    // Add instruction parameters
+    instructionsParams.forEach((param) => {
+      detectedParamsMap.set(param.key, param);
+    });
+
+    // Add prompt parameters (won't overwrite existing keys)
+    promptParams.forEach((param) => {
+      if (!detectedParamsMap.has(param.key)) {
+        detectedParamsMap.set(param.key, param);
       }
     });
 
-    setParameters(allParams);
-  }, [instructions, prompt]);
+    const existingParamKeys = new Set(parameters.map((param) => param.key));
 
-  const getCurrentConfig = (): Recipe => {
+    // Only add parameters that don't already exist
+    const newParams = Array.from(detectedParamsMap.values()).filter(
+      (detectedParam) => !existingParamKeys.has(detectedParam.key)
+    );
+
+    if (newParams.length > 0) {
+      setParameters((prev) => [...prev, ...newParams]);
+    }
+  }, [instructions, prompt, parameters]);
+
+  const getCurrentConfig = useCallback((): Recipe => {
     // Transform the internal parameters state into the desired output format.
     const formattedParameters = parameters.map((param) => {
       const formattedParam: Parameter = {
         key: param.key,
-        input_type: 'string',
+        input_type: param.input_type || 'string',
         requirement: param.requirement,
         description: param.description,
       };
@@ -131,6 +138,11 @@ export default function ViewRecipeModal({ isOpen, onClose, config }: ViewRecipeM
       // Add the 'default' key ONLY if the parameter is optional and has a default value.
       if (param.requirement === 'optional' && param.default) {
         formattedParam.default = param.default;
+      }
+
+      // Add options for select input type
+      if (param.input_type === 'select' && param.options) {
+        formattedParam.options = param.options.filter((opt) => opt.trim() !== ''); // Filter empty options when saving
       }
 
       return formattedParam;
@@ -163,7 +175,17 @@ export default function ViewRecipeModal({ isOpen, onClose, config }: ViewRecipeM
     };
 
     return updatedConfig;
-  };
+  }, [
+    recipeConfig,
+    title,
+    description,
+    instructions,
+    activities,
+    prompt,
+    parameters,
+    recipeExtensions,
+    extensionOptions,
+  ]);
 
   const [errors, setErrors] = useState<{
     title?: string;
@@ -196,9 +218,59 @@ export default function ViewRecipeModal({ isOpen, onClose, config }: ViewRecipeM
     );
   };
 
-  const deeplink = generateDeepLink(getCurrentConfig());
+  const [deeplink, setDeeplink] = useState('');
+  const [isGeneratingDeeplink, setIsGeneratingDeeplink] = useState(false);
+
+  // Generate deeplink whenever recipe configuration changes
+  useEffect(() => {
+    let isCancelled = false;
+
+    const generateLink = async () => {
+      if (!title.trim() || !description.trim() || !instructions.trim()) {
+        setDeeplink('');
+        return;
+      }
+
+      setIsGeneratingDeeplink(true);
+      try {
+        const currentConfig = getCurrentConfig();
+        const link = await generateDeepLink(currentConfig);
+        if (!isCancelled) {
+          setDeeplink(link);
+        }
+      } catch (error) {
+        console.error('Failed to generate deeplink:', error);
+        if (!isCancelled) {
+          setDeeplink('Error generating deeplink');
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsGeneratingDeeplink(false);
+        }
+      }
+    };
+
+    generateLink();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [
+    title,
+    description,
+    instructions,
+    prompt,
+    activities,
+    parameters,
+    recipeExtensions,
+    getCurrentConfig,
+  ]);
 
   const handleCopy = () => {
+    if (!deeplink || isGeneratingDeeplink || deeplink === 'Error generating deeplink') {
+      return;
+    }
+
     navigator.clipboard
       .writeText(deeplink)
       .then(() => {
@@ -430,6 +502,9 @@ export default function ViewRecipeModal({ isOpen, onClose, config }: ViewRecipeM
                     onClick={() => validateForm() && handleCopy()}
                     variant="ghost"
                     size="sm"
+                    disabled={
+                      !deeplink || isGeneratingDeeplink || deeplink === 'Error generating deeplink'
+                    }
                     className="ml-4 p-2 hover:bg-background-default rounded-lg transition-colors flex items-center disabled:opacity-50 disabled:hover:bg-transparent"
                   >
                     {copied ? (
@@ -448,7 +523,9 @@ export default function ViewRecipeModal({ isOpen, onClose, config }: ViewRecipeM
                   onClick={() => validateForm() && handleCopy()}
                   className={`text-sm truncate font-mono cursor-pointer ${!title.trim() || !description.trim() ? 'text-textDisabled' : 'text-textStandard'}`}
                 >
-                  {deeplink}
+                  {isGeneratingDeeplink
+                    ? 'Generating deeplink...'
+                    : deeplink || 'Click to generate deeplink'}
                 </div>
               )}
             </div>
