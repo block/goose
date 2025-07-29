@@ -48,7 +48,7 @@ import { SearchView } from './conversation/SearchView';
 import { AgentHeader } from './AgentHeader';
 import LayingEggLoader from './LayingEggLoader';
 import LoadingGoose from './LoadingGoose';
-import Splash from './Splash';
+import RecipeActivities from './RecipeActivities';
 import PopularChatTopics from './PopularChatTopics';
 import ProgressiveMessageList from './ProgressiveMessageList';
 import { SessionSummaryModal } from './context_management/SessionSummaryModal';
@@ -366,7 +366,7 @@ function BaseChatContent({
             {/* Custom content before messages */}
             {renderBeforeMessages && renderBeforeMessages()}
 
-            {/* Messages or Splash or Popular Topics */}
+            {/* Messages or RecipeActivities or Popular Topics */}
             {
               // Check if we should show splash instead of messages
               (() => {
@@ -377,9 +377,9 @@ function BaseChatContent({
                 return shouldShowSplash;
               })() ? (
                 <>
-                  {/* Show Splash when we have a recipe config and user hasn't started using it */}
+                  {/* Show RecipeActivities when we have a recipe config and user hasn't started using it */}
                   {recipeConfig ? (
-                    <Splash
+                    <RecipeActivities
                       append={(text: string) => appendWithTracking(text)}
                       activities={
                         Array.isArray(recipeConfig.activities) ? recipeConfig.activities : null

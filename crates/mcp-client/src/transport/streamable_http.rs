@@ -84,8 +84,8 @@ impl StreamableHttpActor {
         debug!("Sending message to MCP endpoint: {}", message_str);
 
         // Parse the message to determine if it's a request that expects a response
-        let parsed_message = serde_json::from_str::<TransportMessageRecv>(&message_str)
-            .map_err(Error::Serialization)?;
+        let parsed_message =
+            serde_json::from_str::<JsonRpcMessage>(&message_str).map_err(Error::Serialization)?;
 
         let expects_response = matches!(
             parsed_message,
@@ -509,5 +509,493 @@ impl Transport for StreamableHttpTransport {
         // The transport is closed when the actor task completes
         // No additional cleanup needed
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mockito::Server;
+    use serde_json::json;
+    use std::collections::HashMap;
+    use std::sync::Arc;
+    use tokio::sync::mpsc;
+    use tokio::sync::RwLock;
+
+    #[test]
+    fn test_message_parsing_request() {
+        // Test that we can parse a JSON-RPC request message using the mcp-core types
+        let request_json = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "capabilities": {}
+            }
+        });
+
+        let message_str = serde_json::to_string(&request_json).unwrap();
+        let parsed_message = serde_json::from_str::<JsonRpcMessage>(&message_str);
+        assert!(
+            parsed_message.is_ok(),
+            "Should be able to parse JSON-RPC request message"
+        );
+    }
+
+    #[test]
+    fn test_message_parsing_response() {
+        // Test that we can parse a JSON-RPC response message
+        let response_json = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+                "capabilities": {}
+            }
+        });
+
+        let message_str = serde_json::to_string(&response_json).unwrap();
+        let parsed_message = serde_json::from_str::<JsonRpcMessage>(&message_str);
+        assert!(
+            parsed_message.is_ok(),
+            "Should be able to parse JSON-RPC response message"
+        );
+    }
+
+    #[test]
+    fn test_message_parsing_notification() {
+        // Test that we can parse a JSON-RPC notification message
+        let notification_json = json!({
+            "jsonrpc": "2.0",
+            "method": "initialized",
+            "params": {}
+        });
+
+        let message_str = serde_json::to_string(&notification_json).unwrap();
+        let parsed_message = serde_json::from_str::<JsonRpcMessage>(&message_str);
+        assert!(
+            parsed_message.is_ok(),
+            "Should be able to parse JSON-RPC notification message"
+        );
+    }
+
+    #[test]
+    fn test_message_parsing_error() {
+        // Test that we can parse a JSON-RPC error message
+        let error_json = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "error": {
+                "code": -32600,
+                "message": "Invalid Request"
+            }
+        });
+
+        let message_str = serde_json::to_string(&error_json).unwrap();
+        let parsed_message = serde_json::from_str::<JsonRpcMessage>(&message_str);
+        assert!(
+            parsed_message.is_ok(),
+            "Should be able to parse JSON-RPC error message"
+        );
+    }
+
+    #[test]
+    fn test_message_parsing_invalid_json() {
+        let invalid_json = "{ invalid json }";
+        let parsed_message = serde_json::from_str::<JsonRpcMessage>(invalid_json);
+        assert!(parsed_message.is_err(), "Invalid JSON should fail to parse");
+    }
+
+    #[test]
+    fn test_transport_message_recv_parsing() {
+        // Test that we can parse messages as TransportMessageRecv (the type used for incoming messages)
+        let response_json = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+                "capabilities": {}
+            }
+        });
+
+        let message_str = serde_json::to_string(&response_json).unwrap();
+
+        // For incoming messages
+        let parsed_message = serde_json::from_str::<TransportMessageRecv>(&message_str);
+        assert!(
+            parsed_message.is_ok(),
+            "Should be able to parse response as TransportMessageRecv"
+        );
+    }
+
+    #[test]
+    fn test_untagged_enum_serialization_issue() {
+        let request_json = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/list",
+            "params": {}
+        });
+
+        let message_str = serde_json::to_string(&request_json).unwrap();
+
+        let parsed_as_jsonrpc = serde_json::from_str::<JsonRpcMessage>(&message_str);
+        assert!(
+            parsed_as_jsonrpc.is_ok(),
+            "Should be able to parse request as JsonRpcMessage"
+        );
+    }
+
+    #[test]
+    fn test_expects_response_logic_with_number_id() {
+        // Check if a message expects a response
+        let request_json = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {}
+        });
+
+        let message_str = serde_json::to_string(&request_json).unwrap();
+        let parsed_message = serde_json::from_str::<JsonRpcMessage>(&message_str).unwrap();
+
+        // This should match the logic in handle_outgoing_message after the fix
+        // The original code used: JsonRpcMessage::Request(JsonRpcRequest { id: Number(_), .. })
+        let expects_response = match parsed_message {
+            JsonRpcMessage::Request(_) => true,
+            _ => false,
+        };
+
+        assert!(expects_response, "Request with ID should expect a response");
+
+        // Test notification (should not expect response)
+        let notification_json = json!({
+            "jsonrpc": "2.0",
+            "method": "initialized",
+            "params": {}
+        });
+
+        let message_str = serde_json::to_string(&notification_json).unwrap();
+        let parsed_message = serde_json::from_str::<JsonRpcMessage>(&message_str).unwrap();
+
+        let expects_response = match parsed_message {
+            JsonRpcMessage::Request(_) => true,
+            _ => false,
+        };
+
+        assert!(
+            !expects_response,
+            "Notification should not expect a response"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_handle_outgoing_message_successful_request() {
+        // Set up a mock HTTP server
+        let mut server = Server::new_async().await;
+        let mock = server
+            .mock("POST", "/")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"jsonrpc":"2.0","id":1,"result":{"capabilities":{}}}"#)
+            .create_async()
+            .await;
+
+        // Create channels for the actor
+        let (_tx, rx) = mpsc::channel(32);
+        let (otx, mut orx) = mpsc::channel(32);
+
+        // Create the actor
+        let session_id = Arc::new(RwLock::new(None));
+        let mut actor = StreamableHttpActor::new(
+            rx,
+            otx,
+            server.url(),
+            session_id,
+            HashMap::new(),
+            HashMap::new(),
+        );
+
+        // Create a JSON-RPC request message
+        let request_json = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "capabilities": {}
+            }
+        });
+        let message_str = serde_json::to_string(&request_json).unwrap();
+
+        // Test handle_outgoing_message
+        let result = actor.handle_outgoing_message(message_str).await;
+        assert!(result.is_ok(), "handle_outgoing_message should succeed");
+
+        // Verify the mock was called
+        mock.assert_async().await;
+
+        // Check that a response was received
+        let response =
+            tokio::time::timeout(std::time::Duration::from_millis(100), orx.recv()).await;
+        assert!(response.is_ok(), "Should receive a response");
+        assert!(response.unwrap().is_some(), "Response should not be None");
+    }
+
+    #[tokio::test]
+    async fn test_handle_outgoing_message_notification() {
+        // Set up a mock HTTP server for notifications (202 Accepted, no body)
+        let mut server = Server::new_async().await;
+        let mock = server
+            .mock("POST", "/")
+            .with_status(202)
+            .create_async()
+            .await;
+
+        // Create channels for the actor
+        let (_tx, rx) = mpsc::channel(32);
+        let (otx, mut orx) = mpsc::channel(32);
+
+        // Create the actor
+        let session_id = Arc::new(RwLock::new(None));
+        let mut actor = StreamableHttpActor::new(
+            rx,
+            otx,
+            server.url(),
+            session_id,
+            HashMap::new(),
+            HashMap::new(),
+        );
+
+        // Create a JSON-RPC notification message (no id)
+        let notification_json = json!({
+            "jsonrpc": "2.0",
+            "method": "initialized",
+            "params": {}
+        });
+        let message_str = serde_json::to_string(&notification_json).unwrap();
+
+        // Test handle_outgoing_message
+        let result = actor.handle_outgoing_message(message_str).await;
+        assert!(
+            result.is_ok(),
+            "handle_outgoing_message should succeed for notification"
+        );
+
+        // Verify the mock was called
+        mock.assert_async().await;
+
+        // For notifications, we shouldn't receive a response
+        let response =
+            tokio::time::timeout(std::time::Duration::from_millis(100), orx.recv()).await;
+        assert!(
+            response.is_err(),
+            "Should not receive a response for notification"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_handle_outgoing_message_http_error() {
+        // Set up a mock HTTP server that returns an error
+        let mut server = Server::new_async().await;
+        let mock = server
+            .mock("POST", "/")
+            .with_status(500)
+            .with_body("Internal Server Error")
+            .create_async()
+            .await;
+
+        // Create channels for the actor
+        let (_tx, rx) = mpsc::channel(32);
+        let (otx, _orx) = mpsc::channel(32);
+
+        // Create the actor
+        let session_id = Arc::new(RwLock::new(None));
+        let mut actor = StreamableHttpActor::new(
+            rx,
+            otx,
+            server.url(),
+            session_id,
+            HashMap::new(),
+            HashMap::new(),
+        );
+
+        // Create a JSON-RPC request message
+        let request_json = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "test",
+            "params": {}
+        });
+        let message_str = serde_json::to_string(&request_json).unwrap();
+
+        // Test handle_outgoing_message
+        let result = actor.handle_outgoing_message(message_str).await;
+        assert!(
+            result.is_err(),
+            "handle_outgoing_message should fail with HTTP error"
+        );
+
+        // Verify it's an HTTP error
+        match result.unwrap_err() {
+            Error::HttpError { status, .. } => {
+                assert_eq!(status, 500, "Should return HTTP 500 error");
+            }
+            _ => panic!("Expected HttpError"),
+        }
+
+        // Verify the mock was called
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn test_handle_outgoing_message_session_id_handling() {
+        // Set up a mock HTTP server that returns a session ID
+        let mut server = Server::new_async().await;
+        let mock = server
+            .mock("POST", "/")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_header("Mcp-Session-Id", "test-session-123")
+            .with_body(r#"{"jsonrpc":"2.0","id":1,"result":{}}"#)
+            .create_async()
+            .await;
+
+        // Create channels for the actor
+        let (_tx, rx) = mpsc::channel(32);
+        let (otx, _orx) = mpsc::channel(32);
+
+        // Create the actor
+        let session_id = Arc::new(RwLock::new(None));
+        let session_id_clone = Arc::clone(&session_id);
+        let mut actor = StreamableHttpActor::new(
+            rx,
+            otx,
+            server.url(),
+            session_id,
+            HashMap::new(),
+            HashMap::new(),
+        );
+
+        // Create a JSON-RPC request message
+        let request_json = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {}
+        });
+        let message_str = serde_json::to_string(&request_json).unwrap();
+
+        // Test handle_outgoing_message
+        let result = actor.handle_outgoing_message(message_str).await;
+        assert!(result.is_ok(), "handle_outgoing_message should succeed");
+
+        // Verify the session ID was stored
+        let stored_session_id = session_id_clone.read().await;
+        assert_eq!(
+            stored_session_id.as_ref(),
+            Some(&"test-session-123".to_string()),
+            "Session ID should be stored"
+        );
+
+        // Verify the mock was called
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn test_handle_outgoing_message_invalid_json() {
+        // Create channels for the actor
+        let (_tx, rx) = mpsc::channel(32);
+        let (otx, _orx) = mpsc::channel(32);
+
+        // Create the actor
+        let session_id = Arc::new(RwLock::new(None));
+        let mut actor = StreamableHttpActor::new(
+            rx,
+            otx,
+            "http://localhost:8080".to_string(),
+            session_id,
+            HashMap::new(),
+            HashMap::new(),
+        );
+
+        // Test with invalid JSON
+        let invalid_json = "{ invalid json }";
+
+        // Test handle_outgoing_message
+        let result = actor
+            .handle_outgoing_message(invalid_json.to_string())
+            .await;
+        assert!(
+            result.is_err(),
+            "handle_outgoing_message should fail with invalid JSON"
+        );
+
+        // Verify it's a serialization error
+        match result.unwrap_err() {
+            Error::Serialization(_) => {
+                // Expected error type
+            }
+            _ => panic!("Expected Serialization error"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_handle_outgoing_message_session_not_found() {
+        // Set up a mock HTTP server that returns 404 (session not found)
+        let mut server = Server::new_async().await;
+        let mock = server
+            .mock("POST", "/")
+            .with_status(404)
+            .with_body("Session not found")
+            .create_async()
+            .await;
+
+        // Create channels for the actor
+        let (_tx, rx) = mpsc::channel(32);
+        let (otx, _orx) = mpsc::channel(32);
+
+        // Create the actor with an existing session ID
+        let session_id = Arc::new(RwLock::new(Some("old-session".to_string())));
+        let session_id_clone = Arc::clone(&session_id);
+        let mut actor = StreamableHttpActor::new(
+            rx,
+            otx,
+            server.url(),
+            session_id,
+            HashMap::new(),
+            HashMap::new(),
+        );
+
+        // Create a JSON-RPC request message
+        let request_json = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "test",
+            "params": {}
+        });
+        let message_str = serde_json::to_string(&request_json).unwrap();
+
+        // Test handle_outgoing_message
+        let result = actor.handle_outgoing_message(message_str).await;
+        assert!(
+            result.is_err(),
+            "handle_outgoing_message should fail with 404"
+        );
+
+        // Verify it's a session error and the session ID was cleared
+        match result.unwrap_err() {
+            Error::SessionError(_) => {
+                // Expected error type
+            }
+            _ => panic!("Expected SessionError"),
+        }
+
+        // Verify the session ID was cleared
+        let stored_session_id = session_id_clone.read().await;
+        assert!(
+            stored_session_id.is_none(),
+            "Session ID should be cleared on 404"
+        );
+
+        // Verify the mock was called
+        mock.assert_async().await;
     }
 }

@@ -1,4 +1,4 @@
-import type { OpenDialogReturnValue } from 'electron';
+import type { OpenDialogReturnValue, OpenDialogOptions } from 'electron';
 import {
   app,
   App,
@@ -20,10 +20,11 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import started from 'electron-squirrel-startup';
 import path from 'node:path';
+import os from 'node:os';
 import { spawn } from 'child_process';
 import 'dotenv/config';
 import { startGoosed } from './goosed';
-import { getBinaryPath } from './utils/binaryPath';
+import { getBinaryPath, expandTilde } from './utils/pathUtils';
 import { loadShellEnv } from './utils/loadEnv';
 import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
@@ -564,18 +565,11 @@ const createChat = async (
     goosedProcess = newGoosedProcess;
   }
 
-  // Decode recipe from deeplink if needed
+  // Create window config with loading state for recipe deeplinks
+  let isLoadingRecipe = false;
   if (!recipe && recipeDeeplink) {
-    const decodedRecipe = await decodeRecipeMain(recipeDeeplink, port);
-    if (decodedRecipe) {
-      recipe = decodedRecipe;
-
-      // Handle scheduled job parameters if present
-      if (scheduledJobId) {
-        recipe.scheduledJobId = scheduledJobId;
-        recipe.isScheduledExecution = true;
-      }
-    }
+    isLoadingRecipe = true;
+    console.log('[Main] Creating window with recipe loading state for deeplink:', recipeDeeplink);
   }
 
   // Load and manage window state
@@ -770,6 +764,61 @@ const createChat = async (
   });
 
   windowMap.set(windowId, mainWindow);
+
+  // Handle recipe decoding in the background after window is created
+  if (isLoadingRecipe && recipeDeeplink) {
+    console.log('[Main] Starting background recipe decoding for:', recipeDeeplink);
+
+    // Decode recipe asynchronously after window is created
+    decodeRecipeMain(recipeDeeplink, port)
+      .then((decodedRecipe) => {
+        if (decodedRecipe) {
+          console.log('[Main] Recipe decoded successfully, updating window config');
+
+          // Handle scheduled job parameters if present
+          if (scheduledJobId) {
+            decodedRecipe.scheduledJobId = scheduledJobId;
+            decodedRecipe.isScheduledExecution = true;
+          }
+
+          // Update the window config with the decoded recipe
+          const updatedConfig = {
+            ...windowConfig,
+            recipe: decodedRecipe,
+          };
+
+          // Send the decoded recipe to the renderer process
+          mainWindow.webContents.send('recipe-decoded', decodedRecipe);
+
+          // Update localStorage with the decoded recipe
+          const configStr = JSON.stringify(updatedConfig).replace(/'/g, "\\'");
+          mainWindow.webContents
+            .executeJavaScript(
+              `
+            try {
+              localStorage.setItem('gooseConfig', '${configStr}');
+              console.log('[Renderer] Recipe decoded and config updated');
+            } catch (e) {
+              console.error('[Renderer] Failed to update config with decoded recipe:', e);
+            }
+          `
+            )
+            .catch((error) => {
+              console.error('[Main] Failed to update localStorage with decoded recipe:', error);
+            });
+        } else {
+          console.error('[Main] Failed to decode recipe from deeplink');
+          // Send error to renderer
+          mainWindow.webContents.send('recipe-decode-error', 'Failed to decode recipe');
+        }
+      })
+      .catch((error) => {
+        console.error('[Main] Error decoding recipe:', error);
+        // Send error to renderer
+        mainWindow.webContents.send('recipe-decode-error', error.message || 'Unknown error');
+      });
+  }
+
   // Handle window closure
   mainWindow.on('closed', () => {
     windowMap.delete(windowId);
@@ -1176,10 +1225,32 @@ ipcMain.handle('get-wakelock-state', () => {
 });
 
 // Add file/directory selection handler
-ipcMain.handle('select-file-or-directory', async () => {
-  const result = (await dialog.showOpenDialog({
+ipcMain.handle('select-file-or-directory', async (_event, defaultPath?: string) => {
+  const dialogOptions: OpenDialogOptions = {
     properties: process.platform === 'darwin' ? ['openFile', 'openDirectory'] : ['openFile'],
-  })) as unknown as OpenDialogReturnValue;
+  };
+
+  // Set default path if provided
+  if (defaultPath) {
+    // Expand tilde to home directory
+    const expandedPath = expandTilde(defaultPath);
+
+    // Check if the path exists
+    try {
+      const stats = await fs.stat(expandedPath);
+      if (stats.isDirectory()) {
+        dialogOptions.defaultPath = expandedPath;
+      } else {
+        dialogOptions.defaultPath = path.dirname(expandedPath);
+      }
+    } catch (error) {
+      // If path doesn't exist, fall back to home directory and log error
+      console.error(`Default path does not exist: ${expandedPath}, falling back to home directory`);
+      dialogOptions.defaultPath = os.homedir();
+    }
+  }
+
+  const result = (await dialog.showOpenDialog(dialogOptions)) as unknown as OpenDialogReturnValue;
 
   if (!result.canceled && result.filePaths.length > 0) {
     return result.filePaths[0];
@@ -1449,9 +1520,7 @@ ipcMain.handle('get-binary-path', (_event, binaryName) => {
 ipcMain.handle('read-file', (_event, filePath) => {
   return new Promise((resolve) => {
     // Expand tilde to home directory
-    const expandedPath = filePath.startsWith('~')
-      ? path.join(app.getPath('home'), filePath.slice(1))
-      : filePath;
+    const expandedPath = expandTilde(filePath);
 
     const cat = spawn('cat', [expandedPath]);
     let output = '';
@@ -1484,9 +1553,7 @@ ipcMain.handle('read-file', (_event, filePath) => {
 ipcMain.handle('write-file', (_event, filePath, content) => {
   return new Promise((resolve) => {
     // Expand tilde to home directory
-    const expandedPath = filePath.startsWith('~')
-      ? path.join(app.getPath('home'), filePath.slice(1))
-      : filePath;
+    const expandedPath = expandTilde(filePath);
 
     // Create a write stream to the file
     // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -1505,9 +1572,7 @@ ipcMain.handle('write-file', (_event, filePath, content) => {
 ipcMain.handle('ensure-directory', async (_event, dirPath) => {
   try {
     // Expand tilde to home directory
-    const expandedPath = dirPath.startsWith('~')
-      ? path.join(app.getPath('home'), dirPath.slice(1))
-      : dirPath;
+    const expandedPath = expandTilde(dirPath);
 
     await fs.mkdir(expandedPath, { recursive: true });
     return true;
@@ -1520,9 +1585,7 @@ ipcMain.handle('ensure-directory', async (_event, dirPath) => {
 ipcMain.handle('list-files', async (_event, dirPath, extension) => {
   try {
     // Expand tilde to home directory
-    const expandedPath = dirPath.startsWith('~')
-      ? path.join(app.getPath('home'), dirPath.slice(1))
-      : dirPath;
+    const expandedPath = expandTilde(dirPath);
 
     const files = await fs.readdir(expandedPath);
     if (extension) {

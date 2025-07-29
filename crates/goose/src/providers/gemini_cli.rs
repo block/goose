@@ -170,11 +170,13 @@ impl GeminiCliProvider {
         }
 
         let mut cmd = Command::new(&self.command);
-        cmd.arg("-m")
-            .arg(&self.model.model_name)
-            .arg("-p")
-            .arg(&full_prompt)
-            .arg("--yolo");
+
+        // Only pass model parameter if it's in the known models list
+        if GEMINI_CLI_KNOWN_MODELS.contains(&self.model.model_name.as_str()) {
+            cmd.arg("-m").arg(&self.model.model_name);
+        }
+
+        cmd.arg("-p").arg(&full_prompt).arg("--yolo");
 
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
@@ -369,5 +371,25 @@ mod tests {
         assert_eq!(config.model_name, "gemini-2.5-pro");
         // Context limit should be set by the ModelConfig
         assert!(config.context_limit() > 0);
+    }
+
+    #[test]
+    fn test_gemini_cli_invalid_model_no_fallback() {
+        // Test that an invalid model is kept as-is (no fallback)
+        let invalid_model = ModelConfig::new("invalid-model".to_string());
+        let provider = GeminiCliProvider::from_env(invalid_model).unwrap();
+        let config = provider.get_model_config();
+
+        assert_eq!(config.model_name, "invalid-model");
+    }
+
+    #[test]
+    fn test_gemini_cli_valid_model() {
+        // Test that a valid model is preserved
+        let valid_model = ModelConfig::new(GEMINI_CLI_DEFAULT_MODEL.to_string());
+        let provider = GeminiCliProvider::from_env(valid_model).unwrap();
+        let config = provider.get_model_config();
+
+        assert_eq!(config.model_name, GEMINI_CLI_DEFAULT_MODEL);
     }
 }

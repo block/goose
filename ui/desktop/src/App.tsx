@@ -1063,6 +1063,45 @@ export default function App() {
     };
   }, [setSharedSessionError]);
 
+  // Handle recipe decode events from main process
+  useEffect(() => {
+    const handleRecipeDecoded = (_event: IpcRendererEvent, ...args: unknown[]) => {
+      const decodedRecipe = args[0] as Recipe;
+      console.log('[App] Recipe decoded successfully:', decodedRecipe);
+
+      // Update the pair chat with the decoded recipe
+      setPairChat((prevChat) => ({
+        ...prevChat,
+        recipeConfig: decodedRecipe,
+        title: decodedRecipe.title || 'Recipe Chat',
+        messages: [], // Start fresh for recipe
+        messageHistoryIndex: 0,
+      }));
+
+      // Navigate to pair view if not already there
+      if (window.location.hash !== '#/pair') {
+        window.location.hash = '#/pair';
+      }
+    };
+
+    const handleRecipeDecodeError = (_event: IpcRendererEvent, ...args: unknown[]) => {
+      const errorMessage = args[0] as string;
+      console.error('[App] Recipe decode error:', errorMessage);
+
+      // Show error to user - you could add a toast notification here
+      // For now, just log the error and navigate to recipes page
+      window.location.hash = '#/recipes';
+    };
+
+    window.electron.on('recipe-decoded', handleRecipeDecoded);
+    window.electron.on('recipe-decode-error', handleRecipeDecodeError);
+
+    return () => {
+      window.electron.off('recipe-decoded', handleRecipeDecoded);
+      window.electron.off('recipe-decode-error', handleRecipeDecodeError);
+    };
+  }, [setPairChat]);
+
   useEffect(() => {
     console.log('Setting up keyboard shortcuts');
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -1156,9 +1195,9 @@ export default function App() {
       );
 
       if (section && newView === 'settings') {
-        window.history.replaceState({}, '', `/settings?section=${section}`);
+        window.location.hash = `#/settings?section=${section}`;
       } else {
-        window.history.replaceState({}, '', `/${newView}`);
+        window.location.hash = `#/${newView}`;
       }
     };
     const urlParams = new URLSearchParams(window.location.search);
