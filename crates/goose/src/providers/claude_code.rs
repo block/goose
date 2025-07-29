@@ -332,12 +332,14 @@ impl ClaudeCodeProvider {
         cmd.arg("-p")
             .arg(messages_json.to_string())
             .arg("--system-prompt")
-            .arg(&filtered_system)
-            .arg("--model")
-            .arg(&self.model.model_name)
-            .arg("--verbose")
-            .arg("--output-format")
-            .arg("json");
+            .arg(&filtered_system);
+
+        // Only pass model parameter if it's in the known models list
+        if CLAUDE_CODE_KNOWN_MODELS.contains(&self.model.model_name.as_str()) {
+            cmd.arg("--model").arg(&self.model.model_name);
+        }
+
+        cmd.arg("--verbose").arg("--output-format").arg("json");
 
         // Add permission mode based on GOOSE_MODE setting
         let config = Config::global();
@@ -540,5 +542,25 @@ mod tests {
         assert_eq!(goose_mode, "auto");
 
         std::env::remove_var("GOOSE_MODE");
+    }
+
+    #[test]
+    fn test_claude_code_invalid_model_no_fallback() {
+        // Test that an invalid model is kept as-is (no fallback)
+        let invalid_model = ModelConfig::new("invalid-model".to_string());
+        let provider = ClaudeCodeProvider::from_env(invalid_model).unwrap();
+        let config = provider.get_model_config();
+
+        assert_eq!(config.model_name, "invalid-model");
+    }
+
+    #[test]
+    fn test_claude_code_valid_model() {
+        // Test that a valid model is preserved
+        let valid_model = ModelConfig::new("sonnet".to_string());
+        let provider = ClaudeCodeProvider::from_env(valid_model).unwrap();
+        let config = provider.get_model_config();
+
+        assert_eq!(config.model_name, "sonnet");
     }
 }

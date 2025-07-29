@@ -6,6 +6,7 @@ use std::sync::Arc;
 use anyhow::{anyhow, Result};
 use futures::stream::BoxStream;
 use futures::{stream, FutureExt, Stream, StreamExt, TryStreamExt};
+use uuid::Uuid;
 
 use crate::agents::extension::{ExtensionConfig, ExtensionError, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
@@ -56,13 +57,14 @@ use super::platform_tools;
 use super::router_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::subagent_task_config::TaskConfig;
+use crate::conversation_fixer::{debug_conversation_fix, ConversationFixer};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 
 /// The main goose Agent
 pub struct Agent {
     pub(super) provider: Mutex<Option<Arc<dyn Provider>>>,
-    pub(super) extension_manager: Arc<RwLock<ExtensionManager>>,
+    pub extension_manager: Arc<RwLock<ExtensionManager>>,
     pub(super) sub_recipe_manager: Mutex<SubRecipeManager>,
     pub(super) tasks_manager: TasksManager,
     pub(super) final_output_tool: Arc<Mutex<Option<FinalOutputTool>>>,
@@ -371,7 +373,7 @@ impl Agent {
             || tool_call.name == ROUTER_LLM_SEARCH_TOOL_NAME
         {
             let selector = self.router_tool_selector.lock().await.clone();
-            let selected_tools = match selector.as_ref() {
+            let mut selected_tools = match selector.as_ref() {
                 Some(selector) => match selector.select_tools(tool_call.arguments.clone()).await {
                     Ok(tools) => tools,
                     Err(e) => {
@@ -393,6 +395,19 @@ impl Agent {
                     )
                 }
             };
+
+            // Append final_output tool if present (for structured output recipes, [Issue #3700](https://github.com/block/goose/issues/3700)
+            if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
+                let tool = final_output_tool.tool();
+                let tool_content = Content::text(format!(
+                    "Tool: {}\nDescription: {}\nSchema: {}",
+                    tool.name,
+                    tool.description.unwrap_or_default(),
+                    serde_json::to_string_pretty(&tool.input_schema).unwrap_or_default()
+                ));
+                selected_tools.push(tool_content);
+            }
+
             ToolCallResult::from(Ok(selected_tools))
         } else {
             // Clone the result to ensure no references to extension_manager are returned
@@ -706,14 +721,21 @@ impl Agent {
         }
     }
 
-    #[instrument(skip(self, messages, session), fields(user_message))]
+    #[instrument(skip(self, unfixed_messages, session), fields(user_message))]
     pub async fn reply(
         &self,
-        messages: &[Message],
+        unfixed_messages: &[Message],
         session: Option<SessionConfig>,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        let mut messages = messages.to_vec();
+        let (mut messages, issues) =
+            ConversationFixer::fix_conversation(Vec::from(unfixed_messages));
+        if !issues.is_empty() {
+            tracing::warn!(
+                "Conversation issue fixed: {}",
+                debug_conversation_fix(&messages, unfixed_messages, &issues)
+            );
+        }
         let initial_messages = messages.clone();
         let reply_span = tracing::Span::current();
         self.reset_retry_attempts().await;
@@ -850,7 +872,9 @@ impl Agent {
                                     continue;
                                 }
 
-                                let message_tool_response = Arc::new(Mutex::new(Message::user()));
+                                let message_tool_response = Arc::new(Mutex::new(Message::user().with_id(
+                                    format!("msg_{}", Uuid::new_v4())
+                                )));
 
                                 let mut frontend_tool_stream = self.handle_frontend_tool_requests(
                                     &frontend_requests,

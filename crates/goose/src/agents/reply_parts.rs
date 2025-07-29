@@ -34,9 +34,7 @@ async fn toolshim_postprocess(
 
 impl Agent {
     /// Prepares tools and system prompt for a provider request
-    pub(crate) async fn prepare_tools_and_prompt(
-        &self,
-    ) -> anyhow::Result<(Vec<Tool>, Vec<Tool>, String)> {
+    pub async fn prepare_tools_and_prompt(&self) -> anyhow::Result<(Vec<Tool>, Vec<Tool>, String)> {
         // Get tool selection strategy from config
         let config = Config::global();
         let router_tool_selection_strategy = config
