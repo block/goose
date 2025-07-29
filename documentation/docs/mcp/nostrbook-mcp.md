@@ -5,6 +5,7 @@ description: Add Nostrbook MCP Server as a Goose Extension
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 
 
@@ -29,10 +30,13 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40nostrbook%2Fmcp&id=nostrbook&name=Nostrbook&description=A%20comprehensive%20registry%20of%20Nostr%20documentation%20with%20structured%20knowledge)
-  2. Press `Yes` to confirm the installation
-  3. Click `Save Configuration`
-  4. Scroll to the top and click `Exit` from the upper left corner
+  <GooseDesktopInstaller
+    extensionId="nostrbook"
+    extensionName="Nostrbook"
+    description="A comprehensive registry of Nostr documentation with structured knowledge"
+    command="npx"
+    args={["-y", "@nostrbook/mcp"]}
+  />
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:

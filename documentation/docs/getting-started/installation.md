@@ -7,7 +7,7 @@ import RateLimits from '@site/src/components/RateLimits';
 import MacDesktopInstallButtons from '@site/src/components/MacDesktopInstallButtons';
 import WindowsDesktopInstallButtons from '@site/src/components/WindowsDesktopInstallButtons';
 import LinuxDesktopInstallButtons from '@site/src/components/LinuxDesktopInstallButtons';
-
+import { PanelLeft } from 'lucide-react';
 
 # Install Goose
 
@@ -291,10 +291,12 @@ Goose works with a set of [supported LLM providers][providers], and you'll need 
   <TabItem value="ui" label="Goose Desktop" default>
   **To update your LLM provider and API key:**
 
-    1. Click on the three dots in the top-right corner.
-    2. Select `Provider Settings` from the menu.
-    2. Choose a provider from the list.
-    3. Click Edit, enter your API key, and click `Set as Active`.
+    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
+    2. Click the `Settings` button on the sidebar.
+    3. Click the `Models` tab.
+    4. Click `Configure Providers`
+    5. Choose your provider
+    6. Click `Configure`, enter your API key, and click `Submit`.
 
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
@@ -361,8 +363,8 @@ While core configurations are shared between interfaces, extensions have flexibi
 <Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
         Navigate to shared configurations through:
-        1. Click `...` in the upper right corner
-        2. Click `Advanced Settings`
+        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
+        2. Click the `Settings` button on the sidebar.
     </TabItem>
     <TabItem value="cli" label="Goose CLI">
         Use the following command to manage shared configurations:

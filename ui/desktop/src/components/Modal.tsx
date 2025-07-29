@@ -69,11 +69,11 @@ export default function Modal({
     >
       <Card
         ref={modalRef}
-        className="relative w-[500px] max-w-full bg-bgApp rounded-xl my-10 max-h-[90vh] flex flex-col shadow-xl z-[10000]"
+        className="relative w-[500px] max-w-full bg-background-default rounded-xl my-10 max-h-[90vh] flex flex-col shadow-xl z-[10000]"
       >
         <div className="p-8 max-h-[calc(90vh-180px)] overflow-y-auto">{children}</div>
         {footer && (
-          <div className="border-t border-borderSubtle bg-bgApp w-full rounded-b-xl overflow-hidden">
+          <div className="border-t border-borderSubtle bg-background-default w-full rounded-b-xl overflow-hidden">
             {footer}
           </div>
         )}

@@ -1,9 +1,9 @@
-use crate::transport::Error;
+use crate::transport::{Error, TransportMessageRecv};
 use async_trait::async_trait;
 use eventsource_client::{Client, SSE};
 use futures::TryStreamExt;
-use mcp_core::protocol::JsonRpcMessage;
 use reqwest::Client as HttpClient;
+use rmcp::model::JsonRpcMessage;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex, RwLock};
@@ -23,7 +23,7 @@ pub struct SseActor {
     /// Receives messages (requests/notifications) from the handle
     receiver: mpsc::Receiver<String>,
     /// Sends messages (responses) back to the handle
-    sender: mpsc::Sender<JsonRpcMessage>,
+    sender: mpsc::Sender<TransportMessageRecv>,
     /// Base SSE URL
     sse_url: String,
     /// For sending HTTP POST requests
@@ -35,7 +35,7 @@ pub struct SseActor {
 impl SseActor {
     pub fn new(
         receiver: mpsc::Receiver<String>,
-        sender: mpsc::Sender<JsonRpcMessage>,
+        sender: mpsc::Sender<TransportMessageRecv>,
         sse_url: String,
         post_endpoint: Arc<RwLock<Option<String>>>,
     ) -> Self {
@@ -71,7 +71,7 @@ impl SseActor {
     /// - If a `message` event is received, parse it as `JsonRpcMessage`
     ///   and respond to pending requests if it's a `Response`.
     async fn handle_incoming_messages(
-        sender: mpsc::Sender<JsonRpcMessage>,
+        sender: mpsc::Sender<TransportMessageRecv>,
         sse_url: String,
         post_endpoint: Arc<RwLock<Option<String>>>,
     ) {
@@ -109,7 +109,7 @@ impl SseActor {
                     match event {
                         SSE::Event(e) if e.event_type == "message" => {
                             // Attempt to parse the SSE data as a JsonRpcMessage
-                            match serde_json::from_str::<JsonRpcMessage>(&e.data) {
+                            match serde_json::from_str::<TransportMessageRecv>(&e.data) {
                                 Ok(message) => {
                                     let _ = sender.send(message).await;
                                 }
@@ -184,7 +184,7 @@ impl SseActor {
 #[derive(Clone)]
 pub struct SseTransportHandle {
     sender: mpsc::Sender<String>,
-    receiver: Arc<Mutex<mpsc::Receiver<JsonRpcMessage>>>,
+    receiver: Arc<Mutex<mpsc::Receiver<TransportMessageRecv>>>,
 }
 
 #[async_trait::async_trait]
@@ -193,7 +193,7 @@ impl TransportHandle for SseTransportHandle {
         serialize_and_send(&self.sender, message).await
     }
 
-    async fn receive(&self) -> Result<JsonRpcMessage, Error> {
+    async fn receive(&self) -> Result<TransportMessageRecv, Error> {
         let mut receiver = self.receiver.lock().await;
         receiver.recv().await.ok_or(Error::ChannelClosed)
     }

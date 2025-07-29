@@ -1,5 +1,6 @@
 use chrono::Utc;
-use mcp_core::{Content, ToolError};
+use mcp_core::ToolError;
+use rmcp::model::Content;
 use std::fs::File;
 use std::io::Write;
 
@@ -14,17 +15,17 @@ pub fn process_tool_response(
             let mut processed_contents = Vec::new();
 
             for content in contents {
-                match content {
-                    Content::Text(text_content) => {
+                match content.as_text() {
+                    Some(text_content) => {
                         // Check if text exceeds threshold
-                        if text_content.text.len() > LARGE_TEXT_THRESHOLD {
+                        if text_content.text.chars().count() > LARGE_TEXT_THRESHOLD {
                             // Write to temp file
                             match write_large_text_to_file(&text_content.text) {
                                 Ok(file_path) => {
                                     // Create a new text content with reference to the file
                                     let message = format!(
                                         "The response returned from the tool call was larger ({} characters) and is stored in the file which you can use other tools to examine or search in: {}",
-                                        text_content.text.len(),
+                                        text_content.text.chars().count(),
                                         file_path
                                     );
                                     processed_contents.push(Content::text(message));
@@ -41,11 +42,13 @@ pub fn process_tool_response(
                             }
                         } else {
                             // Keep original content for smaller texts
-                            processed_contents.push(Content::Text(text_content));
+                            processed_contents.push(content);
                         }
                     }
-                    // Pass through other content types unchanged
-                    _ => processed_contents.push(content),
+                    None => {
+                        // Pass through other content types unchanged
+                        processed_contents.push(content);
+                    }
                 }
             }
 
@@ -76,7 +79,8 @@ fn write_large_text_to_file(content: &str) -> Result<String, std::io::Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcp_core::{Content, ImageContent, TextContent, ToolError};
+    use mcp_core::ToolError;
+    use rmcp::model::Content;
     use std::fs;
     use std::path::Path;
 
@@ -84,10 +88,7 @@ mod tests {
     fn test_small_text_response_passes_through() {
         // Create a small text response
         let small_text = "This is a small text response";
-        let content = Content::Text(TextContent {
-            text: small_text.to_string(),
-            annotations: None,
-        });
+        let content = Content::text(small_text.to_string());
 
         let response = Ok(vec![content]);
 
@@ -96,7 +97,7 @@ mod tests {
 
         // Verify the response is unchanged
         assert_eq!(processed.len(), 1);
-        if let Content::Text(text_content) = &processed[0] {
+        if let Some(text_content) = processed[0].as_text() {
             assert_eq!(text_content.text, small_text);
         } else {
             panic!("Expected text content");
@@ -107,10 +108,7 @@ mod tests {
     fn test_large_text_response_redirected_to_file() {
         // Create a text larger than the threshold
         let large_text = "a".repeat(LARGE_TEXT_THRESHOLD + 1000);
-        let content = Content::Text(TextContent {
-            text: large_text.clone(),
-            annotations: None,
-        });
+        let content = Content::text(large_text.clone());
 
         let response = Ok(vec![content]);
 
@@ -119,7 +117,7 @@ mod tests {
 
         // Verify the response contains a message about the file
         assert_eq!(processed.len(), 1);
-        if let Content::Text(text_content) = &processed[0] {
+        if let Some(text_content) = processed[0].as_text() {
             assert!(text_content
                 .text
                 .contains("The response returned from the tool call was larger"));
@@ -147,11 +145,7 @@ mod tests {
     #[test]
     fn test_image_content_passes_through() {
         // Create an image content
-        let image_content = Content::Image(ImageContent {
-            data: "base64data".to_string(),
-            mime_type: "image/png".to_string(),
-            annotations: None,
-        });
+        let image_content = Content::image("base64data".to_string(), "image/png".to_string());
 
         let response = Ok(vec![image_content]);
 
@@ -160,12 +154,11 @@ mod tests {
 
         // Verify the response is unchanged
         assert_eq!(processed.len(), 1);
-        match &processed[0] {
-            Content::Image(img) => {
-                assert_eq!(img.data, "base64data");
-                assert_eq!(img.mime_type, "image/png");
-            }
-            _ => panic!("Expected image content"),
+        if let Some(img) = processed[0].as_image() {
+            assert_eq!(img.data, "base64data");
+            assert_eq!(img.mime_type, "image/png");
+        } else {
+            panic!("Expected image content");
         }
     }
 
@@ -173,15 +166,8 @@ mod tests {
     fn test_mixed_content_handled_correctly() {
         // Create a response with mixed content types
         let small_text = Content::text("Small text");
-        let large_text = Content::Text(TextContent {
-            text: "a".repeat(LARGE_TEXT_THRESHOLD + 1000),
-            annotations: None,
-        });
-        let image = Content::Image(ImageContent {
-            data: "image_data".to_string(),
-            mime_type: "image/jpeg".to_string(),
-            annotations: None,
-        });
+        let large_text = Content::text("a".repeat(LARGE_TEXT_THRESHOLD + 1000));
+        let image = Content::image("image_data".to_string(), "image/jpeg".to_string());
 
         let response = Ok(vec![small_text, large_text, image]);
 
@@ -192,14 +178,14 @@ mod tests {
         assert_eq!(processed.len(), 3);
 
         // First item should be unchanged small text
-        if let Content::Text(text_content) = &processed[0] {
+        if let Some(text_content) = processed[0].as_text() {
             assert_eq!(text_content.text, "Small text");
         } else {
             panic!("Expected text content");
         }
 
         // Second item should be a message about the file
-        if let Content::Text(text_content) = &processed[1] {
+        if let Some(text_content) = processed[1].as_text() {
             assert!(text_content
                 .text
                 .contains("The response returned from the tool call was larger"));
@@ -216,12 +202,11 @@ mod tests {
         }
 
         // Third item should be unchanged image
-        match &processed[2] {
-            Content::Image(img) => {
-                assert_eq!(img.data, "image_data");
-                assert_eq!(img.mime_type, "image/jpeg");
-            }
-            _ => panic!("Expected image content"),
+        if let Some(img) = processed[2].as_image() {
+            assert_eq!(img.data, "image_data");
+            assert_eq!(img.mime_type, "image/jpeg");
+        } else {
+            panic!("Expected image content");
         }
     }
 

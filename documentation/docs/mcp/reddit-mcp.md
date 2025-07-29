@@ -8,6 +8,7 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
+import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 
 <!-- <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/VIDEO_ID" /> -->
@@ -37,13 +38,16 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-    1. [Launch the installer](goose://extension?cmd=uvx&arg=--from&arg=git%2Bhttps%3A%2F%2Fgithub.com%2Fadhikasp%2Fmcp-reddit.git&arg=mcp-reddit&id=reddit&name=Reddit&description=Fetch%20and%20analyze%20Reddit%20content)
-    2. Press <code>Yes</code> to confirm the installation 
-    3. Click <code>Save Configuration</code>  
-    4. Scroll to the top and click <code>Exit</code> from the upper left corner  
+    <GooseDesktopInstaller
+      extensionId="reddit"
+      extensionName="Reddit"
+      description="Fetch and analyze Reddit content"
+      command="uvx"
+      args={["--from", "git+https://github.com/adhikasp/mcp-reddit.git", "mcp-reddit"]}
+    />
   </TabItem>
 
-  <TabItem value="cli" label="Goose CLI (No Env Vars)">
+  <TabItem value="cli" label="Goose CLI">
     <CLIExtensionInstructions
       name="Reddit MCP"
       command="uvx --from git+https://github.com/adhikasp/mcp-reddit.git mcp-reddit"

@@ -6,6 +6,7 @@ description: Add the Square API as a Goose Extension
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 <details>
   <summary> 🎥 Square MCP Server Video Walkthrough</summary>
@@ -53,9 +54,11 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
   <Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
      1. [Launch the installer](https://mcp.squareup.com/goose)
-     2. Goose will open and ask you to confirm installation.
-     3. Goose should open a browser tab to an OAuth permissions page. Double-check which permissions you want to allow, and click 'Grant Access'.
+     2. Click `OK` to confirm the installation
+     3. Goose should open a browser tab to an OAuth permissions page. Double-check which permissions you want to allow, and click `Grant Access`.
      4. It will ask you to login or reauthenticate to Square, and may ask you to confirm the permissions you want to allow.
+     5. In Goose, navigate to the chat
+
     </TabItem>
     <TabItem value="cli" label="Goose CLI">
     1. Run the `configure` command:
@@ -207,7 +210,8 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
   :::tip TLDR
   <Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
-    [Launch the installer](goose://extension?cmd=npx&arg=square-mcp-server%20start&id=square-mcp&name=Square%20MCP%20Server&description=Square%20MCP%20Server&env=ACCESS_TOKEN%3DYour%20Access%20Token&env=SANDBOX%3Dtrue)
+    [Launch the installer](goose://extension?cmd=npx&arg=square-mcp-server&arg=start&id=mcp_square_api&name=Square%20MCP%20Server&description=Square%20API%20MCP%20Server&env=ACCESS_TOKEN%3DYour%20Access%20Token&env=SANDBOX%3Dtrue)
+
     </TabItem>
     <TabItem value="cli" label="Goose CLI">
     **Command**
@@ -231,13 +235,21 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
   <Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
-  1. [Launch the installer](goose://extension?cmd=npx&arg=square-mcp-server%20start&id=square-mcp&name=Square%20MCP%20Server&description=Square%20MCP%20Server&env=ACCESS_TOKEN%3DYour%20Access%20Token&env=SANDBOX%3Dtrue)
-  2. Press `Yes` to confirm the installation
-  3. Get your [Square Access Token](https://developer.squareup.com/apps) and paste it in
-  4. Keep `SANDBOX` as the environment variable, or change to `PRODUCTION`, and set its value to `true`
-  5. Click `Save Configuration`
-  6. Scroll to the top and click `Exit` from the upper left corner
-  </TabItem>
+    <GooseDesktopInstaller
+      extensionId="mcp_square_api"
+      extensionName="Square MCP Server"
+      description="Square API MCP Server"
+      command="npx"
+      args={["square-mcp-server", "start"]}
+      envVars={[
+        { name: "ACCESS_TOKEN", label: "Your Access Token" },
+        { name: "SANDBOX", label: "true" }
+      ]}
+      appendToStep3="Set SANDBOX or PRODUCTION to true (the access token must match the environment)"
+      apiKeyLink="https://developer.squareup.com/apps"
+      apiKeyLinkText="Square Access Token"
+    />
+    </TabItem>
   <TabItem value="cli" label="Goose CLI">
 
   1. Run the `configure` command:

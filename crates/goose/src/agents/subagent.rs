@@ -1,27 +1,21 @@
+use crate::agents::subagent_task_config::DEFAULT_SUBAGENT_MAX_TURNS;
 use crate::{
-    agents::{extension_manager::ExtensionManager, Agent},
+    agents::extension::ExtensionConfig,
+    agents::{extension_manager::ExtensionManager, Agent, TaskConfig},
+    config::ExtensionConfigManager,
     message::{Message, MessageContent, ToolRequest},
     prompt_template::render_global_file,
-    providers::base::Provider,
     providers::errors::ProviderError,
-    recipe::Recipe,
 };
 use anyhow::anyhow;
 use chrono::{DateTime, Utc};
-use mcp_core::protocol::{JsonRpcMessage, JsonRpcNotification};
-use mcp_core::{handler::ToolError, role::Role, tool::Tool};
+use mcp_core::handler::ToolError;
+use rmcp::model::Tool;
 use serde::{Deserialize, Serialize};
-use serde_json::{self, json};
+// use serde_json::{self};
 use std::{collections::HashMap, sync::Arc};
-use tokio::sync::{mpsc, Mutex, RwLock};
+use tokio::sync::{Mutex, RwLock};
 use tracing::{debug, error, instrument};
-use uuid::Uuid;
-
-use crate::agents::platform_tools::{
-    self, PLATFORM_LIST_RESOURCES_TOOL_NAME, PLATFORM_READ_RESOURCE_TOOL_NAME,
-    PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
-};
-use crate::agents::subagent_tools::SUBAGENT_RUN_TASK_TOOL_NAME;
 
 /// Status of a subagent
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -30,48 +24,6 @@ pub enum SubAgentStatus {
     Processing,        // Currently working on a task
     Completed(String), // Task completed (with optional message for success/error)
     Terminated,        // Manually terminated
-}
-
-/// Configuration for a subagent
-#[derive(Debug)]
-pub struct SubAgentConfig {
-    pub id: String,
-    pub recipe: Option<Recipe>,
-    pub instructions: Option<String>,
-    pub max_turns: Option<usize>,
-    pub timeout_seconds: Option<u64>,
-}
-
-impl SubAgentConfig {
-    pub fn new_with_recipe(recipe: Recipe) -> Self {
-        Self {
-            id: Uuid::new_v4().to_string(),
-            recipe: Some(recipe),
-            instructions: None,
-            max_turns: None,
-            timeout_seconds: None,
-        }
-    }
-
-    pub fn new_with_instructions(instructions: String) -> Self {
-        Self {
-            id: Uuid::new_v4().to_string(),
-            recipe: None,
-            instructions: Some(instructions),
-            max_turns: None,
-            timeout_seconds: None,
-        }
-    }
-
-    pub fn with_max_turns(mut self, max_turns: usize) -> Self {
-        self.max_turns = Some(max_turns);
-        self
-    }
-
-    pub fn with_timeout(mut self, timeout_seconds: u64) -> Self {
-        self.timeout_seconds = Some(timeout_seconds);
-        self
-    }
 }
 
 /// Progress information for a subagent
@@ -90,75 +42,53 @@ pub struct SubAgent {
     pub id: String,
     pub conversation: Arc<Mutex<Vec<Message>>>,
     pub status: Arc<RwLock<SubAgentStatus>>,
-    pub config: SubAgentConfig,
+    pub config: TaskConfig,
     pub turn_count: Arc<Mutex<usize>>,
     pub created_at: DateTime<Utc>,
-    pub recipe_extensions: Arc<Mutex<Vec<String>>>,
-    pub missing_extensions: Arc<Mutex<Vec<String>>>, // Track extensions that weren't enabled
-    pub mcp_notification_tx: mpsc::Sender<JsonRpcMessage>, // For MCP notifications
+    pub extension_manager: Arc<RwLock<ExtensionManager>>,
 }
 
 impl SubAgent {
     /// Create a new subagent with the given configuration and provider
-    #[instrument(skip(config, _provider, extension_manager, mcp_notification_tx))]
-    pub async fn new(
-        config: SubAgentConfig,
-        _provider: Arc<dyn Provider>,
-        extension_manager: Arc<tokio::sync::RwLockReadGuard<'_, ExtensionManager>>,
-        mcp_notification_tx: mpsc::Sender<JsonRpcMessage>,
-    ) -> Result<(Arc<Self>, tokio::task::JoinHandle<()>), anyhow::Error> {
-        debug!("Creating new subagent with id: {}", config.id);
+    #[instrument(skip(task_config))]
+    pub async fn new(task_config: TaskConfig) -> Result<Arc<Self>, anyhow::Error> {
+        debug!("Creating new subagent with id: {}", task_config.id);
 
-        let mut missing_extensions = Vec::new();
-        let mut recipe_extensions = Vec::new();
+        // Create a new extension manager for this subagent
+        let mut extension_manager = ExtensionManager::new();
 
-        // Check if extensions from recipe exist in the extension manager
-        if let Some(recipe) = &config.recipe {
-            if let Some(extensions) = &recipe.extensions {
-                for extension in extensions {
-                    let extension_name = extension.name();
-                    let existing_extensions = extension_manager.list_extensions().await?;
+        // Add extensions based on task_type:
+        // 1. If executing dynamic task (task_type = 'text_instruction'), default to using all enabled extensions
+        // 2. (TODO) If executing a sub-recipe task, only use recipe extensions
 
-                    if !existing_extensions.contains(&extension_name) {
-                        missing_extensions.push(extension_name);
-                    } else {
-                        recipe_extensions.push(extension_name);
-                    }
-                }
+        // Get all enabled extensions from config
+        let enabled_extensions = ExtensionConfigManager::get_all()
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|ext| ext.enabled)
+            .map(|ext| ext.config)
+            .collect::<Vec<ExtensionConfig>>();
+
+        // Add enabled extensions to the subagent's extension manager
+        for extension in enabled_extensions {
+            if let Err(e) = extension_manager.add_extension(extension).await {
+                debug!("Failed to add extension to subagent: {}", e);
+                // Continue with other extensions even if one fails
             }
-        } else {
-            // If no recipe, inherit all extensions from the parent agent
-            let existing_extensions = extension_manager.list_extensions().await?;
-            recipe_extensions = existing_extensions;
         }
 
         let subagent = Arc::new(SubAgent {
-            id: config.id.clone(),
+            id: task_config.id.clone(),
             conversation: Arc::new(Mutex::new(Vec::new())),
             status: Arc::new(RwLock::new(SubAgentStatus::Ready)),
-            config,
+            config: task_config,
             turn_count: Arc::new(Mutex::new(0)),
             created_at: Utc::now(),
-            recipe_extensions: Arc::new(Mutex::new(recipe_extensions)),
-            missing_extensions: Arc::new(Mutex::new(missing_extensions)),
-            mcp_notification_tx,
-        });
-
-        // Send initial MCP notification
-        let subagent_clone = Arc::clone(&subagent);
-        subagent_clone
-            .send_mcp_notification("subagent_created", "Subagent created and ready")
-            .await;
-
-        // Create a background task handle (for future use with streaming/monitoring)
-        let subagent_clone = Arc::clone(&subagent);
-        let handle = tokio::spawn(async move {
-            // This could be used for background monitoring, cleanup, etc.
-            debug!("Subagent {} background task started", subagent_clone.id);
+            extension_manager: Arc::new(RwLock::new(extension_manager)),
         });
 
         debug!("Subagent {} created successfully", subagent.id);
-        Ok((subagent, handle))
+        Ok(subagent)
     }
 
     /// Get the current status of the subagent
@@ -173,48 +103,6 @@ impl SubAgent {
             let mut current_status = self.status.write().await;
             *current_status = status.clone();
         } // Write lock is released here!
-
-        // Send MCP notifications based on status
-        match &status {
-            SubAgentStatus::Processing => {
-                self.send_mcp_notification("status_changed", "Processing request")
-                    .await;
-            }
-            SubAgentStatus::Completed(msg) => {
-                self.send_mcp_notification("completed", &format!("Completed: {}", msg))
-                    .await;
-            }
-            SubAgentStatus::Terminated => {
-                self.send_mcp_notification("terminated", "Subagent terminated")
-                    .await;
-            }
-            _ => {}
-        }
-    }
-
-    /// Send an MCP notification about the subagent's activity
-    pub async fn send_mcp_notification(&self, notification_type: &str, message: &str) {
-        let notification = JsonRpcMessage::Notification(JsonRpcNotification {
-            jsonrpc: "2.0".to_string(),
-            method: "notifications/message".to_string(),
-            params: Some(json!({
-                "level": "info",
-                "logger": format!("subagent_{}", self.id),
-                "data": {
-                    "subagent_id": self.id,
-                    "type": notification_type,
-                    "message": message,
-                    "timestamp": Utc::now().to_rfc3339()
-                }
-            })),
-        });
-
-        if let Err(e) = self.mcp_notification_tx.send(notification).await {
-            error!(
-                "Failed to send MCP notification from subagent {}: {}",
-                self.id, e
-            );
-        }
     }
 
     /// Get current progress information
@@ -238,30 +126,20 @@ impl SubAgent {
     }
 
     /// Process a message and generate a response using the subagent's provider
-    #[instrument(skip(self, message, provider, extension_manager))]
+    #[instrument(skip(self, message))]
     pub async fn reply_subagent(
         &self,
         message: String,
-        provider: Arc<dyn Provider>,
-        extension_manager: Arc<tokio::sync::RwLockReadGuard<'_, ExtensionManager>>,
-    ) -> Result<Message, anyhow::Error> {
+        task_config: TaskConfig,
+    ) -> Result<Vec<Message>, anyhow::Error> {
         debug!("Processing message for subagent {}", self.id);
-        self.send_mcp_notification("message_processing", &format!("Processing: {}", message))
-            .await;
 
-        // Check if we've exceeded max turns
-        {
-            let turn_count = *self.turn_count.lock().await;
-            if let Some(max_turns) = self.config.max_turns {
-                if turn_count >= max_turns {
-                    self.set_status(SubAgentStatus::Completed(
-                        "Maximum turns exceeded".to_string(),
-                    ))
-                    .await;
-                    return Err(anyhow!("Maximum turns ({}) exceeded", max_turns));
-                }
-            }
-        }
+        // Get provider from task config
+        let provider = self
+            .config
+            .provider
+            .as_ref()
+            .ok_or_else(|| anyhow!("No provider configured for subagent"))?;
 
         // Set status to processing
         self.set_status(SubAgentStatus::Processing).await;
@@ -273,105 +151,34 @@ impl SubAgent {
             conversation.push(user_message.clone());
         }
 
-        // Increment turn count
-        {
-            let mut turn_count = self.turn_count.lock().await;
-            *turn_count += 1;
-            self.send_mcp_notification(
-                "turn_progress",
-                &format!("Turn {}/{}", turn_count, self.config.max_turns.unwrap_or(0)),
-            )
-            .await;
-        }
-
         // Get the current conversation for context
         let mut messages = self.get_conversation().await;
 
-        // Get tools based on whether we're using a recipe or inheriting from parent
-        let tools: Vec<Tool> = if self.config.recipe.is_some() {
-            // Recipe mode: only get tools from the recipe's extensions
-            let recipe_extensions = self.recipe_extensions.lock().await;
-            let mut recipe_tools = Vec::new();
-
-            debug!(
-                "Subagent {} operating in recipe mode with {} extensions",
-                self.id,
-                recipe_extensions.len()
-            );
-
-            for extension_name in recipe_extensions.iter() {
-                match extension_manager
-                    .get_prefixed_tools(Some(extension_name.clone()))
-                    .await
-                {
-                    Ok(mut ext_tools) => {
-                        debug!(
-                            "Added {} tools from extension {}",
-                            ext_tools.len(),
-                            extension_name
-                        );
-                        recipe_tools.append(&mut ext_tools);
-                    }
-                    Err(e) => {
-                        debug!(
-                            "Failed to get tools for extension {}: {}",
-                            extension_name, e
-                        );
-                    }
-                }
-            }
-
-            debug!(
-                "Subagent {} has {} total recipe tools before filtering",
-                self.id,
-                recipe_tools.len()
-            );
-            // Filter out subagent tools from recipe tools
-            let mut filtered_tools = Self::filter_subagent_tools(recipe_tools);
-
-            // Add platform tools (except subagent tools)
-            Self::add_platform_tools(&mut filtered_tools, &extension_manager).await;
-
-            debug!(
-                "Subagent {} has {} tools after filtering and adding platform tools",
-                self.id,
-                filtered_tools.len()
-            );
-            filtered_tools
-        } else {
-            // No recipe: inherit all tools from parent (but filter out subagent tools)
-            debug!(
-                "Subagent {} operating in inheritance mode, using all parent tools",
-                self.id
-            );
-            let parent_tools = extension_manager.get_prefixed_tools(None).await?;
-            debug!(
-                "Subagent {} has {} parent tools before filtering",
-                self.id,
-                parent_tools.len()
-            );
-            let mut filtered_tools = Self::filter_subagent_tools(parent_tools);
-
-            // Add platform tools (except subagent tools)
-            Self::add_platform_tools(&mut filtered_tools, &extension_manager).await;
-
-            debug!(
-                "Subagent {} has {} tools after filtering and adding platform tools",
-                self.id,
-                filtered_tools.len()
-            );
-            filtered_tools
-        };
+        // Get tools from the subagent's own extension manager
+        let tools: Vec<Tool> = self
+            .extension_manager
+            .read()
+            .await
+            .get_prefixed_tools(None)
+            .await
+            .unwrap_or_default();
 
         let toolshim_tools: Vec<Tool> = vec![];
 
         // Build system prompt using the template
         let system_prompt = self.build_system_prompt(&tools).await?;
 
+        // Generate response from provider with loop for tool processing (max_turns iterations)
+        let mut loop_count = 0;
+        let max_turns = self.config.max_turns.unwrap_or(DEFAULT_SUBAGENT_MAX_TURNS);
+        let mut last_error: Option<anyhow::Error> = None;
+
         // Generate response from provider
         loop {
+            loop_count += 1;
+
             match Agent::generate_response_from_provider(
-                Arc::clone(&provider),
+                Arc::clone(provider),
                 &system_prompt,
                 &messages,
                 &tools,
@@ -394,23 +201,14 @@ impl SubAgent {
                         .collect();
 
                     // If there are no tool requests, we're done
-                    if tool_requests.is_empty() {
+                    if tool_requests.is_empty() || loop_count >= max_turns {
                         self.add_message(response.clone()).await;
+                        messages.push(response.clone());
 
-                        // Send notification about response
-                        self.send_mcp_notification(
-                            "response_generated",
-                            &format!("Responded: {}", response.as_concat_text()),
-                        )
-                        .await;
-
-                        // Add delay before completion to ensure all processing finishes
-                        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-
-                        // Set status back to ready and return the final response
+                        // Set status back to ready
                         self.set_status(SubAgentStatus::Completed("Completed!".to_string()))
                             .await;
-                        break Ok(response);
+                        break;
                     }
 
                     // Add the assistant message with tool calls to the conversation
@@ -419,28 +217,16 @@ impl SubAgent {
                     // Process each tool request and create user response messages
                     for request in &tool_requests {
                         if let Ok(tool_call) = &request.tool_call {
-                            // Send notification about tool usage
-                            self.send_mcp_notification(
-                                "tool_usage",
-                                &format!("Using tool: {}", tool_call.name),
-                            )
-                            .await;
-
                             // Handle platform tools or dispatch to extension manager
-                            let tool_result = if self.is_platform_tool(&tool_call.name) {
-                                self.handle_platform_tool_call(
-                                    tool_call.clone(),
-                                    &extension_manager,
-                                )
+                            let tool_result = match self
+                                .extension_manager
+                                .read()
                                 .await
-                            } else {
-                                match extension_manager
-                                    .dispatch_tool_call(tool_call.clone())
-                                    .await
-                                {
-                                    Ok(result) => result.result.await,
-                                    Err(e) => Err(ToolError::ExecutionError(e.to_string())),
-                                }
+                                .dispatch_tool_call(tool_call.clone())
+                                .await
+                            {
+                                Ok(result) => result.result.await,
+                                Err(e) => Err(ToolError::ExecutionError(e.to_string())),
                             };
 
                             match tool_result {
@@ -449,13 +235,6 @@ impl SubAgent {
                                     let tool_response_message = Message::user()
                                         .with_tool_response(request.id.clone(), Ok(result.clone()));
                                     messages.push(tool_response_message);
-
-                                    // Send notification about tool completion
-                                    self.send_mcp_notification(
-                                        "tool_completed",
-                                        &format!("Tool {} completed successfully", tool_call.name),
-                                    )
-                                    .await;
                                 }
                                 Err(e) => {
                                     // Create a user message with the tool error
@@ -464,13 +243,6 @@ impl SubAgent {
                                         Err(ToolError::ExecutionError(e.to_string())),
                                     );
                                     messages.push(tool_error_message);
-
-                                    // Send notification about tool error
-                                    self.send_mcp_notification(
-                                        "tool_error",
-                                        &format!("Tool {} error: {}", tool_call.name, e),
-                                    )
-                                    .await;
                                 }
                             }
                         }
@@ -483,23 +255,30 @@ impl SubAgent {
                         "Context length exceeded".to_string(),
                     ))
                     .await;
-                    break Ok(Message::assistant().with_context_length_exceeded(
-                        "The context length of the model has been exceeded. Please start a new session and try again.",
-                    ));
+                    last_error = Some(anyhow::anyhow!("Context length exceeded"));
+                    break;
                 }
                 Err(ProviderError::RateLimitExceeded(_)) => {
                     self.set_status(SubAgentStatus::Completed("Rate limit exceeded".to_string()))
                         .await;
-                    break Ok(Message::assistant()
-                        .with_text("Rate limit exceeded. Please try again later."));
+                    last_error = Some(anyhow::anyhow!("Rate limit exceeded"));
+                    break;
                 }
                 Err(e) => {
                     self.set_status(SubAgentStatus::Completed(format!("Error: {}", e)))
                         .await;
                     error!("Error: {}", e);
-                    break Ok(Message::assistant().with_text(format!("Ran into this error: {e}.\n\nPlease retry if you think this is a transient or recoverable error.")));
+                    last_error = Some(anyhow::anyhow!("Provider error: {}", e));
+                    break;
                 }
             }
+        }
+
+        // Handle error cases or return the last message
+        if let Some(error) = last_error {
+            Err(error)
+        } else {
+            Ok(messages)
         }
     }
 
@@ -529,142 +308,10 @@ impl SubAgent {
         Ok(())
     }
 
-    /// Get formatted conversation for display
-    pub async fn get_formatted_conversation(&self) -> String {
-        let conversation = self.conversation.lock().await;
-
-        let mut formatted = format!("=== Subagent {} Conversation ===\n", self.id);
-
-        if let Some(recipe) = &self.config.recipe {
-            formatted.push_str(&format!("Recipe: {}\n", recipe.title));
-        } else if let Some(instructions) = &self.config.instructions {
-            formatted.push_str(&format!("Instructions: {}\n", instructions));
-        } else {
-            formatted.push_str("Mode: Ad-hoc subagent\n");
-        }
-
-        formatted.push_str(&format!(
-            "Created: {}\n",
-            self.created_at.format("%Y-%m-%d %H:%M:%S UTC")
-        ));
-
-        let progress = self.get_progress().await;
-
-        formatted.push_str(&format!("Status: {:?}\n", progress.status));
-        formatted.push_str(&format!("Turn: {}", progress.turn));
-        if let Some(max_turns) = progress.max_turns {
-            formatted.push_str(&format!("/{}", max_turns));
-        }
-        formatted.push_str("\n\n");
-
-        for (i, message) in conversation.iter().enumerate() {
-            formatted.push_str(&format!(
-                "{}. {}: {}\n",
-                i + 1,
-                match message.role {
-                    Role::User => "User",
-                    Role::Assistant => "Assistant",
-                },
-                message.as_concat_text()
-            ));
-        }
-
-        formatted.push_str("=== End Conversation ===\n");
-
-        formatted
-    }
-
-    /// Get the list of extensions that weren't enabled
-    pub async fn get_missing_extensions(&self) -> Vec<String> {
-        self.missing_extensions.lock().await.clone()
-    }
-
     /// Filter out subagent spawning tools to prevent infinite recursion
-    fn filter_subagent_tools(tools: Vec<Tool>) -> Vec<Tool> {
-        let original_count = tools.len();
-        let filtered_tools: Vec<Tool> = tools
-            .into_iter()
-            .filter(|tool| {
-                let should_keep = tool.name != SUBAGENT_RUN_TASK_TOOL_NAME;
-                if !should_keep {
-                    debug!("Filtering out subagent tool: {}", tool.name);
-                }
-                should_keep
-            })
-            .collect();
-
-        let filtered_count = filtered_tools.len();
-        if filtered_count < original_count {
-            debug!(
-                "Filtered {} subagent tool(s) from {} total tools",
-                original_count - filtered_count,
-                original_count
-            );
-        }
-
-        filtered_tools
-    }
-
-    /// Add platform tools to the subagent's tool list (excluding dangerous tools)
-    async fn add_platform_tools(tools: &mut Vec<Tool>, extension_manager: &ExtensionManager) {
-        debug!("Adding safe platform tools to subagent");
-
-        // Add safe platform tools - subagents can search for extensions but can't manage them or schedules
-        tools.push(platform_tools::search_available_extensions_tool());
-        debug!("Added search_available_extensions tool");
-
-        // Add resource tools if supported - these are generally safe for subagents
-        if extension_manager.supports_resources() {
-            tools.extend([
-                platform_tools::read_resource_tool(),
-                platform_tools::list_resources_tool(),
-            ]);
-            debug!("Added 2 resource platform tools");
-        }
-
-        // Note: We explicitly do NOT add these tools for security reasons:
-        // - manage_extensions (could interfere with parent agent's extensions)
-        // - manage_schedule (could interfere with parent agent's scheduling)
-        // - subagent spawning tools (prevent recursion)
-        debug!("Platform tools added successfully (dangerous tools excluded)");
-    }
-
-    /// Check if a tool name is a platform tool that subagents can use
-    fn is_platform_tool(&self, tool_name: &str) -> bool {
-        matches!(
-            tool_name,
-            PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME
-                | PLATFORM_READ_RESOURCE_TOOL_NAME
-                | PLATFORM_LIST_RESOURCES_TOOL_NAME
-        )
-    }
-
-    /// Handle platform tool calls that are safe for subagents
-    async fn handle_platform_tool_call(
-        &self,
-        tool_call: mcp_core::tool::ToolCall,
-        extension_manager: &ExtensionManager,
-    ) -> Result<Vec<mcp_core::Content>, ToolError> {
-        debug!("Handling platform tool: {}", tool_call.name);
-
-        match tool_call.name.as_str() {
-            PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME => extension_manager
-                .search_available_extensions()
-                .await
-                .map_err(|e| ToolError::ExecutionError(e.to_string())),
-            PLATFORM_READ_RESOURCE_TOOL_NAME => extension_manager
-                .read_resource(tool_call.arguments)
-                .await
-                .map_err(|e| ToolError::ExecutionError(e.to_string())),
-            PLATFORM_LIST_RESOURCES_TOOL_NAME => extension_manager
-                .list_resources(tool_call.arguments)
-                .await
-                .map_err(|e| ToolError::ExecutionError(e.to_string())),
-            _ => Err(ToolError::ExecutionError(format!(
-                "Platform tool '{}' is not available to subagents for security reasons",
-                tool_call.name
-            ))),
-        }
+    fn _filter_subagent_tools(tools: Vec<Tool>) -> Vec<Tool> {
+        // TODO: add this in subagent loop
+        tools
     }
 
     /// Build the system prompt for the subagent using the template
@@ -678,14 +325,6 @@ impl SubAgent {
         );
         context.insert("subagent_id", serde_json::Value::String(self.id.clone()));
 
-        // Add recipe information if available
-        if let Some(recipe) = &self.config.recipe {
-            context.insert(
-                "recipe_title",
-                serde_json::Value::String(recipe.title.clone()),
-            );
-        }
-
         // Add max turns if configured
         if let Some(max_turns) = self.config.max_turns {
             context.insert(
@@ -694,41 +333,14 @@ impl SubAgent {
             );
         }
 
-        // Add task instructions
-        let instructions = if let Some(recipe) = &self.config.recipe {
-            recipe.instructions.as_deref().unwrap_or("")
-        } else {
-            self.config.instructions.as_deref().unwrap_or("")
-        };
-        context.insert(
-            "task_instructions",
-            serde_json::Value::String(instructions.to_string()),
-        );
-
-        // Add available extensions (only if we have a recipe and extensions)
-        if self.config.recipe.is_some() {
-            let extensions: Vec<String> = self.recipe_extensions.lock().await.clone();
-            if !extensions.is_empty() {
-                context.insert(
-                    "extensions",
-                    serde_json::Value::Array(
-                        extensions
-                            .into_iter()
-                            .map(serde_json::Value::String)
-                            .collect(),
-                    ),
-                );
-            }
-        }
-
         // Add available tools with descriptions for better context
         let tools_with_descriptions: Vec<String> = available_tools
             .iter()
             .map(|t| {
-                if t.description.is_empty() {
-                    t.name.clone()
+                if let Some(description) = &t.description {
+                    format!("{}: {}", t.name, description)
                 } else {
-                    format!("{}: {}", t.name, t.description)
+                    t.name.to_string()
                 }
             })
             .collect();

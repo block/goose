@@ -6,7 +6,7 @@ use anyhow::Result;
 use base64::Engine;
 use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::formatdoc;
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::{
     collections::HashMap,
     future::Future,
@@ -24,19 +24,17 @@ use url::Url;
 use include_dir::{include_dir, Dir};
 use mcp_core::{
     handler::{PromptError, ResourceError, ToolError},
-    protocol::{JsonRpcMessage, JsonRpcNotification, ServerCapabilities},
-    resource::Resource,
-    tool::Tool,
-    Content,
+    protocol::ServerCapabilities,
 };
-use mcp_core::{
-    prompt::{Prompt, PromptArgument, PromptTemplate},
-    tool::ToolAnnotations,
-};
+
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
 
-use mcp_core::role::Role;
+use rmcp::model::{
+    Content, JsonRpcMessage, JsonRpcNotification, JsonRpcVersion2_0, Notification, Prompt,
+    PromptArgument, PromptTemplate, Resource, Role, Tool, ToolAnnotations,
+};
+use rmcp::object;
 
 use self::editor_models::{create_editor_model, EditorModel};
 use self::shell::{expand_path, get_shell_config, is_absolute_path, normalize_line_endings};
@@ -158,25 +156,103 @@ impl DeveloperRouter {
                 sourcing files do not persist between tool calls. So you may need to repeat them each time by
                 stringing together commands, e.g. `cd example && ls` or `source env/bin/activate && pip install numpy`
 
-                **Important**: Use ripgrep - `rg` - when you need to locate a file or a code reference, other solutions
-                may show ignored or hidden files. For example *do not* use `find` or `ls -r`
-                  - List files by name: `rg --files | rg <filename>`
-                  - List files that contain a regex: `rg '<regex>' -l`
+                - Restrictions: Avoid find, grep, cat, head, tail, ls - use dedicated tools instead (Grep, Glob, Read, LS)
+                - Multiple commands: Use ; or && to chain commands, avoid newlines
+                - Pathnames: Use absolute paths and avoid cd unless explicitly requested
             "#},
         };
 
         let bash_tool = Tool::new(
             "shell".to_string(),
             shell_tool_desc.to_string(),
-            json!({
+            object!({
                 "type": "object",
                 "required": ["command"],
                 "properties": {
                     "command": {"type": "string"}
                 }
             }),
-            None,
         );
+
+        let glob_tool = Tool::new(
+            "glob".to_string(),
+            indoc! {r#"
+                Search for files using glob patterns.
+                
+                This tool provides fast file pattern matching using glob syntax.
+                Returns matching file paths sorted by modification time.
+                Examples:
+                - `*.rs` - Find all Rust files in current directory
+                - `src/**/*.py` - Find all Python files recursively in src directory
+                - `**/test*.js` - Find all JavaScript test files recursively
+                
+                **Important**: Use this tool instead of shell commands like `find` or `ls -r` for file searching,
+                as it properly handles ignored files and is more efficient. This tool respects .gooseignore patterns.
+                
+                Use this tool when you need to locate files by name patterns rather than content.
+            "#}.to_string(),
+            object!({
+                "type": "object",
+                "required": ["pattern"],
+                "properties": {
+                    "pattern": {"type": "string", "description": "The glob pattern to search for"},
+                    "path": {"type": "string", "description": "The directory to search in (defaults to current directory)"}
+                }
+            })
+        ).annotate(ToolAnnotations {
+            title: Some("Search files by pattern".to_string()),
+            read_only_hint: Some(true),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(true),
+            open_world_hint: Some(false),
+        });
+
+        let grep_tool = Tool::new(
+            "grep".to_string(),
+            indoc! {r#"
+                Execute file content search commands using ripgrep, grep, or find.
+                
+                Use this tool to run search commands that look for content within files. The tool
+                executes your command directly and filters results to respect .gooseignore patterns.
+                
+                **Recommended tools and usage:**
+                
+                **ripgrep (rg)** - Fast, recommended for most searches:
+                - List files containing pattern: `rg -l "pattern"`
+                - Case-insensitive search: `rg -i "pattern"`
+                - Search specific file types: `rg "pattern" --glob "*.js"`
+                - Show matches with context: `rg "pattern" -C 3`
+                - List files by name: `rg --files | rg <filename>`
+                - List files that contain a regex: `rg '<regex>' -l`
+                - Sort by modification time: `rg -l "pattern" --sort modified`
+                
+                **grep** - Traditional Unix tool:
+                - Recursive search: `grep -r "pattern" .`
+                - List files only: `grep -rl "pattern" .`
+                - Include specific files: `grep -r "pattern" --include="*.py"`
+                
+                **find + grep** - When you need complex file filtering:
+                - `find . -name "*.py" -exec grep -l "pattern" {} \;`
+                - `find . -type f -newer file.txt -exec grep "pattern" {} \;`
+                
+                **Important**: Use this tool instead of the shell tool for search commands, as it
+                properly filters results to respect ignored files.
+            "#}
+            .to_string(),
+            object!({
+                "type": "object",
+                "required": ["command"],
+                "properties": {
+                    "command": {"type": "string", "description": "The search command to execute (rg, grep, find, etc.)"}
+                }
+            })
+        ).annotate(ToolAnnotations {
+            title: Some("Search file contents".to_string()),
+            read_only_hint: Some(true),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(true),
+            open_world_hint: Some(false),
+        });
 
         // Create text editor tool with different descriptions based on editor API configuration
         let (text_editor_desc, str_replace_command) = if let Some(ref editor) = editor_model {
@@ -227,7 +303,7 @@ impl DeveloperRouter {
         let text_editor_tool = Tool::new(
             "text_editor".to_string(),
             text_editor_desc.to_string(),
-            json!({
+            object!({
                 "type": "object",
                 "required": ["command", "path"],
                 "properties": {
@@ -256,7 +332,6 @@ impl DeveloperRouter {
                     "file_text": {"type": "string"}
                 }
             }),
-            None,
         );
 
         let list_windows_tool = Tool::new(
@@ -266,19 +341,19 @@ impl DeveloperRouter {
                 Returns a list of window titles that can be used with the window_title parameter
                 of the screen_capture tool.
             "#},
-            json!({
+            object!({
                 "type": "object",
                 "required": [],
                 "properties": {}
             }),
-            Some(ToolAnnotations {
-                title: Some("List available windows".to_string()),
-                read_only_hint: true,
-                destructive_hint: false,
-                idempotent_hint: false,
-                open_world_hint: false,
-            }),
-        );
+        )
+        .annotate(ToolAnnotations {
+            title: Some("List available windows".to_string()),
+            read_only_hint: Some(true),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(false),
+            open_world_hint: Some(false),
+        });
 
         let screen_capture_tool = Tool::new(
             "screen_capture",
@@ -290,7 +365,7 @@ impl DeveloperRouter {
 
                 Only one of display or window_title should be specified.
             "#},
-            json!({
+            object!({
                 "type": "object",
                 "required": [],
                 "properties": {
@@ -305,15 +380,14 @@ impl DeveloperRouter {
                         "description": "Optional: the exact title of the window to capture. use the list_windows tool to find the available windows."
                     }
                 }
-            }),
-            Some(ToolAnnotations {
-                title: Some("Capture a full screen".to_string()),
-                read_only_hint: true,
-                destructive_hint: false,
-                idempotent_hint: false,
-                open_world_hint: false,
-            }),
-        );
+            })
+        ).annotate(ToolAnnotations {
+            title: Some("Capture a full screen".to_string()),
+            read_only_hint: Some(true),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(false),
+            open_world_hint: Some(false),
+        });
 
         let image_processor_tool = Tool::new(
             "image_processor",
@@ -325,7 +399,7 @@ impl DeveloperRouter {
 
                 This allows processing image files for use in the conversation.
             "#},
-            json!({
+            object!({
                 "type": "object",
                 "required": ["path"],
                 "properties": {
@@ -335,14 +409,14 @@ impl DeveloperRouter {
                     }
                 }
             }),
-            Some(ToolAnnotations {
-                title: Some("Process Image".to_string()),
-                read_only_hint: true,
-                destructive_hint: false,
-                idempotent_hint: true,
-                open_world_hint: false,
-            }),
-        );
+        )
+        .annotate(ToolAnnotations {
+            title: Some("Process Image".to_string()),
+            read_only_hint: Some(true),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(true),
+            open_world_hint: Some(false),
+        });
 
         // Get base instructions and working directory
         let cwd = std::env::current_dir().expect("should have a current working dir");
@@ -483,6 +557,8 @@ impl DeveloperRouter {
         Self {
             tools: vec![
                 bash_tool,
+                glob_tool,
+                grep_tool,
                 text_editor_tool,
                 list_windows_tool,
                 screen_capture_tool,
@@ -592,15 +668,19 @@ impl DeveloperRouter {
                             let line = String::from_utf8_lossy(&stdout_buf);
 
                             notifier.try_send(JsonRpcMessage::Notification(JsonRpcNotification {
-                                jsonrpc: "2.0".to_string(),
-                                method: "notifications/message".to_string(),
-                                params: Some(json!({
-                                    "data": {
-                                        "type": "shell",
-                                        "stream": "stdout",
-                                        "output": line.to_string(),
-                                    }
-                                })),
+                                jsonrpc: JsonRpcVersion2_0,
+                                notification: Notification {
+                                    method: "notifications/message".to_string(),
+                                    params: object!({
+                                        "level": "info",
+                                        "data": {
+                                            "type": "shell",
+                                            "stream": "stdout",
+                                            "output": line.to_string(),
+                                        }
+                                    }),
+                                    extensions: Default::default(),
+                                }
                             })).ok();
 
                             combined_output.push_str(&line);
@@ -615,15 +695,19 @@ impl DeveloperRouter {
                             let line = String::from_utf8_lossy(&stderr_buf);
 
                             notifier.try_send(JsonRpcMessage::Notification(JsonRpcNotification {
-                                jsonrpc: "2.0".to_string(),
-                                method: "notifications/message".to_string(),
-                                params: Some(json!({
-                                    "data": {
-                                        "type": "shell",
-                                        "stream": "stderr",
-                                        "output": line.to_string(),
-                                    }
-                                })),
+                                jsonrpc: JsonRpcVersion2_0,
+                                notification: Notification {
+                                    method: "notifications/message".to_string(),
+                                    params: object!({
+                                        "level": "info",
+                                        "data": {
+                                            "type": "shell",
+                                            "stream": "stderr",
+                                            "output": line.to_string(),
+                                        }
+                                    }),
+                                    extensions: Default::default(),
+                                }
                             })).ok();
 
                             combined_output.push_str(&line);
@@ -667,6 +751,69 @@ impl DeveloperRouter {
         Ok(vec![
             Content::text(output_str.clone()).with_audience(vec![Role::Assistant]),
             Content::text(output_str)
+                .with_audience(vec![Role::User])
+                .with_priority(0.0),
+        ])
+    }
+
+    async fn glob(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        let pattern =
+            params
+                .get("pattern")
+                .and_then(|v| v.as_str())
+                .ok_or(ToolError::InvalidParameters(
+                    "The pattern string is required".to_string(),
+                ))?;
+
+        let search_path = params.get("path").and_then(|v| v.as_str()).unwrap_or(".");
+
+        let full_pattern = if search_path == "." {
+            pattern.to_string()
+        } else {
+            format!("{}/{}", search_path.trim_end_matches('/'), pattern)
+        };
+
+        let glob_result = glob::glob(&full_pattern)
+            .map_err(|e| ToolError::InvalidParameters(format!("Invalid glob pattern: {}", e)))?;
+
+        let mut file_paths_with_metadata = Vec::new();
+
+        for entry in glob_result {
+            match entry {
+                Ok(path) => {
+                    // Check if the path should be ignored
+                    if !self.is_ignored(&path) {
+                        // Get file metadata for sorting by modification time
+                        if let Ok(metadata) = std::fs::metadata(&path) {
+                            if metadata.is_file() {
+                                let modified = metadata
+                                    .modified()
+                                    .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+                                file_paths_with_metadata.push((path, modified));
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("Error reading glob entry: {}", e);
+                }
+            }
+        }
+
+        // Sort by modification time (newest first)
+        file_paths_with_metadata.sort_by(|a, b| b.1.cmp(&a.1));
+
+        // Extract just the file paths
+        let file_paths: Vec<String> = file_paths_with_metadata
+            .into_iter()
+            .map(|(path, _)| path.to_string_lossy().to_string())
+            .collect();
+
+        let result = file_paths.join("\n");
+
+        Ok(vec![
+            Content::text(result.clone()).with_audience(vec![Role::Assistant]),
+            Content::text(result)
                 .with_audience(vec![Role::User])
                 .with_priority(0.0),
         ])
@@ -1438,6 +1585,8 @@ impl Router for DeveloperRouter {
         Box::pin(async move {
             match tool_name.as_str() {
                 "shell" => this.bash(arguments, notifier).await,
+                "glob" => this.glob(arguments).await,
+                "grep" => this.bash(arguments, notifier).await,
                 "text_editor" => this.text_editor(arguments).await,
                 "list_windows" => this.list_windows(arguments).await,
                 "screen_capture" => this.screen_capture(arguments).await,
@@ -1738,7 +1887,7 @@ mod tests {
             .unwrap()
             .as_text()
             .unwrap();
-        assert!(text.contains("Hello, world!"));
+        assert!(text.text.contains("Hello, world!"));
 
         temp_dir.close().unwrap();
     }
@@ -1792,7 +1941,9 @@ mod tests {
             .as_text()
             .unwrap();
 
-        assert!(text.contains("has been edited, and the section now reads"));
+        assert!(text
+            .text
+            .contains("has been edited, and the section now reads"));
 
         // View the file to verify the change
         let view_result = router
@@ -1820,9 +1971,9 @@ mod tests {
         // Check that the file has been modified and contains some form of "Rust"
         // The Editor API might transform the content differently than simple string replacement
         assert!(
-            text.contains("Rust") || text.contains("Hello, Rust!"),
+            text.text.contains("Rust") || text.text.contains("Hello, Rust!"),
             "Expected content to contain 'Rust', but got: {}",
-            text
+            text.text
         );
 
         temp_dir.close().unwrap();
@@ -1881,7 +2032,7 @@ mod tests {
             .unwrap();
 
         let text = undo_result.first().unwrap().as_text().unwrap();
-        assert!(text.contains("Undid the last edit"));
+        assert!(text.text.contains("Undid the last edit"));
 
         // View the file to verify the undo
         let view_result = router
@@ -1905,7 +2056,7 @@ mod tests {
             .unwrap()
             .as_text()
             .unwrap();
-        assert!(text.contains("First line"));
+        assert!(text.text.contains("First line"));
 
         temp_dir.close().unwrap();
     }
@@ -2187,20 +2338,34 @@ mod tests {
         // Should use traditional description with str_replace command
         assert!(text_editor_tool
             .description
-            .contains("Replace a string in a file with a new string"));
+            .as_ref()
+            .map_or(false, |desc| desc
+                .contains("Replace a string in a file with a new string")));
         assert!(text_editor_tool
             .description
-            .contains("the `old_str` needs to exactly match one"));
-        assert!(text_editor_tool.description.contains("str_replace"));
+            .as_ref()
+            .map_or(false, |desc| desc
+                .contains("the `old_str` needs to exactly match one")));
+        assert!(text_editor_tool
+            .description
+            .as_ref()
+            .map_or(false, |desc| desc.contains("str_replace")));
 
         // Should not contain editor API description or edit_file command
         assert!(!text_editor_tool
             .description
-            .contains("Edit the file with the new content"));
-        assert!(!text_editor_tool.description.contains("edit_file"));
+            .as_ref()
+            .map_or(false, |desc| desc
+                .contains("Edit the file with the new content")));
         assert!(!text_editor_tool
             .description
-            .contains("work out how to place old_str with it intelligently"));
+            .as_ref()
+            .map_or(false, |desc| desc.contains("edit_file")));
+        assert!(!text_editor_tool
+            .description
+            .as_ref()
+            .map_or(false, |desc| desc
+                .contains("work out how to place old_str with it intelligently")));
 
         temp_dir.close().unwrap();
     }
@@ -2359,14 +2524,14 @@ mod tests {
             .unwrap();
 
         // Should contain lines 3-6 with line numbers
-        assert!(text.contains("3: Line 3"));
-        assert!(text.contains("4: Line 4"));
-        assert!(text.contains("5: Line 5"));
-        assert!(text.contains("6: Line 6"));
-        assert!(text.contains("(lines 3-6)"));
+        assert!(text.text.contains("3: Line 3"));
+        assert!(text.text.contains("4: Line 4"));
+        assert!(text.text.contains("5: Line 5"));
+        assert!(text.text.contains("6: Line 6"));
+        assert!(text.text.contains("(lines 3-6)"));
         // Should not contain other lines
-        assert!(!text.contains("1: Line 1"));
-        assert!(!text.contains("7: Line 7"));
+        assert!(!text.text.contains("1: Line 1"));
+        assert!(!text.text.contains("7: Line 7"));
 
         temp_dir.close().unwrap();
     }
@@ -2421,13 +2586,13 @@ mod tests {
             .unwrap();
 
         // Should contain lines 3 to end
-        assert!(text.contains("3: Line 3"));
-        assert!(text.contains("4: Line 4"));
-        assert!(text.contains("5: Line 5"));
-        assert!(text.contains("(lines 3-end)"));
+        assert!(text.text.contains("3: Line 3"));
+        assert!(text.text.contains("4: Line 4"));
+        assert!(text.text.contains("5: Line 5"));
+        assert!(text.text.contains("(lines 3-end)"));
         // Should not contain earlier lines
-        assert!(!text.contains("1: Line 1"));
-        assert!(!text.contains("2: Line 2"));
+        assert!(!text.text.contains("1: Line 1"));
+        assert!(!text.text.contains("2: Line 2"));
 
         temp_dir.close().unwrap();
     }
@@ -2547,7 +2712,7 @@ mod tests {
             .as_text()
             .unwrap();
 
-        assert!(text.contains("Text has been inserted at line 1"));
+        assert!(text.text.contains("Text has been inserted at line 1"));
 
         // Verify the file content
         let view_result = router
@@ -2572,10 +2737,10 @@ mod tests {
             .as_text()
             .unwrap();
 
-        assert!(view_text.contains("1: Line 1"));
-        assert!(view_text.contains("2: Line 2"));
-        assert!(view_text.contains("3: Line 3"));
-        assert!(view_text.contains("4: Line 4"));
+        assert!(view_text.text.contains("1: Line 1"));
+        assert!(view_text.text.contains("2: Line 2"));
+        assert!(view_text.text.contains("3: Line 3"));
+        assert!(view_text.text.contains("4: Line 4"));
 
         temp_dir.close().unwrap();
     }
@@ -2630,7 +2795,7 @@ mod tests {
             .as_text()
             .unwrap();
 
-        assert!(text.contains("Text has been inserted at line 3"));
+        assert!(text.text.contains("Text has been inserted at line 3"));
 
         // Verify the file content
         let view_result = router
@@ -2655,11 +2820,11 @@ mod tests {
             .as_text()
             .unwrap();
 
-        assert!(view_text.contains("1: Line 1"));
-        assert!(view_text.contains("2: Line 2"));
-        assert!(view_text.contains("3: Line 3"));
-        assert!(view_text.contains("4: Line 4"));
-        assert!(view_text.contains("5: Line 5"));
+        assert!(view_text.text.contains("1: Line 1"));
+        assert!(view_text.text.contains("2: Line 2"));
+        assert!(view_text.text.contains("3: Line 3"));
+        assert!(view_text.text.contains("4: Line 4"));
+        assert!(view_text.text.contains("5: Line 5"));
 
         temp_dir.close().unwrap();
     }
@@ -2714,7 +2879,7 @@ mod tests {
             .as_text()
             .unwrap();
 
-        assert!(text.contains("Text has been inserted at line 4"));
+        assert!(text.text.contains("Text has been inserted at line 4"));
 
         // Verify the file content
         let view_result = router
@@ -2739,10 +2904,10 @@ mod tests {
             .as_text()
             .unwrap();
 
-        assert!(view_text.contains("1: Line 1"));
-        assert!(view_text.contains("2: Line 2"));
-        assert!(view_text.contains("3: Line 3"));
-        assert!(view_text.contains("4: Line 4"));
+        assert!(view_text.text.contains("1: Line 1"));
+        assert!(view_text.text.contains("2: Line 2"));
+        assert!(view_text.text.contains("3: Line 3"));
+        assert!(view_text.text.contains("4: Line 4"));
 
         temp_dir.close().unwrap();
     }
@@ -2911,7 +3076,7 @@ mod tests {
             .unwrap();
 
         let text = undo_result.first().unwrap().as_text().unwrap();
-        assert!(text.contains("Undid the last edit"));
+        assert!(text.text.contains("Undid the last edit"));
 
         // Verify the file is back to original content
         let view_result = router
@@ -2936,9 +3101,9 @@ mod tests {
             .as_text()
             .unwrap();
 
-        assert!(view_text.contains("1: Line 1"));
-        assert!(view_text.contains("2: Line 2"));
-        assert!(!view_text.contains("Inserted Line"));
+        assert!(view_text.text.contains("1: Line 1"));
+        assert!(view_text.text.contains("2: Line 2"));
+        assert!(!view_text.text.contains("Inserted Line"));
 
         temp_dir.close().unwrap();
     }

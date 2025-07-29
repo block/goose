@@ -35,6 +35,14 @@ The following settings can be configured at the root level of your config.yaml f
 | `GOOSE_ALLOWLIST` | URL for allowed extensions | Valid URL | None | No |
 | `GOOSE_RECIPE_GITHUB_REPO` | GitHub repository for recipes | Format: "org/repo" | None | No |
 
+## Experimental Features
+
+These settings enable experimental features that are in active development. These may change or be removed in future releases.
+
+| Setting | Purpose | Values | Default | Required |
+|---------|---------|---------|---------|-----------|
+| `ALPHA_FEATURES` | Enables experimental alpha features like [subagents](/docs/experimental/subagents) | true/false | false | No |
+
 Additional [environment variables](/docs/guides/environment-variables) may also be supported in config.yaml.
 
 ## Example Configuration
@@ -58,6 +66,9 @@ GOOSE_CLI_MIN_PRIORITY: 0.2
 
 # Recipe Configuration
 GOOSE_RECIPE_GITHUB_REPO: "block/goose-recipes"
+
+# Experimental Features
+ALPHA_FEATURES: true
 
 # Extensions Configuration
 extensions:

@@ -6,6 +6,7 @@ description: Add Netlify MCP Server as a Goose Extension
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/iSUNmxOf6gw" />
 
@@ -41,8 +42,13 @@ netlify login
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40netlify%2Fmcp&id=netlify&name=Netlify&description=Build%2C%20deploy%2C%20and%20manage%20sites%20with%20Netlify%27s%20official%20MCP%20server.)
-  2. Press `OK` to confirm the installation
+  <GooseDesktopInstaller
+    extensionId="netlify"
+    extensionName="Netlify"
+    description="Build, deploy, and manage sites with Netlify's official MCP server."
+    command="npx"
+    args={["-y", "@netlify/mcp"]}
+  />
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:

@@ -5,6 +5,7 @@ sidebar_label: Managing Sessions
 ---
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import { AppWindow, PanelLeft, FolderDot, Paperclip } from 'lucide-react';
 
 
 A session is a single, continuous interaction between you and Goose, providing a space to ask questions and prompt action. In this guide, we'll cover how to start, exit, and resume a session. 
@@ -14,13 +15,34 @@ A session is a single, continuous interaction between you and Goose, providing a
 
 <Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
-        After choosing an LLM provider, you'll see the session interface ready for use. Type your questions, tasks, or instructions directly into the input field, and Goose will immediately get to work. 
+        After choosing an LLM provider, you'll see the session interface ready for use. Type your questions, tasks, or instructions directly into the input field, and Goose will immediately get to work. You can start a new session in the same directory or in a different directory.
 
-        To start a new session at any time, click the gear icon `⚙️` in the top-right corner of the application and select **New session** from the dropdown menu.
+        <Tabs>
+          <TabItem value="same-directory" label="Same Directory" default>
 
-        To start a new session in a different directory, click the current directory displayed at the top of the application, or click the gear icon `⚙️` in the top-right corner of the application and select **Open directory** from the dropdown menu. You can select an existing folder or create a new folder.
+            To start a session in the same window:
+            1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+            2. Click `Home` in the sidebar
+            3. Send your first prompt from the chat box
 
+            To start a session in a new window:
+            1. Click the <AppWindow className="inline" size={16} /> button in the top-left
+            2. In the new Goose window, send your first prompt from the chat box
+
+          </TabItem>
+          <TabItem value="diff-directory" label="Different Directory">
+
+            1. Click the <FolderDot className="inline" size={16} /> directory switcher at the bottom of the app
+            2. Navigate to the new directory or create a new folder
+            3. Click `Open` to open a new Goose window for the selected directory
+            4. Send your first prompt from the chat box
+
+          </TabItem>
+        </Tabs>
+
+        :::tip
         On macOS, you can drag and drop a folder onto the Goose icon in the dock to open a new session in that directory.
+        :::
 
         You can also use keyboard shortcuts to start a new session or bring focus to open Goose windows.
         
@@ -51,7 +73,7 @@ If this is your first session, Goose will prompt you for an API key to access an
 ## Name Session
 <Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
-        Within the Desktop app, sessions are automatically named using the current timestamp in the format `YYYYMMDD_HHMMSS`. Goose also provides a description of the session based on context.
+        Within the Desktop app, sessions are automatically named based on the context of your initial prompt.
     </TabItem>
     <TabItem value="cli" label="Goose CLI">
         By default, Goose names your session using the current timestamp in the format `YYYYMMDD_HHMMSS`. If you'd like to provide a specific name, this is where you'd do so. For example to name your session `react-migration`, you would run:
@@ -86,10 +108,17 @@ Note that sessions are automatically saved when you exit.
 
 <Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
-    1. Click `⚙️` in the upper right corner
-    2. Click `Session history`
-    3. Click a session
-    4. Click `Resume Session` in the upper right corner
+    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+    2. Click `History` in the sidebar
+    3. Click the session you'd like to resume
+    4. Choose how to resume:
+       - Click `Resume` to continue in the current window
+       - Click `New Window` to open in a new window
+    
+    :::tip
+    You can also quickly resume one of your three most recent sessions by clicking it in the `Recent chats` section on the `Home` page.
+    :::
+
     </TabItem>
     <TabItem value="cli" label="Goose CLI">
         To resume your latest session, you can run the following command:
@@ -121,8 +150,8 @@ Note that sessions are automatically saved when you exit.
     <TabItem value="ui" label="Goose Desktop" default>
         In Goose Desktop, you can search session metadata including the description, filename, and working directory path. The search is text-based and supports case-sensitive matching, but doesn't search session content or support regex patterns.
 
-        1. Click `⚙️` in the upper right corner
-        2. Click `Session history`
+        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+        2. Click `History` in the sidebar
         3. Use `Cmd+F` to open the search bar
         4. Enter your search term
         5. Use search features to refine and navigate results
@@ -167,72 +196,46 @@ Note that sessions are automatically saved when you exit.
 
 ### Resume Session Across Interfaces
 
-You can resume a CLI session in Desktop and vice versa.
+You can resume a CLI session in Desktop.
 
 <Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
     All saved sessions are listed in the Desktop app, even CLI sessions. To resume a CLI session within the Desktop:
 
-    1. Click `⚙️` in the upper right corner
-    2. Click `Session history`
+    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+    2. Click `History` in the sidebar
     3. Click the session you'd like to resume
+    4. Choose how to resume:
+       - Click `Resume` to continue in the current window
+       - Click `New Window` to open in a new window
 
-    :::tip
-    If you named the session, you'll recognize the filename. However, if you don't remember the exact session name, there is a description of the topic.
-    :::
-
-    4. Click `Resume Session` in the upper right corner
-
-    :::note Example
-
-    **CLI Command**
-
-    ```sh
-    goose session -n react-migration
-    ```
-
-    **Desktop Session**
-
-    | Session Description     | Session Filename             |
-    |-------------------------|------------------------------|
-    | Code Migration to React | **react-migration**.jsonl    | 
-
-
-
-    :::
     </TabItem>
     <TabItem value="cli" label="Goose CLI">
-    To resume a Desktop session within CLI, get the name of the session from the Desktop app. Note that unless you specifically named the session, its default name is a timestamp in the format `YYYYMMDD_HHMMSS`.
-
-    1. Open Goose Desktop
-    2. Click `⚙️` in the upper right corner
-    3. Click `Session history`
-    4. Find the session that you want to resume, and copy the basename (without the `.jsonl` extension). 
-    :::note Example
-
-    **Desktop Session**
-
-    | Session Description    | Session Filename             |
-    |------------------------|------------------------------|
-    | GitHub PR Access Issue | **20250305_113223**.jsonl    | 
-
-
-    **CLI Command**
-    ```sh
-    goose session -r --name 20250305_113223
-    ```
-    :::
-
+    Currently, you cannot resume a Desktop session within the CLI.
     </TabItem>
 </Tabs>
 
 ## Project-Based Sessions
 
-You can also use the [`project`](/docs/guides/goose-cli-commands#project) and [`projects`](/docs/guides/goose-cli-commands#projects) commands to start or resume sessions from a project, which is a tracked working directory with session metadata. For a complete guide to using Projects, see [Managing Projects Guide](/docs/guides/managing-projects).
+<Tabs groupId="interface">
+    <TabItem value="ui" label="Goose Desktop" default>
+        Project-based sessions are only available through the CLI.
+    </TabItem>
+    <TabItem value="cli" label="Goose CLI">
+        You can use the [`project`](/docs/guides/goose-cli-commands#project) and [`projects`](/docs/guides/goose-cli-commands#projects) commands to start or resume sessions from a project, which is a tracked working directory with session metadata. For a complete guide to using Projects, see [Managing Projects Guide](/docs/guides/managing-projects).
+    </TabItem>
+</Tabs>
 
 ## Remove Sessions
 
-You can remove sessions using CLI commands. For detailed instructions on session removal, see the [CLI Commands documentation](/docs/guides/goose-cli-commands#session-remove-options).
+<Tabs groupId="interface">
+    <TabItem value="ui" label="Goose Desktop" default>
+        Removing sessions is only available through the CLI.
+    </TabItem>
+    <TabItem value="cli" label="Goose CLI">
+        You can remove sessions using CLI commands. For detailed instructions on session removal, see the [CLI Commands documentation](/docs/guides/goose-cli-commands#session-remove-options).
+    </TabItem>
+</Tabs>
 
 ## Export Sessions
 
@@ -240,15 +243,7 @@ Export sessions to Markdown to share with your team, create documentation, archi
 
 <Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
-        Session export is currently only available through the CLI. You can export Desktop sessions via their session filename:
-
-        1. Click `⚙️` in the upper right corner
-        2. Click `Session history`
-        3. Note the session filename (e.g., `20250305_113223.jsonl`)
-        4. In the CLI, run the command:
-        ```bash
-        goose session export --name 20250305_113223 --output my-session.md
-        ```
+        Session export is currently only available through the CLI.
     </TabItem>
     <TabItem value="cli" label="Goose CLI">
         Export sessions using the `export` subcommand:
@@ -258,10 +253,9 @@ Export sessions to Markdown to share with your team, create documentation, archi
         goose session export
         ```
         
+        For more details on export options, available flags, and output formats, see the [CLI commands documentation](/docs/guides/goose-cli-commands#session-export-options).
     </TabItem>
 </Tabs>
-
-For more details on export options, available flags, and output formats, see the [CLI commands documentation](/docs/guides/goose-cli-commands#session-export-options).
 
 ## Voice Dictation
 Speak to Goose directly instead of typing your prompts.
@@ -269,17 +263,20 @@ Speak to Goose directly instead of typing your prompts.
 <Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
     To enable voice dictation:
-        1. Click `⚙️` in the upper right corner
-        2. Click **Advanced Settings**
-        3. Scroll to **Voice Dictation**
-        4. Toggle **Enable Voice Dictation** on
-        5. Choose between **OpenAI Whisper** or **ElevenLabs** as your dictation provider
+        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+        2. Click `Settings` in the sidebar
+        3. Click `Chat`
+        4. Under `Voice Dictation`, toggle `Enable Voice Dictation` on
+        5. Choose between `OpenAI Whisper` or `ElevenLabs` as your dictation provider
         6. Enter your API key for the provider you chose 
-        7. Click the back button at the top of the settings screen to return to the chat. A microphone icon appears to the right of the text input field.
 
-        **If you don't see the microphone icon**, check the [models you have configured](/docs/getting-started/providers.md). ElevenLabs can be used as a dictation provider alongside any LLM, but OpenAI Whisper requires that you have an OpenAI model configured in Goose, even if using another LLM provider for chat.  
+    To use voice dictation:
+        1. Return to the chat interface (click `Chat` in the sidebar)
+        2. Click the microphone on the right of the chat box and begin speaking
+        
+        The first time you use voice dictation, Goose will request access to your microphone. While recording, you'll see a live waveform of your audio in the input field, a timer, and the current size of your recording. Click the microphone button again to finish recording. 
 
-        To start using voice dictation, click the microphone icon and begin speaking. The first time, Goose will request access to your microphone. While recording, you'll see a live waveform of your audio in the input field, a timer, and the current size of your recording. Click the microphone button again to finish recording. 
+        **If you don't see the microphone**, check the [models you have configured](/docs/getting-started/providers.md). ElevenLabs can be used as a dictation provider alongside any LLM, but OpenAI Whisper requires that you have an OpenAI model configured in Goose, even if using another LLM provider for chat.  
 
        #### Important Notes
         * You can record up to 10 minutes or 25MB of audio.
@@ -331,13 +328,15 @@ Search allows you to find specific content within your current session. The sear
 
 <Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
-        Share files with Goose in three ways:
+        Share files with Goose in several ways:
 
         1. **Drag and Drop**: Simply drag files from your computer's file explorer/finder and drop them anywhere in the chat window. The file paths will be automatically added to your message.
 
-        2. **File Browser**: Click the paperclip icon (📎) in the bottom left corner of the chat input to open your system's file browser and select files.
+        2. **File Browser**: Click the <Paperclip className="inline" size={16} /> button at the bottom of the app to open your system's file browser and select files.
 
         3. **Manual Path**: Type or paste the file path directly into the chat input.
+
+        4. **Quick File Search**: Use the [`@` shortcut key](/docs/guides/file-management#quick-file-search-in-goose-desktop) to quickly find and include files.
     </TabItem>
     <TabItem value="cli" label="Goose CLI">
         You can reference files by their paths directly in your messages. Since you're already in a terminal, you can use standard shell commands to help with file paths:

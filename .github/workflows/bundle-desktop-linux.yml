@@ -28,7 +28,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
         with:
-          ref: ${{ inputs.ref }}
+          # Only pass ref if it's explicitly set, otherwise let checkout action use its default behavior
+          ref: ${{ inputs.ref != '' && inputs.ref || '' }}
           fetch-depth: 0
 
       # 2) Update versions before build

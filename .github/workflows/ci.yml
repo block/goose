@@ -131,6 +131,15 @@ jobs:
           source ./bin/activate-hermit
           export CARGO_INCREMENTAL=0
           cargo clippy --jobs 2 -- -D warnings
+
+      - name: Install Node.js Dependencies for OpenAPI Check
+        run: source ../../bin/activate-hermit && npm ci
+        working-directory: ui/desktop
+
+      - name: Check OpenAPI Schema is Up-to-Date
+        run: |
+          source ./bin/activate-hermit
+          just check-openapi-schema
           
   desktop-lint:
     name: Lint Electron Desktop App
@@ -146,6 +155,7 @@ jobs:
       - name: Run Lint
         run: source ../../bin/activate-hermit && npm run lint:check
         working-directory: ui/desktop
+
 
   # Faster Desktop App build for PRs only
   bundle-desktop-unsigned:

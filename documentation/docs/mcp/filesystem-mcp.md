@@ -6,6 +6,7 @@ description: Add Filesystem MCP Server as Goose Extension
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 <YouTubeShortEmbed videoUrl="https://youtube.com/embed/2IVPcjEr-yQ" /> 
 
@@ -28,15 +29,18 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-    1. Click `...` in the upper right corner
-    2. Click `Advanced Settings`
-    3. Under `Extensions`, click the `Add Custom Extensions` button
-    4. On the `Add Extension Manually` modal, enter the following:
-            * **Type**: `Standard IO`
-            * **Extension Name**: `filesystem` (_set this to whatever you want_)
-            * **Description**: `filesystem MCP Server` (_(optional) set this to whatever you want_)
-            * **Command**: `npx -y @modelcontextprotocol/server-filesystem </path/to/allowed/directory>` (_Add additional allowed directories if desired, separated by a space._)
-    5. Click `Add Extension` button
+  <GooseDesktopInstaller
+    extensionId="filesystem"
+    extensionName="filesystem"
+    description="Filesystem MCP Server"
+    command="npx"
+    args={[
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/Users/username/Desktop",
+        "/path/to/other/allowed/dir"
+    ]}
+  />
   </TabItem>
 
   <TabItem value="cli" label="Goose CLI">

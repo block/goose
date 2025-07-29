@@ -5,6 +5,7 @@ pub mod config_management;
 pub mod context;
 pub mod extension;
 pub mod health;
+pub mod project;
 pub mod recipe;
 pub mod reply;
 pub mod schedule;
@@ -27,4 +28,5 @@ pub fn configure(state: Arc<crate::state::AppState>) -> Router {
         .merge(recipe::routes(state.clone()))
         .merge(session::routes(state.clone()))
         .merge(schedule::routes(state.clone()))
+        .merge(project::routes(state.clone()))
 }

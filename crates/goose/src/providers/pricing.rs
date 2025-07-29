@@ -231,12 +231,16 @@ impl Default for PricingCache {
 // Global cache instance
 lazy_static::lazy_static! {
     static ref PRICING_CACHE: PricingCache = PricingCache::new();
-    static ref HTTP_CLIENT: Client = Client::builder()
+}
+
+/// Create a properly configured HTTP client for the current runtime
+fn create_http_client() -> Client {
+    Client::builder()
         .timeout(Duration::from_secs(30))
         .pool_idle_timeout(Duration::from_secs(90))
         .pool_max_idle_per_host(10)
         .build()
-        .unwrap();
+        .expect("Failed to create HTTP client")
 }
 
 /// OpenRouter model pricing information
@@ -270,7 +274,8 @@ pub struct OpenRouterModelsResponse {
 
 /// Internal function to fetch pricing data
 async fn fetch_openrouter_pricing_internal() -> Result<HashMap<String, OpenRouterModel>> {
-    let response = HTTP_CLIENT
+    let client = create_http_client();
+    let response = client
         .get("https://openrouter.ai/api/v1/models")
         .send()
         .await?;

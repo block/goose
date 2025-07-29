@@ -31,7 +31,7 @@ function parseLastModified(val: string | Date): Date {
 /**
  * Get the storage directory path for recipes
  */
-function getStorageDirectory(isGlobal: boolean): string {
+export function getStorageDirectory(isGlobal: boolean): string {
   return isGlobal ? '~/.config/goose/recipes' : '.goose/recipes';
 }
 
@@ -100,8 +100,12 @@ export async function saveRecipe(recipe: Recipe, options: SaveRecipeOptions): Pr
   }
 
   // Validate recipe has required fields
-  if (!recipe.title || !recipe.description || !recipe.instructions) {
-    throw new Error('Recipe is missing required fields (title, description, instructions)');
+  if (!recipe.title || !recipe.description) {
+    throw new Error('Recipe is missing required fields (title, description)');
+  }
+
+  if (!recipe.instructions && !recipe.prompt) {
+    throw new Error('Recipe must have either instructions or prompt');
   }
 
   try {
@@ -142,12 +146,12 @@ export async function loadRecipe(recipeName: string, isGlobal: boolean): Promise
     }
 
     // Validate the loaded recipe has required fields
-    if (
-      !savedRecipe.recipe.title ||
-      !savedRecipe.recipe.description ||
-      !savedRecipe.recipe.instructions
-    ) {
+    if (!savedRecipe.recipe.title || !savedRecipe.recipe.description) {
       throw new Error('Loaded recipe is missing required fields');
+    }
+
+    if (!savedRecipe.recipe.instructions && !savedRecipe.recipe.prompt) {
+      throw new Error('Loaded recipe must have either instructions or prompt');
     }
 
     return savedRecipe.recipe;
@@ -164,8 +168,6 @@ export async function loadRecipe(recipeName: string, isGlobal: boolean): Promise
  * Uses the listFiles API to find available recipe files.
  */
 export async function listSavedRecipes(includeArchived: boolean = false): Promise<SavedRecipe[]> {
-  const recipes: SavedRecipe[] = [];
-
   try {
     // Check for global and local recipe directories
     const globalDir = getStorageDirectory(true);
@@ -179,19 +181,34 @@ export async function listSavedRecipes(includeArchived: boolean = false): Promis
     const globalFiles = await window.electron.listFiles(globalDir, 'yaml');
     const localFiles = await window.electron.listFiles(localDir, 'yaml');
 
-    // Process global recipes
-    for (const file of globalFiles) {
+    // Process global recipes in parallel
+    const globalRecipePromises = globalFiles.map(async (file) => {
       const recipeName = file.replace(/\.yaml$/, '');
-      const recipe = await loadRecipeFromFile(recipeName, true);
+      return await loadRecipeFromFile(recipeName, true);
+    });
+
+    // Process local recipes in parallel
+    const localRecipePromises = localFiles.map(async (file) => {
+      const recipeName = file.replace(/\.yaml$/, '');
+      return await loadRecipeFromFile(recipeName, false);
+    });
+
+    // Wait for all recipes to load in parallel
+    const [globalRecipes, localRecipes] = await Promise.all([
+      Promise.all(globalRecipePromises),
+      Promise.all(localRecipePromises),
+    ]);
+
+    // Filter out null results and apply archived filter
+    const recipes: SavedRecipe[] = [];
+
+    for (const recipe of globalRecipes) {
       if (recipe && (includeArchived || !recipe.isArchived)) {
         recipes.push(recipe);
       }
     }
 
-    // Process local recipes
-    for (const file of localFiles) {
-      const recipeName = file.replace(/\.yaml$/, '');
-      const recipe = await loadRecipeFromFile(recipeName, false);
+    for (const recipe of localRecipes) {
       if (recipe && (includeArchived || !recipe.isArchived)) {
         recipes.push(recipe);
       }

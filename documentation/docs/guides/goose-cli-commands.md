@@ -458,7 +458,7 @@ goose recipe help
 
 ---
 ### schedule
-Automate recipes by running them on a schedule using a cron job.
+Automate recipes by running them on a [schedule](/docs/guides/recipes/session-recipes.md#schedule-recipe).
 
 **Usage:**
 ```bash
@@ -472,9 +472,13 @@ goose schedule <COMMAND>
 - `sessions`: List sessions created by a scheduled recipe
 - `run-now`: Run a scheduled recipe immediately
 
+Use the following commands if you're scheduling recipes using the [Temporal scheduler](https://docs.temporal.io/evaluate/development-production-features/schedules) (requires the Temporal CLI):
+- `services-status`: Check if any Temporal services are running
+- `services-stop`: Stop any running Temporal services
+
 **Options:**
 - `--id <NAME>`: A unique ID for the scheduled job (e.g. `daily-report`)
-- `--cron "* * * * * *"`: Specifies when a job should run using a 6-field [cron expression](https://en.wikipedia.org/wiki/Cron#Cron_expression) represented as a string in the format "seconds minutes hours day-of-month month day-of-week"
+- `--cron "* * * * * *"`: Specifies when a job should run using a [cron expression](https://en.wikipedia.org/wiki/Cron#Cron_expression) represented as a string with either 5, 6, or 7 digits in the format "seconds minutes hours day-of-month month day-of-week year"
 - `--recipe-source <PATH>`: Path to the recipe YAML file
 - `--limit <NUMBER>`: (Optional) max number of sessions to display when using the `sessions` command
 

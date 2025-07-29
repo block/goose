@@ -1,5 +1,6 @@
 import { getApiUrl, getSecretKey } from './config';
 import { toast } from 'react-toastify';
+import { safeJsonParse } from './utils/jsonUtils';
 
 import builtInExtensionsData from './built-in-extensions.json';
 import { toastError, toastLoading, toastSuccess } from './toasts';
@@ -181,7 +182,7 @@ export async function removeExtension(name: string, silent: boolean = false): Pr
       body: JSON.stringify(sanitizeName(name)),
     });
 
-    const data = await response.json();
+    const data = await safeJsonParse<{ error: boolean; message: string }>(response);
 
     if (!data.error) {
       if (!silent) {

@@ -1,9 +1,9 @@
 use crate::session::message_to_markdown;
-use crate::utils::safe_truncate;
 use anyhow::{Context, Result};
 use cliclack::{confirm, multiselect, select};
 use goose::session::info::{get_valid_sorted_sessions, SessionInfo, SortOrder};
 use goose::session::{self, Identifier};
+use goose::utils::safe_truncate;
 use regex::Regex;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -241,7 +241,7 @@ fn export_session_to_markdown(
 
     for message in &messages {
         // Check if this is a User message containing only ToolResponses
-        let is_only_tool_response = message.role == mcp_core::role::Role::User
+        let is_only_tool_response = message.role == rmcp::model::Role::User
             && message
                 .content
                 .iter()
@@ -263,8 +263,8 @@ fn export_session_to_markdown(
         // Output the role prefix except for tool response-only messages
         if !is_only_tool_response {
             let role_prefix = match message.role {
-                mcp_core::role::Role::User => "### User:\n",
-                mcp_core::role::Role::Assistant => "### Assistant:\n",
+                rmcp::model::Role::User => "### User:\n",
+                rmcp::model::Role::Assistant => "### Assistant:\n",
             };
             markdown_output.push_str(role_prefix);
         }

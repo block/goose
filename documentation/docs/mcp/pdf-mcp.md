@@ -6,6 +6,7 @@ description: Add PDF Reader MCP Server as a Goose Extension
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/EJf2_iZfaWk" />
 
@@ -33,11 +34,14 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  1. [Launch the installer](goose://extension?cmd=uvx&arg=mcp-read-pdf&id=pdf_read&name=PDF%20Reader&description=Read%20large%20and%20complex%20PDF%20documents)
-  2. Press `Yes` to confirm the installation
-  3. Click `Save Configuration`
-  4. Scroll to the top and click `Exit` from the upper left corner
-</TabItem>
+  <GooseDesktopInstaller
+    extensionId="pdf_read"
+    extensionName="PDF Reader"
+    description="Read large and complex PDF documents"
+    command="uvx"
+    args={["mcp-read-pdf"]}
+  />
+  </TabItem>
   <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
   ```sh

@@ -1,4 +1,12 @@
-import { BaseModal } from './BaseModal';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from './dialog';
+import { Button } from './button';
 
 export function ConfirmationModal({
   isOpen,
@@ -20,29 +28,22 @@ export function ConfirmationModal({
   isSubmitting?: boolean; // To handle debounce state
 }) {
   return (
-    <BaseModal
-      isOpen={isOpen}
-      title={title}
-      actions={
-        <>
-          <button
-            onClick={onConfirm}
-            disabled={isSubmitting}
-            className="w-full h-[60px] rounded-none border-t dark:border-gray-600 text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 dark:border-gray-600 text-lg font-regular"
-          >
-            {isSubmitting ? 'Processing...' : confirmLabel}
-          </button>
-          <button
-            onClick={onCancel}
-            disabled={isSubmitting}
-            className="w-full h-[60px] rounded-none border-t dark:border-gray-600 text-gray-400 text-lg font-regular hover:bg-gray-50"
-          >
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onCancel()}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription className="whitespace-pre-wrap">{message}</DialogDescription>
+        </DialogHeader>
+
+        <DialogFooter className="pt-2">
+          <Button variant="outline" onClick={onCancel} disabled={isSubmitting}>
             {cancelLabel}
-          </button>
-        </>
-      }
-    >
-      <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{message}</p>
-    </BaseModal>
+          </Button>
+          <Button onClick={onConfirm} disabled={isSubmitting}>
+            {isSubmitting ? 'Processing...' : confirmLabel}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

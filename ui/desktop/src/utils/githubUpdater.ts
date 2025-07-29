@@ -4,6 +4,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
 import log from './logger';
+import { safeJsonParse } from './jsonUtils';
 
 interface GitHubRelease {
   tag_name: string;
@@ -53,7 +54,10 @@ export class GitHubUpdater {
         throw new Error(`GitHub API returned ${response.status}: ${response.statusText}`);
       }
 
-      const release: GitHubRelease = await response.json();
+      const release: GitHubRelease = await safeJsonParse<GitHubRelease>(
+        response,
+        'Failed to get GitHub release information'
+      );
       log.info(`GitHubUpdater: Found release: ${release.tag_name} (${release.name})`);
       log.info(`GitHubUpdater: Release published at: ${release.published_at}`);
       log.info(`GitHubUpdater: Release assets count: ${release.assets.length}`);

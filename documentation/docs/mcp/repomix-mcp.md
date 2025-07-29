@@ -6,6 +6,7 @@ description: Add Repomix MCP Server as a Goose Extension
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/69h4LLkIg_E" />
 
@@ -34,11 +35,14 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=repomix&arg=--mcp&id=repomix&name=Repomix&description=Pack%20repositories%20into%20AI-friendly%20formats%20for%20Goose)
-  2. Press `Yes` to confirm the installation
-  3. Click `Save Configuration`
-  4. Scroll to the top and click `Exit` from the upper left corner
-  </TabItem>
+  <GooseDesktopInstaller
+    extensionId="repomix"
+    extensionName="Repomix"
+    description="Pack repositories into AI-friendly formats for Goose"
+    command="npx"
+    args={["-y", "repomix", "--mcp"]}
+  />
+</TabItem>
   <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
   ```sh

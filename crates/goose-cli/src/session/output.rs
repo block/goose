@@ -3,10 +3,11 @@ use console::{style, Color};
 use goose::config::Config;
 use goose::message::{Message, MessageContent, ToolRequest, ToolResponse};
 use goose::providers::pricing::get_model_pricing;
+use goose::providers::pricing::parse_model_id;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use mcp_core::prompt::PromptArgument;
 use mcp_core::tool::ToolCall;
 use regex::Regex;
+use rmcp::model::PromptArgument;
 use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -95,10 +96,17 @@ pub struct ThinkingIndicator {
 impl ThinkingIndicator {
     pub fn show(&mut self) {
         let spinner = cliclack::spinner();
-        spinner.start(format!(
-            "{}...",
-            super::thinking::get_random_thinking_message()
-        ));
+        if Config::global()
+            .get_param("RANDOM_THINKING_MESSAGES")
+            .unwrap_or(true)
+        {
+            spinner.start(format!(
+                "{}...",
+                super::thinking::get_random_thinking_message()
+            ));
+        } else {
+            spinner.start("Thinking...");
+        }
         self.spinner = Some(spinner);
     }
 
@@ -219,6 +227,7 @@ fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
         Ok(call) => match call.name.as_str() {
             "developer__text_editor" => render_text_editor_request(call, debug),
             "developer__shell" => render_shell_request(call, debug),
+            "dynamic_task__create_task" => render_dynamic_task_request(call, debug),
             _ => render_default_request(call, debug),
         },
         Err(e) => print_markdown(&e.to_string(), theme),
@@ -232,7 +241,7 @@ fn render_tool_response(resp: &ToolResponse, theme: Theme, debug: bool) {
         Ok(contents) => {
             for content in contents {
                 if let Some(audience) = content.audience() {
-                    if !audience.contains(&mcp_core::role::Role::User) {
+                    if !audience.contains(&rmcp::model::Role::User) {
                         continue;
                     }
                 }
@@ -252,7 +261,7 @@ fn render_tool_response(resp: &ToolResponse, theme: Theme, debug: bool) {
 
                 if debug {
                     println!("{:#?}", content);
-                } else if let mcp_core::content::Content::Text(text) = content {
+                } else if let Some(text) = content.as_text() {
                     print_markdown(&text.text, theme);
                 }
             }
@@ -390,6 +399,37 @@ fn render_shell_request(call: &ToolCall, debug: bool) {
         }
         _ => print_params(&call.arguments, 0, debug),
     }
+}
+
+fn render_dynamic_task_request(call: &ToolCall, debug: bool) {
+    print_tool_header(call);
+
+    // Print task_parameters array
+    if let Some(Value::Array(task_parameters)) = call.arguments.get("task_parameters") {
+        println!("{}:", style("task_parameters").dim());
+
+        for task_param in task_parameters.iter() {
+            println!("    -");
+
+            if let Some(param_obj) = task_param.as_object() {
+                for (key, value) in param_obj {
+                    match value {
+                        Value::String(s) => {
+                            // For strings, print the full content without truncation
+                            println!("        {}: {}", style(key).dim(), style(s).green());
+                        }
+                        _ => {
+                            // For everything else, use print_params
+                            print!("        ");
+                            print_params(value, 0, debug);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    println!();
 }
 
 fn render_default_request(call: &ToolCall, debug: bool) {
@@ -700,9 +740,21 @@ async fn estimate_cost_usd(
     input_tokens: usize,
     output_tokens: usize,
 ) -> Option<f64> {
+    // For OpenRouter, parse the model name to extract real provider/model
+    let openrouter_data = if provider == "openrouter" {
+        parse_model_id(model)
+    } else {
+        None
+    };
+
+    let (provider_to_use, model_to_use) = match &openrouter_data {
+        Some((real_provider, real_model)) => (real_provider.as_str(), real_model.as_str()),
+        None => (provider, model),
+    };
+
     // Use the pricing module's get_model_pricing which handles model name mapping internally
-    let cleaned_model = normalize_model_name(model);
-    let pricing_info = get_model_pricing(provider, &cleaned_model).await;
+    let cleaned_model = normalize_model_name(model_to_use);
+    let pricing_info = get_model_pricing(provider_to_use, &cleaned_model).await;
 
     match pricing_info {
         Some(pricing) => {
@@ -767,11 +819,11 @@ impl McpSpinners {
         spinner.set_message(message.to_string());
     }
 
-    pub fn update(&mut self, token: &str, value: f64, total: Option<f64>, message: Option<&str>) {
+    pub fn update(&mut self, token: &str, value: u32, total: Option<u32>, message: Option<&str>) {
         let bar = self.bars.entry(token.to_string()).or_insert_with(|| {
             if let Some(total) = total {
                 self.multi_bar.add(
-                    ProgressBar::new((total * 100.0) as u64).with_style(
+                    ProgressBar::new((total * 100) as u64).with_style(
                         ProgressStyle::with_template("[{elapsed}] {bar:40} {pos:>3}/{len:3} {msg}")
                             .unwrap(),
                     ),
@@ -780,7 +832,7 @@ impl McpSpinners {
                 self.multi_bar.add(ProgressBar::new_spinner())
             }
         });
-        bar.set_position((value * 100.0) as u64);
+        bar.set_position((value * 100) as u64);
         if let Some(msg) = message {
             bar.set_message(msg.to_string());
         }

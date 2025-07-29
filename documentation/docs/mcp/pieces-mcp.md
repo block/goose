@@ -5,8 +5,8 @@ description: Add Pieces for Developers MCP Server as a Goose Extension
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/V8zp9m9__t4" />
 
@@ -34,8 +34,12 @@ http://localhost:39300/model_context_protocol/2024-11-05/sse
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  1. [Launch the installer](goose://extension?url=http%3A%2F%2Flocalhost%3A39300%2Fmodel_context_protocol%2F2024-11-05%2Fsse&id=pieces&name=Pieces%20for%20Developers&description=Provides%20access%20to%20your%20Pieces%20Long-Term%20Memory.%20You%20need%20to%20have%20Pieces%20installed%20to%20use%20this.)
-  2. Press `Yes` to confirm the installation
+  <GooseDesktopInstaller
+    extensionId="pieces"
+    extensionName="Pieces for Developers"
+    description="Provides access to your Pieces Long-Term Memory. You need to have Pieces installed to use this."
+    url="http://localhost:39300/model_context_protocol/2024-11-05/sse"
+  />
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:

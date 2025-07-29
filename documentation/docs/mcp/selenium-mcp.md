@@ -6,6 +6,7 @@ description: Add Selenium MCP Server as a Goose Extension
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/PLqPOEeGPLc" />
 
@@ -35,11 +36,14 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40angiejones%2Fmcp-selenium&id=selenium-mcp&name=Selenium%20MCP&description=automates%20browser%20interactions)
-  2. Press `Yes` to confirm the installation
-  3. Click `Save Configuration`
-  5. Scroll to the top and click `Exit` from the upper left corner
-  </TabItem>
+  <GooseDesktopInstaller
+    extensionId="selenium-mcp"
+    extensionName="Selenium MCP"
+    description="automates browser interactions"
+    command="npx"
+    args={["-y", "@angiejones/mcp-selenium"]}
+  />
+</TabItem>
   <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
   ```sh

@@ -15,7 +15,7 @@ use crate::providers::toolshim::{
     modify_system_prompt_for_tool_json, OllamaInterpreter,
 };
 use crate::session;
-use mcp_core::tool::Tool;
+use rmcp::model::Tool;
 
 use super::super::agents::Agent;
 
@@ -34,9 +34,7 @@ async fn toolshim_postprocess(
 
 impl Agent {
     /// Prepares tools and system prompt for a provider request
-    pub(crate) async fn prepare_tools_and_prompt(
-        &self,
-    ) -> anyhow::Result<(Vec<Tool>, Vec<Tool>, String)> {
+    pub async fn prepare_tools_and_prompt(&self) -> anyhow::Result<(Vec<Tool>, Vec<Tool>, String)> {
         // Get tool selection strategy from config
         let config = Config::global();
         let router_tool_selection_strategy = config
@@ -110,11 +108,11 @@ impl Agent {
             .iter()
             .fold((HashSet::new(), HashSet::new()), |mut acc, tool| {
                 match &tool.annotations {
-                    Some(annotations) if annotations.read_only_hint => {
-                        acc.0.insert(tool.name.clone());
+                    Some(annotations) if annotations.read_only_hint.unwrap_or(false) => {
+                        acc.0.insert(tool.name.to_string());
                     }
                     _ => {
-                        acc.1.insert(tool.name.clone());
+                        acc.1.insert(tool.name.to_string());
                     }
                 }
                 acc
@@ -275,10 +273,9 @@ impl Agent {
         (frontend_requests, other_requests, filtered_message)
     }
 
-    /// Update session metrics after a response
     pub(crate) async fn update_session_metrics(
-        session_config: crate::agents::types::SessionConfig,
-        usage: &crate::providers::base::ProviderUsage,
+        session_config: &crate::agents::types::SessionConfig,
+        usage: &ProviderUsage,
         messages_length: usize,
     ) -> Result<()> {
         let session_file_path = match session::storage::get_path(session_config.id.clone()) {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import Model from '../modelInterface';
 import { useRecentModels } from './recentModels';
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
@@ -29,7 +29,8 @@ export function BaseModelsList({
   } else {
     modelList = providedModelList;
   }
-  const { changeModel, getCurrentModelAndProvider } = useModelAndProvider();
+  const { changeModel, getCurrentModelAndProvider, currentModel, currentProvider } =
+    useModelAndProvider();
   const [selectedModel, setSelectedModel] = useState<Model | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
@@ -118,6 +119,33 @@ export function BaseModelsList({
       });
     }
   };
+
+  // Update selected model when context changes - but only if they actually changed
+  const prevModelRef = useRef<string | null>(null);
+  const prevProviderRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (
+      currentModel &&
+      currentProvider &&
+      isInitialized &&
+      (currentModel !== prevModelRef.current || currentProvider !== prevProviderRef.current)
+    ) {
+      prevModelRef.current = currentModel;
+      prevProviderRef.current = currentProvider;
+
+      const match = modelList.find(
+        (model) => model.name === currentModel && model.provider === currentProvider
+      );
+
+      if (match) {
+        setSelectedModel(match);
+      } else {
+        // Create a model object if not found in list
+        setSelectedModel({ name: currentModel, provider: currentProvider });
+      }
+    }
+  }, [currentModel, currentProvider, modelList, isInitialized]);
 
   // Don't render until we've loaded the initial model/provider
   if (!isInitialized) {

@@ -6,6 +6,7 @@ sidebar_position: 8
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import { PanelLeft } from 'lucide-react';
 
 
 Rate limiting is the process of restricting the number of requests a user or application can send to an LLM API within a specific timeframe. LLM providers enforce this with the purpose of managing resources and preventing abuse. 
@@ -21,12 +22,13 @@ OpenRouter provides a unified interface for LLMs that allows you to select and s
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-    1. Click on the three dots in the top-right corner.
-    2. Select `Advanced Settings` from the menu.
-    3. Click on "Browse" in the `Models` section.
-    4. Click on `Configure`
-    5. Select `OpenRouter` from the list of available providers.
-    6. Enter your OpenRouter API key in the dialog that appears.
+    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
+    2. Click the `Settings` button on the sidebar.
+    3. Click the `Models` tab.
+    3. Click `Configure Providers`.
+    5. Click `Configure` under `OpenRouter` to edit your OpenRouter settings.
+    6. Enter your OpenRouter API key.
+    7. Click `Submit`.
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
     1. Run the Goose configuration command:

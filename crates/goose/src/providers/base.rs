@@ -5,7 +5,8 @@ use serde::{Deserialize, Serialize};
 use super::errors::ProviderError;
 use crate::message::Message;
 use crate::model::ModelConfig;
-use mcp_core::tool::Tool;
+use crate::utils::safe_truncate;
+use rmcp::model::Tool;
 use utoipa::ToSchema;
 
 use once_cell::sync::Lazy;
@@ -41,6 +42,8 @@ pub struct ModelInfo {
     pub output_token_cost: Option<f64>,
     /// Currency for the costs (default: "$")
     pub currency: Option<String>,
+    /// Whether this model supports cache control
+    pub supports_cache_control: Option<bool>,
 }
 
 impl ModelInfo {
@@ -52,6 +55,7 @@ impl ModelInfo {
             input_token_cost: None,
             output_token_cost: None,
             currency: None,
+            supports_cache_control: None,
         }
     }
 
@@ -68,6 +72,7 @@ impl ModelInfo {
             input_token_cost: Some(input_cost),
             output_token_cost: Some(output_cost),
             currency: Some("$".to_string()),
+            supports_cache_control: None,
         }
     }
 }
@@ -115,6 +120,7 @@ impl ProviderMetadata {
                     input_token_cost: None,
                     output_token_cost: None,
                     currency: None,
+                    supports_cache_control: None,
                 })
                 .collect(),
             model_doc_link: model_doc_link.to_string(),
@@ -314,6 +320,11 @@ pub trait Provider: Send + Sync {
         false
     }
 
+    /// Check if this provider supports cache control
+    fn supports_cache_control(&self) -> bool {
+        false
+    }
+
     /// Create embeddings if supported. Default implementation returns an error.
     async fn create_embeddings(&self, _texts: Vec<String>) -> Result<Vec<Vec<f32>>, ProviderError> {
         Err(ProviderError::ExecutionError(
@@ -368,6 +379,48 @@ pub trait Provider: Send + Sync {
         Err(ProviderError::ExecutionError(
             "OAuth configuration not supported by this provider".to_string(),
         ))
+    }
+
+    /// Generate a session name/description based on the conversation history
+    /// This method can be overridden by providers to implement custom session naming strategies.
+    /// The default implementation creates a prompt asking for a concise description in 4 words or less.
+    async fn generate_session_name(&self, messages: &[Message]) -> Result<String, ProviderError> {
+        // Create a prompt for a concise description
+        let mut description_prompt = "Based on the conversation so far, provide a concise description of this session in 4 words or less. This will be used for finding the session later in a UI with limited space - reply *ONLY* with the description".to_string();
+
+        // Get context from the first 3 user messages
+        let context: Vec<String> = messages
+            .iter()
+            .filter(|m| m.role == rmcp::model::Role::User)
+            .take(3)
+            .map(|m| m.as_concat_text())
+            .collect();
+
+        if !context.is_empty() {
+            description_prompt = format!(
+                "Here are the first few user messages:\n{}\n\n{}",
+                context.join("\n"),
+                description_prompt
+            );
+        }
+
+        let message = Message::user().with_text(&description_prompt);
+        let result = self
+            .complete(
+                "Reply with only a description in four words or less",
+                &[message],
+                &[],
+            )
+            .await?;
+
+        let description = result.0.as_concat_text();
+        let sanitized_description = if description.chars().count() > 100 {
+            safe_truncate(&description, 100)
+        } else {
+            description
+        };
+
+        Ok(sanitized_description)
     }
 }
 
@@ -476,6 +529,7 @@ mod tests {
             input_token_cost: None,
             output_token_cost: None,
             currency: None,
+            supports_cache_control: None,
         };
         assert_eq!(info.context_limit, 1000);
 
@@ -486,6 +540,7 @@ mod tests {
             input_token_cost: None,
             output_token_cost: None,
             currency: None,
+            supports_cache_control: None,
         };
         assert_eq!(info, info2);
 
@@ -496,6 +551,7 @@ mod tests {
             input_token_cost: None,
             output_token_cost: None,
             currency: None,
+            supports_cache_control: None,
         };
         assert_ne!(info, info3);
     }

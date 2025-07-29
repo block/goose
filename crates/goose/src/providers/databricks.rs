@@ -13,14 +13,14 @@ use tokio_util::io::StreamReader;
 use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::embedding::EmbeddingCapable;
 use super::errors::ProviderError;
-use super::formats::databricks::{create_request, get_usage, response_to_message};
+use super::formats::databricks::{create_request, response_to_message};
 use super::oauth;
 use super::utils::{get_model, ImageFormat};
 use crate::config::ConfigError;
 use crate::message::Message;
 use crate::model::ModelConfig;
-use crate::providers::formats::databricks::response_to_streaming_message;
-use mcp_core::tool::Tool;
+use crate::providers::formats::openai::{get_usage, response_to_streaming_message};
+use rmcp::model::Tool;
 use serde_json::json;
 use tokio::time::sleep;
 use tokio_stream::StreamExt;
@@ -273,7 +273,7 @@ impl DatabricksProvider {
         }
     }
 
-    async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
+    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
         // Check if this is an embedding request by looking at the payload structure
         let is_embedding = payload.get("input").is_some() && payload.get("messages").is_none();
         let path = if is_embedding {
@@ -284,7 +284,7 @@ impl DatabricksProvider {
             format!("serving-endpoints/{}/invocations", self.model.model_name)
         };
 
-        match self.post_with_retry(path.as_str(), &payload).await {
+        match self.post_with_retry(path.as_str(), payload).await {
             Ok(res) => res.json().await.map_err(|_| {
                 ProviderError::RequestFailed("Response body is not valid JSON".to_string())
             }),
@@ -451,17 +451,14 @@ impl Provider for DatabricksProvider {
             .expect("payload should have model key")
             .remove("model");
 
-        let response = self.post(payload.clone()).await?;
+        let response = self.post(&payload).await?;
 
         // Parse response
-        let message = response_to_message(response.clone())?;
-        let usage = match response.get("usage").map(get_usage) {
-            Some(usage) => usage,
-            None => {
-                tracing::debug!("Failed to get usage data");
-                Usage::default()
-            }
-        };
+        let message = response_to_message(&response)?;
+        let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
+            tracing::debug!("Failed to get usage data");
+            Usage::default()
+        });
         let model = get_model(&response);
         super::utils::emit_debug_trace(&self.model, &payload, &response, &usage);
 
@@ -622,7 +619,7 @@ impl EmbeddingCapable for DatabricksProvider {
             "input": texts,
         });
 
-        let response = self.post(request).await?;
+        let response = self.post(&request).await?;
 
         let embeddings = response["data"]
             .as_array()

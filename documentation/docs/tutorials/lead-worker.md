@@ -1,5 +1,5 @@
 ---
-description: Enable multi-modal functionality by pairing LLMs to complete your tasks
+description: Enable multi-model functionality by pairing LLMs to complete your tasks
 ---
 
 import Tabs from '@theme/Tabs';

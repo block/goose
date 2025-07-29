@@ -1,7 +1,7 @@
 use async_trait::async_trait;
-use mcp_core::protocol::JsonRpcMessage;
+use rmcp::model::{JsonObject, JsonRpcMessage, Request, ServerNotification};
 use thiserror::Error;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc;
 
 pub type BoxError = Box<dyn std::error::Error + Sync + Send>;
 /// A generic error type for transport operations.
@@ -38,15 +38,6 @@ pub enum Error {
     SessionError(String),
 }
 
-/// A message that can be sent through the transport
-#[derive(Debug)]
-pub struct TransportMessage {
-    /// The JSON-RPC message to send
-    pub message: JsonRpcMessage,
-    /// Channel to receive the response on (None for notifications)
-    pub response_tx: Option<oneshot::Sender<Result<JsonRpcMessage, Error>>>,
-}
-
 /// A generic asynchronous transport trait with channel-based communication
 #[async_trait]
 pub trait Transport {
@@ -60,10 +51,12 @@ pub trait Transport {
     async fn close(&self) -> Result<(), Error>;
 }
 
+pub type TransportMessageRecv = JsonRpcMessage<Request, JsonObject, ServerNotification>;
+
 #[async_trait]
 pub trait TransportHandle: Send + Sync + Clone + 'static {
     async fn send(&self, message: JsonRpcMessage) -> Result<(), Error>;
-    async fn receive(&self) -> Result<JsonRpcMessage, Error>;
+    async fn receive(&self) -> Result<TransportMessageRecv, Error>;
 }
 
 pub async fn serialize_and_send(

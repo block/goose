@@ -109,6 +109,9 @@ export async function addExtensionFromDeepLink(
       | { deepLinkConfig: ExtensionConfig; showEnvVars: boolean }
   ) => void
 ) {
+  console.log('=== addExtensionFromDeepLink Debug ===');
+  console.log('URL:', url);
+
   const parsedUrl = new URL(url);
 
   if (parsedUrl.protocol !== 'goose:') {
@@ -151,12 +154,14 @@ export async function addExtensionFromDeepLink(
   // Check if extension requires env vars and go to settings if so
   if (config.envs && Object.keys(config.envs).length > 0) {
     console.log('Environment variables required, redirecting to settings');
+    console.log('Calling setView with:', { deepLinkConfig: config, showEnvVars: true });
     setView('settings', { deepLinkConfig: config, showEnvVars: true });
     return;
   }
 
   // If no env vars are required, proceed with adding the extension
   try {
+    console.log('No env vars required, activating extension directly');
     await activateExtension({ extensionConfig: config, addToConfig: addExtensionFn });
   } catch (error) {
     console.error('Failed to activate extension from deeplink:', error);

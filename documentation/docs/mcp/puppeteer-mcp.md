@@ -6,6 +6,7 @@ description: Add Puppeteer MCP Server as a Goose Extension
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 <YouTubeShortEmbed videoUrl="https://youtube.com/embed/rms0wVGnlXA" />
 
@@ -34,10 +35,14 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-puppeteer&id=puppeteer&name=Puppeteer&description=Headless%20browser%20automation)
-  2. Press `Yes` to confirm the installation
-  3. Scroll to the top and click `Exit` from the upper left corner
-  </TabItem>
+  <GooseDesktopInstaller
+    extensionId="puppeteer"
+    extensionName="Puppeteer"
+    description="Headless browser automation"
+    command="npx"
+    args={["-y", "@modelcontextprotocol/server-puppeteer"]}
+  />
+</TabItem>
   <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:
   ```sh

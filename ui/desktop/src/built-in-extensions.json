@@ -27,15 +27,6 @@
     "timeout": 300
   },
   {
-    "id": "jetbrains",
-    "name": "Jetbrains",
-    "description": "Integration with any Jetbrains IDE",
-    "enabled": false,
-    "type": "builtin",
-    "env_keys": [],
-    "timeout": 300
-  },
-  {
     "id": "tutorial",
     "name": "Tutorial",
     "description": "Access interactive tutorials and guides",

@@ -3,8 +3,8 @@ use super::platform_tools::{
     PLATFORM_READ_RESOURCE_TOOL_NAME, PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
 };
 use indoc::indoc;
-use mcp_core::tool::{Tool, ToolAnnotations};
-use serde_json::json;
+use rmcp::model::{Tool, ToolAnnotations};
+use rmcp::object;
 
 pub const ROUTER_VECTOR_SEARCH_TOOL_NAME: &str = "router__vector_search";
 pub const ROUTER_LLM_SEARCH_TOOL_NAME: &str = "router__llm_search";
@@ -24,7 +24,7 @@ pub fn vector_search_tool() -> Tool {
             Extension name is not optional, it is required.
         "#}
         .to_string(),
-        json!({
+        object!({
             "type": "object",
             "required": ["query", "extension_name"],
             "properties": {
@@ -32,15 +32,14 @@ pub fn vector_search_tool() -> Tool {
                 "k": {"type": "integer", "description": "The number of tools to retrieve (defaults to 5)", "default": 5},
                 "extension_name": {"type": "string", "description": "Name of the extension to filter tools by"}
             }
-        }),
-        Some(ToolAnnotations {
-            title: Some("Vector search for relevant tools".to_string()),
-            read_only_hint: true,
-            destructive_hint: false,
-            idempotent_hint: false,
-            open_world_hint: false,
-        }),
-    )
+        })
+    ).annotate(ToolAnnotations {
+        title: Some("Vector search for relevant tools".to_string()),
+        read_only_hint: Some(true),
+        destructive_hint: Some(false),
+        idempotent_hint: Some(false),
+        open_world_hint: Some(false),
+    })
 }
 
 pub fn vector_search_tool_prompt() -> String {
@@ -81,7 +80,7 @@ pub fn llm_search_tool() -> Tool {
             The returned result will be a list of tool names, descriptions, and schemas from which you, the agent can select the most relevant tool to invoke.
         "#}
         .to_string(),
-        json!({
+        object!({
             "type": "object",
             "required": ["query", "extension_name"],
             "properties": {
@@ -89,15 +88,14 @@ pub fn llm_search_tool() -> Tool {
                 "query": {"type": "string", "description": "The query to search for the most relevant tools based on the user's messages"},
                 "k": {"type": "integer", "description": "The number of tools to retrieve (defaults to 5)", "default": 5}
             }
-        }),
-        Some(ToolAnnotations {
-            title: Some("LLM search for relevant tools".to_string()),
-            read_only_hint: true,
-            destructive_hint: false,
-            idempotent_hint: false,
-            open_world_hint: false,
-        }),
-    )
+        })
+    ).annotate(ToolAnnotations {
+        title: Some("LLM search for relevant tools".to_string()),
+        read_only_hint: Some(true),
+        destructive_hint: Some(false),
+        idempotent_hint: Some(false),
+        open_world_hint: Some(false),
+    })
 }
 
 pub fn llm_search_tool_prompt() -> String {

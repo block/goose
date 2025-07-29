@@ -1,13 +1,13 @@
 ---
 title: Context7 Extension
-
-escription: Add Context7 MCP Server as a Goose Extension
+description: Add Context7 MCP Server as a Goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
+import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/LNmPi6YCocI" /> 
@@ -31,27 +31,16 @@ This tutorial covers how to add the [Context7 MCP Server](https://github.com/ups
 
 ## Configuration
 
-:::info
-Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`.
-:::
-
-<Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
-    1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40upstash%2Fcontext7-mcp&id=context7&name=Context7&description=Context7%20MCP%20server%20for%20up-to-date%20code%20and%20docs)  
-    2. Press <code>Yes</code> to confirm the installation  
-    3. Click <code>Save Configuration</code>  
-    4. Scroll to the top and click <code>Exit</code> from the upper left corner  
-  </TabItem>
-
-  <TabItem value="cli" label="Goose CLI">
-    <CLIExtensionInstructions
-      name="context7"
-      command="npx -y @upstash/context7-mcp"
-      timeout={300}
-    />
-  </TabItem>
-
-</Tabs>
+<GooseDesktopInstaller
+  extensionId="context7"
+  extensionName="Context7"
+  extensionDescription="Context7 MCP server for up-to-date code and docs"
+  command="npx"
+  args={["-y", "@upstash/context7-mcp"]}
+  cliCommand="npx -y @upstash/context7-mcp"
+  timeout={300}
+  note="Note that you'll need Node.js installed on your system to run this command, as it uses npx."
+/>
 
 ## Example Usage
 

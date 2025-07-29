@@ -13,7 +13,7 @@ use super::utils::{
 use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
-use mcp_core::tool::Tool;
+use rmcp::model::Tool;
 use url::Url;
 
 pub const OPENROUTER_DEFAULT_MODEL: &str = "anthropic/claude-3.5-sonnet";
@@ -65,7 +65,7 @@ impl OpenRouterProvider {
         })
     }
 
-    async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
+    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
         let base_url = Url::parse(&self.host)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
         let url = base_url.join("api/v1/chat/completions").map_err(|e| {
@@ -79,12 +79,12 @@ impl OpenRouterProvider {
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("HTTP-Referer", "https://block.github.io/goose")
             .header("X-Title", "Goose")
-            .json(&payload)
+            .json(payload)
             .send()
             .await?;
 
         // Handle Google-compatible model responses differently
-        if is_google_model(&payload) {
+        if is_google_model(payload) {
             return handle_response_google_compat(response).await;
         }
 
@@ -92,6 +92,13 @@ impl OpenRouterProvider {
         let response_body = handle_response_openai_compat(response)
             .await
             .map_err(|e| ProviderError::RequestFailed(format!("Failed to parse response: {e}")))?;
+
+        let _debug = format!(
+            "OpenRouter request with payload: {} and response: {}",
+            serde_json::to_string_pretty(payload).unwrap_or_else(|_| "Invalid JSON".to_string()),
+            serde_json::to_string_pretty(&response_body)
+                .unwrap_or_else(|_| "Invalid JSON".to_string())
+        );
 
         // OpenRouter can return errors in 200 OK responses, so we have to check for errors explicitly
         // https://openrouter.ai/docs/api-reference/errors
@@ -199,23 +206,20 @@ fn update_request_for_anthropic(original_payload: &Value) -> Value {
 }
 
 fn create_request_based_on_model(
-    model_config: &ModelConfig,
+    provider: &OpenRouterProvider,
     system: &str,
     messages: &[Message],
     tools: &[Tool],
 ) -> anyhow::Result<Value, Error> {
     let mut payload = create_request(
-        model_config,
+        &provider.model,
         system,
         messages,
         tools,
         &super::utils::ImageFormat::OpenAi,
     )?;
 
-    if model_config
-        .model_name
-        .starts_with(OPENROUTER_MODEL_PREFIX_ANTHROPIC)
-    {
+    if provider.supports_cache_control() {
         payload = update_request_for_anthropic(&payload);
     }
 
@@ -259,21 +263,17 @@ impl Provider for OpenRouterProvider {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         // Create the base payload
-        let payload = create_request_based_on_model(&self.model, system, messages, tools)?;
+        let payload = create_request_based_on_model(self, system, messages, tools)?;
 
         // Make request
-        let response = self.post(payload.clone()).await?;
+        let response = self.post(&payload).await?;
 
         // Parse response
-        let message = response_to_message(response.clone())?;
-        let usage = match get_usage(&response) {
-            Ok(usage) => usage,
-            Err(ProviderError::UsageError(e)) => {
-                tracing::debug!("Failed to get usage data: {}", e);
-                Usage::default()
-            }
-            Err(e) => return Err(e),
-        };
+        let message = response_to_message(&response)?;
+        let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
+            tracing::debug!("Failed to get usage data");
+            Usage::default()
+        });
         let model = get_model(&response);
         emit_debug_trace(&self.model, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(model, usage)))
@@ -368,5 +368,11 @@ impl Provider for OpenRouterProvider {
 
         models.sort();
         Ok(Some(models))
+    }
+
+    fn supports_cache_control(&self) -> bool {
+        self.model
+            .model_name
+            .starts_with(OPENROUTER_MODEL_PREFIX_ANTHROPIC)
     }
 }

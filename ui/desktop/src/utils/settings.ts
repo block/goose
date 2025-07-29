@@ -16,6 +16,7 @@ export interface Settings {
   showDockIcon: boolean;
   schedulingEngine: SchedulingEngine;
   showQuitConfirmation: boolean;
+  enableWakelock: boolean;
 }
 
 // Constants
@@ -30,6 +31,7 @@ const defaultSettings: Settings = {
   showDockIcon: true,
   schedulingEngine: 'builtin-cron',
   showQuitConfirmation: true,
+  enableWakelock: false,
 };
 
 // Settings management

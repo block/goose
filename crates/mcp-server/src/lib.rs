@@ -4,8 +4,10 @@ use std::{
 };
 
 use futures::{Future, Stream};
-use mcp_core::protocol::{JsonRpcError, JsonRpcMessage, JsonRpcResponse};
 use pin_project::pin_project;
+use rmcp::model::{
+    ErrorData, JsonRpcError, JsonRpcMessage, JsonRpcResponse, JsonRpcVersion2_0, RequestId,
+};
 use router::McpRequest;
 use tokio::{
     io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader},
@@ -151,14 +153,11 @@ where
                 Ok(msg) => {
                     match msg {
                         JsonRpcMessage::Request(request) => {
-                            // Serialize request for logging
-                            let id = request.id;
                             let request_json = serde_json::to_string(&request)
                                 .unwrap_or_else(|_| "Failed to serialize request".to_string());
 
                             tracing::info!(
-                                request_id = ?id,
-                                method = ?request.method,
+                                method = ?request.request.method,
                                 json = %request_json,
                                 "Received request"
                             );
@@ -184,16 +183,11 @@ where
                                 Err(e) => {
                                     let error_msg = e.into().to_string();
                                     tracing::error!(error = %error_msg, "Request processing failed");
-                                    JsonRpcResponse {
-                                        jsonrpc: "2.0".to_string(),
-                                        id,
-                                        result: None,
-                                        error: Some(mcp_core::protocol::ErrorData {
-                                            code: mcp_core::protocol::INTERNAL_ERROR,
-                                            message: error_msg,
-                                            data: None,
-                                        }),
-                                    }
+
+                                    // Return an error response instead of a regular response
+                                    return Err(ServerError::Transport(TransportError::Protocol(
+                                        error_msg,
+                                    )));
                                 }
                             };
 
@@ -226,39 +220,38 @@ where
                         }
                         JsonRpcMessage::Response(_)
                         | JsonRpcMessage::Notification(_)
-                        | JsonRpcMessage::Nil
+                        | JsonRpcMessage::BatchRequest(_)
+                        | JsonRpcMessage::BatchResponse(_)
                         | JsonRpcMessage::Error(_) => {
-                            // Ignore responses, notifications and nil messages for now
+                            // Ignore responses, notifications, batch messages and error messages for now
                             continue;
                         }
                     }
                 }
                 Err(e) => {
                     // Convert transport error to JSON-RPC error response
-                    let error = match e {
-                        TransportError::Json(_) | TransportError::InvalidMessage(_) => {
-                            mcp_core::protocol::ErrorData {
-                                code: mcp_core::protocol::PARSE_ERROR,
-                                message: e.to_string(),
-                                data: None,
-                            }
-                        }
-                        TransportError::Protocol(_) => mcp_core::protocol::ErrorData {
-                            code: mcp_core::protocol::INVALID_REQUEST,
-                            message: e.to_string(),
+                    let error_data = match e {
+                        TransportError::Json(_) | TransportError::InvalidMessage(_) => ErrorData {
+                            code: rmcp::model::ErrorCode::PARSE_ERROR,
+                            message: e.to_string().into(),
                             data: None,
                         },
-                        _ => mcp_core::protocol::ErrorData {
-                            code: mcp_core::protocol::INTERNAL_ERROR,
-                            message: e.to_string(),
+                        TransportError::Protocol(_) => ErrorData {
+                            code: rmcp::model::ErrorCode::INVALID_REQUEST,
+                            message: e.to_string().into(),
+                            data: None,
+                        },
+                        _ => ErrorData {
+                            code: rmcp::model::ErrorCode::INTERNAL_ERROR,
+                            message: e.to_string().into(),
                             data: None,
                         },
                     };
 
                     let error_response = JsonRpcMessage::Error(JsonRpcError {
-                        jsonrpc: "2.0".to_string(),
-                        id: None,
-                        error,
+                        jsonrpc: JsonRpcVersion2_0,
+                        id: RequestId::Number(0), // Use a default ID for transport errors
+                        error: error_data,
                     });
 
                     if let Err(e) = transport.write_message(error_response).await {

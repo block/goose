@@ -1,13 +1,15 @@
 use anyhow::Result;
-use dotenv::dotenv;
+use dotenvy::dotenv;
 use goose::message::{Message, MessageContent};
 use goose::providers::base::Provider;
 use goose::providers::errors::ProviderError;
 use goose::providers::{
-    anthropic, azure, bedrock, databricks, google, groq, ollama, openai, openrouter, snowflake, xai,
+    anthropic, azure, bedrock, databricks, google, groq, litellm, ollama, openai, openrouter,
+    snowflake, xai,
 };
-use mcp_core::content::Content;
-use mcp_core::tool::Tool;
+use rmcp::model::Tool;
+use rmcp::model::{AnnotateAble, Content, RawImageContent};
+use rmcp::object;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -117,7 +119,7 @@ impl ProviderTester {
         let weather_tool = Tool::new(
             "get_weather",
             "Get the weather for a location",
-            serde_json::json!({
+            object!({
                 "type": "object",
                 "required": ["location"],
                 "properties": {
@@ -127,7 +129,6 @@ impl ProviderTester {
                     }
                 }
             }),
-            None,
         );
 
         let message = Message::user().with_text("What's the weather like in San Francisco?");
@@ -158,7 +159,7 @@ impl ProviderTester {
             .content
             .iter()
             .filter_map(|message| message.as_tool_request())
-            .last()
+            .next_back()
             .expect("got tool request")
             .id;
 
@@ -256,7 +257,6 @@ impl ProviderTester {
 
     async fn test_image_content_support(&self) -> Result<()> {
         use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-        use mcp_core::content::ImageContent;
         use std::fs;
 
         // Try to read the test image
@@ -273,11 +273,11 @@ impl ProviderTester {
         };
 
         let base64_image = BASE64.encode(image_data);
-        let image_content = ImageContent {
+        let image_content = RawImageContent {
             data: base64_image,
             mime_type: "image/png".to_string(),
-            annotations: None,
-        };
+        }
+        .no_annotation();
 
         // Test 1: Direct image message
         let message_with_image =
@@ -309,11 +309,10 @@ impl ProviderTester {
         let screenshot_tool = Tool::new(
             "get_screenshot",
             "Get a screenshot of the current screen",
-            serde_json::json!({
+            object!({
                 "type": "object",
                 "properties": {}
             }),
-            None,
         );
 
         let user_message = Message::user().with_text("Take a screenshot please");
@@ -324,8 +323,13 @@ impl ProviderTester {
                 serde_json::json!({}),
             )),
         );
-        let tool_response =
-            Message::user().with_tool_response("test_id", Ok(vec![Content::Image(image_content)]));
+        let tool_response = Message::user().with_tool_response(
+            "test_id",
+            Ok(vec![Content::image(
+                image_content.data.clone(),
+                image_content.mime_type.clone(),
+            )]),
+        );
 
         let result2 = self
             .provider
@@ -588,6 +592,28 @@ async fn test_sagemaker_tgi_provider() -> Result<()> {
         &["SAGEMAKER_ENDPOINT_NAME"],
         None,
         goose::providers::sagemaker_tgi::SageMakerTgiProvider::default,
+    )
+    .await
+}
+
+#[tokio::test]
+async fn test_litellm_provider() -> Result<()> {
+    if std::env::var("LITELLM_HOST").is_err() {
+        println!("LITELLM_HOST not set, skipping test");
+        TEST_REPORT.record_skip("LiteLLM");
+        return Ok(());
+    }
+
+    let env_mods = HashMap::from_iter([
+        ("LITELLM_HOST", Some("http://localhost:4000".to_string())),
+        ("LITELLM_API_KEY", Some("".to_string())),
+    ]);
+
+    test_provider(
+        "LiteLLM",
+        &[], // No required environment variables
+        Some(env_mods),
+        litellm::LiteLLMProvider::default,
     )
     .await
 }

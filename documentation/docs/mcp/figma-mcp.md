@@ -6,6 +6,7 @@ description: Add Figma MCP Server as a Goose Extension
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/vHK9Xg_d6Sk" />
 
@@ -38,11 +39,18 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40hapins%2Ffigma-mcp&id=figma&name=Figma&description=Figma%20design%20tool%20integration&env=FIGMA_ACCESS_TOKEN%3DAccess%20token%20from%20Figma%20user%20settings)
-  2. Press `Yes` to confirm the installation
-  3. Obtain a [Figma Access Token](https://www.figma.com/developers/api#access-tokens) and paste it in
-  4. Click `Save Configuration`
-  5. Scroll to the top and click `Exit` from the upper left corner
+  <GooseDesktopInstaller
+    extensionId="figma"
+    extensionName="Figma"
+    description="Figma design tool integration"
+    command="npx"
+    args={["-y", "@hapins/figma-mcp"]}
+    envVars={[
+      { name: "FIGMA_ACCESS_TOKEN", label: "Access token from Figma user settings" }
+    ]}
+    apiKeyLink="https://www.figma.com/developers/api#access-tokens"
+    apiKeyLinkText="Figma Access Token"
+  />
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:

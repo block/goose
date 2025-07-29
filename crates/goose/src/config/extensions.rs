@@ -46,6 +46,7 @@ impl ExtensionConfigManager {
                             display_name: Some(DEFAULT_DISPLAY_NAME.to_string()),
                             timeout: Some(DEFAULT_EXTENSION_TIMEOUT),
                             bundled: Some(true),
+                            description: Some(DEFAULT_EXTENSION_DESCRIPTION.to_string()),
                         },
                     },
                 )]);

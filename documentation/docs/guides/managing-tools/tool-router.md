@@ -7,6 +7,7 @@ description: Configure smart tool selection to load only relevant tools, improvi
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import { PanelLeft } from 'lucide-react';
 
 :::info Preview Feature
 The Tool Selection Strategy is currently in preview. The Vector selection strategy is currently limited to Claude models served on Databricks.
@@ -70,9 +71,10 @@ The LLM-based strategy leverages natural language understanding to analyze tools
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-    1. Click the gear icon ⚙️ on the top toolbar
-    2. Click `Advanced settings`
-    3. Under `Tool Selection Strategy`, select your preferred strategy:
+    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+    2. Click the `Settings` button on the sidebar
+    3. Click `Chat`
+    4. Under `Tool Selection Strategy`, select your preferred strategy:
        - `Default`
        - `Vector`
        - `LLM-based`

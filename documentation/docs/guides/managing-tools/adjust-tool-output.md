@@ -5,15 +5,17 @@ sidebar_label: Adjust Tool Output
 ---
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import { PanelLeft } from 'lucide-react';
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
 Response Styles customize how tool interactions are displayed in the Goose Desktop chat window. 
 
 To change this setting:
-1. Click the menu icon in the top right corner.
-2. Select `Advanced Settings` from the menu.
-3. Under `Response Styles`, select either `Detailed` or `Concise`.
+1. Click the <PanelLeft className="inline" size={16} /> button on the top-left to open the sidebar.
+2. Click the `Settings` button on the sidebar.
+3. Click `Chat`.
+4. Under `Response Styles`, select either `Detailed` or `Concise`.
 
 - **Concise** (Default)
     - Tool calls are collapsed by default

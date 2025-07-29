@@ -29,7 +29,7 @@ export class SearchHighlighter {
       left: 0;
       right: 0;
       bottom: 0;
-      z-index: 1;
+      z-index: 9999;
     `;
 
     // Find scroll container (look for our custom data attribute first, then fallback to radix)
@@ -151,8 +151,9 @@ export class SearchHighlighter {
         const scrollLeft = this.scrollContainer?.scrollLeft || 0;
 
         // Calculate the highlight position relative to the scroll container
-        const top = rect.top + scrollTop - containerRect.top;
-        const left = rect.left + scrollLeft - containerRect.left;
+        // rect.top/left are already relative to viewport, so we need to adjust for scroll container position
+        const top = rect.top - containerRect.top + scrollTop;
+        const left = rect.left - containerRect.left + scrollLeft;
 
         highlightRect.style.cssText = `
           position: absolute;

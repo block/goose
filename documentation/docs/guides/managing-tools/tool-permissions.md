@@ -6,6 +6,7 @@ sidebar_label: Tool Permissions
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import { PanelLeft, Tornado, Settings } from 'lucide-react';
 
 Tool permissions provide fine-grained control over how Goose uses different tools within extensions. This guide will help you understand and configure these permissions effectively.
 
@@ -27,6 +28,8 @@ Goose performs best with fewer than 25 total tools enabled across all extensions
 
 ## Permission Levels
 
+Tool permissions work alongside [Goose permission modes](/docs/guides/goose-permissions). The mode sets the default behavior, while tool permissions let you override the behavior of specific tools.
+
 Each tool can be set to one of three permission levels:
 
 | Permission Level | Description | Best For | Examples |
@@ -35,36 +38,31 @@ Each tool can be set to one of three permission levels:
 | **Ask Before** | Requires confirmation | State-changing operations | • File writing/editing<br></br>• System commands<br></br>• Resource creation |
 | **Never Allow** | Tool cannot be used | Sensitive operations | • Credential access<br></br>• System-critical files<br></br>• Resource deletion |
 
-:::info
-Tool permissions work alongside [Goose Permission Modes](/docs/guides/goose-permissions). The mode sets default behavior, while tool permissions let you override specific tools.
-:::
-
 ## Configuring Tool Permissions
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
+    You can configure fine-grained tool permissions for enabled extensions when using `Manual` or `Smart` approval mode. These rules can be accessed from the mode toggle or `Settings` page.
 
-    You can configure tool permissions through either Manual or Smart Approval modes:
-
-     <Tabs>
-      <TabItem value="manual" label="Manual Approval" default>
-        1. Click `...` in the upper right corner
-        2. Click `Advanced Settings`
-        3. Under `Mode Selection`, choose `Manual Approval`
-        4. Click on an extension name
-        5. Use the dropdown next to each tool to set its permission level
+    <Tabs>
+      <TabItem value="toggle" label="Mode Toggle" default>
+        1. Click the <Tornado className="inline" size={16} /> button at the bottom of the app
+        2. Click the <Settings className="inline" size={16} /> button next to your selected `Manual` or `Smart` mode
+        3. Click the extension whose tools you want to configure
+        4. Use the dropdown next to each tool to set its permission level
+        5. Click `Save Changes`
       </TabItem>
-      <TabItem value="smart" label="Smart Approval">
-      :::tip
-        In Smart Approval mode, Goose will automatically detect and allow read-only operations while requiring approval for state-changing actions.
-      :::
-        1. Click `...` in the upper right corner
-        2. Click `Advanced Settings`
-        3. Under `Mode Selection`, choose `Smart Approval`
-        4. Click on an extension name
-        5. Use the dropdown next to each tool to set its permission level
+      <TabItem value="settings" label="Settings Page" default>
+        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+        2. Click the `Settings` button on the sidebar
+        3. Click `Chat`
+        4. Under `Mode`, click the <Settings className="inline" size={16} /> button next to your selected `Manual` or `Smart` mode
+        5. Click the extension whose tools you want to configure
+        6. Use the dropdown next to each tool to set its permission level
+        7. Click `Save Changes`
       </TabItem>
-    </Tabs>   
+    </Tabs>
+  
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
 

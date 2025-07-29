@@ -1,6 +1,6 @@
 ---
 title: Ollama Tool Shim
-sidebar_position: 1
+sidebar_position: 2
 sidebar_label: Ollama Tool Shim
 ---
 

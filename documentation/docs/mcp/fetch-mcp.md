@@ -6,6 +6,7 @@ description: Add Fetch MCP Server as a Goose Extension
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/_WMm4kDYMog" />
 
@@ -37,8 +38,13 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  1. [Launch the installer](goose://extension?cmd=uvx&arg=mcp-server-fetch&id=fetch&name=Fetch&description=Web%20content%20fetching%20and%20processing%20capabilities)
-  2. Press `Yes` to confirm the installation
+  <GooseDesktopInstaller
+    extensionId="fetch"
+    extensionName="Fetch"
+    description="Web content fetching and processing capabilities"
+    command="uvx"
+    args={["mcp-server-fetch"]}
+  />
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
   1. Run the `configure` command:

@@ -4,7 +4,7 @@ use cliclack::{self, intro, outro};
 use std::path::Path;
 
 use crate::project_tracker::ProjectTracker;
-use crate::utils::safe_truncate;
+use goose::utils::safe_truncate;
 
 /// Format a DateTime for display
 fn format_date(date: DateTime<chrono::Utc>) -> String {

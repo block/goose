@@ -12,6 +12,7 @@ use super::{
     google::GoogleProvider,
     groq::GroqProvider,
     lead_worker::LeadWorkerProvider,
+    litellm::LiteLLMProvider,
     ollama::OllamaProvider,
     openai::OpenAiProvider,
     openrouter::OpenRouterProvider,
@@ -26,7 +27,7 @@ use anyhow::Result;
 #[cfg(test)]
 use super::errors::ProviderError;
 #[cfg(test)]
-use mcp_core::tool::Tool;
+use rmcp::model::Tool;
 
 fn default_lead_turns() -> usize {
     3
@@ -50,6 +51,7 @@ pub fn providers() -> Vec<ProviderMetadata> {
         // GithubCopilotProvider::metadata(),
         GoogleProvider::metadata(),
         GroqProvider::metadata(),
+        LiteLLMProvider::metadata(),
         OllamaProvider::metadata(),
         OpenAiProvider::metadata(),
         OpenRouterProvider::metadata(),
@@ -69,8 +71,6 @@ pub fn create(name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>> {
 
         return create_lead_worker_from_env(name, &model, &lead_model_name);
     }
-
-    // Default: create regular provider
     create_provider(name, model)
 }
 
@@ -150,22 +150,23 @@ fn create_lead_worker_from_env(
 fn create_provider(name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>> {
     // We use Arc instead of Box to be able to clone for multiple async tasks
     match name {
-        "openai" => Ok(Arc::new(OpenAiProvider::from_env(model)?)),
         "anthropic" => Ok(Arc::new(AnthropicProvider::from_env(model)?)),
-        "azure_openai" => Ok(Arc::new(AzureProvider::from_env(model)?)),
         "aws_bedrock" => Ok(Arc::new(BedrockProvider::from_env(model)?)),
+        "azure_openai" => Ok(Arc::new(AzureProvider::from_env(model)?)),
         "claude-code" => Ok(Arc::new(ClaudeCodeProvider::from_env(model)?)),
         "databricks" => Ok(Arc::new(DatabricksProvider::from_env(model)?)),
-        "gemini-cli" => Ok(Arc::new(GeminiCliProvider::from_env(model)?)),
-        "groq" => Ok(Arc::new(GroqProvider::from_env(model)?)),
-        "ollama" => Ok(Arc::new(OllamaProvider::from_env(model)?)),
-        "openrouter" => Ok(Arc::new(OpenRouterProvider::from_env(model)?)),
         "gcp_vertex_ai" => Ok(Arc::new(GcpVertexAIProvider::from_env(model)?)),
-        "google" => Ok(Arc::new(GoogleProvider::from_env(model)?)),
-        "sagemaker_tgi" => Ok(Arc::new(SageMakerTgiProvider::from_env(model)?)),
-        "venice" => Ok(Arc::new(VeniceProvider::from_env(model)?)),
-        "snowflake" => Ok(Arc::new(SnowflakeProvider::from_env(model)?)),
+        "gemini-cli" => Ok(Arc::new(GeminiCliProvider::from_env(model)?)),
         // "github_copilot" => Ok(Arc::new(GithubCopilotProvider::from_env(model)?)),
+        "google" => Ok(Arc::new(GoogleProvider::from_env(model)?)),
+        "groq" => Ok(Arc::new(GroqProvider::from_env(model)?)),
+        "litellm" => Ok(Arc::new(LiteLLMProvider::from_env(model)?)),
+        "ollama" => Ok(Arc::new(OllamaProvider::from_env(model)?)),
+        "openai" => Ok(Arc::new(OpenAiProvider::from_env(model)?)),
+        "openrouter" => Ok(Arc::new(OpenRouterProvider::from_env(model)?)),
+        "sagemaker_tgi" => Ok(Arc::new(SageMakerTgiProvider::from_env(model)?)),
+        "snowflake" => Ok(Arc::new(SnowflakeProvider::from_env(model)?)),
+        "venice" => Ok(Arc::new(VeniceProvider::from_env(model)?)),
         "xai" => Ok(Arc::new(XaiProvider::from_env(model)?)),
         _ => Err(anyhow::anyhow!("Unknown provider: {}", name)),
     }
@@ -177,7 +178,7 @@ mod tests {
     use crate::message::{Message, MessageContent};
     use crate::providers::base::{ProviderMetadata, ProviderUsage, Usage};
     use chrono::Utc;
-    use mcp_core::{content::TextContent, Role};
+    use rmcp::model::{AnnotateAble, RawTextContent, Role};
     use std::env;
 
     #[allow(dead_code)]
@@ -215,13 +216,15 @@ mod tests {
                 Message::new(
                     Role::Assistant,
                     Utc::now().timestamp(),
-                    vec![MessageContent::Text(TextContent {
-                        text: format!(
-                            "Response from {} with model {}",
-                            self.name, self.model_config.model_name
-                        ),
-                        annotations: None,
-                    })],
+                    vec![MessageContent::Text(
+                        RawTextContent {
+                            text: format!(
+                                "Response from {} with model {}",
+                                self.name, self.model_config.model_name
+                            ),
+                        }
+                        .no_annotation(),
+                    )],
                 ),
                 ProviderUsage::new(self.model_config.model_name.clone(), Usage::default()),
             ))
