@@ -572,5 +572,15 @@
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": []
+  },
+  {
+    "id": "git-mcp",
+    "name": "Git MCP",
+    "description": "Git MCP server for up-to-date docs and project insights",
+    "command": "npx -y mcp-remote https://gitmcp.io/docs",
+    "link": "https://github.com/idosal/git-mcp",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
   }
 ]

@@ -56,7 +56,7 @@ This tutorial covers how to add the [Git MCP Server](https://github.com/idosal/g
 
 ## Example Usage
 
-In this example, Goose uses GitMCP to pull real-time documentation from the openai/whisper GitHub repository, explore how the speech-to-text model works, and surface accurate setup instructions and command-line usage—all directly from the source.
+In this example, Goose uses GitMCP to pull real-time documentation from the `openai/whisper` GitHub repository, explore how the speech-to-text model works, and surface accurate setup instructions and command-line usage—all directly from the source.
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
