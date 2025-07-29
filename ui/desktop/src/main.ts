@@ -517,7 +517,8 @@ const createChat = async (
   recipe?: Recipe, // Recipe configuration when already loaded, takes precedence over deeplink
   viewType?: string,
   recipeDeeplink?: string, // Raw deeplink used as a fallback when recipe is not loaded. Required on new windows as we need to wait for the window to load before decoding.
-  scheduledJobId?: string // Scheduled job ID if applicable
+  scheduledJobId?: string, // Scheduled job ID if applicable
+  isShareWindow?: boolean // Whether this is a Share Developer window
 ) => {
   // Initialize variables for process and configuration
   let port = 0;
@@ -580,8 +581,8 @@ const createChat = async (
 
   // Load and manage window state
   const mainWindowState = windowStateKeeper({
-    defaultWidth: 940, // large enough to show the sidebar on launch
-    defaultHeight: 800,
+    defaultWidth: isShareWindow ? 600 : 940, // Smaller window for sharing
+    defaultHeight: isShareWindow ? 400 : 800,
   });
 
   const mainWindow = new BrowserWindow({
@@ -593,7 +594,8 @@ const createChat = async (
     y: mainWindowState.y,
     width: mainWindowState.width,
     height: mainWindowState.height,
-    minWidth: 750,
+    minWidth: isShareWindow ? 500 : 750,
+    minHeight: isShareWindow ? 300 : undefined,
     resizable: true,
     useContentSize: true,
     icon: path.join(__dirname, '../images/icon'),
@@ -613,9 +615,10 @@ const createChat = async (
           GOOSE_BASE_URL_SHARE: sharingUrl,
           GOOSE_VERSION: gooseVersion,
           recipe: recipe,
+          isShareWindow: isShareWindow || false,
         }),
       ],
-      partition: 'persist:goose', // Add this line to ensure persistence
+      partition: isShareWindow ? 'persist:goose-share' : 'persist:goose', // Different partition for share windows
     },
   });
 
@@ -670,7 +673,7 @@ const createChat = async (
   };
 
   // We need to wait for the window to load before we can access localStorage
-  mainWindow.webContents.on('did-finish-load', () => {
+  mainWindow.webContents.on('did-finish-load', async () => {
     const configStr = JSON.stringify(windowConfig).replace(/'/g, "\\'");
     // Add error handling and retry logic for localStorage access
     mainWindow.webContents
@@ -705,6 +708,39 @@ const createChat = async (
       .catch((error) => {
         console.error('Failed to execute localStorage script:', error);
       });
+
+    // Add developer extension for Share Developer windows
+    if (isShareWindow) {
+      try {
+        console.log('[Main] Adding developer extension for Share Developer window');
+        // Wait a moment for the server to be fully ready
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+
+        // Add the developer extension
+        const developerExtension = {
+          name: 'developer',
+          type: 'builtin' as const,
+          bundled: true,
+        };
+
+        const response = await fetch(`http://127.0.0.1:${port}/extensions/add`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Secret-Key': appConfig.secretKey,
+          },
+          body: JSON.stringify(developerExtension),
+        });
+
+        if (!response.ok) {
+          console.error('[Main] Failed to add developer extension:', response.statusText);
+        } else {
+          console.log('[Main] Developer extension added successfully to Share Developer instance');
+        }
+      } catch (error) {
+        console.error('[Main] Error adding developer extension to Share Developer:', error);
+      }
+    }
   });
 
   // Handle new window creation for links
@@ -1551,6 +1587,42 @@ const createNewWindow = async (app: App, dir?: string | null) => {
   return await createChat(app, undefined, openDir);
 };
 
+const createShareDeveloperWindow = async () => {
+  try {
+    console.log('[Main] Creating Share Developer window using createChat');
+
+    // Get the working directory from recent directories
+    const recentDirs = loadRecentDirs();
+    const workingDir = recentDirs.length > 0 ? recentDirs[0] : null;
+
+    // Use createChat with the Share Developer view type and isShareWindow flag
+    const shareWindow = await createChat(
+      app,
+      undefined, // query
+      workingDir || undefined, // dir - convert null to undefined
+      undefined, // version
+      undefined, // resumeSessionId
+      undefined, // recipe
+      'shareDeveloper', // viewType
+      undefined, // recipeDeeplink
+      undefined, // scheduledJobId
+      true // isShareWindow
+    );
+
+    console.log('[Main] Share Developer window created successfully using createChat');
+    return shareWindow;
+  } catch (error) {
+    console.error('[Main] Error creating Share Developer window:', error);
+    dialog.showMessageBox({
+      type: 'error',
+      title: 'Share Developer',
+      message: 'Failed to create Share Developer window.',
+      detail: error instanceof Error ? error.message : 'Unknown error occurred.',
+    });
+    throw error;
+  }
+};
+
 const focusWindow = () => {
   const windows = BrowserWindow.getAllWindows();
   if (windows.length > 0) {
@@ -1819,6 +1891,19 @@ app.whenReady().then(async () => {
     fileMenu.submenu.insert(3, new MenuItem({ type: 'separator' }));
 
     // The Close Window item is here.
+
+    // Add Share Developer menu item
+    fileMenu.submenu.append(new MenuItem({ type: 'separator' }));
+    fileMenu.submenu.append(
+      new MenuItem({
+        label: 'Share Developer',
+        accelerator: 'CmdOrCtrl+Shift+D',
+        click() {
+          console.log('[Main] Share Developer menu item clicked');
+          createShareDeveloperWindow();
+        },
+      })
+    );
 
     // Add menu item to tell the user about the keyboard shortcut
     fileMenu.submenu.append(

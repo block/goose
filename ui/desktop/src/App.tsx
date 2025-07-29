@@ -27,6 +27,7 @@ import { useChat } from './hooks/useChat';
 import { AppLayout } from './components/Layout/AppLayout';
 import { ChatProvider } from './contexts/ChatContext';
 import { DraftProvider } from './contexts/DraftContext';
+import ShareDeveloperView from './components/ShareDeveloperView';
 
 import 'react-toastify/dist/ReactToastify.css';
 import { useConfig, MalformedConfigError } from './components/ConfigContext';
@@ -65,7 +66,8 @@ export type View =
   | 'loading'
   | 'recipeEditor'
   | 'recipes'
-  | 'permission';
+  | 'permission'
+  | 'shareDeveloper';
 // | 'projects';
 
 export type ViewOptions = {
@@ -636,6 +638,12 @@ const ExtensionsRoute = () => {
   );
 };
 
+const ShareDeveloperRoute = () => {
+  const navigate = useNavigate();
+
+  return <ShareDeveloperView onClose={() => navigate('/')} />;
+};
+
 // const ProjectsRoute = () => {
 //   const navigate = useNavigate();
 //
@@ -750,6 +758,9 @@ export default function App() {
       case 'recipeEditor':
         window.location.hash = '#/recipe-editor';
         break;
+      case 'shareDeveloper':
+        window.location.hash = '#/share-developer';
+        break;
       case 'welcome':
         window.location.hash = '#/welcome';
         break;
@@ -841,6 +852,7 @@ export default function App() {
           ConfigureProviders: '#/configure-providers',
           sharedSession: '#/shared-session',
           recipeEditor: '#/recipe-editor',
+          shareDeveloper: '#/share-developer',
           welcome: '#/welcome',
         };
 
@@ -1354,6 +1366,7 @@ export default function App() {
             <Routes>
               <Route path="welcome" element={<WelcomeRoute />} />
               <Route path="configure-providers" element={<ConfigureProvidersRoute />} />
+              <Route path="share-developer" element={<ShareDeveloperRoute />} />
               <Route
                 path="/"
                 element={
