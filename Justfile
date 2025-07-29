@@ -444,23 +444,3 @@ win-total-rls *allparam:
   just win-bld-rls{{allparam}}
   just win-run-rls
 
-### Build and run the Kotlin example with
-### auto-generated bindings for goose-llm
-kotlin-example:
-    # Build Rust dylib and generate Kotlin bindings
-    cargo build -p goose-llm
-    cargo run --features=uniffi/cli --bin uniffi-bindgen generate \
-        --library ./target/debug/libgoose_llm.dylib --language kotlin --out-dir bindings/kotlin
-
-    # Compile and run the Kotlin example
-    cd bindings/kotlin/ && kotlinc \
-      example/Usage.kt \
-      uniffi/goose_llm/goose_llm.kt \
-      -classpath "libs/kotlin-stdlib-1.9.0.jar:libs/kotlinx-coroutines-core-jvm-1.7.3.jar:libs/jna-5.13.0.jar" \
-      -include-runtime \
-      -d example.jar
-
-    cd bindings/kotlin/ && java \
-      -Djna.library.path=$HOME/Development/goose/target/debug \
-      -classpath "example.jar:libs/kotlin-stdlib-1.9.0.jar:libs/kotlinx-coroutines-core-jvm-1.7.3.jar:libs/jna-5.13.0.jar" \
-      UsageKt
