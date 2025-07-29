@@ -5,9 +5,13 @@ on:
   pull_request:
     branches:
       - main
+    paths-ignore:
+      - "documentation/**"
   merge_group:
     branches:
       - main
+    paths-ignore:
+      - "documentation/**"
   workflow_dispatch:
 
 name: CI
