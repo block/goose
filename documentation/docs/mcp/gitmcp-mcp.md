@@ -1,5 +1,5 @@
 ---
-title: Git Extension
+title: GitMCP Extension
 description: Add Git MCP Server as a Goose Extension
 ---
 
@@ -77,7 +77,7 @@ In this example, Goose uses GitMCP to pull real-time documentation from the `ope
 
 Can you help me understand how the OpenAI Whisper speech-to-text model works?
 
-Use the GitHub repository `openai/whisper` to find accurate information.
+Use the GitHub repository [openai/whisper](https://github.com/openai/whisper) to find accurate information.
 
 Please:
 - Summarize what the model does and its key features
