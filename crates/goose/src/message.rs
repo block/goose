@@ -389,6 +389,7 @@ pub fn push_message(messages: &mut Vec<Message>, message: Message) {
     } else {
         messages.push(message);
     }
+}
 
 fn default_created() -> i64 {
     0 // old messages do not have timestamps.
