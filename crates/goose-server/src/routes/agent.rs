@@ -12,9 +12,9 @@ use goose::providers::create;
 use goose::recipe::Response;
 use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
-    config::permission::PermissionLevel,
+    config::{permission::PermissionLevel, Config},
+    recipe::SubRecipe,
 };
-use goose::{config::Config, recipe::SubRecipe};
 use mcp_core::tool::ToolCall;
 use rmcp::model::Content;
 use serde::{Deserialize, Serialize};
@@ -456,7 +456,7 @@ mod tests {
             errors::ProviderError,
         },
     };
-    use mcp_core::tool::Tool;
+    use rmcp::model::Tool;
     use tower::ServiceExt;
 
     #[derive(Clone)]
