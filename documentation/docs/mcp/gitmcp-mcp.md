@@ -74,19 +74,19 @@ In this example, Goose uses GitMCP to pull real-time documentation from the `ope
 </Tabs>
 
 ### Goose Prompt
+```
+  Can you help me understand how the OpenAI Whisper speech-to-text model works?
 
-Can you help me understand how the OpenAI Whisper speech-to-text model works?
+  Use the GitHub repository `openai/whisper` to find accurate information.
 
-Use the GitHub repository [openai/whisper](https://github.com/openai/whisper) to find accurate information.
+  Please:
+  - Summarize what the model does and its key features
+  - Show an example of how to run it from the command line
+  - Explain what files or models are needed to get started
+  - Include any useful code snippets or setup instructions you find in the repo
 
-Please:
-- Summarize what the model does and its key features
-- Show an example of how to run it from the command line
-- Explain what files or models are needed to get started
-- Include any useful code snippets or setup instructions you find in the repo
-
-Give me the response in a Markdown guide format.
-
+  Give me the response in a Markdown guide format.
+```
 ### Goose Output
 
 :::note Desktop
