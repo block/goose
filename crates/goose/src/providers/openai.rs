@@ -48,6 +48,7 @@ pub struct OpenAiProvider {
     project: Option<String>,
     model: ModelConfig,
     custom_headers: Option<HashMap<String, String>>,
+    enable_streaming: bool,
 }
 
 impl Default for OpenAiProvider {
@@ -74,6 +75,11 @@ impl OpenAiProvider {
             .or_else(|_| config.get_param("OPENAI_CUSTOM_HEADERS"))
             .ok()
             .map(parse_custom_headers);
+        let enable_streaming: bool = config
+            .get_param("OPENAI_ENABLE_STREAMING")
+            .unwrap_or_else(|_| "true".to_string())
+            .parse()
+            .unwrap_or(true);
         let timeout_secs: u64 = config.get_param("OPENAI_TIMEOUT").unwrap_or(600);
         let client = Client::builder()
             .timeout(Duration::from_secs(timeout_secs))
@@ -88,6 +94,7 @@ impl OpenAiProvider {
             project,
             model,
             custom_headers,
+            enable_streaming,
         })
     }
 
@@ -156,6 +163,7 @@ impl Provider for OpenAiProvider {
                 ConfigKey::new("OPENAI_ORGANIZATION", false, false, None),
                 ConfigKey::new("OPENAI_PROJECT", false, false, None),
                 ConfigKey::new("OPENAI_CUSTOM_HEADERS", false, true, None),
+                ConfigKey::new("OPENAI_ENABLE_STREAMING", false, false, Some("true")),
                 ConfigKey::new("OPENAI_TIMEOUT", false, false, Some("600")),
             ],
         )
@@ -242,7 +250,7 @@ impl Provider for OpenAiProvider {
     }
 
     fn supports_streaming(&self) -> bool {
-        true
+        self.enable_streaming
     }
 
     async fn stream(
