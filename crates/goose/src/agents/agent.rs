@@ -31,6 +31,7 @@ use crate::agents::subagent_execution_tool::subagent_execute_task_tool::{
 };
 use crate::agents::subagent_execution_tool::tasks_manager::TasksManager;
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
+use crate::agents::tool_route_manager::ToolRouteManager;
 use crate::agents::tool_vectordb::generate_table_id;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, ToolResultReceiver};
@@ -96,8 +97,7 @@ pub struct Agent {
     pub(super) tool_result_tx: mpsc::Sender<(String, ToolResult<Vec<Content>>)>,
     pub(super) tool_result_rx: ToolResultReceiver,
     pub(super) tool_monitor: Arc<Mutex<Option<ToolMonitor>>>,
-    pub(super) router_tool_selector: Mutex<Option<Arc<Box<dyn RouterToolSelector>>>>,
-    pub(super) router_disabled_override: Mutex<bool>,
+    pub(super) tool_route_manager: ToolRouteManager,
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
     pub(super) retry_manager: RetryManager,
 }
@@ -172,8 +172,7 @@ impl Agent {
             tool_result_tx: tool_tx,
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
             tool_monitor,
-            router_tool_selector: Mutex::new(None),
-            router_disabled_override: Mutex::new(false),
+            tool_route_manager: ToolRouteManager::new(),
             scheduler_service: Mutex::new(None),
             retry_manager,
         }
@@ -261,21 +260,14 @@ impl Agent {
             self.categorize_tool_requests(response).await;
 
         // Record tool calls in the router selector
-        let selector = self.router_tool_selector.lock().await.clone();
-        if let Some(selector) = selector {
-            for request in &frontend_requests {
-                if let Ok(tool_call) = &request.tool_call {
-                    if let Err(e) = selector.record_tool_call(&tool_call.name).await {
-                        error!("Failed to record frontend tool call: {}", e);
-                    }
-                }
+        for request in &frontend_requests {
+            if let Ok(tool_call) = &request.tool_call {
+                self.tool_route_manager.record_tool_call(&tool_call.name).await;
             }
-            for request in &remaining_requests {
-                if let Ok(tool_call) = &request.tool_call {
-                    if let Err(e) = selector.record_tool_call(&tool_call.name).await {
-                        error!("Failed to record tool call: {}", e);
-                    }
-                }
+        }
+        for request in &remaining_requests {
+            if let Ok(tool_call) = &request.tool_call {
+                self.tool_route_manager.record_tool_call(&tool_call.name).await;
             }
         }
 
@@ -339,8 +331,7 @@ impl Agent {
     }
 
     pub async fn disable_router_for_recipe(&self) {
-        *self.router_disabled_override.lock().await = true;
-        *self.router_tool_selector.lock().await = None;
+        self.tool_route_manager.disable_router_for_recipe().await;
     }
 
     /// Get a reference count clone to the provider
@@ -483,31 +474,10 @@ impl Agent {
         } else if tool_call.name == ROUTER_VECTOR_SEARCH_TOOL_NAME
             || tool_call.name == ROUTER_LLM_SEARCH_TOOL_NAME
         {
-            let selector = self.router_tool_selector.lock().await.clone();
-            let selected_tools = match selector.as_ref() {
-                Some(selector) => match selector.select_tools(tool_call.arguments.clone()).await {
-                    Ok(tools) => tools,
-                    Err(e) => {
-                        return (
-                            request_id,
-                            Err(ToolError::ExecutionError(format!(
-                                "Failed to select tools: {}",
-                                e
-                            ))),
-                        )
-                    }
-                },
-                None => {
-                    return (
-                        request_id,
-                        Err(ToolError::ExecutionError(
-                            "No tool selector available".to_string(),
-                        )),
-                    )
-                }
-            };
-
-            ToolCallResult::from(Ok(selected_tools))
+            match self.tool_route_manager.select_tools_for_dispatch(tool_call.arguments).await {
+                Ok(tool_result) => tool_result,
+                Err(e) => return (request_id, Err(e))
+            }
         } else {
             // Clone the result to ensure no references to extension_manager are returned
             let result = extension_manager
@@ -539,7 +509,7 @@ impl Agent {
     ) -> (String, Result<Vec<Content>, ToolError>) {
         let mut extension_manager = self.extension_manager.write().await;
 
-        let selector = self.router_tool_selector.lock().await.clone();
+        let selector = self.tool_route_manager.get_router_tool_selector().await;
         if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
             if let Some(selector) = selector {
                 let selector_action = if action == "disable" { "remove" } else { "add" };
@@ -613,7 +583,7 @@ impl Agent {
 
         // Update vector index if operation was successful and vector routing is enabled
         if result.is_ok() {
-            let selector = self.router_tool_selector.lock().await.clone();
+            let selector = self.tool_route_manager.get_router_tool_selector().await;
             if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
                 if let Some(selector) = selector {
                     let vector_action = if action == "disable" { "remove" } else { "add" };
@@ -676,7 +646,7 @@ impl Agent {
         }
 
         // If vector tool selection is enabled, index the tools
-        let selector = self.router_tool_selector.lock().await.clone();
+        let selector = self.tool_route_manager.get_router_tool_selector().await;
         if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
             if let Some(selector) = selector {
                 let extension_manager = self.extension_manager.read().await;
@@ -745,42 +715,9 @@ impl Agent {
         &self,
         strategy: Option<RouterToolSelectionStrategy>,
     ) -> Vec<Tool> {
-        if *self.router_disabled_override.lock().await {
-            return vec![];
-        }
-
-        let mut prefixed_tools = vec![];
-        match strategy {
-            Some(RouterToolSelectionStrategy::Vector) => {
-                prefixed_tools.push(router_tools::vector_search_tool());
-            }
-            Some(RouterToolSelectionStrategy::Llm) => {
-                prefixed_tools.push(router_tools::llm_search_tool());
-            }
-            None => {}
-        }
-
-        // Get recent tool calls from router tool selector if available
-        let selector = self.router_tool_selector.lock().await.clone();
-        if let Some(selector) = selector {
-            if let Ok(recent_calls) = selector.get_recent_tool_calls(20).await {
-                let extension_manager = self.extension_manager.read().await;
-                // Add recent tool calls to the list, avoiding duplicates
-                for tool_name in recent_calls {
-                    // Find the tool in the extension manager's tools
-                    if let Ok(extension_tools) = extension_manager.get_prefixed_tools(None).await {
-                        if let Some(tool) = extension_tools.iter().find(|t| t.name == tool_name) {
-                            // Only add if not already in prefixed_tools
-                            if !prefixed_tools.iter().any(|t| t.name == tool.name) {
-                                prefixed_tools.push(tool.clone());
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        prefixed_tools
+        self.tool_route_manager
+            .list_tools_for_router(strategy, &self.extension_manager)
+            .await
     }
 
     pub async fn remove_extension(&self, name: &str) -> Result<()> {
@@ -788,7 +725,7 @@ impl Agent {
         extension_manager.remove_extension(name).await?;
 
         // If vector tool selection is enabled, remove tools from the index
-        let selector = self.router_tool_selector.lock().await.clone();
+        let selector = self.tool_route_manager.get_router_tool_selector().await;
         if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
             if let Some(selector) = selector {
                 let extension_manager = self.extension_manager.read().await;
@@ -1150,71 +1087,15 @@ impl Agent {
         provider: Option<Arc<dyn Provider>>,
         reindex_all: Option<bool>,
     ) -> Result<()> {
-        if *self.router_disabled_override.lock().await {
-            return Ok(());
-        }
-
-        let config = Config::global();
-        let _extension_manager = self.extension_manager.read().await;
         let provider = match provider {
             Some(p) => p,
             None => self.provider().await?,
         };
 
-        let router_tool_selection_strategy = config
-            .get_param("GOOSE_ROUTER_TOOL_SELECTION_STRATEGY")
-            .unwrap_or_else(|_| "default".to_string());
-
-        let strategy = match router_tool_selection_strategy.to_lowercase().as_str() {
-            "vector" => Some(RouterToolSelectionStrategy::Vector),
-            "llm" => Some(RouterToolSelectionStrategy::Llm),
-            _ => None,
-        };
-
-        let selector = match strategy {
-            Some(RouterToolSelectionStrategy::Vector) => {
-                let table_name = generate_table_id();
-                let selector = create_tool_selector(strategy, provider.clone(), Some(table_name))
-                    .await
-                    .map_err(|e| anyhow!("Failed to create tool selector: {}", e))?;
-                Arc::new(selector)
-            }
-            Some(RouterToolSelectionStrategy::Llm) => {
-                let selector = create_tool_selector(strategy, provider.clone(), None)
-                    .await
-                    .map_err(|e| anyhow!("Failed to create tool selector: {}", e))?;
-                Arc::new(selector)
-            }
-            None => return Ok(()),
-        };
-
-        // First index platform tools
-        let extension_manager = self.extension_manager.read().await;
-        ToolRouterIndexManager::index_platform_tools(&selector, &extension_manager).await?;
-
-        if reindex_all.unwrap_or(false) {
-            let enabled_extensions = extension_manager.list_extensions().await?;
-            for extension_name in enabled_extensions {
-                if let Err(e) = ToolRouterIndexManager::update_extension_tools(
-                    &selector,
-                    &extension_manager,
-                    &extension_name,
-                    "add",
-                )
-                .await
-                {
-                    error!(
-                        "Failed to index tools for extension {}: {}",
-                        extension_name, e
-                    );
-                }
-            }
-        }
-
-        // Update the selector
-        *self.router_tool_selector.lock().await = Some(selector.clone());
-
-        Ok(())
+        // Delegate to ToolRouteManager
+        self.tool_route_manager
+            .update_router_tool_selector(provider, reindex_all, &self.extension_manager)
+            .await
     }
 
     /// Override the system prompt with a custom template
