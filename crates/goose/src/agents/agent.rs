@@ -69,8 +69,7 @@ pub struct ReplyContext {
     pub config: &'static Config,
 }
 
-/// Result of processing tool requests
-pub struct ToolProcessingResult {
+pub struct ToolCategorizeResult {
     pub frontend_requests: Vec<ToolRequest>,
     pub remaining_requests: Vec<ToolRequest>,
     pub filtered_response: Message,
@@ -243,35 +242,18 @@ impl Agent {
         })
     }
 
-    /// Process tool requests by categorizing them and recording them in the router selector
-    async fn process_tool_requests(
+    async fn categorize_tools(
         &self,
         response: &Message,
         tools: &[rmcp::model::Tool],
-    ) -> ToolProcessingResult {
+    ) -> ToolCategorizeResult {
         let (readonly_tools, regular_tools) = Self::categorize_tools_by_annotation(tools);
 
         // Categorize tool requests
         let (frontend_requests, remaining_requests, filtered_response) =
             self.categorize_tool_requests(response).await;
 
-        // Record tool calls in the router selector
-        for request in &frontend_requests {
-            if let Ok(tool_call) = &request.tool_call {
-                self.tool_route_manager
-                    .record_tool_call(&tool_call.name)
-                    .await;
-            }
-        }
-        for request in &remaining_requests {
-            if let Ok(tool_call) = &request.tool_call {
-                self.tool_route_manager
-                    .record_tool_call(&tool_call.name)
-                    .await;
-            }
-        }
-
-        ToolProcessingResult {
+        ToolCategorizeResult {
             frontend_requests,
             remaining_requests,
             filtered_response,
@@ -878,14 +860,17 @@ impl Agent {
                             }
 
                             if let Some(response) = response {
-                                let tool_result = self.process_tool_requests(&response, &tools).await;
-                                let ToolProcessingResult {
+                                let ToolCategorizeResult {
                                     frontend_requests,
                                     remaining_requests,
                                     filtered_response,
                                     readonly_tools,
                                     regular_tools,
-                                } = tool_result;
+                                } = self.categorize_tools(&response, &tools).await;
+                                let requests_to_record: Vec<ToolRequest> = frontend_requests.iter().chain(remaining_requests.iter()).cloned().collect();
+                                self.tool_route_manager
+                                    .record_tool_requests(&requests_to_record)
+                                    .await;
 
                                 yield AgentEvent::Message(filtered_response.clone());
                                 tokio::task::yield_now().await;

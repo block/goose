@@ -7,6 +7,7 @@ use crate::agents::tool_execution::ToolCallResult;
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::tool_vectordb::generate_table_id;
 use crate::config::Config;
+use crate::message::ToolRequest;
 use crate::providers::base::Provider;
 use anyhow::{anyhow, Result};
 use mcp_core::ToolError;
@@ -35,11 +36,15 @@ impl ToolRouteManager {
         *self.router_tool_selector.lock().await = None;
     }
 
-    pub async fn record_tool_call(&self, tool_name: &str) {
+    pub async fn record_tool_requests(&self, requests: &[ToolRequest]) {
         let selector = self.router_tool_selector.lock().await.clone();
         if let Some(selector) = selector {
-            if let Err(e) = selector.record_tool_call(tool_name).await {
-                error!("Failed to record tool call: {}", e);
+            for request in requests {
+                if let Ok(tool_call) = &request.tool_call {
+                    if let Err(e) = selector.record_tool_call(&tool_call.name).await {
+                        error!("Failed to record tool call: {}", e);
+                    }
+                }
             }
         }
     }
