@@ -1244,14 +1244,14 @@ impl Session {
                 "The existing call to {} was interrupted. How would you like to proceed?",
                 last_tool_name
             );
-            
+
             // If this was a shell command that might have left processes running, clean them up
             if last_tool_name == "developer__shell" {
                 tokio::spawn(async {
                     cleanup_shell_processes().await;
                 });
             }
-            
+
             self.push_message(Message::assistant().with_text(&prompt));
 
             // No need for description update here
@@ -1563,7 +1563,7 @@ impl Session {
 async fn cleanup_shell_processes() {
     let file_tracker = FilePidTracker::new();
     let tracked_pids = file_tracker.get_all_pids();
-    
+
     if tracked_pids.is_empty() {
         return;
     }
