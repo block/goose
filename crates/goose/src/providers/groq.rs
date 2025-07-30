@@ -1,4 +1,5 @@
 use super::errors::ProviderError;
+use crate::impl_provider_default;
 use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
@@ -32,12 +33,7 @@ pub struct GroqProvider {
     model: ModelConfig,
 }
 
-impl Default for GroqProvider {
-    fn default() -> Self {
-        let model = ModelConfig::new(GroqProvider::metadata().default_model);
-        GroqProvider::from_env(model).expect("Failed to initialize Groq provider")
-    }
-}
+impl_provider_default!(GroqProvider);
 
 impl GroqProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {

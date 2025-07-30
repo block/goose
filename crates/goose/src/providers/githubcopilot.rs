@@ -17,6 +17,7 @@ use super::formats::openai::{create_request, get_usage, response_to_message};
 use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
 
 use crate::config::{Config, ConfigError};
+use crate::impl_provider_default;
 use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::base::ConfigKey;
@@ -115,12 +116,7 @@ pub struct GithubCopilotProvider {
     model: ModelConfig,
 }
 
-impl Default for GithubCopilotProvider {
-    fn default() -> Self {
-        let model = ModelConfig::new(GithubCopilotProvider::metadata().default_model);
-        GithubCopilotProvider::from_env(model).expect("Failed to initialize GithubCopilot provider")
-    }
-}
+impl_provider_default!(GithubCopilotProvider);
 
 impl GithubCopilotProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {

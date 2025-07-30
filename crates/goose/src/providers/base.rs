@@ -116,7 +116,7 @@ impl ProviderMetadata {
                 .iter()
                 .map(|&name| ModelInfo {
                     name: name.to_string(),
-                    context_limit: ModelConfig::new(name.to_string()).context_limit(),
+                    context_limit: ModelConfig::new_or_fail(name).context_limit(),
                     input_token_cost: None,
                     output_token_cost: None,
                     currency: None,
@@ -401,7 +401,6 @@ mod tests {
     use std::collections::HashMap;
 
     use serde_json::json;
-
     #[test]
     fn test_usage_creation() {
         let usage = Usage::new(Some(10), Some(20), Some(30));

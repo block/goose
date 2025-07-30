@@ -255,7 +255,7 @@ async fn update_agent_provider(
             .get_param("GOOSE_MODEL")
             .expect("Did not find a model on payload or in env to update provider with")
     });
-    let model_config = ModelConfig::new(model);
+    let model_config = ModelConfig::new(&model).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let new_provider = create(&payload.provider, model_config).unwrap();
     agent
         .update_provider(new_provider)

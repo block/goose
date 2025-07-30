@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -36,8 +36,8 @@ use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, ToolResultReceiver};
 use crate::config::{Config, ExtensionConfigManager, PermissionManager};
 use crate::context_mgmt::auto_compact;
-use crate::message::{push_message, Message};
-use crate::permission::permission_judge::check_tool_permissions;
+use crate::message::{push_message, Message, ToolRequest};
+use crate::permission::permission_judge::{check_tool_permissions, PermissionCheckResult};
 use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
@@ -61,6 +61,26 @@ use crate::agents::subagent_task_config::TaskConfig;
 use crate::conversation_fixer::{debug_conversation_fix, ConversationFixer};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
+
+/// Context needed for the reply function
+pub struct ReplyContext {
+    pub messages: Vec<Message>,
+    pub tools: Vec<Tool>,
+    pub toolshim_tools: Vec<Tool>,
+    pub system_prompt: String,
+    pub goose_mode: String,
+    pub initial_messages: Vec<Message>,
+    pub config: &'static Config,
+}
+
+/// Result of processing tool requests
+pub struct ToolProcessingResult {
+    pub frontend_requests: Vec<ToolRequest>,
+    pub remaining_requests: Vec<ToolRequest>,
+    pub filtered_response: Message,
+    pub readonly_tools: HashSet<String>,
+    pub regular_tools: HashSet<String>,
+}
 
 /// The main goose Agent
 pub struct Agent {
@@ -164,17 +184,6 @@ impl Agent {
         *tool_monitor = Some(ToolMonitor::new(max_repetitions));
     }
 
-    pub async fn get_tool_stats(&self) -> Option<HashMap<String, u32>> {
-        let tool_monitor = self.tool_monitor.lock().await;
-        tool_monitor.as_ref().map(|monitor| monitor.get_stats())
-    }
-
-    pub async fn reset_tool_monitor(&self) {
-        if let Some(monitor) = self.tool_monitor.lock().await.as_mut() {
-            monitor.reset();
-        }
-    }
-
     /// Reset the retry attempts counter to 0
     pub async fn reset_retry_attempts(&self) {
         self.retry_manager.reset_attempts().await;
@@ -210,6 +219,119 @@ impl Agent {
         }
     }
 
+    async fn prepare_reply_context(
+        &self,
+        unfixed_messages: &[Message],
+        session: &Option<SessionConfig>,
+    ) -> Result<ReplyContext> {
+        let (messages, issues) = ConversationFixer::fix_conversation(Vec::from(unfixed_messages));
+        if !issues.is_empty() {
+            tracing::warn!(
+                "Conversation issue fixed: {}",
+                debug_conversation_fix(&messages, unfixed_messages, &issues)
+            );
+        }
+        let initial_messages = messages.clone();
+        let config = Config::global();
+
+        let (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
+        let goose_mode = Self::determine_goose_mode(session.as_ref(), config);
+
+        Ok(ReplyContext {
+            messages,
+            tools,
+            toolshim_tools,
+            system_prompt,
+            goose_mode,
+            initial_messages,
+            config,
+        })
+    }
+
+    /// Process tool requests by categorizing them and recording them in the router selector
+    async fn process_tool_requests(
+        &self,
+        response: &Message,
+        tools: &[rmcp::model::Tool],
+    ) -> ToolProcessingResult {
+        let (readonly_tools, regular_tools) = Self::categorize_tools_by_annotation(tools);
+
+        // Categorize tool requests
+        let (frontend_requests, remaining_requests, filtered_response) =
+            self.categorize_tool_requests(response).await;
+
+        // Record tool calls in the router selector
+        let selector = self.router_tool_selector.lock().await.clone();
+        if let Some(selector) = selector {
+            for request in &frontend_requests {
+                if let Ok(tool_call) = &request.tool_call {
+                    if let Err(e) = selector.record_tool_call(&tool_call.name).await {
+                        error!("Failed to record frontend tool call: {}", e);
+                    }
+                }
+            }
+            for request in &remaining_requests {
+                if let Ok(tool_call) = &request.tool_call {
+                    if let Err(e) = selector.record_tool_call(&tool_call.name).await {
+                        error!("Failed to record tool call: {}", e);
+                    }
+                }
+            }
+        }
+
+        ToolProcessingResult {
+            frontend_requests,
+            remaining_requests,
+            filtered_response,
+            readonly_tools,
+            regular_tools,
+        }
+    }
+
+    async fn handle_approved_and_denied_tools(
+        &self,
+        permission_check_result: &PermissionCheckResult,
+        message_tool_response: Arc<Mutex<Message>>,
+        cancel_token: Option<tokio_util::sync::CancellationToken>,
+    ) -> Result<Vec<(String, ToolStream)>> {
+        let mut tool_futures: Vec<(String, ToolStream)> = Vec::new();
+
+        // Handle pre-approved and read-only tools
+        for request in &permission_check_result.approved {
+            if let Ok(tool_call) = request.tool_call.clone() {
+                let (req_id, tool_result) = self
+                    .dispatch_tool_call(tool_call, request.id.clone(), cancel_token.clone())
+                    .await;
+
+                tool_futures.push((
+                    req_id,
+                    match tool_result {
+                        Ok(result) => tool_stream(
+                            result
+                                .notification_stream
+                                .unwrap_or_else(|| Box::new(stream::empty())),
+                            result.result,
+                        ),
+                        Err(e) => {
+                            tool_stream(Box::new(stream::empty()), futures::future::ready(Err(e)))
+                        }
+                    },
+                ));
+            }
+        }
+
+        // Handle denied tools
+        for request in &permission_check_result.denied {
+            let mut response = message_tool_response.lock().await;
+            *response = response.clone().with_tool_response(
+                request.id.clone(),
+                Ok(vec![rmcp::model::Content::text(DECLINED_RESPONSE)]),
+            );
+        }
+
+        Ok(tool_futures)
+    }
+
     /// Set the scheduler service for this agent
     pub async fn set_scheduler(&self, scheduler: Arc<dyn SchedulerTrait>) {
         let mut scheduler_service = self.scheduler_service.lock().await;
@@ -232,24 +354,6 @@ impl Agent {
     /// Get a reference to a frontend tool
     pub async fn get_frontend_tool(&self, name: &str) -> Option<FrontendTool> {
         self.frontend_tools.lock().await.get(name).cloned()
-    }
-
-    /// Get all tools from all clients with proper prefixing
-    pub async fn get_prefixed_tools(&self) -> ExtensionResult<Vec<Tool>> {
-        let mut tools = self
-            .extension_manager
-            .read()
-            .await
-            .get_prefixed_tools(None)
-            .await?;
-
-        // Add frontend tools directly - they don't need prefixing since they're already uniquely named
-        let frontend_tools = self.frontend_tools.lock().await;
-        for frontend_tool in frontend_tools.values() {
-            tools.push(frontend_tool.tool.clone());
-        }
-
-        Ok(tools)
     }
 
     pub async fn add_final_output_tool(&self, response: Response) {
@@ -723,31 +827,15 @@ impl Agent {
         }
     }
 
-    #[instrument(skip(self, unfixed_messages, session), fields(user_message))]
-    pub async fn reply(
+    /// Handle auto-compaction logic and return compacted messages if needed
+    async fn handle_auto_compaction(
         &self,
-        unfixed_messages: &[Message],
-        session: Option<SessionConfig>,
-        cancel_token: Option<CancellationToken>,
-    ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        let (mut messages, issues) =
-            ConversationFixer::fix_conversation(Vec::from(unfixed_messages));
-        if !issues.is_empty() {
-            tracing::warn!(
-                "Conversation issue fixed: {}",
-                debug_conversation_fix(&messages, unfixed_messages, &issues)
-            );
-        }
-        let _initial_messages = messages.clone();
-        let _reply_span = tracing::Span::current();
-        self.reset_retry_attempts().await;
-        let _config = Config::global();
-
-        // Handle auto-compaction before processing
-        let compact_result =
-            auto_compact::check_and_compact_messages(self, &messages, None).await?;
+        messages: &[Message],
+    ) -> Result<Option<(Vec<Message>, String)>> {
+        let compact_result = auto_compact::check_and_compact_messages(self, messages, None).await?;
+        
         if compact_result.compacted {
-            messages = compact_result.messages;
+            let compacted_messages = compact_result.messages;
 
             // Create compaction notification message
             let compaction_msg = if let (Some(before), Some(after)) =
@@ -763,14 +851,36 @@ impl Agent {
                 "Auto-compacted context to reduce token usage".to_string()
             };
 
-            // Create a new AgentEvent type to signal message history replacement
+            return Ok(Some((compacted_messages, compaction_msg)));
+        }
+
+        Ok(None)
+    }
+
+    #[instrument(skip(self, unfixed_messages, session), fields(user_message))]
+    pub async fn reply(
+        &self,
+        unfixed_messages: &[Message],
+        session: Option<SessionConfig>,
+        cancel_token: Option<CancellationToken>,
+    ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
+        // Handle auto-compaction before processing
+        let (messages, compaction_msg) = match self.handle_auto_compaction(unfixed_messages).await? {
+            Some((compacted_messages, msg)) => (compacted_messages, Some(msg)),
+            None => {
+                let context = self
+                    .prepare_reply_context(unfixed_messages, &session)
+                    .await?;
+                (context.messages, None)
+            }
+        };
+
+        // If we compacted, yield the compaction message and history replacement event
+        if let Some(compaction_msg) = compaction_msg {
             return Ok(Box::pin(async_stream::try_stream! {
                 yield AgentEvent::Message(Message::assistant().with_text(compaction_msg));
-
-                // Yield a special event to indicate the session should replace its message history
-                // with the compacted messages
                 yield AgentEvent::HistoryReplaced(messages.clone());
-
+                
                 // Continue with normal reply processing using compacted messages
                 let mut reply_stream = self.reply_internal(&messages, session, cancel_token).await?;
                 while let Some(event) = reply_stream.next().await {
@@ -790,14 +900,20 @@ impl Agent {
         session: Option<SessionConfig>,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        let mut messages = messages.to_vec();
-        let initial_messages = messages.clone();
+        let context = self
+            .prepare_reply_context(messages, &session)
+            .await?;
+        let ReplyContext {
+            mut messages,
+            mut tools,
+            mut toolshim_tools,
+            mut system_prompt,
+            goose_mode,
+            initial_messages,
+            config,
+        } = context;
         let reply_span = tracing::Span::current();
-        let config = Config::global();
-
-        let (mut tools, mut toolshim_tools, mut system_prompt) =
-            self.prepare_tools_and_prompt().await?;
-        let goose_mode = Self::determine_goose_mode(session.as_ref(), config);
+        self.reset_retry_attempts().await;
 
         if let Some(content) = messages
             .last()
@@ -846,8 +962,7 @@ impl Agent {
                     &messages,
                     &tools,
                     &toolshim_tools,
-                )
-                .await?;
+                ).await?;
 
                 let mut added_message = false;
                 let mut messages_to_add = Vec::new();
@@ -890,33 +1005,14 @@ impl Agent {
                             }
 
                             if let Some(response) = response {
-                                let (tools_with_readonly_annotation, tools_without_annotation) =
-                                    Self::categorize_tools_by_annotation(&tools);
-
-                                // Categorize tool requests
-                                let (frontend_requests, remaining_requests, filtered_response) =
-                                    self.categorize_tool_requests(&response).await;
-
-                                // Record tool calls in the router selector
-                                let selector = self.router_tool_selector.lock().await.clone();
-                                if let Some(selector) = selector {
-                                    for request in &frontend_requests {
-                                        if let Ok(tool_call) = &request.tool_call {
-                                            if let Err(e) = selector.record_tool_call(&tool_call.name).await
-                                            {
-                                                error!("Failed to record frontend tool call: {}", e);
-                                            }
-                                        }
-                                    }
-                                    for request in &remaining_requests {
-                                        if let Ok(tool_call) = &request.tool_call {
-                                            if let Err(e) = selector.record_tool_call(&tool_call.name).await
-                                            {
-                                                error!("Failed to record tool call: {}", e);
-                                            }
-                                        }
-                                    }
-                                }
+                                let tool_result = self.process_tool_requests(&response, &tools).await;
+                                let ToolProcessingResult {
+                                    frontend_requests,
+                                    remaining_requests,
+                                    filtered_response,
+                                    readonly_tools,
+                                    regular_tools,
+                                } = tool_result;
 
                                 yield AgentEvent::Message(filtered_response.clone());
                                 tokio::task::yield_now().await;
@@ -955,47 +1051,17 @@ impl Agent {
                                         check_tool_permissions(
                                             &remaining_requests,
                                             &mode,
-                                            tools_with_readonly_annotation.clone(),
-                                            tools_without_annotation.clone(),
+                                            readonly_tools.clone(),
+                                            regular_tools.clone(),
                                             &mut permission_manager,
                                             self.provider().await?,
-                                        )
-                                        .await;
+                                        ).await;
 
-                                    let mut tool_futures: Vec<(String, ToolStream)> = Vec::new();
-
-                                    // Handle pre-approved and read-only tools
-                                    for request in &permission_check_result.approved {
-                                        if let Ok(tool_call) = request.tool_call.clone() {
-                                            let (req_id, tool_result) = self
-                                                .dispatch_tool_call(tool_call, request.id.clone(), cancel_token.clone())
-                                                .await;
-
-                                            tool_futures.push((
-                                                req_id,
-                                                match tool_result {
-                                                    Ok(result) => tool_stream(
-                                                        result
-                                                            .notification_stream
-                                                            .unwrap_or_else(|| Box::new(stream::empty())),
-                                                        result.result,
-                                                    ),
-                                                    Err(e) => tool_stream(
-                                                        Box::new(stream::empty()),
-                                                        futures::future::ready(Err(e)),
-                                                    ),
-                                                },
-                                            ));
-                                        }
-                                    }
-
-                                    for request in &permission_check_result.denied {
-                                        let mut response = message_tool_response.lock().await;
-                                        *response = response.clone().with_tool_response(
-                                            request.id.clone(),
-                                            Ok(vec![Content::text(DECLINED_RESPONSE)]),
-                                        );
-                                    }
+                                    let mut tool_futures = self.handle_approved_and_denied_tools(
+                                        &permission_check_result,
+                                        message_tool_response.clone(),
+                                        cancel_token.clone()
+                                    ).await?;
 
                                     let tool_futures_arc = Arc::new(Mutex::new(tool_futures));
 

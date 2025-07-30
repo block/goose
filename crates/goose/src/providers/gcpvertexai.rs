@@ -18,6 +18,7 @@ use crate::providers::formats::gcpvertexai::{
     ModelProvider, RequestContext,
 };
 
+use crate::impl_provider_default;
 use crate::providers::formats::gcpvertexai::GcpLocation::Iowa;
 use crate::providers::gcpauth::GcpAuth;
 use crate::providers::utils::emit_debug_trace;
@@ -505,12 +506,7 @@ impl GcpVertexAIProvider {
     }
 }
 
-impl Default for GcpVertexAIProvider {
-    fn default() -> Self {
-        let model = ModelConfig::new(Self::metadata().default_model);
-        Self::new(model).expect("Failed to initialize VertexAI provider")
-    }
-}
+impl_provider_default!(GcpVertexAIProvider);
 
 #[async_trait]
 impl Provider for GcpVertexAIProvider {
@@ -711,7 +707,7 @@ mod tests {
     fn test_url_construction() {
         use url::Url;
 
-        let model_config = ModelConfig::new("claude-3-5-sonnet-v2@20241022".to_string());
+        let model_config = ModelConfig::new_or_fail("claude-3-5-sonnet-v2@20241022");
         let context = RequestContext::new(&model_config.model_name).unwrap();
         let api_model_id = context.model.to_string();
 

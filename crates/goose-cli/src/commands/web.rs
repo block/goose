@@ -99,7 +99,7 @@ pub async fn handle_web(port: u16, host: String, open: bool) -> Result<()> {
         }
     };
 
-    let model_config = goose::model::ModelConfig::new(model.clone());
+    let model_config = goose::model::ModelConfig::new(&model)?;
 
     // Create the agent
     let agent = Agent::new();

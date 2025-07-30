@@ -1,4 +1,5 @@
 use super::errors::ProviderError;
+use crate::impl_provider_default;
 use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
@@ -55,12 +56,7 @@ pub struct GoogleProvider {
     model: ModelConfig,
 }
 
-impl Default for GoogleProvider {
-    fn default() -> Self {
-        let model = ModelConfig::new(GoogleProvider::metadata().default_model);
-        GoogleProvider::from_env(model).expect("Failed to initialize Google provider")
-    }
-}
+impl_provider_default!(GoogleProvider);
 
 impl GoogleProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
