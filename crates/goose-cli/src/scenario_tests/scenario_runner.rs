@@ -176,10 +176,7 @@ where
 
         let original_env = setup_environment(config)?;
 
-        let inner_provider = create(
-            &factory_name,
-            ModelConfig::new(config.model_name.to_string()),
-        )?;
+        let inner_provider = create(&factory_name, ModelConfig::new(&config.model_name)?)?;
 
         let test_provider = Arc::new(TestProvider::new_recording(inner_provider, &file_path));
         (
