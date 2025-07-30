@@ -466,8 +466,8 @@ impl DeveloperRouter {
             .and_then(|s| serde_json::from_str(&s).ok())
             .unwrap_or_else(|| vec![".goosehints".to_string()]);
 
-        let mut global_hints_contents = Vec::new();
-        let mut local_hints_contents = Vec::new();
+        let mut global_hints_contents = Vec::with_capacity(hints_filenames.len());
+        let mut local_hints_contents = Vec::with_capacity(hints_filenames.len());
 
         for hints_filename in &hints_filenames {
             // Global hints
