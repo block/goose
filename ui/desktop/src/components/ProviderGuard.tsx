@@ -4,13 +4,15 @@ import { useConfig } from './ConfigContext';
 import { SetupModal } from './SetupModal';
 import { startOpenRouterSetup } from '../utils/openRouterSetup';
 import WelcomeGooseLogo from './WelcomeGooseLogo';
+import { initializeSystem } from '../utils/providerUtils';
+import { toastService } from '../toasts';
 
 interface ProviderGuardProps {
   children: React.ReactNode;
 }
 
 export default function ProviderGuard({ children }: ProviderGuardProps) {
-  const { read } = useConfig();
+  const { read, getExtensions, addExtension } = useConfig();
   const navigate = useNavigate();
   const [isChecking, setIsChecking] = useState(true);
   const [hasProvider, setHasProvider] = useState(false);
@@ -38,15 +40,52 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
       setOpenRouterSetupState({
         show: true,
         title: 'Setup Complete!',
-        message: 'OpenRouter has been configured successfully.',
-        showProgress: false,
+        message: 'OpenRouter has been configured successfully. Initializing Goose...',
+        showProgress: true,
         showRetry: false,
       });
 
-      // Reload the page after successful setup
-      setTimeout(() => {
-        window.location.reload();
-      }, 3000);
+      // After successful OpenRouter setup, force reload config and initialize system
+      try {
+        // Get the latest config from disk
+        const config = window.electron.getConfig();
+        const provider = (await read('GOOSE_PROVIDER', false)) ?? config.GOOSE_DEFAULT_PROVIDER;
+        const model = (await read('GOOSE_MODEL', false)) ?? config.GOOSE_DEFAULT_MODEL;
+
+        if (provider && model) {
+          // Initialize the system with the new provider/model
+          await initializeSystem(provider as string, model as string, {
+            getExtensions,
+            addExtension,
+          });
+
+          toastService.configure({ silent: false });
+          toastService.success({
+            title: 'Success!',
+            msg: `Started goose with ${model} by OpenRouter. You can change the model via the lower right corner.`,
+          });
+
+          // Close the modal and mark as having provider
+          setOpenRouterSetupState(null);
+          setShowFirstTimeSetup(false);
+          setHasProvider(true);
+        } else {
+          throw new Error('Provider or model not found after OpenRouter setup');
+        }
+      } catch (error) {
+        console.error('Failed to initialize after OpenRouter setup:', error);
+        toastService.configure({ silent: false });
+        toastService.error({
+          title: 'Initialization Failed',
+          msg: `Failed to initialize with OpenRouter: ${error instanceof Error ? error.message : String(error)}`,
+          traceback: error instanceof Error ? error.stack || '' : '',
+        });
+
+        // Still reload as config is saved
+        setTimeout(() => {
+          window.location.reload();
+        }, 3000);
+      }
     } else {
       setOpenRouterSetupState({
         show: true,
