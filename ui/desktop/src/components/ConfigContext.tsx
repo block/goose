@@ -28,14 +28,17 @@ export type FixedExtensionEntry = ExtensionConfig & {
   enabled: boolean;
 };
 
-// Initialize client configuration
-client.setConfig({
-  baseUrl: window.appConfig.get('GOOSE_API_HOST') + ':' + window.appConfig.get('GOOSE_PORT'),
-  headers: {
-    'Content-Type': 'application/json',
-    'X-Secret-Key': window.appConfig.get('secretKey'),
-  },
-});
+async function initializeClient() {
+  client.setConfig({
+    baseUrl: window.appConfig.get('GOOSE_API_HOST') + ':' + window.appConfig.get('GOOSE_PORT'),
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Secret-Key': await window.electron.getSecretKey(),
+    },
+  });
+}
+
+await initializeClient();
 
 interface ConfigContextType {
   config: ConfigResponse['config'];

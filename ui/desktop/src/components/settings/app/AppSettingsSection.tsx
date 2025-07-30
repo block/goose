@@ -5,7 +5,7 @@ import { Settings, RefreshCw, ExternalLink } from 'lucide-react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog';
 import UpdateSection from './UpdateSection';
 import { COST_TRACKING_ENABLED, UPDATES_ENABLED } from '../../../updates';
-import { getApiUrl, getSecretKey } from '../../../config';
+import { getApiUrl } from '../../../config';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import ThemeSelector from '../../GooseSidebar/ThemeSelector';
 import BlockLogoBlack from './icons/block-lockup_black.png';
@@ -71,7 +71,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
   const checkPricingStatus = async () => {
     try {
       const apiUrl = getApiUrl('/config/pricing');
-      const secretKey = getSecretKey();
+      const secretKey = await window.electron.getSecretKey();
 
       const headers: HeadersInit = { 'Content-Type': 'application/json' };
       if (secretKey) {
@@ -100,7 +100,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
     setIsRefreshing(true);
     try {
       const apiUrl = getApiUrl('/config/pricing');
-      const secretKey = getSecretKey();
+      const secretKey = await window.electron.getSecretKey();
 
       const headers: HeadersInit = { 'Content-Type': 'application/json' };
       if (secretKey) {

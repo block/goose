@@ -1,4 +1,4 @@
-import type { OpenDialogReturnValue, OpenDialogOptions } from 'electron';
+import type { OpenDialogOptions, OpenDialogReturnValue } from 'electron';
 import {
   app,
   App,
@@ -24,7 +24,7 @@ import os from 'node:os';
 import { spawn } from 'child_process';
 import 'dotenv/config';
 import { startGoosed } from './goosed';
-import { getBinaryPath, expandTilde } from './utils/pathUtils';
+import { expandTilde, getBinaryPath } from './utils/pathUtils';
 import { loadShellEnv } from './utils/loadEnv';
 import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
@@ -463,12 +463,6 @@ const getGooseProvider = () => {
   ];
 };
 
-const generateSecretKey = () => {
-  const key = process.env.GOOSE_EXTERNAL_BACKEND ? 'test' : crypto.randomBytes(32).toString('hex');
-  process.env.GOOSE_SERVER__SECRET_KEY = key;
-  return key;
-};
-
 const getSharingUrl = () => {
   // checks app env for sharing url
   loadShellEnv(app.isPackaged); // will try to take it from the zshrc file
@@ -484,11 +478,15 @@ const getVersion = () => {
   return process.env.GOOSE_VERSION;
 };
 
-let [provider, model, predefinedModels] = getGooseProvider();
+const [provider, model, predefinedModels] = getGooseProvider();
 
-let sharingUrl = getSharingUrl();
+const sharingUrl = getSharingUrl();
 
-let gooseVersion = getVersion();
+const gooseVersion = getVersion();
+
+const SERVER_SECRET = process.env.GOOSE_EXTERNAL_BACKEND
+  ? 'test'
+  : crypto.randomBytes(32).toString('hex');
 
 let appConfig = {
   GOOSE_DEFAULT_PROVIDER: provider,
@@ -499,7 +497,6 @@ let appConfig = {
   GOOSE_WORKING_DIR: '',
   // If GOOSE_ALLOWLIST_WARNING env var is not set, defaults to false (strict blocking mode)
   GOOSE_ALLOWLIST_WARNING: process.env.GOOSE_ALLOWLIST_WARNING === 'true',
-  secretKey: generateSecretKey(),
 };
 
 // Track windows by ID
@@ -559,7 +556,12 @@ const createChat = async (
     const envVars = {
       GOOSE_SCHEDULER_TYPE: process.env.GOOSE_SCHEDULER_TYPE,
     };
-    const [newPort, newWorkingDir, newGoosedProcess] = await startGoosed(app, dir, envVars);
+    const [newPort, newWorkingDir, newGoosedProcess] = await startGoosed(
+      app,
+      SERVER_SECRET,
+      dir,
+      envVars
+    );
     port = newPort;
     working_dir = newWorkingDir;
     goosedProcess = newGoosedProcess;
@@ -1024,12 +1026,15 @@ ipcMain.handle('directory-chooser', (_event, replace: boolean = false) => {
 // Handle scheduling engine settings
 ipcMain.handle('get-settings', () => {
   try {
-    const settings = loadSettings();
-    return settings;
+    return loadSettings();
   } catch (error) {
     console.error('Error getting settings:', error);
     return null;
   }
+});
+
+ipcMain.handle('get-secret-key', () => {
+  return SERVER_SECRET;
 });
 
 ipcMain.handle('set-scheduling-engine', async (_event, engine: string) => {
@@ -1600,8 +1605,7 @@ ipcMain.handle('list-files', async (_event, dirPath, extension) => {
 
 // Handle message box dialogs
 ipcMain.handle('show-message-box', async (_event, options) => {
-  const result = await dialog.showMessageBox(options);
-  return result;
+  return dialog.showMessageBox(options);
 });
 
 ipcMain.handle('get-allowed-extensions', async () => {

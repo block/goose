@@ -1,4 +1,4 @@
-import { getApiUrl, getSecretKey } from '../config';
+import { getApiUrl } from '../config';
 import { FullExtensionConfig } from '../extensions';
 import { initializeAgent } from '../agent';
 import {
@@ -98,7 +98,7 @@ export const updateSystemPromptWithParameters = async (
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Secret-Key': getSecretKey(),
+        'X-Secret-Key': await window.electron.getSecretKey(),
       },
       body: JSON.stringify({
         extension: `${desktopPromptBot}\nIMPORTANT instructions for you to operate as agent:\n${substitutedInstructions}`,
@@ -135,8 +135,6 @@ export const updateSystemPromptWithParameters = async (
  * NOTE: This logic can be removed eventually when enough versions have passed
  * We leave the existing user settings in localStorage, in case users downgrade
  * or things need to be reverted.
- *
- * @param addExtension Function to add extension to config.yaml
  */
 export const migrateExtensionsToSettingsV3 = async () => {
   console.log('need to perform extension migration v3');
@@ -227,7 +225,7 @@ export const initializeSystem = async (
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Secret-Key': getSecretKey(),
+        'X-Secret-Key': await window.electron.getSecretKey(),
       },
       body: JSON.stringify({
         extension: prompt,
@@ -247,7 +245,7 @@ export const initializeSystem = async (
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Secret-Key': getSecretKey(),
+          'X-Secret-Key': await window.electron.getSecretKey(),
         },
         body: JSON.stringify({
           response: responseConfig,
