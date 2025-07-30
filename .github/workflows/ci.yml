@@ -13,7 +13,6 @@ on:
 name: CI
 
 jobs:
-  # Detect what files have changed to conditionally run jobs
   changes:
     runs-on: ubuntu-latest
     outputs:
@@ -37,7 +36,6 @@ jobs:
     name: Check Rust Code Format
     runs-on: ubuntu-latest
     needs: changes
-    # Skip Rust formatting for documentation-only changes
     if: needs.changes.outputs.code == 'true' || github.event_name != 'pull_request'
     steps:
       - name: Checkout Code
@@ -50,7 +48,6 @@ jobs:
     name: Build and Test Rust Project
     runs-on: goose
     needs: changes
-    # Skip expensive Rust build and test for documentation-only changes
     if: needs.changes.outputs.code == 'true' || github.event_name != 'pull_request'
     steps:
       # Add disk space cleanup before linting
@@ -171,7 +168,6 @@ jobs:
     name: Lint Electron Desktop App
     runs-on: macos-latest
     needs: changes
-    # Skip desktop linting for documentation-only changes since it only checks TypeScript/React code
     if: needs.changes.outputs.code == 'true' || github.event_name != 'pull_request'
     steps:
       - name: Checkout Code
@@ -190,7 +186,6 @@ jobs:
   bundle-desktop-unsigned:
     uses: ./.github/workflows/bundle-desktop.yml
     needs: changes
-    # Skip desktop bundle for documentation-only changes to save resources
     if: (github.event_name == 'pull_request' || github.event_name == 'merge_group') && (needs.changes.outputs.code == 'true' || github.event_name != 'pull_request')
     with:
       signing: false
