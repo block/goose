@@ -1094,32 +1094,13 @@
       "Annotated": {
         "oneOf": [
           {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/RawTextContent"
-              }
-            ]
+            "$ref": "#/components/schemas/RawTextContent"
           },
           {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/RawImageContent"
-              }
-            ]
+            "$ref": "#/components/schemas/RawImageContent"
           },
           {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/RawEmbeddedResource"
-              }
-            ]
-          },
-          {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Annotated"
-              }
-            ]
+            "$ref": "#/components/schemas/RawEmbeddedResource"
           }
         ]
       },

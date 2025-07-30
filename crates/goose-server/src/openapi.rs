@@ -13,7 +13,7 @@ use goose::session::info::SessionInfo;
 use goose::session::SessionMetadata;
 use rmcp::model::{
     Annotations, Content, EmbeddedResource, ImageContent, ResourceContents, Role, TextContent,
-    Tool, ToolAnnotations, RawTextContent, RawImageContent, RawEmbeddedResource, Annotated,
+    Tool, ToolAnnotations, RawTextContent, RawImageContent, RawEmbeddedResource,
 };
 use utoipa::{OpenApi, ToSchema};
 
@@ -325,15 +325,22 @@ derive_utoipa!(Annotations as AnnotationsSchema);
 derive_utoipa!(ResourceContents as ResourceContentsSchema);
 
 // Create a manual schema for the generic Annotated type
+// We manually define this to avoid circular references from RawContent::Audio(AudioContent)
+// where AudioContent = Annotated<RawAudioContent>
 struct AnnotatedSchema {}
 
 impl<'__s> ToSchema<'__s> for AnnotatedSchema {
     fn schema() -> (&'__s str, utoipa::openapi::RefOr<utoipa::openapi::Schema>) {
-        let settings = rmcp::schemars::generate::SchemaSettings::openapi3();
-        let generator = settings.into_generator();
-        let schema = generator.into_root_schema_for::<Annotated<rmcp::model::RawContent>>();
-        let schema = convert_schemars_to_utoipa(schema);
-        ("Annotated", schema)
+        // Create a oneOf schema with only the variants we actually use in the API
+        // This avoids the circular reference from RawContent::Audio(AudioContent)
+        let schema = Schema::OneOf(
+            OneOfBuilder::new()
+                .item(RefOr::Ref(Ref::new("#/components/schemas/RawTextContent")))
+                .item(RefOr::Ref(Ref::new("#/components/schemas/RawImageContent")))
+                .item(RefOr::Ref(Ref::new("#/components/schemas/RawEmbeddedResource")))
+                .build()
+        );
+        ("Annotated", RefOr::T(schema))
     }
 
     fn aliases() -> Vec<(&'__s str, utoipa::openapi::schema::Schema)> {

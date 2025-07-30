@@ -8,7 +8,7 @@ export type AddSubRecipesResponse = {
     success: boolean;
 };
 
-export type Annotated = RawTextContent | RawImageContent | RawEmbeddedResource | Annotated;
+export type Annotated = RawTextContent | RawImageContent | RawEmbeddedResource;
 
 export type Annotations = {
     audience?: Array<Role>;
