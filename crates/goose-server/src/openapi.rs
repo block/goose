@@ -12,8 +12,8 @@ use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata};
 use goose::session::info::SessionInfo;
 use goose::session::SessionMetadata;
 use rmcp::model::{
-    Annotations, Content, EmbeddedResource, ImageContent, ResourceContents, Role, TextContent,
-    Tool, ToolAnnotations, RawTextContent, RawImageContent, RawEmbeddedResource,
+    Annotations, Content, EmbeddedResource, ImageContent, RawEmbeddedResource, RawImageContent,
+    RawTextContent, ResourceContents, Role, TextContent, Tool, ToolAnnotations,
 };
 use utoipa::{OpenApi, ToSchema};
 
@@ -337,8 +337,10 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
             OneOfBuilder::new()
                 .item(RefOr::Ref(Ref::new("#/components/schemas/RawTextContent")))
                 .item(RefOr::Ref(Ref::new("#/components/schemas/RawImageContent")))
-                .item(RefOr::Ref(Ref::new("#/components/schemas/RawEmbeddedResource")))
-                .build()
+                .item(RefOr::Ref(Ref::new(
+                    "#/components/schemas/RawEmbeddedResource",
+                )))
+                .build(),
         );
         ("Annotated", RefOr::T(schema))
     }
