@@ -1771,10 +1771,7 @@ mod tests {
     fn test_goosehints_multiple_filenames() {
         let dir = TempDir::new().unwrap();
         std::env::set_current_dir(dir.path()).unwrap();
-        std::env::set_var(
-            "CONTEXT_FILE_NAMES",
-            r#"["CLAUDE.md", ".goosehints"]"#,
-        );
+        std::env::set_var("CONTEXT_FILE_NAMES", r#"["CLAUDE.md", ".goosehints"]"#);
 
         fs::write("CLAUDE.md", "Custom hints file content from CLAUDE.md").unwrap();
         fs::write(".goosehints", "Custom hints file content from .goosehints").unwrap();
