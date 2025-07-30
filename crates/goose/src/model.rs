@@ -247,19 +247,28 @@ mod tests {
 
     #[test]
     fn test_model_config_context_limits() {
-        let config = ModelConfig::new("claude-3-opus")
-            .unwrap()
-            .with_context_limit(Some(150_000));
-        assert_eq!(config.context_limit(), 150_000);
+        // Clear environment variables to ensure clean test
+        with_var("GOOSE_CONTEXT_LIMIT", None::<&str>, || {
+            with_var("GOOSE_TEMPERATURE", None::<&str>, || {
+                with_var("GOOSE_TOOLSHIM", None::<&str>, || {
+                    with_var("GOOSE_TOOLSHIM_OLLAMA_MODEL", None::<&str>, || {
+                        let config = ModelConfig::new("claude-3-opus")
+                            .unwrap()
+                            .with_context_limit(Some(150_000));
+                        assert_eq!(config.context_limit(), 150_000);
 
-        let config = ModelConfig::new("claude-3-opus").unwrap();
-        assert_eq!(config.context_limit(), 200_000);
+                        let config = ModelConfig::new("claude-3-opus").unwrap();
+                        assert_eq!(config.context_limit(), 200_000);
 
-        let config = ModelConfig::new("gpt-4-turbo").unwrap();
-        assert_eq!(config.context_limit(), 128_000);
+                        let config = ModelConfig::new("gpt-4-turbo").unwrap();
+                        assert_eq!(config.context_limit(), 128_000);
 
-        let config = ModelConfig::new("unknown-model").unwrap();
-        assert_eq!(config.context_limit(), DEFAULT_CONTEXT_LIMIT);
+                        let config = ModelConfig::new("unknown-model").unwrap();
+                        assert_eq!(config.context_limit(), DEFAULT_CONTEXT_LIMIT);
+                    });
+                });
+            });
+        });
     }
 
     #[test]
@@ -329,6 +338,7 @@ mod tests {
 
     #[test]
     fn test_valid_configurations() {
+        // Test with environment variables set
         with_var("GOOSE_CONTEXT_LIMIT", Some("50000"), || {
             with_var("GOOSE_TEMPERATURE", Some("0.7"), || {
                 with_var("GOOSE_TOOLSHIM", Some("true"), || {
@@ -338,6 +348,18 @@ mod tests {
                         assert_eq!(config.temperature, Some(0.7));
                         assert!(config.toolshim);
                         assert_eq!(config.toolshim_model, Some("llama3".to_string()));
+                    });
+                });
+            });
+        });
+        
+        // Test without environment variables (should use model-specific limits)
+        with_var("GOOSE_CONTEXT_LIMIT", None::<&str>, || {
+            with_var("GOOSE_TEMPERATURE", None::<&str>, || {
+                with_var("GOOSE_TOOLSHIM", None::<&str>, || {
+                    with_var("GOOSE_TOOLSHIM_OLLAMA_MODEL", None::<&str>, || {
+                        let config = ModelConfig::new("claude-3-opus").unwrap();
+                        assert_eq!(config.context_limit(), 200_000);
                     });
                 });
             });

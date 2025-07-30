@@ -882,7 +882,7 @@ impl Agent {
                 yield AgentEvent::HistoryReplaced(messages.clone());
                 
                 // Continue with normal reply processing using compacted messages
-                let mut reply_stream = self.reply_internal(&messages, session, cancel_token).await?;
+                let mut reply_stream = self.reply_main(&messages, session, cancel_token).await?;
                 while let Some(event) = reply_stream.next().await {
                     yield event?;
                 }
@@ -890,11 +890,11 @@ impl Agent {
         }
 
         // No compaction needed, proceed with normal processing
-        self.reply_internal(&messages, session, cancel_token).await
+        self.reply_main(&messages, session, cancel_token).await
     }
 
-    /// Internal reply method that handles the actual agent processing
-    async fn reply_internal(
+    /// Main reply method that handles the actual agent processing
+    async fn reply_main(
         &self,
         messages: &[Message],
         session: Option<SessionConfig>,

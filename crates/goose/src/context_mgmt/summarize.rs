@@ -301,7 +301,7 @@ mod tests {
 
     fn create_mock_provider() -> Result<Arc<dyn Provider>> {
         let mock_model_config =
-            ModelConfig::new_or_fail("test-model").with_context_limit(200_000.into());
+            ModelConfig::new("test-model")?.with_context_limit(200_000.into());
 
         Ok(Arc::new(MockProvider {
             model_config: mock_model_config,
@@ -423,7 +423,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_summarize_messages_uses_oneshot_for_small_context() {
-        let provider = create_mock_provider();
+        let provider = create_mock_provider().expect("failed to create mock provider");
         let token_counter = TokenCounter::new();
         let context_limit = 100_000; // Large context limit
         let messages = create_test_messages(); // Small message set
@@ -449,7 +449,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_summarize_messages_uses_chunked_for_large_context() {
-        let provider = create_mock_provider();
+        let provider = create_mock_provider().expect("failed to create mock provider");
         let token_counter = TokenCounter::new();
         let context_limit = 10_000; // Higher limit to avoid underflow
         let messages = create_test_messages();
@@ -527,7 +527,8 @@ mod tests {
     async fn test_summarize_messages_fallback_on_oneshot_failure() {
         let call_count = Arc::new(std::sync::Mutex::new(0));
         let provider = Arc::new(FailingOneshotProvider {
-            model_config: ModelConfig::new("test-model".to_string())
+            model_config: ModelConfig::new("test-model")
+                .unwrap()
                 .with_context_limit(200_000.into()),
             call_count: Arc::clone(&call_count),
         });
@@ -567,7 +568,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_summarize_messages_oneshot_direct_call() {
-        let provider = create_mock_provider();
+        let provider = create_mock_provider().expect("failed to create mock provider");
         let token_counter = TokenCounter::new();
         let context_limit = 100_000;
         let messages = create_test_messages();
@@ -605,7 +606,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_summarize_messages_chunked_direct_call() {
-        let provider = create_mock_provider();
+        let provider = create_mock_provider().expect("failed to create mock provider");
         let token_counter = TokenCounter::new();
         let context_limit = 10_000; // Higher limit to avoid underflow
         let messages = create_test_messages();
@@ -643,7 +644,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_absolute_token_threshold_calculation() {
-        let provider = create_mock_provider();
+        let provider = create_mock_provider().expect("failed to create mock provider");
         let token_counter = TokenCounter::new();
 
         // Test with a context limit where absolute token calculation matters

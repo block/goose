@@ -289,7 +289,8 @@ mod tests {
     #[tokio::test]
     async fn test_check_compaction_needed() {
         let mock_provider = Arc::new(MockProvider {
-            model_config: ModelConfig::new("test-model".to_string())
+            model_config: ModelConfig::new("test-model")
+                .unwrap()
                 .with_context_limit(100_000.into()),
         });
 
@@ -314,7 +315,8 @@ mod tests {
     #[tokio::test]
     async fn test_check_compaction_needed_disabled() {
         let mock_provider = Arc::new(MockProvider {
-            model_config: ModelConfig::new("test-model".to_string())
+            model_config: ModelConfig::new("test-model")
+                .unwrap()
                 .with_context_limit(100_000.into()),
         });
 
@@ -341,7 +343,8 @@ mod tests {
     #[tokio::test]
     async fn test_perform_compaction() {
         let mock_provider = Arc::new(MockProvider {
-            model_config: ModelConfig::new("test-model".to_string())
+            model_config: ModelConfig::new("test-model")
+                .unwrap()
                 .with_context_limit(50_000.into()),
         });
 
@@ -368,7 +371,8 @@ mod tests {
     #[tokio::test]
     async fn test_auto_compact_disabled() {
         let mock_provider = Arc::new(MockProvider {
-            model_config: ModelConfig::new("test-model".to_string())
+            model_config: ModelConfig::new("test-model")
+                .unwrap()
                 .with_context_limit(10_000.into()),
         });
 
@@ -398,7 +402,8 @@ mod tests {
     #[tokio::test]
     async fn test_auto_compact_below_threshold() {
         let mock_provider = Arc::new(MockProvider {
-            model_config: ModelConfig::new("test-model".to_string())
+            model_config: ModelConfig::new("test-model")
+                .unwrap()
                 .with_context_limit(100_000.into()), // Increased to ensure overhead doesn't dominate
         });
 
@@ -419,7 +424,8 @@ mod tests {
     #[tokio::test]
     async fn test_auto_compact_above_threshold() {
         let mock_provider = Arc::new(MockProvider {
-            model_config: ModelConfig::new("test-model".to_string())
+            model_config: ModelConfig::new("test-model")
+                .unwrap()
                 .with_context_limit(50_000.into()), // Realistic context limit that won't underflow
         });
 
@@ -465,7 +471,8 @@ mod tests {
     #[tokio::test]
     async fn test_auto_compact_respects_config() {
         let mock_provider = Arc::new(MockProvider {
-            model_config: ModelConfig::new("test-model".to_string())
+            model_config: ModelConfig::new("test-model")
+                .unwrap()
                 .with_context_limit(30_000.into()), // Smaller context limit to make threshold easier to hit
         });
 
