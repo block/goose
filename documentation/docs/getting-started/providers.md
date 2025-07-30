@@ -247,6 +247,41 @@ These free options are a great way to get started with Goose and explore its cap
 :::
 
 
+### Groq
+Groq provides free access to open source models with high-speed inference. To use Groq with Goose, you need an API key from [Groq Console](https://console.groq.com/keys).
+
+Groq offers several open source models that support tool calling:
+- **moonshotai/kimi-k2-instruct** - Mixture-of-Experts model with 1 trillion parameters, optimized for agentic intelligence and tool use
+- **qwen/qwen3-32b** - 32.8 billion parameter model with advanced reasoning and multilingual capabilities  
+- **gemma2-9b-it** - Google's Gemma 2 model with instruction tuning
+- **llama-3.3-70b-versatile** - Meta's Llama 3.3 model for versatile applications
+
+To set up Groq with Goose, follow these steps:
+
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+  **To update your LLM provider and API key:** 
+
+    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
+    2. Click the `Settings` button on the sidebar.
+    3. Click the `Models` tab.
+    4. Click `Configure Providers`
+    5. Choose `Groq` as provider from the list.
+    6. Click `Configure`, enter your API key, and click `Submit`.
+
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+    1. Run: 
+    ```sh
+    goose configure
+    ```
+    2. Select `Configure Providers` from the menu.
+    3. Follow the prompts to choose `Groq` as the provider.
+    4. Enter your API key when prompted.
+    5. Enter the Groq model of your choice (e.g., `moonshotai/kimi-k2-instruct`).
+  </TabItem>
+</Tabs>
+
 ### Google Gemini
 Google Gemini provides a free tier. To start using the Gemini API with Goose, you need an API Key from [Google AI studio](https://aistudio.google.com/app/apikey).
 

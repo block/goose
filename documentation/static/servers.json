@@ -572,5 +572,15 @@
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": []
+  },
+  {
+    "id": "gitmcp",
+    "name": "GitMCP",
+    "description": "Gets latest documentation for any GitHub project",
+    "command": "npx -y mcp-remote https://gitmcp.io/docs",
+    "link": "https://github.com/idosal/git-mcp",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
   }
 ]

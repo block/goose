@@ -13,8 +13,13 @@ use std::time::Duration;
 use url::Url;
 
 pub const GROQ_API_HOST: &str = "https://api.groq.com";
-pub const GROQ_DEFAULT_MODEL: &str = "llama-3.3-70b-versatile";
-pub const GROQ_KNOWN_MODELS: &[&str] = &["gemma2-9b-it", "llama-3.3-70b-versatile"];
+pub const GROQ_DEFAULT_MODEL: &str = "moonshotai/kimi-k2-instruct";
+pub const GROQ_KNOWN_MODELS: &[&str] = &[
+    "gemma2-9b-it",
+    "llama-3.3-70b-versatile",
+    "moonshotai/kimi-k2-instruct",
+    "qwen/qwen3-32b",
+];
 
 pub const GROQ_DOC_URL: &str = "https://console.groq.com/docs/models";
 
