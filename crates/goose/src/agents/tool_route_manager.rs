@@ -2,7 +2,7 @@ use crate::agents::extension_manager::ExtensionManager;
 use crate::agents::router_tool_selector::{
     create_tool_selector, RouterToolSelectionStrategy, RouterToolSelector,
 };
-use crate::agents::router_tools;
+use crate::agents::router_tools::{self};
 use crate::agents::tool_execution::ToolCallResult;
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::tool_vectordb::generate_table_id;
@@ -63,28 +63,30 @@ impl ToolRouteManager {
         }
     }
 
+    pub async fn get_router_tool_selection_strategy(&self) -> Option<RouterToolSelectionStrategy> {
+        if *self.router_disabled_override.lock().await {
+            return None;
+        }
+
+        let config = Config::global();
+        let router_tool_selection_strategy = config
+            .get_param("GOOSE_ROUTER_TOOL_SELECTION_STRATEGY")
+            .unwrap_or_else(|_| "default".to_string());
+
+        match router_tool_selection_strategy.to_lowercase().as_str() {
+            "vector" => Some(RouterToolSelectionStrategy::Vector),
+            "llm" => Some(RouterToolSelectionStrategy::Llm),
+            _ => None,
+        }
+    }
+
     pub async fn update_router_tool_selector(
         &self,
         provider: Arc<dyn Provider>,
         reindex_all: Option<bool>,
         extension_manager: &Arc<RwLock<ExtensionManager>>,
     ) -> Result<()> {
-        if *self.router_disabled_override.lock().await {
-            return Ok(());
-        }
-
-        let config = Config::global();
-
-        let router_tool_selection_strategy = config
-            .get_param("GOOSE_ROUTER_TOOL_SELECTION_STRATEGY")
-            .unwrap_or_else(|_| "default".to_string());
-
-        let strategy = match router_tool_selection_strategy.to_lowercase().as_str() {
-            "vector" => Some(RouterToolSelectionStrategy::Vector),
-            "llm" => Some(RouterToolSelectionStrategy::Llm),
-            _ => None,
-        };
-
+        let strategy = self.get_router_tool_selection_strategy().await;
         let selector = match strategy {
             Some(RouterToolSelectionStrategy::Vector) => {
                 let table_name = generate_table_id();

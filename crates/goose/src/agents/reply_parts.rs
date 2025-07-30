@@ -6,7 +6,6 @@ use async_stream::try_stream;
 use futures::stream::StreamExt;
 
 use crate::agents::router_tool_selector::RouterToolSelectionStrategy;
-use crate::config::Config;
 use crate::message::{Message, MessageContent, ToolRequest};
 use crate::providers::base::{stream_from_single_message, MessageStream, Provider, ProviderUsage};
 use crate::providers::errors::ProviderError;
@@ -36,16 +35,10 @@ impl Agent {
     /// Prepares tools and system prompt for a provider request
     pub async fn prepare_tools_and_prompt(&self) -> anyhow::Result<(Vec<Tool>, Vec<Tool>, String)> {
         // Get tool selection strategy from config
-        let config = Config::global();
-        let router_tool_selection_strategy = config
-            .get_param("GOOSE_ROUTER_TOOL_SELECTION_STRATEGY")
-            .unwrap_or_else(|_| "default".to_string());
-
-        let tool_selection_strategy = match router_tool_selection_strategy.to_lowercase().as_str() {
-            "vector" => Some(RouterToolSelectionStrategy::Vector),
-            "llm" => Some(RouterToolSelectionStrategy::Llm),
-            _ => None,
-        };
+        let tool_selection_strategy = self
+            .tool_route_manager
+            .get_router_tool_selection_strategy()
+            .await;
 
         // Get tools from extension manager
         let mut tools = match tool_selection_strategy {
