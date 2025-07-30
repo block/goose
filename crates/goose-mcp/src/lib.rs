@@ -9,12 +9,14 @@ pub static APP_STRATEGY: Lazy<AppStrategyArgs> = Lazy::new(|| AppStrategyArgs {
 
 pub mod computercontroller;
 mod developer;
+pub mod file_pid_tracker;
 pub mod google_drive;
 mod memory;
 mod tutorial;
 
 pub use computercontroller::ComputerControllerRouter;
-pub use developer::DeveloperRouter;
+pub use developer::{DeveloperRouter};
+pub use file_pid_tracker::FilePidTracker;
 pub use google_drive::GoogleDriveRouter;
 pub use memory::MemoryRouter;
 pub use tutorial::TutorialRouter;

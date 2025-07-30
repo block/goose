@@ -13,6 +13,7 @@ use std::{
     io::Cursor,
     path::{Path, PathBuf},
     pin::Pin,
+    sync::{Arc, Mutex},
 };
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
@@ -38,13 +39,11 @@ use rmcp::object;
 
 use self::editor_models::{create_editor_model, EditorModel};
 use self::shell::{expand_path, get_shell_config, is_absolute_path, normalize_line_endings};
-use indoc::indoc;
-#[cfg(unix)]
-use std::os::unix::process::CommandExt;
-use std::process::Stdio;
-use std::sync::{Arc, Mutex};
-use xcap::{Monitor, Window};
+use crate::file_pid_tracker::FilePidTracker;
 
+use indoc::indoc;
+use std::process::Stdio;
+use xcap::{Monitor, Window};
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 
 // Embeds the prompts directory to the build
@@ -636,8 +635,8 @@ impl DeveloperRouter {
         let shell_config = get_shell_config();
 
         // Execute the command using shell with better process cleanup
-        // On Unix-like systems (including WSL), wrap the command to ensure it creates a new process group
         let wrapped_command = format!("setsid {}", command);
+
         let mut child = Command::new(&shell_config.executable)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -648,8 +647,22 @@ impl DeveloperRouter {
             .spawn()
             .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
 
-        // Store the child PID for cleanup (currently unused but may be needed for future enhancements)
-        let _child_pid = child.id();
+        // Store the child PID for cleanup - generate a unique execution ID
+        let execution_id = format!(
+            "exec_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        );
+
+        let child_pid = child.id();
+
+        // Store the PID globally for cleanup if cancellation occurs
+        if let Some(pid) = child_pid {
+            let file_tracker = FilePidTracker::new();
+            file_tracker.register_process(execution_id.clone(), pid, command.to_string());
+        }
 
         let stdout = child.stdout.take().unwrap();
         let stderr = child.stderr.take().unwrap();
@@ -731,10 +744,20 @@ impl DeveloperRouter {
         });
 
         // Wait for the command to complete and get output
-        child
-            .wait()
-            .await
-            .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
+        let exit_status_result = child.wait().await;
+        
+        match exit_status_result {
+            Ok(exit_status) => {
+                if exit_status.success() {
+                    // Always use file-based tracking for consistency
+                    let file_tracker = FilePidTracker::new();
+                    file_tracker.unregister_process(&execution_id);
+                }
+            }
+            Err(e) => {
+                return Err(ToolError::ExecutionError(e.to_string()));
+            }
+        }
 
         let output_str = match output_task.await {
             Ok(result) => result.map_err(|e| ToolError::ExecutionError(e.to_string()))?,
