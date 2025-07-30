@@ -332,7 +332,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
     let spin = spinner();
     spin.start("Attempting to fetch supported models...");
     let models_res = {
-        let temp_model_config = goose::model::ModelConfig::new(provider_meta.default_model.clone());
+        let temp_model_config = goose::model::ModelConfig::new(&provider_meta.default_model)?;
         let temp_provider = create(provider_name, temp_model_config)?;
         temp_provider.fetch_supported_models_async().await
     };
@@ -373,7 +373,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
         .map(|val| val == "1" || val.to_lowercase() == "true")
         .unwrap_or(false);
 
-    let model_config = goose::model::ModelConfig::new(model.clone())
+    let model_config = goose::model::ModelConfig::new(&model)?
         .with_max_tokens(Some(50))
         .with_toolshim(toolshim_enabled)
         .with_toolshim_model(std::env::var("GOOSE_TOOLSHIM_OLLAMA_MODEL").ok());
@@ -1231,7 +1231,7 @@ pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
     let model: String = config
         .get_param("GOOSE_MODEL")
         .expect("No model configured. Please set model first");
-    let model_config = goose::model::ModelConfig::new(model.clone());
+    let model_config = goose::model::ModelConfig::new(&model)?;
 
     // Create the agent
     let agent = Agent::new();

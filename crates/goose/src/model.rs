@@ -236,7 +236,7 @@ impl ModelConfig {
 
     pub fn new_or_fail(model_name: &str) -> ModelConfig {
         ModelConfig::new(model_name)
-            .expect(&format!("Failed to create model config for {}", model_name))
+            .unwrap_or_else(|_| panic!("Failed to create model config for {}", model_name))
     }
 }
 

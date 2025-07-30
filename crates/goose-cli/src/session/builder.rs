@@ -202,8 +202,12 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
 
     let temperature = session_config.settings.as_ref().and_then(|s| s.temperature);
 
-    let model_config =
-        goose::model::ModelConfig::new(model_name.clone()).with_temperature(temperature);
+    let model_config = goose::model::ModelConfig::new(&model_name)
+        .unwrap_or_else(|e| {
+            output::render_error(&format!("Failed to create model configuration: {}", e));
+            process::exit(1);
+        })
+        .with_temperature(temperature);
 
     // Create the agent
     let agent: Agent = Agent::new();
