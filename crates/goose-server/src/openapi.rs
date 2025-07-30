@@ -13,7 +13,7 @@ use goose::session::info::SessionInfo;
 use goose::session::SessionMetadata;
 use rmcp::model::{
     Annotations, Content, EmbeddedResource, ImageContent, ResourceContents, Role, TextContent,
-    Tool, ToolAnnotations,
+    Tool, ToolAnnotations, RawTextContent, RawImageContent, RawEmbeddedResource, Annotated,
 };
 use utoipa::{OpenApi, ToSchema};
 
@@ -316,10 +316,30 @@ derive_utoipa!(Content as ContentSchema);
 derive_utoipa!(EmbeddedResource as EmbeddedResourceSchema);
 derive_utoipa!(ImageContent as ImageContentSchema);
 derive_utoipa!(TextContent as TextContentSchema);
+derive_utoipa!(RawTextContent as RawTextContentSchema);
+derive_utoipa!(RawImageContent as RawImageContentSchema);
+derive_utoipa!(RawEmbeddedResource as RawEmbeddedResourceSchema);
 derive_utoipa!(Tool as ToolSchema);
 derive_utoipa!(ToolAnnotations as ToolAnnotationsSchema);
 derive_utoipa!(Annotations as AnnotationsSchema);
 derive_utoipa!(ResourceContents as ResourceContentsSchema);
+
+// Create a manual schema for the generic Annotated type
+struct AnnotatedSchema {}
+
+impl<'__s> ToSchema<'__s> for AnnotatedSchema {
+    fn schema() -> (&'__s str, utoipa::openapi::RefOr<utoipa::openapi::Schema>) {
+        let settings = rmcp::schemars::generate::SchemaSettings::openapi3();
+        let generator = settings.into_generator();
+        let schema = generator.into_root_schema_for::<Annotated<rmcp::model::RawContent>>();
+        let schema = convert_schemars_to_utoipa(schema);
+        ("Annotated", schema)
+    }
+
+    fn aliases() -> Vec<(&'__s str, utoipa::openapi::schema::Schema)> {
+        Vec::new()
+    }
+}
 
 #[allow(dead_code)] // Used by utoipa for OpenAPI generation
 #[derive(OpenApi)]
@@ -380,6 +400,10 @@ derive_utoipa!(ResourceContents as ResourceContentsSchema);
         ImageContentSchema,
         AnnotationsSchema,
         TextContentSchema,
+        RawTextContentSchema,
+        RawImageContentSchema,
+        RawEmbeddedResourceSchema,
+        AnnotatedSchema,
         ToolResponse,
         ToolRequest,
         ToolConfirmationRequest,
