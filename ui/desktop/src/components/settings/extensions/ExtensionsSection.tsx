@@ -84,12 +84,6 @@ export default function ExtensionsSection({
         enabled: disableConfiguration ? selectedExtensions.includes(ext.name) : ext.enabled,
       }));
 
-    console.log(
-      'Setting extensions with selectedExtensions:',
-      selectedExtensions,
-      'Extensions:',
-      sortedExtensions
-    );
     setExtensions(sortedExtensions);
   }, [getExtensions, disableConfiguration, selectedExtensions]);
 
@@ -153,15 +147,24 @@ export default function ExtensionsSection({
   };
 
   const handleUpdateExtension = async (formData: ExtensionFormData) => {
+    if (!selectedExtension) {
+      console.error('No selected extension for update');
+      return;
+    }
+
     // Close the modal immediately
     handleModalClose();
 
     const extensionConfig = createExtensionConfig(formData);
+    const originalName = selectedExtension.name;
+
     try {
       await updateExtension({
         enabled: formData.enabled,
         extensionConfig: extensionConfig,
         addToConfig: addExtension,
+        removeFromConfig: removeExtension,
+        originalName: originalName,
       });
     } catch (error) {
       console.error('Failed to update extension:', error);
