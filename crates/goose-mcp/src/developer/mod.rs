@@ -482,7 +482,6 @@ impl DeveloperRouter {
                     PathBuf::from(shellexpand::tilde(&path_str).to_string())
                 });
 
-            // Create the directory if it doesn't exist
             if let Some(parent) = global_hints_path.parent() {
                 let _ = std::fs::create_dir_all(parent);
             }
@@ -493,7 +492,6 @@ impl DeveloperRouter {
                 }
             }
 
-            // Local hints
             let local_hints_path = cwd.join(hints_filename);
             if local_hints_path.is_file() {
                 if let Ok(content) = std::fs::read_to_string(&local_hints_path) {
