@@ -2,15 +2,16 @@ use async_trait::async_trait;
 use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::formatdoc;
 use mcp_core::{
-    handler::{PromptError, ResourceError, ToolError},
+    handler::{PromptError, ResourceError, ErrorData},
     protocol::ServerCapabilities,
     tool::ToolCall,
 };
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
-use rmcp::model::{Content, JsonRpcMessage, Prompt, Resource, Tool, ToolAnnotations};
+use rmcp::model::{Content, JsonRpcMessage, Prompt, Resource, Tool, ToolAnnotations, ErrorData, ErrorCode};
 use rmcp::object;
 use serde_json::Value;
+use std::borrow::Cow;
 use std::{
     collections::HashMap,
     fs,
@@ -523,7 +524,7 @@ impl Router for MemoryRouter {
         tool_name: &str,
         arguments: Value,
         _notifier: mpsc::Sender<JsonRpcMessage>,
-    ) -> Pin<Box<dyn Future<Output = Result<Vec<Content>, ToolError>> + Send + 'static>> {
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<Content>, ErrorData>> + Send + 'static>> {
         let this = self.clone();
         let tool_name = tool_name.to_string();
 
@@ -534,7 +535,11 @@ impl Router for MemoryRouter {
             };
             match this.execute_tool_call(tool_call).await {
                 Ok(result) => Ok(vec![Content::text(result)]),
-                Err(err) => Err(ToolError::ExecutionError(err.to_string())),
+                Err(err) => Err(ErrorData {
+            code: ErrorCode::INTERNAL_ERROR,
+            message: Cow::from(err.to_string(),
+            data: None,
+        })),
             }
         })
     }

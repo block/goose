@@ -26,9 +26,10 @@ use url::Url;
 
 use include_dir::{include_dir, Dir};
 use mcp_core::{
-    handler::{require_str_parameter, PromptError, ResourceError, ToolError},
+    handler::{require_str_parameter, PromptError, ResourceError},
     protocol::ServerCapabilities,
 };
+use rmcp::model::{ErrorData, ErrorCode};
 
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
@@ -536,7 +537,7 @@ impl DeveloperRouter {
     }
 
     // shell output can be large, this will help manage that
-    fn process_shell_output(&self, output_str: &str) -> Result<(String, String), ToolError> {
+    fn process_shell_output(&self, output_str: &str) -> Result<(String, String), ErrorData> {
         let lines: Vec<&str> = output_str.lines().collect();
         let line_count = lines.len();
 
@@ -545,15 +546,27 @@ impl DeveloperRouter {
 
         let final_output = if line_count > 100 {
             let tmp_file = tempfile::NamedTempFile::new().map_err(|e| {
-                ToolError::ExecutionError(format!("Failed to create temporary file: {}", e))
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Failed to create temporary file: {}", e),
+                    None,
+                )
             })?;
 
             std::fs::write(tmp_file.path(), output_str).map_err(|e| {
-                ToolError::ExecutionError(format!("Failed to write to temporary file: {}", e))
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Failed to write to temporary file: {}", e),
+                    None,
+                )
             })?;
 
             let (_, path) = tmp_file.keep().map_err(|e| {
-                ToolError::ExecutionError(format!("Failed to persist temporary file: {}", e))
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Failed to persist temporary file: {}", e),
+                    None,
+                )
             })?;
 
             format!(
@@ -576,7 +589,7 @@ impl DeveloperRouter {
     }
 
     // Helper method to resolve a path relative to cwd with platform-specific handling
-    fn resolve_path(&self, path_str: &str) -> Result<PathBuf, ToolError> {
+    fn resolve_path(&self, path_str: &str) -> Result<PathBuf, ErrorData> {
         let cwd = std::env::current_dir().expect("should have a current working dir");
         let expanded = expand_path(path_str);
         let path = Path::new(&expanded);
@@ -585,11 +598,15 @@ impl DeveloperRouter {
 
         match is_absolute_path(&expanded) {
             true => Ok(path.to_path_buf()),
-            false => Err(ToolError::InvalidParameters(format!(
-                "The path {} is not an absolute path, did you possibly mean {}?",
-                path_str,
-                suggestion.to_string_lossy(),
-            ))),
+            false => Err(ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                format!(
+                    "The path {} is not an absolute path, did you possibly mean {}?",
+                    path_str,
+                    suggestion.to_string_lossy(),
+                ),
+                None,
+            )),
         }
     }
 
@@ -598,14 +615,12 @@ impl DeveloperRouter {
         &self,
         params: Value,
         notifier: mpsc::Sender<JsonRpcMessage>,
-    ) -> Result<Vec<Content>, ToolError> {
+    ) -> Result<Vec<Content>, ErrorData> {
         let command =
             params
                 .get("command")
                 .and_then(|v| v.as_str())
-                .ok_or(ToolError::InvalidParameters(
-                    "The command string is required".to_string(),
-                ))?;
+                .ok_or_else(|| ErrorData::new(ErrorCode::INVALID_PARAMS, "The command string is required".to_string(), None))?;
 
         // Check if command might access ignored files and return early if it does
         let cmd_parts: Vec<&str> = command.split_whitespace().collect();
@@ -621,7 +636,7 @@ impl DeveloperRouter {
             }
 
             if self.is_ignored(path) {
-                return Err(ToolError::ExecutionError(format!(
+                return Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, format!(
                     "The command attempts to access '{}' which is restricted by .gooseignore",
                     arg
                 )));
@@ -640,7 +655,7 @@ impl DeveloperRouter {
             .args(&shell_config.args)
             .arg(command)
             .spawn()
-            .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
+            .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string()))?;
 
         let stdout = BufReader::new(child.stdout.take().unwrap());
         let stderr = BufReader::new(child.stderr.take().unwrap());
@@ -688,18 +703,18 @@ impl DeveloperRouter {
         child
             .wait()
             .await
-            .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
+            .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string()))?;
 
         let output_str = match output_task.await {
-            Ok(result) => result.map_err(|e| ToolError::ExecutionError(e.to_string()))?,
-            Err(e) => return Err(ToolError::ExecutionError(e.to_string())),
+            Ok(result) => result.map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string()))?,
+            Err(e) => return Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string())),
         };
 
         // Check the character count of the output
         const MAX_CHAR_COUNT: usize = 400_000; // 409600 chars = 400KB
         let char_count = output_str.chars().count();
         if char_count > MAX_CHAR_COUNT {
-            return Err(ToolError::ExecutionError(format!(
+            return Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, format!(
                     "Shell output from command '{}' has too many characters ({}). Maximum character count is {}.",
                     command,
                     char_count,
@@ -717,24 +732,24 @@ impl DeveloperRouter {
         ])
     }
 
-    async fn text_editor(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+    async fn text_editor(&self, params: Value) -> Result<Vec<Content>, ErrorData> {
         let command = params
             .get("command")
             .and_then(|v| v.as_str())
             .ok_or_else(|| {
-                ToolError::InvalidParameters("Missing 'command' parameter".to_string())
+                ErrorData::new(ErrorCode::INVALID_PARAMS, "Missing 'command' parameter".to_string())
             })?;
 
         let path_str = params
             .get("path")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| ToolError::InvalidParameters("Missing 'path' parameter".into()))?;
+            .ok_or_else(|| ErrorData::new(ErrorCode::INVALID_PARAMS, "Missing 'path' parameter".into(), None))?;
 
         let path = self.resolve_path(path_str)?;
 
         // Check if file is ignored before proceeding with any text editor operation
         if self.is_ignored(&path) {
-            return Err(ToolError::ExecutionError(format!(
+            return Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, format!(
                 "Access to '{}' is restricted by .gooseignore",
                 path.display()
             )));
@@ -766,13 +781,13 @@ impl DeveloperRouter {
                     .get("old_str")
                     .and_then(|v| v.as_str())
                     .ok_or_else(|| {
-                        ToolError::InvalidParameters("Missing 'old_str' parameter".into())
+                        ErrorData::new(ErrorCode::INVALID_PARAMS, "Missing 'old_str' parameter".into(), None)
                     })?;
                 let new_str = params
                     .get("new_str")
                     .and_then(|v| v.as_str())
                     .ok_or_else(|| {
-                        ToolError::InvalidParameters("Missing 'new_str' parameter".into())
+                        ErrorData::new(ErrorCode::INVALID_PARAMS, "Missing 'new_str' parameter".into(), None)
                     })?;
 
                 self.text_editor_replace(&path, old_str, new_str).await
@@ -782,19 +797,19 @@ impl DeveloperRouter {
                     .get("insert_line")
                     .and_then(|v| v.as_i64())
                     .ok_or_else(|| {
-                        ToolError::InvalidParameters("Missing 'insert_line' parameter".into())
+                        ErrorData::new(ErrorCode::INVALID_PARAMS, "Missing 'insert_line' parameter".into(), None)
                     })? as usize;
                 let new_str = params
                     .get("new_str")
                     .and_then(|v| v.as_str())
                     .ok_or_else(|| {
-                        ToolError::InvalidParameters("Missing 'new_str' parameter".into())
+                        ErrorData::new(ErrorCode::INVALID_PARAMS, "Missing 'new_str' parameter".into(), None)
                     })?;
 
                 self.text_editor_insert(&path, insert_line, new_str).await
             }
             "undo_edit" => self.text_editor_undo(&path).await,
-            _ => Err(ToolError::InvalidParameters(format!(
+            _ => Err(ErrorData::new(ErrorCode::INVALID_PARAMS, format!(
                 "Unknown command '{}'",
                 command
             ))),
@@ -806,7 +821,7 @@ impl DeveloperRouter {
         &self,
         view_range: Option<(usize, i64)>,
         total_lines: usize,
-    ) -> Result<(usize, usize), ToolError> {
+    ) -> Result<(usize, usize), ErrorData> {
         if let Some((start_line, end_line)) = view_range {
             // Convert 1-indexed line numbers to 0-indexed
             let start_idx = if start_line > 0 { start_line - 1 } else { 0 };
@@ -817,14 +832,14 @@ impl DeveloperRouter {
             };
 
             if start_idx >= total_lines {
-                return Err(ToolError::InvalidParameters(format!(
+                return Err(ErrorData::new(ErrorCode::INVALID_PARAMS, format!(
                     "Start line {} is beyond the end of the file (total lines: {})",
                     start_line, total_lines
                 )));
             }
 
             if start_idx >= end_idx {
-                return Err(ToolError::InvalidParameters(format!(
+                return Err(ErrorData::new(ErrorCode::INVALID_PARAMS, format!(
                     "Start line {} must be less than end line {}",
                     start_line, end_line
                 )));
@@ -889,9 +904,9 @@ impl DeveloperRouter {
         &self,
         path: &PathBuf,
         view_range: Option<(usize, i64)>,
-    ) -> Result<Vec<Content>, ToolError> {
+    ) -> Result<Vec<Content>, ErrorData> {
         if !path.is_file() {
-            return Err(ToolError::ExecutionError(format!(
+            return Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, format!(
                 "The path '{}' does not exist or is not a file.",
                 path.display()
             )));
@@ -900,15 +915,15 @@ impl DeveloperRouter {
         const MAX_FILE_SIZE: u64 = 400 * 1024; // 400KB
 
         let f = File::open(path)
-            .map_err(|e| ToolError::ExecutionError(format!("Failed to open file: {}", e)))?;
+            .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, format!("Failed to open file: {}", e)))?;
 
         let file_size = f
             .metadata()
-            .map_err(|e| ToolError::ExecutionError(format!("Failed to get file metadata: {}", e)))?
+            .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, format!("Failed to get file metadata: {}", e)))?
             .len();
 
         if file_size > MAX_FILE_SIZE {
-            return Err(ToolError::ExecutionError(format!(
+            return Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, format!(
                 "File '{}' is too large ({:.2}KB). Maximum size is 400KB to prevent memory issues.",
                 path.display(),
                 file_size as f64 / 1024.0
@@ -919,12 +934,12 @@ impl DeveloperRouter {
         let mut f = f.take(MAX_FILE_SIZE);
 
         let uri = Url::from_file_path(path)
-            .map_err(|_| ToolError::ExecutionError("Invalid file path".into()))?
+            .map_err(|_| ErrorData::new(ErrorCode::INTERNAL_ERROR, "Invalid file path".into(), None))?
             .to_string();
 
         let mut content = String::new();
         f.read_to_string(&mut content)
-            .map_err(|e| ToolError::ExecutionError(format!("Failed to read file: {}", e)))?;
+            .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, format!("Failed to read file: {}", e)))?;
 
         let lines: Vec<&str> = content.lines().collect();
         let total_lines = lines.len();
@@ -952,7 +967,7 @@ impl DeveloperRouter {
         &self,
         path: &PathBuf,
         file_text: &str,
-    ) -> Result<Vec<Content>, ToolError> {
+    ) -> Result<Vec<Content>, ErrorData> {
         // Normalize line endings based on platform
         let mut normalized_text = normalize_line_endings(file_text); // Make mutable
 
@@ -963,7 +978,7 @@ impl DeveloperRouter {
 
         // Write to the file
         std::fs::write(path, &normalized_text) // Write the potentially modified text
-            .map_err(|e| ToolError::ExecutionError(format!("Failed to write file: {}", e)))?;
+            .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, format!("Failed to write file: {}", e)))?;
 
         // Try to detect the language from the file extension
         let language = lang::get_language_identifier(path);
@@ -994,10 +1009,10 @@ impl DeveloperRouter {
         path: &PathBuf,
         old_str: &str,
         new_str: &str,
-    ) -> Result<Vec<Content>, ToolError> {
+    ) -> Result<Vec<Content>, ErrorData> {
         // Check if file exists and is active
         if !path.exists() {
-            return Err(ToolError::InvalidParameters(format!(
+            return Err(ErrorData::new(ErrorCode::INVALID_PARAMS, format!(
                 "File '{}' does not exist, you can write a new file with the `write` command",
                 path.display()
             )));
@@ -1005,7 +1020,7 @@ impl DeveloperRouter {
 
         // Read content
         let content = std::fs::read_to_string(path)
-            .map_err(|e| ToolError::ExecutionError(format!("Failed to read file: {}", e)))?;
+            .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, format!("Failed to read file: {}", e)))?;
 
         // Check if Editor API is configured and use it as the primary path
         if let Some(ref editor) = self.editor_model {
@@ -1017,7 +1032,7 @@ impl DeveloperRouter {
                     // Write the updated content directly
                     let normalized_content = normalize_line_endings(&updated_content);
                     std::fs::write(path, &normalized_content).map_err(|e| {
-                        ToolError::ExecutionError(format!("Failed to write file: {}", e))
+                        ErrorData::new(ErrorCode::INTERNAL_ERROR, format!("Failed to write file: {}", e))
                     })?;
 
                     // Simple success message for Editor API
@@ -1042,14 +1057,12 @@ impl DeveloperRouter {
         // Traditional string replacement path (original logic)
         // Ensure 'old_str' appears exactly once
         if content.matches(old_str).count() > 1 {
-            return Err(ToolError::InvalidParameters(
-                "'old_str' must appear exactly once in the file, but it appears multiple times"
-                    .into(),
+            return Err(ErrorData::new(ErrorCode::INVALID_PARAMS, "'old_str' must appear exactly once in the file, but it appears multiple times"
+                    .into(), None,
             ));
         }
         if content.matches(old_str).count() == 0 {
-            return Err(ToolError::InvalidParameters(
-                "'old_str' must appear exactly once in the file, but it does not appear in the file. Make sure the string exactly matches existing file content, including whitespace!".into(),
+            return Err(ErrorData::new(ErrorCode::INVALID_PARAMS, "'old_str' must appear exactly once in the file, but it does not appear in the file. Make sure the string exactly matches existing file content, including whitespace!".into(), None,
             ));
         }
 
@@ -1059,7 +1072,7 @@ impl DeveloperRouter {
         let new_content = content.replace(old_str, new_str);
         let normalized_content = normalize_line_endings(&new_content);
         std::fs::write(path, &normalized_content)
-            .map_err(|e| ToolError::ExecutionError(format!("Failed to write file: {}", e)))?;
+            .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, format!("Failed to write file: {}", e)))?;
 
         // Try to detect the language from the file extension
         let language = lang::get_language_identifier(path);
@@ -1120,10 +1133,10 @@ impl DeveloperRouter {
         path: &PathBuf,
         insert_line: usize,
         new_str: &str,
-    ) -> Result<Vec<Content>, ToolError> {
+    ) -> Result<Vec<Content>, ErrorData> {
         // Check if file exists
         if !path.exists() {
-            return Err(ToolError::InvalidParameters(format!(
+            return Err(ErrorData::new(ErrorCode::INVALID_PARAMS, format!(
                 "File '{}' does not exist, you can write a new file with the `write` command",
                 path.display()
             )));
@@ -1131,7 +1144,7 @@ impl DeveloperRouter {
 
         // Read content
         let content = std::fs::read_to_string(path)
-            .map_err(|e| ToolError::ExecutionError(format!("Failed to read file: {}", e)))?;
+            .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, format!("Failed to read file: {}", e)))?;
 
         // Save history for undo
         self.save_file_history(path)?;
@@ -1141,7 +1154,7 @@ impl DeveloperRouter {
 
         // Validate insert_line parameter
         if insert_line > total_lines {
-            return Err(ToolError::InvalidParameters(format!(
+            return Err(ErrorData::new(ErrorCode::INVALID_PARAMS, format!(
                 "Insert line {} is beyond the end of the file (total lines: {}). Use 0 to insert at the beginning or {} to insert at the end.",
                 insert_line, total_lines, total_lines
             )));
@@ -1175,7 +1188,7 @@ impl DeveloperRouter {
         };
 
         std::fs::write(path, &final_content)
-            .map_err(|e| ToolError::ExecutionError(format!("Failed to write file: {}", e)))?;
+            .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, format!("Failed to write file: {}", e)))?;
 
         // Try to detect the language from the file extension
         let language = lang::get_language_identifier(path);
@@ -1224,32 +1237,30 @@ impl DeveloperRouter {
         ])
     }
 
-    async fn text_editor_undo(&self, path: &PathBuf) -> Result<Vec<Content>, ToolError> {
+    async fn text_editor_undo(&self, path: &PathBuf) -> Result<Vec<Content>, ErrorData> {
         let mut history = self.file_history.lock().unwrap();
         if let Some(contents) = history.get_mut(path) {
             if let Some(previous_content) = contents.pop() {
                 // Write previous content back to file
                 std::fs::write(path, previous_content).map_err(|e| {
-                    ToolError::ExecutionError(format!("Failed to write file: {}", e))
+                    ErrorData::new(ErrorCode::INTERNAL_ERROR, format!("Failed to write file: {}", e))
                 })?;
                 Ok(vec![Content::text("Undid the last edit")])
             } else {
-                Err(ToolError::InvalidParameters(
-                    "No edit history available to undo".into(),
+                Err(ErrorData::new(ErrorCode::INVALID_PARAMS, "No edit history available to undo".into(), None,
                 ))
             }
         } else {
-            Err(ToolError::InvalidParameters(
-                "No edit history available to undo".into(),
+            Err(ErrorData::new(ErrorCode::INVALID_PARAMS, "No edit history available to undo".into(), None,
             ))
         }
     }
 
-    fn save_file_history(&self, path: &PathBuf) -> Result<(), ToolError> {
+    fn save_file_history(&self, path: &PathBuf) -> Result<(), ErrorData> {
         let mut history = self.file_history.lock().unwrap();
         let content = if path.exists() {
             std::fs::read_to_string(path)
-                .map_err(|e| ToolError::ExecutionError(format!("Failed to read file: {}", e)))?
+                .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, format!("Failed to read file: {}", e)))?
         } else {
             String::new()
         };
@@ -1257,9 +1268,9 @@ impl DeveloperRouter {
         Ok(())
     }
 
-    async fn list_windows(&self, _params: Value) -> Result<Vec<Content>, ToolError> {
+    async fn list_windows(&self, _params: Value) -> Result<Vec<Content>, ErrorData> {
         let windows = Window::all()
-            .map_err(|_| ToolError::ExecutionError("Failed to list windows".into()))?;
+            .map_err(|_| ErrorData::new(ErrorCode::INTERNAL_ERROR, "Failed to list windows".into(), None))?;
 
         let window_titles: Vec<String> =
             windows.into_iter().map(|w| w.title().to_string()).collect();
@@ -1309,11 +1320,11 @@ impl DeveloperRouter {
         path.to_path_buf()
     }
 
-    async fn image_processor(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+    async fn image_processor(&self, params: Value) -> Result<Vec<Content>, ErrorData> {
         let path_str = params
             .get("path")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| ToolError::InvalidParameters("Missing 'path' parameter".into()))?;
+            .ok_or_else(|| ErrorData::new(ErrorCode::INVALID_PARAMS, "Missing 'path' parameter".into(), None))?;
 
         let path = {
             let p = self.resolve_path(path_str)?;
@@ -1326,7 +1337,7 @@ impl DeveloperRouter {
 
         // Check if file is ignored before proceeding
         if self.is_ignored(&path) {
-            return Err(ToolError::ExecutionError(format!(
+            return Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, format!(
                 "Access to '{}' is restricted by .gooseignore",
                 path.display()
             )));
@@ -1334,7 +1345,7 @@ impl DeveloperRouter {
 
         // Check if file exists
         if !path.exists() {
-            return Err(ToolError::ExecutionError(format!(
+            return Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, format!(
                 "File '{}' does not exist",
                 path.display()
             )));
@@ -1343,11 +1354,11 @@ impl DeveloperRouter {
         // Check file size (10MB limit for image files)
         const MAX_FILE_SIZE: u64 = 10 * 1024 * 1024; // 10MB in bytes
         let file_size = std::fs::metadata(&path)
-            .map_err(|e| ToolError::ExecutionError(format!("Failed to get file metadata: {}", e)))?
+            .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, format!("Failed to get file metadata: {}", e)))?
             .len();
 
         if file_size > MAX_FILE_SIZE {
-            return Err(ToolError::ExecutionError(format!(
+            return Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, format!(
                 "File '{}' is too large ({:.2}MB). Maximum size is 10MB.",
                 path.display(),
                 file_size as f64 / (1024.0 * 1024.0)
@@ -1356,7 +1367,7 @@ impl DeveloperRouter {
 
         // Open and decode the image
         let image = xcap::image::open(&path)
-            .map_err(|e| ToolError::ExecutionError(format!("Failed to open image file: {}", e)))?;
+            .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, format!("Failed to open image file: {}", e)))?;
 
         // Resize if necessary (same logic as screen_capture)
         let mut processed_image = image;
@@ -1377,7 +1388,7 @@ impl DeveloperRouter {
         processed_image
             .write_to(&mut Cursor::new(&mut bytes), xcap::image::ImageFormat::Png)
             .map_err(|e| {
-                ToolError::ExecutionError(format!("Failed to write image buffer: {}", e))
+                ErrorData::new(ErrorCode::INTERNAL_ERROR, format!("Failed to write image buffer: {}", e))
             })?;
 
         let data = base64::prelude::BASE64_STANDARD.encode(bytes);
@@ -1392,26 +1403,26 @@ impl DeveloperRouter {
         ])
     }
 
-    async fn screen_capture(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+    async fn screen_capture(&self, params: Value) -> Result<Vec<Content>, ErrorData> {
         let mut image = if let Some(window_title) =
             params.get("window_title").and_then(|v| v.as_str())
         {
             // Try to find and capture the specified window
             let windows = Window::all()
-                .map_err(|_| ToolError::ExecutionError("Failed to list windows".into()))?;
+                .map_err(|_| ErrorData::new(ErrorCode::INTERNAL_ERROR, "Failed to list windows".into(), None))?;
 
             let window = windows
                 .into_iter()
                 .find(|w| w.title() == window_title)
                 .ok_or_else(|| {
-                    ToolError::ExecutionError(format!(
+                    ErrorData::new(ErrorCode::INTERNAL_ERROR, format!(
                         "No window found with title '{}'",
                         window_title
                     ))
                 })?;
 
             window.capture_image().map_err(|e| {
-                ToolError::ExecutionError(format!(
+                ErrorData::new(ErrorCode::INTERNAL_ERROR, format!(
                     "Failed to capture window '{}': {}",
                     window_title, e
                 ))
@@ -1421,9 +1432,9 @@ impl DeveloperRouter {
             let display = params.get("display").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
 
             let monitors = Monitor::all()
-                .map_err(|_| ToolError::ExecutionError("Failed to access monitors".into()))?;
+                .map_err(|_| ErrorData::new(ErrorCode::INTERNAL_ERROR, "Failed to access monitors".into(), None))?;
             let monitor = monitors.get(display).ok_or_else(|| {
-                ToolError::ExecutionError(format!(
+                ErrorData::new(ErrorCode::INTERNAL_ERROR, format!(
                     "{} was not an available monitor, {} found.",
                     display,
                     monitors.len()
@@ -1431,7 +1442,7 @@ impl DeveloperRouter {
             })?;
 
             monitor.capture_image().map_err(|e| {
-                ToolError::ExecutionError(format!("Failed to capture display {}: {}", display, e))
+                ErrorData::new(ErrorCode::INTERNAL_ERROR, format!("Failed to capture display {}: {}", display, e))
             })?
         };
 
@@ -1452,7 +1463,7 @@ impl DeveloperRouter {
         image
             .write_to(&mut Cursor::new(&mut bytes), xcap::image::ImageFormat::Png)
             .map_err(|e| {
-                ToolError::ExecutionError(format!("Failed to write image buffer {}", e))
+                ErrorData::new(ErrorCode::INTERNAL_ERROR, format!("Failed to write image buffer {}", e))
             })?;
 
         // Convert to base64
@@ -1465,8 +1476,8 @@ impl DeveloperRouter {
     }
 }
 
-fn recommend_read_range(path: &Path, total_lines: usize) -> Result<Vec<Content>, ToolError> {
-    Err(ToolError::ExecutionError(format!(
+fn recommend_read_range(path: &Path, total_lines: usize) -> Result<Vec<Content>, ErrorData> {
+    Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, format!(
         "File '{}' is {} lines long, recommended to read in with view_range (or searching) to get bite size content. If you do wish to read all the file, please pass in view_range with [1, {}] to read it all at once",
         path.display(),
         total_lines,
@@ -1499,7 +1510,7 @@ impl Router for DeveloperRouter {
         tool_name: &str,
         arguments: Value,
         notifier: mpsc::Sender<JsonRpcMessage>,
-    ) -> Pin<Box<dyn Future<Output = Result<Vec<Content>, ToolError>> + Send + 'static>> {
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<Content>, ErrorData>> + Send + 'static>> {
         let this = self.clone();
         let tool_name = tool_name.to_string();
         Box::pin(async move {
@@ -1509,7 +1520,7 @@ impl Router for DeveloperRouter {
                 "list_windows" => this.list_windows(arguments).await,
                 "screen_capture" => this.screen_capture(arguments).await,
                 "image_processor" => this.image_processor(arguments).await,
-                _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
+                _ => Err(ErrorData::new(ErrorCode::METHOD_NOT_FOUND, format!("Tool {} not found", tool_name))),
             }
         })
     }
@@ -1663,7 +1674,7 @@ mod tests {
 
         assert!(result.is_err());
         let err = result.err().unwrap();
-        assert!(matches!(err, ToolError::InvalidParameters(_)));
+        assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
 
         temp_dir.close().unwrap();
     }
@@ -1759,7 +1770,7 @@ mod tests {
 
             assert!(result.is_err());
             let err = result.err().unwrap();
-            assert!(matches!(err, ToolError::ExecutionError(_)));
+            assert_eq!(err.code, ErrorCode::INTERNAL_ERROR);
             assert!(err.to_string().contains("too large"));
         }
 
@@ -1785,7 +1796,7 @@ mod tests {
 
             assert!(result.is_err());
             let err = result.err().unwrap();
-            assert!(matches!(err, ToolError::ExecutionError(_)));
+            assert_eq!(err.code, ErrorCode::INTERNAL_ERROR);
             assert!(err.to_string().contains("is too large"));
         }
 
@@ -2103,7 +2114,7 @@ mod tests {
             result.is_err(),
             "Should not be able to write to ignored file"
         );
-        assert!(matches!(result.unwrap_err(), ToolError::ExecutionError(_)));
+        assert_eq!(result.unwrap_err().code, ErrorCode::INTERNAL_ERROR);
 
         // Try to write to a non-ignored file
         let result = router
@@ -2162,7 +2173,7 @@ mod tests {
             .await;
 
         assert!(result.is_err(), "Should not be able to cat ignored file");
-        assert!(matches!(result.unwrap_err(), ToolError::ExecutionError(_)));
+        assert_eq!(result.unwrap_err().code, ErrorCode::INTERNAL_ERROR);
 
         // Try to cat a non-ignored file
         let allowed_file_path = temp_dir.path().join("allowed.txt");
@@ -2350,7 +2361,7 @@ mod tests {
             result.is_err(),
             "Should not be able to write to file ignored by .gitignore fallback"
         );
-        assert!(matches!(result.unwrap_err(), ToolError::ExecutionError(_)));
+        assert_eq!(result.unwrap_err().code, ErrorCode::INTERNAL_ERROR);
 
         // Try to write to a non-ignored file
         let result = router
@@ -2403,7 +2414,7 @@ mod tests {
             result.is_err(),
             "Should not be able to cat file ignored by .gitignore fallback"
         );
-        assert!(matches!(result.unwrap_err(), ToolError::ExecutionError(_)));
+        assert_eq!(result.unwrap_err().code, ErrorCode::INTERNAL_ERROR);
 
         // Try to cat a non-ignored file
         let allowed_file_path = temp_dir.path().join("allowed.txt");
@@ -2589,7 +2600,7 @@ mod tests {
 
         assert!(result.is_err());
         let err = result.err().unwrap();
-        assert!(matches!(err, ToolError::InvalidParameters(_)));
+        assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
         assert!(err.to_string().contains("beyond the end of the file"));
 
         // Test invalid range - start >= end
@@ -2607,7 +2618,7 @@ mod tests {
 
         assert!(result.is_err());
         let err = result.err().unwrap();
-        assert!(matches!(err, ToolError::InvalidParameters(_)));
+        assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
         assert!(err.to_string().contains("must be less than end line"));
 
         temp_dir.close().unwrap();
@@ -2905,7 +2916,7 @@ mod tests {
 
         assert!(result.is_err());
         let err = result.err().unwrap();
-        assert!(matches!(err, ToolError::InvalidParameters(_)));
+        assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
         assert!(err.to_string().contains("beyond the end of the file"));
 
         temp_dir.close().unwrap();
@@ -2950,7 +2961,7 @@ mod tests {
 
         assert!(result.is_err());
         let err = result.err().unwrap();
-        assert!(matches!(err, ToolError::InvalidParameters(_)));
+        assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
         assert!(err.to_string().contains("Missing 'insert_line' parameter"));
 
         // Try insert without new_str parameter
@@ -2968,7 +2979,7 @@ mod tests {
 
         assert!(result.is_err());
         let err = result.err().unwrap();
-        assert!(matches!(err, ToolError::InvalidParameters(_)));
+        assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
         assert!(err.to_string().contains("Missing 'new_str' parameter"));
 
         temp_dir.close().unwrap();
@@ -3086,7 +3097,7 @@ mod tests {
 
         assert!(result.is_err());
         let err = result.err().unwrap();
-        assert!(matches!(err, ToolError::InvalidParameters(_)));
+        assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
         assert!(err.to_string().contains("does not exist"));
 
         temp_dir.close().unwrap();
@@ -3135,7 +3146,7 @@ mod tests {
 
         assert!(result.is_err());
         let err = result.err().unwrap();
-        assert!(matches!(err, ToolError::ExecutionError(_)));
+        assert_eq!(err.code, ErrorCode::INTERNAL_ERROR);
         assert!(err.to_string().contains("2001 lines long"));
         assert!(err
             .to_string()

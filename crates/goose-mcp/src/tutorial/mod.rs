@@ -2,14 +2,15 @@ use anyhow::Result;
 use include_dir::{include_dir, Dir};
 use indoc::formatdoc;
 use mcp_core::{
-    handler::{PromptError, ResourceError, ToolError},
+    handler::{PromptError, ResourceError, ErrorData},
     protocol::ServerCapabilities,
 };
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
-use rmcp::model::{Content, JsonRpcMessage, Prompt, Resource, Role, Tool, ToolAnnotations};
+use rmcp::model::{Content, JsonRpcMessage, Prompt, Resource, Role, Tool, ToolAnnotations, ErrorData, ErrorCode};
 use rmcp::object;
 use serde_json::Value;
+use std::borrow::Cow;
 use std::{future::Future, pin::Pin};
 use tokio::sync::mpsc;
 
@@ -92,14 +93,17 @@ impl TutorialRouter {
         tutorials
     }
 
-    async fn load_tutorial(&self, name: &str) -> Result<String, ToolError> {
+    async fn load_tutorial(&self, name: &str) -> Result<String, ErrorData> {
         let file_name = format!("{}.md", name);
         let file = TUTORIALS_DIR
             .get_file(&file_name)
-            .ok_or(ToolError::ExecutionError(format!(
+            .ok_or(ErrorData {
+            code: ErrorCode::INTERNAL_ERROR,
+            message: Cow::from(format!(
                 "Could not locate tutorial '{}'",
-                name
-            )))?;
+                name),
+            data: None,
+        }))?;
         Ok(String::from_utf8_lossy(file.contents()).into_owned())
     }
 }
@@ -126,7 +130,7 @@ impl Router for TutorialRouter {
         tool_name: &str,
         arguments: Value,
         _notifier: mpsc::Sender<JsonRpcMessage>,
-    ) -> Pin<Box<dyn Future<Output = Result<Vec<Content>, ToolError>> + Send + 'static>> {
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<Content>, ErrorData>> + Send + 'static>> {
         let this = self.clone();
         let tool_name = tool_name.to_string();
 
@@ -137,7 +141,11 @@ impl Router for TutorialRouter {
                         .get("name")
                         .and_then(|v| v.as_str())
                         .ok_or_else(|| {
-                            ToolError::InvalidParameters("Missing 'name' parameter".to_string())
+                            ErrorData {
+            code: ErrorCode::INVALID_PARAMS,
+            message: Cow::from("Missing 'name' parameter".to_string(),
+            data: None,
+        })
                         })?;
 
                     let content = this.load_tutorial(name).await?;
@@ -145,7 +153,11 @@ impl Router for TutorialRouter {
                         Content::text(content).with_audience(vec![Role::Assistant])
                     ])
                 }
-                _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
+                _ => Err(ErrorData {
+            code: ErrorCode::INVALID_REQUEST,
+            message: Cow::from(format!("Tool {} not found", tool_name),
+            data: None,
+        })),
             }
         })
     }

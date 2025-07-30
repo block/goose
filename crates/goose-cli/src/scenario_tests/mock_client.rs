@@ -2,7 +2,6 @@
 //! add a tool you want to have around and then add the client to the extension router
 
 use mcp_client::client::{Error, McpClientTrait};
-use mcp_core::ToolError;
 use rmcp::{
     model::{
         CallToolResult, Content, GetPromptResult, ListPromptsResult, ListResourcesResult,
@@ -10,6 +9,7 @@ use rmcp::{
     },
     object,
 };
+use rmcp::model::{Content, ErrorCode, ErrorData, Tool, GetPromptResult, ServerNotification};
 use serde_json::Value;
 use std::collections::HashMap;
 use tokio::sync::mpsc::{self, Receiver};
@@ -17,7 +17,7 @@ use tokio_util::sync::CancellationToken;
 
 pub struct MockClient {
     tools: HashMap<String, Tool>,
-    handlers: HashMap<String, Box<dyn Fn(&Value) -> Result<Vec<Content>, ToolError> + Send + Sync>>,
+    handlers: HashMap<String, Box<dyn Fn(&Value) -> Result<Vec<Content>, ErrorData> + Send + Sync>>,
 }
 
 impl MockClient {
@@ -30,7 +30,7 @@ impl MockClient {
 
     pub(crate) fn add_tool<F>(mut self, tool: Tool, handler: F) -> Self
     where
-        F: Fn(&Value) -> Result<Vec<Content>, ToolError> + Send + Sync + 'static,
+        F: Fn(&Value) -> Result<Vec<Content>, ErrorData> + Send + Sync + 'static,
     {
         let tool_name = tool.name.to_string();
         self.tools.insert(tool_name.clone(), tool);

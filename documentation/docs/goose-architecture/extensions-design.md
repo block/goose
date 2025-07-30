@@ -48,7 +48,7 @@ async fn echo(&self, params: Value) -> AgentResult<Value>
 ### Error Handling
 
 The system uses two main error types:
-- `ToolError`: Specific errors related to tool execution
+- `ErrorData`: Specific errors related to tool execution
 - `anyhow::Error`: General purpose errors for extension status and other operations
 
 This split allows precise error handling for tool execution while maintaining flexibility for general extension operations.
@@ -65,7 +65,7 @@ This split allows precise error handling for tool execution while maintaining fl
 ### Extension Implementation
 
 1. **State Encapsulation**: Keep extension state private and controlled
-2. **Error Propagation**: Use `?` operator with `ToolError` for tool execution
+2. **Error Propagation**: Use `?` operator with `ErrorData` for tool execution
 3. **Status Clarity**: Provide clear, structured status information
 4. **Documentation**: Document all tools and their effects
 
@@ -90,7 +90,11 @@ impl FileSystem {
         let full_path = self.root_path.join(path);
         let content = tokio::fs::read_to_string(full_path)
             .await
-            .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
+            .map_err(|e| ErrorData {
+                code: ErrorCode::INTERNAL_ERROR,
+                message: Cow::from(e.to_string(),
+                data: None,
+            }))?;
             
         Ok(json!({ "content": content }))
     }

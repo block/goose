@@ -6,7 +6,7 @@ use std::{
 
 type PromptFuture = Pin<Box<dyn Future<Output = Result<String, PromptError>> + Send + 'static>>;
 use mcp_core::{
-    handler::{PromptError, ResourceError, ToolError},
+    handler::{PromptError, ResourceError},
     protocol::{
         CallToolResult, Implementation, InitializeResult, ListPromptsResult, ListResourcesResult,
         ListToolsResult, PromptsCapability, ReadResourceResult, ResourcesCapability,
@@ -14,8 +14,9 @@ use mcp_core::{
     },
 };
 use rmcp::model::{
-    Content, GetPromptResult, JsonRpcMessage, JsonRpcRequest, JsonRpcResponse, JsonRpcVersion2_0,
-    Prompt, PromptMessage, PromptMessageRole, RequestId, Resource, ResourceContents,
+    Content, ErrorData, GetPromptResult, JsonRpcMessage, JsonRpcRequest, JsonRpcResponse,
+    JsonRpcVersion2_0, Prompt, PromptMessage, PromptMessageRole, RequestId, Resource,
+    ResourceContents,
 };
 use serde_json::Value;
 use tokio::sync::mpsc;
@@ -92,7 +93,7 @@ pub trait Router: Send + Sync + 'static {
         tool_name: &str,
         arguments: Value,
         notifier: mpsc::Sender<JsonRpcMessage>,
-    ) -> Pin<Box<dyn Future<Output = Result<Vec<Content>, ToolError>> + Send + 'static>>;
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<Content>, ErrorData>> + Send + 'static>>;
     fn list_resources(&self) -> Vec<Resource>;
     fn read_resource(
         &self,

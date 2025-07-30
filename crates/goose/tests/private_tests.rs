@@ -1,7 +1,8 @@
 #![cfg(test)]
 
-use mcp_core::ToolError;
+use rmcp::model::{ErrorCode, ErrorData};
 use serde_json::json;
+use std::borrow::Cow;
 
 use goose::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
 mod test_support;
@@ -94,9 +95,16 @@ async fn test_schedule_tool_list_action_error() {
         .await;
     assert!(result.is_err());
 
-    if let Err(ToolError::ExecutionError(msg)) = result {
-        assert!(msg.contains("Failed to list jobs"));
-        assert!(msg.contains("Database error"));
+    if let Err(ErrorData {
+        code: ErrorCode::INTERNAL_ERROR,
+        message: Cow::from(msg),
+        data: None,
+    }) = result
+    {
+        assert!(err.code == ErrorCode::INTERNAL_ERROR);
+        assert!(err.message.as_ref().contains("Failed to list jobs"));
+        assert!(err.code == ErrorCode::INTERNAL_ERROR);
+        assert!(err.message.as_ref().contains("Database error"));
     } else {
         panic!("Expected ExecutionError");
     }
@@ -153,8 +161,17 @@ async fn test_schedule_tool_create_action_missing_params() {
         .await;
     assert!(result.is_err());
 
-    if let Err(ToolError::ExecutionError(msg)) = result {
-        assert!(msg.contains("Missing 'recipe_path' parameter"));
+    if let Err(ErrorData {
+        code: ErrorCode::INTERNAL_ERROR,
+        message: Cow::from(msg),
+        data: None,
+    }) = result
+    {
+        assert!(err.code == ErrorCode::INTERNAL_ERROR);
+        assert!(err
+            .message
+            .as_ref()
+            .contains("Missing 'recipe_path' parameter"));
     } else {
         panic!("Expected ExecutionError");
     }
@@ -171,8 +188,17 @@ async fn test_schedule_tool_create_action_missing_params() {
         .await;
     assert!(result.is_err());
 
-    if let Err(ToolError::ExecutionError(msg)) = result {
-        assert!(msg.contains("Missing 'cron_expression' parameter"));
+    if let Err(ErrorData {
+        code: ErrorCode::INTERNAL_ERROR,
+        message: Cow::from(msg),
+        data: None,
+    }) = result
+    {
+        assert!(err.code == ErrorCode::INTERNAL_ERROR);
+        assert!(err
+            .message
+            .as_ref()
+            .contains("Missing 'cron_expression' parameter"));
     } else {
         panic!("Expected ExecutionError");
     }
@@ -194,8 +220,14 @@ async fn test_schedule_tool_create_action_nonexistent_recipe() {
         .await;
     assert!(result.is_err());
 
-    if let Err(ToolError::ExecutionError(msg)) = result {
-        assert!(msg.contains("Recipe file not found"));
+    if let Err(ErrorData {
+        code: ErrorCode::INTERNAL_ERROR,
+        message: Cow::from(msg),
+        data: None,
+    }) = result
+    {
+        assert!(err.code == ErrorCode::INTERNAL_ERROR);
+        assert!(err.message.as_ref().contains("Recipe file not found"));
     } else {
         panic!("Expected ExecutionError");
     }
@@ -220,8 +252,14 @@ async fn test_schedule_tool_create_action_invalid_recipe() {
         .await;
     assert!(result.is_err());
 
-    if let Err(ToolError::ExecutionError(msg)) = result {
-        assert!(msg.contains("Invalid JSON recipe"));
+    if let Err(ErrorData {
+        code: ErrorCode::INTERNAL_ERROR,
+        message: Cow::from(msg),
+        data: None,
+    }) = result
+    {
+        assert!(err.code == ErrorCode::INTERNAL_ERROR);
+        assert!(err.message.as_ref().contains("Invalid JSON recipe"));
     } else {
         panic!("Expected ExecutionError");
     }
@@ -253,9 +291,16 @@ async fn test_schedule_tool_create_action_scheduler_error() {
         .await;
     assert!(result.is_err());
 
-    if let Err(ToolError::ExecutionError(msg)) = result {
-        assert!(msg.contains("Failed to create job"));
-        assert!(msg.contains("job1"));
+    if let Err(ErrorData {
+        code: ErrorCode::INTERNAL_ERROR,
+        message: Cow::from(msg),
+        data: None,
+    }) = result
+    {
+        assert!(err.code == ErrorCode::INTERNAL_ERROR);
+        assert!(err.message.as_ref().contains("Failed to create job"));
+        assert!(err.code == ErrorCode::INTERNAL_ERROR);
+        assert!(err.message.as_ref().contains("job1"));
     } else {
         panic!("Expected ExecutionError");
     }
@@ -311,8 +356,14 @@ async fn test_schedule_tool_run_now_action_missing_job_id() {
         .await;
     assert!(result.is_err());
 
-    if let Err(ToolError::ExecutionError(msg)) = result {
-        assert!(msg.contains("Missing 'job_id' parameter"));
+    if let Err(ErrorData {
+        code: ErrorCode::INTERNAL_ERROR,
+        message: Cow::from(msg),
+        data: None,
+    }) = result
+    {
+        assert!(err.code == ErrorCode::INTERNAL_ERROR);
+        assert!(err.message.as_ref().contains("Missing 'job_id' parameter"));
     } else {
         panic!("Expected ExecutionError");
     }
@@ -337,9 +388,16 @@ async fn test_schedule_tool_run_now_action_nonexistent_job() {
         .await;
     assert!(result.is_err());
 
-    if let Err(ToolError::ExecutionError(msg)) = result {
-        assert!(msg.contains("Failed to run job"));
-        assert!(msg.contains("nonexistent"));
+    if let Err(ErrorData {
+        code: ErrorCode::INTERNAL_ERROR,
+        message: Cow::from(msg),
+        data: None,
+    }) = result
+    {
+        assert!(err.code == ErrorCode::INTERNAL_ERROR);
+        assert!(err.message.as_ref().contains("Failed to run job"));
+        assert!(err.code == ErrorCode::INTERNAL_ERROR);
+        assert!(err.message.as_ref().contains("nonexistent"));
     } else {
         panic!("Expected ExecutionError");
     }
@@ -393,8 +451,14 @@ async fn test_schedule_tool_pause_action_missing_job_id() {
         .await;
     assert!(result.is_err());
 
-    if let Err(ToolError::ExecutionError(msg)) = result {
-        assert!(msg.contains("Missing 'job_id' parameter"));
+    if let Err(ErrorData {
+        code: ErrorCode::INTERNAL_ERROR,
+        message: Cow::from(msg),
+        data: None,
+    }) = result
+    {
+        assert!(err.code == ErrorCode::INTERNAL_ERROR);
+        assert!(err.message.as_ref().contains("Missing 'job_id' parameter"));
     } else {
         panic!("Expected ExecutionError");
     }
@@ -422,9 +486,16 @@ async fn test_schedule_tool_pause_action_running_job() {
         .await;
     assert!(result.is_err());
 
-    if let Err(ToolError::ExecutionError(msg)) = result {
-        assert!(msg.contains("Failed to pause job"));
-        assert!(msg.contains("job1"));
+    if let Err(ErrorData {
+        code: ErrorCode::INTERNAL_ERROR,
+        message: Cow::from(msg),
+        data: None,
+    }) = result
+    {
+        assert!(err.code == ErrorCode::INTERNAL_ERROR);
+        assert!(err.message.as_ref().contains("Failed to pause job"));
+        assert!(err.code == ErrorCode::INTERNAL_ERROR);
+        assert!(err.message.as_ref().contains("job1"));
     } else {
         panic!("Expected ExecutionError");
     }
@@ -551,8 +622,14 @@ async fn test_schedule_tool_kill_action_not_running() {
         .await;
     assert!(result.is_err());
 
-    if let Err(ToolError::ExecutionError(msg)) = result {
-        assert!(msg.contains("Failed to kill job"));
+    if let Err(ErrorData {
+        code: ErrorCode::INTERNAL_ERROR,
+        message: Cow::from(msg),
+        data: None,
+    }) = result
+    {
+        assert!(err.code == ErrorCode::INTERNAL_ERROR);
+        assert!(err.message.as_ref().contains("Failed to kill job"));
     } else {
         panic!("Expected ExecutionError");
     }
@@ -764,8 +841,17 @@ async fn test_schedule_tool_session_content_action() {
         .await;
     assert!(result.is_err());
 
-    if let Err(ToolError::ExecutionError(msg)) = result {
-        assert!(msg.contains("Session 'non_existent_session' not found"));
+    if let Err(ErrorData {
+        code: ErrorCode::INTERNAL_ERROR,
+        message: Cow::from(msg),
+        data: None,
+    }) = result
+    {
+        assert!(err.code == ErrorCode::INTERNAL_ERROR);
+        assert!(err
+            .message
+            .as_ref()
+            .contains("Session 'non_existent_session' not found"));
     } else {
         panic!("Expected ExecutionError");
     }
@@ -840,8 +926,17 @@ async fn test_schedule_tool_session_content_action_missing_session_id() {
         .await;
     assert!(result.is_err());
 
-    if let Err(ToolError::ExecutionError(msg)) = result {
-        assert!(msg.contains("Missing 'session_id' parameter"));
+    if let Err(ErrorData {
+        code: ErrorCode::INTERNAL_ERROR,
+        message: Cow::from(msg),
+        data: None,
+    }) = result
+    {
+        assert!(err.code == ErrorCode::INTERNAL_ERROR);
+        assert!(err
+            .message
+            .as_ref()
+            .contains("Missing 'session_id' parameter"));
     } else {
         panic!("Expected ExecutionError");
     }
@@ -861,8 +956,14 @@ async fn test_schedule_tool_unknown_action() {
         .await;
     assert!(result.is_err());
 
-    if let Err(ToolError::ExecutionError(msg)) = result {
-        assert!(msg.contains("Unknown action"));
+    if let Err(ErrorData {
+        code: ErrorCode::INTERNAL_ERROR,
+        message: Cow::from(msg),
+        data: None,
+    }) = result
+    {
+        assert!(err.code == ErrorCode::INTERNAL_ERROR);
+        assert!(err.message.as_ref().contains("Unknown action"));
     } else {
         panic!("Expected ExecutionError");
     }

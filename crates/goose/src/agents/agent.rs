@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::pin::Pin;
@@ -21,15 +22,17 @@ use crate::agents::recipe_tools::dynamic_task_tools::{
     create_dynamic_task, create_dynamic_task_tool, DYNAMIC_TASK_TOOL_NAME_PREFIX,
 };
 use crate::agents::retry::{RetryManager, RetryResult};
-use crate::agents::router_tool_selector::RouterToolSelectionStrategy;
+use crate::agents::router_tool_selector::{
+    create_tool_selector, RouterToolSelectionStrategy, RouterToolSelector,
+};
 use crate::agents::router_tools::{ROUTER_LLM_SEARCH_TOOL_NAME, ROUTER_VECTOR_SEARCH_TOOL_NAME};
 use crate::agents::sub_recipe_manager::SubRecipeManager;
 use crate::agents::subagent_execution_tool::subagent_execute_task_tool::{
     self, SUBAGENT_EXECUTE_TASK_TOOL_NAME,
 };
 use crate::agents::subagent_execution_tool::tasks_manager::TasksManager;
-use crate::agents::tool_route_manager::ToolRouteManager;
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
+use crate::agents::tool_vectordb::generate_table_id;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, ToolResultReceiver};
 use crate::config::{Config, ExtensionConfigManager, PermissionManager};
@@ -44,9 +47,9 @@ use crate::scheduler_trait::SchedulerTrait;
 use crate::session;
 use crate::tool_monitor::{ToolCall, ToolMonitor};
 use crate::utils::is_token_cancelled;
-use mcp_core::{ToolError, ToolResult};
+use mcp_core::{ToolResult};
 use regex::Regex;
-use rmcp::model::{Content, GetPromptResult, Prompt, ServerNotification, Tool};
+use rmcp::model::{Content, GetPromptResult, Prompt, ServerNotification, Tool, ErrorData, ErrorCode};
 use serde_json::Value;
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tokio_util::sync::CancellationToken;
@@ -54,6 +57,7 @@ use tracing::{debug, error, info, instrument};
 
 use super::final_output_tool::FinalOutputTool;
 use super::platform_tools;
+use super::router_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::subagent_task_config::TaskConfig;
 use crate::conversation::message::{Message, ToolRequest};
@@ -71,7 +75,8 @@ pub struct ReplyContext {
     pub config: &'static Config,
 }
 
-pub struct ToolCategorizeResult {
+/// Result of processing tool requests
+pub struct ToolProcessingResult {
     pub frontend_requests: Vec<ToolRequest>,
     pub remaining_requests: Vec<ToolRequest>,
     pub filtered_response: Message,
@@ -94,7 +99,7 @@ pub struct Agent {
     pub(super) tool_result_tx: mpsc::Sender<(String, ToolResult<Vec<Content>>)>,
     pub(super) tool_result_rx: ToolResultReceiver,
     pub(super) tool_monitor: Arc<Mutex<Option<ToolMonitor>>>,
-    pub(super) tool_route_manager: ToolRouteManager,
+    pub(super) router_tool_selector: Mutex<Option<Arc<Box<dyn RouterToolSelector>>>>,
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
     pub(super) retry_manager: RetryManager,
 }
@@ -170,7 +175,7 @@ impl Agent {
             tool_result_tx: tool_tx,
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
             tool_monitor,
-            tool_route_manager: ToolRouteManager::new(),
+            router_tool_selector: Mutex::new(None),
             scheduler_service: Mutex::new(None),
             retry_manager,
         }
@@ -250,18 +255,38 @@ impl Agent {
         })
     }
 
-    async fn categorize_tools(
+    /// Process tool requests by categorizing them and recording them in the router selector
+    async fn process_tool_requests(
         &self,
         response: &Message,
         tools: &[rmcp::model::Tool],
-    ) -> ToolCategorizeResult {
+    ) -> ToolProcessingResult {
         let (readonly_tools, regular_tools) = Self::categorize_tools_by_annotation(tools);
 
         // Categorize tool requests
         let (frontend_requests, remaining_requests, filtered_response) =
             self.categorize_tool_requests(response).await;
 
-        ToolCategorizeResult {
+        // Record tool calls in the router selector
+        let selector = self.router_tool_selector.lock().await.clone();
+        if let Some(selector) = selector {
+            for request in &frontend_requests {
+                if let Ok(tool_call) = &request.tool_call {
+                    if let Err(e) = selector.record_tool_call(&tool_call.name).await {
+                        error!("Failed to record frontend tool call: {}", e);
+                    }
+                }
+            }
+            for request in &remaining_requests {
+                if let Ok(tool_call) = &request.tool_call {
+                    if let Err(e) = selector.record_tool_call(&tool_call.name).await {
+                        error!("Failed to record tool call: {}", e);
+                    }
+                }
+            }
+        }
+
+        ToolProcessingResult {
             frontend_requests,
             remaining_requests,
             filtered_response,
@@ -320,10 +345,6 @@ impl Agent {
         *scheduler_service = Some(scheduler);
     }
 
-    pub async fn disable_router_for_recipe(&self) {
-        self.tool_route_manager.disable_router_for_recipe().await;
-    }
-
     /// Get a reference count clone to the provider
     pub async fn provider(&self) -> Result<Arc<dyn Provider>, anyhow::Error> {
         match &*self.provider.lock().await {
@@ -362,7 +383,7 @@ impl Agent {
         tool_call: mcp_core::tool::ToolCall,
         request_id: String,
         cancellation_token: Option<CancellationToken>,
-    ) -> (String, Result<ToolCallResult, ToolError>) {
+    ) -> (String, Result<ToolCallResult, ErrorData>) {
         // Check if this tool call should be allowed based on repetition monitoring
         if let Some(monitor) = self.tool_monitor.lock().await.as_mut() {
             let tool_call_info = ToolCall::new(tool_call.name.clone(), tool_call.arguments.clone());
@@ -370,9 +391,11 @@ impl Agent {
             if !monitor.check_tool_call(tool_call_info) {
                 return (
                     request_id,
-                    Err(ToolError::ExecutionError(
-                        "Tool call rejected: exceeded maximum allowed repetitions".to_string(),
-                    )),
+                    Err(ErrorData {
+                        code: ErrorCode::INTERNAL_ERROR,
+                        message: Cow::from("Tool call rejected: exceeded maximum allowed repetitions".to_string()),
+                        data: None,
+                    })
                 );
             }
         }
@@ -411,9 +434,11 @@ impl Agent {
             } else {
                 (
                     request_id,
-                    Err(ToolError::ExecutionError(
-                        "Final output tool not defined".to_string(),
-                    )),
+                    Err(ErrorData {
+                        code: ErrorCode::INTERNAL_ERROR,
+                        message: Cow::from("Final output tool not defined".to_string()),
+                        data: None,
+                    })
                 )
             };
         }
@@ -464,27 +489,65 @@ impl Agent {
             ToolCallResult::from(extension_manager.search_available_extensions().await)
         } else if self.is_frontend_tool(&tool_call.name).await {
             // For frontend tools, return an error indicating we need frontend execution
-            ToolCallResult::from(Err(ToolError::ExecutionError(
-                "Frontend tool execution required".to_string(),
-            )))
+            ToolCallResult::from(Err(ErrorData {
+                code: ErrorCode::INTERNAL_ERROR,
+                message: Cow::from("Frontend tool execution required".to_string()),
+                data: None,
+            }))
         } else if tool_call.name == ROUTER_VECTOR_SEARCH_TOOL_NAME
             || tool_call.name == ROUTER_LLM_SEARCH_TOOL_NAME
         {
-            match self
-                .tool_route_manager
-                .dispatch_route_search_tool(tool_call.arguments)
-                .await
-            {
-                Ok(tool_result) => tool_result,
-                Err(e) => return (request_id, Err(e)),
+            let selector = self.router_tool_selector.lock().await.clone();
+            let mut selected_tools = match selector.as_ref() {
+                Some(selector) => match selector.select_tools(tool_call.arguments.clone()).await {
+                    Ok(tools) => tools,
+                    Err(e) => {
+                        return (
+                            request_id,
+                            Err(ErrorData {
+                                code: ErrorCode::INTERNAL_ERROR,
+                                message: Cow::from(format!("Failed to select tools: {}", e)),
+                                data: None,
+                            })
+                        )
+                    }
+                },
+                None => {
+                    return (
+                        request_id,
+                        Err(ErrorData {
+                            code: ErrorCode::INTERNAL_ERROR,
+                            message: Cow::from("No tool selector available".to_string(),),
+                            data: None,
+                        })
+                    )
+                }
+            };
+
+            // Append final_output tool if present (for structured output recipes, [Issue #3700](https://github.com/block/goose/issues/3700)
+            if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
+                let tool = final_output_tool.tool();
+                let tool_content = Content::text(format!(
+                    "Tool: {}\nDescription: {}\nSchema: {}",
+                    tool.name,
+                    tool.description.unwrap_or_default(),
+                    serde_json::to_string_pretty(&tool.input_schema).unwrap_or_default()
+                ));
+                selected_tools.push(tool_content);
             }
+
+            ToolCallResult::from(Ok(selected_tools))
         } else {
             // Clone the result to ensure no references to extension_manager are returned
             let result = extension_manager
                 .dispatch_tool_call(tool_call.clone(), cancellation_token.unwrap_or_default())
                 .await;
             result.unwrap_or_else(|e| {
-                ToolCallResult::from(Err(ToolError::ExecutionError(e.to_string())))
+                ToolCallResult::from(Err(ErrorData {
+                    code: ErrorCode::INTERNAL_ERROR,
+                    message: Cow::from(e.to_string()),
+                    data: None
+                }))
             })
         };
 
@@ -506,8 +569,10 @@ impl Agent {
         action: String,
         extension_name: String,
         request_id: String,
-    ) -> (String, Result<Vec<Content>, ToolError>) {
-        let selector = self.tool_route_manager.get_router_tool_selector().await;
+    ) -> (String, Result<Vec<Content>, ErrorData>) {
+        let mut extension_manager = self.extension_manager.write().await;
+
+        let selector = self.router_tool_selector.lock().await.clone();
         if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
             if let Some(selector) = selector {
                 let selector_action = if action == "disable" { "remove" } else { "add" };
@@ -523,15 +588,16 @@ impl Agent {
                 {
                     return (
                         request_id,
-                        Err(ToolError::ExecutionError(format!(
-                            "Failed to update vector index: {}",
-                            e
-                        ))),
+                        Err(ErrorData {
+                            code: ErrorCode::INTERNAL_ERROR,
+                            message: Cow::from(format!("Failed to update vector index: {}", e)),
+                            data: None
+                        })
                     );
                 }
             }
         }
-        let mut extension_manager = self.extension_manager.write().await;
+
         if action == "disable" {
             let result = extension_manager
                 .remove_extension(&extension_name)
@@ -542,7 +608,12 @@ impl Agent {
                         extension_name
                     ))]
                 })
-                .map_err(|e| ToolError::ExecutionError(e.to_string()));
+                .map_err(|e| ErrorData {
+                    code: ErrorCode::INTERNAL_ERROR,
+                    message: Cow::from(e.to_string()),
+                    data: None,
+                });
+
             return (request_id, result);
         }
 
@@ -551,22 +622,25 @@ impl Agent {
             Ok(None) => {
                 return (
                     request_id,
-                    Err(ToolError::ExecutionError(format!(
-                        "Extension '{}' not found. Please check the extension name and try again.",
-                        extension_name
-                    ))),
+                    Err(ErrorData {
+                        code: ErrorCode::INTERNAL_ERROR,
+                        message: Cow::from(format!("Extension '{}' not found. Please check the extension name and try again.", extension_name)),
+                        data: None,
+                    })
                 )
             }
             Err(e) => {
                 return (
                     request_id,
-                    Err(ToolError::ExecutionError(format!(
-                        "Failed to get extension config: {}",
-                        e
-                    ))),
+                    Err(ErrorData {
+                        code: ErrorCode::INTERNAL_ERROR,
+                        message: Cow::from(format!("Failed to get extension config: {}", e)),
+                        data: None,
+                    })
                 )
             }
         };
+
         let result = extension_manager
             .add_extension(config)
             .await
@@ -576,12 +650,15 @@ impl Agent {
                     extension_name
                 ))]
             })
-            .map_err(|e| ToolError::ExecutionError(e.to_string()));
+            .map_err(|e| ErrorData {
+                code: ErrorCode::INTERNAL_ERROR,
+                message: Cow::from(e.to_string()),
+                data: None,
+            });
 
-        drop(extension_manager);
         // Update vector index if operation was successful and vector routing is enabled
         if result.is_ok() {
-            let selector = self.tool_route_manager.get_router_tool_selector().await;
+            let selector = self.router_tool_selector.lock().await.clone();
             if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
                 if let Some(selector) = selector {
                     let vector_action = if action == "disable" { "remove" } else { "add" };
@@ -597,10 +674,11 @@ impl Agent {
                     {
                         return (
                             request_id,
-                            Err(ToolError::ExecutionError(format!(
-                                "Failed to update vector index: {}",
-                                e
-                            ))),
+                            Err(ErrorData {
+                                code: ErrorCode::INTERNAL_ERROR,
+                                message: Cow::from(format!("Failed to update vector index: {}", e)),
+                                data: None,
+                            })
                         );
                     }
                 }
@@ -644,7 +722,7 @@ impl Agent {
         }
 
         // If vector tool selection is enabled, index the tools
-        let selector = self.tool_route_manager.get_router_tool_selector().await;
+        let selector = self.router_tool_selector.lock().await.clone();
         if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
             if let Some(selector) = selector {
                 let extension_manager = self.extension_manager.read().await;
@@ -713,18 +791,46 @@ impl Agent {
         &self,
         strategy: Option<RouterToolSelectionStrategy>,
     ) -> Vec<Tool> {
-        self.tool_route_manager
-            .list_tools_for_router(strategy, &self.extension_manager)
-            .await
+        let mut prefixed_tools = vec![];
+        match strategy {
+            Some(RouterToolSelectionStrategy::Vector) => {
+                prefixed_tools.push(router_tools::vector_search_tool());
+            }
+            Some(RouterToolSelectionStrategy::Llm) => {
+                prefixed_tools.push(router_tools::llm_search_tool());
+            }
+            None => {}
+        }
+
+        // Get recent tool calls from router tool selector if available
+        let selector = self.router_tool_selector.lock().await.clone();
+        if let Some(selector) = selector {
+            if let Ok(recent_calls) = selector.get_recent_tool_calls(20).await {
+                let extension_manager = self.extension_manager.read().await;
+                // Add recent tool calls to the list, avoiding duplicates
+                for tool_name in recent_calls {
+                    // Find the tool in the extension manager's tools
+                    if let Ok(extension_tools) = extension_manager.get_prefixed_tools(None).await {
+                        if let Some(tool) = extension_tools.iter().find(|t| t.name == tool_name) {
+                            // Only add if not already in prefixed_tools
+                            if !prefixed_tools.iter().any(|t| t.name == tool.name) {
+                                prefixed_tools.push(tool.clone());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        prefixed_tools
     }
 
     pub async fn remove_extension(&self, name: &str) -> Result<()> {
         let mut extension_manager = self.extension_manager.write().await;
         extension_manager.remove_extension(name).await?;
-        drop(extension_manager);
 
         // If vector tool selection is enabled, remove tools from the index
-        let selector = self.tool_route_manager.get_router_tool_selector().await;
+        let selector = self.router_tool_selector.lock().await.clone();
         if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
             if let Some(selector) = selector {
                 let extension_manager = self.extension_manager.read().await;
@@ -956,17 +1062,14 @@ impl Agent {
                             }
 
                             if let Some(response) = response {
-                                let ToolCategorizeResult {
+                                let tool_result = self.process_tool_requests(&response, &tools).await;
+                                let ToolProcessingResult {
                                     frontend_requests,
                                     remaining_requests,
                                     filtered_response,
                                     readonly_tools,
                                     regular_tools,
-                                } = self.categorize_tools(&response, &tools).await;
-                                let requests_to_record: Vec<ToolRequest> = frontend_requests.iter().chain(remaining_requests.iter()).cloned().collect();
-                                self.tool_route_manager
-                                    .record_tool_requests(&requests_to_record)
-                                    .await;
+                                } = tool_result;
 
                                 yield AgentEvent::Message(filtered_response.clone());
                                 tokio::task::yield_now().await;
@@ -1172,15 +1275,67 @@ impl Agent {
         provider: Option<Arc<dyn Provider>>,
         reindex_all: Option<bool>,
     ) -> Result<()> {
+        let config = Config::global();
+        let _extension_manager = self.extension_manager.read().await;
         let provider = match provider {
             Some(p) => p,
             None => self.provider().await?,
         };
 
-        // Delegate to ToolRouteManager
-        self.tool_route_manager
-            .update_router_tool_selector(provider, reindex_all, &self.extension_manager)
-            .await
+        let router_tool_selection_strategy = config
+            .get_param("GOOSE_ROUTER_TOOL_SELECTION_STRATEGY")
+            .unwrap_or_else(|_| "default".to_string());
+
+        let strategy = match router_tool_selection_strategy.to_lowercase().as_str() {
+            "vector" => Some(RouterToolSelectionStrategy::Vector),
+            "llm" => Some(RouterToolSelectionStrategy::Llm),
+            _ => None,
+        };
+
+        let selector = match strategy {
+            Some(RouterToolSelectionStrategy::Vector) => {
+                let table_name = generate_table_id();
+                let selector = create_tool_selector(strategy, provider.clone(), Some(table_name))
+                    .await
+                    .map_err(|e| anyhow!("Failed to create tool selector: {}", e))?;
+                Arc::new(selector)
+            }
+            Some(RouterToolSelectionStrategy::Llm) => {
+                let selector = create_tool_selector(strategy, provider.clone(), None)
+                    .await
+                    .map_err(|e| anyhow!("Failed to create tool selector: {}", e))?;
+                Arc::new(selector)
+            }
+            None => return Ok(()),
+        };
+
+        // First index platform tools
+        let extension_manager = self.extension_manager.read().await;
+        ToolRouterIndexManager::index_platform_tools(&selector, &extension_manager).await?;
+
+        if reindex_all.unwrap_or(false) {
+            let enabled_extensions = extension_manager.list_extensions().await?;
+            for extension_name in enabled_extensions {
+                if let Err(e) = ToolRouterIndexManager::update_extension_tools(
+                    &selector,
+                    &extension_manager,
+                    &extension_name,
+                    "add",
+                )
+                .await
+                {
+                    error!(
+                        "Failed to index tools for extension {}: {}",
+                        extension_name, e
+                    );
+                }
+            }
+        }
+
+        // Update the selector
+        *self.router_tool_selector.lock().await = Some(selector.clone());
+
+        Ok(())
     }
 
     /// Override the system prompt with a custom template
