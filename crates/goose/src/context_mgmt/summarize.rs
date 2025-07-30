@@ -264,12 +264,13 @@ mod tests {
         }
     }
 
-    fn create_mock_provider() -> Arc<dyn Provider> {
+    fn create_mock_provider() -> Result<Arc<dyn Provider>> {
         let mock_model_config =
-            ModelConfig::new("test-model".to_string()).with_context_limit(200_000.into());
-        Arc::new(MockProvider {
+            ModelConfig::new_or_fail("test-model").with_context_limit(200_000.into());
+
+        Ok(Arc::new(MockProvider {
             model_config: mock_model_config,
-        })
+        }))
     }
 
     fn create_test_messages() -> Vec<Message> {
@@ -305,7 +306,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_summarize_messages_single_chunk() {
-        let provider = create_mock_provider();
+        let provider = create_mock_provider().expect("failed to create mock provider");
         let token_counter = TokenCounter::new();
         let context_limit = 100; // Set a high enough limit to avoid chunking.
         let messages = create_test_messages();
@@ -341,7 +342,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_summarize_messages_multiple_chunks() {
-        let provider = create_mock_provider();
+        let provider = create_mock_provider().expect("failed to create mock provider");
         let token_counter = TokenCounter::new();
         let context_limit = 30;
         let messages = create_test_messages();
@@ -377,7 +378,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_summarize_messages_empty_input() {
-        let provider = create_mock_provider();
+        let provider = create_mock_provider().expect("failed to create mock provider");
         let token_counter = TokenCounter::new();
         let context_limit = 100;
         let messages: Vec<Message> = Vec::new();

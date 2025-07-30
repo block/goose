@@ -311,8 +311,8 @@ mod tests {
     }
 
     fn create_mock_provider() -> Arc<dyn Provider> {
-        let mock_model_config =
-            ModelConfig::new("test-model".to_string()).with_context_limit(200_000.into());
+        let config = ModelConfig::new_or_fail("test-model");
+        let mock_model_config = config.with_context_limit(200_000.into());
         Arc::new(MockProvider {
             model_config: mock_model_config,
         })

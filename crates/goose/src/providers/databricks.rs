@@ -17,6 +17,7 @@ use super::formats::databricks::{create_request, response_to_message};
 use super::oauth;
 use super::utils::{get_model, ImageFormat};
 use crate::config::ConfigError;
+use crate::impl_provider_default;
 use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{get_usage, response_to_streaming_message};
@@ -141,12 +142,7 @@ pub struct DatabricksProvider {
     retry_config: RetryConfig,
 }
 
-impl Default for DatabricksProvider {
-    fn default() -> Self {
-        let model = ModelConfig::new(DatabricksProvider::metadata().default_model);
-        DatabricksProvider::from_env(model).expect("Failed to initialize Databricks provider")
-    }
-}
+impl_provider_default!(DatabricksProvider);
 
 impl DatabricksProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {

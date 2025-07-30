@@ -1,6 +1,7 @@
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::utils::{get_model, handle_response_openai_compat};
+use crate::impl_provider_default;
 use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
@@ -28,12 +29,7 @@ pub struct OllamaProvider {
     model: ModelConfig,
 }
 
-impl Default for OllamaProvider {
-    fn default() -> Self {
-        let model = ModelConfig::new(OllamaProvider::metadata().default_model);
-        OllamaProvider::from_env(model).expect("Failed to initialize Ollama provider")
-    }
-}
+impl_provider_default!(OllamaProvider);
 
 impl OllamaProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
