@@ -65,7 +65,7 @@ We've now hosted meetups in Sydney, Berlin, Boston, Atlanta, San Francisco, Texa
 
 ## Upcoming Denver Workshop
 
-We're bringing this hands-on Goose workshop to Denver on August 5\.
+We're bringing this hands-on Goose workshop to Denver on August 5.
 
 Join us for an evening in collaboration with Temporal and Dagger, where you'll get free API credits, build something tangible with Goose, and learn in-depth about Model Context Protocol.
 
