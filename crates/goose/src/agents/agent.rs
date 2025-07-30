@@ -21,18 +21,15 @@ use crate::agents::recipe_tools::dynamic_task_tools::{
     create_dynamic_task, create_dynamic_task_tool, DYNAMIC_TASK_TOOL_NAME_PREFIX,
 };
 use crate::agents::retry::{RetryManager, RetryResult};
-use crate::agents::router_tool_selector::{
-    create_tool_selector, RouterToolSelectionStrategy, RouterToolSelector,
-};
+use crate::agents::router_tool_selector::RouterToolSelectionStrategy;
 use crate::agents::router_tools::{ROUTER_LLM_SEARCH_TOOL_NAME, ROUTER_VECTOR_SEARCH_TOOL_NAME};
 use crate::agents::sub_recipe_manager::SubRecipeManager;
 use crate::agents::subagent_execution_tool::subagent_execute_task_tool::{
     self, SUBAGENT_EXECUTE_TASK_TOOL_NAME,
 };
 use crate::agents::subagent_execution_tool::tasks_manager::TasksManager;
-use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::tool_route_manager::ToolRouteManager;
-use crate::agents::tool_vectordb::generate_table_id;
+use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, ToolResultReceiver};
 use crate::config::{Config, ExtensionConfigManager, PermissionManager};
@@ -55,7 +52,6 @@ use tracing::{debug, error, info, instrument};
 
 use super::final_output_tool::FinalOutputTool;
 use super::platform_tools;
-use super::router_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::subagent_task_config::TaskConfig;
 use crate::conversation_fixer::{debug_conversation_fix, ConversationFixer};
@@ -262,12 +258,16 @@ impl Agent {
         // Record tool calls in the router selector
         for request in &frontend_requests {
             if let Ok(tool_call) = &request.tool_call {
-                self.tool_route_manager.record_tool_call(&tool_call.name).await;
+                self.tool_route_manager
+                    .record_tool_call(&tool_call.name)
+                    .await;
             }
         }
         for request in &remaining_requests {
             if let Ok(tool_call) = &request.tool_call {
-                self.tool_route_manager.record_tool_call(&tool_call.name).await;
+                self.tool_route_manager
+                    .record_tool_call(&tool_call.name)
+                    .await;
             }
         }
 
@@ -474,9 +474,13 @@ impl Agent {
         } else if tool_call.name == ROUTER_VECTOR_SEARCH_TOOL_NAME
             || tool_call.name == ROUTER_LLM_SEARCH_TOOL_NAME
         {
-            match self.tool_route_manager.select_tools_for_dispatch(tool_call.arguments).await {
+            match self
+                .tool_route_manager
+                .dispatch_route_search_tool(tool_call.arguments)
+                .await
+            {
                 Ok(tool_result) => tool_result,
-                Err(e) => return (request_id, Err(e))
+                Err(e) => return (request_id, Err(e)),
             }
         } else {
             // Clone the result to ensure no references to extension_manager are returned

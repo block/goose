@@ -1,19 +1,21 @@
-use std::sync::Arc;
-use tokio::sync::Mutex;
-use tracing::error;
-use anyhow::{anyhow, Result};
-use serde_json::Value;
-use mcp_core::ToolError;
-use crate::agents::router_tool_selector::{create_tool_selector, RouterToolSelectionStrategy, RouterToolSelector};
+use crate::agents::extension_manager::ExtensionManager;
+use crate::agents::router_tool_selector::{
+    create_tool_selector, RouterToolSelectionStrategy, RouterToolSelector,
+};
+use crate::agents::router_tools;
 use crate::agents::tool_execution::ToolCallResult;
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::tool_vectordb::generate_table_id;
-use crate::agents::extension_manager::ExtensionManager;
-use crate::agents::router_tools;
 use crate::config::Config;
 use crate::providers::base::Provider;
+use anyhow::{anyhow, Result};
+use mcp_core::ToolError;
 use rmcp::model::Tool;
+use serde_json::Value;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use tokio::sync::RwLock;
+use tracing::error;
 
 pub struct ToolRouteManager {
     router_tool_selector: Mutex<Option<Arc<Box<dyn RouterToolSelector>>>>,
@@ -42,39 +44,10 @@ impl ToolRouteManager {
         }
     }
 
-    pub async fn handle_router_tool_selection(
+    pub async fn dispatch_route_search_tool(
         &self,
         arguments: Value,
-        request_id: String,
-    ) -> (String, Result<ToolCallResult, ToolError>) {
-        let selector = self.router_tool_selector.lock().await.clone();
-        let selected_tools = match selector.as_ref() {
-            Some(selector) => match selector.select_tools(arguments).await {
-                Ok(tools) => tools,
-                Err(e) => {
-                    return (
-                        request_id,
-                        Err(ToolError::ExecutionError(format!(
-                            "Failed to select tools: {}",
-                            e
-                        ))),
-                    )
-                }
-            },
-            None => {
-                return (
-                    request_id,
-                    Err(ToolError::ExecutionError(
-                        "No tool selector available".to_string(),
-                    )),
-                )
-            }
-        };
-
-        (request_id, Ok(ToolCallResult::from(Ok(selected_tools))))
-    }
-
-    pub async fn select_tools_for_dispatch(&self, arguments: Value) -> Result<ToolCallResult, ToolError> {
+    ) -> Result<ToolCallResult, ToolError> {
         let selector = self.router_tool_selector.lock().await.clone();
         match selector.as_ref() {
             Some(selector) => match selector.select_tools(arguments).await {
@@ -82,11 +55,11 @@ impl ToolRouteManager {
                 Err(e) => Err(ToolError::ExecutionError(format!(
                     "Failed to select tools: {}",
                     e
-                )))
+                ))),
             },
             None => Err(ToolError::ExecutionError(
                 "No tool selector available".to_string(),
-            ))
+            )),
         }
     }
 
