@@ -80,11 +80,6 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
           msg: `Failed to initialize with OpenRouter: ${error instanceof Error ? error.message : String(error)}`,
           traceback: error instanceof Error ? error.stack || '' : '',
         });
-
-        // Still reload as config is saved
-        setTimeout(() => {
-          window.location.reload();
-        }, 3000);
       }
     } else {
       setOpenRouterSetupState({
