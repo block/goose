@@ -833,7 +833,7 @@ impl Agent {
         messages: &[Message],
     ) -> Result<Option<(Vec<Message>, String)>> {
         let compact_result = auto_compact::check_and_compact_messages(self, messages, None).await?;
-        
+
         if compact_result.compacted {
             let compacted_messages = compact_result.messages;
 
@@ -865,7 +865,8 @@ impl Agent {
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         // Handle auto-compaction before processing
-        let (messages, compaction_msg) = match self.handle_auto_compaction(unfixed_messages).await? {
+        let (messages, compaction_msg) = match self.handle_auto_compaction(unfixed_messages).await?
+        {
             Some((compacted_messages, msg)) => (compacted_messages, Some(msg)),
             None => {
                 let context = self
@@ -880,7 +881,7 @@ impl Agent {
             return Ok(Box::pin(async_stream::try_stream! {
                 yield AgentEvent::Message(Message::assistant().with_text(compaction_msg));
                 yield AgentEvent::HistoryReplaced(messages.clone());
-                
+
                 // Continue with normal reply processing using compacted messages
                 let mut reply_stream = self.reply_main(&messages, session, cancel_token).await?;
                 while let Some(event) = reply_stream.next().await {
@@ -900,9 +901,7 @@ impl Agent {
         session: Option<SessionConfig>,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        let context = self
-            .prepare_reply_context(messages, &session)
-            .await?;
+        let context = self.prepare_reply_context(messages, &session).await?;
         let ReplyContext {
             mut messages,
             mut tools,

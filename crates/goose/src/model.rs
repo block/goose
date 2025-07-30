@@ -352,7 +352,7 @@ mod tests {
                 });
             });
         });
-        
+
         // Test without environment variables (should use model-specific limits)
         with_var("GOOSE_CONTEXT_LIMIT", None::<&str>, || {
             with_var("GOOSE_TEMPERATURE", None::<&str>, || {
