@@ -44,9 +44,11 @@ use crate::scheduler_trait::SchedulerTrait;
 use crate::session;
 use crate::tool_monitor::{ToolCall, ToolMonitor};
 use crate::utils::is_token_cancelled;
-use mcp_core::{ToolError, ToolResult};
+use mcp_core::ToolResult;
 use regex::Regex;
-use rmcp::model::{Content, GetPromptResult, Prompt, ServerNotification, Tool};
+use rmcp::model::{
+    Content, ErrorCode, ErrorData, GetPromptResult, Prompt, ServerNotification, Tool,
+};
 use serde_json::Value;
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tokio_util::sync::CancellationToken;
@@ -376,7 +378,7 @@ impl Agent {
         tool_call: mcp_core::tool::ToolCall,
         request_id: String,
         cancellation_token: Option<CancellationToken>,
-    ) -> (String, Result<ToolCallResult, ToolError>) {
+    ) -> (String, Result<ToolCallResult, ErrorData>) {
         // Check if this tool call should be allowed based on repetition monitoring
         if let Some(monitor) = self.tool_monitor.lock().await.as_mut() {
             let tool_call_info = ToolCall::new(tool_call.name.clone(), tool_call.arguments.clone());
@@ -384,8 +386,10 @@ impl Agent {
             if !monitor.check_tool_call(tool_call_info) {
                 return (
                     request_id,
-                    Err(ToolError::ExecutionError(
+                    Err(ErrorData::new(
+                        ErrorCode::INTERNAL_ERROR,
                         "Tool call rejected: exceeded maximum allowed repetitions".to_string(),
+                        None,
                     )),
                 );
             }
@@ -425,8 +429,10 @@ impl Agent {
             } else {
                 (
                     request_id,
-                    Err(ToolError::ExecutionError(
+                    Err(ErrorData::new(
+                        ErrorCode::INTERNAL_ERROR,
                         "Final output tool not defined".to_string(),
+                        None,
                     )),
                 )
             };
@@ -478,8 +484,10 @@ impl Agent {
             ToolCallResult::from(extension_manager.search_available_extensions().await)
         } else if self.is_frontend_tool(&tool_call.name).await {
             // For frontend tools, return an error indicating we need frontend execution
-            ToolCallResult::from(Err(ToolError::ExecutionError(
+            ToolCallResult::from(Err(ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
                 "Frontend tool execution required".to_string(),
+                None,
             )))
         } else if tool_call.name == TODO_READ_TOOL_NAME {
             // Handle task planner read tool
@@ -505,11 +513,13 @@ impl Agent {
             if max_chars > 0 && char_count > max_chars {
                 return (
                     request_id,
-                    Ok(ToolCallResult::from(Err(ToolError::ExecutionError(
+                    Ok(ToolCallResult::from(Err(ErrorData::new(
+                        ErrorCode::INTERNAL_ERROR,
                         format!(
                             "Todo list too large: {} chars (max: {})",
                             char_count, max_chars
                         ),
+                        None,
                     )))),
                 );
             }
@@ -537,7 +547,11 @@ impl Agent {
                 .dispatch_tool_call(tool_call.clone(), cancellation_token.unwrap_or_default())
                 .await;
             result.unwrap_or_else(|e| {
-                ToolCallResult::from(Err(ToolError::ExecutionError(e.to_string())))
+                ToolCallResult::from(Err(ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    e.to_string(),
+                    None,
+                )))
             })
         };
 
@@ -554,12 +568,13 @@ impl Agent {
         )
     }
 
+    #[allow(clippy::too_many_lines)]
     pub(super) async fn manage_extensions(
         &self,
         action: String,
         extension_name: String,
         request_id: String,
-    ) -> (String, Result<Vec<Content>, ToolError>) {
+    ) -> (String, Result<Vec<Content>, ErrorData>) {
         let selector = self.tool_route_manager.get_router_tool_selector().await;
         if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
             if let Some(selector) = selector {
@@ -576,10 +591,11 @@ impl Agent {
                 {
                     return (
                         request_id,
-                        Err(ToolError::ExecutionError(format!(
-                            "Failed to update vector index: {}",
-                            e
-                        ))),
+                        Err(ErrorData::new(
+                            ErrorCode::INTERNAL_ERROR,
+                            format!("Failed to update vector index: {}", e),
+                            None,
+                        )),
                     );
                 }
             }
@@ -595,7 +611,7 @@ impl Agent {
                         extension_name
                     ))]
                 })
-                .map_err(|e| ToolError::ExecutionError(e.to_string()));
+                .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None));
             return (request_id, result);
         }
 
@@ -604,19 +620,24 @@ impl Agent {
             Ok(None) => {
                 return (
                     request_id,
-                    Err(ToolError::ExecutionError(format!(
+                    Err(ErrorData::new(
+                        ErrorCode::RESOURCE_NOT_FOUND,
+                        format!(
                         "Extension '{}' not found. Please check the extension name and try again.",
                         extension_name
-                    ))),
+                    ),
+                        None,
+                    )),
                 )
             }
             Err(e) => {
                 return (
                     request_id,
-                    Err(ToolError::ExecutionError(format!(
-                        "Failed to get extension config: {}",
-                        e
-                    ))),
+                    Err(ErrorData::new(
+                        ErrorCode::INTERNAL_ERROR,
+                        format!("Failed to get extension config: {}", e),
+                        None,
+                    )),
                 )
             }
         };
@@ -629,7 +650,7 @@ impl Agent {
                     extension_name
                 ))]
             })
-            .map_err(|e| ToolError::ExecutionError(e.to_string()));
+            .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None));
 
         drop(extension_manager);
         // Update vector index if operation was successful and vector routing is enabled
@@ -650,10 +671,11 @@ impl Agent {
                     {
                         return (
                             request_id,
-                            Err(ToolError::ExecutionError(format!(
-                                "Failed to update vector index: {}",
-                                e
-                            ))),
+                            Err(ErrorData::new(
+                                ErrorCode::INTERNAL_ERROR,
+                                format!("Failed to update vector index: {}", e),
+                                None,
+                            )),
                         );
                     }
                 }

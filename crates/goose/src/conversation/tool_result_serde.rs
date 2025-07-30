@@ -1,6 +1,8 @@
-use mcp_core::handler::{ToolError, ToolResult};
+use mcp_core::ToolResult;
+use rmcp::model::{ErrorCode, ErrorData};
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::borrow::Cow;
 
 pub fn serialize<T, S>(value: &ToolResult<T>, serializer: S) -> Result<S::Ok, S::Error>
 where
@@ -52,7 +54,11 @@ where
         }
         ResultFormat::Error { status, error } => {
             if status == "error" {
-                Ok(Err(ToolError::ExecutionError(error)))
+                Ok(Err(ErrorData {
+                    code: ErrorCode::INTERNAL_ERROR,
+                    message: Cow::from(error),
+                    data: None,
+                }))
             } else {
                 Err(serde::de::Error::custom(format!(
                     "Expected status 'error', got '{}'",

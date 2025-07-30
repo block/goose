@@ -603,12 +603,12 @@ impl Message {
 mod tests {
     use crate::conversation::message::{Message, MessageContent};
     use crate::conversation::*;
-    use mcp_core::handler::ToolError;
     use mcp_core::ToolCall;
     use rmcp::model::{
         AnnotateAble, PromptMessage, PromptMessageContent, PromptMessageRole, RawEmbeddedResource,
         RawImageContent, ResourceContents,
     };
+    use rmcp::model::{ErrorCode, ErrorData};
     use serde_json::{json, Value};
 
     #[test]
@@ -683,9 +683,11 @@ mod tests {
     fn test_error_serialization() {
         let message = Message::assistant().with_tool_request(
             "tool123",
-            Err(ToolError::ExecutionError(
-                "Something went wrong".to_string(),
-            )),
+            Err(ErrorData {
+                code: ErrorCode::INTERNAL_ERROR,
+                message: std::borrow::Cow::from("Something went wrong".to_string()),
+                data: None,
+            }),
         );
 
         let json_str = serde_json::to_string_pretty(&message).unwrap();
@@ -697,7 +699,7 @@ mod tests {
         // Check tool_call serialization with error
         let tool_call = &value["content"][0]["toolCall"];
         assert_eq!(tool_call["status"], "error");
-        assert_eq!(tool_call["error"], "Execution failed: Something went wrong");
+        assert_eq!(tool_call["error"], "-32603: Something went wrong");
     }
 
     #[test]
