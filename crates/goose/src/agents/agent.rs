@@ -842,13 +842,13 @@ impl Agent {
                 (compact_result.tokens_before, compact_result.tokens_after)
             {
                 format!(
-                    "Auto-compacted context: {} → {} tokens ({:.0}% reduction)",
+                    "Auto-compacted context: {} → {} tokens ({:.0}% reduction)\n\n",
                     before,
                     after,
                     (1.0 - (after as f64 / before as f64)) * 100.0
                 )
             } else {
-                "Auto-compacted context to reduce token usage".to_string()
+                "Auto-compacted context to reduce token usage\n\n".to_string()
             };
 
             return Ok(Some((compacted_messages, compaction_msg)));

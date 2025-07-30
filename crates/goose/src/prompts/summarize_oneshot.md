@@ -12,7 +12,7 @@ Wrap reasoning in `<analysis>` tags:
 - Highlight user feedback and revisions  
 - Confirm completeness and accuracy  
 
-### Summary Must Include:  
+### Summary Must Include the Following Sections:  
 1. **User Intent** – All goals and requests  
 2. **Technical Concepts** – All discussed tools, methods  
 3. **Files + Code** – Viewed/edited files, full code, change justifications  
