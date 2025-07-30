@@ -23,10 +23,7 @@ pub async fn run_server(name: &str) -> Result<()> {
     tracing::info!("Starting MCP server");
 
     let router: Option<Box<dyn BoundedService>> = match name {
-        "developer" => {
-            let developer_router = DeveloperRouter::new();
-            Some(Box::new(RouterService(developer_router)))
-        },
+        "developer" => Some(Box::new(RouterService(DeveloperRouter::new()))),
         "computercontroller" => Some(Box::new(RouterService(ComputerControllerRouter::new()))),
         "google_drive" | "googledrive" => {
             let router = GoogleDriveRouter::new().await;

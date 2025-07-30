@@ -15,7 +15,7 @@ mod memory;
 mod tutorial;
 
 pub use computercontroller::ComputerControllerRouter;
-pub use developer::{DeveloperRouter};
+pub use developer::DeveloperRouter;
 pub use file_pid_tracker::FilePidTracker;
 pub use google_drive::GoogleDriveRouter;
 pub use memory::MemoryRouter;
