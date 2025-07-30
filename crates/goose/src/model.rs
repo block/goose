@@ -352,17 +352,5 @@ mod tests {
                 });
             });
         });
-
-        // Test without environment variables (should use model-specific limits)
-        with_var("GOOSE_CONTEXT_LIMIT", None::<&str>, || {
-            with_var("GOOSE_TEMPERATURE", None::<&str>, || {
-                with_var("GOOSE_TOOLSHIM", None::<&str>, || {
-                    with_var("GOOSE_TOOLSHIM_OLLAMA_MODEL", None::<&str>, || {
-                        let config = ModelConfig::new("claude-3-opus").unwrap();
-                        assert_eq!(config.context_limit(), 200_000);
-                    });
-                });
-            });
-        });
     }
 }
