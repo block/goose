@@ -493,8 +493,6 @@ impl Agent {
         extension_name: String,
         request_id: String,
     ) -> (String, Result<Vec<Content>, ToolError>) {
-        let mut extension_manager = self.extension_manager.write().await;
-
         let selector = self.tool_route_manager.get_router_tool_selector().await;
         if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
             if let Some(selector) = selector {
@@ -519,7 +517,7 @@ impl Agent {
                 }
             }
         }
-
+        let mut extension_manager = self.extension_manager.write().await;
         if action == "disable" {
             let result = extension_manager
                 .remove_extension(&extension_name)
@@ -555,7 +553,6 @@ impl Agent {
                 )
             }
         };
-
         let result = extension_manager
             .add_extension(config)
             .await
@@ -567,6 +564,7 @@ impl Agent {
             })
             .map_err(|e| ToolError::ExecutionError(e.to_string()));
 
+        drop(extension_manager);
         // Update vector index if operation was successful and vector routing is enabled
         if result.is_ok() {
             let selector = self.tool_route_manager.get_router_tool_selector().await;
@@ -709,6 +707,7 @@ impl Agent {
     pub async fn remove_extension(&self, name: &str) -> Result<()> {
         let mut extension_manager = self.extension_manager.write().await;
         extension_manager.remove_extension(name).await?;
+        drop(extension_manager);
 
         // If vector tool selection is enabled, remove tools from the index
         let selector = self.tool_route_manager.get_router_tool_selector().await;
