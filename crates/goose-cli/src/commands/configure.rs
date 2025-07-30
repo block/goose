@@ -1529,7 +1529,17 @@ pub async fn handle_openrouter_auth() -> Result<(), Box<dyn Error>> {
             // Test configuration - get the model that was configured
             println!("\nTesting configuration...");
             let configured_model: String = config.get_param("GOOSE_MODEL")?;
-            let model_config = goose::model::ModelConfig::new(configured_model);
+            let model_config = match goose::model::ModelConfig::new(&configured_model) {
+                Ok(config) => config,
+                Err(e) => {
+                    eprintln!("⚠️  Invalid model configuration: {}", e);
+                    eprintln!(
+                        "Your settings have been saved. Please check your model configuration."
+                    );
+                    return Ok(());
+                }
+            };
+
             match create("openrouter", model_config) {
                 Ok(provider) => {
                     // Simple test request
