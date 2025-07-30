@@ -313,11 +313,15 @@ function BaseChatContent({
   };
   // Callback to handle scroll to bottom from ProgressiveMessageList
   const handleScrollToBottom = useCallback(() => {
-    setTimeout(() => {
-      if (scrollRef.current?.scrollToBottom) {
-        scrollRef.current.scrollToBottom();
-      }
-    }, 100);
+    // Only auto-scroll if user is not actively typing
+    const isUserTyping = document.activeElement?.id === 'dynamic-textarea';
+    if (!isUserTyping) {
+      setTimeout(() => {
+        if (scrollRef.current?.scrollToBottom) {
+          scrollRef.current.scrollToBottom();
+        }
+      }, 100);
+    }
   }, []);
 
   return (

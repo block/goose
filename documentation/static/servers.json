@@ -420,6 +420,17 @@
     "environmentVariables": []
   },
   {
+    "id": "neon",
+    "name": "Neon",
+    "description": "Manage Neon Postgres databases, projects, and branches",
+    "command": "npx -y @neondatabase/mcp-server-neon start <YOUR_NEON_API_KEY>",
+    "link": "https://github.com/neondatabase-labs/mcp-server-neon",
+    "installation_notes": "Install using npx package manager (add your Neon API key to the command) or connect to the remote server.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": []
+  },
+  {
     "id": "netlify-mcp",
     "name": "Netlify",
     "description": "Web deployment and hosting automation",

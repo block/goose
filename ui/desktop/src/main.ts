@@ -30,7 +30,6 @@ import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
 import {
-  createEnvironmentMenu,
   EnvToggles,
   loadSettings,
   saveSettings,
@@ -1820,25 +1819,6 @@ app.whenReady().then(async () => {
       new MenuItem({
         label: 'Find',
         submenu: findSubmenu,
-      })
-    );
-  }
-
-  // Add Environment menu items to View menu
-  const viewMenu = menu?.items.find((item) => item.label === 'View');
-  if (viewMenu?.submenu) {
-    viewMenu.submenu.append(new MenuItem({ type: 'separator' }));
-    viewMenu.submenu.append(
-      new MenuItem({
-        label: 'Environment',
-        submenu: Menu.buildFromTemplate(
-          createEnvironmentMenu(envToggles, (newToggles) => {
-            envToggles = newToggles;
-            const currentSettings = loadSettings();
-            saveSettings({ ...currentSettings, envToggles: newToggles });
-            updateEnvironmentVariables(newToggles);
-          })
-        ),
       })
     );
   }

@@ -199,11 +199,27 @@ export const useWhisper = ({ onTranscription, onError, onSizeWarning }: UseWhisp
     }
 
     // Close audio context
-    if (audioContext) {
-      audioContext.close();
+    if (audioContext && audioContext.state !== 'closed') {
+      audioContext.close().catch(console.error);
       setAudioContext(null);
       setAnalyser(null);
     }
+  }, [audioContext]);
+
+  // Cleanup effect to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      // Cleanup on unmount
+      if (durationIntervalRef.current) {
+        clearInterval(durationIntervalRef.current);
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      }
+      if (audioContext && audioContext.state !== 'closed') {
+        audioContext.close().catch(console.error);
+      }
+    };
   }, [audioContext]);
 
   const startRecording = useCallback(async () => {
