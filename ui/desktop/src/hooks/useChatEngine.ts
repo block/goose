@@ -255,7 +255,7 @@ export const useChatEngine = ({
             stopPowerSaveBlocker();
           },
           15 * 60 * 1000
-        ); // 15 minutes
+        );
 
         setPowerSaveTimeoutId(timeoutId);
 
