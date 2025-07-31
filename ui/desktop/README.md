@@ -16,7 +16,7 @@ npm run start
 
 # Building notes
 
-This is an electron forge app, using vite and react.js. `gooosed` runs as multi process binaries on each window/tab similar to chrome.
+This is an electron forge app, using vite and react.js. `goosed` runs as multi process binaries on each window/tab similar to chrome.
 
 see `package.json`: 
 
