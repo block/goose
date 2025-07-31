@@ -1041,20 +1041,19 @@ impl Session {
                                                 let subagent_id = o.get("subagent_id")
                                                     .and_then(|v| v.as_str());
                                                 let notification_type = o.get("type")
-                                                    .and_then(|v| v.as_str())
-                                                    .unwrap_or("");
+                                                    .and_then(|v| v.as_str());
 
                                                 let formatted = match notification_type {
-                                                    "subagent_created" | "completed" | "terminated" => {
+                                                    Some("subagent_created") | Some("completed") | Some("terminated") => {
                                                         format!("🤖 {}", msg)
                                                     }
-                                                    "tool_usage" | "tool_completed" | "tool_error" => {
+                                                    Some("tool_usage") | Some("tool_completed") | Some("tool_error") => {
                                                         format!("🔧 {}", msg)
                                                     }
-                                                    "message_processing" | "turn_progress" => {
+                                                    Some("message_processing") | Some("turn_progress") => {
                                                         format!("💭 {}", msg)
                                                     }
-                                                    "response_generated" => {
+                                                    Some("response_generated") => {
                                                         // Check verbosity setting for subagent response content
                                                         let config = Config::global();
                                                         let min_priority = config
@@ -1078,7 +1077,7 @@ impl Session {
                                                         msg.to_string()
                                                     }
                                                 };
-                                                (formatted, subagent_id.map(|s|s.to_string()), Some(notification_type.to_string()))
+                                                (formatted, subagent_id.map(str::to_string), notification_type.map(str::to_string))
                                             } else if let Some(Value::String(output)) = o.get("output") {
                                                 // Fallback for other MCP notification types
                                                 (output.to_owned(), None, None)
