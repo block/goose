@@ -308,6 +308,11 @@ export const useChatEngine = ({
       // Set the text back to the input field
       _setInput(textValue);
 
+      // Also add to local storage history as a backup so cmd+up can retrieve it
+      if (enableLocalStorage && textValue.trim()) {
+        LocalMessageStorage.addMessage(textValue.trim());
+      }
+
       // Remove the last user message if it's the most recent one
       if (messages.length > 1) {
         setMessages(messages.slice(0, -1));
@@ -369,7 +374,7 @@ export const useChatEngine = ({
         setMessages([...messages, responseMessage]);
       }
     }
-  }, [stop, messages, _setInput, setMessages, stopPowerSaveBlocker]);
+  }, [stop, messages, _setInput, setMessages, stopPowerSaveBlocker, enableLocalStorage]);
 
   const filteredMessages = useMemo(() => {
     return [...ancestorMessages, ...messages].filter((message) => message.display ?? true);

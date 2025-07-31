@@ -441,7 +441,7 @@ mod tests {
 
         #[tokio::test]
         async fn test_reply_endpoint() {
-            let mock_model_config = ModelConfig::new("test-model".to_string());
+            let mock_model_config = ModelConfig::new("test-model").unwrap();
             let mock_provider = Arc::new(MockProvider {
                 model_config: mock_model_config,
             });

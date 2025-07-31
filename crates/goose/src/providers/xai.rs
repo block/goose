@@ -1,4 +1,5 @@
 use super::errors::ProviderError;
+use crate::impl_provider_default;
 use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
@@ -45,12 +46,7 @@ pub struct XaiProvider {
     model: ModelConfig,
 }
 
-impl Default for XaiProvider {
-    fn default() -> Self {
-        let model = ModelConfig::new(XaiProvider::metadata().default_model);
-        XaiProvider::from_env(model).expect("Failed to initialize xAI provider")
-    }
-}
+impl_provider_default!(XaiProvider);
 
 impl XaiProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {

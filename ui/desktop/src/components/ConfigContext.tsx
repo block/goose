@@ -9,7 +9,6 @@ import {
   removeExtension as apiRemoveExtension,
   providers,
 } from '../api';
-import { client } from '../api/client.gen';
 import type {
   ConfigResponse,
   UpsertConfigQuery,
@@ -18,8 +17,9 @@ import type {
   ProviderDetails,
   ExtensionQuery,
   ExtensionConfig,
-} from '../api/types.gen';
+} from '../api';
 import { removeShims } from './settings/extensions/utils';
+import { ensureClientInitialized } from '../utils';
 
 export type { ExtensionConfig } from '../api/types.gen';
 
@@ -27,15 +27,6 @@ export type { ExtensionConfig } from '../api/types.gen';
 export type FixedExtensionEntry = ExtensionConfig & {
   enabled: boolean;
 };
-
-// Initialize client configuration
-client.setConfig({
-  baseUrl: window.appConfig.get('GOOSE_API_HOST') + ':' + window.appConfig.get('GOOSE_PORT'),
-  headers: {
-    'Content-Type': 'application/json',
-    'X-Secret-Key': window.appConfig.get('secretKey'),
-  },
-});
 
 interface ConfigContextType {
   config: ConfigResponse['config'];
@@ -184,6 +175,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
   useEffect(() => {
     // Load all configuration data and providers on mount
     (async () => {
+      await ensureClientInitialized();
       // Load config
       const configResponse = await readAllConfig();
       setConfig(configResponse.data?.config || {});

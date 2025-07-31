@@ -10,6 +10,7 @@ use super::errors::ProviderError;
 use super::formats::snowflake::{create_request, get_usage, response_to_message};
 use super::utils::{get_model, ImageFormat};
 use crate::config::ConfigError;
+use crate::impl_provider_default;
 use crate::message::Message;
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
@@ -42,12 +43,7 @@ pub struct SnowflakeProvider {
     image_format: ImageFormat,
 }
 
-impl Default for SnowflakeProvider {
-    fn default() -> Self {
-        let model = ModelConfig::new(SnowflakeProvider::metadata().default_model);
-        SnowflakeProvider::from_env(model).expect("Failed to initialize Snowflake provider")
-    }
-}
+impl_provider_default!(SnowflakeProvider);
 
 impl SnowflakeProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {

@@ -77,12 +77,15 @@ type ElectronAPI = {
   setDockIcon: (show: boolean) => Promise<boolean>;
   getDockIconState: () => Promise<boolean>;
   getSettings: () => Promise<unknown | null>;
+  getSecretKey: () => Promise<string>;
   setSchedulingEngine: (engine: string) => Promise<boolean>;
   setQuitConfirmation: (show: boolean) => Promise<boolean>;
   getQuitConfirmationState: () => Promise<boolean>;
   setWakelock: (enable: boolean) => Promise<boolean>;
   getWakelockState: () => Promise<boolean>;
   openNotificationsSettings: () => Promise<boolean>;
+  onMouseBackButtonClicked: (callback: () => void) => void;
+  offMouseBackButtonClicked: (callback: () => void) => void;
   on: (
     channel: string,
     callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void
@@ -169,12 +172,22 @@ const electronAPI: ElectronAPI = {
   setDockIcon: (show: boolean) => ipcRenderer.invoke('set-dock-icon', show),
   getDockIconState: () => ipcRenderer.invoke('get-dock-icon-state'),
   getSettings: () => ipcRenderer.invoke('get-settings'),
+  getSecretKey: () => ipcRenderer.invoke('get-secret-key'),
   setSchedulingEngine: (engine: string) => ipcRenderer.invoke('set-scheduling-engine', engine),
   setQuitConfirmation: (show: boolean) => ipcRenderer.invoke('set-quit-confirmation', show),
   getQuitConfirmationState: () => ipcRenderer.invoke('get-quit-confirmation-state'),
   setWakelock: (enable: boolean) => ipcRenderer.invoke('set-wakelock', enable),
   getWakelockState: () => ipcRenderer.invoke('get-wakelock-state'),
   openNotificationsSettings: () => ipcRenderer.invoke('open-notifications-settings'),
+  onMouseBackButtonClicked: (callback: () => void) => {
+    // Wrapper that ignores the event parameter.
+    const wrappedCallback = (_event: Electron.IpcRendererEvent) => callback();
+    ipcRenderer.on('mouse-back-button-clicked', wrappedCallback);
+    return wrappedCallback;
+  },
+  offMouseBackButtonClicked: (callback: () => void) => {
+    ipcRenderer.removeListener('mouse-back-button-clicked', callback);
+  },
   on: (
     channel: string,
     callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void

@@ -17,6 +17,7 @@ use super::formats::anthropic::{
     create_request, get_usage, response_to_message, response_to_streaming_message,
 };
 use super::utils::{emit_debug_trace, get_model};
+use crate::impl_provider_default;
 use crate::message::Message;
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
@@ -46,12 +47,7 @@ pub struct AnthropicProvider {
     model: ModelConfig,
 }
 
-impl Default for AnthropicProvider {
-    fn default() -> Self {
-        let model = ModelConfig::new(AnthropicProvider::metadata().default_model);
-        AnthropicProvider::from_env(model).expect("Failed to initialize Anthropic provider")
-    }
-}
+impl_provider_default!(AnthropicProvider);
 
 impl AnthropicProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {

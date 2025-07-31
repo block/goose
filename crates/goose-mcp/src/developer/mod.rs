@@ -461,40 +461,57 @@ impl DeveloperRouter {
             },
         };
 
-        // choose_app_strategy().config_dir()
-        // - macOS/Linux: ~/.config/goose/
-        // - Windows:     ~\AppData\Roaming\Block\goose\config\
-        // keep previous behavior of expanding ~/.config in case this fails
-        let global_hints_path = choose_app_strategy(crate::APP_STRATEGY.clone())
-            .map(|strategy| strategy.in_config_dir(".goosehints"))
-            .unwrap_or_else(|_| {
-                PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints").to_string())
-            });
+        let hints_filenames: Vec<String> = std::env::var("CONTEXT_FILE_NAMES")
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_else(|| vec![".goosehints".to_string()]);
 
-        // Create the directory if it doesn't exist
-        let _ = std::fs::create_dir_all(global_hints_path.parent().unwrap());
+        let mut global_hints_contents = Vec::with_capacity(hints_filenames.len());
+        let mut local_hints_contents = Vec::with_capacity(hints_filenames.len());
 
-        // Check for local hints in current directory
-        let local_hints_path = cwd.join(".goosehints");
+        for hints_filename in &hints_filenames {
+            // Global hints
+            // choose_app_strategy().config_dir()
+            // - macOS/Linux: ~/.config/goose/
+            // - Windows:     ~\AppData\Roaming\Block\goose\config\
+            // keep previous behavior of expanding ~/.config in case this fails
+            let global_hints_path = choose_app_strategy(crate::APP_STRATEGY.clone())
+                .map(|strategy| strategy.in_config_dir(hints_filename))
+                .unwrap_or_else(|_| {
+                    let path_str = format!("~/.config/goose/{}", hints_filename);
+                    PathBuf::from(shellexpand::tilde(&path_str).to_string())
+                });
 
-        // Read global hints if they exist
-        let mut hints = String::new();
-        if global_hints_path.is_file() {
-            if let Ok(global_hints) = std::fs::read_to_string(&global_hints_path) {
-                hints.push_str("\n### Global Hints\nThe developer extension includes some global hints that apply to all projects & directories.\n");
-                hints.push_str(&global_hints);
+            if let Some(parent) = global_hints_path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+
+            if global_hints_path.is_file() {
+                if let Ok(content) = std::fs::read_to_string(&global_hints_path) {
+                    global_hints_contents.push(content);
+                }
+            }
+
+            let local_hints_path = cwd.join(hints_filename);
+            if local_hints_path.is_file() {
+                if let Ok(content) = std::fs::read_to_string(&local_hints_path) {
+                    local_hints_contents.push(content);
+                }
             }
         }
 
-        // Read local hints if they exist
-        if local_hints_path.is_file() {
-            if let Ok(local_hints) = std::fs::read_to_string(&local_hints_path) {
-                if !hints.is_empty() {
-                    hints.push_str("\n\n");
-                }
-                hints.push_str("### Project Hints\nThe developer extension includes some hints for working on the project in this directory.\n");
-                hints.push_str(&local_hints);
+        let mut hints = String::new();
+        if !global_hints_contents.is_empty() {
+            hints.push_str("\n### Global Hints\nThe developer extension includes some global hints that apply to all projects & directories.\n");
+            hints.push_str(&global_hints_contents.join("\n"));
+        }
+
+        if !local_hints_contents.is_empty() {
+            if !hints.is_empty() {
+                hints.push_str("\n\n");
             }
+            hints.push_str("### Project Hints\nThe developer extension includes some hints for working on the project in this directory.\n");
+            hints.push_str(&local_hints_contents.join("\n"));
         }
 
         // Return base instructions directly when no hints are found
@@ -1747,6 +1764,39 @@ mod tests {
         assert!(matches!(err, ToolError::InvalidParameters(_)));
 
         temp_dir.close().unwrap();
+    }
+
+    #[test]
+    #[serial]
+    fn test_goosehints_multiple_filenames() {
+        let dir = TempDir::new().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+        std::env::set_var("CONTEXT_FILE_NAMES", r#"["CLAUDE.md", ".goosehints"]"#);
+
+        fs::write("CLAUDE.md", "Custom hints file content from CLAUDE.md").unwrap();
+        fs::write(".goosehints", "Custom hints file content from .goosehints").unwrap();
+        let router = DeveloperRouter::new();
+        let instructions = router.instructions();
+
+        assert!(instructions.contains("Custom hints file content from CLAUDE.md"));
+        assert!(instructions.contains("Custom hints file content from .goosehints"));
+        std::env::remove_var("CONTEXT_FILE_NAMES");
+    }
+
+    #[test]
+    #[serial]
+    fn test_goosehints_configurable_filename() {
+        let dir = TempDir::new().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+        std::env::set_var("CONTEXT_FILE_NAMES", r#"["CLAUDE.md"]"#);
+
+        fs::write("CLAUDE.md", "Custom hints file content").unwrap();
+        let router = DeveloperRouter::new();
+        let instructions = router.instructions();
+
+        assert!(instructions.contains("Custom hints file content"));
+        assert!(!instructions.contains(".goosehints")); // Make sure it's not loading the default
+        std::env::remove_var("CONTEXT_FILE_NAMES");
     }
 
     #[tokio::test]
