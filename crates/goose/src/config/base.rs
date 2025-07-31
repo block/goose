@@ -519,29 +519,24 @@ impl Config {
             return Ok(json_value);
         }
 
-        // JSON parsing failed, try to parse as primitive types
         let trimmed = val.trim();
 
-        // Try boolean first (case insensitive)
         match trimmed.to_lowercase().as_str() {
             "true" => return Ok(Value::Bool(true)),
             "false" => return Ok(Value::Bool(false)),
             _ => {}
         }
 
-        // Try integer
         if let Ok(int_val) = trimmed.parse::<i64>() {
             return Ok(Value::Number(int_val.into()));
         }
 
-        // Try float
         if let Ok(float_val) = trimmed.parse::<f64>() {
             if let Some(num) = serde_json::Number::from_f64(float_val) {
                 return Ok(Value::Number(num));
             }
         }
 
-        // Fall back to string
         Ok(Value::String(val.to_string()))
     }
 
