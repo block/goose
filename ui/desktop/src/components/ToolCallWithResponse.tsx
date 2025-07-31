@@ -6,7 +6,7 @@ import { Content, ToolRequestMessageContent, ToolResponseMessageContent } from '
 import { cn, snakeToTitleCase } from '../utils';
 import Dot, { LoadingStatus } from './ui/Dot';
 import { NotificationEvent } from '../hooks/useMessageStream';
-import { ChevronRight, LoaderCircle } from 'lucide-react';
+import { ChevronRight, FlaskConical, LoaderCircle } from 'lucide-react';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 
@@ -49,11 +49,19 @@ export default function ToolCallWithResponse({
       </div>
       {/* MCP UI Resources - Renders interactive UI components from MCP servers */}
 
-      {toolResponse?.toolResult.status === 'success' &&
-        toolResponse?.toolResult.value &&
-        toolResponse?.toolResult.value.map((content, index) => (
-          <MCPUIResourceRenderer key={`${content.type}-${index}`} content={content} />
-        ))}
+      {toolResponse?.toolResult.status === 'success' && toolResponse?.toolResult.value && (
+        <>
+          {toolResponse?.toolResult.value.map((content, index) => (
+            <MCPUIResourceRenderer key={`${content.type}-${index}`} content={content} />
+          ))}
+          <div className="mt-3 p-4 py-3 border border-borderSubtle rounded-lg bg-background-muted flex items-center">
+            <FlaskConical className="mr-2" size={20} />
+            <div className="text-sm font-medium mono">
+              MCP UI is experimental and may change at any time.
+            </div>
+          </div>
+        </>
+      )}
     </>
   );
 }

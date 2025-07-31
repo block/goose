@@ -72,7 +72,7 @@ export default function MCPUIResourceRenderer({ content }: MCPUIResourceRenderer
     console.log('MCP UI Resource:', content);
     return (
       <>
-        <div className="mt-4 p-4 border border-borderSubtle rounded-lg bg-background-muted">
+        <div className="mt-3 p-4 border border-borderSubtle rounded-lg bg-background-muted">
           <div className="overflow-hidden rounded-sm">
             <UIResourceRenderer
               resource={content.resource}
