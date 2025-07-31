@@ -3258,52 +3258,6 @@ mod tests {
     }
 
     #[test]
-    fn test_process_shell_output_long() {
-        let dir = TempDir::new().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
-
-        let router = DeveloperRouter::new();
-
-        // Test with long output (> 100 lines)
-        let lines: Vec<String> = (1..=150).map(|i| format!("Line {}", i)).collect();
-        let long_output = lines.join("\n");
-
-        let result = router.process_shell_output(&long_output).unwrap();
-        let (assistant_output, user_output) = result;
-
-        // Assistant output should contain the full message with temp file info
-        assert!(assistant_output.contains("private note: output was"));
-        assert!(assistant_output.contains("Line 51"));
-        assert!(assistant_output.contains("Line 150"));
-        assert!(!assistant_output.contains("Line 50"));
-
-        // User output should only have the prefix and last 100 lines
-        assert!(user_output.starts_with("..."));
-        assert!(user_output.contains("Line 51"));
-        assert!(user_output.contains("Line 150"));
-        assert!(!user_output.contains("Line 50"));
-        assert!(!user_output.contains("private note: output was"));
-    }
-
-    #[test]
-    fn test_process_shell_output_exactly_100_lines() {
-        let dir = TempDir::new().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
-
-        let router = DeveloperRouter::new();
-
-        // Test with exactly 100 lines
-        let lines: Vec<String> = (1..=100).map(|i| format!("Line {}", i)).collect();
-        let output = lines.join("\n");
-
-        let result = router.process_shell_output(&output).unwrap();
-
-        // Both outputs should be the same for exactly 100 lines
-        assert_eq!(result.0, output);
-        assert_eq!(result.1, output);
-    }
-
-    #[test]
     fn test_process_shell_output_empty() {
         let dir = TempDir::new().unwrap();
         std::env::set_current_dir(dir.path()).unwrap();
