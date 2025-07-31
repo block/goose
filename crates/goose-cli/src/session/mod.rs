@@ -1113,12 +1113,10 @@ impl Session {
                                             }
                                         }
                                     }
-                                    else {
-                                        if output::is_showing_thinking() {
-                                            output::set_thinking_message(&formatted_message);
-                                        } else {
-                                            progress_bars.log(&formatted_message);
-                                        }
+                                    else if output::is_showing_thinking() {
+                                        output::set_thinking_message(&formatted_message);
+                                    } else {
+                                        progress_bars.log(&formatted_message);
                                     }
                                 },
                                 ServerNotification::ProgressNotification(notification) => {
