@@ -205,28 +205,6 @@ Search allows you to find specific content within sessions or find specific sess
   </TabItem>
 </Tabs>
 
-## Share Sessions
-
-Desktop users, you can share Goose chat sessions with colleagues. Note that the session will be shared as read-only, meaning the people you share it with will be able to see the full conversation, but will not be able to interact with it in any other way (edit, save, resume, etc). Note that this feature is not available to CLI users nor Goose users who work outside of Block.
-
-    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-    2. Click `History` in the sidebar
-    3. Click the session you'd like to share
-    4. Click the `Share` button
-    5. A modal opens displaying the shareable link. Click the <Copy className="inline" size={16} /> button to copy the link.
-
-:::tip Reusable Session
-To share a reusable session with someone, create a new [recipe](/docs/guides/recipes/session-recipes).
-:::
-
-### Open Shared Session
-
-When a colleague shares a session URL with you, follow the steps below to view the session:
-
-1. Open Goose Desktop
-2. Click the link or paste it in your browser's address bar
-3. If prompted, click **Open Goose**
-
 ## Resume Session
 
 <Tabs groupId="interface">
