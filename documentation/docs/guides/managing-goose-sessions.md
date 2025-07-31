@@ -5,7 +5,7 @@ sidebar_label: Managing Sessions
 ---
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import { AppWindow, PanelLeft, FolderDot, Paperclip } from 'lucide-react';
+import { AppWindow, PanelLeft, FolderDot, Paperclip, Copy } from 'lucide-react';
 
 
 A session is a single, continuous interaction between you and Goose, providing a space to ask questions and prompt action. In this guide, we'll cover how to start, exit, and resume a session. 
@@ -104,13 +104,136 @@ Note that sessions are automatically saved when you exit.
     </TabItem>
 </Tabs>
 
+## Search Sessions
+
+Search allows you to find specific content within sessions or find specific sessions.
+
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+
+    You can use keyboard shortcuts and search bar buttons to search sessions in Goose Desktop.
+
+    | Action | macOS | Windows/Linux |
+    |--------|-------|---------------|
+    | Open Search | `Cmd+F`  | `Ctrl+F`  |
+    | Next Match | `Cmd+G` or `↓` | `Ctrl+G` or `↓` |
+    | Previous Match | `Shift+Cmd+G` or `↑` | `Shift+Ctrl+G` or `↑` |
+    | Use Selection for Find | `Cmd+E` | n/a |
+    | Toggle Case-Sensitivity | `Aa` | `Aa` |
+    | Close Search | `Esc` or `X` | `Esc` or `X` |
+
+    The following scenarios are supported:
+
+    #### Search Within Current Session
+    
+    To find specific content within your current session:
+
+    1. Use `Cmd+F` to open the search bar
+    2. Enter your search term
+    3. Use shortcuts and search bar buttons to navigate the results
+
+    #### Search For Session By Name or Path
+    
+    To search all your sessions by name or working directory path:
+
+    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+    2. Click `History` in the sidebar
+    3. Use `Cmd+F` to open the search bar
+    4. Enter your search term
+    5. Use keyboard shortcuts and search bar buttons to navigate the results (`Cmd+E` not supported)
+
+     This is a metadata-only search. It doesn't search conversation content. Note that searching by file name is supported (e.g. `20250727_130002.jsonl`), but this property isn't displayed in the UI.
+
+    #### Search Within Historical Session
+    
+    To find specific content within a historical session:
+
+    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+    2. Click `History` in the sidebar
+    3. Click a specific session tile from the list to view its content
+    4. Use `Cmd+F` to open the search bar
+    5. Enter your search term
+    6. Use keyboard shortcuts and search bar buttons to navigate the results
+
+    :::info No Regex or operator support
+    Using regular expressions or search operators in search text isn't supported.
+    :::
+
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+
+    Search functionality is provided by your terminal interface. Use the appropriate shortcut for your environment:
+
+    | Terminal | Operating System | Shortcut |
+    |----------|-----------------|-----------|
+    | iTerm2 | macOS | `Cmd+F` |
+    | Terminal.app | macOS | `Cmd+F` |
+    | Windows Terminal | Windows | `Ctrl+F` |
+    | Linux Terminal | Linux | `Ctrl+F` |
+
+    :::info
+    Your specific terminal emulator may use a different keyboard shortcut. Check your terminal's documentation or settings for the search command.
+    :::
+
+    The Goose CLI supports [listing session history](/docs/guides/goose-cli-commands#session-list-options) but doesn't provide search functionality. As a workaround, you can use your terminal's search capabilities (including regex support) to search for specific content within sessions or find specific sessions. 
+    
+    Examples for macOS:
+
+    ```bash
+    # Search session IDs (filenames)
+    ls ~/.local/share/goose/sessions/ | grep "full or partial session id"
+
+    # List sessions modified in last 7 days
+    find ~/.local/share/goose/sessions/ -mtime -7 -name "*.jsonl"
+
+    # Show first line (metadata) of each session file
+    for f in ~/.local/share/goose/sessions/*.jsonl; do
+        head -n1 "$f" | grep "your search term" && echo "Found in: $(basename "$f" .jsonl)"
+    done
+
+    # Find search term in session content
+    rg "your search term" ~/.local/share/goose/sessions/
+
+    # Search and show session IDs that contain search term
+    for f in ~/.local/share/goose/sessions/*.jsonl; do
+        if grep -q "your search term" "$f"; then
+        echo "Found in session: $(basename "$f" .jsonl)"
+        fi
+    done
+    ```
+
+  </TabItem>
+</Tabs>
+
+## Share Sessions
+
+Desktop users, you can share Goose chat sessions with colleagues. Note that the session will be shared as read-only, meaning the people you share it with will be able to see the full conversation, but will not be able to interact with it in any other way (edit, save, resume, etc). Note that this feature is not available to CLI users nor Goose users who work outside of Block.
+
+    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+    2. Click `History` in the sidebar
+    3. Click the session you'd like to share
+    4. Click the `Share` button
+    5. A modal opens displaying the shareable link. Click the <Copy className="inline" size={16} /> button to copy the link.
+
+:::tip Reusable Session
+To share a reusable session with someone, create a new [recipe](/docs/guides/recipes/session-recipes).
+:::
+
+### Open Shared Session
+
+When a colleague shares a session URL with you, follow the steps below to view the session:
+
+1. Open Goose Desktop
+2. Click the link or paste it in your browser's address bar
+3. If prompted, click **Open Goose**
+
 ## Resume Session
 
 <Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
     1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
     2. Click `History` in the sidebar
-    3. Click the session you'd like to resume
+    3. Click the session you'd like to resume. Goose provides [search features](#search-sessions) to help you find the session.
     4. Choose how to resume:
        - Click `Resume` to continue in the current window
        - Click `New Window` to open in a new window
@@ -141,56 +264,6 @@ Note that sessions are automatically saved when you exit.
         :::tip
         While you can resume sessions using the commands above, we recommend creating new sessions for new tasks to reduce the chance of [doom spiraling](/docs/troubleshooting#stuck-in-a-loop-or-unresponsive).
         :::
-    </TabItem>
-</Tabs>
-
-### Search Session History
-
-<Tabs groupId="interface">
-    <TabItem value="ui" label="Goose Desktop" default>
-        In Goose Desktop, you can search session metadata including the description, filename, and working directory path. The search is text-based and supports case-sensitive matching, but doesn't search session content or support regex patterns.
-
-        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-        2. Click `History` in the sidebar
-        3. Use `Cmd+F` to open the search bar
-        4. Enter your search term
-        5. Use search features to refine and navigate results
-
-        | Action | macOS | Windows/Linux |
-        |--------|-------|---------------|
-        | Next Match | `Cmd+G`<br />or `↓` | `Ctrl+G`<br />or `↓` |
-        | Previous Match | `Shift+Cmd+G`<br />or `↑` | `Shift+Ctrl+G`<br />or `↑` |
-        | Toggle Case-Sensitivity | `Aa` | `Aa` |
-        | Focus Search Bar | `Cmd+F` | `Ctrl+F` |
-        | Close Search | `Esc` or X | `Esc` or X |
-
-    </TabItem>
-    <TabItem value="cli" label="Goose CLI">
-        The Goose CLI supports [listing session history](/docs/guides/goose-cli-commands/#session-list-options) but doesn't provide search functionality. As a workaround, you can use your terminal's search capabilities (including regex support). Examples for macOS:
-
-        ```bash
-        # Search session IDs (filenames)
-        ls ~/.local/share/goose/sessions/ | grep "full or partial session id"
-
-        # List sessions modified in last 7 days
-        find ~/.local/share/goose/sessions/ -mtime -7 -name "*.jsonl"
-
-        # Show first line (metadata) of each session file
-        for f in ~/.local/share/goose/sessions/*.jsonl; do
-            head -n1 "$f" | grep "your search term" && echo "Found in: $(basename "$f" .jsonl)"
-        done
-
-        # Find search term in session content
-        rg "your search term" ~/.local/share/goose/sessions/
-
-        # Search and show session IDs that contain search term
-        for f in ~/.local/share/goose/sessions/*.jsonl; do
-          if grep -q "your search term" "$f"; then
-            echo "Found in session: $(basename "$f" .jsonl)"
-          fi
-        done
-        ```
-
     </TabItem>
 </Tabs>
 
@@ -287,40 +360,6 @@ Speak to Goose directly instead of typing your prompts.
   </TabItem>
     <TabItem value="cli" label="Goose CLI">
         Voice dictation is not available in the Goose CLI. 
-    </TabItem>
-</Tabs>
-
-## Search Within Sessions
-
-Search allows you to find specific content within your current session. The search functionality is available in both CLI and Desktop interfaces.
-
-<Tabs groupId="interface">
-    <TabItem value="ui" label="Goose Desktop" default>
-        Trigger search using keyboard shortcuts or the search icon:
-
-        | Action | macOS | Windows/Linux |
-        |--------|-------|---------------|
-        | Open Search | `Cmd+F`  | `Ctrl+F`  |
-        | Next Match | `Cmd+G`<br />or `↓` | `Ctrl+G`<br />or `↓` |
-        | Previous Match | `Shift+Cmd+G`<br />or `↑` | `Shift+Ctrl+G`<br />or `↑` |
-        | Use Selection for Find | `Cmd+E` | n/a |
-        | Toggle Case-Sensitivity | `Aa` | `Aa` |
-        | Close Search | `Esc` or X | `Esc` or X |
-
-    </TabItem>
-    <TabItem value="cli" label="Goose CLI">
-        Search functionality is provided by your terminal interface. Use the appropriate shortcut for your environment:
-
-        | Terminal | Operating System | Shortcut |
-        |----------|-----------------|-----------|
-        | iTerm2 | macOS | `Cmd+F` |
-        | Terminal.app | macOS | `Cmd+F` |
-        | Windows Terminal | Windows | `Ctrl+F` |
-        | Linux Terminal | Linux | `Ctrl+F` |
-
-        :::info
-        Your specific terminal emulator may use a different keyboard shortcut. Check your terminal's documentation or settings for the search command.
-        :::
     </TabItem>
 </Tabs>
 
