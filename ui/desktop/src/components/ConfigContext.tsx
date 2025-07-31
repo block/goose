@@ -9,7 +9,6 @@ import {
   removeExtension as apiRemoveExtension,
   providers,
 } from '../api';
-import { client } from '../api/client.gen';
 import type {
   ConfigResponse,
   UpsertConfigQuery,
@@ -18,8 +17,9 @@ import type {
   ProviderDetails,
   ExtensionQuery,
   ExtensionConfig,
-} from '../api/types.gen';
+} from '../api';
 import { removeShims } from './settings/extensions/utils';
+import { ensureClientInitialized } from '../utils';
 
 export type { ExtensionConfig } from '../api/types.gen';
 
@@ -27,15 +27,6 @@ export type { ExtensionConfig } from '../api/types.gen';
 export type FixedExtensionEntry = ExtensionConfig & {
   enabled: boolean;
 };
-
-// Initialize client configuration
-client.setConfig({
-  baseUrl: window.appConfig.get('GOOSE_API_HOST') + ':' + window.appConfig.get('GOOSE_PORT'),
-  headers: {
-    'Content-Type': 'application/json',
-    'X-Secret-Key': window.appConfig.get('secretKey'),
-  },
-});
 
 interface ConfigContextType {
   config: ConfigResponse['config'];
@@ -111,6 +102,23 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     [reloadConfig]
   );
 
+  const refreshExtensions = useCallback(async () => {
+    const result = await apiGetExtensions();
+
+    if (result.response.status === 422) {
+      throw new MalformedConfigError();
+    }
+
+    if (result.error && !result.data) {
+      console.log(result.error);
+      return extensionsList;
+    }
+
+    const extensionResponse: ExtensionResponse = result.data!;
+    setExtensionsList(extensionResponse.extensions);
+    return extensionResponse.extensions;
+  }, [extensionsList]);
+
   const addExtension = useCallback(
     async (name: string, config: ExtensionConfig, enabled: boolean) => {
       // remove shims if present
@@ -122,39 +130,30 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
         body: query,
       });
       await reloadConfig();
+      // Refresh extensions list after successful addition
+      await refreshExtensions();
     },
-    [reloadConfig]
+    [reloadConfig, refreshExtensions]
   );
 
   const removeExtension = useCallback(
     async (name: string) => {
       await apiRemoveExtension({ path: { name: name } });
       await reloadConfig();
+      // Refresh extensions list after successful removal
+      await refreshExtensions();
     },
-    [reloadConfig]
+    [reloadConfig, refreshExtensions]
   );
 
   const getExtensions = useCallback(
     async (forceRefresh = false): Promise<FixedExtensionEntry[]> => {
       if (forceRefresh || extensionsList.length === 0) {
-        const result = await apiGetExtensions();
-
-        if (result.response.status === 422) {
-          throw new MalformedConfigError();
-        }
-
-        if (result.error && !result.data) {
-          console.log(result.error);
-          return extensionsList;
-        }
-
-        const extensionResponse: ExtensionResponse = result.data!;
-        setExtensionsList(extensionResponse.extensions);
-        return extensionResponse.extensions;
+        return await refreshExtensions();
       }
       return extensionsList;
     },
-    [extensionsList]
+    [extensionsList, refreshExtensions]
   );
 
   const toggleExtension = useCallback(
@@ -184,6 +183,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
   useEffect(() => {
     // Load all configuration data and providers on mount
     (async () => {
+      await ensureClientInitialized();
       // Load config
       const configResponse = await readAllConfig();
       setConfig(configResponse.data?.config || {});

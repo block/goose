@@ -846,6 +846,7 @@ impl Session {
     }
 
     async fn process_agent_response(&mut self, interactive: bool) -> Result<()> {
+        // Messages will be auto-compacted in agent.reply() if needed
         let cancel_token = CancellationToken::new();
         let cancel_token_clone = cancel_token.clone();
 
@@ -1138,6 +1139,25 @@ impl Session {
                                     );
                                 },
                                 _ => (),
+                            }
+                        }
+                        Some(Ok(AgentEvent::HistoryReplaced(new_messages))) => {
+                            // Replace the session's message history with the compacted messages
+                            self.messages = new_messages;
+
+                            // Persist the updated messages to the session file
+                            if let Some(session_file) = &self.session_file {
+                                let provider = self.agent.provider().await.ok();
+                                let working_dir = std::env::current_dir().ok();
+                                if let Err(e) = session::persist_messages_with_schedule_id(
+                                    session_file,
+                                    &self.messages,
+                                    provider,
+                                    self.scheduled_job_id.clone(),
+                                    working_dir,
+                                ).await {
+                                    eprintln!("Failed to persist compacted messages: {}", e);
+                                }
                             }
                         }
                         Some(Ok(AgentEvent::ModelChange { model, mode })) => {

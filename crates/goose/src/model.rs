@@ -329,6 +329,7 @@ mod tests {
 
     #[test]
     fn test_valid_configurations() {
+        // Test with environment variables set
         with_var("GOOSE_CONTEXT_LIMIT", Some("50000"), || {
             with_var("GOOSE_TEMPERATURE", Some("0.7"), || {
                 with_var("GOOSE_TOOLSHIM", Some("true"), || {

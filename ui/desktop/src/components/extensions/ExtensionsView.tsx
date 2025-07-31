@@ -5,7 +5,7 @@ import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { Button } from '../ui/button';
 import { Plus } from 'lucide-react';
 import { GPSIcon } from '../ui/icons';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import ExtensionModal from '../settings/extensions/modal/ExtensionModal';
 import {
   getDefaultFormData,
@@ -31,6 +31,13 @@ export default function ExtensionsView({
   const [refreshKey, setRefreshKey] = useState(0);
   const { addExtension } = useConfig();
 
+  // Trigger refresh when deep link config changes (i.e., when a deep link is processed)
+  useEffect(() => {
+    if (viewOptions.deepLinkConfig) {
+      setRefreshKey((prevKey) => prevKey + 1);
+    }
+  }, [viewOptions.deepLinkConfig, viewOptions.showEnvVars]);
+
   const handleModalClose = () => {
     setIsAddModalOpen(false);
   };
@@ -46,7 +53,7 @@ export default function ExtensionsView({
       setRefreshKey((prevKey) => prevKey + 1);
     } catch (error) {
       console.error('Failed to activate extension:', error);
-      // Even if activation fails, we don't reopen the modal
+      setRefreshKey((prevKey) => prevKey + 1);
     }
   };
 

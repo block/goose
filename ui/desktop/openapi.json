@@ -1091,6 +1091,19 @@
           }
         }
       },
+      "Annotated": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/RawTextContent"
+          },
+          {
+            "$ref": "#/components/schemas/RawImageContent"
+          },
+          {
+            "$ref": "#/components/schemas/RawEmbeddedResource"
+          }
+        ]
+      },
       "Annotations": {
         "type": "object",
         "properties": {
@@ -1188,79 +1201,32 @@
       "Content": {
         "oneOf": [
           {
-            "type": "object",
-            "required": [
-              "text",
-              "type"
-            ],
-            "properties": {
-              "text": {
-                "type": "string"
-              },
-              "type": {
-                "type": "string"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RawTextContent"
               }
-            }
+            ]
           },
           {
-            "type": "object",
-            "required": [
-              "data",
-              "mimeType",
-              "type"
-            ],
-            "properties": {
-              "data": {
-                "type": "string"
-              },
-              "mimeType": {
-                "type": "string"
-              },
-              "type": {
-                "type": "string"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RawImageContent"
               }
-            }
+            ]
           },
           {
-            "type": "object",
-            "required": [
-              "resource",
-              "type"
-            ],
-            "properties": {
-              "resource": {
-                "$ref": "#/components/schemas/ResourceContents"
-              },
-              "type": {
-                "type": "string"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RawEmbeddedResource"
               }
-            }
+            ]
           },
           {
-            "type": "object",
-            "required": [
-              "data",
-              "mimeType",
-              "type"
-            ],
-            "properties": {
-              "annotations": {
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/Annotations"
-                  }
-                ]
-              },
-              "data": {
-                "type": "string"
-              },
-              "mimeType": {
-                "type": "string"
-              },
-              "type": {
-                "type": "string"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Annotated"
               }
-            }
+            ]
           }
         ]
       },
@@ -1427,9 +1393,12 @@
         ],
         "properties": {
           "annotations": {
-            "allOf": [
+            "anyOf": [
               {
                 "$ref": "#/components/schemas/Annotations"
+              },
+              {
+                "type": "object"
               }
             ]
           },
@@ -1828,9 +1797,12 @@
         ],
         "properties": {
           "annotations": {
-            "allOf": [
+            "anyOf": [
               {
                 "$ref": "#/components/schemas/Annotations"
+              },
+              {
+                "type": "object"
               }
             ]
           },
@@ -2288,6 +2260,43 @@
           }
         }
       },
+      "RawEmbeddedResource": {
+        "type": "object",
+        "required": [
+          "resource"
+        ],
+        "properties": {
+          "resource": {
+            "$ref": "#/components/schemas/ResourceContents"
+          }
+        }
+      },
+      "RawImageContent": {
+        "type": "object",
+        "required": [
+          "data",
+          "mimeType"
+        ],
+        "properties": {
+          "data": {
+            "type": "string"
+          },
+          "mimeType": {
+            "type": "string"
+          }
+        }
+      },
+      "RawTextContent": {
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "text": {
+            "type": "string"
+          }
+        }
+      },
       "Recipe": {
         "type": "object",
         "description": "A Recipe represents a personalized, user-generated agent configuration that defines\nspecific behaviors and capabilities within the Goose system.\n\n# Fields\n\n## Required Fields\n* `version` - Semantic version of the Recipe file format (defaults to \"1.0.0\")\n* `title` - Short, descriptive name of the Recipe\n* `description` - Detailed description explaining the Recipe's purpose and functionality\n* `Instructions` - Instructions that defines the Recipe's behavior\n\n## Optional Fields\n* `prompt` - the initial prompt to the session to start with\n* `extensions` - List of extension configurations required by the Recipe\n* `context` - Supplementary context information for the Recipe\n* `activities` - Activity labels that appear when loading the Recipe\n* `author` - Information about the Recipe's creator and metadata\n* `parameters` - Additional parameters for the Recipe\n* `response` - Response configuration including JSON schema validation\n* `retry` - Retry configuration for automated validation and recovery\n# Example\n\n\nuse goose::recipe::Recipe;\n\n// Using the builder pattern\nlet recipe = Recipe::builder()\n.title(\"Example Agent\")\n.description(\"An example Recipe configuration\")\n.instructions(\"Act as a helpful assistant\")\n.build()\n.expect(\"Missing required fields\");\n\n// Or using struct initialization\nlet recipe = Recipe {\nversion: \"1.0.0\".to_string(),\ntitle: \"Example Agent\".to_string(),\ndescription: \"An example Recipe configuration\".to_string(),\ninstructions: Some(\"Act as a helpful assistant\".to_string()),\nprompt: None,\nextensions: None,\ncontext: None,\nactivities: None,\nauthor: None,\nsettings: None,\nparameters: None,\nresponse: None,\nsub_recipes: None,\nretry: None,\n};\n",
@@ -2451,11 +2460,11 @@
           {
             "type": "object",
             "required": [
-              "text",
-              "uri"
+              "uri",
+              "text"
             ],
             "properties": {
-              "mime_type": {
+              "mimeType": {
                 "type": "string"
               },
               "text": {
@@ -2469,14 +2478,14 @@
           {
             "type": "object",
             "required": [
-              "blob",
-              "uri"
+              "uri",
+              "blob"
             ],
             "properties": {
               "blob": {
                 "type": "string"
               },
-              "mime_type": {
+              "mimeType": {
                 "type": "string"
               },
               "uri": {
@@ -2898,9 +2907,12 @@
         ],
         "properties": {
           "annotations": {
-            "allOf": [
+            "anyOf": [
               {
                 "$ref": "#/components/schemas/Annotations"
+              },
+              {
+                "type": "object"
               }
             ]
           },
@@ -2927,14 +2939,17 @@
       "Tool": {
         "type": "object",
         "required": [
-          "inputSchema",
-          "name"
+          "name",
+          "inputSchema"
         ],
         "properties": {
           "annotations": {
-            "allOf": [
+            "anyOf": [
               {
                 "$ref": "#/components/schemas/ToolAnnotations"
+              },
+              {
+                "type": "object"
               }
             ]
           },
