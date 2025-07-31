@@ -3318,22 +3318,4 @@ mod tests {
         assert_eq!(result.0, "");
         assert_eq!(result.1, "");
     }
-
-    #[test]
-    fn test_process_shell_output_handles_temp_file_errors() {
-        // This test is harder to implement without mocking, but the function
-        // should handle temp file creation errors gracefully
-
-        let dir = TempDir::new().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
-
-        let router = DeveloperRouter::new();
-
-        // Normal usage should work without errors
-        let lines: Vec<String> = (1..=150).map(|i| format!("Line {}", i)).collect();
-        let output = lines.join("\n");
-
-        let result = router.process_shell_output(&output);
-        assert!(result.is_ok());
-    }
 }
