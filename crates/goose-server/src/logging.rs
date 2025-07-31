@@ -9,7 +9,7 @@ use tracing_subscriber::{
 };
 
 use goose::config::APP_STRATEGY;
-use goose::tracing::langfuse_layer;
+use goose::tracing::{langfuse_layer, otlp_layer};
 
 /// Returns the directory where log files should be stored.
 /// Creates the directory structure if it doesn't exist.
@@ -91,22 +91,24 @@ pub fn setup_logging(name: Option<&str>) -> Result<()> {
             .add_directive(LevelFilter::WARN.into())
     });
 
-    // Build the subscriber with required layers
-    let subscriber = Registry::default()
-        .with(file_layer.with_filter(env_filter))
-        .with(console_layer.with_filter(LevelFilter::INFO));
+    let mut layers = vec![
+        file_layer.with_filter(env_filter).boxed(),
+        console_layer.with_filter(LevelFilter::INFO).boxed(),
+    ];
 
-    // Initialize with Langfuse if available
-    if let Some(langfuse) = langfuse_layer::create_langfuse_observer() {
-        subscriber
-            .with(langfuse.with_filter(LevelFilter::DEBUG))
-            .try_init()
-            .context("Failed to set global subscriber")?;
-    } else {
-        subscriber
-            .try_init()
-            .context("Failed to set global subscriber")?;
+    if let Ok(otlp_tracing_layer) = otlp_layer::init_otlp_tracing_only() {
+        layers.push(otlp_tracing_layer.with_filter(LevelFilter::DEBUG).boxed());
     }
+
+    if let Some(langfuse) = langfuse_layer::create_langfuse_observer() {
+        layers.push(langfuse.with_filter(LevelFilter::DEBUG).boxed());
+    }
+
+    let subscriber = Registry::default().with(layers);
+
+    subscriber
+        .try_init()
+        .context("Failed to set global subscriber")?;
 
     Ok(())
 }

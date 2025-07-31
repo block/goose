@@ -1,7 +1,12 @@
 pub mod langfuse_layer;
 mod observation_layer;
+pub mod otlp_layer;
 
 pub use langfuse_layer::{create_langfuse_observer, LangfuseBatchManager};
 pub use observation_layer::{
     flatten_metadata, map_level, BatchManager, ObservationLayer, SpanData, SpanTracker,
+};
+pub use otlp_layer::{
+    create_otlp_tracing_layer, init_otlp_metrics, init_otlp_tracing, init_otlp_tracing_only,
+    shutdown_otlp, OtlpConfig,
 };

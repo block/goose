@@ -11,7 +11,7 @@ use tracing_subscriber::{
     Registry,
 };
 
-use goose::tracing::langfuse_layer;
+use goose::tracing::{langfuse_layer, otlp_layer};
 use goose_bench::bench_session::BenchAgentError;
 use goose_bench::error_capture::ErrorCaptureLayer;
 
@@ -140,7 +140,10 @@ fn setup_logging_internal(
                 layers.push(ErrorCaptureLayer::new().boxed());
             }
 
-            // Add Langfuse layer if available
+            if let Ok(otlp_tracing_layer) = otlp_layer::init_otlp_tracing_only() {
+                layers.push(otlp_tracing_layer.with_filter(LevelFilter::DEBUG).boxed());
+            }
+
             if let Some(langfuse) = langfuse_layer::create_langfuse_observer() {
                 layers.push(langfuse.with_filter(LevelFilter::DEBUG).boxed());
             }
