@@ -1114,10 +1114,8 @@ impl Session {
                                         }
                                     }
                                     else {
-                                        // Non-subagent notification, display immediately with compact spacing
-                                        if interactive {
-                                            let _ = progress_bars.hide();
-                                            println!("{}", console::style(&formatted_message).green().dim());
+                                        if output::is_showing_thinking() {
+                                            output::set_thinking_message(&formatted_message);
                                         } else {
                                             progress_bars.log(&formatted_message);
                                         }
