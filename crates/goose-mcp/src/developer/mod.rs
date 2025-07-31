@@ -748,9 +748,42 @@ impl DeveloperRouter {
                 )));
         }
 
+        // limit it to 100 lines result, anyting more we will shunt to a tmp file and include it in the result
+        let lines: Vec<&str> = output_str.lines().collect();
+        let line_count = lines.len();
+
+        let final_output = if line_count > 100 {
+            // Create a temporary file with the full output
+            let tmp_file = tempfile::NamedTempFile::new().map_err(|e| {
+                ToolError::ExecutionError(format!("Failed to create temporary file: {}", e))
+            })?;
+
+            // Write the full output to the temp file
+            std::fs::write(tmp_file.path(), &output_str).map_err(|e| {
+                ToolError::ExecutionError(format!("Failed to write to temporary file: {}", e))
+            })?;
+
+            // Keep the temp file from being deleted
+            let (_, path) = tmp_file.keep().map_err(|e| {
+                ToolError::ExecutionError(format!("Failed to persist temporary file: {}", e))
+            })?;
+
+            // Take only the last 100 lines
+            let last_100_lines: Vec<&str> = lines.iter().rev().take(100).rev().copied().collect();
+
+            format!(
+                "The output is very large at {} lines. Below are last 100 lines. To see rest, please look in {}\n\n{}",
+                line_count,
+                path.display(),
+                last_100_lines.join("\n")
+            )
+        } else {
+            output_str.clone()
+        };
+
         Ok(vec![
-            Content::text(output_str.clone()).with_audience(vec![Role::Assistant]),
-            Content::text(output_str)
+            Content::text(final_output.clone()).with_audience(vec![Role::Assistant]),
+            Content::text(final_output)
                 .with_audience(vec![Role::User])
                 .with_priority(0.0),
         ])
