@@ -678,7 +678,7 @@ const createChat = async (
       (function() {
         function setConfig() {
           try {
-            if (typeof Storage !== 'undefined' && window.localStorage) {
+            if (window.localStorage) {
               localStorage.setItem('gooseConfig', '${configStr}');
               return true;
             }

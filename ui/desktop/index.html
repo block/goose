@@ -9,7 +9,7 @@
       (function() {
         function initializeTheme() {
           try {
-            if (typeof Storage !== 'undefined' && window.localStorage) {
+            if (window.localStorage) {
               const useSystemTheme = localStorage.getItem('use_system_theme') === 'true';
               const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
               const savedTheme = localStorage.getItem('theme');
