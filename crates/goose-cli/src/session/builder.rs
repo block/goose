@@ -346,6 +346,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     // Extensions need to be added after the session is created because we change directory when resuming a session
     // If we get extensions_override, only run those extensions and none other
     let extensions_to_run: Vec<_> = if let Some(extensions) = session_config.extensions_override {
+        agent.disable_router_for_recipe().await;
         extensions.into_iter().collect()
     } else {
         ExtensionConfigManager::get_all()

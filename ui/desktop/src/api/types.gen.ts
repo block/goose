@@ -8,6 +8,8 @@ export type AddSubRecipesResponse = {
     success: boolean;
 };
 
+export type Annotated = RawTextContent | RawImageContent | RawEmbeddedResource;
+
 export type Annotations = {
     audience?: Array<Role>;
     priority?: number;
@@ -40,22 +42,7 @@ export type ConfigResponse = {
     config: {};
 };
 
-export type Content = {
-    text: string;
-    type: string;
-} | {
-    data: string;
-    mimeType: string;
-    type: string;
-} | {
-    resource: ResourceContents;
-    type: string;
-} | {
-    annotations?: Annotations;
-    data: string;
-    mimeType: string;
-    type: string;
-};
+export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | Annotated;
 
 export type ContextLengthExceeded = {
     msg: string;
@@ -118,7 +105,9 @@ export type DecodeRecipeResponse = {
 };
 
 export type EmbeddedResource = {
-    annotations?: Annotations;
+    annotations?: Annotations | {
+        [key: string]: unknown;
+    };
     resource: ResourceContents;
 };
 
@@ -265,7 +254,9 @@ export type FrontendToolRequest = {
 };
 
 export type ImageContent = {
-    annotations?: Annotations;
+    annotations?: Annotations | {
+        [key: string]: unknown;
+    };
     data: string;
     mimeType: string;
 };
@@ -407,6 +398,19 @@ export type ProvidersResponse = {
     providers: Array<ProviderDetails>;
 };
 
+export type RawEmbeddedResource = {
+    resource: ResourceContents;
+};
+
+export type RawImageContent = {
+    data: string;
+    mimeType: string;
+};
+
+export type RawTextContent = {
+    text: string;
+};
+
 /**
  * A Recipe represents a personalized, user-generated agent configuration that defines
  * specific behaviors and capabilities within the Goose system.
@@ -495,12 +499,12 @@ export type RedactedThinkingContent = {
 };
 
 export type ResourceContents = {
-    mime_type?: string;
+    mimeType?: string;
     text: string;
     uri: string;
 } | {
     blob: string;
-    mime_type?: string;
+    mimeType?: string;
     uri: string;
 };
 
@@ -679,7 +683,9 @@ export type SummarizationRequested = {
 };
 
 export type TextContent = {
-    annotations?: Annotations;
+    annotations?: Annotations | {
+        [key: string]: unknown;
+    };
     text: string;
 };
 
@@ -689,7 +695,9 @@ export type ThinkingContent = {
 };
 
 export type Tool = {
-    annotations?: ToolAnnotations;
+    annotations?: ToolAnnotations | {
+        [key: string]: unknown;
+    };
     description?: string;
     inputSchema: {
         [key: string]: unknown;

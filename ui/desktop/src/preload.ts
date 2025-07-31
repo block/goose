@@ -83,6 +83,8 @@ type ElectronAPI = {
   setWakelock: (enable: boolean) => Promise<boolean>;
   getWakelockState: () => Promise<boolean>;
   openNotificationsSettings: () => Promise<boolean>;
+  onMouseBackButtonClicked: (callback: () => void) => void;
+  offMouseBackButtonClicked: (callback: () => void) => void;
   on: (
     channel: string,
     callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void
@@ -175,6 +177,15 @@ const electronAPI: ElectronAPI = {
   setWakelock: (enable: boolean) => ipcRenderer.invoke('set-wakelock', enable),
   getWakelockState: () => ipcRenderer.invoke('get-wakelock-state'),
   openNotificationsSettings: () => ipcRenderer.invoke('open-notifications-settings'),
+  onMouseBackButtonClicked: (callback: () => void) => {
+    // Wrapper that ignores the event parameter.
+    const wrappedCallback = (_event: Electron.IpcRendererEvent) => callback();
+    ipcRenderer.on('mouse-back-button-clicked', wrappedCallback);
+    return wrappedCallback;
+  },
+  offMouseBackButtonClicked: (callback: () => void) => {
+    ipcRenderer.removeListener('mouse-back-button-clicked', callback);
+  },
   on: (
     channel: string,
     callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void

@@ -433,7 +433,7 @@ export default function ChatInput({
         message: `Too many tools can degrade performance.\nTool count: ${toolCount} (recommend: ${TOOLS_MAX_SUGGESTED})`,
         action: {
           text: 'View extensions',
-          onClick: () => setView('settings'),
+          onClick: () => setView('extensions'),
         },
         autoShow: false, // Don't auto-show tool count warnings
       });

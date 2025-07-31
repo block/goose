@@ -16,6 +16,7 @@ import {
   Tray,
 } from 'electron';
 import { Buffer } from 'node:buffer';
+import { MouseUpEvent } from './types/electron';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import started from 'electron-squirrel-startup';
@@ -759,6 +760,20 @@ const createChat = async (
     if (input.key === 'i' && input.alt && input.meta) {
       mainWindow.webContents.openDevTools();
       event.preventDefault();
+    }
+  });
+
+  mainWindow.on('app-command', (e, cmd) => {
+    if (cmd === 'browser-backward') {
+      mainWindow.webContents.send('mouse-back-button-clicked');
+      e.preventDefault();
+    }
+  });
+
+  mainWindow.webContents.on('mouse-up', (_event: MouseUpEvent, mouseButton: number) => {
+    // MouseButton 3 is the back button.
+    if (mouseButton === 3) {
+      mainWindow.webContents.send('mouse-back-button-clicked');
     }
   });
 
