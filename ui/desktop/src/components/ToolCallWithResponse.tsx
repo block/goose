@@ -47,21 +47,30 @@ export default function ToolCallWithResponse({
           }}
         />
       </div>
-      {/* MCP UI Resources - Renders interactive UI components from MCP servers */}
-
-      {toolResponse?.toolResult.status === 'success' && toolResponse?.toolResult.value && (
-        <>
-          {toolResponse?.toolResult.value.map((content, index) => (
-            <MCPUIResourceRenderer key={`${content.type}-${index}`} content={content} />
-          ))}
-          <div className="mt-3 p-4 py-3 border border-borderSubtle rounded-lg bg-background-muted flex items-center">
-            <FlaskConical className="mr-2" size={20} />
-            <div className="text-sm font-medium mono">
-              MCP UI is experimental and may change at any time.
-            </div>
-          </div>
-        </>
-      )}
+      {/* MCP UI — Inline */}
+      {toolResponse?.toolResult?.value &&
+        toolResponse.toolResult.value.map((content, index, results) => {
+          if (content.type === 'resource' && content.resource.uri?.startsWith('ui://')) {
+            if (index === results.length - 1) {
+              return (
+                <>
+                  <MCPUIResourceRenderer key={`${content.type}-${index}`} content={content} />
+                  {/* Append a disclaimer if this is the last item in the array */}
+                  <div className="mt-3 p-4 py-3 border border-borderSubtle rounded-lg bg-background-muted flex items-center">
+                    <FlaskConical className="mr-2" size={20} />
+                    <div className="text-sm font-medium mono">
+                      MCP UI is experimental and may change at any time.
+                    </div>
+                  </div>
+                </>
+              );
+            } else {
+              return <MCPUIResourceRenderer key={`${content.type}-${index}`} content={content} />;
+            }
+          } else {
+            return null;
+          }
+        })}
     </>
   );
 }

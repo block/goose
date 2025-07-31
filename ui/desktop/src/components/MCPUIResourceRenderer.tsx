@@ -1,36 +1,6 @@
-/**
- * MCPUIResourceRenderer Component
- *
- * This component renders MCP (Model Context Protocol) UI resources using the @mcp-ui/client package.
- * It handles interactive UI components that can be sent from MCP servers and rendered in the client.
- *
- * Features:
- * - Renders interactive HTML content in sandboxed iframes
- * - Supports external URL embedding
- * - Handles Remote DOM resources
- * - Processes UI actions from embedded content
- * - Provides fallback display for non-interactive resources
- *
- * Usage:
- * ```tsx
- * <MCPUIResourceRenderer
- *   content={resourceContent}
- *   onUIAction={async (result) => {
- *     console.log('UI Action:', result);
- *     return { status: 'handled' };
- *   }}
- * />
- * ```
- *
- * The component automatically detects resource types:
- * - Resources with 'ui://' URIs are rendered as interactive components
- * - Other resources are displayed as fallback content
- * - Non-resource content types are ignored
- */
-
 import { UIResourceRenderer, UIActionResult } from '@mcp-ui/client';
-import { Content } from '../types/message';
-import { useState } from 'react';
+import { ResourceContent } from '../types/message';
+import { useState, useCallback } from 'react';
 
 // Extend UIActionResult to include size-change type
 type ExtendedUIActionResult =
@@ -38,55 +8,66 @@ type ExtendedUIActionResult =
   | {
       type: 'size-change';
       payload: {
-        height: number;
+        height: string;
       };
     };
 
 interface MCPUIResourceRendererProps {
-  content: Content;
+  content: ResourceContent;
 }
 
 export default function MCPUIResourceRenderer({ content }: MCPUIResourceRendererProps) {
-  const [iframeHeight, setIframeHeight] = useState(200);
+  console.log('MCPUIResourceRenderer', content);
+  const [iframeHeight, setIframeHeight] = useState('200px');
 
-  // Check if this is a resource content with ui:// URI
-  if (content.type === 'resource' && content.resource.mimeType === undefined) {
-    console.error('Missing mimeType', content);
-    return;
-  }
-
-  const handleUIAction = async (result: ExtendedUIActionResult) => {
-    console.log('MCP UI Action:', result);
-
-    if (result.type === 'size-change') {
-      console.log('MCP UI Size Change:', result.payload);
-
-      setIframeHeight(result.payload.height);
-    }
+  const handleUIAction = useCallback(async (result: ExtendedUIActionResult) => {
+    console.log('Handle action from MCP UI Action:', result);
 
     // Handle UI actions here
+    switch (result.type) {
+      case 'intent':
+        // TODO: Implement intent handling
+        break;
+
+      case 'link':
+        // TODO: Implement link handling
+        break;
+
+      case 'notify':
+        // TODO: Implement notification handling
+        break;
+
+      case 'prompt':
+        // TODO: Implement prompt handling
+        break;
+
+      case 'tool':
+        // TODO: Implement tool handling
+        break;
+
+      // Currently, `size-change` is non-standard
+      case 'size-change': {
+        // We expect the height to be a string with a unit
+        console.log('Setting iframe height to:', result.payload.height);
+        setIframeHeight(result.payload.height);
+        break;
+      }
+    }
+
     return { status: 'handled' };
-  };
+  }, []);
 
-  if (content.type === 'resource' && content.resource.uri?.startsWith('ui://')) {
-    console.log('MCP UI Resource:', content);
-    return (
-      <>
-        <div className="mt-3 p-4 border border-borderSubtle rounded-lg bg-background-muted">
-          <div className="overflow-hidden rounded-sm">
-            <UIResourceRenderer
-              resource={content.resource}
-              onUIAction={handleUIAction}
-              htmlProps={{
-                style: { minHeight: iframeHeight + 'px' },
-              }}
-            />
-          </div>
-        </div>
-      </>
-    );
-  }
-
-  // For non-resource content types, return null
-  return null;
+  return (
+    <div className="mt-3 p-4 border border-borderSubtle rounded-lg bg-background-muted">
+      <div className="overflow-hidden rounded-sm">
+        <UIResourceRenderer
+          resource={content.resource}
+          onUIAction={handleUIAction}
+          htmlProps={{
+            style: { minHeight: iframeHeight },
+          }}
+        />
+      </div>
+    </div>
+  );
 }
