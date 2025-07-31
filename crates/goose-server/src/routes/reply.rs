@@ -387,9 +387,15 @@ async fn submit_tool_result(
 
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
-        .route("/reply", post(reply_handler).layer(DefaultBodyLimit::max(50 * 1024 * 1024)))
+        .route(
+            "/reply",
+            post(reply_handler).layer(DefaultBodyLimit::max(50 * 1024 * 1024)),
+        )
         .route("/confirm", post(confirm_permission))
-        .route("/tool_result", post(submit_tool_result).layer(DefaultBodyLimit::max(10 * 1024 * 1024)))
+        .route(
+            "/tool_result",
+            post(submit_tool_result).layer(DefaultBodyLimit::max(10 * 1024 * 1024)),
+        )
         .with_state(state)
 }
 
