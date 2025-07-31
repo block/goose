@@ -21,6 +21,7 @@ use tokio::{
     sync::mpsc,
 };
 use url::Url;
+use uuid::Uuid;
 
 use include_dir::{include_dir, Dir};
 use mcp_core::{
@@ -648,13 +649,7 @@ impl DeveloperRouter {
             .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
 
         // Store the child PID for cleanup - generate a unique execution ID
-        let execution_id = format!(
-            "exec_{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        );
+        let execution_id = format!("exec_{}", Uuid::new_v4().simple());
 
         let child_pid = child.id();
 
