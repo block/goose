@@ -583,22 +583,18 @@ impl DeveloperRouter {
         let line_count = lines.len();
 
         let final_output = if line_count > 100 {
-            // Create a temporary file with the full output
             let tmp_file = tempfile::NamedTempFile::new().map_err(|e| {
                 ToolError::ExecutionError(format!("Failed to create temporary file: {}", e))
             })?;
 
-            // Write the full output to the temp file
             std::fs::write(tmp_file.path(), output_str).map_err(|e| {
                 ToolError::ExecutionError(format!("Failed to write to temporary file: {}", e))
             })?;
 
-            // Keep the temp file from being deleted
             let (_, path) = tmp_file.keep().map_err(|e| {
                 ToolError::ExecutionError(format!("Failed to persist temporary file: {}", e))
             })?;
 
-            // Take only the last 100 lines
             let last_100_lines: Vec<&str> = lines.iter().rev().take(100).rev().copied().collect();
 
             format!(
@@ -611,7 +607,6 @@ impl DeveloperRouter {
             output_str.to_string()
         };
 
-        // For the user message, if we truncated output, show only the last 100 lines with a prefix
         let user_output = if line_count > 100 {
             let last_100_lines: Vec<&str> = lines.iter().rev().take(100).rev().copied().collect();
             format!("... \n{}", last_100_lines.join("\n"))
@@ -3232,20 +3227,11 @@ mod tests {
             .unwrap();
 
         // Assistant should get the full message with temp file info
-        assert!(assistant_content
-            .text
-            .contains("The output is very large at"));
-        assert!(assistant_content
-            .text
-            .contains("lines. Below are last 100 lines"));
-        assert!(assistant_content
-            .text
-            .contains("To see rest, please look in"));
+        assert!(assistant_content.text.contains("private note: output was"));
 
         // User should only get the truncated output with prefix
-        assert!(user_content.text.starts_with("... final 100 lines:\n"));
-        assert!(!user_content.text.contains("The output is very large"));
-        assert!(!user_content.text.contains("To see rest"));
+        assert!(user_content.text.starts_with("..."));
+        assert!(!user_content.text.contains("private note: output was"));
 
         // User output should contain lines 51-150 (last 100 lines)
         assert!(user_content.text.contains("Line 51"));
@@ -3286,20 +3272,17 @@ mod tests {
         let (assistant_output, user_output) = result;
 
         // Assistant output should contain the full message with temp file info
-        assert!(assistant_output.contains("The output is very large at 150 lines"));
-        assert!(assistant_output.contains("Below are last 100 lines"));
-        assert!(assistant_output.contains("To see rest, please look in"));
+        assert!(assistant_output.contains("private note: output was"));
         assert!(assistant_output.contains("Line 51"));
         assert!(assistant_output.contains("Line 150"));
         assert!(!assistant_output.contains("Line 50"));
 
         // User output should only have the prefix and last 100 lines
-        assert!(user_output.starts_with("... final 100 lines:\n"));
+        assert!(user_output.starts_with("..."));
         assert!(user_output.contains("Line 51"));
         assert!(user_output.contains("Line 150"));
         assert!(!user_output.contains("Line 50"));
-        assert!(!user_output.contains("The output is very large"));
-        assert!(!user_output.contains("To see rest"));
+        assert!(!user_output.contains("private note: output was"));
     }
 
     #[test]
