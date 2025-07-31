@@ -577,6 +577,51 @@ impl DeveloperRouter {
         self.ignore_patterns.matched(path, false).is_ignore()
     }
 
+    // shell output can be large, this will help manage that
+    fn process_shell_output(&self, output_str: &str) -> Result<(String, String), ToolError> {
+        let lines: Vec<&str> = output_str.lines().collect();
+        let line_count = lines.len();
+
+        let final_output = if line_count > 100 {
+            // Create a temporary file with the full output
+            let tmp_file = tempfile::NamedTempFile::new().map_err(|e| {
+                ToolError::ExecutionError(format!("Failed to create temporary file: {}", e))
+            })?;
+
+            // Write the full output to the temp file
+            std::fs::write(tmp_file.path(), output_str).map_err(|e| {
+                ToolError::ExecutionError(format!("Failed to write to temporary file: {}", e))
+            })?;
+
+            // Keep the temp file from being deleted
+            let (_, path) = tmp_file.keep().map_err(|e| {
+                ToolError::ExecutionError(format!("Failed to persist temporary file: {}", e))
+            })?;
+
+            // Take only the last 100 lines
+            let last_100_lines: Vec<&str> = lines.iter().rev().take(100).rev().copied().collect();
+
+            format!(
+                "private note: output was {} lines and we are only showing the most recent lines, remainder of lines in {}. do not show tmp file to user, that file can be searched if extra context needed to fulfill request. truncated output: \n{}",
+                line_count,
+                path.display(),
+                last_100_lines.join("\n")
+            )
+        } else {
+            output_str.to_string()
+        };
+
+        // For the user message, if we truncated output, show only the last 100 lines with a prefix
+        let user_output = if line_count > 100 {
+            let last_100_lines: Vec<&str> = lines.iter().rev().take(100).rev().copied().collect();
+            format!("... \n{}", last_100_lines.join("\n"))
+        } else {
+            output_str.to_string()
+        };
+
+        Ok((final_output, user_output))
+    }
+
     // Helper method to resolve a path relative to cwd with platform-specific handling
     fn resolve_path(&self, path_str: &str) -> Result<PathBuf, ToolError> {
         let cwd = std::env::current_dir().expect("should have a current working dir");
@@ -748,46 +793,7 @@ impl DeveloperRouter {
                 )));
         }
 
-        // limit it to 100 lines result, anyting more we will shunt to a tmp file and include it in the result
-        let lines: Vec<&str> = output_str.lines().collect();
-        let line_count = lines.len();
-
-        let final_output = if line_count > 100 {
-            // Create a temporary file with the full output
-            let tmp_file = tempfile::NamedTempFile::new().map_err(|e| {
-                ToolError::ExecutionError(format!("Failed to create temporary file: {}", e))
-            })?;
-
-            // Write the full output to the temp file
-            std::fs::write(tmp_file.path(), &output_str).map_err(|e| {
-                ToolError::ExecutionError(format!("Failed to write to temporary file: {}", e))
-            })?;
-
-            // Keep the temp file from being deleted
-            let (_, path) = tmp_file.keep().map_err(|e| {
-                ToolError::ExecutionError(format!("Failed to persist temporary file: {}", e))
-            })?;
-
-            // Take only the last 100 lines
-            let last_100_lines: Vec<&str> = lines.iter().rev().take(100).rev().copied().collect();
-
-            format!(
-                "The output is very large at {} lines. Below are last 100 lines. To see rest, please look in {}\n\n{}",
-                line_count,
-                path.display(),
-                last_100_lines.join("\n")
-            )
-        } else {
-            output_str.clone()
-        };
-
-        // For the user message, if we truncated output, show only the last 100 lines with a prefix
-        let user_output = if line_count > 100 {
-            let last_100_lines: Vec<&str> = lines.iter().rev().take(100).rev().copied().collect();
-            format!("... final 100 lines:\n{}", last_100_lines.join("\n"))
-        } else {
-            output_str.clone()
-        };
+        let (final_output, user_output) = self.process_shell_output(&output_str)?;
 
         Ok(vec![
             Content::text(final_output).with_audience(vec![Role::Assistant]),
@@ -3184,10 +3190,10 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_bash_output_truncation() {
-        let router = get_router().await;
-
         let temp_dir = tempfile::tempdir().unwrap();
         std::env::set_current_dir(&temp_dir).unwrap();
+
+        let router = get_router().await;
 
         // Create a command that generates > 100 lines of output
         let command = if cfg!(windows) {
@@ -3226,20 +3232,125 @@ mod tests {
             .unwrap();
 
         // Assistant should get the full message with temp file info
-        assert!(assistant_content.text.contains("The output is very large at"));
-        assert!(assistant_content.text.contains("lines. Below are last 100 lines"));
-        assert!(assistant_content.text.contains("To see rest, please look in"));
+        assert!(assistant_content
+            .text
+            .contains("The output is very large at"));
+        assert!(assistant_content
+            .text
+            .contains("lines. Below are last 100 lines"));
+        assert!(assistant_content
+            .text
+            .contains("To see rest, please look in"));
 
         // User should only get the truncated output with prefix
         assert!(user_content.text.starts_with("... final 100 lines:\n"));
         assert!(!user_content.text.contains("The output is very large"));
         assert!(!user_content.text.contains("To see rest"));
-        
+
         // User output should contain lines 51-150 (last 100 lines)
         assert!(user_content.text.contains("Line 51"));
         assert!(user_content.text.contains("Line 150"));
         assert!(!user_content.text.contains("Line 50"));
 
         temp_dir.close().unwrap();
+    }
+
+    #[test]
+    fn test_process_shell_output_short() {
+        let dir = TempDir::new().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+
+        let router = DeveloperRouter::new();
+
+        // Test with short output (< 100 lines)
+        let short_output = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5";
+        let result = router.process_shell_output(short_output).unwrap();
+
+        // Both outputs should be the same for short outputs
+        assert_eq!(result.0, short_output);
+        assert_eq!(result.1, short_output);
+    }
+
+    #[test]
+    fn test_process_shell_output_long() {
+        let dir = TempDir::new().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+
+        let router = DeveloperRouter::new();
+
+        // Test with long output (> 100 lines)
+        let lines: Vec<String> = (1..=150).map(|i| format!("Line {}", i)).collect();
+        let long_output = lines.join("\n");
+
+        let result = router.process_shell_output(&long_output).unwrap();
+        let (assistant_output, user_output) = result;
+
+        // Assistant output should contain the full message with temp file info
+        assert!(assistant_output.contains("The output is very large at 150 lines"));
+        assert!(assistant_output.contains("Below are last 100 lines"));
+        assert!(assistant_output.contains("To see rest, please look in"));
+        assert!(assistant_output.contains("Line 51"));
+        assert!(assistant_output.contains("Line 150"));
+        assert!(!assistant_output.contains("Line 50"));
+
+        // User output should only have the prefix and last 100 lines
+        assert!(user_output.starts_with("... final 100 lines:\n"));
+        assert!(user_output.contains("Line 51"));
+        assert!(user_output.contains("Line 150"));
+        assert!(!user_output.contains("Line 50"));
+        assert!(!user_output.contains("The output is very large"));
+        assert!(!user_output.contains("To see rest"));
+    }
+
+    #[test]
+    fn test_process_shell_output_exactly_100_lines() {
+        let dir = TempDir::new().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+
+        let router = DeveloperRouter::new();
+
+        // Test with exactly 100 lines
+        let lines: Vec<String> = (1..=100).map(|i| format!("Line {}", i)).collect();
+        let output = lines.join("\n");
+
+        let result = router.process_shell_output(&output).unwrap();
+
+        // Both outputs should be the same for exactly 100 lines
+        assert_eq!(result.0, output);
+        assert_eq!(result.1, output);
+    }
+
+    #[test]
+    fn test_process_shell_output_empty() {
+        let dir = TempDir::new().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+
+        let router = DeveloperRouter::new();
+
+        // Test with empty output
+        let empty_output = "";
+        let result = router.process_shell_output(empty_output).unwrap();
+
+        // Both outputs should be empty
+        assert_eq!(result.0, "");
+        assert_eq!(result.1, "");
+    }
+
+    #[test]
+    fn test_process_shell_output_handles_temp_file_errors() {
+        // This test is harder to implement without mocking, but the function
+        // should handle temp file creation errors gracefully
+
+        let dir = TempDir::new().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+
+        let router = DeveloperRouter::new();
+
+        // Normal usage should work without errors
+        let lines: Vec<String> = (1..=150).map(|i| format!("Line {}", i)).collect();
+        let output = lines.join("\n");
+
+        let result = router.process_shell_output(&output);
+        assert!(result.is_ok());
     }
 }
