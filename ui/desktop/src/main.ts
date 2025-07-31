@@ -1727,8 +1727,8 @@ app.whenReady().then(async () => {
           "connect-src 'self' http://127.0.0.1:* https://api.github.com https://github.com https://objects.githubusercontent.com" +
           // Don't allow any plugins
           "object-src 'none';" +
-          // Don't allow any frames
-          "frame-src 'none';" +
+          // Allow all frames (iframes)
+          "frame-src 'self' https: http:;" +
           // Font sources - allow self, data URLs, and external fonts
           "font-src 'self' data: https:;" +
           // Media sources - allow microphone

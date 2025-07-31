@@ -8,6 +8,7 @@ import Dot, { LoadingStatus } from './ui/Dot';
 import { NotificationEvent } from '../hooks/useMessageStream';
 import { ChevronRight, LoaderCircle } from 'lucide-react';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
+import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
@@ -30,15 +31,30 @@ export default function ToolCallWithResponse({
   }
 
   return (
-    <div
-      className={cn(
-        'w-full text-sm rounded-lg overflow-hidden border-borderSubtle border bg-background-muted'
-      )}
-    >
-      <ToolCallView
-        {...{ isCancelledMessage, toolCall, toolResponse, notifications, isStreamingMessage }}
-      />
-    </div>
+    <>
+      <div
+        className={cn(
+          'w-full text-sm rounded-lg overflow-hidden border-borderSubtle border bg-background-muted'
+        )}
+      >
+        <ToolCallView
+          {...{
+            isCancelledMessage,
+            toolCall,
+            toolResponse,
+            notifications,
+            isStreamingMessage,
+          }}
+        />
+      </div>
+      {/* MCP UI Resources - Renders interactive UI components from MCP servers */}
+
+      {toolResponse?.toolResult.status === 'success' &&
+        toolResponse?.toolResult.value &&
+        toolResponse?.toolResult.value.map((content, index) => (
+          <MCPUIResourceRenderer key={`${content.type}-${index}`} content={content} />
+        ))}
+    </>
   );
 }
 
@@ -536,6 +552,7 @@ function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
             }}
           />
         )}
+        {result.type === 'resource' && <pre>{JSON.stringify(result, null, 2)}</pre>}
       </div>
     </ToolCallExpandable>
   );
