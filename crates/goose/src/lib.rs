@@ -2,7 +2,6 @@ pub mod agents;
 pub mod config;
 pub mod context_mgmt;
 pub mod conversation;
-mod conversation_fixer;
 pub mod message;
 pub mod model;
 pub mod permission;

@@ -58,7 +58,7 @@ use super::platform_tools;
 use super::router_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::subagent_task_config::TaskConfig;
-use crate::conversation_fixer::{debug_conversation_fix, ConversationFixer};
+use crate::conversation::{debug_conversation_fix, fix_conversation};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 
@@ -224,7 +224,7 @@ impl Agent {
         session: &Option<SessionConfig>,
     ) -> Result<ReplyContext> {
         let unfixed_messages = unfixed_conversation.messages().clone();
-        let (conversation, issues) = ConversationFixer::fix_conversation(unfixed_conversation);
+        let (conversation, issues) = fix_conversation(unfixed_conversation);
         if !issues.is_empty() {
             tracing::warn!(
                 "Conversation issue fixed: {}",
