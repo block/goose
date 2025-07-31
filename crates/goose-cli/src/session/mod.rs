@@ -1567,12 +1567,22 @@ async fn cleanup_shell_processes() {
     if tracked_pids.is_empty() {
         return;
     }
-
-    for pid in tracked_pids {
-        let _ = tokio::process::Command::new("kill")
-            .args(&["-TERM", &pid.to_string()])
-            .output()
-            .await;
+    if cfg!(windows){
+        // On Windows, we can use taskkill to terminate processes by PID
+        for pid in tracked_pids {
+            let _ = tokio::process::Command::new("taskkill")
+                .args(&["/F", "/PID", &pid.to_string()])
+                .output()
+                .await;
+        }
+    }else {
+        // On Unix-like systems, we can use kill to terminate processes by PID
+        for pid in tracked_pids {
+            let _ = tokio::process::Command::new("kill")
+                .args(&["-TERM", &pid.to_string()])
+                .output()
+                .await;
+        }
     }
 }
 
