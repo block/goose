@@ -545,36 +545,20 @@ mod tests {
     #[test]
     fn test_claude_code_invalid_model_no_fallback() {
         // Test that an invalid model is kept as-is (no fallback)
-        with_var("GOOSE_CONTEXT_LIMIT", None::<&str>, || {
-            with_var("GOOSE_TEMPERATURE", None::<&str>, || {
-                with_var("GOOSE_TOOLSHIM", None::<&str>, || {
-                    with_var("GOOSE_TOOLSHIM_OLLAMA_MODEL", None::<&str>, || {
-                        let invalid_model = ModelConfig::new("invalid-model").unwrap();
-                        let provider = ClaudeCodeProvider::from_env(invalid_model).unwrap();
-                        let config = provider.get_model_config();
+        let invalid_model = ModelConfig::new_or_fail("invalid-model");
+        let provider = ClaudeCodeProvider::from_env(invalid_model).unwrap();
+        let config = provider.get_model_config();
 
-                        assert_eq!(config.model_name, "invalid-model");
-                    });
-                });
-            });
-        });
+        assert_eq!(config.model_name, "invalid-model");
     }
 
     #[test]
     fn test_claude_code_valid_model() {
         // Test that a valid model is preserved
-        with_var("GOOSE_CONTEXT_LIMIT", None::<&str>, || {
-            with_var("GOOSE_TEMPERATURE", None::<&str>, || {
-                with_var("GOOSE_TOOLSHIM", None::<&str>, || {
-                    with_var("GOOSE_TOOLSHIM_OLLAMA_MODEL", None::<&str>, || {
-                        let valid_model = ModelConfig::new("sonnet").unwrap();
-                        let provider = ClaudeCodeProvider::from_env(valid_model).unwrap();
-                        let config = provider.get_model_config();
+        let valid_model = ModelConfig::new_or_fail("sonnet");
+        let provider = ClaudeCodeProvider::from_env(valid_model).unwrap();
+        let config = provider.get_model_config();
 
-                        assert_eq!(config.model_name, "sonnet");
-                    });
-                });
-            });
-        });
+        assert_eq!(config.model_name, "sonnet");
     }
 }
