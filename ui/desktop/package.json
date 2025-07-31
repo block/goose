@@ -79,7 +79,6 @@
     "react-toastify": "^10.0.0",
     "remark-gfm": "^4.0.1",
     "split-type": "^0.3.4",
-    "tailwind": "^4.0.0",
     "tailwind-merge": "^2.5.4",
     "tailwindcss-animate": "^1.0.7",
     "tw-animate-css": "^1.3.4",
