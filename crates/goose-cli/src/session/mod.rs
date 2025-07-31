@@ -1039,8 +1039,7 @@ impl Session {
                                             if let Some(Value::String(msg)) = o.get("message") {
                                                 // Extract subagent info for better display
                                                 let subagent_id = o.get("subagent_id")
-                                                    .and_then(|v| v.as_str())
-                                                    .unwrap_or("unknown");
+                                                    .and_then(|v| v.as_str());
                                                 let notification_type = o.get("type")
                                                     .and_then(|v| v.as_str())
                                                     .unwrap_or("");
@@ -1079,7 +1078,7 @@ impl Session {
                                                         msg.to_string()
                                                     }
                                                 };
-                                                (formatted, Some(subagent_id.to_string()), Some(notification_type.to_string()))
+                                                (formatted, subagent_id.map(|s|s.to_string()), Some(notification_type.to_string()))
                                             } else if let Some(Value::String(output)) = o.get("output") {
                                                 // Fallback for other MCP notification types
                                                 (output.to_owned(), None, None)
