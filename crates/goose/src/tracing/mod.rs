@@ -7,6 +7,6 @@ pub use observation_layer::{
     flatten_metadata, map_level, BatchManager, ObservationLayer, SpanData, SpanTracker,
 };
 pub use otlp_layer::{
-    create_otlp_tracing_layer, init_otlp_metrics, init_otlp_tracing, init_otlp_tracing_only,
-    shutdown_otlp, OtlpConfig,
+    create_otlp_metrics_filter, create_otlp_tracing_filter, create_otlp_tracing_layer,
+    init_otlp_metrics, init_otlp_tracing, init_otlp_tracing_only, shutdown_otlp, OtlpConfig,
 };

@@ -96,8 +96,17 @@ pub fn setup_logging(name: Option<&str>) -> Result<()> {
         console_layer.with_filter(LevelFilter::INFO).boxed(),
     ];
 
-    if let Ok(otlp_tracing_layer) = otlp_layer::init_otlp_tracing_only() {
-        layers.push(otlp_tracing_layer.with_filter(LevelFilter::DEBUG).boxed());
+    if let Ok((otlp_tracing_layer, otlp_metrics_layer)) = otlp_layer::init_otlp() {
+        layers.push(
+            otlp_tracing_layer
+                .with_filter(otlp_layer::create_otlp_tracing_filter())
+                .boxed(),
+        );
+        layers.push(
+            otlp_metrics_layer
+                .with_filter(otlp_layer::create_otlp_metrics_filter())
+                .boxed(),
+        );
     }
 
     if let Some(langfuse) = langfuse_layer::create_langfuse_observer() {
