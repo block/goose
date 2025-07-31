@@ -781,9 +781,17 @@ impl DeveloperRouter {
             output_str.clone()
         };
 
+        // For the user message, if we truncated output, show only the last 100 lines with a prefix
+        let user_output = if line_count > 100 {
+            let last_100_lines: Vec<&str> = lines.iter().rev().take(100).rev().copied().collect();
+            format!("... final 100 lines:\n{}", last_100_lines.join("\n"))
+        } else {
+            output_str.clone()
+        };
+
         Ok(vec![
-            Content::text(final_output.clone()).with_audience(vec![Role::Assistant]),
-            Content::text(final_output)
+            Content::text(final_output).with_audience(vec![Role::Assistant]),
+            Content::text(user_output)
                 .with_audience(vec![Role::User])
                 .with_priority(0.0),
         ])
@@ -3169,6 +3177,68 @@ mod tests {
         let err = result.err().unwrap();
         assert!(matches!(err, ToolError::InvalidParameters(_)));
         assert!(err.to_string().contains("does not exist"));
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_bash_output_truncation() {
+        let router = get_router().await;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a command that generates > 100 lines of output
+        let command = if cfg!(windows) {
+            "for /L %i in (1,1,150) do @echo Line %i"
+        } else {
+            "for i in {1..150}; do echo \"Line $i\"; done"
+        };
+
+        let result = router
+            .call_tool("shell", json!({ "command": command }), dummy_sender())
+            .await
+            .unwrap();
+
+        // Should have two Content items
+        assert_eq!(result.len(), 2);
+
+        // Find the Assistant and User content
+        let assistant_content = result
+            .iter()
+            .find(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::Assistant))
+            })
+            .unwrap()
+            .as_text()
+            .unwrap();
+
+        let user_content = result
+            .iter()
+            .find(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::User))
+            })
+            .unwrap()
+            .as_text()
+            .unwrap();
+
+        // Assistant should get the full message with temp file info
+        assert!(assistant_content.text.contains("The output is very large at"));
+        assert!(assistant_content.text.contains("lines. Below are last 100 lines"));
+        assert!(assistant_content.text.contains("To see rest, please look in"));
+
+        // User should only get the truncated output with prefix
+        assert!(user_content.text.starts_with("... final 100 lines:\n"));
+        assert!(!user_content.text.contains("The output is very large"));
+        assert!(!user_content.text.contains("To see rest"));
+        
+        // User output should contain lines 51-150 (last 100 lines)
+        assert!(user_content.text.contains("Line 51"));
+        assert!(user_content.text.contains("Line 150"));
+        assert!(!user_content.text.contains("Line 50"));
 
         temp_dir.close().unwrap();
     }
