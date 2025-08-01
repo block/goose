@@ -88,7 +88,7 @@ pub fn init_otlp_metrics(
         .with_resource(resource)
         .with_reader(
             opentelemetry_sdk::metrics::PeriodicReader::builder(exporter, runtime::Tokio)
-                .with_interval(Duration::from_secs(5))  // Reduced from 30s to 5s for faster metrics
+                .with_interval(Duration::from_secs(3))
                 .build(),
         )
         .build();
@@ -147,7 +147,7 @@ pub fn create_otlp_metrics_layer(
         .with_resource(resource)
         .with_reader(
             opentelemetry_sdk::metrics::PeriodicReader::builder(exporter, runtime::Tokio)
-                .with_interval(Duration::from_secs(5))  // Reduced from 30s to 5s for faster metrics
+                .with_interval(Duration::from_secs(5)) // Reduced from 30s to 5s for faster metrics
                 .build(),
         )
         .build();

@@ -1013,7 +1013,7 @@ impl Session {
                                 for content in &message.content {
                                     if let MessageContent::ToolRequest(tool_request) = content {
                                         if let Ok(tool_call) = &tool_request.tool_call {
-                                            tracing::info!(monotonic_counter.tool_calls = 1,
+                                            tracing::info!(monotonic_counter.goose.tool_calls = 1,
                                                 tool_name = %tool_call.name,
                                                 "Tool call executed"
                                             );

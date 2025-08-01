@@ -719,7 +719,7 @@ pub async fn cli() -> Result<()> {
     };
 
     tracing::info!(
-        monotonic_counter.cli_commands = 1,
+        monotonic_counter.goose.cli_commands = 1,
         command = command_name,
         "CLI command executed"
     );
@@ -899,7 +899,7 @@ pub async fn cli() -> Result<()> {
                 }
                 (_, _, Some(recipe_name)) => {
                     // Record recipe usage metrics
-                    tracing::info!(monotonic_counter.recipe_runs = 1,
+                    tracing::info!(monotonic_counter.goose.recipe_runs = 1,
                         recipe_name = %recipe_name,
                         "Recipe execution started"
                     );
