@@ -518,7 +518,6 @@ impl Provider for ClaudeCodeProvider {
 mod tests {
     use super::ModelConfig;
     use super::*;
-    use temp_env::with_var;
 
     #[test]
     fn test_claude_code_model_config() {
