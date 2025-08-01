@@ -44,6 +44,9 @@ jobs:
   # ------------------------------------------------------------
   bundle-desktop:
     uses: ./.github/workflows/bundle-desktop.yml
+    permissions:
+      id-token: write
+      contents: read
     with:
       signing: true
     secrets:
@@ -54,6 +57,9 @@ jobs:
   # ------------------------------------------------------------
   bundle-desktop-intel:
     uses: ./.github/workflows/bundle-desktop-intel.yml
+    permissions:
+      id-token: write
+      contents: read
     with:
       signing: true
     secrets:

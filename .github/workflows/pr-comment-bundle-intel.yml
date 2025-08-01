@@ -63,6 +63,9 @@ jobs:
     needs: [trigger-on-command]
     if: ${{ needs.trigger-on-command.outputs.continue == 'true' }}
     uses: ./.github/workflows/bundle-desktop-intel.yml
+    permissions:
+      id-token: write
+      contents: read
     with:
       signing: false
       ref: ${{ needs.trigger-on-command.outputs.head_sha }}

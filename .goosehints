@@ -1,6 +1,16 @@
-This is a rust project with crates in crate dir. 
+This is a rust project with crates in the crates dir:
+goose: the main code for goose, contains all the core logic
+goose-bench: bench marking
+goose-cli: the command line interface, use goose crate
+goose-mcp: the mcp servers that ship with goose. the developer sub system is of special interest
+goose-server: the server that suports the desktop (electron) app. also known as goosed
+
 
 ui/desktop has an electron app in typescript. 
+
+non trivial features should be implemented in the goose crate and then be called from the goose-cli crate for the cli. for the desktop, you want to add routes to 
+goose-server/src/routes. you can then run `just generate-openapi` to generate the openapi spec which will modify the ui/desktop/src/api files. once you have
+that you can call the functionality from the server from the typescript.
 
 tips: 
 - can look at unstaged changes for what is being worked on if starting

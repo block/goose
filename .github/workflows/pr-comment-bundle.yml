@@ -107,6 +107,9 @@ jobs:
     needs: [trigger-on-command]
     if: ${{ needs.trigger-on-command.outputs.continue == 'true' }}
     uses: ./.github/workflows/bundle-desktop.yml
+    permissions:
+      id-token: write
+      contents: read
     with:
       signing: false
       ref: ${{ needs.trigger-on-command.outputs.pr_sha }}
