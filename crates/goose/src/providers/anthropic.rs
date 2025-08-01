@@ -24,9 +24,9 @@ use rmcp::model::Tool;
 
 pub const ANTHROPIC_DEFAULT_MODEL: &str = "claude-3-5-sonnet-latest";
 pub const ANTHROPIC_KNOWN_MODELS: &[&str] = &[
-    "claude-sonnet-4-latest",
+    "claude-sonnet-4-0",
     "claude-sonnet-4-20250514",
-    "claude-opus-4-latest",
+    "claude-opus-4-0",
     "claude-opus-4-20250514",
     "claude-3-7-sonnet-latest",
     "claude-3-7-sonnet-20250219",
@@ -134,9 +134,9 @@ impl Provider for AnthropicProvider {
             "Claude and other models from Anthropic",
             ANTHROPIC_DEFAULT_MODEL,
             vec![
-                ModelInfo::new("claude-sonnet-4-latest", 200000),
+                ModelInfo::new("claude-sonnet-4-0", 200000),
                 ModelInfo::new("claude-sonnet-4-20250514", 200000),
-                ModelInfo::new("claude-opus-4-latest", 200000),
+                ModelInfo::new("claude-opus-4-0", 200000),
                 ModelInfo::new("claude-opus-4-20250514", 200000),
                 ModelInfo::new("claude-3-7-sonnet-latest", 200000),
                 ModelInfo::new("claude-3-7-sonnet-20250219", 200000),
