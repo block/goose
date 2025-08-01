@@ -290,8 +290,8 @@ mod tests {
     async fn test_check_compaction_needed() {
         let mock_provider = Arc::new(MockProvider {
             model_config: ModelConfig::new("test-model")
-                .unwrap()
-                .with_context_limit(100_000.into()),
+                .expect("Failed to create model config")
+                .with_context_limit(Some(100_000)),
         });
 
         let agent = Agent::new();
@@ -316,8 +316,8 @@ mod tests {
     async fn test_check_compaction_needed_disabled() {
         let mock_provider = Arc::new(MockProvider {
             model_config: ModelConfig::new("test-model")
-                .unwrap()
-                .with_context_limit(100_000.into()),
+                .expect("Failed to create model config")
+                .with_context_limit(Some(100_000)),
         });
 
         let agent = Agent::new();
@@ -344,8 +344,8 @@ mod tests {
     async fn test_perform_compaction() {
         let mock_provider = Arc::new(MockProvider {
             model_config: ModelConfig::new("test-model")
-                .unwrap()
-                .with_context_limit(50_000.into()),
+                .expect("Failed to create model config")
+                .with_context_limit(Some(50_000)),
         });
 
         let agent = Agent::new();
@@ -372,8 +372,8 @@ mod tests {
     async fn test_auto_compact_disabled() {
         let mock_provider = Arc::new(MockProvider {
             model_config: ModelConfig::new("test-model")
-                .unwrap()
-                .with_context_limit(10_000.into()),
+                .expect("Failed to create model config")
+                .with_context_limit(Some(10_000)),
         });
 
         let agent = Agent::new();
@@ -403,8 +403,8 @@ mod tests {
     async fn test_auto_compact_below_threshold() {
         let mock_provider = Arc::new(MockProvider {
             model_config: ModelConfig::new("test-model")
-                .unwrap()
-                .with_context_limit(100_000.into()), // Increased to ensure overhead doesn't dominate
+                .expect("Failed to create model config")
+                .with_context_limit(Some(100_000)), // Increased to ensure overhead doesn't dominate
         });
 
         let agent = Agent::new();
@@ -425,8 +425,8 @@ mod tests {
     async fn test_auto_compact_above_threshold() {
         let mock_provider = Arc::new(MockProvider {
             model_config: ModelConfig::new("test-model")
-                .unwrap()
-                .with_context_limit(50_000.into()), // Realistic context limit that won't underflow
+                .expect("Failed to create model config")
+                .with_context_limit(Some(50_000)), // Realistic context limit that won't underflow
         });
 
         let agent = Agent::new();
@@ -472,8 +472,8 @@ mod tests {
     async fn test_auto_compact_respects_config() {
         let mock_provider = Arc::new(MockProvider {
             model_config: ModelConfig::new("test-model")
-                .unwrap()
-                .with_context_limit(30_000.into()), // Smaller context limit to make threshold easier to hit
+                .expect("Failed to create model config")
+                .with_context_limit(Some(30_000)), // Smaller context limit to make threshold easier to hit
         });
 
         let agent = Agent::new();
