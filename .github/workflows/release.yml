@@ -70,18 +70,12 @@ jobs:
   # ------------------------------------------------------------
   bundle-desktop-linux:
     uses: ./.github/workflows/bundle-desktop-linux.yml
-    permissions:
-      id-token: write
-      contents: read
 
 #  # ------------------------------------------------------------
 #  # 6) Bundle Desktop App (Windows)
 #  # ------------------------------------------------------------
   bundle-desktop-windows:
     uses: ./.github/workflows/bundle-desktop-windows.yml
-    permissions:
-      id-token: write
-      contents: read
     with:
       signing: true
     secrets:
