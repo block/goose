@@ -67,6 +67,7 @@ jobs:
     uses: ./.github/workflows/bundle-desktop.yml
     permissions:
       id-token: write
+      contents: read
     with:
       version: ${{ needs.prepare-version.outputs.version }}
       signing: false
@@ -79,6 +80,7 @@ jobs:
     uses: ./.github/workflows/bundle-desktop-linux.yml
     permissions:
       id-token: write
+      contents: read
     with:
       version: ${{ needs.prepare-version.outputs.version }}
 
@@ -90,6 +92,7 @@ jobs:
     uses: ./.github/workflows/bundle-desktop-windows.yml
     permissions:
       id-token: write
+      contents: read
     with:
       version: ${{ needs.prepare-version.outputs.version }}
       signing: false

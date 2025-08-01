@@ -68,6 +68,7 @@ jobs:
     uses: ./.github/workflows/bundle-desktop-windows.yml
     permissions:
       id-token: write
+      contents: read
     with:
       signing: false
       ref: ${{ needs.trigger-on-command.outputs.head_sha }}

@@ -46,6 +46,7 @@ jobs:
     uses: ./.github/workflows/bundle-desktop.yml
     permissions:
       id-token: write
+      contents: read
     with:
       signing: true
     secrets:
@@ -58,6 +59,7 @@ jobs:
     uses: ./.github/workflows/bundle-desktop-intel.yml
     permissions:
       id-token: write
+      contents: read
     with:
       signing: true
     secrets:
@@ -70,6 +72,7 @@ jobs:
     uses: ./.github/workflows/bundle-desktop-linux.yml
     permissions:
       id-token: write
+      contents: read
 
 #  # ------------------------------------------------------------
 #  # 6) Bundle Desktop App (Windows)
@@ -78,6 +81,7 @@ jobs:
     uses: ./.github/workflows/bundle-desktop-windows.yml
     permissions:
       id-token: write
+      contents: read
     with:
       signing: true
     secrets:
