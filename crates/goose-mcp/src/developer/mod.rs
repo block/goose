@@ -3289,8 +3289,6 @@ mod tests {
         assert!(user_content.text.contains("Line 150"));
         assert!(!user_content.text.contains("Line 50"));
 
-        println!("assistant output: {}", assistant_content.text);
-
         let start_tag = "remainder of lines in";
         let end_tag = "do not show tmp file to user";
 
