@@ -280,7 +280,7 @@ export type ListSchedulesResponse = {
  */
 export type Message = {
     content: Array<MessageContent>;
-    created: number;
+    created?: number;
     id?: string | null;
     role: Role;
 };
