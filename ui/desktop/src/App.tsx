@@ -39,6 +39,7 @@ import {
   recoverConfig,
   validateConfig,
 } from './api/sdk.gen';
+import { ensureClientInitialized } from './utils';
 import PermissionSettingsView from './components/settings/permission/PermissionSetting';
 import { COST_TRACKING_ENABLED } from './updates';
 
@@ -797,6 +798,7 @@ export default function App() {
       // Even when resuming a session, we need to initialize the system
       const initializeForSessionResume = async () => {
         try {
+          await ensureClientInitialized();
           await initConfig();
           await readAllConfig({ throwOnError: true });
 
@@ -866,6 +868,7 @@ export default function App() {
               return Promise.resolve();
             })();
 
+        await ensureClientInitialized();
         await initConfig();
 
         try {
