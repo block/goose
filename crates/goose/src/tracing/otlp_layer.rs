@@ -25,20 +25,23 @@ impl Default for OtlpConfig {
 }
 
 impl OtlpConfig {
-    pub fn from_env() -> Self {
-        let mut config = Self::default();
-
+    pub fn from_env() -> Option<Self> {
         if let Ok(endpoint) = env::var("OTEL_EXPORTER_OTLP_ENDPOINT") {
-            config.endpoint = endpoint;
-        }
+            let mut config = Self {
+                endpoint,
+                timeout: Duration::from_secs(10),
+            };
 
-        if let Ok(timeout_str) = env::var("OTEL_EXPORTER_OTLP_TIMEOUT") {
-            if let Ok(timeout_ms) = timeout_str.parse::<u64>() {
-                config.timeout = Duration::from_millis(timeout_ms);
+            if let Ok(timeout_str) = env::var("OTEL_EXPORTER_OTLP_TIMEOUT") {
+                if let Ok(timeout_ms) = timeout_str.parse::<u64>() {
+                    config.timeout = Duration::from_millis(timeout_ms);
+                }
             }
-        }
 
-        config
+            Some(config)
+        } else {
+            None
+        }
     }
 }
 
@@ -102,7 +105,8 @@ pub fn create_otlp_tracing_layer() -> Result<
     OpenTelemetryLayer<tracing_subscriber::Registry, opentelemetry_sdk::trace::Tracer>,
     Box<dyn std::error::Error + Send + Sync>,
 > {
-    let config = OtlpConfig::from_env();
+    let config =
+        OtlpConfig::from_env().ok_or("OTEL_EXPORTER_OTLP_ENDPOINT environment variable not set")?;
 
     let resource = Resource::new(vec![
         KeyValue::new("service.name", "goose"),
@@ -129,7 +133,8 @@ pub fn create_otlp_tracing_layer() -> Result<
 
 pub fn create_otlp_metrics_layer(
 ) -> Result<MetricsLayer<tracing_subscriber::Registry>, Box<dyn std::error::Error + Send + Sync>> {
-    let config = OtlpConfig::from_env();
+    let config =
+        OtlpConfig::from_env().ok_or("OTEL_EXPORTER_OTLP_ENDPOINT environment variable not set")?;
 
     let resource = Resource::new(vec![
         KeyValue::new("service.name", "goose"),
@@ -251,10 +256,13 @@ mod tests {
         let original_endpoint = env::var("OTEL_EXPORTER_OTLP_ENDPOINT").ok();
         let original_timeout = env::var("OTEL_EXPORTER_OTLP_TIMEOUT").ok();
 
+        env::remove_var("OTEL_EXPORTER_OTLP_ENDPOINT");
+        assert!(OtlpConfig::from_env().is_none());
+
         env::set_var("OTEL_EXPORTER_OTLP_ENDPOINT", "http://test:4317");
         env::set_var("OTEL_EXPORTER_OTLP_TIMEOUT", "5000");
 
-        let config = OtlpConfig::from_env();
+        let config = OtlpConfig::from_env().unwrap();
         assert_eq!(config.endpoint, "http://test:4317");
         assert_eq!(config.timeout, Duration::from_millis(5000));
 
@@ -265,20 +273,6 @@ mod tests {
         match original_timeout {
             Some(val) => env::set_var("OTEL_EXPORTER_OTLP_TIMEOUT", val),
             None => env::remove_var("OTEL_EXPORTER_OTLP_TIMEOUT"),
-        }
-    }
-
-    #[tokio::test]
-    async fn test_init_otlp_layers() {
-        let result = init_otlp();
-
-        match result {
-            Ok((_tracing_layer, _metrics_layer)) => {
-                assert!(true, "Successfully created both layers");
-            }
-            Err(_) => {
-                assert!(true, "Expected failure in test environment");
-            }
         }
     }
 }
