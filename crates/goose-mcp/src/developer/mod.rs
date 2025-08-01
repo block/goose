@@ -1715,6 +1715,7 @@ impl Clone for DeveloperRouter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core::panic;
     use serde_json::json;
     use serial_test::serial;
     use std::fs::{self, read_to_string};
@@ -3295,28 +3296,30 @@ mod tests {
 
         if let (Some(start), Some(end)) = (
             assistant_content.text.find(start_tag),
-            assistant_content.text.find(end_tag)
+            assistant_content.text.find(end_tag),
         ) {
             let start_idx = start + start_tag.len();
             if start_idx < end {
                 let path = assistant_content.text[start_idx..end].trim();
                 println!("Extracted path: {}", path);
+
+                let file_contents =
+                    read_to_string(path).expect("Failed to read extracted temp file");
+
+                let lines: Vec<&str> = file_contents.lines().collect();
+
+                // Ensure we have exactly 150 lines
+                assert_eq!(lines.len(), 150, "Expected 150 lines in temp file");
+
+                // Ensure the first and last lines are correct
+                assert_eq!(lines.first(), Some(&"Line 1"), "First line mismatch");
+                assert_eq!(lines.last(), Some(&"Line 150"), "Last line mismatch");
+            } else {
+                panic!("No path found in bash output truncation output");
             }
-            let file_contents = read_to_string(path).expect("Failed to read extracted temp file");
-
-            let lines: Vec<&str> = file_contents.lines().collect();
-
-            // Ensure we have exactly 150 lines
-            assert_eq!(lines.len(), 150, "Expected 150 lines in temp file");
-
-            // Ensure the first and last lines are correct
-            assert_eq!(lines.first(), Some(&"Line 1"), "First line mismatch");
-            assert_eq!(lines.last(), Some(&"Line 150"), "Last line mismatch");
+        } else {
+            panic!("Failed to find start or end tag in bash output truncation output");
         }
-
-        
-
-
 
         temp_dir.close().unwrap();
     }
