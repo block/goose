@@ -1862,7 +1862,6 @@
         "description": "A message to or from an LLM",
         "required": [
           "role",
-          "created",
           "content"
         ],
         "properties": {
