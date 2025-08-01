@@ -146,7 +146,7 @@ impl ConversationFixer {
         for message in messages {
             if let Some(last) = merged_messages.last_mut() {
                 let effective = Self::effective_role(&message);
-                if Self::effective_role(&last) == effective {
+                if Self::effective_role(last) == effective {
                     last.content.extend(message.content);
                     issues.push(format!("Merged consecutive {} messages", effective));
                     continue;
