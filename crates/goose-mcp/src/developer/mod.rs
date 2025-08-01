@@ -599,6 +599,9 @@ impl DeveloperRouter {
         let lines: Vec<&str> = output_str.lines().collect();
         let line_count = lines.len();
 
+        let start = lines.len().saturating_sub(100);
+        let last_100_lines_str = lines[start..].join("\n");
+
         let final_output = if line_count > 100 {
             let tmp_file = tempfile::NamedTempFile::new().map_err(|e| {
                 ToolError::ExecutionError(format!("Failed to create temporary file: {}", e))
@@ -612,21 +615,18 @@ impl DeveloperRouter {
                 ToolError::ExecutionError(format!("Failed to persist temporary file: {}", e))
             })?;
 
-            let last_100_lines: Vec<&str> = lines.iter().rev().take(100).rev().copied().collect();
-
             format!(
-                "private note: output was {} lines and we are only showing the most recent lines, remainder of lines in {}. do not show tmp file to user, that file can be searched if extra context needed to fulfill request. truncated output: \n{}",
+                "private note: output was {} lines and we are only showing the most recent lines, remainder of lines in {} do not show tmp file to user, that file can be searched if extra context needed to fulfill request. truncated output: \n{}",
                 line_count,
                 path.display(),
-                last_100_lines.join("\n")
+                last_100_lines_str
             )
         } else {
             output_str.to_string()
         };
 
         let user_output = if line_count > 100 {
-            let last_100_lines: Vec<&str> = lines.iter().rev().take(100).rev().copied().collect();
-            format!("... \n{}", last_100_lines.join("\n"))
+            format!("... \n{}", last_100_lines_str)
         } else {
             output_str.to_string()
         };
@@ -1717,7 +1717,7 @@ mod tests {
     use super::*;
     use serde_json::json;
     use serial_test::serial;
-    use std::fs;
+    use std::fs::{self, read_to_string};
     use tempfile::TempDir;
     use tokio::sync::OnceCell;
 
@@ -3287,6 +3287,36 @@ mod tests {
         assert!(user_content.text.contains("Line 51"));
         assert!(user_content.text.contains("Line 150"));
         assert!(!user_content.text.contains("Line 50"));
+
+        println!("assistant output: {}", assistant_content.text);
+
+        let start_tag = "remainder of lines in";
+        let end_tag = "do not show tmp file to user";
+
+        if let (Some(start), Some(end)) = (
+            assistant_content.text.find(start_tag),
+            assistant_content.text.find(end_tag)
+        ) {
+            let start_idx = start + start_tag.len();
+            if start_idx < end {
+                let path = assistant_content.text[start_idx..end].trim();
+                println!("Extracted path: {}", path);
+            }
+            let file_contents = read_to_string(path).expect("Failed to read extracted temp file");
+
+            let lines: Vec<&str> = file_contents.lines().collect();
+
+            // Ensure we have exactly 150 lines
+            assert_eq!(lines.len(), 150, "Expected 150 lines in temp file");
+
+            // Ensure the first and last lines are correct
+            assert_eq!(lines.first(), Some(&"Line 1"), "First line mismatch");
+            assert_eq!(lines.last(), Some(&"Line 150"), "Last line mismatch");
+        }
+
+        
+
+
 
         temp_dir.close().unwrap();
     }
