@@ -158,6 +158,7 @@ function BaseChatContent({
     sessionMetadata,
     isUserMessage,
     clearError,
+    onMessageUpdate,
   } = useChatEngine({
     chat,
     setChat,
@@ -416,6 +417,7 @@ function BaseChatContent({
                       isUserMessage={isUserMessage}
                       onScrollToBottom={handleScrollToBottom}
                       isStreamingMessage={chatState !== ChatState.Idle}
+                      onMessageUpdate={onMessageUpdate}
                     />
                   ) : (
                     // Render messages with SearchView wrapper when search is enabled
@@ -432,6 +434,7 @@ function BaseChatContent({
                         isUserMessage={isUserMessage}
                         onScrollToBottom={handleScrollToBottom}
                         isStreamingMessage={chatState !== ChatState.Idle}
+                        onMessageUpdate={onMessageUpdate}
                       />
                     </SearchView>
                   )}

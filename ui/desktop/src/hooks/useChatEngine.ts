@@ -408,6 +408,33 @@ export const useChatEngine = ({
     }, new Map());
   }, [notifications]);
 
+  // Handle message updates from the UI
+  const onMessageUpdate = useCallback(
+    (messageId: string, newContent: string) => {
+      const messageIndex = messages.findIndex((msg) => msg.id === messageId);
+
+      if (messageIndex !== -1) {
+        // Truncate the history to the point *before* the edited message.
+        const history = messages.slice(0, messageIndex);
+
+        // Create the new message with the edited content.
+        const updatedMessage = createUserMessage(newContent);
+
+        // Set the new history. This is a two-step process to ensure React state updates correctly.
+        // 1. Set the truncated history.
+        setMessages(history);
+
+        // 2. Append the new message. This will trigger the `useMessageStream` hook
+        //    to get a new response. We use a timeout to ensure the first state update
+        //    has been processed before we append.
+        setTimeout(() => {
+          append(updatedMessage);
+        }, 50);
+      }
+    },
+    [messages, setMessages, append]
+  );
+
   return {
     // Core message data
     messages,
@@ -451,5 +478,8 @@ export const useChatEngine = ({
 
     // Error management
     clearError: () => setError(undefined),
+
+    // New functions for message editing
+    onMessageUpdate,
   };
 };
