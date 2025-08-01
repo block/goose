@@ -503,8 +503,8 @@ let appConfig = {
 let windowCounter = 0;
 const windowMap = new Map<number, BrowserWindow>();
 
-// Track power save blocker ID globally
-let powerSaveBlockerId: number | null = null;
+// Track power save blockers per window
+const windowPowerSaveBlockers = new Map<number, number>(); // windowId -> blockerId
 
 const createChat = async (
   app: App,
@@ -668,34 +668,30 @@ const createChat = async (
   // We need to wait for the window to load before we can access localStorage
   mainWindow.webContents.on('did-finish-load', () => {
     const configStr = JSON.stringify(windowConfig).replace(/'/g, "\\'");
-    // Add error handling and retry logic for localStorage access
     mainWindow.webContents
       .executeJavaScript(
         `
-      try {
-        if (typeof Storage !== 'undefined' && window.localStorage) {
-          localStorage.setItem('gooseConfig', '${configStr}');
-        } else {
-          console.warn('localStorage not available, retrying in 100ms');
-          setTimeout(() => {
-            try {
+      (function() {
+        function setConfig() {
+          try {
+            if (window.localStorage) {
               localStorage.setItem('gooseConfig', '${configStr}');
-            } catch (e) {
-              console.error('Failed to set localStorage after retry:', e);
+              return true;
+            }
+          } catch (e) {
+            console.warn('localStorage access failed:', e);
+          }
+          return false;
+        }
+
+        if (!setConfig()) {
+          setTimeout(() => {
+            if (!setConfig()) {
+              console.error('Failed to set localStorage after retry - continuing without localStorage config');
             }
           }, 100);
         }
-      } catch (e) {
-        console.error('Failed to access localStorage:', e);
-        // Retry after a short delay
-        setTimeout(() => {
-          try {
-            localStorage.setItem('gooseConfig', '${configStr}');
-          } catch (retryError) {
-            console.error('Failed to set localStorage after retry:', retryError);
-          }
-        }, 100);
-      }
+      })();
     `
       )
       .catch((error) => {
@@ -838,6 +834,23 @@ const createChat = async (
   // Handle window closure
   mainWindow.on('closed', () => {
     windowMap.delete(windowId);
+
+    if (windowPowerSaveBlockers.has(windowId)) {
+      const blockerId = windowPowerSaveBlockers.get(windowId)!;
+      try {
+        powerSaveBlocker.stop(blockerId);
+        console.log(
+          `[Main] Stopped power save blocker ${blockerId} for closing window ${windowId}`
+        );
+      } catch (error) {
+        console.error(
+          `[Main] Failed to stop power save blocker ${blockerId} for window ${windowId}:`,
+          error
+        );
+      }
+      windowPowerSaveBlockers.delete(windowId);
+    }
+
     if (goosedProcess && typeof goosedProcess === 'object' && 'kill' in goosedProcess) {
       goosedProcess.kill();
     }
@@ -1220,10 +1233,22 @@ ipcMain.handle('set-wakelock', async (_event, enable: boolean) => {
     settings.enableWakelock = enable;
     saveSettings(settings);
 
-    // Stop any existing power save blocker when disabling the setting
-    if (!enable && powerSaveBlockerId !== null) {
-      powerSaveBlocker.stop(powerSaveBlockerId);
-      powerSaveBlockerId = null;
+    // Stop all existing power save blockers when disabling the setting
+    if (!enable) {
+      for (const [windowId, blockerId] of windowPowerSaveBlockers.entries()) {
+        try {
+          powerSaveBlocker.stop(blockerId);
+          console.log(
+            `[Main] Stopped power save blocker ${blockerId} for window ${windowId} due to wakelock setting disabled`
+          );
+        } catch (error) {
+          console.error(
+            `[Main] Failed to stop power save blocker ${blockerId} for window ${windowId}:`,
+            error
+          );
+        }
+      }
+      windowPowerSaveBlockers.clear();
     }
 
     return true;
@@ -2026,21 +2051,36 @@ app.whenReady().then(async () => {
     }
   });
 
-  ipcMain.handle('start-power-save-blocker', () => {
-    if (powerSaveBlockerId === null) {
-      powerSaveBlockerId = powerSaveBlocker.start('prevent-app-suspension');
+  ipcMain.handle('start-power-save-blocker', (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    const windowId = window?.id;
+
+    if (windowId && !windowPowerSaveBlockers.has(windowId)) {
+      const blockerId = powerSaveBlocker.start('prevent-app-suspension');
+      windowPowerSaveBlockers.set(windowId, blockerId);
+      console.log(`[Main] Started power save blocker ${blockerId} for window ${windowId}`);
       return true;
+    }
+
+    if (windowId && windowPowerSaveBlockers.has(windowId)) {
+      console.log(`[Main] Power save blocker already active for window ${windowId}`);
     }
 
     return false;
   });
 
-  ipcMain.handle('stop-power-save-blocker', () => {
-    if (powerSaveBlockerId !== null) {
-      powerSaveBlocker.stop(powerSaveBlockerId);
-      powerSaveBlockerId = null;
+  ipcMain.handle('stop-power-save-blocker', (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    const windowId = window?.id;
+
+    if (windowId && windowPowerSaveBlockers.has(windowId)) {
+      const blockerId = windowPowerSaveBlockers.get(windowId)!;
+      powerSaveBlocker.stop(blockerId);
+      windowPowerSaveBlockers.delete(windowId);
+      console.log(`[Main] Stopped power save blocker ${blockerId} for window ${windowId}`);
       return true;
     }
+
     return false;
   });
 
@@ -2153,11 +2193,24 @@ async function getAllowList(): Promise<string[]> {
 }
 
 app.on('will-quit', async () => {
+  for (const [windowId, blockerId] of windowPowerSaveBlockers.entries()) {
+    try {
+      powerSaveBlocker.stop(blockerId);
+      console.log(
+        `[Main] Stopped power save blocker ${blockerId} for window ${windowId} during app quit`
+      );
+    } catch (error) {
+      console.error(
+        `[Main] Failed to stop power save blocker ${blockerId} for window ${windowId}:`,
+        error
+      );
+    }
+  }
+  windowPowerSaveBlockers.clear();
+
   // Unregister all shortcuts when quitting
   globalShortcut.unregisterAll();
 
-  // Clean up the temp directory on app quit
-  console.log('[Main] App "will-quit". Cleaning up temporary image directory...');
   try {
     await fs.access(gooseTempDir); // Check if directory exists to avoid error on fs.rm if it doesn't
 

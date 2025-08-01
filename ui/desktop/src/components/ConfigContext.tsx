@@ -102,6 +102,23 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     [reloadConfig]
   );
 
+  const refreshExtensions = useCallback(async () => {
+    const result = await apiGetExtensions();
+
+    if (result.response.status === 422) {
+      throw new MalformedConfigError();
+    }
+
+    if (result.error && !result.data) {
+      console.log(result.error);
+      return extensionsList;
+    }
+
+    const extensionResponse: ExtensionResponse = result.data!;
+    setExtensionsList(extensionResponse.extensions);
+    return extensionResponse.extensions;
+  }, [extensionsList]);
+
   const addExtension = useCallback(
     async (name: string, config: ExtensionConfig, enabled: boolean) => {
       // remove shims if present
@@ -113,39 +130,30 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
         body: query,
       });
       await reloadConfig();
+      // Refresh extensions list after successful addition
+      await refreshExtensions();
     },
-    [reloadConfig]
+    [reloadConfig, refreshExtensions]
   );
 
   const removeExtension = useCallback(
     async (name: string) => {
       await apiRemoveExtension({ path: { name: name } });
       await reloadConfig();
+      // Refresh extensions list after successful removal
+      await refreshExtensions();
     },
-    [reloadConfig]
+    [reloadConfig, refreshExtensions]
   );
 
   const getExtensions = useCallback(
     async (forceRefresh = false): Promise<FixedExtensionEntry[]> => {
       if (forceRefresh || extensionsList.length === 0) {
-        const result = await apiGetExtensions();
-
-        if (result.response.status === 422) {
-          throw new MalformedConfigError();
-        }
-
-        if (result.error && !result.data) {
-          console.log(result.error);
-          return extensionsList;
-        }
-
-        const extensionResponse: ExtensionResponse = result.data!;
-        setExtensionsList(extensionResponse.extensions);
-        return extensionResponse.extensions;
+        return await refreshExtensions();
       }
       return extensionsList;
     },
-    [extensionsList]
+    [extensionsList, refreshExtensions]
   );
 
   const toggleExtension = useCallback(

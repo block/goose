@@ -151,17 +151,20 @@ export const migrateExtensionsToSettingsV3 = async () => {
     console.error('Failed to parse user settings:', error);
   }
 
+  if (localStorageExtensions.length === 0) {
+    localStorage.setItem('configVersion', '3');
+    console.log('No extensions to migrate. Config version set to 3.');
+    return;
+  }
+
   const migrationErrors: { name: string; error: unknown }[] = [];
 
-  for (const extension of localStorageExtensions) {
-    // NOTE: skip migrating builtin types since there was a format change
-    // instead we rely on initializeBundledExtensions & syncBundledExtensions
-    // to handle updating / creating the new builtins to the config.yaml
-    // For all other extension types we migrate them to config.yaml
-    if (extension.type !== 'builtin') {
+  // Process extensions in parallel for better performance
+  const migrationPromises = localStorageExtensions
+    .filter((extension) => extension.type !== 'builtin') // Skip builtins as before
+    .map(async (extension) => {
       console.log(`Migrating extension ${extension.name} to config.yaml`);
       try {
-        // manually import apiAddExtension to set throwOnError true
         const query: ExtensionQuery = {
           name: extension.name,
           config: extension,
@@ -178,8 +181,9 @@ export const migrateExtensionsToSettingsV3 = async () => {
           error: `failed migration with ${JSON.stringify(err)}`,
         });
       }
-    }
-  }
+    });
+
+  await Promise.allSettled(migrationPromises);
 
   if (migrationErrors.length === 0) {
     localStorage.setItem('configVersion', '3');

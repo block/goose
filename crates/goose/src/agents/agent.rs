@@ -33,6 +33,7 @@ use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, ToolResultReceiver};
 use crate::config::{Config, ExtensionConfigManager, PermissionManager};
+use crate::context_mgmt::auto_compact;
 use crate::message::{push_message, Message, ToolRequest};
 use crate::permission::permission_judge::{check_tool_permissions, PermissionCheckResult};
 use crate::permission::PermissionConfirmation;
@@ -102,6 +103,7 @@ pub enum AgentEvent {
     Message(Message),
     McpNotification((String, ServerNotification)),
     ModelChange { model: String, mode: String },
+    HistoryReplaced(Vec<Message>),
 }
 
 impl Default for Agent {
@@ -746,6 +748,36 @@ impl Agent {
         }
     }
 
+    /// Handle auto-compaction logic and return compacted messages if needed
+    async fn handle_auto_compaction(
+        &self,
+        messages: &[Message],
+    ) -> Result<Option<(Vec<Message>, String)>> {
+        let compact_result = auto_compact::check_and_compact_messages(self, messages, None).await?;
+
+        if compact_result.compacted {
+            let compacted_messages = compact_result.messages;
+
+            // Create compaction notification message
+            let compaction_msg = if let (Some(before), Some(after)) =
+                (compact_result.tokens_before, compact_result.tokens_after)
+            {
+                format!(
+                    "Auto-compacted context: {} → {} tokens ({:.0}% reduction)\n\n",
+                    before,
+                    after,
+                    (1.0 - (after as f64 / before as f64)) * 100.0
+                )
+            } else {
+                "Auto-compacted context to reduce token usage\n\n".to_string()
+            };
+
+            return Ok(Some((compacted_messages, compaction_msg)));
+        }
+
+        Ok(None)
+    }
+
     #[instrument(skip(self, unfixed_messages, session), fields(user_message))]
     pub async fn reply(
         &self,
@@ -753,9 +785,44 @@ impl Agent {
         session: Option<SessionConfig>,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        let context = self
-            .prepare_reply_context(unfixed_messages, &session)
-            .await?;
+        // Handle auto-compaction before processing
+        let (messages, compaction_msg) = match self.handle_auto_compaction(unfixed_messages).await?
+        {
+            Some((compacted_messages, msg)) => (compacted_messages, Some(msg)),
+            None => {
+                let context = self
+                    .prepare_reply_context(unfixed_messages, &session)
+                    .await?;
+                (context.messages, None)
+            }
+        };
+
+        // If we compacted, yield the compaction message and history replacement event
+        if let Some(compaction_msg) = compaction_msg {
+            return Ok(Box::pin(async_stream::try_stream! {
+                yield AgentEvent::Message(Message::assistant().with_text(compaction_msg));
+                yield AgentEvent::HistoryReplaced(messages.clone());
+
+                // Continue with normal reply processing using compacted messages
+                let mut reply_stream = self.reply_internal(&messages, session, cancel_token).await?;
+                while let Some(event) = reply_stream.next().await {
+                    yield event?;
+                }
+            }));
+        }
+
+        // No compaction needed, proceed with normal processing
+        self.reply_internal(&messages, session, cancel_token).await
+    }
+
+    /// Main reply method that handles the actual agent processing
+    async fn reply_internal(
+        &self,
+        messages: &[Message],
+        session: Option<SessionConfig>,
+        cancel_token: Option<CancellationToken>,
+    ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
+        let context = self.prepare_reply_context(messages, &session).await?;
         let ReplyContext {
             mut messages,
             mut tools,
@@ -765,7 +832,6 @@ impl Agent {
             initial_messages,
             config,
         } = context;
-
         let reply_span = tracing::Span::current();
         self.reset_retry_attempts().await;
 

@@ -51,9 +51,14 @@ pub fn handle_info(verbose: bool) -> Result<()> {
                         "  Run '{}' to configure goose",
                         style("goose configure").cyan()
                     );
-                } else if let Ok(yaml) = serde_yaml::to_string(&values) {
-                    for line in yaml.lines() {
-                        println!("  {}", line);
+                } else {
+                    let sorted_values: std::collections::BTreeMap<_, _> =
+                        values.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+
+                    if let Ok(yaml) = serde_yaml::to_string(&sorted_values) {
+                        for line in yaml.lines() {
+                            println!("  {}", line);
+                        }
                     }
                 }
             }
