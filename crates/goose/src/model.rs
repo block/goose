@@ -243,9 +243,11 @@ impl ModelConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use temp_env::with_var;
 
     #[test]
+    #[serial]
     fn test_model_config_context_limits() {
         let config = ModelConfig::new("claude-3-opus")
             .unwrap()
@@ -263,6 +265,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_invalid_context_limit() {
         with_var("GOOSE_CONTEXT_LIMIT", Some("abc"), || {
             let result = ModelConfig::new("test-model");
@@ -285,6 +288,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_invalid_temperature() {
         with_var("GOOSE_TEMPERATURE", Some("hot"), || {
             let result = ModelConfig::new("test-model");
@@ -298,6 +302,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_invalid_toolshim() {
         with_var("GOOSE_TOOLSHIM", Some("maybe"), || {
             let result = ModelConfig::new("test-model");
@@ -311,6 +316,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_empty_toolshim_model() {
         with_var("GOOSE_TOOLSHIM_OLLAMA_MODEL", Some(""), || {
             let result = ModelConfig::new("test-model");
@@ -328,6 +334,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_valid_configurations() {
         // Test with environment variables set
         with_var("GOOSE_CONTEXT_LIMIT", Some("50000"), || {
