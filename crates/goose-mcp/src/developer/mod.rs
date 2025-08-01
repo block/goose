@@ -269,11 +269,13 @@ impl DeveloperRouter {
 
                 To use the write command, you must specify `file_text` which will become the new content of the file. Be careful with
                 existing files! This is a full overwrite, so you must include everything - not just sections you are modifying.
-
-                To use the edit_file command, you must specify both `old_str` and `new_str` - {}.
-
+                
                 To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning) 
                 and `new_str` (the text to insert).
+
+                To use the edit_file command, you must specify both `old_str` and `new_str` 
+                {}
+                
             "#, editor.get_str_replace_description()},
                 "edit_file",
             )

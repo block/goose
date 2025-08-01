@@ -19,6 +19,42 @@ impl MorphLLMEditor {
             model,
         }
     }
+
+    fn format_user_prompt(original_code: &str, update_snippet: &str) -> String {
+        if let (Some(code_start), Some(code_end)) = (
+            update_snippet.find("<code>"),
+            update_snippet.find("</code>"),
+        ) {
+            // Check if we have valid code tags
+            if code_start < code_end {
+                let code_content = &update_snippet[code_start + 6..code_end].trim();
+
+                // Look for instruction tags which help provide hints
+                if let (Some(inst_start), Some(inst_end)) = (
+                    update_snippet.find("<instruction>"),
+                    update_snippet.find("</instruction>"),
+                ) {
+                    // Both code and instruction tags found
+                    if inst_start < inst_end {
+                        let instruction_content = &update_snippet[inst_start + 13..inst_end].trim();
+                        return format!(
+                            "<instruction>{}</instruction>\n<code>{}</code>\n<update>{}</update>",
+                            instruction_content, original_code, code_content
+                        );
+                    }
+                }
+                // Only code tags found, no instruction
+                return format!(
+                    "<code>{}</code>\n<update>{}</update>",
+                    original_code, code_content
+                );
+            }
+        }
+        format!(
+            "<code>{}</code>\n<update>{}</update>",
+            original_code, update_snippet
+        )
+    }
 }
 
 impl EditorModelImpl for MorphLLMEditor {
@@ -42,11 +78,8 @@ impl EditorModelImpl for MorphLLMEditor {
         // Create the client
         let client = Client::new();
 
-        // Format the prompt as specified in the Python example
-        let user_prompt = format!(
-            "<code>{}</code>\n<update>{}</update>",
-            original_code, update_snippet
-        );
+        // Parse update_snippet for <code> and <instruction> tags
+        let user_prompt = Self::format_user_prompt(original_code, update_snippet);
 
         // Prepare the request body for OpenAI-compatible API
         let body = json!({
@@ -99,6 +132,26 @@ impl EditorModelImpl for MorphLLMEditor {
     fn get_str_replace_description(&self) -> &'static str {
         "Use the edit_file to propose an edit to an existing file.
         This will be read by a less intelligent model, which will quickly apply the edit. You should make it clear what the edit is, while also minimizing the unchanged code you write.
+        
+        **IMPORTANT**: in the new_str parameter, you must also provide an `instruction` - a single sentence written in the first person describing what you are going to do for the sketched edit. 
+        This instruction helps the less intelligent model understand and apply your edit correctly. 
+
+         Examples of good instructions:
+        - I am adding error handling to the user authentication function and removing the old authentication method
+        - The instruction should be specific enough to disambiguate any uncertainty in your edit.
+        
+
+        The format for new_str should be like this example: 
+
+        <code>
+          new code here you want to add 
+        </code>
+        <instruction>
+         adding new code with error handling
+        </instruction>
+
+        provide this to new_str as a single string.
+
         When writing the edit, you should specify each edit in sequence, with the special comment // ... existing code ... to represent unchanged code in between edited lines.
 
         For example:
@@ -115,5 +168,100 @@ impl EditorModelImpl for MorphLLMEditor {
         If you plan on deleting a section, you must provide surrounding context to indicate the deletion.
         DO NOT omit spans of pre-existing code without using the // ... existing code ... comment to indicate its absence.        
         "
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_user_prompt_no_tags() {
+        let original_code = "fn main() {}";
+        let update_snippet = "Add error handling";
+        let result = MorphLLMEditor::format_user_prompt(original_code, update_snippet);
+        assert_eq!(
+            result,
+            "<code>fn main() {}</code>\n<update>Add error handling</update>"
+        );
+    }
+
+    #[test]
+    fn test_format_user_prompt_with_code_tags_only() {
+        let original_code = "fn main() {}";
+        let update_snippet = "<code>fn main() { println!(\"Hello\"); }</code>";
+        let result = MorphLLMEditor::format_user_prompt(original_code, update_snippet);
+        assert_eq!(
+            result,
+            "<code>fn main() {}</code>\n<update>fn main() { println!(\"Hello\"); }</update>"
+        );
+    }
+
+    #[test]
+    fn test_format_user_prompt_with_both_tags() {
+        let original_code = "fn main() {}";
+        let update_snippet = "<code>fn main() { println!(\"Hello\"); }</code><instruction>I am adding a print statement</instruction>";
+        let result = MorphLLMEditor::format_user_prompt(original_code, update_snippet);
+        assert_eq!(
+            result,
+            "<instruction>I am adding a print statement</instruction>\n<code>fn main() {}</code>\n<update>fn main() { println!(\"Hello\"); }</update>"
+        );
+    }
+
+    #[test]
+    fn test_format_user_prompt_with_whitespace() {
+        let original_code = "fn main() {}";
+        let update_snippet = "<code>  fn main() { println!(\"Hello\"); }  </code><instruction>  I am adding a print statement  </instruction>";
+        let result = MorphLLMEditor::format_user_prompt(original_code, update_snippet);
+        assert_eq!(
+            result,
+            "<instruction>I am adding a print statement</instruction>\n<code>fn main() {}</code>\n<update>fn main() { println!(\"Hello\"); }</update>"
+        );
+    }
+
+    #[test]
+    fn test_format_user_prompt_invalid_code_tags() {
+        let original_code = "fn main() {}";
+        let update_snippet = "</code>Invalid<code>";
+        let result = MorphLLMEditor::format_user_prompt(original_code, update_snippet);
+        assert_eq!(
+            result,
+            "<code>fn main() {}</code>\n<update></code>Invalid<code></update>"
+        );
+    }
+
+    #[test]
+    fn test_format_user_prompt_invalid_instruction_tags() {
+        let original_code = "fn main() {}";
+        let update_snippet =
+            "<code>fn main() { println!(\"Hello\"); }</code></instruction>Invalid<instruction>";
+        let result = MorphLLMEditor::format_user_prompt(original_code, update_snippet);
+        assert_eq!(
+            result,
+            "<code>fn main() {}</code>\n<update>fn main() { println!(\"Hello\"); }</update>"
+        );
+    }
+
+    #[test]
+    fn test_format_user_prompt_nested_tags() {
+        let original_code = "fn main() {}";
+        let update_snippet = "<code>fn main() { <code>nested</code> }</code>";
+        let result = MorphLLMEditor::format_user_prompt(original_code, update_snippet);
+        // Should use the first occurrence of <code> and find its matching </code>
+        assert_eq!(
+            result,
+            "<code>fn main() {}</code>\n<update>fn main() { <code>nested</update>"
+        );
+    }
+
+    #[test]
+    fn test_format_user_prompt_tags_in_different_order() {
+        let original_code = "fn main() {}";
+        let update_snippet = "<instruction>I am adding a print statement</instruction><code>fn main() { println!(\"Hello\"); }</code>";
+        let result = MorphLLMEditor::format_user_prompt(original_code, update_snippet);
+        assert_eq!(
+            result,
+            "<instruction>I am adding a print statement</instruction>\n<code>fn main() {}</code>\n<update>fn main() { println!(\"Hello\"); }</update>"
+        );
     }
 }
