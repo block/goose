@@ -5,6 +5,7 @@ pub mod base;
 pub mod bedrock;
 pub mod claude_code;
 pub mod databricks;
+pub mod deepseek;
 pub mod embedding;
 pub mod errors;
 mod factory;
