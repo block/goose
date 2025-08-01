@@ -353,6 +353,7 @@ impl From<PromptMessage> for Message {
 pub struct Message {
     pub id: Option<String>,
     pub role: Role,
+    #[serde(default = "default_created")]
     pub created: i64,
     pub content: Vec<MessageContent>,
 }
@@ -388,6 +389,10 @@ pub fn push_message(messages: &mut Vec<Message>, message: Message) {
     } else {
         messages.push(message);
     }
+}
+
+fn default_created() -> i64 {
+    0 // old messages do not have timestamps.
 }
 
 impl Message {

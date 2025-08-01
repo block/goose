@@ -461,40 +461,57 @@ impl DeveloperRouter {
             },
         };
 
-        // choose_app_strategy().config_dir()
-        // - macOS/Linux: ~/.config/goose/
-        // - Windows:     ~\AppData\Roaming\Block\goose\config\
-        // keep previous behavior of expanding ~/.config in case this fails
-        let global_hints_path = choose_app_strategy(crate::APP_STRATEGY.clone())
-            .map(|strategy| strategy.in_config_dir(".goosehints"))
-            .unwrap_or_else(|_| {
-                PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints").to_string())
-            });
+        let hints_filenames: Vec<String> = std::env::var("CONTEXT_FILE_NAMES")
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_else(|| vec![".goosehints".to_string()]);
 
-        // Create the directory if it doesn't exist
-        let _ = std::fs::create_dir_all(global_hints_path.parent().unwrap());
+        let mut global_hints_contents = Vec::with_capacity(hints_filenames.len());
+        let mut local_hints_contents = Vec::with_capacity(hints_filenames.len());
 
-        // Check for local hints in current directory
-        let local_hints_path = cwd.join(".goosehints");
+        for hints_filename in &hints_filenames {
+            // Global hints
+            // choose_app_strategy().config_dir()
+            // - macOS/Linux: ~/.config/goose/
+            // - Windows:     ~\AppData\Roaming\Block\goose\config\
+            // keep previous behavior of expanding ~/.config in case this fails
+            let global_hints_path = choose_app_strategy(crate::APP_STRATEGY.clone())
+                .map(|strategy| strategy.in_config_dir(hints_filename))
+                .unwrap_or_else(|_| {
+                    let path_str = format!("~/.config/goose/{}", hints_filename);
+                    PathBuf::from(shellexpand::tilde(&path_str).to_string())
+                });
 
-        // Read global hints if they exist
-        let mut hints = String::new();
-        if global_hints_path.is_file() {
-            if let Ok(global_hints) = std::fs::read_to_string(&global_hints_path) {
-                hints.push_str("\n### Global Hints\nThe developer extension includes some global hints that apply to all projects & directories.\n");
-                hints.push_str(&global_hints);
+            if let Some(parent) = global_hints_path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+
+            if global_hints_path.is_file() {
+                if let Ok(content) = std::fs::read_to_string(&global_hints_path) {
+                    global_hints_contents.push(content);
+                }
+            }
+
+            let local_hints_path = cwd.join(hints_filename);
+            if local_hints_path.is_file() {
+                if let Ok(content) = std::fs::read_to_string(&local_hints_path) {
+                    local_hints_contents.push(content);
+                }
             }
         }
 
-        // Read local hints if they exist
-        if local_hints_path.is_file() {
-            if let Ok(local_hints) = std::fs::read_to_string(&local_hints_path) {
-                if !hints.is_empty() {
-                    hints.push_str("\n\n");
-                }
-                hints.push_str("### Project Hints\nThe developer extension includes some hints for working on the project in this directory.\n");
-                hints.push_str(&local_hints);
+        let mut hints = String::new();
+        if !global_hints_contents.is_empty() {
+            hints.push_str("\n### Global Hints\nThe developer extension includes some global hints that apply to all projects & directories.\n");
+            hints.push_str(&global_hints_contents.join("\n"));
+        }
+
+        if !local_hints_contents.is_empty() {
+            if !hints.is_empty() {
+                hints.push_str("\n\n");
             }
+            hints.push_str("### Project Hints\nThe developer extension includes some hints for working on the project in this directory.\n");
+            hints.push_str(&local_hints_contents.join("\n"));
         }
 
         // Return base instructions directly when no hints are found
@@ -575,6 +592,46 @@ impl DeveloperRouter {
     // Helper method to check if a path should be ignored
     fn is_ignored(&self, path: &Path) -> bool {
         self.ignore_patterns.matched(path, false).is_ignore()
+    }
+
+    // shell output can be large, this will help manage that
+    fn process_shell_output(&self, output_str: &str) -> Result<(String, String), ToolError> {
+        let lines: Vec<&str> = output_str.lines().collect();
+        let line_count = lines.len();
+
+        let start = lines.len().saturating_sub(100);
+        let last_100_lines_str = lines[start..].join("\n");
+
+        let final_output = if line_count > 100 {
+            let tmp_file = tempfile::NamedTempFile::new().map_err(|e| {
+                ToolError::ExecutionError(format!("Failed to create temporary file: {}", e))
+            })?;
+
+            std::fs::write(tmp_file.path(), output_str).map_err(|e| {
+                ToolError::ExecutionError(format!("Failed to write to temporary file: {}", e))
+            })?;
+
+            let (_, path) = tmp_file.keep().map_err(|e| {
+                ToolError::ExecutionError(format!("Failed to persist temporary file: {}", e))
+            })?;
+
+            format!(
+                "private note: output was {} lines and we are only showing the most recent lines, remainder of lines in {} do not show tmp file to user, that file can be searched if extra context needed to fulfill request. truncated output: \n{}",
+                line_count,
+                path.display(),
+                last_100_lines_str
+            )
+        } else {
+            output_str.to_string()
+        };
+
+        let user_output = if line_count > 100 {
+            format!("... \n{}", last_100_lines_str)
+        } else {
+            output_str.to_string()
+        };
+
+        Ok((final_output, user_output))
     }
 
     // Helper method to resolve a path relative to cwd with platform-specific handling
@@ -748,9 +805,11 @@ impl DeveloperRouter {
                 )));
         }
 
+        let (final_output, user_output) = self.process_shell_output(&output_str)?;
+
         Ok(vec![
-            Content::text(output_str.clone()).with_audience(vec![Role::Assistant]),
-            Content::text(output_str)
+            Content::text(final_output).with_audience(vec![Role::Assistant]),
+            Content::text(user_output)
                 .with_audience(vec![Role::User])
                 .with_priority(0.0),
         ])
@@ -1656,9 +1715,10 @@ impl Clone for DeveloperRouter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core::panic;
     use serde_json::json;
     use serial_test::serial;
-    use std::fs;
+    use std::fs::{self, read_to_string};
     use tempfile::TempDir;
     use tokio::sync::OnceCell;
 
@@ -1747,6 +1807,39 @@ mod tests {
         assert!(matches!(err, ToolError::InvalidParameters(_)));
 
         temp_dir.close().unwrap();
+    }
+
+    #[test]
+    #[serial]
+    fn test_goosehints_multiple_filenames() {
+        let dir = TempDir::new().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+        std::env::set_var("CONTEXT_FILE_NAMES", r#"["CLAUDE.md", ".goosehints"]"#);
+
+        fs::write("CLAUDE.md", "Custom hints file content from CLAUDE.md").unwrap();
+        fs::write(".goosehints", "Custom hints file content from .goosehints").unwrap();
+        let router = DeveloperRouter::new();
+        let instructions = router.instructions();
+
+        assert!(instructions.contains("Custom hints file content from CLAUDE.md"));
+        assert!(instructions.contains("Custom hints file content from .goosehints"));
+        std::env::remove_var("CONTEXT_FILE_NAMES");
+    }
+
+    #[test]
+    #[serial]
+    fn test_goosehints_configurable_filename() {
+        let dir = TempDir::new().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+        std::env::set_var("CONTEXT_FILE_NAMES", r#"["CLAUDE.md"]"#);
+
+        fs::write("CLAUDE.md", "Custom hints file content").unwrap();
+        let router = DeveloperRouter::new();
+        let instructions = router.instructions();
+
+        assert!(instructions.contains("Custom hints file content"));
+        assert!(!instructions.contains(".goosehints")); // Make sure it's not loading the default
+        std::env::remove_var("CONTEXT_FILE_NAMES");
     }
 
     #[tokio::test]
@@ -3138,5 +3231,126 @@ mod tests {
         assert!(err.to_string().contains("does not exist"));
 
         temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_bash_output_truncation() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        let router = get_router().await;
+
+        // Create a command that generates > 100 lines of output
+        let command = if cfg!(windows) {
+            "for /L %i in (1,1,150) do @echo Line %i"
+        } else {
+            "for i in {1..150}; do echo \"Line $i\"; done"
+        };
+
+        let result = router
+            .call_tool("shell", json!({ "command": command }), dummy_sender())
+            .await
+            .unwrap();
+
+        // Should have two Content items
+        assert_eq!(result.len(), 2);
+
+        // Find the Assistant and User content
+        let assistant_content = result
+            .iter()
+            .find(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::Assistant))
+            })
+            .unwrap()
+            .as_text()
+            .unwrap();
+
+        let user_content = result
+            .iter()
+            .find(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::User))
+            })
+            .unwrap()
+            .as_text()
+            .unwrap();
+
+        // Assistant should get the full message with temp file info
+        assert!(assistant_content.text.contains("private note: output was"));
+
+        // User should only get the truncated output with prefix
+        assert!(user_content.text.starts_with("..."));
+        assert!(!user_content.text.contains("private note: output was"));
+
+        // User output should contain lines 51-150 (last 100 lines)
+        assert!(user_content.text.contains("Line 51"));
+        assert!(user_content.text.contains("Line 150"));
+        assert!(!user_content.text.contains("Line 50"));
+
+        let start_tag = "remainder of lines in";
+        let end_tag = "do not show tmp file to user";
+
+        if let (Some(start), Some(end)) = (
+            assistant_content.text.find(start_tag),
+            assistant_content.text.find(end_tag),
+        ) {
+            let start_idx = start + start_tag.len();
+            if start_idx < end {
+                let path = assistant_content.text[start_idx..end].trim();
+                println!("Extracted path: {}", path);
+
+                let file_contents =
+                    read_to_string(path).expect("Failed to read extracted temp file");
+
+                let lines: Vec<&str> = file_contents.lines().collect();
+
+                // Ensure we have exactly 150 lines
+                assert_eq!(lines.len(), 150, "Expected 150 lines in temp file");
+
+                // Ensure the first and last lines are correct
+                assert_eq!(lines.first(), Some(&"Line 1"), "First line mismatch");
+                assert_eq!(lines.last(), Some(&"Line 150"), "Last line mismatch");
+            } else {
+                panic!("No path found in bash output truncation output");
+            }
+        } else {
+            panic!("Failed to find start or end tag in bash output truncation output");
+        }
+
+        temp_dir.close().unwrap();
+    }
+
+    #[test]
+    fn test_process_shell_output_short() {
+        let dir = TempDir::new().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+
+        let router = DeveloperRouter::new();
+
+        // Test with short output (< 100 lines)
+        let short_output = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5";
+        let result = router.process_shell_output(short_output).unwrap();
+
+        // Both outputs should be the same for short outputs
+        assert_eq!(result.0, short_output);
+        assert_eq!(result.1, short_output);
+    }
+
+    #[test]
+    fn test_process_shell_output_empty() {
+        let dir = TempDir::new().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+
+        let router = DeveloperRouter::new();
+
+        // Test with empty output
+        let empty_output = "";
+        let result = router.process_shell_output(empty_output).unwrap();
+
+        // Both outputs should be empty
+        assert_eq!(result.0, "");
+        assert_eq!(result.1, "");
     }
 }

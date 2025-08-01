@@ -280,7 +280,7 @@ export type ListSchedulesResponse = {
  */
 export type Message = {
     content: Array<MessageContent>;
-    created: number;
+    created?: number;
     id?: string | null;
     role: Role;
 };
@@ -1015,9 +1015,9 @@ export type ReadConfigData = {
 
 export type ReadConfigErrors = {
     /**
-     * Configuration key not found
+     * Unable to get the configuration value
      */
-    404: unknown;
+    500: unknown;
 };
 
 export type ReadConfigResponses = {
