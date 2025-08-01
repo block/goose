@@ -243,8 +243,8 @@ impl ModelConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use temp_env::with_var;
     use serial_test::serial;
+    use temp_env::with_var;
 
     #[test]
     #[serial]
