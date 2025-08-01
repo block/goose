@@ -44,6 +44,8 @@ jobs:
   # ------------------------------------------------------------
   bundle-desktop:
     uses: ./.github/workflows/bundle-desktop.yml
+    permissions:
+      id-token: write
     with:
       signing: true
     secrets:
@@ -54,6 +56,8 @@ jobs:
   # ------------------------------------------------------------
   bundle-desktop-intel:
     uses: ./.github/workflows/bundle-desktop-intel.yml
+    permissions:
+      id-token: write
     with:
       signing: true
     secrets:
@@ -64,12 +68,16 @@ jobs:
   # ------------------------------------------------------------
   bundle-desktop-linux:
     uses: ./.github/workflows/bundle-desktop-linux.yml
+    permissions:
+      id-token: write
 
 #  # ------------------------------------------------------------
 #  # 6) Bundle Desktop App (Windows)
 #  # ------------------------------------------------------------
   bundle-desktop-windows:
     uses: ./.github/workflows/bundle-desktop-windows.yml
+    permissions:
+      id-token: write
     with:
       signing: true
     secrets:

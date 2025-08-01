@@ -65,6 +65,8 @@ jobs:
   bundle-desktop:
     needs: [prepare-version]
     uses: ./.github/workflows/bundle-desktop.yml
+    permissions:
+      id-token: write
     with:
       version: ${{ needs.prepare-version.outputs.version }}
       signing: false
@@ -75,6 +77,8 @@ jobs:
   bundle-desktop-linux:
     needs: [prepare-version]
     uses: ./.github/workflows/bundle-desktop-linux.yml
+    permissions:
+      id-token: write
     with:
       version: ${{ needs.prepare-version.outputs.version }}
 
@@ -84,6 +88,8 @@ jobs:
   bundle-desktop-windows:
     needs: [prepare-version]
     uses: ./.github/workflows/bundle-desktop-windows.yml
+    permissions:
+      id-token: write
     with:
       version: ${{ needs.prepare-version.outputs.version }}
       signing: false
