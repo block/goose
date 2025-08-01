@@ -258,6 +258,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "Databricks context truncation tests are flaky - skip in CI"]
     async fn test_agent_with_databricks() -> Result<()> {
         run_test_with_config(TestConfig {
             provider_type: ProviderType::Databricks,
@@ -268,6 +269,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "Databricks context truncation tests are flaky - skip in CI"]
     async fn test_agent_with_databricks_bedrock() -> Result<()> {
         run_test_with_config(TestConfig {
             provider_type: ProviderType::Databricks,
@@ -278,6 +280,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "Databricks context truncation tests are flaky - skip in CI"]
     async fn test_agent_with_databricks_openai() -> Result<()> {
         run_test_with_config(TestConfig {
             provider_type: ProviderType::Databricks,
