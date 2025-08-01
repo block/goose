@@ -9,6 +9,12 @@ use tracing::{Level, Metadata};
 use tracing_opentelemetry::{MetricsLayer, OpenTelemetryLayer};
 use tracing_subscriber::filter::FilterFn;
 
+pub type OtlpTracingLayer =
+    OpenTelemetryLayer<tracing_subscriber::Registry, opentelemetry_sdk::trace::Tracer>;
+pub type OtlpMetricsLayer = MetricsLayer<tracing_subscriber::Registry>;
+pub type OtlpLayers = (OtlpTracingLayer, OtlpMetricsLayer);
+pub type OtlpResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
+
 #[derive(Debug, Clone)]
 pub struct OtlpConfig {
     pub endpoint: String,
@@ -45,9 +51,7 @@ impl OtlpConfig {
     }
 }
 
-pub fn init_otlp_tracing(
-    config: &OtlpConfig,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+pub fn init_otlp_tracing(config: &OtlpConfig) -> OtlpResult<()> {
     let resource = Resource::new(vec![
         KeyValue::new("service.name", "goose"),
         KeyValue::new("service.version", env!("CARGO_PKG_VERSION")),
@@ -72,9 +76,7 @@ pub fn init_otlp_tracing(
     Ok(())
 }
 
-pub fn init_otlp_metrics(
-    config: &OtlpConfig,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+pub fn init_otlp_metrics(config: &OtlpConfig) -> OtlpResult<()> {
     let resource = Resource::new(vec![
         KeyValue::new("service.name", "goose"),
         KeyValue::new("service.version", env!("CARGO_PKG_VERSION")),
@@ -101,10 +103,7 @@ pub fn init_otlp_metrics(
     Ok(())
 }
 
-pub fn create_otlp_tracing_layer() -> Result<
-    OpenTelemetryLayer<tracing_subscriber::Registry, opentelemetry_sdk::trace::Tracer>,
-    Box<dyn std::error::Error + Send + Sync>,
-> {
+pub fn create_otlp_tracing_layer() -> OtlpResult<OtlpTracingLayer> {
     let config =
         OtlpConfig::from_env().ok_or("OTEL_EXPORTER_OTLP_ENDPOINT environment variable not set")?;
 
@@ -131,8 +130,7 @@ pub fn create_otlp_tracing_layer() -> Result<
     Ok(tracing_opentelemetry::layer().with_tracer(tracer))
 }
 
-pub fn create_otlp_metrics_layer(
-) -> Result<MetricsLayer<tracing_subscriber::Registry>, Box<dyn std::error::Error + Send + Sync>> {
+pub fn create_otlp_metrics_layer() -> OtlpResult<OtlpMetricsLayer> {
     let config =
         OtlpConfig::from_env().ok_or("OTEL_EXPORTER_OTLP_ENDPOINT environment variable not set")?;
 
@@ -162,22 +160,13 @@ pub fn create_otlp_metrics_layer(
     Ok(tracing_opentelemetry::MetricsLayer::new(meter_provider))
 }
 
-pub fn init_otlp() -> Result<
-    (
-        OpenTelemetryLayer<tracing_subscriber::Registry, opentelemetry_sdk::trace::Tracer>,
-        MetricsLayer<tracing_subscriber::Registry>,
-    ),
-    Box<dyn std::error::Error + Send + Sync>,
-> {
+pub fn init_otlp() -> OtlpResult<OtlpLayers> {
     let tracing_layer = create_otlp_tracing_layer()?;
     let metrics_layer = create_otlp_metrics_layer()?;
     Ok((tracing_layer, metrics_layer))
 }
 
-pub fn init_otlp_tracing_only() -> Result<
-    OpenTelemetryLayer<tracing_subscriber::Registry, opentelemetry_sdk::trace::Tracer>,
-    Box<dyn std::error::Error + Send + Sync>,
-> {
+pub fn init_otlp_tracing_only() -> OtlpResult<OtlpTracingLayer> {
     create_otlp_tracing_layer()
 }
 
