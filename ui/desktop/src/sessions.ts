@@ -41,6 +41,7 @@ export interface SessionDetails {
   session_id: string;
   metadata: SessionMetadata;
   messages: Message[];
+  ancestorMessages?: Message[];
 }
 
 /**
@@ -113,13 +114,21 @@ export async function fetchSessionDetails(sessionId: string): Promise<SessionDet
       path: { session_id: sessionId },
     });
 
+    const allMessages = response.data.messages.map((message) =>
+      convertApiMessageToFrontendMessage(message, true, true)
+    );
+
+    const ancestorMessages = allMessages.filter(msg => msg.isAncestor === true);
+    const regularMessages = allMessages.filter(msg => msg.isAncestor !== true);
+
+    const validAncestorMessages = Array.isArray(ancestorMessages) ? ancestorMessages : [];
+
     // Convert the SessionHistoryResponse to a SessionDetails object
     return {
       session_id: response.data.sessionId,
       metadata: ensureWorkingDir(response.data.metadata),
-      messages: response.data.messages.map((message) =>
-        convertApiMessageToFrontendMessage(message, true, true)
-      ), // slight diffs between backend and frontend Message obj
+      messages: regularMessages,
+      ancestorMessages: validAncestorMessages,
     };
   } catch (error) {
     console.error(`Error fetching session details for ${sessionId}:`, error);
