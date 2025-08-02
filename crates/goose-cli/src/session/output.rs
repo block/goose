@@ -11,11 +11,25 @@ use rmcp::model::PromptArgument;
 use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::io::{Error, Write};
+use std::io::{Error, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
+// g_println macro removes colors again when we are not on a terminal
+#[macro_export]
+macro_rules! g_println {
+    () => {
+        println!()
+    };
+    ($($arg:tt)*) => {
+        if is_terminal::IsTerminal::is_terminal(&std::io::stdout()) {
+            println!($($arg)*)
+        } else {
+            println!("{}", console::strip_ansi_codes(&format!($($arg)*)).to_string())
+        }
+    };
+}
 // Re-export theme for use in main
 #[derive(Clone, Copy)]
 pub enum Theme {
@@ -135,11 +149,15 @@ thread_local! {
 }
 
 pub fn show_thinking() {
-    THINKING.with(|t| t.borrow_mut().show());
+    if std::io::stdout().is_terminal() {
+        THINKING.with(|t| t.borrow_mut().show());
+    }
 }
 
 pub fn hide_thinking() {
-    THINKING.with(|t| t.borrow_mut().hide());
+    if std::io::stdout().is_terminal() {
+        THINKING.with(|t| t.borrow_mut().hide());
+    }
 }
 
 pub fn is_showing_thinking() -> bool {
@@ -147,11 +165,13 @@ pub fn is_showing_thinking() -> bool {
 }
 
 pub fn set_thinking_message(s: &String) {
-    THINKING.with(|t| {
-        if let Some(spinner) = t.borrow_mut().spinner.as_mut() {
-            spinner.set_message(s);
-        }
-    });
+    if std::io::stdout().is_terminal() {
+        THINKING.with(|t| {
+            if let Some(spinner) = t.borrow_mut().spinner.as_mut() {
+                spinner.set_message(s);
+            }
+        });
+    }
 }
 
 pub fn render_message(message: &Message, debug: bool) {
@@ -163,21 +183,23 @@ pub fn render_message(message: &Message, debug: bool) {
             MessageContent::ToolRequest(req) => render_tool_request(req, theme, debug),
             MessageContent::ToolResponse(resp) => render_tool_response(resp, theme, debug),
             MessageContent::Image(image) => {
-                println!("Image: [data: {}, type: {}]", image.data, image.mime_type);
+                g_println!("Image: [data: {}, type: {}]", image.data, image.mime_type);
             }
             MessageContent::Thinking(thinking) => {
-                if std::env::var("GOOSE_CLI_SHOW_THINKING").is_ok() {
-                    println!("\n{}", style("Thinking:").dim().italic());
+                if std::env::var("GOOSE_CLI_SHOW_THINKING").is_ok()
+                    && std::io::stdout().is_terminal()
+                {
+                    g_println!("\n{}", style("Thinking:").dim().italic());
                     print_markdown(&thinking.thinking, theme);
                 }
             }
             MessageContent::RedactedThinking(_) => {
                 // For redacted thinking, print thinking was redacted
-                println!("\n{}", style("Thinking:").dim().italic());
+                g_println!("\n{}", style("Thinking:").dim().italic());
                 print_markdown("Thinking was redacted", theme);
             }
             _ => {
-                println!("WARNING: Message content type could not be rendered");
+                g_println!("WARNING: Message content type could not be rendered");
             }
         }
     }
@@ -190,6 +212,10 @@ pub fn render_text(text: &str, color: Option<Color>, dim: bool) {
 }
 
 pub fn render_text_no_newlines(text: &str, color: Option<Color>, dim: bool) {
+    if !std::io::stdout().is_terminal() {
+        println!("{}", text);
+        return;
+    }
     let mut styled_text = style(text);
     if dim {
         styled_text = styled_text.dim();
@@ -203,7 +229,7 @@ pub fn render_text_no_newlines(text: &str, color: Option<Color>, dim: bool) {
 }
 
 pub fn render_enter_plan_mode() {
-    println!(
+    g_println!(
         "\n{} {}\n",
         style("Entering plan mode.").green().bold(),
         style("You can provide instructions to create a plan and then act on it. To exit early, type /endplan")
@@ -213,7 +239,7 @@ pub fn render_enter_plan_mode() {
 }
 
 pub fn render_act_on_plan() {
-    println!(
+    g_println!(
         "\n{}\n",
         style("Exiting plan mode and acting on the above plan")
             .green()
@@ -222,11 +248,11 @@ pub fn render_act_on_plan() {
 }
 
 pub fn render_exit_plan_mode() {
-    println!("\n{}\n", style("Exiting plan mode.").green().bold());
+    g_println!("\n{}\n", style("Exiting plan mode.").green().bold());
 }
 
 pub fn goose_mode_message(text: &str) {
-    println!("\n{}", style(text).yellow(),);
+    g_println!("\n{}", style(text).yellow(),);
 }
 
 fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
@@ -267,7 +293,7 @@ fn render_tool_response(resp: &ToolResponse, theme: Theme, debug: bool) {
                 }
 
                 if debug {
-                    println!("{:#?}", content);
+                    g_println!("{:#?}", content);
                 } else if let Some(text) = content.as_text() {
                     print_markdown(&text.text, theme);
                 }
@@ -278,35 +304,35 @@ fn render_tool_response(resp: &ToolResponse, theme: Theme, debug: bool) {
 }
 
 pub fn render_error(message: &str) {
-    println!("\n  {} {}\n", style("error:").red().bold(), message);
+    g_println!("\n  {} {}\n", style("error:").red().bold(), message);
 }
 
 pub fn render_prompts(prompts: &HashMap<String, Vec<String>>) {
-    println!();
+    g_println!();
     for (extension, prompts) in prompts {
-        println!(" {}", style(extension).green());
+        g_println!(" {}", style(extension).green());
         for prompt in prompts {
-            println!("  - {}", style(prompt).cyan());
+            g_println!("  - {}", style(prompt).cyan());
         }
     }
-    println!();
+    g_println!();
 }
 
 pub fn render_prompt_info(info: &PromptInfo) {
-    println!();
+    g_println!();
 
     if let Some(ext) = &info.extension {
-        println!(" {}: {}", style("Extension").green(), ext);
+        g_println!(" {}: {}", style("Extension").green(), ext);
     }
 
-    println!(" Prompt: {}", style(&info.name).cyan().bold());
+    g_println!(" Prompt: {}", style(&info.name).cyan().bold());
 
     if let Some(desc) = &info.description {
-        println!("\n {}", desc);
+        g_println!("\n {}", desc);
     }
 
     if let Some(args) = &info.arguments {
-        println!("\n Arguments:");
+        g_println!("\n Arguments:");
         for arg in args {
             let required = arg.required.unwrap_or(false);
             let req_str = if required {
@@ -315,7 +341,7 @@ pub fn render_prompt_info(info: &PromptInfo) {
                 style("(optional)").dim()
             };
 
-            println!(
+            g_println!(
                 "  {} {} {}",
                 style(&arg.name).yellow(),
                 req_str,
@@ -323,53 +349,53 @@ pub fn render_prompt_info(info: &PromptInfo) {
             );
         }
     }
-    println!();
+    g_println!();
 }
 
 pub fn render_extension_success(name: &str) {
-    println!();
-    println!(
+    g_println!();
+    g_println!(
         "  {} extension `{}`",
         style("added").green(),
         style(name).cyan(),
     );
-    println!();
+    g_println!();
 }
 
 pub fn render_extension_error(name: &str, error: &str) {
-    println!();
-    println!(
+    g_println!();
+    g_println!(
         "  {} to add extension {}",
         style("failed").red(),
         style(name).red()
     );
-    println!();
-    println!("{}", style(error).dim());
-    println!();
+    g_println!();
+    g_println!("{}", style(error).dim());
+    g_println!();
 }
 
 pub fn render_builtin_success(names: &str) {
-    println!();
-    println!(
+    g_println!();
+    g_println!(
         "  {} builtin{}: {}",
         style("added").green(),
         if names.contains(',') { "s" } else { "" },
         style(names).cyan()
     );
-    println!();
+    g_println!();
 }
 
 pub fn render_builtin_error(names: &str, error: &str) {
-    println!();
-    println!(
+    g_println!();
+    g_println!(
         "  {} to add builtin{}: {}",
         style("failed").red(),
         if names.contains(',') { "s" } else { "" },
         style(names).red()
     );
-    println!();
-    println!("{}", style(error).dim());
-    println!();
+    g_println!();
+    g_println!("{}", style(error).dim());
+    g_println!();
 }
 
 fn render_text_editor_request(call: &ToolCall, debug: bool) {
@@ -377,7 +403,7 @@ fn render_text_editor_request(call: &ToolCall, debug: bool) {
 
     // Print path first with special formatting
     if let Some(Value::String(path)) = call.arguments.get("path") {
-        println!(
+        g_println!(
             "{}: {}",
             style("path").dim(),
             style(shorten_path(path, debug)).green()
@@ -394,7 +420,7 @@ fn render_text_editor_request(call: &ToolCall, debug: bool) {
         }
         print_params(&Value::Object(other_args), 0, debug);
     }
-    println!();
+    g_println!();
 }
 
 fn render_shell_request(call: &ToolCall, debug: bool) {
@@ -402,7 +428,7 @@ fn render_shell_request(call: &ToolCall, debug: bool) {
 
     match call.arguments.get("command") {
         Some(Value::String(s)) => {
-            println!("{}: {}", style("command").dim(), style(s).green());
+            g_println!("{}: {}", style("command").dim(), style(s).green());
         }
         _ => print_params(&call.arguments, 0, debug),
     }
@@ -413,17 +439,17 @@ fn render_dynamic_task_request(call: &ToolCall, debug: bool) {
 
     // Print task_parameters array
     if let Some(Value::Array(task_parameters)) = call.arguments.get("task_parameters") {
-        println!("{}:", style("task_parameters").dim());
+        g_println!("{}:", style("task_parameters").dim());
 
         for task_param in task_parameters.iter() {
-            println!("    -");
+            g_println!("    -");
 
             if let Some(param_obj) = task_param.as_object() {
                 for (key, value) in param_obj {
                     match value {
                         Value::String(s) => {
                             // For strings, print the full content without truncation
-                            println!("        {}: {}", style(key).dim(), style(s).green());
+                            g_println!("        {}: {}", style(key).dim(), style(s).green());
                         }
                         _ => {
                             // For everything else, use print_params
@@ -436,13 +462,13 @@ fn render_dynamic_task_request(call: &ToolCall, debug: bool) {
         }
     }
 
-    println!();
+    g_println!();
 }
 
 fn render_default_request(call: &ToolCall, debug: bool) {
     print_tool_header(call);
     print_params(&call.arguments, 0, debug);
-    println!();
+    g_println!();
 }
 
 // Helper functions
@@ -461,8 +487,8 @@ fn print_tool_header(call: &ToolCall) {
         .magenta()
         .dim(),
     );
-    println!();
-    println!("{}", tool_header);
+    g_println!();
+    g_println!("{}", tool_header);
 }
 
 // Respect NO_COLOR, as https://crates.io/crates/console already does
@@ -472,14 +498,18 @@ pub fn env_no_color() -> bool {
 }
 
 fn print_markdown(content: &str, theme: Theme) {
-    bat::PrettyPrinter::new()
-        .input(bat::Input::from_bytes(content.as_bytes()))
-        .theme(theme.as_str())
-        .colored_output(env_no_color())
-        .language("Markdown")
-        .wrapping_mode(WrappingMode::NoWrapping(true))
-        .print()
-        .unwrap();
+    if std::io::stdout().is_terminal() {
+        bat::PrettyPrinter::new()
+            .input(bat::Input::from_bytes(content.as_bytes()))
+            .theme(theme.as_str())
+            .colored_output(env_no_color())
+            .language("Markdown")
+            .wrapping_mode(WrappingMode::NoWrapping(true))
+            .print()
+            .unwrap();
+    } else {
+        print!("{}", content);
+    }
 }
 
 const INDENT: &str = "    ";
@@ -499,60 +529,60 @@ fn print_params(value: &Value, depth: usize, debug: bool) {
             for (key, val) in map {
                 match val {
                     Value::Object(_) => {
-                        println!("{}{}:", indent, style(key).dim());
+                        g_println!("{}{}:", indent, style(key).dim());
                         print_params(val, depth + 1, debug);
                     }
                     Value::Array(arr) => {
-                        println!("{}{}:", indent, style(key).dim());
+                        g_println!("{}{}:", indent, style(key).dim());
                         for item in arr.iter() {
-                            println!("{}{}- ", indent, INDENT);
+                            g_println!("{}{}- ", indent, INDENT);
                             print_params(item, depth + 2, debug);
                         }
                     }
                     Value::String(s) => {
                         if !debug && s.len() > get_tool_params_max_length() {
-                            println!("{}{}: {}", indent, style(key).dim(), style("...").dim());
+                            g_println!("{}{}: {}", indent, style(key).dim(), style("...").dim());
                         } else {
-                            println!("{}{}: {}", indent, style(key).dim(), style(s).green());
+                            g_println!("{}{}: {}", indent, style(key).dim(), style(s).green());
                         }
                     }
                     Value::Number(n) => {
-                        println!("{}{}: {}", indent, style(key).dim(), style(n).blue());
+                        g_println!("{}{}: {}", indent, style(key).dim(), style(n).blue());
                     }
                     Value::Bool(b) => {
-                        println!("{}{}: {}", indent, style(key).dim(), style(b).blue());
+                        g_println!("{}{}: {}", indent, style(key).dim(), style(b).blue());
                     }
                     Value::Null => {
-                        println!("{}{}: {}", indent, style(key).dim(), style("null").dim());
+                        g_println!("{}{}: {}", indent, style(key).dim(), style("null").dim());
                     }
                 }
             }
         }
         Value::Array(arr) => {
             for (i, item) in arr.iter().enumerate() {
-                println!("{}{}.", indent, i + 1);
+                g_println!("{}{}.", indent, i + 1);
                 print_params(item, depth + 1, debug);
             }
         }
         Value::String(s) => {
             if !debug && s.len() > get_tool_params_max_length() {
-                println!(
+                g_println!(
                     "{}{}",
                     indent,
                     style(format!("[REDACTED: {} chars]", s.len())).yellow()
                 );
             } else {
-                println!("{}{}", indent, style(s).green());
+                g_println!("{}{}", indent, style(s).green());
             }
         }
         Value::Number(n) => {
-            println!("{}{}", indent, style(n).yellow());
+            g_println!("{}{}", indent, style(n).yellow());
         }
         Value::Bool(b) => {
-            println!("{}{}", indent, style(b).yellow());
+            g_println!("{}{}", indent, style(b).yellow());
         }
         Value::Null => {
-            println!("{}{}", indent, style("null").dim());
+            g_println!("{}{}", indent, style("null").dim());
         }
     }
 }
@@ -626,7 +656,7 @@ pub fn display_session_info(
     if let Some(provider_inst) = provider_instance {
         if let Some(lead_worker) = provider_inst.as_lead_worker() {
             let (lead_model, worker_model) = lead_worker.get_model_info();
-            println!(
+            g_println!(
                 "{} {} {} {} {} {} {}",
                 style(start_session_msg).dim(),
                 style("provider:").dim(),
@@ -637,7 +667,7 @@ pub fn display_session_info(
                 style(&worker_model).cyan().dim(),
             );
         } else {
-            println!(
+            g_println!(
                 "{} {} {} {} {}",
                 style(start_session_msg).dim(),
                 style("provider:").dim(),
@@ -648,7 +678,7 @@ pub fn display_session_info(
         }
     } else {
         // Fallback to original behavior if no provider instance
-        println!(
+        g_println!(
             "{} {} {} {} {}",
             style(start_session_msg).dim(),
             style("provider:").dim(),
@@ -659,14 +689,14 @@ pub fn display_session_info(
     }
 
     if let Some(session_file) = session_file {
-        println!(
+        g_println!(
             "    {} {}",
             style("logging to").dim(),
             style(session_file.display()).dim().cyan(),
         );
     }
 
-    println!(
+    g_println!(
         "    {} {}",
         style("working directory:").dim(),
         style(std::env::current_dir().unwrap().display())
@@ -676,7 +706,7 @@ pub fn display_session_info(
 }
 
 pub fn display_greeting() {
-    println!("\nGoose is running! Enter your instructions, or try asking what goose can do.\n");
+    g_println!("\nGoose is running! Enter your instructions, or try asking what goose can do.\n");
 }
 
 /// Display context window usage with both current and session totals
@@ -684,7 +714,7 @@ pub fn display_context_usage(total_tokens: usize, context_limit: usize) {
     use console::style;
 
     if context_limit == 0 {
-        println!("Context: Error - context limit is zero");
+        g_println!("Context: Error - context limit is zero");
         return;
     }
 
@@ -712,9 +742,12 @@ pub fn display_context_usage(total_tokens: usize, context_limit: usize) {
     };
 
     // Print the status line
-    println!(
+    g_println!(
         "Context: {} {}% ({}/{} tokens)",
-        colored_dots, percentage, total_tokens, context_limit
+        colored_dots,
+        percentage,
+        total_tokens,
+        context_limit
     );
 }
 
@@ -782,7 +815,7 @@ pub async fn display_cost_usage(
 ) {
     if let Some(cost) = estimate_cost_usd(provider, model, input_tokens, output_tokens).await {
         use console::style;
-        println!(
+        eprintln!(
             "Cost: {} USD ({} tokens: in {}, out {})",
             style(format!("${:.4}", cost)).cyan(),
             input_tokens + output_tokens,

@@ -1,26 +1,27 @@
 use std::collections::HashMap;
 
+use crate::g_println;
 use console::style;
 use goose::recipe::{Recipe, BUILT_IN_RECIPE_DIR_PARAM};
 
 pub fn print_recipe_explanation(recipe: &Recipe) {
-    println!(
+    g_println!(
         "{} {}",
         style("🔍 Loading recipe:").bold().green(),
         style(&recipe.title).green()
     );
-    println!("{}", style("📄 Description:").bold());
-    println!("   {}", recipe.description);
+    g_println!("{}", style("📄 Description:").bold());
+    g_println!("   {}", recipe.description);
     if let Some(params) = &recipe.parameters {
         if !params.is_empty() {
-            println!("{}", style("⚙️  Recipe Parameters:").bold());
+            g_println!("{}", style("⚙️  Recipe Parameters:").bold());
             for param in params {
                 let default_display = match &param.default {
                     Some(val) => format!(" (default: {})", val),
                     None => String::new(),
                 };
 
-                println!(
+                g_println!(
                     "   - {} ({}, {}){}: {}",
                     style(&param.key).cyan(),
                     param.input_type,
@@ -40,7 +41,7 @@ pub fn print_parameters_with_values(params: HashMap<String, String>) {
         } else {
             ""
         };
-        println!("   {}{}: {}", key, label, value);
+        g_println!("   {}{}: {}", key, label, value);
     }
 }
 
@@ -49,26 +50,26 @@ pub fn print_required_parameters_for_template(
     missing_params: Vec<String>,
 ) {
     if !params_for_template.is_empty() {
-        println!(
+        g_println!(
             "{}",
             style("📥 Parameters used to load this recipe:").bold()
         );
         print_parameters_with_values(params_for_template)
     }
     if !missing_params.is_empty() {
-        println!(
+        g_println!(
             "{}",
             style("🔴 Missing parameters in the command line if you want to run the recipe:")
                 .bold()
         );
         for param in missing_params.iter() {
-            println!("   - {}", param);
+            g_println!("   - {}", param);
         }
-        println!(
+        g_println!(
             "📩 {}:",
             style("Please provide the following parameters in the command line if you want to run the recipe:").bold()
         );
-        println!("  {}", missing_parameters_command_line(missing_params));
+        g_println!("  {}", missing_parameters_command_line(missing_params));
     }
 }
 
@@ -81,16 +82,16 @@ pub fn missing_parameters_command_line(missing_params: Vec<String>) -> String {
 }
 
 pub fn print_recipe_info(recipe: &Recipe, params: Vec<(String, String)>) {
-    println!(
+    eprintln!(
         "{} {}",
         style("Loading recipe:").green().bold(),
         style(&recipe.title).green()
     );
-    println!("{} {}", style("Description:").bold(), &recipe.description);
+    eprintln!("{} {}", style("Description:").bold(), &recipe.description);
 
     if !params.is_empty() {
-        println!("{}", style("Parameters used to load this recipe:").bold());
+        eprintln!("{}", style("Parameters used to load this recipe:").bold());
         print_parameters_with_values(params.into_iter().collect());
     }
-    println!();
+    eprintln!();
 }
