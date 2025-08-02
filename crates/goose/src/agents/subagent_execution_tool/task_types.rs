@@ -62,6 +62,23 @@ impl Task {
             None
         }
     }
+
+    /// Extract task-specific timeout from the task payload
+    pub fn get_task_timeout(&self) -> Option<u64> {
+        // For sub_recipe tasks, get timeout from sub_recipe object
+        if self.task_type == "sub_recipe" {
+            self.get_sub_recipe()
+                .and_then(|sr| sr.get("task_timeout"))
+                .and_then(|timeout| timeout.as_u64())
+        } else {
+            // For text_instruction tasks, check if there's a sub_recipe field with timeout
+            self.payload
+                .get("sub_recipe")
+                .and_then(|sr| sr.as_object())
+                .and_then(|sr| sr.get("task_timeout"))
+                .and_then(|timeout| timeout.as_u64())
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
