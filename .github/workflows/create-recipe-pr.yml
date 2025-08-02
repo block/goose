@@ -40,21 +40,39 @@ jobs:
           keyring: false
           EOF
 
-      - name: Extract recipe YAML from issue
+      - name: Extract recipe YAML and email from issue
         id: parse
         run: |
           ISSUE_BODY=$(jq -r .issue.body "$GITHUB_EVENT_PATH")
+
+          # Extract the YAML block
           RECIPE_YAML=$(echo "$ISSUE_BODY" | awk '/```/,/```/' | sed '1d;$d')
           echo "$RECIPE_YAML" > recipe.yaml
 
+          # Get GitHub username
           AUTHOR="${{ github.event.issue.user.login }}"
+
           if ! grep -q "^author:" recipe.yaml; then
             echo -e "\nauthor:\n  contact: $AUTHOR" >> recipe.yaml
           fi
 
+          # Extract the plain email field from the issue
+          EMAIL=$(echo "$ISSUE_BODY" | grep -A 1 "Your Email (optional)" | tail -n 1 | grep -E -o '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}' || true)
+
+          if [ -n "$EMAIL" ]; then
+            EMAIL_B64=$(echo -n "$EMAIL" | base64 | tr -d '\n')
+            echo "Encoded email: $EMAIL_B64"
+          else
+            EMAIL_B64=""
+            echo "No email provided."
+          fi
+
+          # Recipe title to use in branch name
           TITLE=$(yq '.title' recipe.yaml | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-')
+
           echo "branch_name=add-recipe-${TITLE}" >> $GITHUB_OUTPUT
           echo "recipe_title=${TITLE}" >> $GITHUB_OUTPUT
+          echo "email_b64=$EMAIL_B64" >> $GITHUB_OUTPUT
 
       - name: Validate recipe.yaml with Goose
         id: validate
@@ -83,7 +101,6 @@ jobs:
           else
             gh issue comment "$ISSUE_NUMBER" --body "✅ Recipe validated successfully!"
           fi
-
 
       - name: Generate recipeUrl and save updated recipe
         run: |
@@ -119,8 +136,11 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           branch: ${{ steps.parse.outputs.branch_name }}
-          title: "Add recipe: ${{ steps.parse.outputs.recipe_title }}"
-          body: "This PR adds a new Goose recipe submitted via issue #${{ github.event.issue.number }}."
+          title: "Add External Recipe: ${{ steps.parse.outputs.recipe_title }}"
+          body: |
+            This PR adds a new Goose recipe submitted via issue #${{ github.event.issue.number }}.
+
+            <!--EMAIL:${{ steps.parse.outputs.email_b64 }}-->
           reviewers: |
             EbonyLouis
             angiejones
@@ -132,5 +152,5 @@ jobs:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           PR_URL: ${{ steps.cpr.outputs.pull-request-url }}
         run: |
-          gh issue comment "$ISSUE_NUMBER" --body "🎉 Thanks for submitting your recipe! We've created a [PR]($PR_URL) to add it to the Cookbook."
+          gh issue comment "$ISSUE_NUMBER" --body "🎉 Thanks for submitting your recipe! We've created a [PR]($PR_URL). If it's approved, your recipe will be added to the Recipe Cookbook — and you'll receive $10 in OpenRouter LLM credits by email as a thank-you!"
           gh issue close "$ISSUE_NUMBER"
