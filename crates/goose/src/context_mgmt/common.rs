@@ -9,8 +9,8 @@ use crate::{
 };
 
 const ESTIMATE_FACTOR: f32 = 0.7;
-const SYSTEM_PROMPT_TOKEN_OVERHEAD: usize = 3_000;
-const TOOLS_TOKEN_OVERHEAD: usize = 5_000;
+pub const SYSTEM_PROMPT_TOKEN_OVERHEAD: usize = 3_000;
+pub const TOOLS_TOKEN_OVERHEAD: usize = 5_000;
 
 pub fn estimate_target_context_limit(provider: Arc<dyn Provider>) -> usize {
     let model_context_limit = provider.get_model_config().context_limit();

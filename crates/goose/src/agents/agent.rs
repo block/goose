@@ -41,6 +41,7 @@ use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
 use crate::scheduler_trait::SchedulerTrait;
+use crate::session;
 use crate::tool_monitor::{ToolCall, ToolMonitor};
 use crate::utils::is_token_cancelled;
 use mcp_core::{ToolError, ToolResult};
@@ -752,8 +753,25 @@ impl Agent {
     async fn handle_auto_compaction(
         &self,
         messages: &[Message],
+        session: &Option<SessionConfig>,
     ) -> Result<Option<(Vec<Message>, String)>> {
-        let compact_result = auto_compact::check_and_compact_messages(self, messages, None).await?;
+        // Try to get session metadata for more accurate token counts
+        let session_metadata = if let Some(session_config) = session {
+            match session::storage::get_path(session_config.id.clone()) {
+                Ok(session_file_path) => session::storage::read_metadata(&session_file_path).ok(),
+                Err(_) => None,
+            }
+        } else {
+            None
+        };
+
+        let compact_result = auto_compact::check_and_compact_messages(
+            self,
+            messages,
+            None,
+            session_metadata.as_ref(),
+        )
+        .await?;
 
         if compact_result.compacted {
             let compacted_messages = compact_result.messages;
@@ -786,7 +804,9 @@ impl Agent {
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         // Handle auto-compaction before processing
-        let (messages, compaction_msg) = match self.handle_auto_compaction(unfixed_messages).await?
+        let (messages, compaction_msg) = match self
+            .handle_auto_compaction(unfixed_messages, &session)
+            .await?
         {
             Some((compacted_messages, msg)) => (compacted_messages, Some(msg)),
             None => {
