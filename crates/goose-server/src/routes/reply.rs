@@ -113,7 +113,7 @@ async fn stream_event(
             e
         )
     });
-    if let Err(_) = tx.send(format!("data: {}\n\n", json)).await {
+    if tx.send(format!("data: {}\n\n", json)).await.is_err() {
         tracing::info!("client hung up");
         cancel_token.cancel();
     }
