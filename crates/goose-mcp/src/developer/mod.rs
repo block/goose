@@ -24,7 +24,7 @@ use url::Url;
 
 use include_dir::{include_dir, Dir};
 use mcp_core::{
-    handler::{PromptError, ResourceError, ToolError},
+    handler::{require_str_parameter, PromptError, ResourceError, ToolError},
     protocol::ServerCapabilities,
 };
 
@@ -919,12 +919,7 @@ impl DeveloperRouter {
                 self.text_editor_view(&path, view_range).await
             }
             "write" => {
-                let file_text = params
-                    .get("file_text")
-                    .and_then(|v| v.as_str())
-                    .ok_or_else(|| {
-                        ToolError::InvalidParameters("Missing 'file_text' parameter".into())
-                    })?;
+                let file_text = require_str_parameter(&params, "file_text")?;
 
                 self.text_editor_write(&path, file_text).await
             }

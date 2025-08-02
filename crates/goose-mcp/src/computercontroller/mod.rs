@@ -12,7 +12,9 @@ use tokio::{process::Command, sync::mpsc};
 use std::os::unix::fs::PermissionsExt;
 
 use mcp_core::{
-    handler::{PromptError, ResourceError, ToolError},
+    handler::{
+        require_str_parameter, require_u64_parameter, PromptError, ResourceError, ToolError,
+    },
     protocol::ServerCapabilities,
 };
 use mcp_server::router::CapabilitiesBuilder;
@@ -595,11 +597,7 @@ impl ComputerControllerRouter {
     }
 
     async fn web_scrape(&self, params: Value) -> Result<Vec<Content>, ToolError> {
-        let url = params
-            .get("url")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| ToolError::InvalidParameters("Missing 'url' parameter".into()))?;
-
+        let url = require_str_parameter(&params, "url")?;
         let save_as = params
             .get("save_as")
             .and_then(|v| v.as_str())
@@ -916,20 +914,9 @@ impl ComputerControllerRouter {
                 ))])
             }
             "update_cell" => {
-                let row = params.get("row").and_then(|v| v.as_u64()).ok_or_else(|| {
-                    ToolError::InvalidParameters("Missing 'row' parameter".into())
-                })?;
-
-                let col = params.get("col").and_then(|v| v.as_u64()).ok_or_else(|| {
-                    ToolError::InvalidParameters("Missing 'col' parameter".into())
-                })?;
-
-                let value = params
-                    .get("value")
-                    .and_then(|v| v.as_str())
-                    .ok_or_else(|| {
-                        ToolError::InvalidParameters("Missing 'value' parameter".into())
-                    })?;
+                let row = require_u64_parameter(&params, "row")?;
+                let col = require_u64_parameter(&params, "col")?;
+                let value = require_str_parameter(&params, "value")?;
 
                 let worksheet_name = params
                     .get("worksheet")
