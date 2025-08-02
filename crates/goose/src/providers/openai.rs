@@ -2,9 +2,9 @@ use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;
 use futures::TryStreamExt;
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest::{Client, Response};
 use serde_json::{json, Value};
-use std::collections::HashMap;
 use std::io;
 use tokio::pin;
 use tokio_stream::StreamExt;
@@ -49,7 +49,6 @@ pub struct OpenAiProvider {
     organization: Option<String>,
     project: Option<String>,
     model: ModelConfig,
-    custom_headers: Option<HashMap<String, String>>,
 }
 
 impl_provider_default!(OpenAiProvider);
@@ -66,14 +65,14 @@ impl OpenAiProvider {
             .unwrap_or_else(|_| "v1/chat/completions".to_string());
         let organization: Option<String> = config.get_param("OPENAI_ORGANIZATION").ok();
         let project: Option<String> = config.get_param("OPENAI_PROJECT").ok();
-        let custom_headers: Option<HashMap<String, String>> = config
+        let custom_headers: Option<HeaderMap> = config
             .get_secret("OPENAI_CUSTOM_HEADERS")
             .or_else(|_| config.get_param("OPENAI_CUSTOM_HEADERS"))
             .ok()
-            .map(parse_custom_headers);
+            .and_then(|s| parse_custom_headers(s).ok());
         let timeout_secs: u64 = config.get_param("OPENAI_TIMEOUT").unwrap_or(600);
 
-        let client = build_http_client(timeout_secs, None)?;
+        let client = build_http_client(timeout_secs, custom_headers)?;
 
         Ok(Self {
             client,
@@ -83,30 +82,7 @@ impl OpenAiProvider {
             organization,
             project,
             model,
-            custom_headers,
         })
-    }
-
-    /// Helper function to add OpenAI-specific headers to a request
-    fn add_headers(&self, mut request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
-        // Add organization header if present
-        if let Some(org) = &self.organization {
-            request = request.header("OpenAI-Organization", org);
-        }
-
-        // Add project header if present
-        if let Some(project) = &self.project {
-            request = request.header("OpenAI-Project", project);
-        }
-
-        // Add custom headers if present
-        if let Some(custom_headers) = &self.custom_headers {
-            for (key, value) in custom_headers {
-                request = request.header(key, value);
-            }
-        }
-
-        request
     }
 
     async fn post(&self, payload: &Value) -> Result<Response, ProviderError> {
@@ -121,7 +97,7 @@ impl OpenAiProvider {
             .post(url)
             .header("Authorization", format!("Bearer {}", self.api_key));
 
-        let request = self.add_headers(request);
+        // Headers are now added in build_http_client
 
         Ok(request.json(&payload).send().await?)
     }
@@ -202,11 +178,6 @@ impl Provider for OpenAiProvider {
         if let Some(project) = &self.project {
             request = request.header("OpenAI-Project", project);
         }
-        if let Some(headers) = &self.custom_headers {
-            for (key, value) in headers {
-                request = request.header(key, value);
-            }
-        }
         let response = request.send().await?;
         let json: serde_json::Value = response.json().await?;
         if let Some(err_obj) = json.get("error") {
@@ -275,15 +246,17 @@ impl Provider for OpenAiProvider {
     }
 }
 
-fn parse_custom_headers(s: String) -> HashMap<String, String> {
-    s.split(',')
-        .filter_map(|header| {
-            let mut parts = header.splitn(2, '=');
-            let key = parts.next().map(|s| s.trim().to_string())?;
-            let value = parts.next().map(|s| s.trim().to_string())?;
-            Some((key, value))
-        })
-        .collect()
+fn parse_custom_headers(s: String) -> Result<HeaderMap> {
+    let mut headers = HeaderMap::new();
+    for header in s.split(',') {
+        if let Some((key, value)) = header.split_once('=') {
+            headers.insert(
+                HeaderName::from_bytes(key.trim().as_bytes())?,
+                HeaderValue::from_str(value.trim())?,
+            );
+        }
+    }
+    Ok(headers)
 }
 
 #[async_trait]
@@ -314,8 +287,6 @@ impl EmbeddingCapable for OpenAiProvider {
             .post(url)
             .header("Authorization", format!("Bearer {}", self.api_key))
             .json(&request);
-
-        let req = self.add_headers(req);
 
         let response = req
             .send()
