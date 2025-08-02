@@ -439,13 +439,19 @@ impl Agent {
             // Check if the tool is read_resource and handle it separately
             ToolCallResult::from(
                 extension_manager
-                    .read_resource(tool_call.arguments.clone())
+                    .read_resource(
+                        tool_call.arguments.clone(),
+                        cancellation_token.unwrap_or_default(),
+                    )
                     .await,
             )
         } else if tool_call.name == PLATFORM_LIST_RESOURCES_TOOL_NAME {
             ToolCallResult::from(
                 extension_manager
-                    .list_resources(tool_call.arguments.clone())
+                    .list_resources(
+                        tool_call.arguments.clone(),
+                        cancellation_token.unwrap_or_default(),
+                    )
                     .await,
             )
         } else if tool_call.name == PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME {
@@ -469,7 +475,7 @@ impl Agent {
         } else {
             // Clone the result to ensure no references to extension_manager are returned
             let result = extension_manager
-                .dispatch_tool_call(tool_call.clone())
+                .dispatch_tool_call(tool_call.clone(), cancellation_token.unwrap_or_default())
                 .await;
             result.unwrap_or_else(|e| {
                 ToolCallResult::from(Err(ToolError::ExecutionError(e.to_string())))
@@ -1161,7 +1167,7 @@ impl Agent {
     pub async fn list_extension_prompts(&self) -> HashMap<String, Vec<Prompt>> {
         let extension_manager = self.extension_manager.read().await;
         extension_manager
-            .list_prompts()
+            .list_prompts(CancellationToken::default())
             .await
             .expect("Failed to list prompts")
     }
@@ -1171,7 +1177,7 @@ impl Agent {
 
         // First find which extension has this prompt
         let prompts = extension_manager
-            .list_prompts()
+            .list_prompts(CancellationToken::default())
             .await
             .map_err(|e| anyhow!("Failed to list prompts: {}", e))?;
 
@@ -1181,7 +1187,7 @@ impl Agent {
             .map(|(extension, _)| extension)
         {
             return extension_manager
-                .get_prompt(extension, name, arguments)
+                .get_prompt(extension, name, arguments, CancellationToken::default())
                 .await
                 .map_err(|e| anyhow!("Failed to get prompt: {}", e));
         }

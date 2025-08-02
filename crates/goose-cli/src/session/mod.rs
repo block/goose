@@ -364,7 +364,12 @@ impl Session {
     }
 
     /// Process a single message and get the response
-    pub(crate) async fn process_message(&mut self, message: Message) -> Result<()> {
+    pub(crate) async fn process_message(
+        &mut self,
+        message: Message,
+        cancel_token: CancellationToken,
+    ) -> Result<()> {
+        let cancel_token = cancel_token.clone();
         let message_text = message.as_concat_text();
 
         self.push_message(message);
@@ -405,7 +410,7 @@ impl Session {
             );
         }
 
-        self.process_agent_response(false).await?;
+        self.process_agent_response(false, cancel_token).await?;
         Ok(())
     }
 
@@ -414,7 +419,8 @@ impl Session {
         // Process initial message if provided
         if let Some(prompt) = prompt {
             let msg = Message::user().with_text(&prompt);
-            self.process_message(msg).await?;
+            self.process_message(msg, CancellationToken::default())
+                .await?;
         }
 
         // Initialize the completion cache
@@ -514,7 +520,8 @@ impl Session {
                             }
 
                             output::show_thinking();
-                            self.process_agent_response(true).await?;
+                            self.process_agent_response(true, CancellationToken::default())
+                                .await?;
                             output::hide_thinking();
                         }
                         RunMode::Plan => {
@@ -814,7 +821,8 @@ impl Session {
                     self.push_message(plan_message);
                     // act on the plan
                     output::show_thinking();
-                    self.process_agent_response(true).await?;
+                    self.process_agent_response(true, CancellationToken::default())
+                        .await?;
                     output::hide_thinking();
 
                     // Reset run & goose mode
@@ -842,12 +850,15 @@ impl Session {
     /// Process a single message and exit
     pub async fn headless(&mut self, prompt: String) -> Result<()> {
         let message = Message::user().with_text(&prompt);
-        self.process_message(message).await
+        self.process_message(message, CancellationToken::default())
+            .await
     }
 
-    async fn process_agent_response(&mut self, interactive: bool) -> Result<()> {
-        // Messages will be auto-compacted in agent.reply() if needed
-        let cancel_token = CancellationToken::new();
+    async fn process_agent_response(
+        &mut self,
+        interactive: bool,
+        cancel_token: CancellationToken,
+    ) -> Result<()> {
         let cancel_token_clone = cancel_token.clone();
 
         let session_config = self.session_file.as_ref().map(|s| {
@@ -1511,7 +1522,8 @@ impl Session {
 
                     if valid {
                         output::show_thinking();
-                        self.process_agent_response(true).await?;
+                        self.process_agent_response(true, CancellationToken::default())
+                            .await?;
                         output::hide_thinking();
                     }
                 }

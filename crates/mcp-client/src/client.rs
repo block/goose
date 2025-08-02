@@ -18,6 +18,7 @@ use tokio::sync::{
     mpsc::{self, Sender},
     Mutex,
 };
+use tokio_util::sync::CancellationToken;
 
 pub type BoxError = Box<dyn std::error::Error + Sync + Send>;
 
@@ -28,17 +29,40 @@ pub trait McpClientTrait: Send + Sync {
     async fn list_resources(
         &self,
         next_cursor: Option<String>,
+        cancel_token: CancellationToken,
     ) -> Result<ListResourcesResult, Error>;
 
-    async fn read_resource(&self, uri: &str) -> Result<ReadResourceResult, Error>;
+    async fn read_resource(
+        &self,
+        uri: &str,
+        cancel_token: CancellationToken,
+    ) -> Result<ReadResourceResult, Error>;
 
-    async fn list_tools(&self, next_cursor: Option<String>) -> Result<ListToolsResult, Error>;
+    async fn list_tools(
+        &self,
+        next_cursor: Option<String>,
+        cancel_token: CancellationToken,
+    ) -> Result<ListToolsResult, Error>;
 
-    async fn call_tool(&self, name: &str, arguments: Value) -> Result<CallToolResult, Error>;
+    async fn call_tool(
+        &self,
+        name: &str,
+        arguments: Value,
+        cancel_token: CancellationToken,
+    ) -> Result<CallToolResult, Error>;
 
-    async fn list_prompts(&self, next_cursor: Option<String>) -> Result<ListPromptsResult, Error>;
+    async fn list_prompts(
+        &self,
+        next_cursor: Option<String>,
+        cancel_token: CancellationToken,
+    ) -> Result<ListPromptsResult, Error>;
 
-    async fn get_prompt(&self, name: &str, arguments: Value) -> Result<GetPromptResult, Error>;
+    async fn get_prompt(
+        &self,
+        name: &str,
+        arguments: Value,
+        cancel_token: CancellationToken,
+    ) -> Result<GetPromptResult, Error>;
 
     async fn subscribe(&self) -> mpsc::Receiver<ServerNotification>;
 
@@ -143,10 +167,32 @@ impl McpClient {
         })
     }
 
-    fn get_request_options(&self) -> PeerRequestOptions {
-        PeerRequestOptions {
-            timeout: Some(self.timeout),
-            meta: None,
+    async fn send_request(
+        &self,
+        request: ClientRequest,
+        cancel_token: CancellationToken,
+    ) -> Result<ServerResult, Error> {
+        let handle = self
+            .client
+            .lock()
+            .await
+            .send_request_with_option(
+                request,
+                PeerRequestOptions {
+                    timeout: Some(self.timeout),
+                    meta: None,
+                },
+            )
+            .await?;
+
+        let cancel_token = cancel_token.clone();
+        tokio::select! {
+            res = handle.await_response() => {
+                Ok(res?)
+            }
+            _ = cancel_token.cancelled() => {
+                Err(Error::Cancelled{reason: None})
+            }
         }
     }
 }
@@ -157,34 +203,35 @@ impl McpClientTrait for McpClient {
         self.server_info.as_ref()
     }
 
-    async fn list_resources(&self, cursor: Option<String>) -> Result<ListResourcesResult, Error> {
+    async fn list_resources(
+        &self,
+        cursor: Option<String>,
+        cancel_token: CancellationToken,
+    ) -> Result<ListResourcesResult, Error> {
         let res = self
-            .client
-            .lock()
-            .await
-            .send_request_with_option(
+            .send_request(
                 ClientRequest::ListResourcesRequest(ListResourcesRequest {
                     params: Some(PaginatedRequestParam { cursor }),
                     method: Default::default(),
                     extensions: Default::default(),
                 }),
-                self.get_request_options(),
+                cancel_token,
             )
-            .await?
-            .await_response()
             .await?;
+
         match res {
             ServerResult::ListResourcesResult(result) => Ok(result),
             _ => Err(ServiceError::UnexpectedResponse),
         }
     }
 
-    async fn read_resource(&self, uri: &str) -> Result<ReadResourceResult, Error> {
+    async fn read_resource(
+        &self,
+        uri: &str,
+        cancel_token: CancellationToken,
+    ) -> Result<ReadResourceResult, Error> {
         let res = self
-            .client
-            .lock()
-            .await
-            .send_request_with_option(
+            .send_request(
                 ClientRequest::ReadResourceRequest(ReadResourceRequest {
                     params: ReadResourceRequestParam {
                         uri: uri.to_string(),
@@ -192,49 +239,50 @@ impl McpClientTrait for McpClient {
                     method: Default::default(),
                     extensions: Default::default(),
                 }),
-                self.get_request_options(),
+                cancel_token,
             )
-            .await?
-            .await_response()
             .await?;
+
         match res {
             ServerResult::ReadResourceResult(result) => Ok(result),
             _ => Err(ServiceError::UnexpectedResponse),
         }
     }
 
-    async fn list_tools(&self, cursor: Option<String>) -> Result<ListToolsResult, Error> {
+    async fn list_tools(
+        &self,
+        cursor: Option<String>,
+        cancel_token: CancellationToken,
+    ) -> Result<ListToolsResult, Error> {
         let res = self
-            .client
-            .lock()
-            .await
-            .send_request_with_option(
+            .send_request(
                 ClientRequest::ListToolsRequest(ListToolsRequest {
                     params: Some(PaginatedRequestParam { cursor }),
                     method: Default::default(),
                     extensions: Default::default(),
                 }),
-                self.get_request_options(),
+                cancel_token,
             )
-            .await?
-            .await_response()
             .await?;
+
         match res {
             ServerResult::ListToolsResult(result) => Ok(result),
             _ => Err(ServiceError::UnexpectedResponse),
         }
     }
 
-    async fn call_tool(&self, name: &str, arguments: Value) -> Result<CallToolResult, Error> {
+    async fn call_tool(
+        &self,
+        name: &str,
+        arguments: Value,
+        cancel_token: CancellationToken,
+    ) -> Result<CallToolResult, Error> {
         let arguments = match arguments {
             Value::Object(map) => Some(map),
             _ => None,
         };
         let res = self
-            .client
-            .lock()
-            .await
-            .send_request_with_option(
+            .send_request(
                 ClientRequest::CallToolRequest(CallToolRequest {
                     params: CallToolRequestParam {
                         name: name.to_string().into(),
@@ -243,49 +291,50 @@ impl McpClientTrait for McpClient {
                     method: Default::default(),
                     extensions: Default::default(),
                 }),
-                self.get_request_options(),
+                cancel_token,
             )
-            .await?
-            .await_response()
             .await?;
+
         match res {
             ServerResult::CallToolResult(result) => Ok(result),
             _ => Err(ServiceError::UnexpectedResponse),
         }
     }
 
-    async fn list_prompts(&self, cursor: Option<String>) -> Result<ListPromptsResult, Error> {
+    async fn list_prompts(
+        &self,
+        cursor: Option<String>,
+        cancel_token: CancellationToken,
+    ) -> Result<ListPromptsResult, Error> {
         let res = self
-            .client
-            .lock()
-            .await
-            .send_request_with_option(
+            .send_request(
                 ClientRequest::ListPromptsRequest(ListPromptsRequest {
                     params: Some(PaginatedRequestParam { cursor }),
                     method: Default::default(),
                     extensions: Default::default(),
                 }),
-                self.get_request_options(),
+                cancel_token,
             )
-            .await?
-            .await_response()
             .await?;
+
         match res {
             ServerResult::ListPromptsResult(result) => Ok(result),
             _ => Err(ServiceError::UnexpectedResponse),
         }
     }
 
-    async fn get_prompt(&self, name: &str, arguments: Value) -> Result<GetPromptResult, Error> {
+    async fn get_prompt(
+        &self,
+        name: &str,
+        arguments: Value,
+        cancel_token: CancellationToken,
+    ) -> Result<GetPromptResult, Error> {
         let arguments = match arguments {
             Value::Object(map) => Some(map),
             _ => None,
         };
         let res = self
-            .client
-            .lock()
-            .await
-            .send_request_with_option(
+            .send_request(
                 ClientRequest::GetPromptRequest(GetPromptRequest {
                     params: GetPromptRequestParam {
                         name: name.to_string(),
@@ -294,11 +343,10 @@ impl McpClientTrait for McpClient {
                     method: Default::default(),
                     extensions: Default::default(),
                 }),
-                self.get_request_options(),
+                cancel_token,
             )
-            .await?
-            .await_response()
             .await?;
+
         match res {
             ServerResult::GetPromptResult(result) => Ok(result),
             _ => Err(ServiceError::UnexpectedResponse),
