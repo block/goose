@@ -3470,6 +3470,7 @@ dependencies = [
  "umya-spreadsheet",
  "url",
  "utoipa",
+ "uuid",
  "webbrowser 0.8.15",
  "which",
  "xcap",
