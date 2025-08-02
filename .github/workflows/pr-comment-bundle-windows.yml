@@ -67,7 +67,7 @@ jobs:
     if: ${{ needs.trigger-on-command.outputs.continue == 'true' }}
     uses: ./.github/workflows/bundle-desktop-windows.yml
     with:
-      signing: false
+      signing: true
       ref: ${{ needs.trigger-on-command.outputs.head_sha }}
 
 

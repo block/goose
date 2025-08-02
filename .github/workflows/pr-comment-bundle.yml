@@ -111,7 +111,7 @@ jobs:
       id-token: write
       contents: read
     with:
-      signing: false
+      signing: true
       ref: ${{ needs.trigger-on-command.outputs.pr_sha }}
 
   pr-comment-arm64:

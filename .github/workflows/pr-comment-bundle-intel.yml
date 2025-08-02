@@ -67,7 +67,7 @@ jobs:
       id-token: write
       contents: read
     with:
-      signing: false
+      signing: true
       ref: ${{ needs.trigger-on-command.outputs.head_sha }}
 
   pr-comment-intel:

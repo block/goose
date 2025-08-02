@@ -70,7 +70,7 @@ jobs:
       contents: read
     with:
       version: ${{ needs.prepare-version.outputs.version }}
-      signing: false
+      signing: true
 
   # ------------------------------------------------------------
   # 5) Bundle Desktop App (Linux) - builds goosed and Electron app
