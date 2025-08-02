@@ -9,6 +9,7 @@ use url::Url;
 use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsage};
 use super::embedding::EmbeddingCapable;
 use super::errors::ProviderError;
+use super::retry::ProviderRetry;
 use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
 use crate::impl_provider_default;
 use crate::message::Message;
@@ -192,7 +193,10 @@ impl Provider for LiteLLMProvider {
             payload = update_request_for_cache_control(&payload);
         }
 
-        let response = self.post(&payload).await?;
+        let response = self.with_retry(|| async {
+            let payload_clone = payload.clone();
+            self.post(&payload_clone).await
+        }).await?;
 
         let message = super::formats::openai::response_to_message(&response)?;
         let usage = super::formats::openai::get_usage(&response);
@@ -217,7 +221,7 @@ impl Provider for LiteLLMProvider {
         self.model.model_name.to_lowercase().contains("claude")
     }
 
-    async fn fetch_supported_models_async(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         match self.fetch_models().await {
             Ok(models) => {
                 let model_names: Vec<String> = models.into_iter().map(|m| m.name).collect();

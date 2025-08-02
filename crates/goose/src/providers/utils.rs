@@ -44,6 +44,74 @@ pub fn convert_image(image: &ImageContent, image_format: &ImageFormat) -> Value 
     }
 }
 
+fn check_context_length_exceeded(text: &str) -> bool {
+    let check_phrases = [
+        "too long",
+        "context length",
+        "context_length_exceeded",
+        "reduce the length",
+        "token count",
+        "exceeds",
+        "exceed context limit",
+        "input length",
+        "max_tokens",
+        "decrease input length",
+        "context limit",
+    ];
+    let text_lower = text.to_lowercase();
+    check_phrases
+        .iter()
+        .any(|phrase| text_lower.contains(phrase))
+}
+
+pub fn map_http_error_to_provider_error(
+    status: StatusCode,
+    payload: Option<Value>,
+) -> ProviderError {
+    match status {
+        StatusCode::OK => unreachable!("Should not call this function with OK status"),
+        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
+            ProviderError::Authentication(format!(
+                "Authentication failed. Please ensure your API keys are valid and have the required permissions. \
+                Status: {}. Response: {:?}", status, payload
+            ))
+        }
+        StatusCode::BAD_REQUEST => {
+            let mut error_msg = "Unknown error".to_string();
+            if let Some(payload) = &payload {
+                let payload_str = payload.to_string();
+                if check_context_length_exceeded(&payload_str) {
+                    return ProviderError::ContextLengthExceeded(payload_str);
+                }
+
+                if let Some(error) = payload.get("error") {
+                    tracing::debug!("Bad Request Error: {error:?}");
+                    error_msg = error.get("message")
+                        .and_then(|m| m.as_str())
+                        .unwrap_or("Unknown error")
+                        .to_string();
+                }
+            }
+            tracing::debug!(
+                "Provider request failed with status: {}. Payload: {:?}", status, payload
+            );
+            ProviderError::RequestFailed(format!("Request failed with status: {}. Message: {}", status, error_msg))
+        }
+        StatusCode::TOO_MANY_REQUESTS => {
+            ProviderError::RateLimitExceeded(format!("{:?}", payload))
+        }
+        StatusCode::INTERNAL_SERVER_ERROR | StatusCode::SERVICE_UNAVAILABLE => {
+            ProviderError::ServerError(format!("{:?}", payload))
+        }
+        _ => {
+            tracing::debug!(
+                "Provider request failed with status: {}. Payload: {:?}", status, payload
+            );
+            ProviderError::RequestFailed(format!("Request failed with status: {}", status))
+        }
+    }
+}
+
 /// Handle response from OpenAI compatible endpoints
 /// Error codes: https://platform.openai.com/docs/guides/error-codes
 /// Context window exceeded: https://community.openai.com/t/help-needed-tackling-context-length-limits-in-openai-models/617543
@@ -54,36 +122,31 @@ pub async fn handle_status_openai_compat(response: Response) -> Result<Response,
         StatusCode::OK => Ok(response),
         _ => {
             let body = response.json::<Value>().await;
-            match (body, status) {
-                (Err(e), _) => Err(ProviderError::RequestFailed(e.to_string())),
-                (Ok(body), StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN) => {
-                    Err(ProviderError::Authentication(format!("Authentication failed. Please ensure your API keys are valid and have the required permissions. \
-                        Status: {}. Response: {:?}", status, body)))
-                }
-                (Ok(body), StatusCode::BAD_REQUEST | StatusCode::NOT_FOUND) => {
-                    tracing::debug!(
-                        "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, body)
-                    );
-                    if let Ok(err_resp) = from_value::<OpenAIErrorResponse>(body) {
-                        let err = err_resp.error;
-                        if err.is_context_length_exceeded() {
-                            return Err(ProviderError::ContextLengthExceeded(err.message.unwrap_or("Unknown error".to_string())));
+            match body {
+                Err(e) => Err(ProviderError::RequestFailed(e.to_string())),
+                Ok(body) => {
+                    let error = if matches!(status, StatusCode::BAD_REQUEST | StatusCode::NOT_FOUND)
+                    {
+                        if let Ok(err_resp) = from_value::<OpenAIErrorResponse>(body.clone()) {
+                            let err = err_resp.error;
+                            if err.is_context_length_exceeded() {
+                                ProviderError::ContextLengthExceeded(
+                                    err.message.unwrap_or("Unknown error".to_string()),
+                                )
+                            } else {
+                                ProviderError::RequestFailed(format!(
+                                    "{} (status {})",
+                                    err,
+                                    status.as_u16()
+                                ))
+                            }
+                        } else {
+                            map_http_error_to_provider_error(status, Some(body))
                         }
-                        return Err(ProviderError::RequestFailed(format!("{} (status {})", err, status.as_u16())));
-                    }
-                    Err(ProviderError::RequestFailed(format!("Unknown error (status {})", status)))
-                }
-                (Ok(body), StatusCode::TOO_MANY_REQUESTS) => {
-                    Err(ProviderError::RateLimitExceeded(format!("{:?}", body)))
-                }
-                (Ok(body), StatusCode::INTERNAL_SERVER_ERROR | StatusCode::SERVICE_UNAVAILABLE) => {
-                    Err(ProviderError::ServerError(format!("{:?}", body)))
-                }
-                (Ok(body), _) => {
-                    tracing::debug!(
-                        "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, body)
-                    );
-                    Err(ProviderError::RequestFailed(format!("Request failed with status: {}", status)))
+                    } else {
+                        map_http_error_to_provider_error(status, Some(body))
+                    };
+                    Err(error)
                 }
             }
         }

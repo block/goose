@@ -188,7 +188,7 @@ impl Provider for OpenAiProvider {
     }
 
     /// Fetch supported models from OpenAI; returns Err on any failure, Ok(None) if no data
-    async fn fetch_supported_models_async(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         // List available models via OpenAI API
         let base_url =
             url::Url::parse(&self.host).map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
@@ -268,7 +268,7 @@ impl Provider for OpenAiProvider {
             pin!(message_stream);
             while let Some(message) = message_stream.next().await {
                 let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-                super::utils::emit_debug_trace(&model_config, &payload, &message, &usage.as_ref().map(|f| f.usage).unwrap_or_default());
+                emit_debug_trace(&model_config, &payload, &message, &usage.as_ref().map(|f| f.usage).unwrap_or_default());
                 yield (message, usage);
             }
         }))

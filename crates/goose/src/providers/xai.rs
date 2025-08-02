@@ -1,13 +1,14 @@
 use super::errors::ProviderError;
+use super::retry::ProviderRetry;
+use super::utils::{get_model, handle_response_openai_compat};
 use crate::impl_provider_default;
 use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
-use crate::providers::utils::get_model;
 use anyhow::Result;
 use async_trait::async_trait;
-use reqwest::{Client, StatusCode};
+use reqwest::Client;
 use rmcp::model::Tool;
 use serde_json::Value;
 use std::time::Duration;
@@ -68,7 +69,7 @@ impl XaiProvider {
         })
     }
 
-    async fn post(&self, payload: &Value) -> anyhow::Result<Value, ProviderError> {
+    async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
         // Ensure the host ends with a slash for proper URL joining
         let host = if self.host.ends_with('/') {
             self.host.clone()
@@ -92,31 +93,7 @@ impl XaiProvider {
             .send()
             .await?;
 
-        let status = response.status();
-        let payload: Option<Value> = response.json().await.ok();
-
-        match status {
-            StatusCode::OK => payload.ok_or_else( || ProviderError::RequestFailed("Response body is not valid JSON".to_string()) ),
-            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
-                Err(ProviderError::Authentication(format!("Authentication failed. Please ensure your API keys are valid and have the required permissions. \
-                    Status: {}. Response: {:?}", status, payload)))
-            }
-            StatusCode::PAYLOAD_TOO_LARGE => {
-                Err(ProviderError::ContextLengthExceeded(format!("{:?}", payload)))
-            }
-            StatusCode::TOO_MANY_REQUESTS => {
-                Err(ProviderError::RateLimitExceeded(format!("{:?}", payload)))
-            }
-            StatusCode::INTERNAL_SERVER_ERROR | StatusCode::SERVICE_UNAVAILABLE => {
-                Err(ProviderError::ServerError(format!("{:?}", payload)))
-            }
-            _ => {
-                tracing::debug!(
-                    "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
-                );
-                Err(ProviderError::RequestFailed(format!("Request failed with status: {}", status)))
-            }
-        }
+        handle_response_openai_compat(response).await
     }
 }
 
@@ -150,7 +127,7 @@ impl Provider for XaiProvider {
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
+    ) -> Result<(Message, ProviderUsage), ProviderError> {
         let payload = create_request(
             &self.model,
             system,
@@ -159,7 +136,7 @@ impl Provider for XaiProvider {
             &super::utils::ImageFormat::OpenAi,
         )?;
 
-        let response = self.post(&payload).await?;
+        let response = self.with_retry(|| self.post(payload.clone())).await?;
 
         let message = response_to_message(&response)?;
         let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
