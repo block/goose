@@ -165,9 +165,6 @@ impl Provider for LiteLLMProvider {
                 ),
                 ConfigKey::new("LITELLM_CUSTOM_HEADERS", false, true, None),
                 ConfigKey::new("LITELLM_TIMEOUT", false, false, Some("600")),
-                ConfigKey::new("LITELLM_CLIENT_CERT_PATH", false, false, None),
-                ConfigKey::new("LITELLM_CLIENT_KEY_PATH", false, false, None),
-                ConfigKey::new("LITELLM_CA_CERT_PATH", false, false, None),
             ],
         )
     }

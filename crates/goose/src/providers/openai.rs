@@ -153,9 +153,6 @@ impl Provider for OpenAiProvider {
                 ConfigKey::new("OPENAI_PROJECT", false, false, None),
                 ConfigKey::new("OPENAI_CUSTOM_HEADERS", false, true, None),
                 ConfigKey::new("OPENAI_TIMEOUT", false, false, Some("600")),
-                ConfigKey::new("OPENAI_CLIENT_CERT_PATH", false, false, None),
-                ConfigKey::new("OPENAI_CLIENT_KEY_PATH", false, false, None),
-                ConfigKey::new("OPENAI_CA_CERT_PATH", false, false, None),
             ],
         )
     }
