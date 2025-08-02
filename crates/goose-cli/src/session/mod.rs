@@ -1173,6 +1173,83 @@ impl Session {
                         }
 
                         Some(Err(e)) => {
+                            // Check if this is a context length error
+                            if let Some(goose::providers::errors::ProviderError::ContextLengthExceeded(error_msg)) = e.downcast_ref::<goose::providers::errors::ProviderError>() {
+                                    // Check if this was caused by a tool response
+                                    let should_rollback = if let Some(last_msg) = self.messages.last() {
+                                        last_msg.role == rmcp::model::Role::User &&
+                                        last_msg.content.iter().any(|c| matches!(c, MessageContent::ToolResponse(_)))
+                                    } else {
+                                        false
+                                    };
+
+                                    if should_rollback {
+                                        // This was caused by a tool response - implement rollback
+
+                                        // Get the tool ID from the last message's tool response
+                                        if let Some(tool_id) = self.messages.last().and_then(|msg| {
+                                            msg.content.iter().find_map(|c| match c {
+                                                MessageContent::ToolResponse(resp) => Some(resp.id.clone()),
+                                                _ => None
+                                            })
+                                        }) {
+                                            // Remove the tool response message
+                                            self.messages.pop();
+
+                                            // Find and remove the corresponding tool request from the assistant message
+                                            if let Some(assistant_msg) = self.messages.last_mut() {
+                                                if assistant_msg.role == rmcp::model::Role::Assistant {
+                                                    assistant_msg.content.retain(|c| {
+                                                        !matches!(c, MessageContent::ToolRequest(req) if req.id == tool_id)
+                                                    });
+                                                }
+                                            }
+
+                                            // Add error response for this tool
+                                            let mut error_msg = Message::user();
+                                            error_msg.content.push(MessageContent::tool_response(
+                                                tool_id,
+                                                Err(ToolError::ExecutionError(
+                                                    "Tool result exceeded context limits. Try a different approach or read smaller portions.".to_string()
+                                                ))
+                                            ));
+                                            push_message(&mut self.messages, error_msg);
+
+                                            // Persist the rolled-back state
+                                            if let Some(session_file) = &self.session_file {
+                                                if let Err(e) = session::persist_messages_with_schedule_id(
+                                                    session_file,
+                                                    &self.messages,
+                                                    None,
+                                                    self.scheduled_job_id.clone(),
+                                                    std::env::current_dir().ok(),
+                                                ).await {
+                                                    eprintln!("Failed to persist rollback state: {}", e);
+                                                }
+                                            }
+
+                                            // Continue the stream instead of breaking
+                                            continue;
+                                        }
+                                    } else {
+                                        // Show the context error to the user
+                                        output::render_text(&format!("Context length exceeded: {}", error_msg), Some(Color::Red), true);
+
+                                        // For OpenRouter, check if the error mentions middle-out
+                                        if error_msg.contains("middle-out") {
+                                            output::render_text("\nOpenRouter suggestion: Use the \"middle-out\" transform to compress your prompt automatically.", Some(Color::Yellow), true);
+                                        }
+
+                                        // Show available options to the user
+                                        output::render_text("\nYou can use these commands to manage context:", Some(Color::Yellow), true);
+                                        output::render_text("  /clear - Clear all messages and start fresh", Some(Color::Yellow), true);
+                                        output::render_text("  /summarize - Summarize the conversation to reduce tokens", Some(Color::Yellow), true);
+
+                                        // Break from the loop to return control to user
+                                        break;
+                                    }
+                            }
+
                             eprintln!("Error: {}", e);
                             cancel_token_clone.cancel();
                             drop(stream);
@@ -1601,4 +1678,110 @@ fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
     let reasoner = create(&provider, model_config)?;
 
     Ok(reasoner)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use goose::message::MessageContent;
+    use mcp_core::handler::ToolError;
+    use rmcp::model::Role;
+
+    #[test]
+    fn test_context_rollback_detection() {
+        // Create a message with a tool response
+        let mut msg = Message::user();
+        msg.content.push(MessageContent::tool_response(
+            "test-tool-id",
+            Ok(vec![rmcp::model::Content::text("Large content")]),
+        ));
+
+        // Verify it's detected as a tool response message
+        let has_tool_response = msg.role == Role::User
+            && msg
+                .content
+                .iter()
+                .any(|c| matches!(c, MessageContent::ToolResponse(_)));
+
+        assert!(has_tool_response);
+    }
+
+    #[tokio::test]
+    async fn test_context_rollback_message_removal() {
+        let mut messages = Vec::new();
+
+        // Add an assistant message with a tool request
+        let mut assistant_msg = Message::assistant();
+        assistant_msg
+            .content
+            .push(MessageContent::text("Let me help you with that."));
+        assistant_msg.content.push(MessageContent::tool_request(
+            "tool-123",
+            Ok(mcp_core::tool::ToolCall {
+                name: "TestTool".to_string(),
+                arguments: serde_json::Value::Object(serde_json::Map::new()),
+            }),
+        ));
+        push_message(&mut messages, assistant_msg);
+
+        // Add a user message with tool response
+        let mut user_msg = Message::user();
+        user_msg.content.push(MessageContent::tool_response(
+            "tool-123",
+            Ok(vec![rmcp::model::Content::text(
+                "Very large response that causes context overflow",
+            )]),
+        ));
+        push_message(&mut messages, user_msg);
+
+        assert_eq!(messages.len(), 2);
+
+        // Simulate rollback
+        if let Some(tool_id) = messages.last().and_then(|msg| {
+            msg.content.iter().find_map(|c| match c {
+                MessageContent::ToolResponse(resp) => Some(resp.id.clone()),
+                _ => None,
+            })
+        }) {
+            // Remove the tool response message
+            messages.pop();
+
+            // Remove the corresponding tool request from the assistant message
+            if let Some(assistant_msg) = messages.last_mut() {
+                if assistant_msg.role == Role::Assistant {
+                    assistant_msg.content.retain(
+                        |c| !matches!(c, MessageContent::ToolRequest(req) if req.id == tool_id),
+                    );
+                }
+            }
+
+            // Add error response
+            let mut error_msg = Message::user();
+            error_msg.content.push(MessageContent::tool_response(
+                tool_id,
+                Err(ToolError::ExecutionError(
+                    "Tool result exceeded context limits. Try a different approach or read smaller portions.".to_string()
+                ))
+            ));
+            push_message(&mut messages, error_msg);
+        }
+
+        // Verify the state after rollback
+        assert_eq!(messages.len(), 2);
+
+        // Check assistant message has no tool request
+        let assistant_has_tool_req = messages[0]
+            .content
+            .iter()
+            .any(|c| matches!(c, MessageContent::ToolRequest(_)));
+        assert!(!assistant_has_tool_req);
+
+        // Check last message is error response
+        if let Some(MessageContent::ToolResponse(resp)) = messages[1].content.first() {
+            assert!(resp.tool_result.is_err());
+            assert_eq!(resp.id, "tool-123");
+        } else {
+            panic!("Expected tool response error message");
+        }
+    }
 }
