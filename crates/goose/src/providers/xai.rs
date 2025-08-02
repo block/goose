@@ -4,13 +4,13 @@ use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
-use crate::providers::utils::get_model;
+use crate::providers::utils::{build_http_client, get_model};
 use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::{Client, StatusCode};
 use rmcp::model::Tool;
 use serde_json::Value;
-use std::time::Duration;
+
 use url::Url;
 
 pub const XAI_API_HOST: &str = "https://api.x.ai/v1";
@@ -56,9 +56,7 @@ impl XaiProvider {
             .get_param("XAI_HOST")
             .unwrap_or_else(|_| XAI_API_HOST.to_string());
 
-        let client = Client::builder()
-            .timeout(Duration::from_secs(600))
-            .build()?;
+        let client = build_http_client(600, None)?;
 
         Ok(Self {
             client,

@@ -1,10 +1,10 @@
+use crate::providers::utils::build_http_client;
 use anyhow::Result;
-use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
 
 /// Disk cache configuration
@@ -233,16 +233,6 @@ lazy_static::lazy_static! {
     static ref PRICING_CACHE: PricingCache = PricingCache::new();
 }
 
-/// Create a properly configured HTTP client for the current runtime
-fn create_http_client() -> Client {
-    Client::builder()
-        .timeout(Duration::from_secs(30))
-        .pool_idle_timeout(Duration::from_secs(90))
-        .pool_max_idle_per_host(10)
-        .build()
-        .expect("Failed to create HTTP client")
-}
-
 /// OpenRouter model pricing information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpenRouterModel {
@@ -274,7 +264,7 @@ pub struct OpenRouterModelsResponse {
 
 /// Internal function to fetch pricing data
 async fn fetch_openrouter_pricing_internal() -> Result<HashMap<String, OpenRouterModel>> {
-    let client = create_http_client();
+    let client = build_http_client(30, None)?;
     let response = client
         .get("https://openrouter.ai/api/v1/models")
         .send()
