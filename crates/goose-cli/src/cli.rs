@@ -16,7 +16,6 @@ use crate::commands::schedule::{
     handle_schedule_sessions,
 };
 use crate::commands::session::{handle_session_list, handle_session_remove};
-use crate::logging::setup_logging;
 use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
 use crate::recipes::recipe::{explain_recipe, render_recipe_as_yaml};
 use crate::session;
@@ -804,14 +803,6 @@ pub async fn cli() -> Result<()> {
                         retry_config: None,
                     })
                     .await;
-                    setup_logging(
-                        session
-                            .session_file()
-                            .as_ref()
-                            .and_then(|p| p.file_stem())
-                            .and_then(|s| s.to_str()),
-                        None,
-                    )?;
 
                     // Render previous messages if resuming a session and history flag is set
                     if resume && history {
@@ -952,15 +943,6 @@ pub async fn cli() -> Result<()> {
             })
             .await;
 
-            setup_logging(
-                session
-                    .session_file()
-                    .as_ref()
-                    .and_then(|p| p.file_stem())
-                    .and_then(|s| s.to_str()),
-                None,
-            )?;
-
             if interactive {
                 let _ = session.interactive(input_config.contents).await;
             } else if let Some(contents) = input_config.contents {
@@ -1083,14 +1065,6 @@ pub async fn cli() -> Result<()> {
                     retry_config: None,
                 })
                 .await;
-                setup_logging(
-                    session
-                        .session_file()
-                        .as_ref()
-                        .and_then(|p| p.file_stem())
-                        .and_then(|s| s.to_str()),
-                    None,
-                )?;
                 if let Err(e) = session.interactive(None).await {
                     eprintln!("Session ended with error: {}", e);
                 }

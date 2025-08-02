@@ -11,7 +11,7 @@ use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
 use goose::{
     agents::{AgentEvent, SessionConfig},
-    message::{push_message, Message},
+    message::{push_message, Message, MessageContent},
     permission::permission_confirmation::PrincipalType,
 };
 use goose::{
@@ -36,6 +36,53 @@ use tokio::time::timeout;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
 use utoipa::ToSchema;
+
+fn track_tool_telemetry(content: &MessageContent, all_messages: &[Message]) {
+    match content {
+        MessageContent::ToolRequest(tool_request) => {
+            if let Ok(tool_call) = &tool_request.tool_call {
+                tracing::info!(monotonic_counter.goose.tool_calls = 1,
+                    tool_name = %tool_call.name,
+                    "Tool call started"
+                );
+            }
+        }
+        MessageContent::ToolResponse(tool_response) => {
+            let tool_name = all_messages
+                .iter()
+                .rev()
+                .find_map(|msg| {
+                    msg.content.iter().find_map(|c| {
+                        if let MessageContent::ToolRequest(req) = c {
+                            if req.id == tool_response.id {
+                                if let Ok(tool_call) = &req.tool_call {
+                                    Some(tool_call.name.clone())
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    })
+                })
+                .unwrap_or_else(|| "unknown".to_string());
+
+            let success = tool_response.tool_result.is_ok();
+            let result_status = if success { "success" } else { "error" };
+
+            tracing::info!(
+                counter.goose.tool_completions = 1,
+                tool_name = %tool_name,
+                result = %result_status,
+                "Tool call completed"
+            );
+        }
+        _ => {}
+    }
+}
 
 #[derive(Debug, Deserialize, Serialize)]
 struct ChatRequest {
@@ -120,6 +167,8 @@ async fn reply_handler(
     Json(request): Json<ChatRequest>,
 ) -> Result<SseResponse, StatusCode> {
     verify_secret_key(&headers, &state)?;
+
+    let session_start = std::time::Instant::now();
 
     let (tx, rx) = mpsc::channel(100);
     let stream = ReceiverStream::new(rx);
@@ -210,6 +259,10 @@ async fn reply_handler(
             response = timeout(Duration::from_millis(500), stream.next()) => {
                                 match response {
                                     Ok(Some(Ok(AgentEvent::Message(message)))) => {
+                                        for content in &message.content {
+                                            track_tool_telemetry(content, &all_messages);
+                                        }
+
                                         push_message(&mut all_messages, message.clone());
                                         if let Err(e) = stream_event(MessageEvent::Message { message }, &tx).await {
                                             tracing::error!("Error sending message through channel: {}", e);
@@ -281,10 +334,12 @@ async fn reply_handler(
         if all_messages.len() > saved_message_count {
             if let Ok(provider) = agent.provider().await {
                 let provider = Arc::clone(&provider);
+                let session_path_clone = session_path.clone();
+                let all_messages_clone = all_messages.clone();
                 tokio::spawn(async move {
                     if let Err(e) = session::persist_messages(
-                        &session_path,
-                        &all_messages,
+                        &session_path_clone,
+                        &all_messages_clone,
                         Some(provider),
                         Some(PathBuf::from(&session_working_dir)),
                     )
@@ -294,6 +349,48 @@ async fn reply_handler(
                     }
                 });
             }
+        }
+
+        let session_duration = session_start.elapsed();
+
+        if let Ok(metadata) = session::read_metadata(&session_path) {
+            let total_tokens = metadata.total_tokens.unwrap_or(0);
+            let input_tokens = metadata.input_tokens.unwrap_or(0);
+            let output_tokens = metadata.output_tokens.unwrap_or(0);
+            let message_count = metadata.message_count;
+
+            let turn_count = all_messages
+                .iter()
+                .filter(|m| m.role == rmcp::model::Role::User)
+                .count();
+
+            tracing::info!(
+                histogram.goose.session_duration = session_duration.as_millis() as f64,
+                counter.goose.session_completions = 1,
+                gauge.goose.session_tokens_total = total_tokens,
+                gauge.goose.session_tokens_input = input_tokens,
+                gauge.goose.session_tokens_output = output_tokens,
+                gauge.goose.session_messages = message_count,
+                gauge.goose.session_turns = turn_count,
+                session_type = "streaming",
+                interface = "ui",
+                "Session completed"
+            );
+        } else {
+            let turn_count = all_messages
+                .iter()
+                .filter(|m| m.role == rmcp::model::Role::User)
+                .count();
+
+            tracing::info!(
+                histogram.goose.session_duration = session_duration.as_millis() as f64,
+                counter.goose.session_completions = 1,
+                gauge.goose.session_messages = all_messages.len(),
+                gauge.goose.session_turns = turn_count,
+                session_type = "streaming",
+                interface = "ui",
+                "Session completed"
+            );
         }
 
         let _ = stream_event(
@@ -398,11 +495,160 @@ async fn submit_tool_result(
     Ok(Json(json!({"status": "ok"})))
 }
 
+async fn ask_handler(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(request): Json<ChatRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
+    let session_start = std::time::Instant::now();
+
+    let agent = state
+        .get_agent()
+        .await
+        .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
+
+    let session_id = request
+        .session_id
+        .unwrap_or_else(session::generate_session_id);
+
+    let session_config = SessionConfig {
+        id: session::Identifier::Name(session_id.clone()),
+        working_dir: PathBuf::from(&request.session_working_dir),
+        schedule_id: request.scheduled_job_id.clone(),
+        execution_mode: None,
+        max_turns: None,
+        retry_config: None,
+    };
+
+    let mut all_messages = request.messages.clone();
+    let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
+        Ok(path) => path,
+        Err(e) => {
+            tracing::error!("Failed to get session path: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+
+    let mut stream = match agent
+        .reply(&request.messages, Some(session_config), None)
+        .await
+    {
+        Ok(stream) => stream,
+        Err(e) => {
+            tracing::error!("Failed to start reply stream: {:?}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+
+    let mut response_messages = Vec::new();
+
+    use futures::StreamExt;
+    while let Some(result) = stream.next().await {
+        match result {
+            Ok(AgentEvent::Message(message)) => {
+                for content in &message.content {
+                    track_tool_telemetry(content, &all_messages);
+                }
+
+                push_message(&mut all_messages, message.clone());
+                response_messages.push(message);
+            }
+            Ok(AgentEvent::HistoryReplaced(new_messages)) => {
+                all_messages = new_messages;
+            }
+            Ok(AgentEvent::ModelChange { .. }) => {
+                // Model changes don't affect the response in ask mode
+            }
+            Ok(AgentEvent::McpNotification(_)) => {
+                // Notifications are not included in ask response
+            }
+            Err(e) => {
+                tracing::error!("Error processing message: {}", e);
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            }
+        }
+    }
+
+    if all_messages.len() > request.messages.len() {
+        if let Ok(provider) = agent.provider().await {
+            let provider = Arc::clone(&provider);
+            let session_path_clone = session_path.clone();
+            let session_working_dir = request.session_working_dir.clone();
+            let all_messages_clone = all_messages.clone();
+            tokio::spawn(async move {
+                if let Err(e) = session::persist_messages(
+                    &session_path_clone,
+                    &all_messages_clone,
+                    Some(provider),
+                    Some(PathBuf::from(&session_working_dir)),
+                )
+                .await
+                {
+                    tracing::error!("Failed to store session history: {:?}", e);
+                }
+            });
+        }
+    }
+
+    let session_duration = session_start.elapsed();
+
+    if let Ok(metadata) = session::read_metadata(&session_path) {
+        let total_tokens = metadata.total_tokens.unwrap_or(0);
+        let input_tokens = metadata.input_tokens.unwrap_or(0);
+        let output_tokens = metadata.output_tokens.unwrap_or(0);
+        let message_count = metadata.message_count;
+
+        let turn_count = all_messages
+            .iter()
+            .filter(|m| m.role == rmcp::model::Role::User)
+            .count();
+
+        tracing::info!(
+            histogram.goose.session_duration = session_duration.as_millis() as f64,
+            counter.goose.session_completions = 1,
+            gauge.goose.session_tokens_total = total_tokens,
+            gauge.goose.session_tokens_input = input_tokens,
+            gauge.goose.session_tokens_output = output_tokens,
+            gauge.goose.session_messages = message_count,
+            gauge.goose.session_turns = turn_count,
+            session_type = "ask",
+            interface = "ui",
+            "Session completed"
+        );
+    } else {
+        let turn_count = all_messages
+            .iter()
+            .filter(|m| m.role == rmcp::model::Role::User)
+            .count();
+
+        tracing::info!(
+            histogram.goose.session_duration = session_duration.as_millis() as f64,
+            counter.goose.session_completions = 1,
+            gauge.goose.session_messages = all_messages.len(),
+            gauge.goose.session_turns = turn_count,
+            session_type = "ask",
+            interface = "ui",
+            "Session completed"
+        );
+    }
+
+    Ok(Json(json!({
+        "messages": response_messages,
+        "session_id": session_id
+    })))
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route(
             "/reply",
             post(reply_handler).layer(DefaultBodyLimit::max(50 * 1024 * 1024)),
+        )
+        .route(
+            "/ask",
+            post(ask_handler).layer(DefaultBodyLimit::max(50 * 1024 * 1024)),
         )
         .route("/confirm", post(confirm_permission))
         .route(

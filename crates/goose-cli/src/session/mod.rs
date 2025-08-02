@@ -411,6 +411,8 @@ impl Session {
 
     /// Start an interactive session, optionally with an initial message
     pub async fn interactive(&mut self, prompt: Option<String>) -> Result<()> {
+        let session_start = std::time::Instant::now();
+
         // Process initial message if provided
         if let Some(prompt) = prompt {
             let msg = Message::user().with_text(&prompt);
@@ -752,6 +754,33 @@ impl Session {
             }
         }
 
+        let session_duration = session_start.elapsed();
+
+        if let Ok(metadata) = self.get_metadata() {
+            let total_tokens = metadata.total_tokens.unwrap_or(0);
+            let input_tokens = metadata.input_tokens.unwrap_or(0);
+            let output_tokens = metadata.output_tokens.unwrap_or(0);
+            let message_count = metadata.message_count;
+
+            let turn_count = self
+                .messages
+                .iter()
+                .filter(|m| m.role == rmcp::model::Role::User)
+                .count();
+
+            tracing::info!(
+                histogram.goose.session_duration = session_duration.as_millis() as f64,
+                counter.goose.session_completions = 1,
+                gauge.goose.session_tokens_total = total_tokens,
+                gauge.goose.session_tokens_input = input_tokens,
+                gauge.goose.session_tokens_output = output_tokens,
+                gauge.goose.session_messages = message_count,
+                gauge.goose.session_turns = turn_count,
+                session_type = "interactive",
+                "Session completed"
+            );
+        }
+
         println!(
             "\nClosing session.{}",
             self.session_file
@@ -841,8 +870,39 @@ impl Session {
 
     /// Process a single message and exit
     pub async fn headless(&mut self, prompt: String) -> Result<()> {
+        let session_start = std::time::Instant::now();
+
         let message = Message::user().with_text(&prompt);
-        self.process_message(message).await
+        self.process_message(message).await?;
+
+        let session_duration = session_start.elapsed();
+
+        if let Ok(metadata) = self.get_metadata() {
+            let total_tokens = metadata.total_tokens.unwrap_or(0);
+            let input_tokens = metadata.input_tokens.unwrap_or(0);
+            let output_tokens = metadata.output_tokens.unwrap_or(0);
+            let message_count = metadata.message_count;
+
+            let turn_count = self
+                .messages
+                .iter()
+                .filter(|m| m.role == rmcp::model::Role::User)
+                .count();
+
+            tracing::info!(
+                histogram.goose.session_duration = session_duration.as_millis() as f64,
+                counter.goose.session_completions = 1,
+                gauge.goose.session_tokens_total = total_tokens,
+                gauge.goose.session_tokens_input = input_tokens,
+                gauge.goose.session_tokens_output = output_tokens,
+                gauge.goose.session_messages = message_count,
+                gauge.goose.session_turns = turn_count,
+                session_type = "headless",
+                "Session completed"
+            );
+        }
+
+        Ok(())
     }
 
     async fn process_agent_response(&mut self, interactive: bool) -> Result<()> {
@@ -1014,9 +1074,42 @@ impl Session {
                                         if let Ok(tool_call) = &tool_request.tool_call {
                                             tracing::info!(monotonic_counter.goose.tool_calls = 1,
                                                 tool_name = %tool_call.name,
-                                                "Tool call executed"
+                                                "Tool call started"
                                             );
                                         }
+                                    }
+                                    if let MessageContent::ToolResponse(tool_response) = content {
+                                        let tool_name = self.messages
+                                            .iter()
+                                            .rev()
+                                            .find_map(|msg| {
+                                                msg.content.iter().find_map(|c| {
+                                                    if let MessageContent::ToolRequest(req) = c {
+                                                        if req.id == tool_response.id {
+                                                            if let Ok(tool_call) = &req.tool_call {
+                                                                Some(tool_call.name.clone())
+                                                            } else {
+                                                                None
+                                                            }
+                                                        } else {
+                                                            None
+                                                        }
+                                                    } else {
+                                                        None
+                                                    }
+                                                })
+                                            })
+                                            .unwrap_or_else(|| "unknown".to_string());
+
+                                        let success = tool_response.tool_result.is_ok();
+                                        let result_status = if success { "success" } else { "error" };
+
+                                        tracing::info!(
+                                            counter.goose.tool_completions = 1,
+                                            tool_name = %tool_name,
+                                            result = %result_status,
+                                            "Tool call completed"
+                                        );
                                     }
                                 }
 
