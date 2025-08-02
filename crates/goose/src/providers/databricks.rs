@@ -21,6 +21,7 @@ use crate::impl_provider_default;
 use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{get_usage, response_to_streaming_message};
+use crate::providers::utils::build_http_client;
 use rmcp::model::Tool;
 use serde_json::json;
 use tokio::time::sleep;
@@ -164,9 +165,7 @@ impl DatabricksProvider {
 
         let host = host?;
 
-        let client = Client::builder()
-            .timeout(Duration::from_secs(DEFAULT_TIMEOUT_SECS))
-            .build()?;
+        let client = super::utils::build_http_client(DEFAULT_TIMEOUT_SECS, None)?;
 
         // Load optional retry configuration from environment
         let retry_config = Self::load_retry_config(config);
@@ -239,9 +238,7 @@ impl DatabricksProvider {
     ///
     /// Returns a Result containing the new DatabricksProvider instance
     pub fn from_params(host: String, api_key: String, model: ModelConfig) -> Result<Self> {
-        let client = Client::builder()
-            .timeout(Duration::from_secs(600))
-            .build()?;
+        let client = build_http_client(60, None)?;
 
         Ok(Self {
             client,

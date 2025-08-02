@@ -1,15 +1,16 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest::Client;
 use serde_json::{json, Value};
-use std::collections::HashMap;
-use std::time::Duration;
 use url::Url;
 
 use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsage};
 use super::embedding::EmbeddingCapable;
 use super::errors::ProviderError;
-use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
+use super::utils::{
+    build_http_client, emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat,
+};
 use crate::impl_provider_default;
 use crate::message::Message;
 use crate::model::ModelConfig;
@@ -26,7 +27,6 @@ pub struct LiteLLMProvider {
     base_path: String,
     api_key: String,
     model: ModelConfig,
-    custom_headers: Option<HashMap<String, String>>,
 }
 
 impl_provider_default!(LiteLLMProvider);
@@ -43,15 +43,14 @@ impl LiteLLMProvider {
         let base_path: String = config
             .get_param("LITELLM_BASE_PATH")
             .unwrap_or_else(|_| "v1/chat/completions".to_string());
-        let custom_headers: Option<HashMap<String, String>> = config
+        let custom_headers: Option<HeaderMap> = config
             .get_secret("LITELLM_CUSTOM_HEADERS")
             .or_else(|_| config.get_param("LITELLM_CUSTOM_HEADERS"))
             .ok()
-            .map(parse_custom_headers);
+            .and_then(|s| parse_custom_headers(s).ok());
         let timeout_secs: u64 = config.get_param("LITELLM_TIMEOUT").unwrap_or(600);
-        let client = Client::builder()
-            .timeout(Duration::from_secs(timeout_secs))
-            .build()?;
+
+        let client = build_http_client(timeout_secs, custom_headers)?;
 
         Ok(Self {
             client,
@@ -59,29 +58,16 @@ impl LiteLLMProvider {
             base_path,
             api_key,
             model,
-            custom_headers,
         })
-    }
-
-    fn add_headers(&self, mut request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
-        if let Some(custom_headers) = &self.custom_headers {
-            for (key, value) in custom_headers {
-                request = request.header(key, value);
-            }
-        }
-
-        request
     }
 
     async fn fetch_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
         let models_url = format!("{}/model/info", self.host);
 
-        let mut req = self
+        let req = self
             .client
             .get(&models_url)
             .header("Authorization", format!("Bearer {}", self.api_key));
-
-        req = self.add_headers(req);
 
         let response = req
             .send()
@@ -135,8 +121,6 @@ impl LiteLLMProvider {
             .client
             .post(url)
             .header("Authorization", format!("Bearer {}", self.api_key));
-
-        let request = self.add_headers(request);
 
         let response = request.json(payload).send().await?;
 
@@ -245,14 +229,12 @@ impl EmbeddingCapable for LiteLLMProvider {
             "encoding_format": "float"
         });
 
-        let mut req = self
+        let req = self
             .client
             .post(&endpoint)
             .header("Content-Type", "application/json")
             .header("Authorization", format!("Bearer {}", self.api_key))
             .json(&payload);
-
-        req = self.add_headers(req);
 
         let response = req.send().await?;
         let response_text = response.text().await?;
@@ -342,12 +324,15 @@ pub fn update_request_for_cache_control(original_payload: &Value) -> Value {
     payload
 }
 
-fn parse_custom_headers(headers_str: String) -> HashMap<String, String> {
-    let mut headers = HashMap::new();
+fn parse_custom_headers(headers_str: String) -> Result<HeaderMap> {
+    let mut headers = HeaderMap::new();
     for line in headers_str.lines() {
         if let Some((key, value)) = line.split_once(':') {
-            headers.insert(key.trim().to_string(), value.trim().to_string());
+            headers.insert(
+                HeaderName::from_bytes(key.trim().as_bytes())?,
+                HeaderValue::from_str(value.trim())?,
+            );
         }
     }
-    headers
+    Ok(headers)
 }

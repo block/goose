@@ -1,3 +1,4 @@
+use crate::providers::utils::build_http_client;
 use anyhow::Result;
 use axum::{extract::Query, response::Html, routing::get, Router};
 use base64::Engine;
@@ -98,7 +99,7 @@ async fn get_workspace_endpoints(host: &str) -> Result<OidcEndpoints> {
         .join("oidc/.well-known/oauth-authorization-server")
         .expect("Invalid OIDC URL");
 
-    let client = reqwest::Client::new();
+    let client = build_http_client(600, None)?;
     let resp = client.get(oidc_url.clone()).send().await?;
 
     if !resp.status().is_success() {
@@ -242,7 +243,7 @@ impl OAuthFlow {
             ("client_id", &self.client_id),
         ];
 
-        let client = reqwest::Client::new();
+        let client = build_http_client(600, None)?;
         let resp = client
             .post(&self.endpoints.token_endpoint)
             .header("Content-Type", "application/x-www-form-urlencoded")
@@ -271,7 +272,7 @@ impl OAuthFlow {
 
         tracing::debug!("Refreshing token using refresh_token");
 
-        let client = reqwest::Client::new();
+        let client = build_http_client(600, None)?;
         let resp = client
             .post(&self.endpoints.token_endpoint)
             .header("Content-Type", "application/x-www-form-urlencoded")

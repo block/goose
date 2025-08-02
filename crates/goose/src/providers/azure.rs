@@ -10,7 +10,9 @@ use super::azureauth::AzureAuth;
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
-use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
+use super::utils::{
+    build_http_client, emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat,
+};
 use crate::impl_provider_default;
 use crate::message::Message;
 use crate::model::ModelConfig;
@@ -69,9 +71,7 @@ impl AzureProvider {
             .filter(|key: &String| !key.is_empty());
         let auth = AzureAuth::new(api_key)?;
 
-        let client = Client::builder()
-            .timeout(Duration::from_secs(600))
-            .build()?;
+        let client = build_http_client(600, None)?;
 
         Ok(Self {
             client,

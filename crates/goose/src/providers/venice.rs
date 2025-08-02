@@ -1,10 +1,10 @@
+use crate::providers::utils::build_http_client;
 use anyhow::Result;
 use async_trait::async_trait;
 use chrono::Utc;
 use reqwest::{Client, Response};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::time::Duration;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
@@ -100,9 +100,7 @@ impl VeniceProvider {
         // Ensure we only keep the bare model id internally
         model.model_name = strip_flags(&model.model_name).to_string();
 
-        let client = Client::builder()
-            .timeout(Duration::from_secs(600))
-            .build()?;
+        let client = build_http_client(600, None)?;
 
         let instance = Self {
             client,
@@ -266,7 +264,7 @@ impl Provider for VeniceProvider {
                 response.status()
             )));
         }
-        let body = response.text().await?;
+        let body: String = response.text().await?;
         let json: serde_json::Value = serde_json::from_str(&body)
             .map_err(|e| ProviderError::RequestFailed(format!("Failed to parse JSON: {}", e)))?;
 

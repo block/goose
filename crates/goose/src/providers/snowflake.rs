@@ -3,7 +3,6 @@ use async_trait::async_trait;
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::time::Duration;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
@@ -82,9 +81,7 @@ impl SnowflakeProvider {
             .into());
         }
 
-        let client = Client::builder()
-            .timeout(Duration::from_secs(600))
-            .build()?;
+        let client = super::utils::build_http_client(600, None)?;
 
         // Use token-based authentication
         let api_key = token?;

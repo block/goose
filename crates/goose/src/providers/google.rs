@@ -1,4 +1,5 @@
 use super::errors::ProviderError;
+use super::utils::build_http_client;
 use crate::impl_provider_default;
 use crate::message::Message;
 use crate::model::ModelConfig;
@@ -9,7 +10,7 @@ use crate::providers::utils::{
 };
 use anyhow::Result;
 use async_trait::async_trait;
-use axum::http::HeaderMap;
+use reqwest::header::HeaderMap;
 use reqwest::Client;
 use rmcp::model::Tool;
 use serde_json::Value;
@@ -52,6 +53,7 @@ pub const GOOGLE_DOC_URL: &str = "https://ai.google.dev/gemini-api/docs/models";
 pub struct GoogleProvider {
     #[serde(skip)]
     client: Client,
+    api_key: String,
     host: String,
     model: ModelConfig,
 }
@@ -70,13 +72,11 @@ impl GoogleProvider {
         headers.insert("CONTENT_TYPE", "application/json".parse()?);
         headers.insert("x-goog-api-key", api_key.parse()?);
 
-        let client = Client::builder()
-            .timeout(Duration::from_secs(600))
-            .default_headers(headers)
-            .build()?;
+        let client = build_http_client(600, Some(headers))?;
 
         Ok(Self {
             client,
+            api_key,
             host,
             model,
         })

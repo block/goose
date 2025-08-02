@@ -6,7 +6,6 @@ use futures::TryStreamExt;
 use reqwest::{Client, StatusCode};
 use serde_json::Value;
 use std::io;
-use std::time::Duration;
 use tokio::pin;
 
 use tokio_util::io::StreamReader;
@@ -57,9 +56,7 @@ impl AnthropicProvider {
             .get_param("ANTHROPIC_HOST")
             .unwrap_or_else(|_| "https://api.anthropic.com".to_string());
 
-        let client = Client::builder()
-            .timeout(Duration::from_secs(600))
-            .build()?;
+        let client = super::utils::build_http_client(600, None)?;
 
         Ok(Self {
             client,
@@ -199,7 +196,7 @@ impl Provider for AnthropicProvider {
         // Parse response
         let message = response_to_message(&response)?;
         let usage = get_usage(&response)?;
-        tracing::debug!("🔍 Anthropic non-streaming parsed usage: input_tokens={:?}, output_tokens={:?}, total_tokens={:?}", 
+        tracing::debug!("🔍 Anthropic non-streaming parsed usage: input_tokens={:?}, output_tokens={:?}, total_tokens={:?}",
                 usage.input_tokens, usage.output_tokens, usage.total_tokens);
 
         let model = get_model(&response);

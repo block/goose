@@ -1,6 +1,6 @@
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
-use super::utils::{get_model, handle_response_openai_compat};
+use super::utils::{build_http_client, get_model, handle_response_openai_compat};
 use crate::impl_provider_default;
 use crate::message::Message;
 use crate::model::ModelConfig;
@@ -12,7 +12,7 @@ use regex::Regex;
 use reqwest::Client;
 use rmcp::model::Tool;
 use serde_json::Value;
-use std::time::Duration;
+
 use url::Url;
 
 pub const OLLAMA_HOST: &str = "localhost";
@@ -40,10 +40,9 @@ impl OllamaProvider {
             .get_param("OLLAMA_HOST")
             .unwrap_or_else(|_| OLLAMA_HOST.to_string());
 
-        let timeout: Duration =
-            Duration::from_secs(config.get_param("OLLAMA_TIMEOUT").unwrap_or(OLLAMA_TIMEOUT));
+        let timeout: u64 = config.get_param("OLLAMA_TIMEOUT").unwrap_or(OLLAMA_TIMEOUT);
 
-        let client = Client::builder().timeout(timeout).build()?;
+        let client = build_http_client(timeout, None)?;
 
         Ok(Self {
             client,

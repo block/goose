@@ -1,3 +1,4 @@
+use crate::providers::utils::build_http_client;
 use async_trait::async_trait;
 use jsonwebtoken::{encode, EncodingKey, Header};
 use serde::{Deserialize, Serialize};
@@ -240,12 +241,15 @@ impl AdcCredentials {
     }
 
     async fn load_from_metadata_server(base_url: &str) -> Result<Self, AuthError> {
-        let client = reqwest::Client::new();
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert("Metadata-Flavor", "Google".parse().unwrap());
+
+        let client = build_http_client(600, Some(headers))
+            .map_err(|e| AuthError::Credentials(format!("Failed to build HTTP client: {}", e)))?;
         let metadata_path = "/computeMetadata/v1/instance/service-accounts/default/token";
 
         let response = client
             .get(format!("{}{}", base_url, metadata_path))
-            .header("Metadata-Flavor", "Google")
             .send()
             .await
             .map_err(|e| {
@@ -354,9 +358,11 @@ impl GcpAuth {
     /// # Returns
     /// * `Result<Self, AuthError>` - A new GcpAuth instance or an error if initialization fails
     pub async fn new() -> Result<Self, AuthError> {
+        let client = build_http_client(600, None)
+            .map_err(|e| AuthError::Credentials(format!("Failed to build HTTP client: {}", e)))?;
         Ok(Self {
             credentials: AdcCredentials::load().await?,
-            client: reqwest::Client::new(),
+            client,
             cached_token: Arc::new(RwLock::new(None)),
         })
     }

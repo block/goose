@@ -29,20 +29,20 @@
 //!
 //! - `augment_message_with_tool_calls`: A utility function that takes any message, extracts text content, sends it to an interpreter, and adds any detected tool calls back to the message.
 //!
-
 use super::errors::ProviderError;
 use super::ollama::OLLAMA_DEFAULT_PORT;
 use super::ollama::OLLAMA_HOST;
 use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::create_request;
+use crate::providers::utils::build_http_client;
 use anyhow::Result;
 use mcp_core::tool::ToolCall;
 use reqwest::Client;
 use rmcp::model::{RawContent, Tool};
 use serde_json::{json, Value};
 use std::ops::Deref;
-use std::time::Duration;
+
 use uuid::Uuid;
 
 /// Default model to use for tool interpretation
@@ -70,10 +70,7 @@ pub struct OllamaInterpreter {
 
 impl OllamaInterpreter {
     pub fn new() -> Result<Self, ProviderError> {
-        let client = Client::builder()
-            .timeout(Duration::from_secs(600))
-            .build()
-            .expect("Failed to create HTTP client");
+        let client = build_http_client(60, None)?;
 
         let base_url = Self::get_ollama_base_url()?;
 

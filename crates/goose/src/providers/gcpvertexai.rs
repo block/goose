@@ -171,9 +171,7 @@ impl GcpVertexAIProvider {
         let location = Self::determine_location(config)?;
         let host = format!("https://{}-aiplatform.googleapis.com", location);
 
-        let client = Client::builder()
-            .timeout(Duration::from_secs(DEFAULT_TIMEOUT_SECS))
-            .build()?;
+        let client = super::utils::build_http_client(DEFAULT_TIMEOUT_SECS, None)?;
 
         let auth = GcpAuth::new().await?;
 
