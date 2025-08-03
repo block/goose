@@ -2,10 +2,12 @@ import Link from "@docusaurus/Link";
 import { IconDownload } from "@site/src/components/icons/download";
 import { useState, useEffect } from "react";
 
+const FALLBACK_URL = "https://github.com/block/goose/releases/latest";
+
 const LinuxDesktopInstallButtons = () => {
   const [downloadUrls, setDownloadUrls] = useState({
-    deb: "https://github.com/block/goose/releases/latest",
-    rpm: "https://github.com/block/goose/releases/latest"
+    deb: FALLBACK_URL,
+    rpm: FALLBACK_URL
   });
 
   useEffect(() => {
@@ -18,8 +20,7 @@ const LinuxDesktopInstallButtons = () => {
         
         if (cached && cacheTime && (now - parseInt(cacheTime)) < 3600000) {
           // Use cached data if less than 1 hour old
-          const cachedData = JSON.parse(cached);
-          setDownloadUrls(cachedData);
+          setDownloadUrls(JSON.parse(cached));
           return;
         }
 
