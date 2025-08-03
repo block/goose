@@ -88,29 +88,30 @@ check_rule_from_json() {
         return 1
     fi
     
-    # Parse violations from the shared JSON
     local temp_parsed=$(mktemp)
     cat "$temp_json" | parse_violation "$rule_name" "$violation_parser" | sort > "$temp_parsed"
     
-    if ! cmp -s "$baseline_file" "$temp_parsed"; then
-        local new_violations_file=$(mktemp)
-        comm -13 "$baseline_file" "$temp_parsed" > "$new_violations_file"
+    local new_violations_file=$(mktemp)
+    diff <(sort "$baseline_file") <(sort "$temp_parsed") | grep "^>" | cut -c3- > "$new_violations_file"
+    
+    if [[ -s "$new_violations_file" ]]; then
+        echo "  ❌ $rule_name: NEW violations found:"
         
-        if [[ -s "$new_violations_file" ]]; then
-            echo "  ❌ $rule_name: NEW violations found:"
-            
-            while IFS= read -r violation; do
-                cat "$temp_json" | jq -r 'select(.message.code.code == "'"$rule_name"'") | 
-                    select((.message.spans[0].file_name + "::" + (.message.spans[0].text[0].text | split("fn ")[1] | split("(")[0])) == "'"$violation"'") |
-                    .message.rendered' | sed 's/^/    /'
-            done < "$new_violations_file"
-            
-            rm "$temp_parsed" "$new_violations_file"
-            return 1
-        fi
+        while IFS= read -r violation; do
+            # Extract all violations for this rule and find the matching one
+            cat "$temp_json" | jq -c 'select(.message.code.code == "'"$rule_name"'")' 2>/dev/null | while read -r json_line; do
+                parsed_id=$(echo "$json_line" | parse_violation "$rule_name" "$violation_parser")
+                if [[ "$parsed_id" == "$violation" ]]; then
+                    echo "$json_line" | jq -r '.message.rendered' | sed 's/^/    /'
+                fi
+            done
+        done < "$new_violations_file"
         
-        rm "$new_violations_file"
+        rm "$temp_parsed" "$new_violations_file"
+        return 1
     fi
+    
+    rm "$new_violations_file"
     
     echo "  ✅ $rule_name: ok"
     rm "$temp_parsed"
