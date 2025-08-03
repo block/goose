@@ -1,0 +1,17 @@
+crates/goose-bench/src/runners/metric_aggregator.rs::generate_csv_from_benchmark_dir
+crates/goose-bench/src/utilities.rs::await_process_exits
+crates/goose-cli/src/cli.rs::cli
+crates/goose-mcp/src/google_drive/mod.rs::google_auth
+crates/goose-mcp/src/google_drive/storage.rs::write_to_file
+crates/goose-server/src/commands/agent.rs::run
+crates/goose-server/src/openapi.rs::convert_typed_schema
+crates/goose-server/src/openapi.rs::convert_typed_schema
+crates/goose/src/config/base.rs::try_restore_from_backup
+crates/goose/src/context_mgmt/truncate.rs::truncate_messages
+crates/goose/src/providers/claude_code.rs::find_claude_executable
+crates/goose/src/providers/gemini_cli.rs::find_gemini_executable
+crates/goose/src/scheduler_factory.rs::from_config
+crates/goose/src/session/storage.rs::parse_message_with_truncation
+crates/goose/src/session/storage.rs::read_messages_with_truncation
+crates/goose/src/temporal_scheduler.rs::find_go_service_binary
+crates/goose/src/temporal_scheduler.rs::new
