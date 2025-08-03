@@ -89,15 +89,6 @@ jobs:
         run: |
           source ./bin/activate-hermit
           export CARGO_INCREMENTAL=0
-          echo "🔧 Debug: Clippy version and environment info"
-          rustc --version
-          cargo clippy --version
-          echo "CARGO_HOME: $CARGO_HOME"
-          echo "RUSTUP_HOME: $RUSTUP_HOME"
-          echo "PWD: $PWD"
-          echo "CARGO_INCREMENTAL: $CARGO_INCREMENTAL"
-          echo ""
-          echo "🔧 Debug: Running clippy lint script"
           ./scripts/clippy-lint.sh
 
       - name: Install Node.js Dependencies for OpenAPI Check
