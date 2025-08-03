@@ -3316,6 +3316,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_process_shell_output_short() {
         let dir = TempDir::new().unwrap();
         std::env::set_current_dir(dir.path()).unwrap();
@@ -3332,6 +3333,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_process_shell_output_empty() {
         let dir = TempDir::new().unwrap();
         std::env::set_current_dir(dir.path()).unwrap();
