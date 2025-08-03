@@ -62,7 +62,7 @@ impl ClientHandler for GooseClient {
         &self,
         params: rmcp::model::ProgressNotificationParam,
         context: rmcp::service::NotificationContext<rmcp::RoleClient>,
-    ) -> () {
+    ) {
         self.notification_handlers
             .lock()
             .await
@@ -82,7 +82,7 @@ impl ClientHandler for GooseClient {
         &self,
         params: rmcp::model::LoggingMessageNotificationParam,
         context: rmcp::service::NotificationContext<rmcp::RoleClient>,
-    ) -> () {
+    ) {
         self.notification_handlers
             .lock()
             .await
