@@ -300,6 +300,26 @@ mod tests {
         )
     }
 
+    fn create_test_session_metadata(
+        message_count: usize,
+        working_dir: &str,
+    ) -> crate::session::storage::SessionMetadata {
+        use std::path::PathBuf;
+        crate::session::storage::SessionMetadata {
+            message_count,
+            working_dir: PathBuf::from(working_dir),
+            description: "Test session".to_string(),
+            schedule_id: Some("test_job".to_string()),
+            project_id: None,
+            total_tokens: Some(100),
+            input_tokens: Some(50),
+            output_tokens: Some(50),
+            accumulated_total_tokens: Some(100),
+            accumulated_input_tokens: Some(50),
+            accumulated_output_tokens: Some(50),
+        }
+    }
+
     #[tokio::test]
     async fn test_check_compaction_needed() {
         let mock_provider = Arc::new(MockProvider {
@@ -687,5 +707,96 @@ mod tests {
         assert!(!result.messages.is_empty());
         // Should have fewer messages after compaction
         assert!(result.messages.len() <= messages.len());
+    }
+
+    #[tokio::test]
+    async fn test_auto_compact_with_comprehensive_session_metadata() {
+        let mock_provider = Arc::new(MockProvider {
+            model_config: ModelConfig::new("test-model")
+                .unwrap()
+                .with_context_limit(8_000.into()),
+        });
+
+        let agent = Agent::new();
+        let _ = agent.update_provider(mock_provider).await;
+
+        let messages = vec![
+            create_test_message("Test message 1"),
+            create_test_message("Test message 2"),
+            create_test_message("Test message 3"),
+        ];
+
+        // Use the helper function to create comprehensive non-null session metadata
+        let comprehensive_metadata = create_test_session_metadata(3, "/test/working/dir");
+
+        // Verify the helper created non-null metadata
+        assert_eq!(comprehensive_metadata.message_count, 3);
+        assert_eq!(
+            comprehensive_metadata.working_dir.to_str().unwrap(),
+            "/test/working/dir"
+        );
+        assert_eq!(comprehensive_metadata.description, "Test session");
+        assert_eq!(
+            comprehensive_metadata.schedule_id,
+            Some("test_job".to_string())
+        );
+        assert!(comprehensive_metadata.project_id.is_none());
+        assert_eq!(comprehensive_metadata.total_tokens, Some(100));
+        assert_eq!(comprehensive_metadata.input_tokens, Some(50));
+        assert_eq!(comprehensive_metadata.output_tokens, Some(50));
+        assert_eq!(comprehensive_metadata.accumulated_total_tokens, Some(100));
+        assert_eq!(comprehensive_metadata.accumulated_input_tokens, Some(50));
+        assert_eq!(comprehensive_metadata.accumulated_output_tokens, Some(50));
+
+        // Test compaction with the comprehensive metadata (low token count, shouldn't compact)
+        let result_low_tokens = check_compaction_needed(
+            &agent,
+            &messages,
+            Some(0.7), // 70% threshold
+            Some(&comprehensive_metadata),
+        )
+        .await
+        .unwrap();
+
+        assert!(!result_low_tokens.needs_compaction);
+        assert_eq!(result_low_tokens.current_tokens, 100); // Should use total_tokens from metadata
+
+        // Create a modified version with high token count to trigger compaction
+        let mut high_token_metadata = create_test_session_metadata(5, "/test/working/dir");
+        high_token_metadata.total_tokens = Some(6_000); // High enough to trigger compaction
+        high_token_metadata.input_tokens = Some(4_000);
+        high_token_metadata.output_tokens = Some(2_000);
+        high_token_metadata.accumulated_total_tokens = Some(12_000);
+
+        let result_high_tokens = check_compaction_needed(
+            &agent,
+            &messages,
+            Some(0.7), // 70% threshold
+            Some(&high_token_metadata),
+        )
+        .await
+        .unwrap();
+
+        assert!(result_high_tokens.needs_compaction);
+        assert_eq!(result_high_tokens.current_tokens, 6_000); // Should use total_tokens, not accumulated
+
+        // Test that metadata fields are preserved correctly in edge cases
+        let mut edge_case_metadata = create_test_session_metadata(10, "/edge/case/dir");
+        edge_case_metadata.total_tokens = None; // No total tokens
+        edge_case_metadata.accumulated_total_tokens = Some(7_000); // Has accumulated
+
+        let result_edge_case = check_compaction_needed(
+            &agent,
+            &messages,
+            Some(0.5), // 50% threshold
+            Some(&edge_case_metadata),
+        )
+        .await
+        .unwrap();
+
+        // Should fall back to estimation since total_tokens is None
+        assert!(result_edge_case.current_tokens < 7_000);
+        // With estimation, likely won't trigger compaction
+        assert!(!result_edge_case.needs_compaction);
     }
 }
