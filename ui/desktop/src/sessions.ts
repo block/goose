@@ -126,3 +126,22 @@ export async function fetchSessionDetails(sessionId: string): Promise<SessionDet
     throw error;
   }
 }
+
+/**
+ * Deletes a session by its ID
+ * @param sessionId The ID of the session to delete
+ * @returns Promise that resolves when the session is deleted
+ */
+export async function deleteSessionById(sessionId: string): Promise<void> {
+  try {
+    // Use the Electron API to delete the session file
+    const success = await window.electron.deleteSessionFile(sessionId);
+    
+    if (!success) {
+      throw new Error('Failed to delete session file');
+    }
+  } catch (error) {
+    console.error(`Error deleting session ${sessionId}:`, error);
+    throw error;
+  }
+}

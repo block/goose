@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo, startTransition } from 'react';
-import { MessageSquareText, Target, AlertCircle, Calendar, Folder } from 'lucide-react';
-import { fetchSessions, type Session } from '../../sessions';
+import { MessageSquareText, Target, AlertCircle, Calendar, Folder, Trash2 } from 'lucide-react';
+import { fetchSessions, deleteSessionById, type Session } from '../../sessions';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
@@ -11,6 +11,7 @@ import { SearchHighlighter } from '../../utils/searchHighlighter';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { groupSessionsByDate, type DateGroup } from '../../utils/dateUtils';
 import { Skeleton } from '../ui/skeleton';
+import { DeleteSessionModal } from './DeleteSessionModal';
 
 // Debounce hook for search
 function useDebounce<T>(value: T, delay: number): T {
@@ -51,6 +52,10 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
     count: number;
     currentIndex: number;
   } | null>(null);
+
+  // Delete modal state
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [sessionToDelete, setSessionToDelete] = useState<Session | null>(null);
 
   // Search state for debouncing
   const [searchTerm, setSearchTerm] = useState('');
@@ -184,12 +189,49 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
     }
   };
 
+  // Handle delete session
+  const handleDeleteSession = (session: Session) => {
+    setSessionToDelete(session);
+    setDeleteModalOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!sessionToDelete) return;
+
+    try {
+      await deleteSessionById(sessionToDelete.id);
+      
+      // Remove the session from local state
+      setSessions(prev => prev.filter(s => s.id !== sessionToDelete.id));
+      setFilteredSessions(prev => prev.filter(s => s.id !== sessionToDelete.id));
+      
+      setDeleteModalOpen(false);
+      setSessionToDelete(null);
+    } catch (error) {
+      console.error('Failed to delete session:', error);
+      // You could show a toast notification here
+    }
+  };
+
   // Render a session item
   const SessionItem = React.memo(function SessionItem({ session }: { session: Session }) {
+    const handleCardClick = (e: React.MouseEvent) => {
+      // Don't trigger session selection if clicking on delete button
+      if ((e.target as HTMLElement).closest('.delete-button')) {
+        return;
+      }
+      onSelectSession(session.id);
+    };
+
+    const handleDeleteClick = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      handleDeleteSession(session);
+    };
+
     return (
       <Card
-        onClick={() => onSelectSession(session.id)}
-        className="session-item h-full py-3 px-4 hover:shadow-default cursor-pointer transition-all duration-150 flex flex-col justify-between"
+        onClick={handleCardClick}
+        className="session-item h-full py-3 px-4 hover:shadow-default cursor-pointer transition-all duration-150 flex flex-col justify-between relative group"
       >
         <div className="flex-1">
           <h3 className="text-base truncate mb-1">{session.metadata.description || session.id}</h3>
@@ -216,6 +258,16 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
               </div>
             )}
           </div>
+          
+          {/* Delete button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleDeleteClick}
+            className="delete-button opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-destructive hover:text-destructive-foreground"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
         </div>
       </Card>
     );
@@ -325,6 +377,20 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
             </p>
           </div>
         </div>
+
+        {/* Delete Session Modal */}
+        {sessionToDelete && (
+          <DeleteSessionModal
+            isOpen={deleteModalOpen}
+            onClose={() => {
+              setDeleteModalOpen(false);
+              setSessionToDelete(null);
+            }}
+            onConfirm={handleConfirmDelete}
+            sessionName={sessionToDelete.metadata.description || sessionToDelete.id}
+            sessionId={sessionToDelete.id}
+          />
+        )}
 
         <div className="flex-1 min-h-0 relative px-8">
           <ScrollArea className="h-full" data-search-scroll-area>

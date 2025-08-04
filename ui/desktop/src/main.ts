@@ -1199,6 +1199,71 @@ ipcMain.handle('get-dock-icon-state', () => {
   }
 });
 
+// Window transparency handlers
+ipcMain.handle('set-window-opacity', async (_event, opacity: number) => {
+  try {
+    // Validate opacity value (0.03 to 1.0, where 0.03 = 97% transparency)
+    const validOpacity = Math.max(0.03, Math.min(1.0, opacity));
+
+    console.log(`Setting window opacity to: ${validOpacity}`);
+
+    // Get all windows and apply opacity
+    const windows = BrowserWindow.getAllWindows();
+    for (const window of windows) {
+      window.setOpacity(validOpacity);
+      console.log(`Applied opacity ${validOpacity} to window: ${window.id}`);
+    }
+
+    // Save opacity setting
+    const settings = loadSettings();
+    settings.windowOpacity = validOpacity;
+    saveSettings(settings);
+
+    console.log(`Saved opacity setting: ${validOpacity}`);
+    return true;
+  } catch (error) {
+    console.error('Error setting window opacity:', error);
+    return false;
+  }
+});
+
+ipcMain.handle('get-window-opacity', async () => {
+  try {
+    const settings = loadSettings();
+    const opacity = settings.windowOpacity || 1.0;
+    console.log(`Retrieved window opacity: ${opacity}`);
+    return opacity;
+  } catch (error) {
+    console.error('Error getting window opacity:', error);
+    return 1.0;
+  }
+});
+
+// Session deletion handler
+ipcMain.handle('delete-session-file', async (_event, sessionId: string) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    
+    // Get the sessions directory from the API base URL or use a default
+    const sessionsDir = path.join(process.env.HOME || process.env.USERPROFILE || '', '.goose', 'sessions');
+    const sessionFile = path.join(sessionsDir, `${sessionId}.json`);
+    
+    // Check if file exists before deleting
+    if (fs.existsSync(sessionFile)) {
+      fs.unlinkSync(sessionFile);
+      console.log(`Deleted session file: ${sessionFile}`);
+      return true;
+    } else {
+      console.warn(`Session file not found: ${sessionFile}`);
+      return false;
+    }
+  } catch (error) {
+    console.error('Error deleting session file:', error);
+    return false;
+  }
+});
+
 // Handle opening system notifications preferences
 ipcMain.handle('open-notifications-settings', async () => {
   try {

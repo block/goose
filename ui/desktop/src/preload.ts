@@ -112,6 +112,11 @@ type ElectronAPI = {
   closeWindow: () => void;
   hasAcceptedRecipeBefore: (recipeConfig: Recipe) => Promise<boolean>;
   recordRecipeHash: (recipeConfig: Recipe) => Promise<boolean>;
+  // Window transparency functions
+  setWindowOpacity: (opacity: number) => Promise<boolean>;
+  getWindowOpacity: () => Promise<number>;
+  // Session deletion function
+  deleteSessionFile: (sessionId: string) => Promise<boolean>;
 };
 
 type AppConfigAPI = {
@@ -240,6 +245,11 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke('has-accepted-recipe-before', recipeConfig),
   recordRecipeHash: (recipeConfig: Recipe) =>
     ipcRenderer.invoke('record-recipe-hash', recipeConfig),
+  // Window transparency functions
+  setWindowOpacity: (opacity: number) => ipcRenderer.invoke('set-window-opacity', opacity),
+  getWindowOpacity: () => ipcRenderer.invoke('get-window-opacity'),
+  // Session deletion function
+  deleteSessionFile: (sessionId: string) => ipcRenderer.invoke('delete-session-file', sessionId),
 };
 
 const appConfigAPI: AppConfigAPI = {
