@@ -200,11 +200,11 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
 
     try {
       await deleteSessionById(sessionToDelete.id);
-      
+
       // Remove the session from local state
-      setSessions(prev => prev.filter(s => s.id !== sessionToDelete.id));
-      setFilteredSessions(prev => prev.filter(s => s.id !== sessionToDelete.id));
-      
+      setSessions((prev) => prev.filter((s) => s.id !== sessionToDelete.id));
+      setFilteredSessions((prev) => prev.filter((s) => s.id !== sessionToDelete.id));
+
       setDeleteModalOpen(false);
       setSessionToDelete(null);
     } catch (error) {
@@ -258,7 +258,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
               </div>
             )}
           </div>
-          
+
           {/* Delete button */}
           <Button
             variant="ghost"
@@ -388,7 +388,6 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
             }}
             onConfirm={handleConfirmDelete}
             sessionName={sessionToDelete.metadata.description || sessionToDelete.id}
-            sessionId={sessionToDelete.id}
           />
         )}
 

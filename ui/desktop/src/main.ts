@@ -1242,24 +1242,36 @@ ipcMain.handle('get-window-opacity', async () => {
 // Session deletion handler
 ipcMain.handle('delete-session-file', async (_event, sessionId: string) => {
   try {
-    const fs = require('fs');
-    const path = require('path');
-    
-    // Get the sessions directory from the API base URL or use a default
-    const sessionsDir = path.join(process.env.HOME || process.env.USERPROFILE || '', '.goose', 'sessions');
-    const sessionFile = path.join(sessionsDir, `${sessionId}.json`);
-    
+    // Validate session ID for security
+    if (!sessionId || typeof sessionId !== 'string' || sessionId.length > 255) {
+      console.warn('Invalid session ID provided for deletion');
+      return false;
+    }
+
+    // Check for path traversal attempts
+    if (sessionId.includes('..') || sessionId.includes('/') || sessionId.includes('\\')) {
+      console.warn('Invalid characters in session ID');
+      return false;
+    }
+
+    // Use the same session directory logic as the Rust backend
+    // The Rust backend uses AppStrategyArgs with top_level_domain: "Block", author: "Block", app_name: "goose"
+    // This creates the path structure: Block/goose/data/sessions/
+    const appDataPath = path.dirname(app.getPath('userData')); // Get the parent directory
+    const sessionsDir = path.join(appDataPath, 'Block', 'goose', 'data', 'sessions');
+    const sessionFile = path.join(sessionsDir, `${sessionId}.jsonl`);
+
     // Check if file exists before deleting
-    if (fs.existsSync(sessionFile)) {
-      fs.unlinkSync(sessionFile);
-      console.log(`Deleted session file: ${sessionFile}`);
+    if (fsSync.existsSync(sessionFile)) {
+      fsSync.unlinkSync(sessionFile);
+      console.log(`[Main] Deleted session file: ${sessionFile}`);
       return true;
     } else {
-      console.warn(`Session file not found: ${sessionFile}`);
+      console.warn(`[Main] Session file not found: ${sessionFile}`);
       return false;
     }
   } catch (error) {
-    console.error('Error deleting session file:', error);
+    console.error('[Main] Error deleting session file:', error);
     return false;
   }
 });
