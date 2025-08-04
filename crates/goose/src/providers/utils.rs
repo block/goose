@@ -64,6 +64,7 @@ fn check_context_length_exceeded(text: &str) -> bool {
         .any(|phrase| text_lower.contains(phrase))
 }
 
+#[allow(clippy::cognitive_complexity)]
 pub fn map_http_error_to_provider_error(
     status: StatusCode,
     payload: Option<Value>,
@@ -85,7 +86,6 @@ pub fn map_http_error_to_provider_error(
                 }
 
                 if let Some(error) = payload.get("error") {
-                    tracing::debug!("Bad Request Error: {error:?}");
                     error_msg = error.get("message")
                         .and_then(|m| m.as_str())
                         .unwrap_or("Unknown error")
