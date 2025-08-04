@@ -6,7 +6,6 @@ import { startOpenRouterSetup } from '../utils/openRouterSetup';
 import WelcomeGooseLogo from './WelcomeGooseLogo';
 import { initializeSystem } from '../utils/providerUtils';
 import { toastService } from '../toasts';
-import { ensureClientInitialized } from '../utils';
 
 interface ProviderGuardProps {
   children: React.ReactNode;
@@ -96,8 +95,6 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
   useEffect(() => {
     const checkProvider = async () => {
       try {
-        await ensureClientInitialized();
-
         const config = window.electron.getConfig();
         console.log('ProviderGuard - Full config:', config);
 

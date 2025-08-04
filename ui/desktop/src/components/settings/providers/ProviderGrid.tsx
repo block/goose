@@ -36,6 +36,11 @@ const ProviderCards = memo(function ProviderCards({
             refreshProviders();
           }
         },
+        onDelete: () => {
+          if (refreshProviders) {
+            refreshProviders();
+          }
+        },
         formProps: {},
       });
     },
