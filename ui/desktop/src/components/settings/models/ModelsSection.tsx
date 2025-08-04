@@ -2,10 +2,13 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import type { View } from '../../../App';
 import ModelSettingsButtons from './subcomponents/ModelSettingsButtons';
 import { useConfig } from '../../ConfigContext';
-import { useModelAndProvider } from '../../ModelAndProviderContext';
+import {
+  UNKNOWN_PROVIDER_MSG,
+  UNKNOWN_PROVIDER_TITLE,
+  useModelAndProvider,
+} from '../../ModelAndProviderContext';
 import { toastError } from '../../../toasts';
 
-import { UNKNOWN_PROVIDER_MSG, UNKNOWN_PROVIDER_TITLE } from './index';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import ResetProviderSection from '../reset_provider/ResetProviderSection';
 

@@ -89,7 +89,7 @@ jobs:
         run: |
           source ./bin/activate-hermit
           export CARGO_INCREMENTAL=0
-          cargo clippy --jobs 2 -- -D warnings
+          ./scripts/clippy-lint.sh
 
       - name: Install Node.js Dependencies for OpenAPI Check
         run: source ../../bin/activate-hermit && npm ci
@@ -120,6 +120,9 @@ jobs:
   # Faster Desktop App build for PRs only
   bundle-desktop-unsigned:
     uses: ./.github/workflows/bundle-desktop.yml
+    permissions:
+      id-token: write
+      contents: read
     needs: changes
     if: (github.event_name == 'pull_request' || github.event_name == 'merge_group') && (needs.changes.outputs.code == 'true' || github.event_name != 'pull_request')
     with:

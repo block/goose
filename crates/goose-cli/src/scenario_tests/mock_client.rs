@@ -1,13 +1,15 @@
 //! MockClient is a mock implementation of the McpClientTrait for testing purposes.
 //! add a tool you want to have around and then add the client to the extension router
 
-use mcp_client::client::{ClientCapabilities, ClientInfo, Error, McpClientTrait};
-use mcp_core::protocol::{
-    CallToolResult, Implementation, InitializeResult, ListPromptsResult, ListResourcesResult,
-    ListToolsResult, ReadResourceResult, ServerCapabilities, ToolsCapability,
+use mcp_client::client::{Error, McpClientTrait};
+use mcp_core::ToolError;
+use rmcp::{
+    model::{
+        CallToolResult, Content, GetPromptResult, ListPromptsResult, ListResourcesResult,
+        ListToolsResult, ReadResourceResult, ServerNotification, Tool,
+    },
+    object,
 };
-use mcp_core::{Tool, ToolError};
-use rmcp::model::{Content, GetPromptResult, ServerNotification};
 use serde_json::Value;
 use std::collections::HashMap;
 use tokio::sync::mpsc::{self, Receiver};
@@ -38,26 +40,6 @@ impl MockClient {
 
 #[async_trait::async_trait]
 impl McpClientTrait for MockClient {
-    async fn initialize(
-        &mut self,
-        _: ClientInfo,
-        _: ClientCapabilities,
-    ) -> Result<InitializeResult, Error> {
-        Ok(InitializeResult {
-            protocol_version: "2024-11-05".to_string(),
-            capabilities: ServerCapabilities {
-                prompts: None,
-                resources: None,
-                tools: Some(ToolsCapability { list_changed: None }),
-            },
-            server_info: Implementation {
-                name: "MockClient".to_string(),
-                version: "1.0.0".to_string(),
-            },
-            instructions: None,
-        })
-    }
-
     async fn list_resources(
         &self,
         _next_cursor: Option<String>,
@@ -68,10 +50,12 @@ impl McpClientTrait for MockClient {
         })
     }
 
+    fn get_info(&self) -> std::option::Option<&rmcp::model::InitializeResult> {
+        todo!()
+    }
+
     async fn read_resource(&self, _uri: &str) -> Result<ReadResourceResult, Error> {
-        Err(Error::UnexpectedResponse(
-            "Resources not supported by mock client".to_string(),
-        ))
+        Err(Error::UnexpectedResponse)
     }
 
     async fn list_tools(&self, _: Option<String>) -> Result<ListToolsResult, Error> {
@@ -79,16 +63,10 @@ impl McpClientTrait for MockClient {
             .tools
             .values()
             .map(|tool| {
-                let input_schema = if let serde_json::Value::Object(obj) = &tool.input_schema {
-                    std::sync::Arc::new(obj.clone())
-                } else {
-                    std::sync::Arc::new(serde_json::Map::new())
-                };
-
                 rmcp::model::Tool::new(
                     tool.name.to_string(),
-                    tool.description.to_string(),
-                    input_schema,
+                    tool.description.clone().unwrap_or_default(),
+                    tool.input_schema.clone(),
                 )
             })
             .collect();
@@ -106,24 +84,22 @@ impl McpClientTrait for MockClient {
                     content,
                     is_error: None,
                 }),
-                Err(e) => Err(Error::UnexpectedResponse(e.to_string())),
+                Err(e) => Err(Error::UnexpectedResponse),
             }
         } else {
-            Err(Error::UnexpectedResponse(format!(
-                "Tool '{}' not found",
-                name
-            )))
+            Err(Error::UnexpectedResponse)
         }
     }
 
     async fn list_prompts(&self, _next_cursor: Option<String>) -> Result<ListPromptsResult, Error> {
-        Ok(ListPromptsResult { prompts: vec![] })
+        Ok(ListPromptsResult {
+            prompts: vec![],
+            next_cursor: None,
+        })
     }
 
     async fn get_prompt(&self, _name: &str, _arguments: Value) -> Result<GetPromptResult, Error> {
-        Err(Error::UnexpectedResponse(
-            "Prompts not supported by mock client".to_string(),
-        ))
+        Err(Error::UnexpectedResponse)
     }
 
     async fn subscribe(&self) -> Receiver<ServerNotification> {
@@ -137,7 +113,7 @@ pub fn weather_client() -> MockClient {
     let weather_tool = Tool::new(
         "get_weather",
         "Get the weather for a location",
-        serde_json::json!({
+        object!({
             "type": "object",
             "required": ["location"],
             "properties": {
@@ -147,7 +123,6 @@ pub fn weather_client() -> MockClient {
                 }
             }
         }),
-        None, // ToolAnnotations
     );
 
     let mock_client = MockClient::new().add_tool(weather_tool, |args| {
