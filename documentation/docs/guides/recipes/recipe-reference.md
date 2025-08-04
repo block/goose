@@ -79,6 +79,7 @@ Goose automatically adds metadata fields to recipes saved from the Desktop app.
 | `prompt` | String | A template prompt that can include parameter substitutions; required in headless (non-interactive) mode |
 | `parameters` | Array | List of parameter definitions |
 | `extensions` | Array | List of extension configurations |
+| `settings` | Object | Configuration for model provider, model name, and other settings |
 | `sub_recipes` | Array | List of sub-recipes |
 | `response` | Object | Configuration for structured output validation |
 | `retry` | Object | Configuration for automated retry logic with success validation |
@@ -164,6 +165,38 @@ extensions:
       - 'mcp_presidio@latest'
     description: "For searching logs using Presidio"
 ```
+
+## Settings
+
+The `settings` field allows you to configure the AI model and provider settings for the recipe. This overrides the default configuration when the recipe is executed.
+
+### Settings Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `goose_provider` | String | (Optional) The AI provider to use (e.g., "anthropic", "openai") |
+| `goose_model` | String | (Optional) The specific model name to use |
+| `temperature` | Number | (Optional) The temperature setting for the model (typically 0.0-1.0) |
+
+### Example Settings Configuration
+
+```yaml
+settings:
+  goose_provider: "anthropic"
+  goose_model: "claude-3-5-sonnet-latest"
+  temperature: 0.7
+```
+
+```yaml
+settings:
+  goose_provider: "openai"
+  goose_model: "gpt-4o"
+  temperature: 0.3
+```
+
+:::note
+Settings specified in a recipe will override your default Goose configuration when that recipe is executed. If no settings are specified, Goose will use your configured defaults.
+:::
 
 ## Sub-Recipes
 
@@ -378,6 +411,11 @@ extensions:
     timeout: 300
     bundled: true
     description: "Query codesearch directly from goose"
+
+settings:
+  goose_provider: "anthropic"
+  goose_model: "claude-3-5-sonnet-latest"
+  temperature: 0.7
 
 retry:
   max_retries: 3
