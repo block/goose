@@ -70,15 +70,12 @@ pub async fn check_compaction_needed(
             .unwrap_or(0.3) // Default to 30%
     });
 
-    // Get provider
     let provider = agent.provider().await?;
     let context_limit = provider.get_model_config().context_limit();
 
-    // Try to use actual token counts from session metadata first
     let (current_tokens, token_source) = match session_metadata.and_then(|m| m.total_tokens) {
         Some(tokens) => (tokens as usize, "session metadata"),
         None => {
-            // Fall back to estimated counts
             let token_counter = create_async_token_counter()
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to create token counter: {}", e))?;
