@@ -23,6 +23,7 @@ target/
 # UI
 ./ui/desktop/node_modules
 ./ui/desktop/out
+./goose-desktop-app-fixed/bin
 
 # Generated Goose DLLs (built at build time, not checked in)
 ui/desktop/src/bin/goose_ffi.dll
@@ -59,3 +60,12 @@ do_not_version/
 /ui/desktop/src/bin/goose-scheduler-executor
 /ui/desktop/src/bin/goose
 /.env
+
+# Large executable files that exceed GitHub's 100MB limit
+Goose-Desktop-App-Fixed/Goose.exe
+Goose-Desktop-App-Fixed/resources/bin/goosed.exe
+Goose-Desktop-App-Fixed/resources/bin/uv.exe
+Goose-Desktop-App-Fixed/resources/bin/uvx.exe
+
+# All large executable files in general
+*.exe
