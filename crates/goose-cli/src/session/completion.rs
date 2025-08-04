@@ -279,7 +279,7 @@ impl GooseCompleter {
             let pos = line.len() - last_part.len();
             let (start, candidates) =
                 self.filename_completer
-                    .complete(last_part, last_part.len(), &ctx)?;
+                    .complete(last_part, last_part.len(), ctx)?;
 
             // Return the completion results, with adjusted position
             return Ok((pos + start, candidates));
@@ -372,12 +372,11 @@ impl Completer for GooseCompleter {
                 return self.complete_mode_flags(line);
             }
 
-            // Don't try file completion for slash commands
             return Ok((pos, vec![]));
         }
 
         // For normal text (not slash commands), try file path completion
-        self.complete_file_path(line, &ctx)
+        self.complete_file_path(line, ctx)
     }
 }
 
