@@ -15,6 +15,17 @@ on the App, you will also need to [install node and npm][nvm] - we recommend thr
 
 We provide a shortcut to standard commands using [just][just] in our `justfile`.
 
+### Windows Subsystem for Linux
+
+For WSL users, you might need to install `build-essential` and `libxcb` otherwise you might run into `cc` linking errors (cc stands for C Compiler).
+Install them by running these commands:
+
+```
+sudo apt update                   # Refreshes package list (no installs yet)
+sudo apt install build-essential  # build-essential is a package that installs all core tools
+sudo apt install libxcb1-dev      # libxcb1-dev is the development package for the X C Binding (XCB) library on Linux
+```
+
 ## Getting Started
 
 ### Rust
@@ -50,7 +61,7 @@ As you make changes to the rust code, you can try it out on the CLI, or also run
 cargo check  # do your changes compile
 cargo test  # do the tests pass with your changes
 cargo fmt   # format your code
-cargo clippy  # run the linter
+./scripts/clippy-lint # run the linter
 ```
 
 ### Node

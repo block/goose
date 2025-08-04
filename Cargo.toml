@@ -14,7 +14,7 @@ description = "An AI agent"
 uninlined_format_args = "allow"
 
 [workspace.dependencies]
-rmcp = { version = "0.2.1", features = ["schemars"] }
+rmcp = { version = "0.3.1", features = ["schemars"] }
 
 # Patch for Windows cross-compilation issue with crunchy
 [patch.crates-io]

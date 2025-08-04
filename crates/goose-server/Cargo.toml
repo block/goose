@@ -16,13 +16,13 @@ mcp-core = { path = "../mcp-core" }
 goose-mcp = { path = "../goose-mcp" }
 mcp-server = { path = "../mcp-server" }
 rmcp = { workspace = true }
+schemars = "1.0"
 axum = { version = "0.8.1", features = ["ws", "macros"] }
 tokio = { version = "1.43", features = ["full"] }
 chrono = "0.4"
-tokio-cron-scheduler = "0.14.0"
 tower-http = { version = "0.5", features = ["cors"] }
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+serde_json = { version = "1.0", features = ["preserve_order"] }
 futures = "0.3"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json", "time"] }
@@ -35,12 +35,9 @@ base64 = "0.21"
 config = { version = "0.14.1", features = ["toml"] }
 thiserror = "1.0"
 clap = { version = "4.4", features = ["derive"] }
-once_cell = "1.20.2"
 etcetera = "0.8.0"
 serde_yaml = "0.9.34"
-axum-extra = "0.10.0"
 utoipa = { version = "4.1", features = ["axum_extras", "chrono"] }
-dirs = "6.0.0"
 reqwest = { version = "0.12.9", features = ["json", "rustls-tls", "blocking", "multipart"], default-features = false }
 tokio-util = "0.7.15"
 

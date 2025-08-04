@@ -64,106 +64,141 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
         );
         println!();
         cliclack::intro(style(" goose-configure ").on_cyan().black())?;
-        match configure_provider_dialog().await {
-            Ok(true) => {
-                println!(
-                    "\n  {}: Run '{}' again to adjust your config or add extensions",
-                    style("Tip").green().italic(),
-                    style("goose configure").cyan()
-                );
-                // Since we are setting up for the first time, we'll also enable the developer system
-                // This operation is best-effort and errors are ignored
-                ExtensionConfigManager::set(ExtensionEntry {
-                    enabled: true,
-                    config: ExtensionConfig::Builtin {
-                        name: "developer".to_string(),
-                        display_name: Some(goose::config::DEFAULT_DISPLAY_NAME.to_string()),
-                        timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
-                        bundled: Some(true),
-                        description: None,
-                    },
-                })?;
-            }
-            Ok(false) => {
-                let _ = config.clear();
-                println!(
-                    "\n  {}: We did not save your config, inspect your credentials\n   and run '{}' again to ensure goose can connect",
-                    style("Warning").yellow().italic(),
-                    style("goose configure").cyan()
-                );
-            }
-            Err(e) => {
-                let _ = config.clear();
 
-                match e.downcast_ref::<ConfigError>() {
-                    Some(ConfigError::NotFound(key)) => {
-                        println!(
-                            "\n  {} Required configuration key '{}' not found \n  Please provide this value and run '{}' again",
-                            style("Error").red().italic(),
-                            key,
-                            style("goose configure").cyan()
-                        );
-                    }
-                    Some(ConfigError::KeyringError(msg)) => {
-                        #[cfg(target_os = "macos")]
-                        println!(
-                            "\n  {} Failed to access secure storage (keyring): {} \n  Please check your system keychain and run '{}' again. \n  If your system is unable to use the keyring, please try setting secret key(s) via environment variables.",
-                            style("Error").red().italic(),
-                            msg,
-                            style("goose configure").cyan()
-                        );
+        // Check if user wants to use OpenRouter login or manual configuration
+        let setup_method = cliclack::select("How would you like to set up your provider?")
+            .item(
+                "openrouter",
+                "OpenRouter Login (Recommended)",
+                "Sign in with OpenRouter to automatically configure models",
+            )
+            .item(
+                "manual",
+                "Manual Configuration",
+                "Choose a provider and enter credentials manually",
+            )
+            .interact()?;
 
-                        #[cfg(target_os = "windows")]
-                        println!(
-                            "\n  {} Failed to access Windows Credential Manager: {} \n  Please check Windows Credential Manager and run '{}' again. \n  If your system is unable to use the Credential Manager, please try setting secret key(s) via environment variables.",
-                            style("Error").red().italic(),
-                            msg,
-                            style("goose configure").cyan()
-                        );
-
-                        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-                        println!(
-                            "\n  {} Failed to access secure storage: {} \n  Please check your system's secure storage and run '{}' again. \n  If your system is unable to use secure storage, please try setting secret key(s) via environment variables.",
-                            style("Error").red().italic(),
-                            msg,
-                            style("goose configure").cyan()
-                        );
+        match setup_method {
+            "openrouter" => {
+                match handle_openrouter_auth().await {
+                    Ok(_) => {
+                        // OpenRouter auth already handles everything including enabling developer extension
                     }
-                    Some(ConfigError::DeserializeError(msg)) => {
+                    Err(e) => {
+                        let _ = config.clear();
                         println!(
-                            "\n  {} Invalid configuration value: {} \n  Please check your input and run '{}' again",
-                            style("Error").red().italic(),
-                            msg,
-                            style("goose configure").cyan()
-                        );
-                    }
-                    Some(ConfigError::FileError(e)) => {
-                        println!(
-                            "\n  {} Failed to access config file: {} \n  Please check file permissions and run '{}' again",
+                            "\n  {} OpenRouter authentication failed: {} \n  Please try again or use manual configuration",
                             style("Error").red().italic(),
                             e,
-                            style("goose configure").cyan()
-                        );
-                    }
-                    Some(ConfigError::DirectoryError(msg)) => {
-                        println!(
-                            "\n  {} Failed to access config directory: {} \n  Please check directory permissions and run '{}' again",
-                            style("Error").red().italic(),
-                            msg,
-                            style("goose configure").cyan()
-                        );
-                    }
-                    // handle all other nonspecific errors
-                    _ => {
-                        println!(
-                            "\n  {} {} \n  We did not save your config, inspect your credentials\n   and run '{}' again to ensure goose can connect",
-                            style("Error").red().italic(),
-                            e,
-                            style("goose configure").cyan()
                         );
                     }
                 }
             }
+            "manual" => {
+                match configure_provider_dialog().await {
+                    Ok(true) => {
+                        println!(
+                            "\n  {}: Run '{}' again to adjust your config or add extensions",
+                            style("Tip").green().italic(),
+                            style("goose configure").cyan()
+                        );
+                        // Since we are setting up for the first time, we'll also enable the developer system
+                        // This operation is best-effort and errors are ignored
+                        ExtensionConfigManager::set(ExtensionEntry {
+                            enabled: true,
+                            config: ExtensionConfig::Builtin {
+                                name: "developer".to_string(),
+                                display_name: Some(goose::config::DEFAULT_DISPLAY_NAME.to_string()),
+                                timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+                                bundled: Some(true),
+                                description: None,
+                            },
+                        })?;
+                    }
+                    Ok(false) => {
+                        let _ = config.clear();
+                        println!(
+                            "\n  {}: We did not save your config, inspect your credentials\n   and run '{}' again to ensure goose can connect",
+                            style("Warning").yellow().italic(),
+                            style("goose configure").cyan()
+                        );
+                    }
+                    Err(e) => {
+                        let _ = config.clear();
+
+                        match e.downcast_ref::<ConfigError>() {
+                            Some(ConfigError::NotFound(key)) => {
+                                println!(
+                                    "\n  {} Required configuration key '{}' not found \n  Please provide this value and run '{}' again",
+                                    style("Error").red().italic(),
+                                    key,
+                                    style("goose configure").cyan()
+                                );
+                            }
+                            Some(ConfigError::KeyringError(msg)) => {
+                                #[cfg(target_os = "macos")]
+                                println!(
+                                    "\n  {} Failed to access secure storage (keyring): {} \n  Please check your system keychain and run '{}' again. \n  If your system is unable to use the keyring, please try setting secret key(s) via environment variables.",
+                                    style("Error").red().italic(),
+                                    msg,
+                                    style("goose configure").cyan()
+                                );
+
+                                #[cfg(target_os = "windows")]
+                                println!(
+                                    "\n  {} Failed to access Windows Credential Manager: {} \n  Please check Windows Credential Manager and run '{}' again. \n  If your system is unable to use the Credential Manager, please try setting secret key(s) via environment variables.",
+                                    style("Error").red().italic(),
+                                    msg,
+                                    style("goose configure").cyan()
+                                );
+
+                                #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+                                println!(
+                                    "\n  {} Failed to access secure storage: {} \n  Please check your system's secure storage and run '{}' again. \n  If your system is unable to use secure storage, please try setting secret key(s) via environment variables.",
+                                    style("Error").red().italic(),
+                                    msg,
+                                    style("goose configure").cyan()
+                                );
+                            }
+                            Some(ConfigError::DeserializeError(msg)) => {
+                                println!(
+                                    "\n  {} Invalid configuration value: {} \n  Please check your input and run '{}' again",
+                                    style("Error").red().italic(),
+                                    msg,
+                                    style("goose configure").cyan()
+                                );
+                            }
+                            Some(ConfigError::FileError(e)) => {
+                                println!(
+                                    "\n  {} Failed to access config file: {} \n  Please check file permissions and run '{}' again",
+                                    style("Error").red().italic(),
+                                    e,
+                                    style("goose configure").cyan()
+                                );
+                            }
+                            Some(ConfigError::DirectoryError(msg)) => {
+                                println!(
+                                    "\n  {} Failed to access config directory: {} \n  Please check directory permissions and run '{}' again",
+                                    style("Error").red().italic(),
+                                    msg,
+                                    style("goose configure").cyan()
+                                );
+                            }
+                            // handle all other nonspecific errors
+                            _ => {
+                                println!(
+                                    "\n  {} {} \n  We did not save your config, inspect your credentials\n   and run '{}' again to ensure goose can connect",
+                                    style("Error").red().italic(),
+                                    e,
+                                    style("goose configure").cyan()
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            _ => unreachable!(),
         }
         Ok(())
     } else {
@@ -332,7 +367,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
     let spin = spinner();
     spin.start("Attempting to fetch supported models...");
     let models_res = {
-        let temp_model_config = goose::model::ModelConfig::new(provider_meta.default_model.clone());
+        let temp_model_config = goose::model::ModelConfig::new(&provider_meta.default_model)?;
         let temp_provider = create(provider_name, temp_model_config)?;
         temp_provider.fetch_supported_models_async().await
     };
@@ -373,7 +408,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
         .map(|val| val == "1" || val.to_lowercase() == "true")
         .unwrap_or(false);
 
-    let model_config = goose::model::ModelConfig::new(model.clone())
+    let model_config = goose::model::ModelConfig::new(&model)?
         .with_max_tokens(Some(50))
         .with_toolshim(toolshim_enabled)
         .with_toolshim_model(std::env::var("GOOSE_TOOLSHIM_OLLAMA_MODEL").ok());
@@ -1231,7 +1266,7 @@ pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
     let model: String = config
         .get_param("GOOSE_MODEL")
         .expect("No model configured. Please set model first");
-    let model_config = goose::model::ModelConfig::new(model.clone());
+    let model_config = goose::model::ModelConfig::new(&model)?;
 
     // Create the agent
     let agent = Agent::new();
@@ -1462,6 +1497,109 @@ pub fn configure_max_turns_dialog() -> Result<(), Box<dyn Error>> {
         "Set maximum turns to {} - Goose will ask for input after {} consecutive actions",
         max_turns, max_turns
     ))?;
+
+    Ok(())
+}
+
+/// Handle OpenRouter authentication
+pub async fn handle_openrouter_auth() -> Result<(), Box<dyn Error>> {
+    use goose::config::{configure_openrouter, signup_openrouter::OpenRouterAuth};
+    use goose::message::Message;
+    use goose::providers::create;
+
+    // Use the OpenRouter authentication flow
+    let mut auth_flow = OpenRouterAuth::new()?;
+    match auth_flow.complete_flow().await {
+        Ok(api_key) => {
+            println!("\nAuthentication complete!");
+
+            // Get config instance
+            let config = Config::global();
+
+            // Use the existing configure_openrouter function to set everything up
+            println!("\nConfiguring OpenRouter...");
+            if let Err(e) = configure_openrouter(config, api_key) {
+                eprintln!("Failed to configure OpenRouter: {}", e);
+                return Err(e.into());
+            }
+
+            println!("✓ OpenRouter configuration complete");
+            println!("✓ Models configured successfully");
+
+            // Test configuration - get the model that was configured
+            println!("\nTesting configuration...");
+            let configured_model: String = config.get_param("GOOSE_MODEL")?;
+            let model_config = match goose::model::ModelConfig::new(&configured_model) {
+                Ok(config) => config,
+                Err(e) => {
+                    eprintln!("⚠️  Invalid model configuration: {}", e);
+                    eprintln!(
+                        "Your settings have been saved. Please check your model configuration."
+                    );
+                    return Ok(());
+                }
+            };
+
+            match create("openrouter", model_config) {
+                Ok(provider) => {
+                    // Simple test request
+                    let test_result = provider
+                        .complete(
+                            "You are Goose, an AI assistant.",
+                            &[Message::user().with_text("Say 'Configuration test successful!'")],
+                            &[],
+                        )
+                        .await;
+
+                    match test_result {
+                        Ok(_) => {
+                            println!("✓ Configuration test passed!");
+
+                            // Enable the developer extension by default if not already enabled
+                            let entries = ExtensionConfigManager::get_all()?;
+                            let has_developer = entries
+                                .iter()
+                                .any(|e| e.config.name() == "developer" && e.enabled);
+
+                            if !has_developer {
+                                match ExtensionConfigManager::set(ExtensionEntry {
+                                    enabled: true,
+                                    config: ExtensionConfig::Builtin {
+                                        name: "developer".to_string(),
+                                        display_name: Some(
+                                            goose::config::DEFAULT_DISPLAY_NAME.to_string(),
+                                        ),
+                                        timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+                                        bundled: Some(true),
+                                        description: None,
+                                    },
+                                }) {
+                                    Ok(_) => println!("✓ Developer extension enabled"),
+                                    Err(e) => {
+                                        eprintln!("⚠️  Failed to enable developer extension: {}", e)
+                                    }
+                                }
+                            }
+
+                            cliclack::outro("OpenRouter setup complete! You can now use Goose.")?;
+                        }
+                        Err(e) => {
+                            eprintln!("⚠️  Configuration test failed: {}", e);
+                            eprintln!("Your settings have been saved, but there may be an issue with the connection.");
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("⚠️  Failed to create provider for testing: {}", e);
+                    eprintln!("Your settings have been saved. Please check your configuration.");
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("Authentication failed: {}", e);
+            return Err(e.into());
+        }
+    }
 
     Ok(())
 }

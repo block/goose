@@ -548,7 +548,7 @@ data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-3-5-sonnet","
     fn test_create_request_format() -> Result<()> {
         use crate::model::ModelConfig;
 
-        let model_config = ModelConfig::new("claude-3-5-sonnet".to_string());
+        let model_config = ModelConfig::new_or_fail("claude-3-5-sonnet");
 
         let system = "You are a helpful assistant that can use tools to get information.";
         let messages = vec![Message::user().with_text("What is the stock price of Nvidia?")];
@@ -656,7 +656,7 @@ data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-3-5-sonnet","
     fn test_create_request_excludes_tools_for_description() -> Result<()> {
         use crate::model::ModelConfig;
 
-        let model_config = ModelConfig::new("claude-3-5-sonnet".to_string());
+        let model_config = ModelConfig::new_or_fail("claude-3-5-sonnet");
         let system = "Reply with only a description in four words or less";
         let messages = vec![Message::user().with_text("Test message")];
         let tools = vec![Tool::new(

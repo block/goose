@@ -99,7 +99,7 @@ pub async fn handle_web(port: u16, host: String, open: bool) -> Result<()> {
         }
     };
 
-    let model_config = goose::model::ModelConfig::new(model.clone());
+    let model_config = goose::model::ModelConfig::new(&model)?;
 
     // Create the agent
     let agent = Agent::new();
@@ -448,8 +448,8 @@ async fn process_message_streaming(
     // Create a user message
     let user_message = GooseMessage::user().with_text(content.clone());
 
-    // Get existing messages from session and add the new user message
-    let mut messages = {
+    // Messages will be auto-compacted in agent.reply() if needed
+    let messages = {
         let mut session_msgs = session_messages.lock().await;
         session_msgs.push(user_message.clone());
         session_msgs.clone()
@@ -618,12 +618,39 @@ async fn process_message_streaming(
                                     // TODO: Implement proper UI for context handling
                                     let (summarized_messages, _) =
                                         agent.summarize_context(&messages).await?;
-                                    messages = summarized_messages;
+                                    {
+                                        let mut session_msgs = session_messages.lock().await;
+                                        *session_msgs = summarized_messages;
+                                    }
                                 }
                                 _ => {
                                     // Handle other message types as needed
                                 }
                             }
+                        }
+                    }
+                    Ok(AgentEvent::HistoryReplaced(new_messages)) => {
+                        // Replace the session's message history with the compacted messages
+                        {
+                            let mut session_msgs = session_messages.lock().await;
+                            *session_msgs = new_messages;
+                        }
+
+                        // Persist the updated messages to the JSONL file
+                        let current_messages = {
+                            let session_msgs = session_messages.lock().await;
+                            session_msgs.clone()
+                        };
+
+                        if let Err(e) = session::persist_messages(
+                            &session_file,
+                            &current_messages,
+                            None, // No provider needed for persisting
+                            working_dir.clone(),
+                        )
+                        .await
+                        {
+                            error!("Failed to persist compacted messages: {}", e);
                         }
                     }
                     Ok(AgentEvent::McpNotification(_notification)) => {

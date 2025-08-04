@@ -10,6 +10,7 @@ use super::utils::{
     emit_debug_trace, get_model, handle_response_google_compat, handle_response_openai_compat,
     is_google_model,
 };
+use crate::impl_provider_default;
 use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
@@ -26,6 +27,8 @@ pub const OPENROUTER_KNOWN_MODELS: &[&str] = &[
     "anthropic/claude-sonnet-4",
     "google/gemini-2.5-pro",
     "deepseek/deepseek-r1-0528",
+    "qwen/qwen3-coder",
+    "moonshotai/kimi-k2",
 ];
 pub const OPENROUTER_DOC_URL: &str = "https://openrouter.ai/models";
 
@@ -38,12 +41,7 @@ pub struct OpenRouterProvider {
     model: ModelConfig,
 }
 
-impl Default for OpenRouterProvider {
-    fn default() -> Self {
-        let model = ModelConfig::new(OpenRouterProvider::metadata().default_model);
-        OpenRouterProvider::from_env(model).expect("Failed to initialize OpenRouter provider")
-    }
-}
+impl_provider_default!(OpenRouterProvider);
 
 impl OpenRouterProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
@@ -92,6 +90,13 @@ impl OpenRouterProvider {
         let response_body = handle_response_openai_compat(response)
             .await
             .map_err(|e| ProviderError::RequestFailed(format!("Failed to parse response: {e}")))?;
+
+        let _debug = format!(
+            "OpenRouter request with payload: {} and response: {}",
+            serde_json::to_string_pretty(payload).unwrap_or_else(|_| "Invalid JSON".to_string()),
+            serde_json::to_string_pretty(&response_body)
+                .unwrap_or_else(|_| "Invalid JSON".to_string())
+        );
 
         // OpenRouter can return errors in 200 OK responses, so we have to check for errors explicitly
         // https://openrouter.ai/docs/api-reference/errors

@@ -269,7 +269,7 @@ const config: Config = {
           },
           {
             from: '/docs/tutorials/vscode-mcp',
-            to: '/docs/mcp/vscode-mcp'
+            to: '/docs/mcp/vs-code-mcp'
           },
           {
             from: '/docs/tutorials/youtube-transcript',
@@ -288,6 +288,9 @@ const config: Config = {
   themeConfig: {
     // Replace with your project's social card
     image: "img/home-banner.png",
+    colorMode: {
+      respectPrefersColorScheme: true
+    },
     navbar: {
       title: "",
       logo: {

@@ -18,7 +18,8 @@ function ExtensionDetail({ server }: { server: MCPServer }) {
 const overrides: Record<string, string> = {
   'computercontroller': 'computer-controller-mcp',
   'pdf-read': 'pdf-mcp',
-  'knowledge-graph-memory': 'knowledge-graph-mcp'
+  'knowledge-graph-memory': 'knowledge-graph-mcp',
+  'vscode': 'vs-code-mcp',
 };
 
 const getDocumentationPath = (serverId: string): string => {

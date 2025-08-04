@@ -1,6 +1,7 @@
 pub mod agents;
 pub mod config;
 pub mod context_mgmt;
+mod conversation_fixer;
 pub mod message;
 pub mod model;
 pub mod permission;
@@ -21,3 +22,5 @@ pub mod utils;
 
 #[cfg(test)]
 mod cron_test;
+#[macro_use]
+mod macros;

@@ -1,5 +1,4 @@
 use console::style;
-use goose::agents::extension::ExtensionError;
 use goose::agents::types::RetryConfig;
 use goose::agents::Agent;
 use goose::config::{Config, ExtensionConfig, ExtensionConfigManager};
@@ -7,7 +6,6 @@ use goose::providers::create;
 use goose::recipe::{Response, SubRecipe};
 use goose::session;
 use goose::session::Identifier;
-use mcp_client::transport::Error as McpClientError;
 use rustyline::EditMode;
 use std::process;
 use std::sync::Arc;
@@ -202,8 +200,12 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
 
     let temperature = session_config.settings.as_ref().and_then(|s| s.temperature);
 
-    let model_config =
-        goose::model::ModelConfig::new(model_name.clone()).with_temperature(temperature);
+    let model_config = goose::model::ModelConfig::new(&model_name)
+        .unwrap_or_else(|e| {
+            output::render_error(&format!("Failed to create model configuration: {}", e));
+            process::exit(1);
+        })
+        .with_temperature(temperature);
 
     // Create the agent
     let agent: Agent = Agent::new();
@@ -342,6 +344,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     // Extensions need to be added after the session is created because we change directory when resuming a session
     // If we get extensions_override, only run those extensions and none other
     let extensions_to_run: Vec<_> = if let Some(extensions) = session_config.extensions_override {
+        agent.disable_router_for_recipe().await;
         extensions.into_iter().collect()
     } else {
         ExtensionConfigManager::get_all()
@@ -354,10 +357,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
 
     for extension in extensions_to_run {
         if let Err(e) = agent.add_extension(extension.clone()).await {
-            let err = match e {
-                ExtensionError::Transport(McpClientError::StdioProcessError(inner)) => inner,
-                _ => e.to_string(),
-            };
+            let err = e.to_string();
             eprintln!(
                 "{}",
                 style(format!(

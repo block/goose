@@ -34,6 +34,11 @@ The list of experimental features may change as Goose development progresses. So
       description="An experimental Android automation app that acts as an open agent running on your phone, providing maximal automation of everyday tasks."
       link="/docs/experimental/goose-mobile"
     />
+    <Card 
+      title="VS Code Extension"
+      description="An experimental extension enabling Goose to work within VS Code."
+      link="/docs/experimental/vs-code-extension"
+    />
   </div>
 </div>
 

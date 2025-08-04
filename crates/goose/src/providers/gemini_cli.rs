@@ -9,6 +9,7 @@ use tokio::process::Command;
 use super::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::utils::emit_debug_trace;
+use crate::impl_provider_default;
 use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use rmcp::model::Role;
@@ -25,12 +26,7 @@ pub struct GeminiCliProvider {
     model: ModelConfig,
 }
 
-impl Default for GeminiCliProvider {
-    fn default() -> Self {
-        let model = ModelConfig::new(GeminiCliProvider::metadata().default_model);
-        GeminiCliProvider::from_env(model).expect("Failed to initialize Gemini CLI provider")
-    }
-}
+impl_provider_default!(GeminiCliProvider);
 
 impl GeminiCliProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
@@ -170,11 +166,13 @@ impl GeminiCliProvider {
         }
 
         let mut cmd = Command::new(&self.command);
-        cmd.arg("-m")
-            .arg(&self.model.model_name)
-            .arg("-p")
-            .arg(&full_prompt)
-            .arg("--yolo");
+
+        // Only pass model parameter if it's in the known models list
+        if GEMINI_CLI_KNOWN_MODELS.contains(&self.model.model_name.as_str()) {
+            cmd.arg("-m").arg(&self.model.model_name);
+        }
+
+        cmd.arg("-p").arg(&full_prompt).arg("--yolo");
 
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
@@ -369,5 +367,25 @@ mod tests {
         assert_eq!(config.model_name, "gemini-2.5-pro");
         // Context limit should be set by the ModelConfig
         assert!(config.context_limit() > 0);
+    }
+
+    #[test]
+    fn test_gemini_cli_invalid_model_no_fallback() {
+        // Test that an invalid model is kept as-is (no fallback)
+        let invalid_model = ModelConfig::new_or_fail("invalid-model");
+        let provider = GeminiCliProvider::from_env(invalid_model).unwrap();
+        let config = provider.get_model_config();
+
+        assert_eq!(config.model_name, "invalid-model");
+    }
+
+    #[test]
+    fn test_gemini_cli_valid_model() {
+        // Test that a valid model is preserved
+        let valid_model = ModelConfig::new_or_fail(GEMINI_CLI_DEFAULT_MODEL);
+        let provider = GeminiCliProvider::from_env(valid_model).unwrap();
+        let config = provider.get_model_config();
+
+        assert_eq!(config.model_name, GEMINI_CLI_DEFAULT_MODEL);
     }
 }

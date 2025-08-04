@@ -13,9 +13,30 @@ on:
 name: CI
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      docs-only: ${{ steps.filter.outputs.docs-only }}
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
+      
+      - name: Check for file changes
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # pin@v3
+        id: filter
+        with:
+          filters: |
+            docs-only:
+              - 'documentation/**'
+            code:
+              - '!documentation/**'
+
   rust-format:
     name: Check Rust Code Format
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.code == 'true' || github.event_name != 'pull_request'
     steps:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
@@ -26,71 +47,35 @@ jobs:
   rust-build-and-test:
     name: Build and Test Rust Project
     runs-on: goose
+    needs: changes
+    if: needs.changes.outputs.code == 'true' || github.event_name != 'pull_request'
     steps:
-      # Add disk space cleanup before linting
-      - name: Check disk space before build
-        run: df -h
-
-      #https://github.com/actions/runner-images/issues/2840
-      - name: Clean up disk space
-        run: |
-          echo "Cleaning up disk space..."
-          sudo rm -rf \
-            /opt/google/chrome \
-            /opt/microsoft/msedge \
-            /opt/microsoft/powershell \
-            /usr/lib/mono \
-            /usr/local/lib/android \
-            /usr/local/lib/node_modules \
-            /usr/local/share/chromium \
-            /usr/local/share/powershell \
-            /usr/share/dotnet \
-            /usr/share/swift \
-            /opt/ghc \
-            /opt/hostedtoolcache \
-            /usr/local/graalvm \
-            /usr/local/sqlpackage
-          
-          # Clean package manager caches
-          sudo apt-get clean
-          sudo apt-get autoremove -y
-          
-          # Clean docker if present
-          docker system prune -af 2>/dev/null || true
-          
-          df -h
-
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
+
+      - name: Activate hermit and set CARGO_HOME
+        run: |
+          source bin/activate-hermit
+          echo "CARGO_HOME=$CARGO_HOME" >> $GITHUB_ENV
+          echo "RUSTUP_HOME=$RUSTUP_HOME" >> $GITHUB_ENV
 
       - name: Install Dependencies
         run: |
           sudo apt update -y
           sudo apt install -y libdbus-1-dev gnome-keyring libxcb1-dev
 
-      - name: Cache Cargo Registry
+      - name: Cache Cargo artifacts
         uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
         with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          path: |
+            ${{ env.CARGO_HOME }}/bin/
+            ${{ env.CARGO_HOME }}/registry/index/
+            ${{ env.CARGO_HOME }}/registry/cache/
+            ${{ env.CARGO_HOME }}/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-registry-
-
-      - name: Cache Cargo Index
-        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
-        with:
-          path: ~/.cargo/index
-          key: ${{ runner.os }}-cargo-index
-          restore-keys: |
-            ${{ runner.os }}-cargo-index
-
-      - name: Cache Cargo Build
-        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
-        with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-build-
+            ${{ runner.os }}-cargo-
 
       - name: Build and Test
         run: |
@@ -100,37 +85,11 @@ jobs:
           cargo test --jobs 2
         working-directory: crates
 
-      - name: Check disk space before cleanup
-        run: df -h
-
-      - name: Clean up disk space
-        run: |
-          echo "Cleaning up disk space..."
-          # Remove debug artifacts that are no longer needed after tests
-          rm -rf target/debug/deps
-          rm -rf target/debug/build
-          rm -rf target/debug/incremental
-          # Clean cargo cache more aggressively
-          cargo clean || true
-          # Clean npm cache if it exists
-          npm cache clean --force 2>/dev/null || true
-          # Clean apt cache
-          sudo apt-get clean
-          sudo apt-get autoremove -y
-          # Remove unnecessary large directories
-          rm -rf ~/.cargo/registry/index || true
-          rm -rf ~/.cargo/registry/cache || true
-          # Remove docker images if any
-          docker system prune -af 2>/dev/null || true
-
-      - name: Check disk space after cleanup
-        run: df -h
-
       - name: Lint
         run: |
           source ./bin/activate-hermit
           export CARGO_INCREMENTAL=0
-          cargo clippy --jobs 2 -- -D warnings
+          ./scripts/clippy-lint.sh
 
       - name: Install Node.js Dependencies for OpenAPI Check
         run: source ../../bin/activate-hermit && npm ci
@@ -140,10 +99,12 @@ jobs:
         run: |
           source ./bin/activate-hermit
           just check-openapi-schema
-          
+
   desktop-lint:
     name: Lint Electron Desktop App
     runs-on: macos-latest
+    needs: changes
+    if: needs.changes.outputs.code == 'true' || github.event_name != 'pull_request'
     steps:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
@@ -156,10 +117,13 @@ jobs:
         run: source ../../bin/activate-hermit && npm run lint:check
         working-directory: ui/desktop
 
-
   # Faster Desktop App build for PRs only
   bundle-desktop-unsigned:
     uses: ./.github/workflows/bundle-desktop.yml
-    if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+    permissions:
+      id-token: write
+      contents: read
+    needs: changes
+    if: (github.event_name == 'pull_request' || github.event_name == 'merge_group') && (needs.changes.outputs.code == 'true' || github.event_name != 'pull_request')
     with:
       signing: false

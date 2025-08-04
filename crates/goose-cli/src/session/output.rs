@@ -3,6 +3,7 @@ use console::{style, Color};
 use goose::config::Config;
 use goose::message::{Message, MessageContent, ToolRequest, ToolResponse};
 use goose::providers::pricing::get_model_pricing;
+use goose::providers::pricing::parse_model_id;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use mcp_core::tool::ToolCall;
 use regex::Regex;
@@ -95,10 +96,17 @@ pub struct ThinkingIndicator {
 impl ThinkingIndicator {
     pub fn show(&mut self) {
         let spinner = cliclack::spinner();
-        spinner.start(format!(
-            "{}...",
-            super::thinking::get_random_thinking_message()
-        ));
+        if Config::global()
+            .get_param("RANDOM_THINKING_MESSAGES")
+            .unwrap_or(true)
+        {
+            spinner.start(format!(
+                "{}...",
+                super::thinking::get_random_thinking_message()
+            ));
+        } else {
+            spinner.start("Thinking...");
+        }
         self.spinner = Some(spinner);
     }
 
@@ -106,6 +114,10 @@ impl ThinkingIndicator {
         if let Some(spinner) = self.spinner.take() {
             spinner.stop("");
         }
+    }
+
+    pub fn is_shown(&self) -> bool {
+        self.spinner.is_some()
     }
 }
 
@@ -130,7 +142,10 @@ pub fn hide_thinking() {
     THINKING.with(|t| t.borrow_mut().hide());
 }
 
-#[allow(dead_code)]
+pub fn is_showing_thinking() -> bool {
+    THINKING.with(|t| t.borrow().is_shown())
+}
+
 pub fn set_thinking_message(s: &String) {
     THINKING.with(|t| {
         if let Some(spinner) = t.borrow_mut().spinner.as_mut() {
@@ -732,9 +747,21 @@ async fn estimate_cost_usd(
     input_tokens: usize,
     output_tokens: usize,
 ) -> Option<f64> {
+    // For OpenRouter, parse the model name to extract real provider/model
+    let openrouter_data = if provider == "openrouter" {
+        parse_model_id(model)
+    } else {
+        None
+    };
+
+    let (provider_to_use, model_to_use) = match &openrouter_data {
+        Some((real_provider, real_model)) => (real_provider.as_str(), real_model.as_str()),
+        None => (provider, model),
+    };
+
     // Use the pricing module's get_model_pricing which handles model name mapping internally
-    let cleaned_model = normalize_model_name(model);
-    let pricing_info = get_model_pricing(provider, &cleaned_model).await;
+    let cleaned_model = normalize_model_name(model_to_use);
+    let pricing_info = get_model_pricing(provider_to_use, &cleaned_model).await;
 
     match pricing_info {
         Some(pricing) => {
@@ -799,11 +826,11 @@ impl McpSpinners {
         spinner.set_message(message.to_string());
     }
 
-    pub fn update(&mut self, token: &str, value: f64, total: Option<f64>, message: Option<&str>) {
+    pub fn update(&mut self, token: &str, value: u32, total: Option<u32>, message: Option<&str>) {
         let bar = self.bars.entry(token.to_string()).or_insert_with(|| {
             if let Some(total) = total {
                 self.multi_bar.add(
-                    ProgressBar::new((total * 100.0) as u64).with_style(
+                    ProgressBar::new((total * 100) as u64).with_style(
                         ProgressStyle::with_template("[{elapsed}] {bar:40} {pos:>3}/{len:3} {msg}")
                             .unwrap(),
                     ),
@@ -812,7 +839,7 @@ impl McpSpinners {
                 self.multi_bar.add(ProgressBar::new_spinner())
             }
         });
-        bar.set_position((value * 100.0) as u64);
+        bar.set_position((value * 100) as u64);
         if let Some(msg) = message {
             bar.set_message(msg.to_string());
         }

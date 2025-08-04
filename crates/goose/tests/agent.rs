@@ -108,7 +108,8 @@ async fn run_truncate_test(
     model: &str,
     context_window: usize,
 ) -> Result<()> {
-    let model_config = ModelConfig::new(model.to_string())
+    let model_config = ModelConfig::new(model)
+        .unwrap()
         .with_context_limit(Some(context_window))
         .with_temperature(Some(0.0));
     let provider = provider_type.create_provider(model_config)?;
@@ -142,7 +143,9 @@ async fn run_truncate_test(
             Ok(AgentEvent::ModelChange { .. }) => {
                 // Model change events are informational, just continue
             }
-
+            Ok(AgentEvent::HistoryReplaced(_)) => {
+                // Handle history replacement events if needed
+            }
             Err(e) => {
                 println!("Error: {:?}", e);
                 return Err(e);
@@ -584,7 +587,7 @@ mod final_output_tool_tests {
 
         let agent = Agent::new();
 
-        let model_config = ModelConfig::new("test-model".to_string());
+        let model_config = ModelConfig::new("test-model").unwrap();
         let mock_provider = Arc::new(MockProvider { model_config });
         agent.update_provider(mock_provider).await?;
 
@@ -704,7 +707,7 @@ mod final_output_tool_tests {
 
         let agent = Agent::new();
 
-        let model_config = ModelConfig::new("test-model".to_string());
+        let model_config = ModelConfig::new("test-model").unwrap();
         let mock_provider = Arc::new(MockProvider { model_config });
         agent.update_provider(mock_provider).await?;
 
@@ -820,7 +823,7 @@ mod retry_tests {
     async fn test_retry_config_validation_integration() -> Result<()> {
         let agent = Agent::new();
 
-        let model_config = ModelConfig::new("test-model".to_string());
+        let model_config = ModelConfig::new("test-model").unwrap();
         let mock_provider = Arc::new(MockRetryProvider {
             model_config,
             call_count: Arc::new(AtomicUsize::new(0)),
@@ -986,7 +989,7 @@ mod max_turns_tests {
         }
 
         fn get_model_config(&self) -> ModelConfig {
-            ModelConfig::new("mock-model".to_string())
+            ModelConfig::new("mock-model").unwrap()
         }
 
         fn metadata() -> ProviderMetadata {
@@ -1042,6 +1045,7 @@ mod max_turns_tests {
                 }
                 Ok(AgentEvent::McpNotification(_)) => {}
                 Ok(AgentEvent::ModelChange { .. }) => {}
+                Ok(AgentEvent::HistoryReplaced(_)) => {}
                 Err(e) => {
                     return Err(e);
                 }

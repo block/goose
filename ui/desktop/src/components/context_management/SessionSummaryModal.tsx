@@ -49,7 +49,7 @@ export function SessionSummaryModal({
             </div>
             Session Summary
           </DialogTitle>
-          <DialogDescription className="text-center max-w-md">
+          <DialogDescription className="text-center max-w-md m-auto">
             This summary was created to manage your context limit. Review and edit to keep your
             session running smoothly with the information that matters most.
           </DialogDescription>

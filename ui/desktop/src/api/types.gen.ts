@@ -8,6 +8,8 @@ export type AddSubRecipesResponse = {
     success: boolean;
 };
 
+export type Annotated = RawTextContent | RawImageContent | RawEmbeddedResource;
+
 export type Annotations = {
     audience?: Array<Role>;
     priority?: number;
@@ -40,22 +42,7 @@ export type ConfigResponse = {
     config: {};
 };
 
-export type Content = {
-    text: string;
-    type: string;
-} | {
-    data: string;
-    mimeType: string;
-    type: string;
-} | {
-    resource: ResourceContents;
-    type: string;
-} | {
-    annotations?: Annotations;
-    data: string;
-    mimeType: string;
-    type: string;
-};
+export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | Annotated;
 
 export type ContextLengthExceeded = {
     msg: string;
@@ -118,7 +105,9 @@ export type DecodeRecipeResponse = {
 };
 
 export type EmbeddedResource = {
-    annotations?: Annotations;
+    annotations?: Annotations | {
+        [key: string]: unknown;
+    };
     resource: ResourceContents;
 };
 
@@ -217,6 +206,28 @@ export type ExtensionConfig = {
      */
     tools: Array<Tool>;
     type: 'frontend';
+} | {
+    /**
+     * The Python code to execute
+     */
+    code: string;
+    /**
+     * Python package dependencies required by this extension
+     */
+    dependencies?: Array<string> | null;
+    /**
+     * Description of what the extension does
+     */
+    description?: string | null;
+    /**
+     * The name used to identify this extension
+     */
+    name: string;
+    /**
+     * Timeout in seconds
+     */
+    timeout?: number | null;
+    type: 'inline_python';
 };
 
 export type ExtensionEntry = ExtensionConfig & {
@@ -243,7 +254,9 @@ export type FrontendToolRequest = {
 };
 
 export type ImageContent = {
-    annotations?: Annotations;
+    annotations?: Annotations | {
+        [key: string]: unknown;
+    };
     data: string;
     mimeType: string;
 };
@@ -267,7 +280,7 @@ export type ListSchedulesResponse = {
  */
 export type Message = {
     content: Array<MessageContent>;
-    created: number;
+    created?: number;
     id?: string | null;
     role: Role;
 };
@@ -385,6 +398,19 @@ export type ProvidersResponse = {
     providers: Array<ProviderDetails>;
 };
 
+export type RawEmbeddedResource = {
+    resource: ResourceContents;
+};
+
+export type RawImageContent = {
+    data: string;
+    mimeType: string;
+};
+
+export type RawTextContent = {
+    text: string;
+};
+
 /**
  * A Recipe represents a personalized, user-generated agent configuration that defines
  * specific behaviors and capabilities within the Goose system.
@@ -473,12 +499,12 @@ export type RedactedThinkingContent = {
 };
 
 export type ResourceContents = {
-    mime_type?: string;
+    mimeType?: string;
     text: string;
     uri: string;
 } | {
     blob: string;
-    mime_type?: string;
+    mimeType?: string;
     uri: string;
 };
 
@@ -657,7 +683,9 @@ export type SummarizationRequested = {
 };
 
 export type TextContent = {
-    annotations?: Annotations;
+    annotations?: Annotations | {
+        [key: string]: unknown;
+    };
     text: string;
 };
 
@@ -666,73 +694,23 @@ export type ThinkingContent = {
     thinking: string;
 };
 
-/**
- * A tool that can be used by a model.
- */
 export type Tool = {
-    annotations?: ToolAnnotations | null;
-    /**
-     * A description of what the tool does
-     */
-    description: string;
-    /**
-     * A JSON Schema object defining the expected parameters for the tool
-     */
-    inputSchema: unknown;
-    /**
-     * The name of the tool
-     */
+    annotations?: ToolAnnotations | {
+        [key: string]: unknown;
+    };
+    description?: string;
+    inputSchema: {
+        [key: string]: unknown;
+    };
     name: string;
 };
 
-/**
- * Additional properties describing a tool to clients.
- *
- * NOTE: all properties in ToolAnnotations are **hints**.
- * They are not guaranteed to provide a faithful description of
- * tool behavior (including descriptive properties like `title`).
- *
- * Clients should never make tool use decisions based on ToolAnnotations
- * received from untrusted servers.
- */
 export type ToolAnnotations = {
-    /**
-     * If true, the tool may perform destructive updates to its environment.
-     * If false, the tool performs only additive updates.
-     *
-     * (This property is meaningful only when `read_only_hint == false`)
-     *
-     * Default: true
-     */
     destructiveHint?: boolean;
-    /**
-     * If true, calling the tool repeatedly with the same arguments
-     * will have no additional effect on its environment.
-     *
-     * (This property is meaningful only when `read_only_hint == false`)
-     *
-     * Default: false
-     */
     idempotentHint?: boolean;
-    /**
-     * If true, this tool may interact with an "open world" of external
-     * entities. If false, the tool's domain of interaction is closed.
-     * For example, the world of a web search tool is open, whereas that
-     * of a memory tool is not.
-     *
-     * Default: true
-     */
     openWorldHint?: boolean;
-    /**
-     * If true, the tool does not modify its environment.
-     *
-     * Default: false
-     */
     readOnlyHint?: boolean;
-    /**
-     * A human-readable title for the tool.
-     */
-    title?: string | null;
+    title?: string;
 };
 
 export type ToolConfirmationRequest = {
@@ -1037,9 +1015,9 @@ export type ReadConfigData = {
 
 export type ReadConfigErrors = {
     /**
-     * Configuration key not found
+     * Unable to get the configuration value
      */
-    404: unknown;
+    500: unknown;
 };
 
 export type ReadConfigResponses = {

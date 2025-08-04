@@ -27,31 +27,13 @@ let cfg = {
     CFBundleDocumentTypes: [
       {
         CFBundleTypeName: "Folders",
-        CFBundleTypeRole: "Viewer", 
+        CFBundleTypeRole: "Viewer",
         LSHandlerRank: "Alternate",
         LSItemContentTypes: ["public.directory", "public.folder"]
       }
     ]
   },
-  // macOS specific configuration
-  osxSign: {
-    entitlements: 'entitlements.plist',
-    'entitlements-inherit': 'entitlements.plist',
-    'gatekeeper-assess': false,
-    hardenedRuntime: true,
-    identity: 'Developer ID Application: Michael Neale (W2L75AE9HQ)',
-  },
-  osxNotarize: {
-    appleId: process.env['APPLE_ID'],
-    appleIdPassword: process.env['APPLE_ID_PASSWORD'],
-    teamId: process.env['APPLE_TEAM_ID'],
-  },
 };
-
-if (process.env['APPLE_ID'] === undefined) {
-  delete cfg.osxNotarize;
-  delete cfg.osxSign;
-}
 
 module.exports = {
   packagerConfig: cfg,
@@ -72,11 +54,11 @@ module.exports = {
   makers: [
     {
       name: '@electron-forge/maker-zip',
-      platforms: ['darwin', 'win32'],
+      platforms: ['darwin', 'win32', 'linux'],
       config: {
         arch: process.env.ELECTRON_ARCH === 'x64' ? ['x64'] : ['arm64'],
         options: {
-          icon: 'src/images/icon.ico',
+          icon: process.platform === 'linux' ? 'src/images/icon.png' : 'src/images/icon.ico',
         },
       },
     },
@@ -85,6 +67,9 @@ module.exports = {
       config: {
         name: 'Goose',
         bin: 'Goose',
+        maintainer: 'Block, Inc.',
+        homepage: 'https://block.github.io/goose/',
+        categories: ['Development']
       },
     },
     {
@@ -92,6 +77,9 @@ module.exports = {
       config: {
         name: 'Goose',
         bin: 'Goose',
+        maintainer: 'Block, Inc.',
+        homepage: 'https://block.github.io/goose/',
+        categories: ['Development']
       },
     },
   ],
