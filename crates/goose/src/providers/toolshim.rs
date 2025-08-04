@@ -153,8 +153,7 @@ impl OllamaInterpreter {
         let user_message = Message::user().with_text(format_instruction);
         messages.push(user_message);
 
-        let model_config = ModelConfig::new(model)
-            .map_err(|e| ProviderError::RequestFailed(format!("Model config error: {e}")))?;
+        let model_config = ModelConfig::new(model.to_string());
 
         let mut payload = create_request(
             &model_config,

@@ -22,7 +22,7 @@ fn main() {
     fs::write(&output_path, &schema).unwrap();
     eprintln!(
         "Successfully generated OpenAPI schema at {}",
-        output_path.canonicalize().unwrap().display()
+        output_path.display()
     );
 
     // Output the schema to stdout for piping

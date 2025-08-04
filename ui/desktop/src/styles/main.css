@@ -30,6 +30,7 @@
   --color-neutral-800: #3f434b;
   --color-neutral-900: #32353b;
   --color-neutral-950: #22252a;
+  --color-neutral-1000: #17191e;
 
   --color-red-100: #ff6b6b;
   --color-red-200: #f94b4b;
@@ -115,7 +116,7 @@
   --background-app: var(--color-neutral-950);
   --background-default: var(--color-neutral-950);
   --background-card: var(--color-neutral-950);
-  --background-muted: var(--color-neutral-800);
+  --background-muted: var(--color-neutral-1000);
   --background-medium: var(--color-neutral-700);
   --background-strong: var(--color-neutral-600);
   --background-inverse: var(--color-neutral-200);
@@ -513,6 +514,7 @@ body {
   top: 0;
   left: 0;
   z-index: 50;
+  background-color: var(--sidebar);
 }
 
 .no-drag {
@@ -740,4 +742,81 @@ p > code.bg-inline-code {
 [data-state='expanded'] [data-slot='sidebar-gap'],
 [data-state='collapsed'] [data-slot='sidebar-gap'] {
   will-change: width;
+}
+
+/* Slider styling */
+.slider {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.slider::-webkit-slider-track {
+  background: #e5e7eb;
+  height: 8px;
+  border-radius: 4px;
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  background: #3b82f6;
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.slider::-webkit-slider-thumb:hover {
+  background: #2563eb;
+}
+
+.slider::-moz-range-track {
+  background: #e5e7eb;
+  height: 8px;
+  border-radius: 4px;
+  border: none;
+}
+
+.slider::-moz-range-thumb {
+  background: #3b82f6;
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.slider::-moz-range-thumb:hover {
+  background: #2563eb;
+}
+
+.dark .slider::-webkit-slider-track {
+  background: #374151;
+}
+
+.dark .slider::-webkit-slider-thumb {
+  background: #60a5fa;
+  border-color: #1f2937;
+}
+
+.dark .slider::-webkit-slider-thumb:hover {
+  background: #3b82f6;
+}
+
+.dark .slider::-moz-range-track {
+  background: #374151;
+}
+
+.dark .slider::-moz-range-thumb {
+  background: #60a5fa;
+  border-color: #1f2937;
+}
+
+.dark .slider::-moz-range-thumb:hover {
+  background: #3b82f6;
 }

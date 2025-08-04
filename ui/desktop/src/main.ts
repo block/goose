@@ -1,4 +1,4 @@
-import type { OpenDialogOptions, OpenDialogReturnValue } from 'electron';
+import type { OpenDialogReturnValue } from 'electron';
 import {
   app,
   App,
@@ -16,21 +16,20 @@ import {
   Tray,
 } from 'electron';
 import { Buffer } from 'node:buffer';
-import { MouseUpEvent } from './types/electron';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import started from 'electron-squirrel-startup';
 import path from 'node:path';
-import os from 'node:os';
 import { spawn } from 'child_process';
 import 'dotenv/config';
 import { startGoosed } from './goosed';
-import { expandTilde, getBinaryPath } from './utils/pathUtils';
+import { getBinaryPath } from './utils/binaryPath';
 import { loadShellEnv } from './utils/loadEnv';
 import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
 import {
+  createEnvironmentMenu,
   EnvToggles,
   loadSettings,
   saveSettings,
@@ -431,7 +430,6 @@ async function handleFileOpen(filePath: string) {
 }
 
 declare var MAIN_WINDOW_VITE_DEV_SERVER_URL: string;
-declare var MAIN_WINDOW_VITE_NAME: string;
 
 // State for environment variable toggles
 let envToggles: EnvToggles = loadSettings().envToggles;
@@ -463,6 +461,12 @@ const getGooseProvider = () => {
   ];
 };
 
+const generateSecretKey = () => {
+  const key = process.env.GOOSE_EXTERNAL_BACKEND ? 'test' : crypto.randomBytes(32).toString('hex');
+  process.env.GOOSE_SERVER__SECRET_KEY = key;
+  return key;
+};
+
 const getSharingUrl = () => {
   // checks app env for sharing url
   loadShellEnv(app.isPackaged); // will try to take it from the zshrc file
@@ -478,15 +482,11 @@ const getVersion = () => {
   return process.env.GOOSE_VERSION;
 };
 
-const [provider, model, predefinedModels] = getGooseProvider();
+let [provider, model, predefinedModels] = getGooseProvider();
 
-const sharingUrl = getSharingUrl();
+let sharingUrl = getSharingUrl();
 
-const gooseVersion = getVersion();
-
-const SERVER_SECRET = process.env.GOOSE_EXTERNAL_BACKEND
-  ? 'test'
-  : crypto.randomBytes(32).toString('hex');
+let gooseVersion = getVersion();
 
 let appConfig = {
   GOOSE_DEFAULT_PROVIDER: provider,
@@ -497,14 +497,15 @@ let appConfig = {
   GOOSE_WORKING_DIR: '',
   // If GOOSE_ALLOWLIST_WARNING env var is not set, defaults to false (strict blocking mode)
   GOOSE_ALLOWLIST_WARNING: process.env.GOOSE_ALLOWLIST_WARNING === 'true',
+  secretKey: generateSecretKey(),
 };
 
 // Track windows by ID
 let windowCounter = 0;
 const windowMap = new Map<number, BrowserWindow>();
 
-// Track power save blockers per window
-const windowPowerSaveBlockers = new Map<number, number>(); // windowId -> blockerId
+// Track power save blocker ID globally
+let powerSaveBlockerId: number | null = null;
 
 const createChat = async (
   app: App,
@@ -556,22 +557,24 @@ const createChat = async (
     const envVars = {
       GOOSE_SCHEDULER_TYPE: process.env.GOOSE_SCHEDULER_TYPE,
     };
-    const [newPort, newWorkingDir, newGoosedProcess] = await startGoosed(
-      app,
-      SERVER_SECRET,
-      dir,
-      envVars
-    );
+    const [newPort, newWorkingDir, newGoosedProcess] = await startGoosed(app, dir, envVars);
     port = newPort;
     working_dir = newWorkingDir;
     goosedProcess = newGoosedProcess;
   }
 
-  // Create window config with loading state for recipe deeplinks
-  let isLoadingRecipe = false;
+  // Decode recipe from deeplink if needed
   if (!recipe && recipeDeeplink) {
-    isLoadingRecipe = true;
-    console.log('[Main] Creating window with recipe loading state for deeplink:', recipeDeeplink);
+    const decodedRecipe = await decodeRecipeMain(recipeDeeplink, port);
+    if (decodedRecipe) {
+      recipe = decodedRecipe;
+
+      // Handle scheduled job parameters if present
+      if (scheduledJobId) {
+        recipe.scheduledJobId = scheduledJobId;
+        recipe.isScheduledExecution = true;
+      }
+    }
   }
 
   // Load and manage window state
@@ -587,8 +590,9 @@ const createChat = async (
     frame: process.platform !== 'darwin',
     x: mainWindowState.x,
     y: mainWindowState.y,
-    width: mainWindowState.width,
-    height: mainWindowState.height,
+    width: 1200,
+    height: 800,
+    title: 'Goose',
     minWidth: 750,
     resizable: true,
     useContentSize: true,
@@ -617,6 +621,59 @@ const createChat = async (
 
   // Let windowStateKeeper manage the window
   mainWindowState.manage(mainWindow);
+
+  // Load and apply saved window opacity and blur
+  try {
+    const settings = loadSettings();
+    if (settings.windowOpacity && settings.windowOpacity !== 1.0) {
+      mainWindow.setOpacity(settings.windowOpacity);
+    }
+    // Apply background image and blur settings after window is ready
+    mainWindow.webContents.on('did-finish-load', () => {
+      mainWindow.setBackgroundColor('#00000000'); // Transparent background
+      mainWindow.setVibrancy('window'); // Enable vibrancy for backdrop blur
+
+      mainWindow.webContents
+        .executeJavaScript(
+          `
+        if (document.documentElement) {
+          // Apply background image if enabled
+          if (${settings.backgroundImageEnabled}) {
+            document.documentElement.style.backgroundImage = 'url("data:image/png;base64,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 pVkt3wAHh0C0RNnrHu8Ods/t3572/H4AQIFyk6iem5MAAA12aVRYdFhNTDpjb20uYWRvYmUueG1w AAAAAAA8P3hwYWNrZXQgYmVnaW49Iu+7vyIgaWQ9Ilc1TTBNcENlaGlIenJlU3pOVGN6a2M5ZCI/ Pgo8eDp4bXBtZXRhIHhtbG5zOng9ImFkb2JlOm5zOm1ldGEvIiB4OnhtcHRrPSJYTVAgQ29yZSA0 LjQuMC1FeGl2MiI+CiA8cmRmOlJERiB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkv MDIvMjItcmRmLXN5bnRheC1ucyMiPgogIDxyZGY6RGVzY3JpcHRpb24gcmRmOmFib3V0PSIiCiAg IHhtbG5zOnhtcE1NPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvbW0vIgogICB4bWxuczpz dEV2dD0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL3NUeXBlL1Jlc291cmNlRXZlbnQjIgog ICB4bWxuczpkYz0iaHR0cDovL3B1cmwub3JnL2RjL2VsZW1lbnRzLzEuMS8iCiAgIHhtbG5zOkdJ TVA9Imh0dHA6Ly93d3cuZ2ltcC5vcmcveG1wLyIKICAgIHhtbG5zOnRpZmY9Imh0dHA6Ly9ucy5h ZG9iZS5jb20vdGlmZi8xLjAvIgogICB4bWxuczp4bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFw LzEuMC8iCiAgIHhtcE1NOkRvY3VtZW50SUQ9ImdpbXA6ZG9jaWQ6Z2ltcDpmZTIyYjk0NS00MWYw LTQ5ZGYtYTRkYS1hMWE5MDg0YTUzMGUiCiAgIHhtcE1NOkluc3RhbmNlSUQ9InhtcC5paWQ6NmQ1 MDAwYTg4LWU0YmYtNGE2Yy05YzgwLWJiMWExNDY2MGY1OCIKICAgeG1wTU06T3JpZ2luYWxEb2N1 bWVudElEPSJ4bXAuZGlkOmYxZjk2Nzk5LTg3MTktNDE4OC1hNjhlLWZkZjc1MmE2MDY0MSIKICAg ZGM6Rm9ybWF0PSJpbWFnZS9wbmciCiAgIEdJTVA6QVBJPSIyLjAiCiAgIEdJTVA6UGxhdGZvcm09 IldpbmRvd3MiCiAgIEdJTVA6VGltZVN0YW1wPSIxNzU0MTg0MDM5NDc3Mjc0IgogICBHSU1QOlZl cnNpb249IjIuMTAuMzIiCiAgIHRpZmY6T3JpZW50YXRpb249IjEiCiAgIHhtcDpDcmVhdG9yVG9v bD0iR0lNUCAyLjEwIgogICB4bXA6TWV0YWRhdGFEYXRlPSIyMDI1OjA4OjAzVDAzOjIwOjM1KzAy OjAwIgogICB4bXA6TW9kaWZ5RGF0ZT0iMjAyNTowODowM1QwMzoyMDozNSswMjowMCI+CiAgIDx4 bXBNTTpIaXN0b3J5PgogICAgPHJkZjpTZXE+CiAgICAgPHJkZjpsaQogICAgICBzdEV2dDphY3Rp b249InNhdmVkIgogICAgICBzdEV2dDpjaGFuZ2VkPSIvIgogICAgICBzdEV2dDppbnN0YW5jZUlE PSJ4bXAuaWlkOjJhZTYyOWY4LWY2M2ItNGQ1OS05ZDBlLTA1OTI5NGU4ZGZhNiIKICAgICAgc3RF dnQ6c29mdHdhcmVBZ2VudD0iR2ltcCAyLjEwIChXaW5kb3dzKSIKICAgICAgc3RFdnQ6d2hlbj0i MjAyNS0wOC0wM1QwMzoyMDozOSIvPgogICAgPC9yZGY6U2VxPgogICA8L3htcE1NOkhpc3Rvcnk+ CiAgPC9yZGY6RGVzY3JpcHRpb24+CiA8L3JkZjpSRkI+CjwveDp4bXBtZXRhPgo=")';
+            document.documentElement.style.backgroundSize = 'cover';
+            document.documentElement.style.backgroundPosition = 'center';
+            document.documentElement.style.backgroundRepeat = 'no-repeat';
+            document.documentElement.style.backgroundColor = 'rgba(0, 0, 0, 0.3)';
+            document.documentElement.classList.add('background-image-enabled');
+          } else {
+            // Remove background image if disabled
+            document.documentElement.style.backgroundImage = 'none';
+            document.documentElement.style.backgroundColor = 'transparent';
+            document.documentElement.classList.remove('background-image-enabled');
+          }
+          
+          // Apply blur if enabled
+          if (${settings.windowBlur} > 0) {
+            document.documentElement.style.setProperty('--window-blur', '${settings.windowBlur}px');
+            document.documentElement.style.backdropFilter = 'blur(${settings.windowBlur}px)';
+            document.documentElement.classList.add('window-backdrop-blur');
+          } else {
+            document.documentElement.style.setProperty('--window-blur', '0px');
+            document.documentElement.style.backdropFilter = 'none';
+            document.documentElement.classList.remove('window-backdrop-blur');
+          }
+          
+          // Ensure the window content itself is not blurred
+          document.body.style.filter = 'none';
+          document.body.style.backdropFilter = 'none';
+        }
+      `
+        )
+        .catch((err) => console.error('Error applying initial settings:', err));
+    });
+  } catch (error) {
+    console.error('Error loading window opacity/blur settings:', error);
+  }
 
   // Enable spellcheck / right and ctrl + click on mispelled word
   //
@@ -668,30 +725,34 @@ const createChat = async (
   // We need to wait for the window to load before we can access localStorage
   mainWindow.webContents.on('did-finish-load', () => {
     const configStr = JSON.stringify(windowConfig).replace(/'/g, "\\'");
+    // Add error handling and retry logic for localStorage access
     mainWindow.webContents
       .executeJavaScript(
         `
-      (function() {
-        function setConfig() {
-          try {
-            if (window.localStorage) {
-              localStorage.setItem('gooseConfig', '${configStr}');
-              return true;
-            }
-          } catch (e) {
-            console.warn('localStorage access failed:', e);
-          }
-          return false;
-        }
-
-        if (!setConfig()) {
+      try {
+        if (typeof Storage !== 'undefined' && window.localStorage) {
+          localStorage.setItem('gooseConfig', '${configStr}');
+        } else {
+          console.warn('localStorage not available, retrying in 100ms');
           setTimeout(() => {
-            if (!setConfig()) {
-              console.error('Failed to set localStorage after retry - continuing without localStorage config');
+            try {
+              localStorage.setItem('gooseConfig', '${configStr}');
+            } catch (e) {
+              console.error('Failed to set localStorage after retry:', e);
             }
           }, 100);
         }
-      })();
+      } catch (e) {
+        console.error('Failed to access localStorage:', e);
+        // Retry after a short delay
+        setTimeout(() => {
+          try {
+            localStorage.setItem('gooseConfig', '${configStr}');
+          } catch (retryError) {
+            console.error('Failed to set localStorage after retry:', retryError);
+          }
+        }, 100);
+      }
     `
       )
       .catch((error) => {
@@ -742,7 +803,7 @@ const createChat = async (
     mainWindow.loadURL(`${MAIN_WINDOW_VITE_DEV_SERVER_URL}${queryParams}`);
   } else {
     // In production, we need to use a proper file protocol URL with correct base path
-    const indexPath = path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`);
+    const indexPath = path.join(__dirname, `../renderer/main_window/index.html`);
     mainWindow.loadFile(indexPath, {
       search: queryParams ? queryParams.slice(1) : undefined,
     });
@@ -761,96 +822,10 @@ const createChat = async (
     }
   });
 
-  mainWindow.on('app-command', (e, cmd) => {
-    if (cmd === 'browser-backward') {
-      mainWindow.webContents.send('mouse-back-button-clicked');
-      e.preventDefault();
-    }
-  });
-
-  mainWindow.webContents.on('mouse-up', (_event: MouseUpEvent, mouseButton: number) => {
-    // MouseButton 3 is the back button.
-    if (mouseButton === 3) {
-      mainWindow.webContents.send('mouse-back-button-clicked');
-    }
-  });
-
   windowMap.set(windowId, mainWindow);
-
-  // Handle recipe decoding in the background after window is created
-  if (isLoadingRecipe && recipeDeeplink) {
-    console.log('[Main] Starting background recipe decoding for:', recipeDeeplink);
-
-    // Decode recipe asynchronously after window is created
-    decodeRecipeMain(recipeDeeplink, port)
-      .then((decodedRecipe) => {
-        if (decodedRecipe) {
-          console.log('[Main] Recipe decoded successfully, updating window config');
-
-          // Handle scheduled job parameters if present
-          if (scheduledJobId) {
-            decodedRecipe.scheduledJobId = scheduledJobId;
-            decodedRecipe.isScheduledExecution = true;
-          }
-
-          // Update the window config with the decoded recipe
-          const updatedConfig = {
-            ...windowConfig,
-            recipe: decodedRecipe,
-          };
-
-          // Send the decoded recipe to the renderer process
-          mainWindow.webContents.send('recipe-decoded', decodedRecipe);
-
-          // Update localStorage with the decoded recipe
-          const configStr = JSON.stringify(updatedConfig).replace(/'/g, "\\'");
-          mainWindow.webContents
-            .executeJavaScript(
-              `
-            try {
-              localStorage.setItem('gooseConfig', '${configStr}');
-              console.log('[Renderer] Recipe decoded and config updated');
-            } catch (e) {
-              console.error('[Renderer] Failed to update config with decoded recipe:', e);
-            }
-          `
-            )
-            .catch((error) => {
-              console.error('[Main] Failed to update localStorage with decoded recipe:', error);
-            });
-        } else {
-          console.error('[Main] Failed to decode recipe from deeplink');
-          // Send error to renderer
-          mainWindow.webContents.send('recipe-decode-error', 'Failed to decode recipe');
-        }
-      })
-      .catch((error) => {
-        console.error('[Main] Error decoding recipe:', error);
-        // Send error to renderer
-        mainWindow.webContents.send('recipe-decode-error', error.message || 'Unknown error');
-      });
-  }
-
   // Handle window closure
   mainWindow.on('closed', () => {
     windowMap.delete(windowId);
-
-    if (windowPowerSaveBlockers.has(windowId)) {
-      const blockerId = windowPowerSaveBlockers.get(windowId)!;
-      try {
-        powerSaveBlocker.stop(blockerId);
-        console.log(
-          `[Main] Stopped power save blocker ${blockerId} for closing window ${windowId}`
-        );
-      } catch (error) {
-        console.error(
-          `[Main] Failed to stop power save blocker ${blockerId} for window ${windowId}:`,
-          error
-        );
-      }
-      windowPowerSaveBlockers.delete(windowId);
-    }
-
     if (goosedProcess && typeof goosedProcess === 'object' && 'kill' in goosedProcess) {
       goosedProcess.kill();
     }
@@ -1053,15 +1028,12 @@ ipcMain.handle('directory-chooser', (_event, replace: boolean = false) => {
 // Handle scheduling engine settings
 ipcMain.handle('get-settings', () => {
   try {
-    return loadSettings();
+    const settings = loadSettings();
+    return settings;
   } catch (error) {
     console.error('Error getting settings:', error);
     return null;
   }
-});
-
-ipcMain.handle('get-secret-key', () => {
-  return SERVER_SECRET;
 });
 
 ipcMain.handle('set-scheduling-engine', async (_event, engine: string) => {
@@ -1233,22 +1205,10 @@ ipcMain.handle('set-wakelock', async (_event, enable: boolean) => {
     settings.enableWakelock = enable;
     saveSettings(settings);
 
-    // Stop all existing power save blockers when disabling the setting
-    if (!enable) {
-      for (const [windowId, blockerId] of windowPowerSaveBlockers.entries()) {
-        try {
-          powerSaveBlocker.stop(blockerId);
-          console.log(
-            `[Main] Stopped power save blocker ${blockerId} for window ${windowId} due to wakelock setting disabled`
-          );
-        } catch (error) {
-          console.error(
-            `[Main] Failed to stop power save blocker ${blockerId} for window ${windowId}:`,
-            error
-          );
-        }
-      }
-      windowPowerSaveBlockers.clear();
+    // Stop any existing power save blocker when disabling the setting
+    if (!enable && powerSaveBlockerId !== null) {
+      powerSaveBlocker.stop(powerSaveBlockerId);
+      powerSaveBlockerId = null;
     }
 
     return true;
@@ -1269,32 +1229,10 @@ ipcMain.handle('get-wakelock-state', () => {
 });
 
 // Add file/directory selection handler
-ipcMain.handle('select-file-or-directory', async (_event, defaultPath?: string) => {
-  const dialogOptions: OpenDialogOptions = {
+ipcMain.handle('select-file-or-directory', async () => {
+  const result = (await dialog.showOpenDialog({
     properties: process.platform === 'darwin' ? ['openFile', 'openDirectory'] : ['openFile'],
-  };
-
-  // Set default path if provided
-  if (defaultPath) {
-    // Expand tilde to home directory
-    const expandedPath = expandTilde(defaultPath);
-
-    // Check if the path exists
-    try {
-      const stats = await fs.stat(expandedPath);
-      if (stats.isDirectory()) {
-        dialogOptions.defaultPath = expandedPath;
-      } else {
-        dialogOptions.defaultPath = path.dirname(expandedPath);
-      }
-    } catch (error) {
-      // If path doesn't exist, fall back to home directory and log error
-      console.error(`Default path does not exist: ${expandedPath}, falling back to home directory`);
-      dialogOptions.defaultPath = os.homedir();
-    }
-  }
-
-  const result = (await dialog.showOpenDialog(dialogOptions)) as unknown as OpenDialogReturnValue;
+  })) as unknown as OpenDialogReturnValue;
 
   if (!result.canceled && result.filePaths.length > 0) {
     return result.filePaths[0];
@@ -1564,7 +1502,9 @@ ipcMain.handle('get-binary-path', (_event, binaryName) => {
 ipcMain.handle('read-file', (_event, filePath) => {
   return new Promise((resolve) => {
     // Expand tilde to home directory
-    const expandedPath = expandTilde(filePath);
+    const expandedPath = filePath.startsWith('~')
+      ? path.join(app.getPath('home'), filePath.slice(1))
+      : filePath;
 
     const cat = spawn('cat', [expandedPath]);
     let output = '';
@@ -1597,7 +1537,9 @@ ipcMain.handle('read-file', (_event, filePath) => {
 ipcMain.handle('write-file', (_event, filePath, content) => {
   return new Promise((resolve) => {
     // Expand tilde to home directory
-    const expandedPath = expandTilde(filePath);
+    const expandedPath = filePath.startsWith('~')
+      ? path.join(app.getPath('home'), filePath.slice(1))
+      : filePath;
 
     // Create a write stream to the file
     // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -1616,7 +1558,9 @@ ipcMain.handle('write-file', (_event, filePath, content) => {
 ipcMain.handle('ensure-directory', async (_event, dirPath) => {
   try {
     // Expand tilde to home directory
-    const expandedPath = expandTilde(dirPath);
+    const expandedPath = dirPath.startsWith('~')
+      ? path.join(app.getPath('home'), dirPath.slice(1))
+      : dirPath;
 
     await fs.mkdir(expandedPath, { recursive: true });
     return true;
@@ -1629,7 +1573,9 @@ ipcMain.handle('ensure-directory', async (_event, dirPath) => {
 ipcMain.handle('list-files', async (_event, dirPath, extension) => {
   try {
     // Expand tilde to home directory
-    const expandedPath = expandTilde(dirPath);
+    const expandedPath = dirPath.startsWith('~')
+      ? path.join(app.getPath('home'), dirPath.slice(1))
+      : dirPath;
 
     const files = await fs.readdir(expandedPath);
     if (extension) {
@@ -1644,7 +1590,8 @@ ipcMain.handle('list-files', async (_event, dirPath, extension) => {
 
 // Handle message box dialogs
 ipcMain.handle('show-message-box', async (_event, options) => {
-  return dialog.showMessageBox(options);
+  const result = await dialog.showMessageBox(options);
+  return result;
 });
 
 ipcMain.handle('get-allowed-extensions', async () => {
@@ -1727,8 +1674,8 @@ app.whenReady().then(async () => {
           "connect-src 'self' http://127.0.0.1:* https://api.github.com https://github.com https://objects.githubusercontent.com" +
           // Don't allow any plugins
           "object-src 'none';" +
-          // Allow all frames (iframes)
-          "frame-src 'self' https: http:;" +
+          // Don't allow any frames
+          "frame-src 'none';" +
           // Font sources - allow self, data URLs, and external fonts
           "font-src 'self' data: https:;" +
           // Media sources - allow microphone
@@ -1863,6 +1810,25 @@ app.whenReady().then(async () => {
       new MenuItem({
         label: 'Find',
         submenu: findSubmenu,
+      })
+    );
+  }
+
+  // Add Environment menu items to View menu
+  const viewMenu = menu?.items.find((item) => item.label === 'View');
+  if (viewMenu?.submenu) {
+    viewMenu.submenu.append(new MenuItem({ type: 'separator' }));
+    viewMenu.submenu.append(
+      new MenuItem({
+        label: 'Environment',
+        submenu: Menu.buildFromTemplate(
+          createEnvironmentMenu(envToggles, (newToggles) => {
+            envToggles = newToggles;
+            const currentSettings = loadSettings();
+            saveSettings({ ...currentSettings, envToggles: newToggles });
+            updateEnvironmentVariables(newToggles);
+          })
+        ),
       })
     );
   }
@@ -2051,36 +2017,21 @@ app.whenReady().then(async () => {
     }
   });
 
-  ipcMain.handle('start-power-save-blocker', (event) => {
-    const window = BrowserWindow.fromWebContents(event.sender);
-    const windowId = window?.id;
-
-    if (windowId && !windowPowerSaveBlockers.has(windowId)) {
-      const blockerId = powerSaveBlocker.start('prevent-app-suspension');
-      windowPowerSaveBlockers.set(windowId, blockerId);
-      console.log(`[Main] Started power save blocker ${blockerId} for window ${windowId}`);
+  ipcMain.handle('start-power-save-blocker', () => {
+    if (powerSaveBlockerId === null) {
+      powerSaveBlockerId = powerSaveBlocker.start('prevent-app-suspension');
       return true;
-    }
-
-    if (windowId && windowPowerSaveBlockers.has(windowId)) {
-      console.log(`[Main] Power save blocker already active for window ${windowId}`);
     }
 
     return false;
   });
 
-  ipcMain.handle('stop-power-save-blocker', (event) => {
-    const window = BrowserWindow.fromWebContents(event.sender);
-    const windowId = window?.id;
-
-    if (windowId && windowPowerSaveBlockers.has(windowId)) {
-      const blockerId = windowPowerSaveBlockers.get(windowId)!;
-      powerSaveBlocker.stop(blockerId);
-      windowPowerSaveBlockers.delete(windowId);
-      console.log(`[Main] Stopped power save blocker ${blockerId} for window ${windowId}`);
+  ipcMain.handle('stop-power-save-blocker', () => {
+    if (powerSaveBlockerId !== null) {
+      powerSaveBlocker.stop(powerSaveBlockerId);
+      powerSaveBlockerId = null;
       return true;
     }
-
     return false;
   });
 
@@ -2160,6 +2111,46 @@ app.whenReady().then(async () => {
   ipcMain.on('get-app-version', (event) => {
     event.returnValue = app.getVersion();
   });
+
+  // Window transparency handlers
+  ipcMain.handle('set-window-opacity', async (_event, opacity: number) => {
+    try {
+      // Validate opacity value (0.03 to 1.0, where 0.03 = 97% transparency)
+      const validOpacity = Math.max(0.03, Math.min(1.0, opacity));
+
+      console.log(`Setting window opacity to: ${validOpacity}`);
+
+      // Get all windows and apply opacity
+      const windows = BrowserWindow.getAllWindows();
+      windows.forEach((window) => {
+        window.setOpacity(validOpacity);
+        console.log(`Applied opacity ${validOpacity} to window: ${window.id}`);
+      });
+
+      // Save opacity setting
+      const settings = loadSettings();
+      settings.windowOpacity = validOpacity;
+      saveSettings(settings);
+
+      console.log(`Saved opacity setting: ${validOpacity}`);
+      return true;
+    } catch (error) {
+      console.error('Error setting window opacity:', error);
+      return false;
+    }
+  });
+
+  ipcMain.handle('get-window-opacity', async () => {
+    try {
+      const settings = loadSettings();
+      const opacity = settings.windowOpacity || 1.0;
+      console.log(`Retrieved window opacity: ${opacity}`);
+      return opacity;
+    } catch (error) {
+      console.error('Error getting window opacity:', error);
+      return 1.0;
+    }
+  });
 });
 
 async function getAllowList(): Promise<string[]> {
@@ -2193,24 +2184,11 @@ async function getAllowList(): Promise<string[]> {
 }
 
 app.on('will-quit', async () => {
-  for (const [windowId, blockerId] of windowPowerSaveBlockers.entries()) {
-    try {
-      powerSaveBlocker.stop(blockerId);
-      console.log(
-        `[Main] Stopped power save blocker ${blockerId} for window ${windowId} during app quit`
-      );
-    } catch (error) {
-      console.error(
-        `[Main] Failed to stop power save blocker ${blockerId} for window ${windowId}:`,
-        error
-      );
-    }
-  }
-  windowPowerSaveBlockers.clear();
-
   // Unregister all shortcuts when quitting
   globalShortcut.unregisterAll();
 
+  // Clean up the temp directory on app quit
+  console.log('[Main] App "will-quit". Cleaning up temporary image directory...');
   try {
     await fs.access(gooseTempDir); // Check if directory exists to avoid error on fs.rm if it doesn't
 

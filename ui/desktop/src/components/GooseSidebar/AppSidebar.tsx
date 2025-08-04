@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { FileText, Clock, Home, Puzzle, History } from 'lucide-react';
+import { FileText, Clock, Home, Puzzle, History, Code } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
   SidebarContent,
@@ -159,6 +159,20 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                   >
                     <Puzzle className="w-4 h-4" />
                     <span>Extensions</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </div>
+
+              <div className="sidebar-item">
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => navigate('/code-artifacts')}
+                    isActive={isActivePath('/code-artifacts')}
+                    tooltip="View and manage your code artifacts"
+                    className="w-full justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200 data-[active=true]:bg-background-medium"
+                  >
+                    <Code className="w-4 h-4" />
+                    <span>Code Artifacts</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </div>

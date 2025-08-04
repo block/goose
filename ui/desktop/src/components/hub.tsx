@@ -1,7 +1,7 @@
 /**
  * Hub Component
  *
- * The Hub is the main landing page and entry point for the Goose Desktop application.
+ * The Hub is the main landing page and entry point for the Goose application.
  * It serves as the welcome screen where users can start new conversations.
  *
  * Key Responsibilities:

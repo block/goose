@@ -1,7 +1,7 @@
 /**
  * Pair Component
  *
- * The Pair component represents the active conversation mode in the Goose Desktop application.
+ * The Pair component represents the active conversation mode in the Goose application.
  * This is where users engage in ongoing conversations with the AI assistant after transitioning
  * from the Hub's initial welcome screen.
  *
@@ -28,6 +28,7 @@ import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { type View, ViewOptions } from '../App';
 import BaseChat from './BaseChat';
+import ParameterInputModal from './ParameterInputModal';
 import { useRecipeManager } from '../hooks/useRecipeManager';
 import { useIsMobile } from '../hooks/use-mobile';
 import { useSidebar } from './ui/sidebar';
@@ -56,7 +57,13 @@ export default function Pair({
   const [isTransitioningFromHub, setIsTransitioningFromHub] = useState(false);
 
   // Get recipe configuration and parameter handling
-  const { initialPrompt: recipeInitialPrompt } = useRecipeManager(chat.messages, location.state);
+  const {
+    recipeConfig,
+    initialPrompt: recipeInitialPrompt,
+    isParameterModalOpen,
+    setIsParameterModalOpen,
+    handleParameterSubmit,
+  } = useRecipeManager(chat.messages, location.state);
 
   // Handle recipe loading from recipes view - reset chat if needed
   useEffect(() => {
@@ -189,6 +196,15 @@ export default function Pair({
         showPopularTopics={!isTransitioningFromHub} // Don't show popular topics while transitioning from Hub
         suppressEmptyState={isTransitioningFromHub} // Suppress all empty state content while transitioning from Hub
       />
+
+      {/* Recipe Parameter Modal */}
+      {isParameterModalOpen && recipeConfig?.parameters && (
+        <ParameterInputModal
+          parameters={recipeConfig.parameters}
+          onSubmit={handleParameterSubmit}
+          onClose={() => setIsParameterModalOpen(false)}
+        />
+      )}
     </>
   );
 }

@@ -2,7 +2,7 @@ const { FusesPlugin } = require('@electron-forge/plugin-fuses');
 const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 const { resolve } = require('path');
 
-let cfg = {
+let cfg: any = {
   asar: true,
   extraResource: ['src/bin', 'src/images'],
   icon: 'src/images/icon',
@@ -18,7 +18,7 @@ let cfg = {
   protocols: [
     {
       name: 'GooseProtocol',
-      schemes: ['goose'],
+      schemes: ['Goose'],
     },
   ],
   // macOS Info.plist extensions for drag-and-drop support
@@ -33,7 +33,25 @@ let cfg = {
       }
     ]
   },
+  // macOS specific configuration
+  osxSign: {
+    entitlements: 'entitlements.plist',
+    'entitlements-inherit': 'entitlements.plist',
+    'gatekeeper-assess': false,
+    hardenedRuntime: true,
+    identity: 'Developer ID Application: Michael Neale (W2L75AE9HQ)',
+  },
+  osxNotarize: {
+    appleId: process.env['APPLE_ID'],
+    appleIdPassword: process.env['APPLE_ID_PASSWORD'],
+    teamId: process.env['APPLE_TEAM_ID'],
+  },
 };
+
+if (process.env['APPLE_ID'] === undefined) {
+  delete cfg.osxNotarize;
+  delete cfg.osxSign;
+}
 
 module.exports = {
   packagerConfig: cfg,
@@ -54,11 +72,11 @@ module.exports = {
   makers: [
     {
       name: '@electron-forge/maker-zip',
-      platforms: ['darwin', 'win32', 'linux'],
+      platforms: ['darwin', 'win32'],
       config: {
         arch: process.env.ELECTRON_ARCH === 'x64' ? ['x64'] : ['arm64'],
         options: {
-          icon: process.platform === 'linux' ? 'src/images/icon.png' : 'src/images/icon.ico',
+          icon: 'src/images/icon.ico',
         },
       },
     },

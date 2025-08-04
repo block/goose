@@ -49,7 +49,6 @@ export const useChatEngine = ({
   const [sessionOutputTokens, setSessionOutputTokens] = useState<number>(0);
   const [localInputTokens, setLocalInputTokens] = useState<number>(0);
   const [localOutputTokens, setLocalOutputTokens] = useState<number>(0);
-  const [powerSaveTimeoutId, setPowerSaveTimeoutId] = useState<number | null>(null);
 
   // Store message in global history when it's added (if enabled)
   const storeMessageInHistory = useCallback(
@@ -63,20 +62,6 @@ export const useChatEngine = ({
     },
     [enableLocalStorage]
   );
-
-  const stopPowerSaveBlocker = useCallback(() => {
-    try {
-      window.electron.stopPowerSaveBlocker();
-    } catch (error) {
-      console.error('Failed to stop power save blocker:', error);
-    }
-
-    // Clear timeout if it exists
-    if (powerSaveTimeoutId) {
-      window.clearTimeout(powerSaveTimeoutId);
-      setPowerSaveTimeoutId(null);
-    }
-  }, [powerSaveTimeoutId]);
 
   const {
     messages,
@@ -99,7 +84,7 @@ export const useChatEngine = ({
     initialMessages: chat.messages,
     body: { session_id: chat.id, session_working_dir: window.appConfig.get('GOOSE_WORKING_DIR') },
     onFinish: async (_message, _reason) => {
-      stopPowerSaveBlocker();
+      window.electron.stopPowerSaveBlocker();
 
       const timeSinceLastInteraction = Date.now() - lastInteractionTime;
       window.electron.logInfo('last interaction:' + lastInteractionTime);
@@ -125,8 +110,6 @@ export const useChatEngine = ({
       onMessageStreamFinish?.();
     },
     onError: (error) => {
-      stopPowerSaveBlocker();
-
       console.log(
         'CHAT ENGINE RECEIVED ERROR FROM MESSAGE STREAM:',
         JSON.stringify(
@@ -223,67 +206,40 @@ export const useChatEngine = ({
     }
   }, [sessionMetadata]);
 
-  useEffect(() => {
-    return () => {
-      if (powerSaveTimeoutId) {
-        window.clearTimeout(powerSaveTimeoutId);
-      }
-      try {
-        window.electron.stopPowerSaveBlocker();
-      } catch (error) {
-        console.error('Failed to stop power save blocker during cleanup:', error);
-      }
-    };
-  }, [powerSaveTimeoutId]);
-
   // Handle submit
   const handleSubmit = useCallback(
     (combinedTextFromInput: string, onSummaryReset?: () => void) => {
       if (combinedTextFromInput.trim()) {
-        try {
-          window.electron.startPowerSaveBlocker();
-        } catch (error) {
-          console.error('Failed to start power save blocker:', error);
-        }
-
+        window.electron.startPowerSaveBlocker();
         setLastInteractionTime(Date.now());
-
-        // Set a timeout to automatically stop the power save blocker after 15 minutes
-        const timeoutId = window.setTimeout(
-          () => {
-            console.warn('Power save blocker timeout - stopping automatically after 15 minutes');
-            stopPowerSaveBlocker();
-          },
-          15 * 60 * 1000
-        );
-
-        setPowerSaveTimeoutId(timeoutId);
 
         const userMessage = createUserMessage(combinedTextFromInput.trim());
 
         if (onSummaryReset) {
           onSummaryReset();
-          window.setTimeout(() => {
+          setTimeout(() => {
             append(userMessage);
+            // Call onMessageSent after the message is sent
             onMessageSent?.();
           }, 150);
         } else {
           append(userMessage);
+          // Call onMessageSent after the message is sent
           onMessageSent?.();
         }
       } else {
         // If nothing was actually submitted (e.g. empty input and no images pasted)
-        stopPowerSaveBlocker();
+        window.electron.stopPowerSaveBlocker();
       }
     },
-    [append, onMessageSent, stopPowerSaveBlocker]
+    [append, onMessageSent]
   );
 
   // Handle stopping the message stream
   const onStopGoose = useCallback(() => {
     stop();
     setLastInteractionTime(Date.now());
-    stopPowerSaveBlocker();
+    window.electron.stopPowerSaveBlocker();
 
     // Handle stopping the message stream
     const lastMessage = messages[messages.length - 1];
@@ -307,11 +263,6 @@ export const useChatEngine = ({
 
       // Set the text back to the input field
       _setInput(textValue);
-
-      // Also add to local storage history as a backup so cmd+up can retrieve it
-      if (enableLocalStorage && textValue.trim()) {
-        LocalMessageStorage.addMessage(textValue.trim());
-      }
 
       // Remove the last user message if it's the most recent one
       if (messages.length > 1) {
@@ -374,7 +325,7 @@ export const useChatEngine = ({
         setMessages([...messages, responseMessage]);
       }
     }
-  }, [stop, messages, _setInput, setMessages, stopPowerSaveBlocker, enableLocalStorage]);
+  }, [stop, messages, _setInput, setMessages]);
 
   const filteredMessages = useMemo(() => {
     return [...ancestorMessages, ...messages].filter((message) => message.display ?? true);

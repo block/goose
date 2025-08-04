@@ -48,6 +48,9 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
       case 'recipes':
         navigate('/recipes');
         break;
+      case 'codeArtifacts':
+        navigate('/code-artifacts');
+        break;
       case 'permission':
         navigate('/permission', { state: viewOptions });
         break;

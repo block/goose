@@ -129,9 +129,7 @@ export const useRecipeManager = (messages: Message[], locationState?: LocationSt
 
   // Get the recipe's initial prompt (always return the actual prompt, don't modify based on conversation state)
   const initialPrompt = useMemo(() => {
-    if (!recipeConfig?.prompt || !recipeAccepted) {
-      return '';
-    }
+    if (!recipeConfig?.prompt || !recipeAccepted) return '';
 
     const hasRequiredParams = recipeConfig.parameters && recipeConfig.parameters.length > 0;
 
@@ -140,9 +138,13 @@ export const useRecipeManager = (messages: Message[], locationState?: LocationSt
       return substituteParameters(recipeConfig.prompt, recipeParameters);
     }
 
-    // Always return the original prompt, whether it has parameters or not
-    // The user should see the prompt with parameter placeholders before filling them in
-    return recipeConfig.prompt;
+    // If there are no parameters, return the original prompt.
+    if (!hasRequiredParams) {
+      return recipeConfig.prompt;
+    }
+
+    // Otherwise, we are waiting for parameters, so the input should be empty.
+    return '';
   }, [recipeConfig, recipeParameters, recipeAccepted]);
 
   // Handle parameter submission

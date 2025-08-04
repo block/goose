@@ -2,7 +2,7 @@
  * BaseChat Component
  *
  * BaseChat is the foundational chat component that provides the core conversational interface
- * for the Goose Desktop application. It serves as the shared base for both Hub and Pair components,
+ * for the Goose application. It serves as the shared base for both Hub and Pair components,
  * offering a flexible and extensible chat experience.
  *
  * Key Responsibilities:
@@ -48,7 +48,7 @@ import { SearchView } from './conversation/SearchView';
 import { AgentHeader } from './AgentHeader';
 import LayingEggLoader from './LayingEggLoader';
 import LoadingGoose from './LoadingGoose';
-import RecipeActivities from './RecipeActivities';
+import Splash from './Splash';
 import PopularChatTopics from './PopularChatTopics';
 import ProgressiveMessageList from './ProgressiveMessageList';
 import { SessionSummaryModal } from './context_management/SessionSummaryModal';
@@ -61,7 +61,6 @@ import { MainPanelLayout } from './Layout/MainPanelLayout';
 import ChatInput from './ChatInput';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
 import { RecipeWarningModal } from './ui/RecipeWarningModal';
-import ParameterInputModal from './ParameterInputModal';
 import { useChatEngine } from '../hooks/useChatEngine';
 import { useRecipeManager } from '../hooks/useRecipeManager';
 import { useSessionContinuation } from '../hooks/useSessionContinuation';
@@ -189,9 +188,6 @@ function BaseChatContent({
     recipeConfig,
     initialPrompt,
     isGeneratingRecipe,
-    isParameterModalOpen,
-    setIsParameterModalOpen,
-    handleParameterSubmit,
     handleAutoExecution,
     recipeError,
     setRecipeError,
@@ -317,15 +313,11 @@ function BaseChatContent({
   };
   // Callback to handle scroll to bottom from ProgressiveMessageList
   const handleScrollToBottom = useCallback(() => {
-    // Only auto-scroll if user is not actively typing
-    const isUserTyping = document.activeElement?.id === 'dynamic-textarea';
-    if (!isUserTyping) {
-      setTimeout(() => {
-        if (scrollRef.current?.scrollToBottom) {
-          scrollRef.current.scrollToBottom();
-        }
-      }, 100);
-    }
+    setTimeout(() => {
+      if (scrollRef.current?.scrollToBottom) {
+        scrollRef.current.scrollToBottom();
+      }
+    }, 100);
   }, []);
 
   return (
@@ -374,7 +366,7 @@ function BaseChatContent({
             {/* Custom content before messages */}
             {renderBeforeMessages && renderBeforeMessages()}
 
-            {/* Messages or RecipeActivities or Popular Topics */}
+            {/* Messages or Splash or Popular Topics */}
             {
               // Check if we should show splash instead of messages
               (() => {
@@ -385,9 +377,9 @@ function BaseChatContent({
                 return shouldShowSplash;
               })() ? (
                 <>
-                  {/* Show RecipeActivities when we have a recipe config and user hasn't started using it */}
+                  {/* Show Splash when we have a recipe config and user hasn't started using it */}
                   {recipeConfig ? (
-                    <RecipeActivities
+                    <Splash
                       append={(text: string) => appendWithTracking(text)}
                       activities={
                         Array.isArray(recipeConfig.activities) ? recipeConfig.activities : null
@@ -528,7 +520,7 @@ function BaseChatContent({
             chatState={chatState}
             onStop={onStopGoose}
             commandHistory={commandHistory}
-            initialValue={_input || ''}
+            initialValue={_input || (messages.length === 0 ? initialPrompt : '')}
             setView={setView}
             numTokens={sessionTokenCount}
             inputTokens={sessionInputTokens || localInputTokens}
@@ -541,8 +533,6 @@ function BaseChatContent({
             sessionCosts={sessionCosts}
             setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
             recipeConfig={recipeConfig}
-            recipeAccepted={recipeAccepted}
-            initialPrompt={initialPrompt}
             {...customChatInputProps}
           />
         </div>
@@ -569,15 +559,6 @@ function BaseChatContent({
           instructions: recipeConfig?.instructions || undefined,
         }}
       />
-
-      {/* Recipe Parameter Modal */}
-      {isParameterModalOpen && recipeConfig?.parameters && (
-        <ParameterInputModal
-          parameters={recipeConfig.parameters}
-          onSubmit={handleParameterSubmit}
-          onClose={() => setIsParameterModalOpen(false)}
-        />
-      )}
 
       {/* Recipe Error Modal */}
       {recipeError && (

@@ -1,5 +1,4 @@
 use super::errors::ProviderError;
-use crate::impl_provider_default;
 use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
@@ -14,13 +13,8 @@ use std::time::Duration;
 use url::Url;
 
 pub const GROQ_API_HOST: &str = "https://api.groq.com";
-pub const GROQ_DEFAULT_MODEL: &str = "moonshotai/kimi-k2-instruct";
-pub const GROQ_KNOWN_MODELS: &[&str] = &[
-    "gemma2-9b-it",
-    "llama-3.3-70b-versatile",
-    "moonshotai/kimi-k2-instruct",
-    "qwen/qwen3-32b",
-];
+pub const GROQ_DEFAULT_MODEL: &str = "llama-3.3-70b-versatile";
+pub const GROQ_KNOWN_MODELS: &[&str] = &["gemma2-9b-it", "llama-3.3-70b-versatile"];
 
 pub const GROQ_DOC_URL: &str = "https://console.groq.com/docs/models";
 
@@ -33,7 +27,12 @@ pub struct GroqProvider {
     model: ModelConfig,
 }
 
-impl_provider_default!(GroqProvider);
+impl Default for GroqProvider {
+    fn default() -> Self {
+        let model = ModelConfig::new(GroqProvider::metadata().default_model);
+        GroqProvider::from_env(model).expect("Failed to initialize Groq provider")
+    }
+}
 
 impl GroqProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
@@ -71,28 +70,28 @@ impl GroqProvider {
             .await?;
 
         let status = response.status();
-        let response_payload: Option<Value> = response.json().await.ok();
-        let formatted_payload = format!("{:?}", response_payload);
+        let payload: Option<Value> = response.json().await.ok();
 
         match status {
-            StatusCode::OK => response_payload.ok_or_else( || ProviderError::RequestFailed("Response body is not valid JSON".to_string()) ),
+            StatusCode::OK => payload.ok_or_else( || ProviderError::RequestFailed("Response body is not valid JSON".to_string()) ),
             StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
                 Err(ProviderError::Authentication(format!("Authentication failed. Please ensure your API keys are valid and have the required permissions. \
-                    Status: {}. Response: {:?}", status, response_payload)))
+                    Status: {}. Response: {:?}", status, payload)))
             }
             StatusCode::PAYLOAD_TOO_LARGE => {
-                Err(ProviderError::ContextLengthExceeded(formatted_payload))
+                Err(ProviderError::ContextLengthExceeded(format!("{:?}", payload)))
             }
             StatusCode::TOO_MANY_REQUESTS => {
-                Err(ProviderError::RateLimitExceeded(formatted_payload))
+                Err(ProviderError::RateLimitExceeded(format!("{:?}", payload)))
             }
             StatusCode::INTERNAL_SERVER_ERROR | StatusCode::SERVICE_UNAVAILABLE => {
-                Err(ProviderError::ServerError(formatted_payload))
+                Err(ProviderError::ServerError(format!("{:?}", payload)))
             }
             _ => {
-                let error_msg = format!("Provider request failed with status: {}. Payload: {:?}", status, response_payload);
-                tracing::debug!(error_msg);
-                Err(ProviderError::RequestFailed(error_msg))
+                tracing::debug!(
+                    "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
+                );
+                Err(ProviderError::RequestFailed(format!("Request failed with status: {}", status)))
             }
         }
     }

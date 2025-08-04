@@ -91,6 +91,11 @@ impl SubAgent {
         Ok(subagent)
     }
 
+    /// Get the current status of the subagent
+    pub async fn get_status(&self) -> SubAgentStatus {
+        self.status.read().await.clone()
+    }
+
     /// Update the status of the subagent
     async fn set_status(&self, status: SubAgentStatus) {
         // Update the status first, then release the lock
@@ -98,6 +103,26 @@ impl SubAgent {
             let mut current_status = self.status.write().await;
             *current_status = status.clone();
         } // Write lock is released here!
+    }
+
+    /// Get current progress information
+    pub async fn get_progress(&self) -> SubAgentProgress {
+        let status = self.get_status().await;
+        let turn_count = *self.turn_count.lock().await;
+
+        SubAgentProgress {
+            subagent_id: self.id.clone(),
+            status: status.clone(),
+            message: match &status {
+                SubAgentStatus::Ready => "Ready to process messages".to_string(),
+                SubAgentStatus::Processing => "Processing request...".to_string(),
+                SubAgentStatus::Completed(msg) => msg.clone(),
+                SubAgentStatus::Terminated => "Subagent terminated".to_string(),
+            },
+            turn: turn_count,
+            max_turns: self.config.max_turns,
+            timestamp: Utc::now(),
+        }
     }
 
     /// Process a message and generate a response using the subagent's provider
@@ -258,14 +283,35 @@ impl SubAgent {
     }
 
     /// Add a message to the conversation (for tracking agent responses)
-    async fn add_message(&self, message: Message) {
+    pub async fn add_message(&self, message: Message) {
         let mut conversation = self.conversation.lock().await;
         conversation.push(message);
     }
 
     /// Get the full conversation history
-    async fn get_conversation(&self) -> Vec<Message> {
+    pub async fn get_conversation(&self) -> Vec<Message> {
         self.conversation.lock().await.clone()
+    }
+
+    /// Check if the subagent has completed its task
+    pub async fn is_completed(&self) -> bool {
+        matches!(
+            self.get_status().await,
+            SubAgentStatus::Completed(_) | SubAgentStatus::Terminated
+        )
+    }
+
+    /// Terminate the subagent
+    pub async fn terminate(&self) -> Result<(), anyhow::Error> {
+        debug!("Terminating subagent {}", self.id);
+        self.set_status(SubAgentStatus::Terminated).await;
+        Ok(())
+    }
+
+    /// Filter out subagent spawning tools to prevent infinite recursion
+    fn _filter_subagent_tools(tools: Vec<Tool>) -> Vec<Tool> {
+        // TODO: add this in subagent loop
+        tools
     }
 
     /// Build the system prompt for the subagent using the template

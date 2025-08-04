@@ -364,10 +364,8 @@ impl Session {
     }
 
     /// Process a single message and get the response
-    pub(crate) async fn process_message(&mut self, message: Message) -> Result<()> {
-        let message_text = message.as_concat_text();
-
-        self.push_message(message);
+    async fn process_message(&mut self, message: String) -> Result<()> {
+        self.push_message(Message::user().with_text(&message));
         // Get the provider from the agent for description generation
         let provider = self.agent.provider().await?;
 
@@ -395,10 +393,9 @@ impl Session {
             .and_then(|s| s.to_str())
             .map(|s| s.to_string());
 
-        if let Err(e) = crate::project_tracker::update_project_tracker(
-            Some(&message_text),
-            session_id.as_deref(),
-        ) {
+        if let Err(e) =
+            crate::project_tracker::update_project_tracker(Some(&message), session_id.as_deref())
+        {
             eprintln!(
                 "Warning: Failed to update project tracker with instruction: {}",
                 e
@@ -410,10 +407,9 @@ impl Session {
     }
 
     /// Start an interactive session, optionally with an initial message
-    pub async fn interactive(&mut self, prompt: Option<String>) -> Result<()> {
+    pub async fn interactive(&mut self, message: Option<String>) -> Result<()> {
         // Process initial message if provided
-        if let Some(prompt) = prompt {
-            let msg = Message::user().with_text(&prompt);
+        if let Some(msg) = message {
             self.process_message(msg).await?;
         }
 
@@ -840,13 +836,11 @@ impl Session {
     }
 
     /// Process a single message and exit
-    pub async fn headless(&mut self, prompt: String) -> Result<()> {
-        let message = Message::user().with_text(&prompt);
+    pub async fn headless(&mut self, message: String) -> Result<()> {
         self.process_message(message).await
     }
 
     async fn process_agent_response(&mut self, interactive: bool) -> Result<()> {
-        // Messages will be auto-compacted in agent.reply() if needed
         let cancel_token = CancellationToken::new();
         let cancel_token_clone = cancel_token.clone();
 
@@ -1009,17 +1003,6 @@ impl Session {
                             }
                             // otherwise we have a model/tool to render
                             else {
-                                for content in &message.content {
-                                    if let MessageContent::ToolRequest(tool_request) = content {
-                                        if let Ok(tool_call) = &tool_request.tool_call {
-                                            tracing::info!(monotonic_counter.goose.tool_calls = 1,
-                                                tool_name = %tool_call.name,
-                                                "Tool call executed"
-                                            );
-                                        }
-                                    }
-                                }
-
                                 push_message(&mut self.messages, message.clone());
 
                                 // No need to update description on assistant messages
@@ -1051,21 +1034,23 @@ impl Session {
                                             if let Some(Value::String(msg)) = o.get("message") {
                                                 // Extract subagent info for better display
                                                 let subagent_id = o.get("subagent_id")
-                                                    .and_then(|v| v.as_str());
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("unknown");
                                                 let notification_type = o.get("type")
-                                                    .and_then(|v| v.as_str());
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("");
 
                                                 let formatted = match notification_type {
-                                                    Some("subagent_created") | Some("completed") | Some("terminated") => {
+                                                    "subagent_created" | "completed" | "terminated" => {
                                                         format!("🤖 {}", msg)
                                                     }
-                                                    Some("tool_usage") | Some("tool_completed") | Some("tool_error") => {
+                                                    "tool_usage" | "tool_completed" | "tool_error" => {
                                                         format!("🔧 {}", msg)
                                                     }
-                                                    Some("message_processing") | Some("turn_progress") => {
+                                                    "message_processing" | "turn_progress" => {
                                                         format!("💭 {}", msg)
                                                     }
-                                                    Some("response_generated") => {
+                                                    "response_generated" => {
                                                         // Check verbosity setting for subagent response content
                                                         let config = Config::global();
                                                         let min_priority = config
@@ -1089,7 +1074,7 @@ impl Session {
                                                         msg.to_string()
                                                     }
                                                 };
-                                                (formatted, subagent_id.map(str::to_string), notification_type.map(str::to_string))
+                                                (formatted, Some(subagent_id.to_string()), Some(notification_type.to_string()))
                                             } else if let Some(Value::String(output)) = o.get("output") {
                                                 // Fallback for other MCP notification types
                                                 (output.to_owned(), None, None)
@@ -1125,10 +1110,14 @@ impl Session {
                                             }
                                         }
                                     }
-                                    else if output::is_showing_thinking() {
-                                        output::set_thinking_message(&formatted_message);
-                                    } else {
-                                        progress_bars.log(&formatted_message);
+                                    else {
+                                        // Non-subagent notification, display immediately with compact spacing
+                                        if interactive {
+                                            let _ = progress_bars.hide();
+                                            println!("{}", console::style(&formatted_message).green().dim());
+                                        } else {
+                                            progress_bars.log(&formatted_message);
+                                        }
                                     }
                                 },
                                 ServerNotification::ProgressNotification(notification) => {
@@ -1144,25 +1133,6 @@ impl Session {
                                     );
                                 },
                                 _ => (),
-                            }
-                        }
-                        Some(Ok(AgentEvent::HistoryReplaced(new_messages))) => {
-                            // Replace the session's message history with the compacted messages
-                            self.messages = new_messages;
-
-                            // Persist the updated messages to the session file
-                            if let Some(session_file) = &self.session_file {
-                                let provider = self.agent.provider().await.ok();
-                                let working_dir = std::env::current_dir().ok();
-                                if let Err(e) = session::persist_messages_with_schedule_id(
-                                    session_file,
-                                    &self.messages,
-                                    provider,
-                                    self.scheduled_job_id.clone(),
-                                    working_dir,
-                                ).await {
-                                    eprintln!("Failed to persist compacted messages: {}", e);
-                                }
                             }
                         }
                         Some(Ok(AgentEvent::ModelChange { model, mode })) => {
@@ -1597,7 +1567,7 @@ fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
     };
 
     let model_config =
-        ModelConfig::new_with_context_env(model, Some("GOOSE_PLANNER_CONTEXT_LIMIT"))?;
+        ModelConfig::new_with_context_env(model, Some("GOOSE_PLANNER_CONTEXT_LIMIT"));
     let reasoner = create(&provider, model_config)?;
 
     Ok(reasoner)

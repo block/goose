@@ -6,7 +6,6 @@ import { Select } from '../ui/Select';
 import cronstrue from 'cronstrue';
 import * as yaml from 'yaml';
 import { Recipe, decodeRecipe } from '../../recipe';
-import { getStorageDirectory } from '../../recipe/recipeStorage';
 import ClockIcon from '../../assets/clock-icon.svg';
 
 type FrequencyValue = 'once' | 'every' | 'daily' | 'weekly' | 'monthly';
@@ -362,9 +361,7 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
   };
 
   const handleBrowseFile = async () => {
-    // Default to global recipes directory, but fallback to local if needed
-    const defaultPath = getStorageDirectory(true);
-    const filePath = await window.electron.selectFileOrDirectory(defaultPath);
+    const filePath = await window.electron.selectFileOrDirectory();
     if (filePath) {
       if (filePath.endsWith('.yaml') || filePath.endsWith('.yml')) {
         setRecipeSourcePath(filePath);

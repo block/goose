@@ -1,5 +1,5 @@
 import { Message } from './types/message';
-import { getSessionHistory, listSessions, SessionInfo } from './api';
+import { getSessionHistory, listSessions, SessionInfo, deleteSession } from './api';
 import { convertApiMessageToFrontendMessage } from './components/context_management';
 
 export interface SessionMetadata {
@@ -123,6 +123,22 @@ export async function fetchSessionDetails(sessionId: string): Promise<SessionDet
     };
   } catch (error) {
     console.error(`Error fetching session details for ${sessionId}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Deletes a session by its ID
+ * @param sessionId The ID of the session to delete
+ * @returns Promise that resolves when the session is deleted
+ */
+export async function deleteSessionById(sessionId: string): Promise<void> {
+  try {
+    await deleteSession({
+      path: { session_id: sessionId },
+    });
+  } catch (error) {
+    console.error(`Error deleting session ${sessionId}:`, error);
     throw error;
   }
 }

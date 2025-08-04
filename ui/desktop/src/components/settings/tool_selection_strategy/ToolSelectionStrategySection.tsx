@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useConfig } from '../../ConfigContext';
-import { getApiUrl } from '../../../config';
+import { getApiUrl, getSecretKey } from '../../../config';
 
 interface ToolSelectionStrategy {
   key: string;
@@ -56,7 +56,7 @@ export const ToolSelectionStrategySection = () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Secret-Key': await window.electron.getSecretKey(),
+            'X-Secret-Key': getSecretKey(),
           },
         });
 

@@ -5,7 +5,7 @@ import { Settings, RefreshCw, ExternalLink } from 'lucide-react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog';
 import UpdateSection from './UpdateSection';
 import { COST_TRACKING_ENABLED, UPDATES_ENABLED } from '../../../updates';
-import { getApiUrl } from '../../../config';
+import { getApiUrl, getSecretKey } from '../../../config';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import ThemeSelector from '../../GooseSidebar/ThemeSelector';
 import BlockLogoBlack from './icons/block-lockup_black.png';
@@ -71,7 +71,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
   const checkPricingStatus = async () => {
     try {
       const apiUrl = getApiUrl('/config/pricing');
-      const secretKey = await window.electron.getSecretKey();
+      const secretKey = getSecretKey();
 
       const headers: HeadersInit = { 'Content-Type': 'application/json' };
       if (secretKey) {
@@ -100,7 +100,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
     setIsRefreshing(true);
     try {
       const apiUrl = getApiUrl('/config/pricing');
-      const secretKey = await window.electron.getSecretKey();
+      const secretKey = getSecretKey();
 
       const headers: HeadersInit = { 'Content-Type': 'application/json' };
       if (secretKey) {
@@ -227,7 +227,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
       <Card className="rounded-lg">
         <CardHeader className="pb-0">
           <CardTitle className="">Appearance</CardTitle>
-          <CardDescription>Configure how goose appears on your system</CardDescription>
+          <CardDescription>Configure how Goose appears on your system</CardDescription>
         </CardHeader>
         <CardContent className="pt-4 space-y-4 px-4">
           <div className="flex items-center justify-between">
@@ -266,7 +266,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
             <div>
               <h3 className="text-text-default text-xs">Menu bar icon</h3>
               <p className="text-xs text-text-muted max-w-md mt-[2px]">
-                Show goose in the menu bar
+                Show Goose in the menu bar
               </p>
             </div>
             <div className="flex items-center">

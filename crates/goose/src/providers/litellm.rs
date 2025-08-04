@@ -10,7 +10,6 @@ use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsag
 use super::embedding::EmbeddingCapable;
 use super::errors::ProviderError;
 use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
-use crate::impl_provider_default;
 use crate::message::Message;
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
@@ -29,7 +28,12 @@ pub struct LiteLLMProvider {
     custom_headers: Option<HashMap<String, String>>,
 }
 
-impl_provider_default!(LiteLLMProvider);
+impl Default for LiteLLMProvider {
+    fn default() -> Self {
+        let model = ModelConfig::new(LiteLLMProvider::metadata().default_model);
+        LiteLLMProvider::from_env(model).expect("Failed to initialize LiteLLM provider")
+    }
+}
 
 impl LiteLLMProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {

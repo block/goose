@@ -58,7 +58,8 @@ export default function SchedulerSection({ onSchedulingEngineChange }: Scheduler
               Built-in Cron (Default)
             </label>
             <p className="text-xs text-textSubtle mt-1">
-              Uses Goose's built-in cron scheduler. Simple and reliable for basic scheduling needs.
+              Uses Goose's built-in cron scheduler. Simple and reliable for basic scheduling
+              needs.
             </p>
           </div>
         </div>
@@ -87,8 +88,8 @@ export default function SchedulerSection({ onSchedulingEngineChange }: Scheduler
 
       <div className="mt-4 p-3 bg-bgSubtle rounded-md">
         <p className="text-xs text-textSubtle">
-          <strong>Note:</strong> Changing the scheduling engine will apply to new Goose sessions.
-          You will need to restart Goose for the change to take full effect. <br />
+          <strong>Note:</strong> Changing the scheduling engine will apply to new Goose
+          sessions. You will need to restart Goose for the change to take full effect. <br />
           The scheduling engines do not share the list of schedules.
         </p>
       </div>

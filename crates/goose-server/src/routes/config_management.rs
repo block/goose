@@ -7,9 +7,9 @@ use axum::{
     Json, Router,
 };
 use etcetera::{choose_app_strategy, AppStrategy};
+use goose::config::Config;
 use goose::config::APP_STRATEGY;
 use goose::config::{extensions::name_to_key, PermissionManager};
-use goose::config::{Config, ConfigError};
 use goose::config::{ExtensionConfigManager, ExtensionEntry};
 use goose::model::ModelConfig;
 use goose::providers::base::ProviderMetadata;
@@ -142,7 +142,7 @@ pub async fn remove_config(
     request_body = ConfigKeyQuery,
     responses(
         (status = 200, description = "Configuration value retrieved successfully", body = Value),
-        (status = 500, description = "Unable to get the configuration value"),
+        (status = 404, description = "Configuration key not found")
     )
 )]
 pub async fn read_config(
@@ -160,24 +160,17 @@ pub async fn read_config(
     }
 
     let config = Config::global();
-    let response_value = match config.get(&query.key, query.is_secret) {
+
+    match config.get(&query.key, query.is_secret) {
         Ok(value) => {
             if query.is_secret {
-                Value::Bool(true)
+                Ok(Json(Value::Bool(true)))
             } else {
-                value
+                Ok(Json(value))
             }
         }
-        Err(ConfigError::NotFound(_)) => {
-            if query.is_secret {
-                Value::Bool(false)
-            } else {
-                Value::Null
-            }
-        }
-        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
-    };
-    Ok(Json(response_value))
+        Err(_) => Err(StatusCode::NOT_FOUND),
+    }
 }
 
 #[utoipa::path(

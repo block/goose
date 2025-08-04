@@ -10,7 +10,6 @@ pub mod recipe;
 pub mod reply;
 pub mod schedule;
 pub mod session;
-pub mod setup;
 pub mod utils;
 use std::sync::Arc;
 
@@ -30,5 +29,4 @@ pub fn configure(state: Arc<crate::state::AppState>) -> Router {
         .merge(session::routes(state.clone()))
         .merge(schedule::routes(state.clone()))
         .merge(project::routes(state.clone()))
-        .merge(setup::routes(state.clone()))
 }

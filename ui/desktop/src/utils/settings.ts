@@ -1,4 +1,4 @@
-import { app } from 'electron';
+import { app, MenuItem } from 'electron';
 import fs from 'fs';
 import path from 'path';
 
@@ -17,6 +17,9 @@ export interface Settings {
   schedulingEngine: SchedulingEngine;
   showQuitConfirmation: boolean;
   enableWakelock: boolean;
+  windowOpacity: number;
+  windowBlur: number;
+  backgroundImageEnabled: boolean;
 }
 
 // Constants
@@ -32,6 +35,9 @@ const defaultSettings: Settings = {
   schedulingEngine: 'builtin-cron',
   showQuitConfirmation: true,
   enableWakelock: false,
+  windowOpacity: 1.0,
+  windowBlur: 0,
+  backgroundImageEnabled: false,
 };
 
 // Settings management
@@ -77,4 +83,37 @@ export function updateSchedulingEngineEnvironment(schedulingEngine: SchedulingEn
   } else {
     process.env.GOOSE_SCHEDULER_TYPE = 'legacy';
   }
+}
+
+// Menu management
+export function createEnvironmentMenu(
+  envToggles: EnvToggles,
+  onToggle: (newToggles: EnvToggles) => void
+) {
+  return [
+    {
+      label: 'Enable Memory Mode',
+      type: 'checkbox' as const,
+      checked: envToggles.GOOSE_SERVER__MEMORY,
+      click: (menuItem: MenuItem) => {
+        const newToggles = {
+          ...envToggles,
+          GOOSE_SERVER__MEMORY: menuItem.checked,
+        };
+        onToggle(newToggles);
+      },
+    },
+    {
+      label: 'Enable Computer Controller Mode',
+      type: 'checkbox' as const,
+      checked: envToggles.GOOSE_SERVER__COMPUTER_CONTROLLER,
+      click: (menuItem: MenuItem) => {
+        const newToggles = {
+          ...envToggles,
+          GOOSE_SERVER__COMPUTER_CONTROLLER: menuItem.checked,
+        };
+        onToggle(newToggles);
+      },
+    },
+  ];
 }

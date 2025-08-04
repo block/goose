@@ -67,11 +67,16 @@ impl Settings {
 }
 
 fn default_host() -> String {
-    "127.0.0.1".to_string()
+    // Use 0.0.0.0 to bind to all interfaces, which is more suitable for CI environments
+    // This allows the server to accept connections from any interface
+    "0.0.0.0".to_string()
 }
 
 fn default_port() -> u16 {
-    3000
+    // Use a higher port number that's less likely to be in use
+    // Start with a port in the dynamic/private range (49152-65535)
+    // This range is less likely to be used by other services
+    49152
 }
 
 #[cfg(test)]

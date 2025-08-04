@@ -17,7 +17,6 @@ use super::embedding::{EmbeddingCapable, EmbeddingRequest, EmbeddingResponse};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
 use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
-use crate::impl_provider_default;
 use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::base::MessageStream;
@@ -51,7 +50,12 @@ pub struct OpenAiProvider {
     custom_headers: Option<HashMap<String, String>>,
 }
 
-impl_provider_default!(OpenAiProvider);
+impl Default for OpenAiProvider {
+    fn default() -> Self {
+        let model = ModelConfig::new(OpenAiProvider::metadata().default_model);
+        OpenAiProvider::from_env(model).expect("Failed to initialize OpenAI provider")
+    }
+}
 
 impl OpenAiProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {

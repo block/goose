@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { Moon, Sliders, Sun } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '../ui/button';
+import { Moon, Sun, Monitor } from 'lucide-react';
 
 interface ThemeSelectorProps {
   className?: string;
@@ -40,6 +40,10 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
     }
   });
 
+  const [_windowOpacity, setWindowOpacity] = useState(1.0);
+  const [isLoadingOpacity, setIsLoadingOpacity] = useState(true);
+  const [isTransparent, setIsTransparent] = useState(false);
+
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
@@ -73,60 +77,109 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
     }
   }, [isDarkMode]);
 
+  // Load window opacity on component mount
+  useEffect(() => {
+    const loadWindowSettings = async () => {
+      try {
+        const opacity = await window.electron.getWindowOpacity();
+        setWindowOpacity(opacity);
+        setIsTransparent(opacity === 0.93);
+      } catch (error) {
+        console.error('Error loading window settings:', error);
+        setWindowOpacity(1.0);
+        setIsTransparent(false);
+      } finally {
+        setIsLoadingOpacity(false);
+      }
+    };
+
+    loadWindowSettings();
+  }, []);
+
+  // handleOpacityChange function removed as it's no longer used
+
+  const handleTransparencyToggle = async () => {
+    const newTransparent = !isTransparent;
+    const newOpacity = newTransparent ? 0.95 : 1.0;
+
+    try {
+      const success = await window.electron.setWindowOpacity(newOpacity);
+      if (success) {
+        setWindowOpacity(newOpacity);
+        setIsTransparent(newTransparent);
+        console.log(
+          `Successfully set transparency to: ${newTransparent ? 'transparent' : 'opaque'}`
+        );
+      } else {
+        console.error('Failed to set window transparency');
+      }
+    } catch (error) {
+      console.error('Error setting window transparency:', error);
+    }
+  };
+
   const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
     setThemeMode(newTheme);
   };
 
   return (
-    <div className={`${!horizontal ? 'px-1 py-2 space-y-2' : ''} ${className}`}>
-      {!hideTitle && <div className="text-xs text-text-default px-3">Theme</div>}
-      <div
-        className={`${horizontal ? 'flex' : 'grid grid-cols-3'} gap-1 ${!horizontal ? 'px-3' : ''}`}
-      >
-        <Button
-          data-testid="light-mode-button"
-          onClick={() => handleThemeChange('light')}
-          className={`flex items-center justify-center gap-1 p-2 rounded-md border transition-colors text-xs ${
-            themeMode === 'light'
-              ? 'bg-background-accent text-text-on-accent border-border-accent hover:!bg-background-accent hover:!text-text-on-accent'
-              : 'border-border-default hover:!bg-background-muted text-text-muted hover:text-text-default'
-          }`}
-          variant="ghost"
-          size="sm"
-        >
-          <Sun className="h-3 w-3" />
-          <span>Light</span>
-        </Button>
+    <div className={`space-y-4 ${className}`}>
+      {!hideTitle && (
+        <div className={`${!horizontal ? 'px-3' : ''} space-y-2`}>
+          <div className="flex items-center gap-2 text-xs text-text-default">
+            <span>Theme</span>
+          </div>
+        </div>
+      )}
 
-        <Button
-          data-testid="dark-mode-button"
-          onClick={() => handleThemeChange('dark')}
-          className={`flex items-center justify-center gap-1 p-2 rounded-md border transition-colors text-xs ${
-            themeMode === 'dark'
-              ? 'bg-background-accent text-text-on-accent border-border-accent hover:!bg-background-accent hover:!text-text-on-accent'
-              : 'border-border-default hover:!bg-background-muted text-text-muted hover:text-text-default'
-          }`}
-          variant="ghost"
-          size="sm"
-        >
-          <Moon className="h-3 w-3" />
-          <span>Dark</span>
-        </Button>
+      <div className={`${!horizontal ? 'px-3' : ''} space-y-2`}>
+        <div className="flex items-center gap-2">
+          <Button
+            variant={themeMode === 'light' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => handleThemeChange('light')}
+            className="flex-1"
+          >
+            <Sun className="h-3 w-3 mr-1" />
+            Light
+          </Button>
+          <Button
+            variant={themeMode === 'dark' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => handleThemeChange('dark')}
+            className="flex-1"
+          >
+            <Moon className="h-3 w-3 mr-1" />
+            Dark
+          </Button>
+          <Button
+            variant={themeMode === 'system' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => handleThemeChange('system')}
+            className="flex-1"
+          >
+            <Monitor className="h-3 w-3 mr-1" />
+            System
+          </Button>
+        </div>
+      </div>
 
-        <Button
-          data-testid="system-mode-button"
-          onClick={() => handleThemeChange('system')}
-          className={`flex items-center justify-center gap-1 p-2 rounded-md border transition-colors text-xs ${
-            themeMode === 'system'
-              ? 'bg-background-accent text-text-on-accent border-border-accent hover:!bg-background-accent hover:!text-text-on-accent'
-              : 'border-border-default hover:!bg-background-muted text-text-muted hover:text-text-default'
-          }`}
-          variant="ghost"
-          size="sm"
-        >
-          <Sliders className="h-3 w-3" />
-          <span>System</span>
-        </Button>
+      {/* Window Transparency Toggle */}
+      <div className={`${!horizontal ? 'px-3' : ''} space-y-2`}>
+        <div className="flex items-center gap-2 text-xs text-text-default mt-5">
+          <span>Window Transparency</span>
+        </div>
+        <div className="px-1">
+          <Button
+            variant={isTransparent ? 'default' : 'outline'}
+            size="sm"
+            onClick={handleTransparencyToggle}
+            disabled={isLoadingOpacity}
+            className="w-full"
+          >
+            {isTransparent ? 'Transparent' : 'Opaque'}
+          </Button>
+        </div>
       </div>
     </div>
   );

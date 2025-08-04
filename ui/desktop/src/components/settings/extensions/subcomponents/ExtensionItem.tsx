@@ -68,12 +68,11 @@ export default function ExtensionItem({
   // Over time we can take the first part of the conditional away as people have bundled: true in their config.yaml entries
 
   // allow configuration editing if extension is not a builtin/bundled extension AND isStatic = false
-  const editable =
-    !(extension.type === 'builtin' || ('bundled' in extension && extension.bundled)) && !isStatic;
+  const editable = !(extension.type === 'builtin' || extension.bundled) && !isStatic;
 
   return (
     <Card
-      className="transition-all duration-200 hover:shadow-default hover:cursor-pointer min-h-[120px] overflow-hidden"
+      className="transition-all duration-200 hover:shadow-default hover:cursor-pointer min-h-[120px]"
       onClick={() => handleToggle(extension)}
     >
       <CardHeader>
@@ -98,9 +97,7 @@ export default function ExtensionItem({
           </div>
         </CardAction>
       </CardHeader>
-      <CardContent className="px-4 text-sm text-text-muted overflow-hidden break-words">
-        {renderSubtitle()}
-      </CardContent>
+      <CardContent className="px-4 text-sm text-text-muted">{renderSubtitle()}</CardContent>
     </Card>
   );
 }

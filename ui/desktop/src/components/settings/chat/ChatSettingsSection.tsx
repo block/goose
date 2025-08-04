@@ -11,7 +11,9 @@ export default function ChatSettingsSection() {
       <Card className="pb-2 rounded-lg">
         <CardHeader className="pb-0">
           <CardTitle className="">Mode</CardTitle>
-          <CardDescription>Configure how Goose interacts with tools and extensions</CardDescription>
+          <CardDescription>
+            Configure how Goose interacts with tools and extensions
+          </CardDescription>
         </CardHeader>
         <CardContent className="px-2">
           <ModeSection />
@@ -21,7 +23,9 @@ export default function ChatSettingsSection() {
       <Card className="pb-2 rounded-lg">
         <CardHeader className="pb-0">
           <CardTitle className="">Response Styles</CardTitle>
-          <CardDescription>Choose how Goose should format and style its responses</CardDescription>
+          <CardDescription>
+            Choose how Goose should format and style its responses
+          </CardDescription>
         </CardHeader>
         <CardContent className="px-2">
           <ResponseStylesSection />
@@ -54,8 +58,8 @@ export default function ChatSettingsSection() {
         <CardHeader className="pb-0">
           <CardTitle className="">Tool Selection Strategy (preview)</CardTitle>
           <CardDescription>
-            Configure how Goose selects tools for your requests. Recommended when many extensions
-            are enabled. Available only with Claude models served on Databricks for now.
+            Configure how Goose selects tools for your requests. Recommended when many
+            extensions are enabled. Available only with Claude models served on Databricks for now.
           </CardDescription>
         </CardHeader>
         <CardContent className="px-2">

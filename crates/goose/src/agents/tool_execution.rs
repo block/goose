@@ -4,6 +4,7 @@ use std::sync::Arc;
 use async_stream::try_stream;
 use futures::stream::{self, BoxStream};
 use futures::{Stream, StreamExt};
+use rmcp::model::ServerNotification;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
@@ -12,7 +13,7 @@ use crate::config::PermissionManager;
 use crate::message::{Message, ToolRequest};
 use crate::permission::Permission;
 use mcp_core::ToolResult;
-use rmcp::model::{Content, ServerNotification};
+use rmcp::model::Content;
 
 // ToolCallResult combines the result of a tool call with an optional notification stream that
 // can be used to receive notifications from the tool.

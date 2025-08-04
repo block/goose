@@ -75,8 +75,6 @@ interface ChatInputProps {
   setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
   disableAnimation?: boolean;
   recipeConfig?: Recipe | null;
-  recipeAccepted?: boolean;
-  initialPrompt?: string;
 }
 
 export default function ChatInput({
@@ -97,8 +95,6 @@ export default function ChatInput({
   sessionCosts,
   setIsGoosehintsModalOpen,
   recipeConfig,
-  recipeAccepted,
-  initialPrompt,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -204,18 +200,6 @@ export default function ChatInput({
     setHasUserTyped(false);
   }, [initialValue]); // Keep only initialValue as a dependency
 
-  // Handle recipe prompt updates
-  useEffect(() => {
-    // If recipe is accepted and we have an initial prompt, and no messages yet, set the prompt
-    if (recipeAccepted && initialPrompt && messages.length === 0 && !displayValue.trim()) {
-      setDisplayValue(initialPrompt);
-      setValue(initialPrompt);
-      setTimeout(() => {
-        textAreaRef.current?.focus();
-      }, 0);
-    }
-  }, [recipeAccepted, initialPrompt, messages.length, displayValue]);
-
   // Draft functionality - load draft if no initial value or recipe
   useEffect(() => {
     // Reset draft loaded flag when context changes
@@ -255,7 +239,6 @@ export default function ChatInput({
   const [isInGlobalHistory, setIsInGlobalHistory] = useState(false);
   const [hasUserTyped, setHasUserTyped] = useState(false);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
-  const timeoutRefsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
 
   // Use shared file drop hook for ChatInput
   const {
@@ -449,7 +432,7 @@ export default function ChatInput({
         message: `Too many tools can degrade performance.\nTool count: ${toolCount} (recommend: ${TOOLS_MAX_SUGGESTED})`,
         action: {
           text: 'View extensions',
-          onClick: () => setView('extensions'),
+          onClick: () => setView('settings'),
         },
         autoShow: false, // Don't auto-show tool count warnings
       });
@@ -458,50 +441,25 @@ export default function ChatInput({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [numTokens, toolCount, tokenLimit, isTokenLimitLoaded, addAlert, clearAlerts]);
 
-  // Cleanup effect for component unmount - prevent memory leaks
-  useEffect(() => {
-    return () => {
-      // Clear any pending timeouts from image processing
-      setPastedImages((currentImages) => {
-        currentImages.forEach((img) => {
-          if (img.filePath) {
-            try {
-              window.electron.deleteTempFile(img.filePath);
-            } catch (error) {
-              console.error('Error deleting temp file:', error);
-            }
-          }
-        });
-        return [];
-      });
-
-      // Clear all tracked timeouts
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      const timeouts = timeoutRefsRef.current;
-      timeouts.forEach((timeoutId) => {
-        window.clearTimeout(timeoutId);
-      });
-      timeouts.clear();
-
-      // Clear alerts to prevent memory leaks
-      clearAlerts();
-    };
-  }, [clearAlerts]);
-
   const maxHeight = 10 * 24;
 
-  // Immediate function to update actual value - no debounce for better responsiveness
-  const updateValue = React.useCallback((value: string) => {
-    setValue(value);
-  }, []);
+  // Debounced function to update actual value
+  const debouncedSetValue = useMemo(
+    () =>
+      debounce((value: string) => {
+        setValue(value);
+      }, 150),
+    [setValue]
+  );
 
+  // Debounced autosize function
   const debouncedAutosize = useMemo(
     () =>
       debounce((element: HTMLTextAreaElement) => {
         element.style.height = '0px'; // Reset height
         const scrollHeight = element.scrollHeight;
         element.style.height = Math.min(scrollHeight, maxHeight) + 'px';
-      }, 50),
+      }, 150),
     [maxHeight]
   );
 
@@ -523,7 +481,7 @@ export default function ChatInput({
     const cursorPosition = evt.target.selectionStart;
 
     setDisplayValue(val); // Update display immediately
-    updateValue(val); // Update actual value immediately for better responsiveness
+    debouncedSetValue(val); // Debounce the actual state update
     debouncedSaveDraft(val); // Save draft with debounce
     // Mark that the user has typed something
     setHasUserTyped(true);
@@ -586,12 +544,10 @@ export default function ChatInput({
         },
       ]);
 
-      // Remove the error message after 5 seconds with cleanup tracking
-      const timeoutId = setTimeout(() => {
+      // Remove the error message after 5 seconds
+      setTimeout(() => {
         setPastedImages((prev) => prev.filter((img) => !img.id.startsWith('error-')));
-        timeoutRefsRef.current.delete(timeoutId);
       }, 5000);
-      timeoutRefsRef.current.add(timeoutId);
 
       return;
     }
@@ -612,12 +568,10 @@ export default function ChatInput({
           error: `Image too large (${Math.round(file.size / (1024 * 1024))}MB). Maximum ${MAX_IMAGE_SIZE_MB}MB allowed.`,
         });
 
-        // Remove the error message after 5 seconds with cleanup tracking
-        const timeoutId = setTimeout(() => {
+        // Remove the error message after 5 seconds
+        setTimeout(() => {
           setPastedImages((prev) => prev.filter((img) => img.id !== errorId));
-          timeoutRefsRef.current.delete(timeoutId);
         }, 5000);
-        timeoutRefsRef.current.add(timeoutId);
 
         continue;
       }
@@ -682,10 +636,11 @@ export default function ChatInput({
   // Cleanup debounced functions on unmount
   useEffect(() => {
     return () => {
+      debouncedSetValue.cancel?.();
       debouncedAutosize.cancel?.();
       debouncedSaveDraft.cancel?.();
     };
-  }, [debouncedAutosize, debouncedSaveDraft]);
+  }, [debouncedSetValue, debouncedAutosize, debouncedSaveDraft]);
 
   // Handlers for composition events, which are crucial for proper IME behavior
   const handleCompositionStart = () => {

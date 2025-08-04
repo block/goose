@@ -3,7 +3,6 @@ use console::{style, Color};
 use goose::config::Config;
 use goose::message::{Message, MessageContent, ToolRequest, ToolResponse};
 use goose::providers::pricing::get_model_pricing;
-use goose::providers::pricing::parse_model_id;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use mcp_core::tool::ToolCall;
 use regex::Regex;
@@ -115,10 +114,6 @@ impl ThinkingIndicator {
             spinner.stop("");
         }
     }
-
-    pub fn is_shown(&self) -> bool {
-        self.spinner.is_some()
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -142,10 +137,7 @@ pub fn hide_thinking() {
     THINKING.with(|t| t.borrow_mut().hide());
 }
 
-pub fn is_showing_thinking() -> bool {
-    THINKING.with(|t| t.borrow().is_shown())
-}
-
+#[allow(dead_code)]
 pub fn set_thinking_message(s: &String) {
     THINKING.with(|t| {
         if let Some(spinner) = t.borrow_mut().spinner.as_mut() {
@@ -747,21 +739,9 @@ async fn estimate_cost_usd(
     input_tokens: usize,
     output_tokens: usize,
 ) -> Option<f64> {
-    // For OpenRouter, parse the model name to extract real provider/model
-    let openrouter_data = if provider == "openrouter" {
-        parse_model_id(model)
-    } else {
-        None
-    };
-
-    let (provider_to_use, model_to_use) = match &openrouter_data {
-        Some((real_provider, real_model)) => (real_provider.as_str(), real_model.as_str()),
-        None => (provider, model),
-    };
-
     // Use the pricing module's get_model_pricing which handles model name mapping internally
-    let cleaned_model = normalize_model_name(model_to_use);
-    let pricing_info = get_model_pricing(provider_to_use, &cleaned_model).await;
+    let cleaned_model = normalize_model_name(model);
+    let pricing_info = get_model_pricing(provider, &cleaned_model).await;
 
     match pricing_info {
         Some(pricing) => {

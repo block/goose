@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/Tooltip';
-import { getApiUrl } from '../../config';
+import { getApiUrl, getSecretKey } from '../../config';
 
 interface ActivityHeatmapCell {
   week: number;
@@ -40,7 +40,7 @@ export function ActivityHeatmap() {
           headers: {
             Accept: 'application/json',
             'Content-Type': 'application/json',
-            'X-Secret-Key': await window.electron.getSecretKey(),
+            'X-Secret-Key': getSecretKey(),
           },
         });
 

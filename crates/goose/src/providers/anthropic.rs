@@ -17,16 +17,15 @@ use super::formats::anthropic::{
     create_request, get_usage, response_to_message, response_to_streaming_message,
 };
 use super::utils::{emit_debug_trace, get_model};
-use crate::impl_provider_default;
 use crate::message::Message;
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
 
 pub const ANTHROPIC_DEFAULT_MODEL: &str = "claude-3-5-sonnet-latest";
 pub const ANTHROPIC_KNOWN_MODELS: &[&str] = &[
-    "claude-sonnet-4-0",
+    "claude-sonnet-4-latest",
     "claude-sonnet-4-20250514",
-    "claude-opus-4-0",
+    "claude-opus-4-latest",
     "claude-opus-4-20250514",
     "claude-3-7-sonnet-latest",
     "claude-3-7-sonnet-20250219",
@@ -47,7 +46,12 @@ pub struct AnthropicProvider {
     model: ModelConfig,
 }
 
-impl_provider_default!(AnthropicProvider);
+impl Default for AnthropicProvider {
+    fn default() -> Self {
+        let model = ModelConfig::new(AnthropicProvider::metadata().default_model);
+        AnthropicProvider::from_env(model).expect("Failed to initialize Anthropic provider")
+    }
+}
 
 impl AnthropicProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
@@ -134,9 +138,9 @@ impl Provider for AnthropicProvider {
             "Claude and other models from Anthropic",
             ANTHROPIC_DEFAULT_MODEL,
             vec![
-                ModelInfo::new("claude-sonnet-4-0", 200000),
+                ModelInfo::new("claude-sonnet-4-latest", 200000),
                 ModelInfo::new("claude-sonnet-4-20250514", 200000),
-                ModelInfo::new("claude-opus-4-0", 200000),
+                ModelInfo::new("claude-opus-4-latest", 200000),
                 ModelInfo::new("claude-opus-4-20250514", 200000),
                 ModelInfo::new("claude-3-7-sonnet-latest", 200000),
                 ModelInfo::new("claude-3-7-sonnet-20250219", 200000),
