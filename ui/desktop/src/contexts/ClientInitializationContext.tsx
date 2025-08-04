@@ -1,9 +1,24 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { ensureClientInitialized } from '../utils';
+import { client } from '../api/client.gen';
 
 interface ClientInitializationContextType {
   isInitialized: boolean;
   initializationError: Error | null;
+}
+
+// Track if client has been initialized to avoid duplicate initialization
+let clientInitialized = false;
+
+async function ensureClientInitialized() {
+  if (clientInitialized) return;
+  client.setConfig({
+    baseUrl: window.appConfig.get('GOOSE_API_HOST') + ':' + window.appConfig.get('GOOSE_PORT'),
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Secret-Key': await window.electron.getSecretKey(),
+    },
+  });
+  clientInitialized = true;
 }
 
 const ClientInitializationContext = createContext<ClientInitializationContextType | undefined>(
