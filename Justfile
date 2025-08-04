@@ -155,6 +155,20 @@ debug-ui:
 	npm install && \
 	npm run start-gui
 
+# Run UI with main process debugging enabled
+# To debug main process:
+# 1. Run: just debug-ui-main-process
+# 2. Open Chrome → chrome://inspect
+# 3. Click "Open dedicated DevTools for Node"
+# 4. If not auto-detected, click "Configure" and add: localhost:9229
+
+debug-ui-main-process:
+	@echo "🔍 Starting Goose UI with main process debugging enabled"
+	@just release-binary
+	cd ui/desktop && \
+	npm install && \
+	npm run start-gui-debug
+
 # Run UI with alpha changes
 run-ui-alpha temporal="true":
     @just release-binary

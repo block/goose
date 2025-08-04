@@ -1,13 +1,23 @@
 use anyhow::Result;
+use axum::http::{HeaderMap, HeaderName};
 use chrono::{DateTime, TimeZone, Utc};
 use futures::stream::{FuturesUnordered, StreamExt};
 use futures::{future, FutureExt};
-use rmcp::model::GetPromptResult;
+use mcp_core::handler::require_str_parameter;
+use mcp_core::{ToolCall, ToolError};
+use rmcp::service::ClientInitializeError;
+use rmcp::transport::streamable_http_client::StreamableHttpClientTransportConfig;
+use rmcp::transport::{
+    ConfigureCommandExt, SseClientTransport, StreamableHttpClientTransport, TokioChildProcess,
+};
 use std::collections::{HashMap, HashSet};
+use std::process::Stdio;
 use std::sync::Arc;
 use std::sync::LazyLock;
 use std::time::Duration;
 use tempfile::tempdir;
+use tokio::io::AsyncReadExt;
+use tokio::process::Command;
 use tokio::sync::Mutex;
 use tokio::task;
 use tokio_stream::wrappers::ReceiverStream;
@@ -15,13 +25,11 @@ use tracing::{error, warn};
 
 use super::extension::{ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, ToolInfo};
 use super::tool_execution::ToolCallResult;
-use crate::agents::extension::Envs;
+use crate::agents::extension::{Envs, ProcessExit};
 use crate::config::{Config, ExtensionConfigManager};
 use crate::prompt_template;
-use mcp_client::client::{ClientCapabilities, ClientInfo, McpClient, McpClientTrait};
-use mcp_client::transport::{SseTransport, StdioTransport, StreamableHttpTransport, Transport};
-use mcp_core::{ToolCall, ToolError};
-use rmcp::model::{Content, Prompt, Resource, ResourceContents, Tool};
+use mcp_client::client::{McpClient, McpClientTrait};
+use rmcp::model::{Content, GetPromptResult, Prompt, Resource, ResourceContents, Tool};
 use serde_json::Value;
 
 // By default, we set it to Jan 1, 2020 if the resource does not have a timestamp
@@ -167,7 +175,7 @@ impl ExtensionManager {
                             error = %e,
                             "Failed to fetch secret from config."
                         );
-                        return Err(ExtensionError::SetupError(format!(
+                        return Err(ExtensionError::ConfigError(format!(
                             "Failed to fetch secret '{}' from config: {}",
                             key, e
                         )));
@@ -178,20 +186,19 @@ impl ExtensionManager {
             Ok(all_envs)
         }
 
-        let mut client: Box<dyn McpClientTrait> = match &config {
-            ExtensionConfig::Sse {
-                uri,
-                envs,
-                env_keys,
-                timeout,
-                ..
-            } => {
-                let all_envs = merge_environments(envs, env_keys, &sanitized_name).await?;
-                let transport = SseTransport::new(uri, all_envs);
-                let handle = transport.start().await?;
+        let client: Box<dyn McpClientTrait> = match &config {
+            ExtensionConfig::Sse { uri, timeout, .. } => {
+                let transport = SseClientTransport::start(uri.to_string()).await.map_err(
+                    |transport_error| {
+                        ClientInitializeError::transport::<SseClientTransport<reqwest::Client>>(
+                            transport_error,
+                            "connect",
+                        )
+                    },
+                )?;
                 Box::new(
                     McpClient::connect(
-                        handle,
+                        transport,
                         Duration::from_secs(
                             timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
                         ),
@@ -201,25 +208,42 @@ impl ExtensionManager {
             }
             ExtensionConfig::StreamableHttp {
                 uri,
-                envs,
-                env_keys,
-                headers,
                 timeout,
+                headers,
                 ..
             } => {
-                let all_envs = merge_environments(envs, env_keys, &sanitized_name).await?;
-                let transport =
-                    StreamableHttpTransport::with_headers(uri, all_envs, headers.clone());
-                let handle = transport.start().await?;
-                Box::new(
-                    McpClient::connect(
-                        handle,
-                        Duration::from_secs(
-                            timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
-                        ),
-                    )
-                    .await?,
+                let mut default_headers = HeaderMap::new();
+                for (key, value) in headers {
+                    default_headers.insert(
+                        HeaderName::try_from(key).map_err(|_| {
+                            ExtensionError::ConfigError(format!("invalid header: {}", key))
+                        })?,
+                        value.parse().map_err(|_| {
+                            ExtensionError::ConfigError(format!("invalid header value: {}", key))
+                        })?,
+                    );
+                }
+                let client = reqwest::Client::builder()
+                    .default_headers(default_headers)
+                    .build()
+                    .map_err(|_| {
+                        ExtensionError::ConfigError("could not construct http client".to_string())
+                    })?;
+                let transport = StreamableHttpClientTransport::with_client(
+                    client,
+                    StreamableHttpClientTransportConfig {
+                        uri: uri.clone().into(),
+                        ..Default::default()
+                    },
+                );
+                let client = McpClient::connect(
+                    transport,
+                    Duration::from_secs(
+                        timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
+                    ),
                 )
+                .await?;
+                Box::new(client)
             }
             ExtensionConfig::Stdio {
                 cmd,
@@ -230,17 +254,42 @@ impl ExtensionManager {
                 ..
             } => {
                 let all_envs = merge_environments(envs, env_keys, &sanitized_name).await?;
-                let transport = StdioTransport::new(cmd, args.to_vec(), all_envs);
-                let handle = transport.start().await?;
-                Box::new(
-                    McpClient::connect(
-                        handle,
-                        Duration::from_secs(
-                            timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
-                        ),
-                    )
-                    .await?,
+                let command = Command::new(cmd).configure(|command| {
+                    command.args(args).envs(all_envs);
+                });
+                let (transport, mut stderr) = TokioChildProcess::builder(command)
+                    .stderr(Stdio::piped())
+                    .spawn()?;
+                let mut stderr = stderr
+                    .take()
+                    .expect("should have a stderr handle because it was requested");
+
+                let stderr_task = tokio::spawn(async move {
+                    let mut all_stderr = Vec::new();
+                    stderr.read_to_end(&mut all_stderr).await?;
+                    Ok::<String, std::io::Error>(String::from_utf8_lossy(&all_stderr).into())
+                });
+
+                let client_result = McpClient::connect(
+                    transport,
+                    Duration::from_secs(
+                        timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
+                    ),
                 )
+                .await;
+
+                let client = match client_result {
+                    Ok(client) => Ok(client),
+                    Err(error) => {
+                        let error_task_out = stderr_task.await?;
+                        Err::<McpClient, ExtensionError>(match error_task_out {
+                            Ok(stderr_content) => ProcessExit::new(stderr_content, error).into(),
+                            Err(e) => e.into(),
+                        })
+                    }
+                }?;
+
+                Box::new(client)
             }
             ExtensionConfig::Builtin {
                 name,
@@ -254,15 +303,13 @@ impl ExtensionManager {
                     .to_str()
                     .expect("should resolve executable to string path")
                     .to_string();
-                let transport = StdioTransport::new(
-                    &cmd,
-                    vec!["mcp".to_string(), name.clone()],
-                    HashMap::new(),
-                );
-                let handle = transport.start().await?;
+
+                let transport = TokioChildProcess::new(Command::new(cmd).configure(|command| {
+                    command.arg("mcp").arg(name);
+                }))?;
                 Box::new(
                     McpClient::connect(
-                        handle,
+                        transport,
                         Duration::from_secs(
                             timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
                         ),
@@ -281,27 +328,20 @@ impl ExtensionManager {
                 let file_path = temp_dir.path().join(format!("{}.py", name));
                 std::fs::write(&file_path, code)?;
 
-                let mut args = vec![];
+                let command = Command::new("uvx").configure(|command| {
+                    command.arg("--with").arg("mcp");
 
-                let mut all_deps = vec!["mcp".to_string()];
+                    dependencies.iter().flatten().for_each(|dep| {
+                        command.arg("--with").arg(dep);
+                    });
 
-                if let Some(deps) = dependencies.as_ref() {
-                    all_deps.extend(deps.iter().cloned());
-                }
+                    command.arg("python").arg(file_path.to_str().unwrap());
+                });
+                let transport = TokioChildProcess::new(command)?;
 
-                for dep in all_deps {
-                    args.push("--with".to_string());
-                    args.push(dep);
-                }
-
-                args.push("python".to_string());
-                args.push(file_path.to_str().unwrap().to_string());
-
-                let transport = StdioTransport::new("uvx", args, HashMap::new());
-                let handle = transport.start().await?;
                 let client = Box::new(
                     McpClient::connect(
-                        handle,
+                        transport,
                         Duration::from_secs(
                             timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
                         ),
@@ -316,24 +356,13 @@ impl ExtensionManager {
             _ => unreachable!(),
         };
 
-        // Initialize the client with default capabilities
-        let info = ClientInfo {
-            name: "goose".to_string(),
-            version: env!("CARGO_PKG_VERSION").to_string(),
-        };
-        let capabilities = ClientCapabilities::default();
-
-        let init_result = client
-            .initialize(info, capabilities)
-            .await
-            .map_err(|e| ExtensionError::Initialization(Box::new(config.clone()), e))?;
-
-        if let Some(instructions) = init_result.instructions {
+        let info = client.get_info();
+        if let Some(instructions) = info.and_then(|info| info.instructions.as_ref()) {
             self.instructions
-                .insert(sanitized_name.clone(), instructions);
+                .insert(sanitized_name.clone(), instructions.clone());
         }
 
-        if init_result.capabilities.resources.is_some() {
+        if let Some(_resources) = info.and_then(|info| info.capabilities.resources.as_ref()) {
             self.resource_capable_extensions
                 .insert(sanitized_name.clone());
         }
@@ -431,18 +460,13 @@ impl ExtensionManager {
                 let mut client_tools = client_guard.list_tools(None).await?;
 
                 loop {
-                    for client_tool in client_tools.tools {
-                        let mut tool = Tool::new(
-                            format!("{}__{}", name, client_tool.name),
-                            client_tool.description.unwrap_or_default(),
-                            client_tool.input_schema,
-                        );
-
-                        if tool.annotations.is_some() {
-                            tool = tool.annotate(client_tool.annotations.unwrap())
-                        }
-
-                        tools.push(tool);
+                    for tool in client_tools.tools {
+                        tools.push(Tool {
+                            name: format!("{}__{}", name, tool.name).into(),
+                            description: tool.description,
+                            input_schema: tool.input_schema,
+                            annotations: tool.annotations,
+                        });
                     }
 
                     // Exit loop when there are no more pages
@@ -528,11 +552,7 @@ impl ExtensionManager {
 
     // Function that gets executed for read_resource tool
     pub async fn read_resource(&self, params: Value) -> Result<Vec<Content>, ToolError> {
-        let uri = params
-            .get("uri")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| ToolError::InvalidParameters("Missing 'uri' parameter".to_string()))?;
-
+        let uri = require_str_parameter(&params, "uri")?;
         let extension_name = params.get("extension_name").and_then(|v| v.as_str());
 
         // If extension name is provided, we can just look it up
@@ -885,11 +905,14 @@ mod tests {
     use super::*;
     use mcp_client::client::Error;
     use mcp_client::client::McpClientTrait;
-    use mcp_core::protocol::{
-        CallToolResult, InitializeResult, ListPromptsResult, ListResourcesResult, ListToolsResult,
-        ReadResourceResult,
-    };
-    use rmcp::model::{GetPromptResult, ServerNotification};
+    use rmcp::model::CallToolResult;
+    use rmcp::model::InitializeResult;
+
+    use rmcp::model::ListPromptsResult;
+    use rmcp::model::ListResourcesResult;
+    use rmcp::model::ListToolsResult;
+    use rmcp::model::ReadResourceResult;
+    use rmcp::model::ServerNotification;
     use serde_json::json;
     use tokio::sync::mpsc;
 
@@ -897,27 +920,23 @@ mod tests {
 
     #[async_trait::async_trait]
     impl McpClientTrait for MockClient {
-        async fn initialize(
-            &mut self,
-            _info: ClientInfo,
-            _capabilities: ClientCapabilities,
-        ) -> Result<InitializeResult, Error> {
-            Err(Error::NotInitialized)
+        fn get_info(&self) -> Option<&InitializeResult> {
+            None
         }
 
         async fn list_resources(
             &self,
             _next_cursor: Option<String>,
         ) -> Result<ListResourcesResult, Error> {
-            Err(Error::NotInitialized)
+            Err(Error::TransportClosed)
         }
 
         async fn read_resource(&self, _uri: &str) -> Result<ReadResourceResult, Error> {
-            Err(Error::NotInitialized)
+            Err(Error::TransportClosed)
         }
 
         async fn list_tools(&self, _next_cursor: Option<String>) -> Result<ListToolsResult, Error> {
-            Err(Error::NotInitialized)
+            Err(Error::TransportClosed)
         }
 
         async fn call_tool(&self, name: &str, _arguments: Value) -> Result<CallToolResult, Error> {
@@ -926,7 +945,7 @@ mod tests {
                     content: vec![],
                     is_error: None,
                 }),
-                _ => Err(Error::NotInitialized),
+                _ => Err(Error::TransportClosed),
             }
         }
 
@@ -934,7 +953,7 @@ mod tests {
             &self,
             _next_cursor: Option<String>,
         ) -> Result<ListPromptsResult, Error> {
-            Err(Error::NotInitialized)
+            Err(Error::TransportClosed)
         }
 
         async fn get_prompt(
@@ -942,7 +961,7 @@ mod tests {
             _name: &str,
             _arguments: Value,
         ) -> Result<GetPromptResult, Error> {
-            Err(Error::NotInitialized)
+            Err(Error::TransportClosed)
         }
 
         async fn subscribe(&self) -> mpsc::Receiver<ServerNotification> {

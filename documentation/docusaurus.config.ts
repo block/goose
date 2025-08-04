@@ -288,6 +288,9 @@ const config: Config = {
   themeConfig: {
     // Replace with your project's social card
     image: "img/home-banner.png",
+    colorMode: {
+      respectPrefersColorScheme: true
+    },
     navbar: {
       title: "",
       logo: {

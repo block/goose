@@ -333,8 +333,8 @@
               }
             }
           },
-          "404": {
-            "description": "Configuration key not found"
+          "500": {
+            "description": "Unable to get the configuration value"
           }
         }
       }
