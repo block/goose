@@ -1,0 +1,8 @@
+[33mcommit 7e23a68a8015e65c2eb8f45b57e246361f361f18[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mfeature/typescript-fixes-rebased[m[33m, [m[1;31morigin/feature/typescript-fixes-rebased[m[33m)[m
+Author: Edgar <edgar@example.com>
+Date:   Mon Aug 4 15:33:21 2025 +0200
+
+     Major Enhancements and Fixes for Goose
+
+.gitignore
+Goose-Desktop-App-Fixed/resources/app.asar
