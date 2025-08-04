@@ -17,6 +17,7 @@ export interface Settings {
   schedulingEngine: SchedulingEngine;
   showQuitConfirmation: boolean;
   enableWakelock: boolean;
+  windowOpacity?: number;
 }
 
 // Constants
