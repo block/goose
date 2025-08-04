@@ -4,7 +4,7 @@
   "version": "1.2.0",
   "description": "Goose App",
   "engines": {
-    "node": "^22.9.0"
+    "node": "^22.17.1"
   },
   "main": ".vite/build/main.js",
   "scripts": {

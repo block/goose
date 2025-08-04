@@ -3,6 +3,7 @@ use axum::http::{HeaderMap, HeaderName};
 use chrono::{DateTime, Utc};
 use futures::stream::{FuturesUnordered, StreamExt};
 use futures::{future, FutureExt};
+use mcp_core::handler::require_str_parameter;
 use mcp_core::{ToolCall, ToolError};
 use rmcp::service::ClientInitializeError;
 use rmcp::transport::streamable_http_client::StreamableHttpClientTransportConfig;
@@ -517,11 +518,7 @@ impl ExtensionManager {
         params: Value,
         cancellation_token: CancellationToken,
     ) -> Result<Vec<Content>, ToolError> {
-        let uri = params
-            .get("uri")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| ToolError::InvalidParameters("Missing 'uri' parameter".to_string()))?;
-
+        let uri = require_str_parameter(&params, "uri")?;
         let extension_name = params.get("extension_name").and_then(|v| v.as_str());
 
         // If extension name is provided, we can just look it up

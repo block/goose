@@ -9,8 +9,9 @@ use indoc::formatdoc;
 use serde_json::Value;
 use std::{
     collections::HashMap,
+    fs::File,
     future::Future,
-    io::Cursor,
+    io::{Cursor, Read},
     path::{Path, PathBuf},
     pin::Pin,
 };
@@ -23,7 +24,7 @@ use url::Url;
 
 use include_dir::{include_dir, Dir};
 use mcp_core::{
-    handler::{PromptError, ResourceError, ToolError},
+    handler::{require_str_parameter, PromptError, ResourceError, ToolError},
     protocol::ServerCapabilities,
 };
 
@@ -918,12 +919,7 @@ impl DeveloperRouter {
                 self.text_editor_view(&path, view_range).await
             }
             "write" => {
-                let file_text = params
-                    .get("file_text")
-                    .and_then(|v| v.as_str())
-                    .ok_or_else(|| {
-                        ToolError::InvalidParameters("Missing 'file_text' parameter".into())
-                    })?;
+                let file_text = require_str_parameter(&params, "file_text")?;
 
                 self.text_editor_write(&path, file_text).await
             }
@@ -975,9 +971,12 @@ impl DeveloperRouter {
         if path.is_file() {
             // Check file size first (400KB limit)
             const MAX_FILE_SIZE: u64 = 400 * 1024; // 400KB in bytes
-            const MAX_CHAR_COUNT: usize = 400_000; // 409600 chars = 400KB
 
-            let file_size = std::fs::metadata(path)
+            let f = File::open(path)
+                .map_err(|e| ToolError::ExecutionError(format!("Failed to open file: {}", e)))?;
+
+            let file_size = f
+                .metadata()
                 .map_err(|e| {
                     ToolError::ExecutionError(format!("Failed to get file metadata: {}", e))
                 })?
@@ -990,23 +989,17 @@ impl DeveloperRouter {
                     file_size as f64 / 1024.0
                 )));
             }
+            // Ensure we never read over that limit even if the file is being concurrently mutated
+            // (e.g. it's a log file)
+            let mut f = f.take(MAX_FILE_SIZE);
 
             let uri = Url::from_file_path(path)
                 .map_err(|_| ToolError::ExecutionError("Invalid file path".into()))?
                 .to_string();
 
-            let content = std::fs::read_to_string(path)
+            let mut content = String::new();
+            f.read_to_string(&mut content)
                 .map_err(|e| ToolError::ExecutionError(format!("Failed to read file: {}", e)))?;
-
-            let char_count = content.chars().count();
-            if char_count > MAX_CHAR_COUNT {
-                return Err(ToolError::ExecutionError(format!(
-                    "File '{}' has too many characters ({}). Maximum character count is {}.",
-                    path.display(),
-                    char_count,
-                    MAX_CHAR_COUNT
-                )));
-            }
 
             let lines: Vec<&str> = content.lines().collect();
             let total_lines = lines.len();
@@ -1909,8 +1902,8 @@ mod tests {
             let many_chars_path = temp_dir.path().join("many_chars.txt");
             let many_chars_str = many_chars_path.to_str().unwrap();
 
-            // Create a file with more than 400K characters but less than 400KB
-            let content = "x".repeat(405_000);
+            // This is above MAX_FILE_SIZE
+            let content = "x".repeat(500_000);
             std::fs::write(&many_chars_path, content).unwrap();
 
             let result = router
@@ -1927,7 +1920,7 @@ mod tests {
             assert!(result.is_err());
             let err = result.err().unwrap();
             assert!(matches!(err, ToolError::ExecutionError(_)));
-            assert!(err.to_string().contains("too many characters"));
+            assert!(err.to_string().contains("is too large"));
         }
 
         // Let temp_dir drop naturally at end of scope
@@ -3323,6 +3316,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_process_shell_output_short() {
         let dir = TempDir::new().unwrap();
         std::env::set_current_dir(dir.path()).unwrap();
@@ -3339,6 +3333,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_process_shell_output_empty() {
         let dir = TempDir::new().unwrap();
         std::env::set_current_dir(dir.path()).unwrap();
