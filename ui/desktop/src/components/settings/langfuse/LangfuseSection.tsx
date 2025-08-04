@@ -18,8 +18,8 @@ export default function LangfuseSection() {
   const { upsert } = useConfig();
 
   // Fetching environment variables
-  const envLangfuseEnable = window.appConfig.get('LANGFUSE_ENAMBLED');
-  const envSelfHostedEnabled = window.appConfig.get('LANGFUSE_ENAMBLED');
+  const envLangfuseEnable = window.appConfig.get('LANGFUSE_ENABLED');
+  const envSelfHostedEnabled = window.appConfig.get('LANGFUSE_SELFHOST_ENABLED');
   const envSecretKey = window.appConfig.get('LANGFUSE_SECRET_KEY');
   const envPublicKey = window.appConfig.get('LANGFUSE_PUBLIC_KEY');
   const envLangfuseUrl = window.appConfig.get('LANGFUSE_URL');
