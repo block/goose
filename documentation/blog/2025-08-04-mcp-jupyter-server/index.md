@@ -1,7 +1,7 @@
 ---
 title: "MCP Jupyter: AI-Powered Machine Learning and Data Science"
 description: Enable AI agents to work directly with your Jupyter notebooks, leveraging persistent memory and stateful collaboration for enhanced ML and data science workflows
-date: 2025-08-04
+date: 2025-08-05
 authors:
   - damien
   - dean
@@ -151,10 +151,10 @@ For detailed setup and configuration, check out the [complete documentation](htt
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/06/24/mcp-jupyter-server" />
   <meta property="og:description" content="A powerful MCP server that enables AI agents to interact with Jupyter notebooks while preserving kernel state and variable context" />
-  <meta property="og:image" content="https://block.github.io/goose/assets/images/data-goose-31db12eb84fe22345f4ed83d50d8d41f.png" />
+  <meta property="og:image" content="https://block.github.io/goose/assets/images/data-goose-7fc60ab0a13a9e9b6c22172d6ac166ab.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="MCP Jupyter Server: Bringing Notebook Intelligence to AI Agents" />
   <meta name="twitter:description" content="A powerful MCP server that enables AI agents to interact with Jupyter notebooks while preserving kernel state and variable context" />
-  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/data-goose-31db12eb84fe22345f4ed83d50d8d41f.png" />
+  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/data-goose-7fc60ab0a13a9e9b6c22172d6ac166ab.png" />
 </head>
