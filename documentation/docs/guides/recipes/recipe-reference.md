@@ -140,6 +140,7 @@ The `extensions` field allows you to specify which Model Context Protocol (MCP) 
 | `name` | String | Unique name for the extension |
 | `cmd` | String | Command to run the extension |
 | `args` | Array | List of arguments for the command |
+| `env_keys` | Array | (Optional) Names of environment variables required by the extension |
 | `timeout` | Number | Timeout in seconds |
 | `bundled` | Boolean | (Optional) Whether the extension is bundled with Goose |
 | `description` | String | Description of what the extension does |
@@ -163,8 +164,34 @@ extensions:
     cmd: uvx
     args:
       - 'mcp_presidio@latest'
-    description: "For searching logs using Presidio"
+
+  - type: stdio
+    name: github-mcp
+    cmd: github-mcp-server
+    args: []
+    env_keys:
+      - GITHUB_PERSONAL_ACCESS_TOKEN
+    timeout: 60
+    description: "GitHub MCP extension for repository operations"
 ```
+
+### Extension Secrets
+
+This feature is only available through the CLI.
+
+If a recipe uses an extension that requires a secret, Goose can prompt users to provide the secret when running the recipe:
+
+1. When a recipe is loaded, Goose scans all extensions (including those in sub-recipes) for `env_keys` fields
+2. If any required environment variables are missing from the secure keyring, Goose prompts the user to enter them
+3. Values are stored securely in the system keyring and reused for subsequent runs
+
+To update a stored secret, remove it from the system keyring and run the recipe again to be re-prompted.
+
+:::info
+This feature is designed to prompt for and securely store secrets (such as API keys), but `env_keys` can include any environment variable needed by the extension (such as API endpoints, configuration values, etc.).
+
+Users can press `ESC` to skip entering a variable if it's optional for the extension. 
+:::
 
 ## Settings
 
@@ -370,6 +397,20 @@ Advanced template features include:
   Default content
   {% endblock %}
   ```
+- `indent()` template filter
+
+### indent() Filter For Multi-Line Values
+
+Use the `indent()` filter to ensure multi-line parameter values are properly indented and can be resolved as valid JSON or YAML format. This example uses `{{ raw_data | indent(2) }}` to specify an indentation of two spaces when passing data to a sub-recipe:
+
+```yaml
+sub_recipes:
+  - name: "analyze"
+    path: "./analyze.yaml"
+    values:
+      content: |
+{{ raw_data | indent(2) }}
+```
 
 ## Built-in Parameters
 

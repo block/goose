@@ -413,10 +413,11 @@ You can turn your current Goose session into a reusable recipe that includes the
 
      </TabItem>
    </Tabs>
-  :::info Privacy & Isolation
+  :::info Privacy, Isolation, & Secrets
   - Each person gets their own private session
   - No data is shared between users
   - Your session won't affect the original recipe creator's session
+  - The CLI can prompt users for required [extension secrets](/docs/guides/recipes/recipe-reference#extension-secrets)
   :::
 
    </TabItem>
