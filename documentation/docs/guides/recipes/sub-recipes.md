@@ -26,10 +26,11 @@ Sub-recipe sessions run in isolation - they don't share conversation history, me
 
 ### Parameter Handling
 
-Parameters received by sub-recipes can be used in prompts and instructions using `{{ parameter_name }}` syntax. Sub-recipes receive parameters in two ways:
+Parameters received by sub-recipes can be used in prompts and instructions using `{{ parameter_name }}` syntax. Sub-recipes receive parameters in three ways:
 
 1. **Pre-set values**: Fixed parameter values defined in the `values` field are automatically provided and cannot be overridden at runtime
-2. **Automatic parameter inheritance**: Sub-recipes automatically have access to all parameters passed to the main recipe at runtime.
+2. **Automatic parameter inheritance**: Sub-recipes automatically have access to all parameters passed to the main recipe at runtime
+3. **Context-based parameters**: The AI agent can extract parameter values from the conversation context, including results from previous sub-recipes
 
 Pre-set values take precedence over inherited parameters. If both the main recipe and `values` field provide the same parameter, the `values` version is used.
 
@@ -150,6 +151,10 @@ prompt: |
     Check for code smells, complexity issues, and suggest improvements.
   ```
 </details>
+
+:::tip
+For faster execution when sub-recipes are independent, see [Running Sub-Recipes In Parallel](/docs/experimental/sub-recipes-in-parallel) to execute multiple sub-recipes concurrently.
+:::
 
 ### Conditional Processing
 
@@ -283,6 +288,118 @@ prompt: |
     Focus on making it easy for developers to understand and use this code.
   ```
 </details>
+
+### Context-Based Parameter Passing
+
+This Marketing Campaign Generator example shows how sub-recipes can receive parameters from conversation context, including results from previous sub-recipes:
+
+**Usage:**
+```bash
+goose run --recipe marketing-campaign.yaml --params target_location="San Francisco"
+```
+
+**Main Recipe:**
+
+```yaml
+# marketing-campaign.yaml
+version: "1.0.0"
+title: "Marketing Campaign Generator"
+description: "Generate location-based marketing content using weather data"
+instructions: |
+  Create a marketing campaign by first gathering weather data for the target location,
+  then using that information to generate appropriate promotional content.
+
+parameters:
+  - key: target_location
+    input_type: string
+    requirement: required
+    description: "City or location for the marketing campaign"
+
+prompt: |
+  Create a marketing campaign for {{ target_location }} by running these sub-recipes:
+    1. Use weather_data sub-recipe to get current weather conditions for {{ target_location }}
+    2. Use campaign_content sub-recipe to create promotional content that incorporates the weather information
+
+sub_recipes:
+  - name: weather_data
+    path: "./sub-recipes/weather-data.yaml"
+    # No values - location parameter comes from prompt context
+  
+  - name: campaign_content
+    path: "./sub-recipes/campaign-content.yaml"
+    # weather_conditions parameter comes from conversation context
+
+extensions:
+  - type: builtin
+    name: developer
+    timeout: 300
+    bundled: true
+```
+
+**Sub-Recipes:**
+
+<details>
+  <summary>weather_data</summary>
+  ```yaml
+  # sub-recipes/weather-data.yaml
+  version: "1.0.0"
+  title: "Weather Data Collector"
+  description: "Fetch current weather conditions for a location"
+  instructions: |
+    You are a weather data specialist. Gather current weather information
+    including temperature, conditions, and seasonal context.
+
+  parameters:
+    - key: location
+      input_type: string
+      requirement: required
+      description: "City or location to get weather data for"
+
+  extensions:
+    - type: builtin
+      name: developer
+      timeout: 300
+      bundled: true
+
+  prompt: |
+    Get the current weather conditions for {{ location }}.
+    Include temperature, weather conditions (sunny, rainy, etc.), 
+    and any relevant seasonal information.
+  ```
+</details>
+
+<details>
+  <summary>campaign_content</summary>
+  ```yaml
+  # sub-recipes/campaign-content.yaml
+  version: "1.0.0"
+  title: "Campaign Content Creator"
+  description: "Generate marketing content based on weather conditions"
+  instructions: |
+    You are a marketing content creator. Generate promotional content
+    that incorporates weather conditions to create relevant, timely campaigns.
+
+  parameters:
+    - key: weather_conditions
+      input_type: string
+      requirement: required
+      description: "Current weather conditions to incorporate into content"
+
+  extensions:
+    - type: builtin
+      name: developer
+      timeout: 300
+      bundled: true
+
+  prompt: |
+    Create marketing content that incorporates these weather conditions: {{ weather_conditions }}.
+    Generate compelling headlines and promotional copy that align with the current weather situation.
+  ```
+</details>
+
+In this example:
+- The `weather_data` sub-recipe gets `location: "San Francisco"` from the prompt context (extracted from the target_location parameter)
+- The `campaign_content` sub-recipe gets `weather_conditions` from the conversation context (the AI agent uses the weather results from the first sub-recipe)
 
 ## Best Practices
 - **Single responsibility**: Each sub-recipe should have one clear purpose
