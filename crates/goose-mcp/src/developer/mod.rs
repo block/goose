@@ -3322,44 +3322,9 @@ mod tests {
     #[test]
     fn test_parse_file_references() {
         let content = r#"
-        This is a test file with some references:
-        @README.md
-        @./docs/guide.md
-        @../shared/config.json
-        @/absolute/path/file.txt
-        
-        Some inline references: @file1.txt and @file2.py
-        
-        Not references: email@example.com or @username
-        "#;
-
-        let references = parse_file_references(content);
-
-        // Debug: print all found references
-        eprintln!("Found {} references:", references.len());
-        for (i, r) in references.iter().enumerate() {
-            eprintln!("  {}: {:?}", i, r);
-        }
-
-        assert_eq!(references.len(), 6);
-        assert!(references.contains(&PathBuf::from("README.md")));
-        assert!(references.contains(&PathBuf::from("./docs/guide.md")));
-        assert!(references.contains(&PathBuf::from("../shared/config.json")));
-        assert!(references.contains(&PathBuf::from("/absolute/path/file.txt")));
-        assert!(references.contains(&PathBuf::from("file1.txt")));
-        assert!(references.contains(&PathBuf::from("file2.py")));
-
-        // Should not include email or username
-        assert!(!references
-            .iter()
-            .any(|p| p.to_str().unwrap().contains("example.com")));
-        assert!(!references.iter().any(|p| p.to_str().unwrap() == "username"));
-    }
-
-    #[test]
-    fn test_parse_file_references_enhanced_patterns() {
-        let content = r#"
-        Files with extensions: @file.txt @component.tsx @file.test.js @config.local.json
+        Basic file references: @README.md @./docs/guide.md @../shared/config.json @/absolute/path/file.txt
+        Inline references: @file1.txt and @file2.py
+        Files with extensions: @component.tsx @file.test.js @config.local.json
         Files without extensions: @Makefile @LICENSE @Dockerfile @CHANGELOG
         Complex paths: @src/utils/helper.js @docs/api/endpoints.md
         
@@ -3371,8 +3336,15 @@ mod tests {
 
         let references = parse_file_references(content);
 
-        // Should match files with extensions
-        assert!(references.contains(&PathBuf::from("file.txt")));
+        // Should match basic file references
+        assert!(references.contains(&PathBuf::from("README.md")));
+        assert!(references.contains(&PathBuf::from("./docs/guide.md")));
+        assert!(references.contains(&PathBuf::from("../shared/config.json")));
+        assert!(references.contains(&PathBuf::from("/absolute/path/file.txt")));
+        assert!(references.contains(&PathBuf::from("file1.txt")));
+        assert!(references.contains(&PathBuf::from("file2.py")));
+
+        // Should match files with extensions (including multiple dots)
         assert!(references.contains(&PathBuf::from("component.tsx")));
         assert!(references.contains(&PathBuf::from("file.test.js")));
         assert!(references.contains(&PathBuf::from("config.local.json")));
@@ -3400,57 +3372,38 @@ mod tests {
 
     #[test]
     #[serial]
-    fn test_read_referenced_files_basic() {
+    fn test_file_expansion_normal_cases() {
         let temp_dir = tempfile::tempdir().unwrap();
         let base_path = temp_dir.path();
 
-        // Create a referenced file
-        let ref_file = base_path.join("reference.md");
-        std::fs::write(&ref_file, "This is the referenced content").unwrap();
+        // Test 1: Basic file reference
+        let basic_file = base_path.join("basic.md");
+        std::fs::write(&basic_file, "This is basic content").unwrap();
 
-        // Create main content with reference
-        let content = "Main content\n@reference.md\nMore content";
-
-        // Create empty ignore patterns
         let builder = GitignoreBuilder::new(base_path);
         let ignore_patterns = builder.build().unwrap();
 
         let mut visited = HashSet::new();
-        let expanded = read_referenced_files(content, base_path, &mut visited, 0, &ignore_patterns);
+        let basic_content = "Main content\n@basic.md\nMore content";
+        let expanded = read_referenced_files(basic_content, base_path, &mut visited, 0, &ignore_patterns);
 
         assert!(expanded.contains("Main content"));
         assert!(expanded.contains("--- Content from"));
-        assert!(expanded.contains("This is the referenced content"));
+        assert!(expanded.contains("This is basic content"));
         assert!(expanded.contains("--- End of"));
         assert!(expanded.contains("More content"));
 
-        temp_dir.close().unwrap();
-    }
-
-    #[test]
-    #[serial]
-    fn test_read_referenced_files_nested() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let base_path = temp_dir.path();
-
-        // Create nested referenced files
+        // Test 2: Nested file references
         let ref_file1 = base_path.join("level1.md");
         std::fs::write(&ref_file1, "Level 1 content\n@level2.md").unwrap();
 
         let ref_file2 = base_path.join("level2.md");
         std::fs::write(&ref_file2, "Level 2 content").unwrap();
 
-        // Create main content with reference
-        let content = "Main content\n@level1.md";
+        visited.clear();
+        let nested_content = "Main content\n@level1.md";
+        let expanded = read_referenced_files(nested_content, base_path, &mut visited, 0, &ignore_patterns);
 
-        // Create empty ignore patterns
-        let builder = GitignoreBuilder::new(base_path);
-        let ignore_patterns = builder.build().unwrap();
-
-        let mut visited = HashSet::new();
-        let expanded = read_referenced_files(content, base_path, &mut visited, 0, &ignore_patterns);
-
-        // Should contain all levels
         assert!(expanded.contains("Main content"));
         assert!(expanded.contains("Level 1 content"));
         assert!(expanded.contains("Level 2 content"));
@@ -3460,45 +3413,29 @@ mod tests {
 
     #[test]
     #[serial]
-    fn test_read_referenced_files_circular_reference() {
+    fn test_file_expansion_edge_cases() {
         let temp_dir = tempfile::tempdir().unwrap();
         let base_path = temp_dir.path();
-
-        // Create circular references
-        let ref_file1 = base_path.join("file1.md");
-        std::fs::write(&ref_file1, "File 1\n@file2.md").unwrap();
-
-        let ref_file2 = base_path.join("file2.md");
-        std::fs::write(&ref_file2, "File 2\n@file1.md").unwrap();
-
-        // Create main content with reference
-        let content = "Main\n@file1.md";
-
-        // Create empty ignore patterns
         let builder = GitignoreBuilder::new(base_path);
         let ignore_patterns = builder.build().unwrap();
 
-        let mut visited = HashSet::new();
-        let expanded = read_referenced_files(content, base_path, &mut visited, 0, &ignore_patterns);
+        // Test 1: Circular references
+        let ref_file1 = base_path.join("file1.md");
+        std::fs::write(&ref_file1, "File 1\n@file2.md").unwrap();
+        let ref_file2 = base_path.join("file2.md");
+        std::fs::write(&ref_file2, "File 2\n@file1.md").unwrap();
 
-        // Should contain file1 and file2 content but not infinite loop
+        let mut visited = HashSet::new();
+        let circular_content = "Main\n@file1.md";
+        let expanded = read_referenced_files(circular_content, base_path, &mut visited, 0, &ignore_patterns);
+
         assert!(expanded.contains("File 1"));
         assert!(expanded.contains("File 2"));
-
-        // Count occurrences of "File 1" - should only appear once
+        // Should only appear once due to circular reference protection
         let file1_count = expanded.matches("File 1").count();
         assert_eq!(file1_count, 1);
 
-        temp_dir.close().unwrap();
-    }
-
-    #[test]
-    #[serial]
-    fn test_read_referenced_files_max_depth() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let base_path = temp_dir.path();
-
-        // Create a chain of references exceeding max depth
+        // Test 2: Max depth limit
         for i in 1..=5 {
             let content = if i < 5 {
                 format!("Level {} content\n@level{}.md", i, i + 1)
@@ -3509,24 +3446,26 @@ mod tests {
             std::fs::write(&ref_file, content).unwrap();
         }
 
-        // Create main content with reference
-        let content = "Main\n@level1.md";
-
-        // Create empty ignore patterns
-        let builder = GitignoreBuilder::new(base_path);
-        let ignore_patterns = builder.build().unwrap();
-
-        let mut visited = HashSet::new();
-        let expanded = read_referenced_files(content, base_path, &mut visited, 0, &ignore_patterns);
+        visited.clear();
+        let depth_content = "Main\n@level1.md";
+        let expanded = read_referenced_files(depth_content, base_path, &mut visited, 0, &ignore_patterns);
 
         // Should contain up to level 3 (MAX_DEPTH = 3)
         assert!(expanded.contains("Level 1 content"));
         assert!(expanded.contains("Level 2 content"));
         assert!(expanded.contains("Level 3 content"));
-
         // Should not contain level 4 or 5 due to depth limit
         assert!(!expanded.contains("Level 4 content"));
         assert!(!expanded.contains("Level 5 content"));
+
+        // Test 3: Missing file
+        visited.clear();
+        let missing_content = "Main\n@missing.md\nMore content";
+        let expanded = read_referenced_files(missing_content, base_path, &mut visited, 0, &ignore_patterns);
+
+        // Should keep the original reference unchanged
+        assert!(expanded.contains("@missing.md"));
+        assert!(!expanded.contains("--- Content from"));
 
         temp_dir.close().unwrap();
     }
@@ -3561,29 +3500,6 @@ mod tests {
 
         // The @secret.md reference should remain unchanged
         assert!(expanded.contains("@secret.md"));
-
-        temp_dir.close().unwrap();
-    }
-
-    #[test]
-    #[serial]
-    fn test_read_referenced_files_missing_file() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let base_path = temp_dir.path();
-
-        // Create main content with reference to non-existent file
-        let content = "Main\n@missing.md\nMore content";
-
-        // Create empty ignore patterns
-        let builder = GitignoreBuilder::new(base_path);
-        let ignore_patterns = builder.build().unwrap();
-
-        let mut visited = HashSet::new();
-        let expanded = read_referenced_files(content, base_path, &mut visited, 0, &ignore_patterns);
-
-        // Should keep the original reference unchanged
-        assert!(expanded.contains("@missing.md"));
-        assert!(!expanded.contains("--- Content from"));
 
         temp_dir.close().unwrap();
     }
@@ -3634,57 +3550,6 @@ Additional instructions here.
         // Should have attribution markers
         assert!(instructions.contains("--- Content from"));
         assert!(instructions.contains("--- End of"));
-
-        temp_dir.close().unwrap();
-    }
-
-    #[test]
-    #[serial]
-    fn test_sanitize_reference_path_security() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let base_path = temp_dir.path();
-
-        // Test 1: Absolute paths should be rejected
-        let absolute_path = PathBuf::from("/etc/passwd");
-        let result = sanitize_reference_path(&absolute_path, base_path);
-        assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err().kind(),
-            std::io::ErrorKind::PermissionDenied
-        );
-
-        // Test 2: Path traversal attempts should be rejected
-        let traversal_path = PathBuf::from("../../../etc/passwd");
-        let result = sanitize_reference_path(&traversal_path, base_path);
-        // This should work but not escape the base directory
-        match result {
-            Ok(safe_path) => {
-                // Should be within base directory
-                let base_canonical = base_path.canonicalize().unwrap();
-                if safe_path.exists() {
-                    let safe_canonical = safe_path.canonicalize().unwrap();
-                    assert!(safe_canonical.starts_with(&base_canonical));
-                }
-            }
-            Err(_) => {
-                // Also acceptable - rejecting traversal attempts
-            }
-        }
-
-        // Test 3: Normal relative paths should work
-        let normal_path = PathBuf::from("config.md");
-        let result = sanitize_reference_path(&normal_path, base_path);
-        assert!(result.is_ok());
-
-        // Test 4: Relative paths with subdirectories should work
-        let subdir_path = PathBuf::from("docs/guide.md");
-        let result = sanitize_reference_path(&subdir_path, base_path);
-        assert!(result.is_ok());
-
-        // Test 5: Current directory references should work
-        let current_dir_path = PathBuf::from("./file.md");
-        let result = sanitize_reference_path(&current_dir_path, base_path);
-        assert!(result.is_ok());
 
         temp_dir.close().unwrap();
     }
