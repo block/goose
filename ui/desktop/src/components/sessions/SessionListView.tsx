@@ -49,8 +49,12 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
       try {
         await updateSessionMetadata(session.id, trimmedDescription);
         await onSave(session.id, trimmedDescription);
+
+        // Close modal, then show success toast on a timeout to let the UI update complete.
         onClose();
-        toast.success('Session description updated successfully');
+        setTimeout(() => {
+          toast.success('Session description updated successfully');
+        }, 300);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
         console.error('Failed to update session description:', errorMessage);
