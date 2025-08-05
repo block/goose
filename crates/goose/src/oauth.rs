@@ -2,6 +2,7 @@ use axum::extract::{Query, State};
 use axum::response::Html;
 use axum::routing::get;
 use axum::Router;
+use minijinja::render;
 use rmcp::transport::auth::OAuthState;
 use rmcp::transport::AuthorizationManager;
 use serde::Deserialize;
@@ -9,7 +10,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::{oneshot, Mutex};
 
-const CALLBACK_HTML: &str = include_str!("oauth_callback.html");
+const CALLBACK_TEMPLATE: &str = include_str!("oauth_callback.html");
 
 #[derive(Clone)]
 struct AppState {
@@ -23,16 +24,6 @@ struct CallbackParams {
     state: Option<String>,
 }
 
-async fn callback_handler(
-    Query(params): Query<CallbackParams>,
-    State(state): State<AppState>,
-) -> Html<String> {
-    if let Some(sender) = state.code_receiver.lock().await.take() {
-        let _ = sender.send(params.code);
-    }
-    Html(CALLBACK_HTML.to_string())
-}
-
 pub async fn oauth_flow(
     mcp_server_url: &String,
     name: &String,
@@ -42,8 +33,18 @@ pub async fn oauth_flow(
         code_receiver: Arc::new(Mutex::new(Some(code_sender))),
     };
 
+    let rendered = render!(CALLBACK_TEMPLATE, name => name);
+    let handler = move |Query(params): Query<CallbackParams>, State(state): State<AppState>| {
+        let rendered = rendered.clone();
+        async move {
+            if let Some(sender) = state.code_receiver.lock().await.take() {
+                let _ = sender.send(params.code);
+            }
+            Html(rendered)
+        }
+    };
     let app = Router::new()
-        .route("/oauth_callback", get(callback_handler))
+        .route("/oauth_callback", get(handler))
         .with_state(app_state);
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 0));
