@@ -48,33 +48,30 @@ use xcap::{Monitor, Window};
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use std::collections::HashSet;
 
-
 /// Sanitize and resolve a file reference path safely
-/// 
+///
 /// This function prevents path traversal attacks by:
 /// 1. Rejecting absolute paths
-/// 2. Resolving the path canonically 
+/// 2. Resolving the path canonically
 /// 3. Ensuring the resolved path stays within the allowed base directory
 fn sanitize_reference_path(reference: &Path, base_path: &Path) -> Result<PathBuf, std::io::Error> {
     if reference.is_absolute() {
         return Err(std::io::Error::new(
-            std::io::ErrorKind::PermissionDenied, 
-            "Absolute paths not allowed in file references"
+            std::io::ErrorKind::PermissionDenied,
+            "Absolute paths not allowed in file references",
         ));
     }
-    
+
     let resolved = base_path.join(reference);
-    let base_canonical = base_path.canonicalize()
-        .map_err(|_| std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            "Base directory not found"
-        ))?;
-    
+    let base_canonical = base_path.canonicalize().map_err(|_| {
+        std::io::Error::new(std::io::ErrorKind::NotFound, "Base directory not found")
+    })?;
+
     if let Ok(canonical) = resolved.canonicalize() {
         if !canonical.starts_with(&base_canonical) {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::PermissionDenied,
-                "Path traversal attempt detected"
+                "Path traversal attempt detected",
             ));
         }
         Ok(canonical)
@@ -86,23 +83,23 @@ fn sanitize_reference_path(reference: &Path, base_path: &Path) -> Result<PathBuf
 // Embeds the prompts directory to the build
 static PROMPTS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/developer/prompts");
 
-
-
-
-
 // Compile regex once for better performance
 static FILE_REFERENCE_REGEX: Lazy<regex::Regex> = Lazy::new(|| {
-    // Simplified pattern: @filename.ext but avoid email addresses
-    // Use word boundary or start of line to avoid matching email@domain.com
-    regex::Regex::new(r"(?:^|[\s\n])@([^\s@]+\.[a-zA-Z0-9]+)")
+    // Enhanced pattern that supports:
+    // - Files with extensions: @file.txt, @file.test.js
+    // - Files without extensions: @Makefile, @LICENSE, @Dockerfile
+    // - Complex paths: @src/utils/helper.js
+    // - Avoids email addresses: email@domain.com
+    // - Avoids social handles like @username by requiring file-like patterns
+    regex::Regex::new(r"(?:^|\s)@([a-zA-Z0-9_\-./]+(?:\.[a-zA-Z0-9]+)+|[A-Z][a-zA-Z0-9_\-]*|[a-zA-Z0-9_\-./]*[./][a-zA-Z0-9_\-./]*)")
         .expect("Invalid file reference regex pattern")
 });
 
 /// Parse file references (@-mentions) from content
 fn parse_file_references(content: &str) -> Vec<PathBuf> {
-    // Keep size limits for token efficiency - .goosehints should be reasonably sized
+    // Keep size limits for ReDoS protection - .goosehints should be reasonably sized
     const MAX_CONTENT_LENGTH: usize = 1_000_000; // 1MB limit
-    
+
     if content.len() > MAX_CONTENT_LENGTH {
         tracing::warn!(
             "Content too large for file reference parsing: {} bytes (limit: {} bytes)",
@@ -111,8 +108,9 @@ fn parse_file_references(content: &str) -> Vec<PathBuf> {
         );
         return Vec::new();
     }
-    
-    FILE_REFERENCE_REGEX.captures_iter(content)
+
+    FILE_REFERENCE_REGEX
+        .captures_iter(content)
         .map(|cap| PathBuf::from(&cap[1]))
         .collect()
 }
@@ -145,8 +143,9 @@ fn read_referenced_files(
             Ok(path) => path,
             Err(e) => {
                 tracing::warn!(
-                    "Security violation in file reference {}: {}",
+                    "Security violation in file reference '{}' from base '{}': {}",
                     reference.display(),
+                    base_path.display(),
                     e
                 );
                 continue;
@@ -155,7 +154,11 @@ fn read_referenced_files(
 
         // Check if already visited (circular reference detection)
         if visited.contains(&full_path) {
-            tracing::warn!("Circular reference detected for {}", full_path.display());
+            tracing::warn!(
+                "Circular reference detected for '{}' at depth {}",
+                full_path.display(),
+                depth
+            );
             continue;
         }
 
@@ -188,7 +191,6 @@ fn read_referenced_files(
                     ignore_patterns,
                 );
 
-                // Optimize: Build replacement string directly without multiple format! calls
                 let reference_str = format!("@{}", reference.display());
                 expanded_content = expanded_content.replace(
                     &reference_str,
@@ -197,7 +199,7 @@ fn read_referenced_files(
                         full_path.display(),
                         expanded_file_content,
                         full_path.display()
-                    )
+                    ),
                 );
 
                 visited.remove(&full_path);
@@ -706,7 +708,7 @@ impl DeveloperRouter {
         if global_hints_path.is_file() {
             if let Ok(global_hints) = std::fs::read_to_string(&global_hints_path) {
                 hints.push_str("\n### Global Hints\nThe developer extension includes some global hints that apply to all projects & directories.\n");
-                
+
                 // Expand file references in global hints
                 let mut visited = HashSet::new();
                 let expanded_content = read_referenced_files(
@@ -727,16 +729,11 @@ impl DeveloperRouter {
                     hints.push_str("\n\n");
                 }
                 hints.push_str("### Project Hints\nThe developer extension includes some hints for working on the project in this directory.\n");
-                
+
                 // Expand file references in local hints
                 let mut visited = HashSet::new();
-                let expanded_content = read_referenced_files(
-                    &local_hints,
-                    &cwd,
-                    &mut visited,
-                    0,
-                    &ignore_patterns,
-                );
+                let expanded_content =
+                    read_referenced_files(&local_hints, &cwd, &mut visited, 0, &ignore_patterns);
                 hints.push_str(&expanded_content);
             }
         }
@@ -3335,15 +3332,15 @@ mod tests {
         
         Not references: email@example.com or @username
         "#;
-        
+
         let references = parse_file_references(content);
-        
+
         // Debug: print all found references
         eprintln!("Found {} references:", references.len());
         for (i, r) in references.iter().enumerate() {
             eprintln!("  {}: {:?}", i, r);
         }
-        
+
         assert_eq!(references.len(), 6);
         assert!(references.contains(&PathBuf::from("README.md")));
         assert!(references.contains(&PathBuf::from("./docs/guide.md")));
@@ -3351,10 +3348,54 @@ mod tests {
         assert!(references.contains(&PathBuf::from("/absolute/path/file.txt")));
         assert!(references.contains(&PathBuf::from("file1.txt")));
         assert!(references.contains(&PathBuf::from("file2.py")));
-        
+
         // Should not include email or username
-        assert!(!references.iter().any(|p| p.to_str().unwrap().contains("example.com")));
+        assert!(!references
+            .iter()
+            .any(|p| p.to_str().unwrap().contains("example.com")));
         assert!(!references.iter().any(|p| p.to_str().unwrap() == "username"));
+    }
+
+    #[test]
+    fn test_parse_file_references_enhanced_patterns() {
+        let content = r#"
+        Files with extensions: @file.txt @component.tsx @file.test.js @config.local.json
+        Files without extensions: @Makefile @LICENSE @Dockerfile @CHANGELOG
+        Complex paths: @src/utils/helper.js @docs/api/endpoints.md
+        
+        Should not match:
+        - Email addresses: user@example.com admin@company.org
+        - Social handles: @username @user123
+        - URLs: https://example.com/@user
+        "#;
+
+        let references = parse_file_references(content);
+
+        // Should match files with extensions
+        assert!(references.contains(&PathBuf::from("file.txt")));
+        assert!(references.contains(&PathBuf::from("component.tsx")));
+        assert!(references.contains(&PathBuf::from("file.test.js")));
+        assert!(references.contains(&PathBuf::from("config.local.json")));
+
+        // Should match files without extensions
+        assert!(references.contains(&PathBuf::from("Makefile")));
+        assert!(references.contains(&PathBuf::from("LICENSE")));
+        assert!(references.contains(&PathBuf::from("Dockerfile")));
+        assert!(references.contains(&PathBuf::from("CHANGELOG")));
+
+        // Should match complex paths
+        assert!(references.contains(&PathBuf::from("src/utils/helper.js")));
+        assert!(references.contains(&PathBuf::from("docs/api/endpoints.md")));
+
+        // Should not match email addresses or social handles
+        assert!(!references
+            .iter()
+            .any(|p| p.to_str().unwrap().contains("example.com")));
+        assert!(!references
+            .iter()
+            .any(|p| p.to_str().unwrap().contains("company.org")));
+        assert!(!references.iter().any(|p| p.to_str().unwrap() == "username"));
+        assert!(!references.iter().any(|p| p.to_str().unwrap() == "user123"));
     }
 
     #[test]
@@ -3362,27 +3403,27 @@ mod tests {
     fn test_read_referenced_files_basic() {
         let temp_dir = tempfile::tempdir().unwrap();
         let base_path = temp_dir.path();
-        
+
         // Create a referenced file
         let ref_file = base_path.join("reference.md");
         std::fs::write(&ref_file, "This is the referenced content").unwrap();
-        
+
         // Create main content with reference
         let content = "Main content\n@reference.md\nMore content";
-        
+
         // Create empty ignore patterns
         let builder = GitignoreBuilder::new(base_path);
         let ignore_patterns = builder.build().unwrap();
-        
+
         let mut visited = HashSet::new();
         let expanded = read_referenced_files(content, base_path, &mut visited, 0, &ignore_patterns);
-        
+
         assert!(expanded.contains("Main content"));
         assert!(expanded.contains("--- Content from"));
         assert!(expanded.contains("This is the referenced content"));
         assert!(expanded.contains("--- End of"));
         assert!(expanded.contains("More content"));
-        
+
         temp_dir.close().unwrap();
     }
 
@@ -3391,29 +3432,29 @@ mod tests {
     fn test_read_referenced_files_nested() {
         let temp_dir = tempfile::tempdir().unwrap();
         let base_path = temp_dir.path();
-        
+
         // Create nested referenced files
         let ref_file1 = base_path.join("level1.md");
         std::fs::write(&ref_file1, "Level 1 content\n@level2.md").unwrap();
-        
+
         let ref_file2 = base_path.join("level2.md");
         std::fs::write(&ref_file2, "Level 2 content").unwrap();
-        
+
         // Create main content with reference
         let content = "Main content\n@level1.md";
-        
+
         // Create empty ignore patterns
         let builder = GitignoreBuilder::new(base_path);
         let ignore_patterns = builder.build().unwrap();
-        
+
         let mut visited = HashSet::new();
         let expanded = read_referenced_files(content, base_path, &mut visited, 0, &ignore_patterns);
-        
+
         // Should contain all levels
         assert!(expanded.contains("Main content"));
         assert!(expanded.contains("Level 1 content"));
         assert!(expanded.contains("Level 2 content"));
-        
+
         temp_dir.close().unwrap();
     }
 
@@ -3422,32 +3463,32 @@ mod tests {
     fn test_read_referenced_files_circular_reference() {
         let temp_dir = tempfile::tempdir().unwrap();
         let base_path = temp_dir.path();
-        
+
         // Create circular references
         let ref_file1 = base_path.join("file1.md");
         std::fs::write(&ref_file1, "File 1\n@file2.md").unwrap();
-        
+
         let ref_file2 = base_path.join("file2.md");
         std::fs::write(&ref_file2, "File 2\n@file1.md").unwrap();
-        
+
         // Create main content with reference
         let content = "Main\n@file1.md";
-        
+
         // Create empty ignore patterns
         let builder = GitignoreBuilder::new(base_path);
         let ignore_patterns = builder.build().unwrap();
-        
+
         let mut visited = HashSet::new();
         let expanded = read_referenced_files(content, base_path, &mut visited, 0, &ignore_patterns);
-        
+
         // Should contain file1 and file2 content but not infinite loop
         assert!(expanded.contains("File 1"));
         assert!(expanded.contains("File 2"));
-        
+
         // Count occurrences of "File 1" - should only appear once
         let file1_count = expanded.matches("File 1").count();
         assert_eq!(file1_count, 1);
-        
+
         temp_dir.close().unwrap();
     }
 
@@ -3456,7 +3497,7 @@ mod tests {
     fn test_read_referenced_files_max_depth() {
         let temp_dir = tempfile::tempdir().unwrap();
         let base_path = temp_dir.path();
-        
+
         // Create a chain of references exceeding max depth
         for i in 1..=5 {
             let content = if i < 5 {
@@ -3467,26 +3508,26 @@ mod tests {
             let ref_file = base_path.join(format!("level{}.md", i));
             std::fs::write(&ref_file, content).unwrap();
         }
-        
+
         // Create main content with reference
         let content = "Main\n@level1.md";
-        
+
         // Create empty ignore patterns
         let builder = GitignoreBuilder::new(base_path);
         let ignore_patterns = builder.build().unwrap();
-        
+
         let mut visited = HashSet::new();
         let expanded = read_referenced_files(content, base_path, &mut visited, 0, &ignore_patterns);
-        
+
         // Should contain up to level 3 (MAX_DEPTH = 3)
         assert!(expanded.contains("Level 1 content"));
         assert!(expanded.contains("Level 2 content"));
         assert!(expanded.contains("Level 3 content"));
-        
+
         // Should not contain level 4 or 5 due to depth limit
         assert!(!expanded.contains("Level 4 content"));
         assert!(!expanded.contains("Level 5 content"));
-        
+
         temp_dir.close().unwrap();
     }
 
@@ -3495,32 +3536,32 @@ mod tests {
     fn test_read_referenced_files_respects_ignore() {
         let temp_dir = tempfile::tempdir().unwrap();
         let base_path = temp_dir.path();
-        
+
         // Create referenced files
         let allowed_file = base_path.join("allowed.md");
         std::fs::write(&allowed_file, "Allowed content").unwrap();
-        
+
         let ignored_file = base_path.join("secret.md");
         std::fs::write(&ignored_file, "Secret content").unwrap();
-        
+
         // Create main content with references
         let content = "Main\n@allowed.md\n@secret.md";
-        
+
         // Create ignore patterns
         let mut builder = GitignoreBuilder::new(base_path);
         builder.add_line(None, "secret.md").unwrap();
         let ignore_patterns = builder.build().unwrap();
-        
+
         let mut visited = HashSet::new();
         let expanded = read_referenced_files(content, base_path, &mut visited, 0, &ignore_patterns);
-        
+
         // Should contain allowed content but not ignored content
         assert!(expanded.contains("Allowed content"));
         assert!(!expanded.contains("Secret content"));
-        
+
         // The @secret.md reference should remain unchanged
         assert!(expanded.contains("@secret.md"));
-        
+
         temp_dir.close().unwrap();
     }
 
@@ -3529,21 +3570,21 @@ mod tests {
     fn test_read_referenced_files_missing_file() {
         let temp_dir = tempfile::tempdir().unwrap();
         let base_path = temp_dir.path();
-        
+
         // Create main content with reference to non-existent file
         let content = "Main\n@missing.md\nMore content";
-        
+
         // Create empty ignore patterns
         let builder = GitignoreBuilder::new(base_path);
         let ignore_patterns = builder.build().unwrap();
-        
+
         let mut visited = HashSet::new();
         let expanded = read_referenced_files(content, base_path, &mut visited, 0, &ignore_patterns);
-        
+
         // Should keep the original reference unchanged
         assert!(expanded.contains("@missing.md"));
         assert!(!expanded.contains("--- Content from"));
-        
+
         temp_dir.close().unwrap();
     }
 
@@ -3552,14 +3593,18 @@ mod tests {
     fn test_goosehints_with_file_references() {
         let temp_dir = tempfile::tempdir().unwrap();
         std::env::set_current_dir(&temp_dir).unwrap();
-        
+
         // Create referenced files
         let readme_path = temp_dir.path().join("README.md");
-        std::fs::write(&readme_path, "# Project README\n\nThis is the project documentation.").unwrap();
-        
+        std::fs::write(
+            &readme_path,
+            "# Project README\n\nThis is the project documentation.",
+        )
+        .unwrap();
+
         let guide_path = temp_dir.path().join("guide.md");
         std::fs::write(&guide_path, "# Development Guide\n\nFollow these steps...").unwrap();
-        
+
         // Create .goosehints with references
         let hints_content = r#"# Project Information
 
@@ -3571,46 +3616,43 @@ Additional instructions here.
 "#;
         let hints_path = temp_dir.path().join(".goosehints");
         std::fs::write(&hints_path, hints_content).unwrap();
-        
+
         // Create router and check instructions
         let router = DeveloperRouter::new();
         let instructions = router.instructions();
-        
+
         // Should contain the .goosehints content
         assert!(instructions.contains("Project Information"));
         assert!(instructions.contains("Additional instructions here"));
-        
+
         // Should contain the referenced files' content
         assert!(instructions.contains("# Project README"));
         assert!(instructions.contains("This is the project documentation"));
         assert!(instructions.contains("# Development Guide"));
         assert!(instructions.contains("Follow these steps"));
-        
+
         // Should have attribution markers
         assert!(instructions.contains("--- Content from"));
         assert!(instructions.contains("--- End of"));
-        
+
         temp_dir.close().unwrap();
     }
-
-
-
-
-
-
 
     #[test]
     #[serial]
     fn test_sanitize_reference_path_security() {
         let temp_dir = tempfile::tempdir().unwrap();
         let base_path = temp_dir.path();
-        
+
         // Test 1: Absolute paths should be rejected
         let absolute_path = PathBuf::from("/etc/passwd");
         let result = sanitize_reference_path(&absolute_path, base_path);
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err().kind(), std::io::ErrorKind::PermissionDenied);
-        
+        assert_eq!(
+            result.unwrap_err().kind(),
+            std::io::ErrorKind::PermissionDenied
+        );
+
         // Test 2: Path traversal attempts should be rejected
         let traversal_path = PathBuf::from("../../../etc/passwd");
         let result = sanitize_reference_path(&traversal_path, base_path);
@@ -3628,22 +3670,22 @@ Additional instructions here.
                 // Also acceptable - rejecting traversal attempts
             }
         }
-        
+
         // Test 3: Normal relative paths should work
         let normal_path = PathBuf::from("config.md");
         let result = sanitize_reference_path(&normal_path, base_path);
         assert!(result.is_ok());
-        
+
         // Test 4: Relative paths with subdirectories should work
         let subdir_path = PathBuf::from("docs/guide.md");
         let result = sanitize_reference_path(&subdir_path, base_path);
         assert!(result.is_ok());
-        
-        // Test 5: Current directory references should work  
+
+        // Test 5: Current directory references should work
         let current_dir_path = PathBuf::from("./file.md");
         let result = sanitize_reference_path(&current_dir_path, base_path);
         assert!(result.is_ok());
-        
+
         temp_dir.close().unwrap();
     }
 
@@ -3655,7 +3697,7 @@ Additional instructions here.
         let references = parse_file_references(&large_content);
         // Should return empty due to size limit, not hang
         assert!(references.is_empty());
-        
+
         // Test normal size content still works
         let normal_content = "Check out @README.md for details";
         let references = parse_file_references(&normal_content);
@@ -3668,7 +3710,7 @@ Additional instructions here.
     fn test_security_integration_with_file_expansion() {
         let temp_dir = tempfile::tempdir().unwrap();
         let base_path = temp_dir.path();
-        
+
         // Create a config file attempting path traversal
         let malicious_content = r#"
         Normal content here.
@@ -3676,29 +3718,32 @@ Additional instructions here.
         @/absolute/path/file.txt
         @legitimate_file.md
         "#;
-        
+
         // Create a legitimate file
         let legit_file = base_path.join("legitimate_file.md");
         std::fs::write(&legit_file, "This is safe content").unwrap();
-        
+
         // Create ignore patterns
         let builder = GitignoreBuilder::new(base_path);
         let ignore_patterns = builder.build().unwrap();
-        
+
         let mut visited = HashSet::new();
-        let expanded = read_referenced_files(malicious_content, base_path, &mut visited, 0, &ignore_patterns);
-        
+        let expanded = read_referenced_files(
+            malicious_content,
+            base_path,
+            &mut visited,
+            0,
+            &ignore_patterns,
+        );
+
         // Should contain the legitimate file but not the malicious attempts
         assert!(expanded.contains("This is safe content"));
         assert!(!expanded.contains("root:")); // Common content in /etc/passwd
-        
+
         // The malicious references should still be present (not expanded)
         assert!(expanded.contains("@../../../etc/passwd"));
         assert!(expanded.contains("@/absolute/path/file.txt"));
-        
+
         temp_dir.close().unwrap();
     }
-
-
-
 }
