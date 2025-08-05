@@ -356,7 +356,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
           className="absolute top-3 right-4 p-2 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
           title="Edit session name"
         >
-          <Edit2 className="w-4 h-4 text-textSubtle hover:text-textStandard" />
+          <Edit2 className="w-3 h-3 text-textSubtle hover:text-textStandard" />
         </button>
 
         <div className="flex-1">
