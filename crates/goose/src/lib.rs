@@ -19,6 +19,7 @@ pub mod token_counter;
 pub mod tool_monitor;
 pub mod tracing;
 pub mod utils;
+pub mod oauth;
 
 #[cfg(test)]
 mod cron_test;

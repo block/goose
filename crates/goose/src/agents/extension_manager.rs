@@ -30,7 +30,9 @@ use crate::config::{Config, ExtensionConfigManager};
 use crate::prompt_template;
 use mcp_client::client::{McpClient, McpClientTrait};
 use rmcp::model::{Content, GetPromptResult, Prompt, Resource, ResourceContents, Tool};
+use rmcp::transport::auth::AuthClient;
 use serde_json::Value;
+use crate::oauth::oauth_flow;
 
 // By default, we set it to Jan 1, 2020 if the resource does not have a timestamp
 // This is to ensure that the resource is considered less important than resources with a more recent timestamp
@@ -236,13 +238,39 @@ impl ExtensionManager {
                         ..Default::default()
                     },
                 );
-                let client = McpClient::connect(
+                let client_res = McpClient::connect(
                     transport,
                     Duration::from_secs(
                         timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
                     ),
                 )
-                .await?;
+                .await;
+                let client = if let Err(e) = client_res {
+                    // make an attempt at oauth, but failing that, return the original error,
+                    // because this might not have been an auth error at all
+                    let am = match oauth_flow(uri.clone()).await {
+                        Ok(am) => am,
+                        Err(_) => return Err(e.into())
+                    };
+                    let client = AuthClient::new(
+                        reqwest::Client::default()
+                        , am);
+                    let transport = StreamableHttpClientTransport::with_client(
+                        client,
+                        StreamableHttpClientTransportConfig {
+                            uri: uri.clone().into(),
+                            ..Default::default()
+                        },
+                    );
+                    McpClient::connect(
+                        transport,
+                        Duration::from_secs(
+                            timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
+                        ),
+                    ).await?
+                } else {
+                    client_res?
+                };
                 Box::new(client)
             }
             ExtensionConfig::Stdio {
