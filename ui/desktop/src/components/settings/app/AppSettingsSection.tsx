@@ -475,7 +475,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
                 className="h-8 w-auto"
               />
               <span className="text-2xl font-mono text-black dark:text-white">
-                {String(window.appConfig.get('GOOSE_VERSION'))}
+                {String(window.appConfig.get('GOOSE_VERSION') || 'Development')}
               </span>
             </div>
           </CardContent>
