@@ -179,6 +179,13 @@ impl GeminiCliProvider {
         let mut child = cmd
             .spawn()
             .map_err(|e| ProviderError::RequestFailed(format!("Failed to spawn command: {}", e)))?;
+        let mut child = cmd.spawn().map_err(|e| {
+            ProviderError::RequestFailed(format!(
+                "Failed to spawn Gemini CLI command '{}': {}. \
+                Make sure the Gemini CLI is installed and in your PATH.",
+                self.command, e
+            ))
+        })?;
 
         let stdout = child
             .stdout
