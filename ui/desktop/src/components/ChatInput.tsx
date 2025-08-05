@@ -1239,7 +1239,7 @@ export default function ChatInput({
       {/* Secondary actions and controls row below input */}
       <div className="flex flex-row items-center gap-1 p-2 relative">
         {/* Directory path */}
-        <DirSwitcher hasMessages={messages.length > 0} className="mr-0" />
+        <DirSwitcher className="mr-0" />
         <div className="w-px h-4 bg-border-default mx-2" />
 
         {/* Attach button */}
