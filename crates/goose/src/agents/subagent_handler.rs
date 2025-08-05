@@ -1,6 +1,8 @@
+use crate::agents::agent::AgentEvent;
 use crate::agents::subagent::SubAgent;
 use crate::agents::subagent_task_config::TaskConfig;
 use anyhow::Result;
+use futures::stream::StreamExt;
 use mcp_core::ToolError;
 
 /// Standalone function to run a complete subagent task
@@ -13,12 +15,26 @@ pub async fn run_complete_subagent_task(
         .await
         .map_err(|e| ToolError::ExecutionError(format!("Failed to create subagent: {}", e)))?;
 
-    // Execute the subagent task
-    let messages = subagent
+    let mut stream = subagent
         .reply_subagent(text_instruction, task_config)
         .await?;
 
-    // Extract all text content from all messages
+    let mut messages = Vec::new();
+    while let Some(event_result) = stream.next().await {
+        match event_result {
+            Ok(AgentEvent::Message(message)) => {
+                messages.push(message);
+            }
+            Ok(_) => {
+                // Ignore other event types (like ModelChange, etc.)
+                continue;
+            }
+            Err(e) => {
+                return Err(e);
+            }
+        }
+    }
+
     let all_text_content: Vec<String> = messages
         .iter()
         .flat_map(|message| {
