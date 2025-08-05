@@ -97,6 +97,25 @@ export default function DictationSection() {
     checkOpenAIKey();
   }, [getProviders]);
 
+  // Also check OpenAI configuration when dropdown is opened
+  const handleDropdownToggle = async () => {
+    const newShowState = !showProviderDropdown;
+    setShowProviderDropdown(newShowState);
+    
+    // Refresh OpenAI configuration status when opening dropdown
+    if (newShowState) {
+      try {
+        const providers = await getProviders(true); // Force refresh
+        const openAIProvider = providers.find((p) => p.name === 'openai');
+        const isConfigured = openAIProvider?.is_configured || false;
+        setHasOpenAIKey(isConfigured);
+      } catch (error) {
+        console.error('Error checking OpenAI configuration:', error);
+        setHasOpenAIKey(false);
+      }
+    }
+  };
+
   const saveSettings = (newSettings: DictationSettings) => {
     setSettings(newSettings);
     localStorage.setItem(DICTATION_SETTINGS_KEY, JSON.stringify(newSettings));
@@ -171,7 +190,7 @@ export default function DictationSection() {
             </div>
             <div className="relative">
               <button
-                onClick={() => setShowProviderDropdown(!showProviderDropdown)}
+                onClick={handleDropdownToggle}
                 className="flex items-center gap-2 px-3 py-1.5 text-sm border border-borderSubtle rounded-md hover:border-borderStandard transition-colors text-textStandard bg-background-default"
               >
                 {getProviderLabel(settings.provider)}
@@ -182,12 +201,7 @@ export default function DictationSection() {
                 <div className="absolute right-0 mt-1 w-48 bg-background-default border border-borderStandard rounded-md shadow-lg z-10">
                   <button
                     onClick={() => handleProviderChange('openai')}
-                    disabled={!hasOpenAIKey}
-                    className={`w-full px-3 py-2 text-left text-sm transition-colors first:rounded-t-md ${
-                      hasOpenAIKey
-                        ? 'hover:bg-bgSubtle text-textStandard'
-                        : 'text-textSubtle cursor-not-allowed'
-                    }`}
+                    className="w-full px-3 py-2 text-left text-sm transition-colors first:rounded-t-md hover:bg-bgSubtle text-textStandard"
                   >
                     OpenAI Whisper
                     {!hasOpenAIKey && <span className="text-xs ml-1">(not configured)</span>}
