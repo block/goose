@@ -20,35 +20,38 @@ impl MorphLLMEditor {
         }
     }
 
-    fn format_user_prompt(original_code: &str, update_snippet: &str) -> String {
-        if let (Some(code_start), Some(code_end)) = (
-            update_snippet.find("<code>"),
-            update_snippet.find("</code>"),
-        ) {
-            // Check if we have valid code tags
-            if code_start < code_end {
-                let code_content = &update_snippet[code_start + 6..code_end].trim();
+    /// Extract content between XML tags
+    fn extract_tag_content(text: &str, tag_name: &str) -> Option<String> {
+        let start_tag = format!("<{}>", tag_name);
+        let end_tag = format!("</{}>", tag_name);
 
-                // Look for instruction tags which help provide hints
-                if let (Some(inst_start), Some(inst_end)) = (
-                    update_snippet.find("<instruction>"),
-                    update_snippet.find("</instruction>"),
-                ) {
-                    // Both code and instruction tags found
-                    if inst_start < inst_end {
-                        let instruction_content = &update_snippet[inst_start + 13..inst_end].trim();
-                        return format!(
-                            "<instruction>{}</instruction>\n<code>{}</code>\n<update>{}</update>",
-                            instruction_content, original_code, code_content
-                        );
-                    }
-                }
-                // Only code tags found, no instruction
+        if let (Some(start_pos), Some(end_pos)) = (text.find(&start_tag), text.find(&end_tag)) {
+            if start_pos < end_pos {
+                let content_start = start_pos + start_tag.len();
+                let content = &text[content_start..end_pos];
+                return Some(content.trim().to_string());
+            }
+        }
+        None
+    }
+
+    fn format_user_prompt(original_code: &str, update_snippet: &str) -> String {
+        if let Some(code_content) = Self::extract_tag_content(update_snippet, "code") {
+            // Look for instruction tags which help provide hints
+            if let Some(instruction_content) =
+                Self::extract_tag_content(update_snippet, "instruction")
+            {
+                // Both code and instruction tags found
                 return format!(
-                    "<code>{}</code>\n<update>{}</update>",
-                    original_code, code_content
+                    "<instruction>{}</instruction>\n<code>{}</code>\n<update>{}</update>",
+                    instruction_content, original_code, code_content
                 );
             }
+            // Only code tags found, no instruction
+            return format!(
+                "<code>{}</code>\n<update>{}</update>",
+                original_code, code_content
+            );
         }
         format!(
             "<code>{}</code>\n<update>{}</update>",
@@ -174,6 +177,48 @@ impl EditorModelImpl for MorphLLMEditor {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_extract_tag_content_valid() {
+        let text = "<code>fn main() {}</code>";
+        let result = MorphLLMEditor::extract_tag_content(text, "code");
+        assert_eq!(result, Some("fn main() {}".to_string()));
+    }
+
+    #[test]
+    fn test_extract_tag_content_with_whitespace() {
+        let text = "<instruction>  I am adding a print statement  </instruction>";
+        let result = MorphLLMEditor::extract_tag_content(text, "instruction");
+        assert_eq!(result, Some("I am adding a print statement".to_string()));
+    }
+
+    #[test]
+    fn test_extract_tag_content_invalid_order() {
+        let text = "</code>Invalid<code>";
+        let result = MorphLLMEditor::extract_tag_content(text, "code");
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_extract_tag_content_missing_end_tag() {
+        let text = "<code>fn main() {}";
+        let result = MorphLLMEditor::extract_tag_content(text, "code");
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_extract_tag_content_missing_start_tag() {
+        let text = "fn main() {}</code>";
+        let result = MorphLLMEditor::extract_tag_content(text, "code");
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_extract_tag_content_nested_tags() {
+        let text = "<code>fn main() { <code>nested</code> }</code>";
+        let result = MorphLLMEditor::extract_tag_content(text, "code");
+        assert_eq!(result, Some("fn main() { <code>nested".to_string()));
+    }
 
     #[test]
     fn test_format_user_prompt_no_tags() {
