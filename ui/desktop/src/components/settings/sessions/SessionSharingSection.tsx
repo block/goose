@@ -118,7 +118,7 @@ export default function SessionSharingSection() {
       if (response.status < 500) {
         setTestResult({
           status: 'success',
-          message: `Connection successful! Server responded with status ${response.status}.`,
+          message: 'Connection successful!',
         });
       } else {
         setTestResult({

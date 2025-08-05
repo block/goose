@@ -27,7 +27,7 @@ use anyhow::Result;
 #[cfg(test)]
 use super::errors::ProviderError;
 #[cfg(test)]
-use mcp_core::tool::Tool;
+use rmcp::model::Tool;
 
 fn default_lead_turns() -> usize {
     3
@@ -71,8 +71,6 @@ pub fn create(name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>> {
 
         return create_lead_worker_from_env(name, &model, &lead_model_name);
     }
-
-    // Default: create regular provider
     create_provider(name, model)
 }
 
@@ -100,17 +98,16 @@ fn create_lead_worker_from_env(
         .get_param::<usize>("GOOSE_LEAD_FALLBACK_TURNS")
         .unwrap_or(default_fallback_turns());
 
-    // Create model configs with context limit environment variable support
     let lead_model_config = ModelConfig::new_with_context_env(
         lead_model_name.to_string(),
         Some("GOOSE_LEAD_CONTEXT_LIMIT"),
-    );
+    )?;
 
     // For worker model, preserve the original context_limit from config (highest precedence)
     // while still allowing environment variable overrides
     let worker_model_config = {
         // Start with a clone of the original model to preserve user-specified settings
-        let mut worker_config = ModelConfig::new(default_model.model_name.clone())
+        let mut worker_config = ModelConfig::new_or_fail(default_model.model_name.as_str())
             .with_context_limit(default_model.context_limit)
             .with_temperature(default_model.temperature)
             .with_max_tokens(default_model.max_tokens)
@@ -152,23 +149,23 @@ fn create_lead_worker_from_env(
 fn create_provider(name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>> {
     // We use Arc instead of Box to be able to clone for multiple async tasks
     match name {
-        "openai" => Ok(Arc::new(OpenAiProvider::from_env(model)?)),
         "anthropic" => Ok(Arc::new(AnthropicProvider::from_env(model)?)),
-        "azure_openai" => Ok(Arc::new(AzureProvider::from_env(model)?)),
         "aws_bedrock" => Ok(Arc::new(BedrockProvider::from_env(model)?)),
+        "azure_openai" => Ok(Arc::new(AzureProvider::from_env(model)?)),
         "claude-code" => Ok(Arc::new(ClaudeCodeProvider::from_env(model)?)),
         "databricks" => Ok(Arc::new(DatabricksProvider::from_env(model)?)),
+        "gcp_vertex_ai" => Ok(Arc::new(GcpVertexAIProvider::from_env(model)?)),
         "gemini-cli" => Ok(Arc::new(GeminiCliProvider::from_env(model)?)),
+        // "github_copilot" => Ok(Arc::new(GithubCopilotProvider::from_env(model)?)),
+        "google" => Ok(Arc::new(GoogleProvider::from_env(model)?)),
         "groq" => Ok(Arc::new(GroqProvider::from_env(model)?)),
         "litellm" => Ok(Arc::new(LiteLLMProvider::from_env(model)?)),
         "ollama" => Ok(Arc::new(OllamaProvider::from_env(model)?)),
+        "openai" => Ok(Arc::new(OpenAiProvider::from_env(model)?)),
         "openrouter" => Ok(Arc::new(OpenRouterProvider::from_env(model)?)),
-        "gcp_vertex_ai" => Ok(Arc::new(GcpVertexAIProvider::from_env(model)?)),
-        "google" => Ok(Arc::new(GoogleProvider::from_env(model)?)),
         "sagemaker_tgi" => Ok(Arc::new(SageMakerTgiProvider::from_env(model)?)),
-        "venice" => Ok(Arc::new(VeniceProvider::from_env(model)?)),
         "snowflake" => Ok(Arc::new(SnowflakeProvider::from_env(model)?)),
-        // "github_copilot" => Ok(Arc::new(GithubCopilotProvider::from_env(model)?)),
+        "venice" => Ok(Arc::new(VeniceProvider::from_env(model)?)),
         "xai" => Ok(Arc::new(XaiProvider::from_env(model)?)),
         _ => Err(anyhow::anyhow!("Unknown provider: {}", name)),
     }
@@ -244,7 +241,8 @@ mod tests {
         env::set_var("GOOSE_LEAD_MODEL", "gpt-4o");
 
         // This will try to create a lead/worker provider
-        let result = create("openai", ModelConfig::new("gpt-4o-mini".to_string()));
+        let gpt4mini_config = ModelConfig::new_or_fail("gpt-4o-mini");
+        let result = create("openai", gpt4mini_config.clone());
 
         // The creation might succeed or fail depending on API keys, but we can verify the logic path
         match result {
@@ -263,7 +261,7 @@ mod tests {
         env::set_var("GOOSE_LEAD_PROVIDER", "anthropic");
         env::set_var("GOOSE_LEAD_TURNS", "5");
 
-        let _result = create("openai", ModelConfig::new("gpt-4o-mini".to_string()));
+        let _result = create("openai", gpt4mini_config);
         // Similar validation as above - will fail due to missing API keys but confirms the logic
 
         // Restore env vars
@@ -307,7 +305,7 @@ mod tests {
         env::set_var("GOOSE_LEAD_MODEL", "grok-3");
 
         // This should use defaults for all other values
-        let result = create("openai", ModelConfig::new("gpt-4o-mini".to_string()));
+        let result = create("openai", ModelConfig::new_or_fail("gpt-4o-mini"));
 
         // Should attempt to create lead/worker provider (will fail due to missing API keys but confirms logic)
         match result {
@@ -326,7 +324,7 @@ mod tests {
         env::set_var("GOOSE_LEAD_FAILURE_THRESHOLD", "4");
         env::set_var("GOOSE_LEAD_FALLBACK_TURNS", "3");
 
-        let _result = create("openai", ModelConfig::new("gpt-4o-mini".to_string()));
+        let _result = create("openai", ModelConfig::new_or_fail("gpt-4o-mini"));
         // Should still attempt to create lead/worker provider with custom settings
 
         // Restore all env vars
@@ -355,7 +353,7 @@ mod tests {
         env::remove_var("GOOSE_LEAD_FALLBACK_TURNS");
 
         // This should try to create a regular provider
-        let result = create("openai", ModelConfig::new("gpt-4o-mini".to_string()));
+        let result = create("openai", ModelConfig::new_or_fail("gpt-4o-mini"));
 
         // The creation might succeed or fail depending on API keys
         match result {
@@ -370,7 +368,6 @@ mod tests {
             }
         }
 
-        // Restore env vars
         if let Some(val) = saved_lead {
             env::set_var("GOOSE_LEAD_MODEL", val);
         }
@@ -412,7 +409,7 @@ mod tests {
 
         // Create a default model with explicit context_limit
         let default_model =
-            ModelConfig::new("gpt-3.5-turbo".to_string()).with_context_limit(Some(16_000));
+            ModelConfig::new_or_fail("gpt-3.5-turbo").with_context_limit(Some(16_000));
 
         // Test case 1: No environment variables - should preserve original context_limit
         let result = create_lead_worker_from_env("openai", &default_model, "gpt-4o");

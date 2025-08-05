@@ -14,13 +14,15 @@ use std::time::Duration;
 use super::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
+use super::retry::ProviderRetry;
 use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
 
 use crate::config::{Config, ConfigError};
+use crate::impl_provider_default;
 use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::base::ConfigKey;
-use mcp_core::tool::Tool;
+use rmcp::model::Tool;
 
 pub const GITHUB_COPILOT_DEFAULT_MODEL: &str = "gpt-4o";
 pub const GITHUB_COPILOT_KNOWN_MODELS: &[&str] = &[
@@ -115,12 +117,7 @@ pub struct GithubCopilotProvider {
     model: ModelConfig,
 }
 
-impl Default for GithubCopilotProvider {
-    fn default() -> Self {
-        let model = ModelConfig::new(GithubCopilotProvider::metadata().default_model);
-        GithubCopilotProvider::from_env(model).expect("Failed to initialize GithubCopilot provider")
-    }
-}
+impl_provider_default!(GithubCopilotProvider);
 
 impl GithubCopilotProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
@@ -408,11 +405,15 @@ impl Provider for GithubCopilotProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let mut payload =
-            create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi)?;
+        let payload = create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi)?;
 
-        // Make request
-        let response = self.post(&mut payload).await?;
+        // Make request with retry
+        let response = self
+            .with_retry(|| async {
+                let mut payload_clone = payload.clone();
+                self.post(&mut payload_clone).await
+            })
+            .await?;
 
         // Parse response
         let message = response_to_message(&response)?;
@@ -423,5 +424,46 @@ impl Provider for GithubCopilotProvider {
         let model = get_model(&response);
         emit_debug_trace(&self.model, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(model, usage)))
+    }
+
+    /// Fetch supported models from GitHub Copliot; returns Err on failure, Ok(None) if not present
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+        let (endpoint, token) = self.get_api_info().await?;
+        let url = format!("{}/models", endpoint);
+
+        let mut headers = http::HeaderMap::new();
+        headers.insert(http::header::ACCEPT, "application/json".parse().unwrap());
+        headers.insert(
+            http::header::CONTENT_TYPE,
+            "application/json".parse().unwrap(),
+        );
+        headers.insert("Copilot-Integration-Id", "vscode-chat".parse().unwrap());
+        headers.insert(
+            http::header::AUTHORIZATION,
+            format!("Bearer {}", token).parse().unwrap(),
+        );
+
+        let response = self.client.get(url).headers(headers).send().await?;
+
+        let json: serde_json::Value = response.json().await?;
+
+        let arr = match json.get("data").and_then(|v| v.as_array()) {
+            Some(arr) => arr,
+            None => return Ok(None),
+        };
+        let mut models: Vec<String> = arr
+            .iter()
+            .filter_map(|m| {
+                if let Some(s) = m.as_str() {
+                    Some(s.to_string())
+                } else if let Some(obj) = m.as_object() {
+                    obj.get("id").and_then(|v| v.as_str()).map(str::to_string)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        models.sort();
+        Ok(Some(models))
     }
 }

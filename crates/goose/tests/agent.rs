@@ -108,7 +108,8 @@ async fn run_truncate_test(
     model: &str,
     context_window: usize,
 ) -> Result<()> {
-    let model_config = ModelConfig::new(model.to_string())
+    let model_config = ModelConfig::new(model)
+        .unwrap()
         .with_context_limit(Some(context_window))
         .with_temperature(Some(0.0));
     let provider = provider_type.create_provider(model_config)?;
@@ -142,7 +143,9 @@ async fn run_truncate_test(
             Ok(AgentEvent::ModelChange { .. }) => {
                 // Model change events are informational, just continue
             }
-
+            Ok(AgentEvent::HistoryReplaced(_)) => {
+                // Handle history replacement events if needed
+            }
             Err(e) => {
                 println!("Error: {:?}", e);
                 return Err(e);
@@ -448,6 +451,8 @@ mod schedule_tool_tests {
         let tool = schedule_tool.unwrap();
         assert!(tool
             .description
+            .clone()
+            .unwrap_or_default()
             .contains("Manage scheduled recipe execution"));
     }
 
@@ -478,6 +483,8 @@ mod schedule_tool_tests {
         let tool = schedule_tool.unwrap();
         assert!(tool
             .description
+            .clone()
+            .unwrap_or_default()
             .contains("Manage scheduled recipe execution"));
 
         // Verify the tool has the expected actions in its schema
@@ -548,7 +555,7 @@ mod final_output_tool_tests {
         use goose::model::ModelConfig;
         use goose::providers::base::{Provider, ProviderUsage, Usage};
         use goose::providers::errors::ProviderError;
-        use mcp_core::tool::Tool;
+        use rmcp::model::Tool;
 
         #[derive(Clone)]
         struct MockProvider {
@@ -580,7 +587,7 @@ mod final_output_tool_tests {
 
         let agent = Agent::new();
 
-        let model_config = ModelConfig::new("test-model".to_string());
+        let model_config = ModelConfig::new("test-model").unwrap();
         let mock_provider = Arc::new(MockProvider { model_config });
         agent.update_provider(mock_provider).await?;
 
@@ -648,7 +655,7 @@ mod final_output_tool_tests {
         use goose::model::ModelConfig;
         use goose::providers::base::{Provider, ProviderUsage};
         use goose::providers::errors::ProviderError;
-        use mcp_core::tool::Tool;
+        use rmcp::model::Tool;
 
         #[derive(Clone)]
         struct MockProvider {
@@ -700,7 +707,7 @@ mod final_output_tool_tests {
 
         let agent = Agent::new();
 
-        let model_config = ModelConfig::new("test-model".to_string());
+        let model_config = ModelConfig::new("test-model").unwrap();
         let mock_provider = Arc::new(MockProvider { model_config });
         agent.update_provider(mock_provider).await?;
 
@@ -769,7 +776,7 @@ mod retry_tests {
     use goose::model::ModelConfig;
     use goose::providers::base::{Provider, ProviderUsage, Usage};
     use goose::providers::errors::ProviderError;
-    use mcp_core::tool::Tool;
+    use rmcp::model::Tool;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
 
@@ -816,7 +823,7 @@ mod retry_tests {
     async fn test_retry_config_validation_integration() -> Result<()> {
         let agent = Agent::new();
 
-        let model_config = ModelConfig::new("test-model".to_string());
+        let model_config = ModelConfig::new("test-model").unwrap();
         let mock_provider = Arc::new(MockRetryProvider {
             model_config,
             call_count: Arc::new(AtomicUsize::new(0)),
@@ -950,7 +957,8 @@ mod max_turns_tests {
     use goose::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
     use goose::providers::errors::ProviderError;
     use goose::session::storage::Identifier;
-    use mcp_core::tool::{Tool, ToolCall};
+    use mcp_core::tool::ToolCall;
+    use rmcp::model::Tool;
     use std::path::PathBuf;
 
     struct MockToolProvider {}
@@ -981,7 +989,7 @@ mod max_turns_tests {
         }
 
         fn get_model_config(&self) -> ModelConfig {
-            ModelConfig::new("mock-model".to_string())
+            ModelConfig::new("mock-model").unwrap()
         }
 
         fn metadata() -> ProviderMetadata {
@@ -1037,6 +1045,7 @@ mod max_turns_tests {
                 }
                 Ok(AgentEvent::McpNotification(_)) => {}
                 Ok(AgentEvent::ModelChange { .. }) => {}
+                Ok(AgentEvent::HistoryReplaced(_)) => {}
                 Err(e) => {
                     return Err(e);
                 }

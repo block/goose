@@ -8,7 +8,7 @@ use super::base::{LeadWorkerProviderTrait, Provider, ProviderMetadata, ProviderU
 use super::errors::ProviderError;
 use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
-use mcp_core::tool::Tool;
+use rmcp::model::Tool;
 use rmcp::model::{Content, RawContent};
 
 /// A provider that switches between a lead model and a worker model based on turn count
@@ -409,10 +409,10 @@ impl Provider for LeadWorkerProvider {
         final_result
     }
 
-    async fn fetch_supported_models_async(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         // Combine models from both providers
-        let lead_models = self.lead_provider.fetch_supported_models_async().await?;
-        let worker_models = self.worker_provider.fetch_supported_models_async().await?;
+        let lead_models = self.lead_provider.fetch_supported_models().await?;
+        let worker_models = self.worker_provider.fetch_supported_models().await?;
 
         match (lead_models, worker_models) {
             (Some(lead), Some(worker)) => {
@@ -501,12 +501,12 @@ mod tests {
     async fn test_lead_worker_switching() {
         let lead_provider = Arc::new(MockProvider {
             name: "lead".to_string(),
-            model_config: ModelConfig::new("lead-model".to_string()),
+            model_config: ModelConfig::new_or_fail("lead-model"),
         });
 
         let worker_provider = Arc::new(MockProvider {
             name: "worker".to_string(),
-            model_config: ModelConfig::new("worker-model".to_string()),
+            model_config: ModelConfig::new_or_fail("worker-model"),
         });
 
         let provider = LeadWorkerProvider::new(lead_provider, worker_provider, Some(3));
@@ -541,13 +541,13 @@ mod tests {
     async fn test_technical_failure_retry() {
         let lead_provider = Arc::new(MockFailureProvider {
             name: "lead".to_string(),
-            model_config: ModelConfig::new("lead-model".to_string()),
+            model_config: ModelConfig::new_or_fail("lead-model"),
             should_fail: false, // Lead provider works
         });
 
         let worker_provider = Arc::new(MockFailureProvider {
             name: "worker".to_string(),
-            model_config: ModelConfig::new("worker-model".to_string()),
+            model_config: ModelConfig::new_or_fail("worker-model"),
             should_fail: true, // Worker will fail
         });
 
@@ -583,13 +583,13 @@ mod tests {
         // For now, we'll test the fallback mode functionality directly
         let lead_provider = Arc::new(MockFailureProvider {
             name: "lead".to_string(),
-            model_config: ModelConfig::new("lead-model".to_string()),
+            model_config: ModelConfig::new_or_fail("lead-model"),
             should_fail: false,
         });
 
         let worker_provider = Arc::new(MockFailureProvider {
             name: "worker".to_string(),
-            model_config: ModelConfig::new("worker-model".to_string()),
+            model_config: ModelConfig::new_or_fail("worker-model"),
             should_fail: false,
         });
 

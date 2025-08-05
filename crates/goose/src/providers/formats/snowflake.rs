@@ -3,8 +3,8 @@ use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
 use anyhow::{anyhow, Result};
-use mcp_core::tool::{Tool, ToolCall};
-use rmcp::model::Role;
+use mcp_core::tool::ToolCall;
+use rmcp::model::{Role, Tool};
 use serde_json::{json, Value};
 use std::collections::HashSet;
 
@@ -359,6 +359,7 @@ pub fn create_request(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rmcp::object;
     use serde_json::json;
 
     #[test]
@@ -460,7 +461,7 @@ mod tests {
             Tool::new(
                 "calculator",
                 "Calculate mathematical expressions",
-                json!({
+                object!({
                     "type": "object",
                     "properties": {
                         "expression": {
@@ -469,12 +470,11 @@ mod tests {
                         }
                     }
                 }),
-                None,
             ),
             Tool::new(
                 "weather",
                 "Get weather information",
-                json!({
+                object!({
                     "type": "object",
                     "properties": {
                         "location": {
@@ -483,7 +483,6 @@ mod tests {
                         }
                     }
                 }),
-                None,
             ),
         ];
 
@@ -549,7 +548,7 @@ data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-3-5-sonnet","
     fn test_create_request_format() -> Result<()> {
         use crate::model::ModelConfig;
 
-        let model_config = ModelConfig::new("claude-3-5-sonnet".to_string());
+        let model_config = ModelConfig::new_or_fail("claude-3-5-sonnet");
 
         let system = "You are a helpful assistant that can use tools to get information.";
         let messages = vec![Message::user().with_text("What is the stock price of Nvidia?")];
@@ -557,7 +556,7 @@ data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-3-5-sonnet","
         let tools = vec![Tool::new(
             "get_stock_price",
             "Get stock price information",
-            json!({
+            object!({
                 "type": "object",
                 "properties": {
                     "symbol": {
@@ -567,7 +566,6 @@ data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-3-5-sonnet","
                 },
                 "required": ["symbol"]
             }),
-            None,
         )];
 
         let request = create_request(&model_config, system, &messages, &tools)?;
@@ -658,14 +656,13 @@ data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-3-5-sonnet","
     fn test_create_request_excludes_tools_for_description() -> Result<()> {
         use crate::model::ModelConfig;
 
-        let model_config = ModelConfig::new("claude-3-5-sonnet".to_string());
+        let model_config = ModelConfig::new_or_fail("claude-3-5-sonnet");
         let system = "Reply with only a description in four words or less";
         let messages = vec![Message::user().with_text("Test message")];
         let tools = vec![Tool::new(
             "test_tool",
             "Test tool",
-            json!({"type": "object", "properties": {}}),
-            None,
+            object!({"type": "object", "properties": {}}),
         )];
 
         let request = create_request(&model_config, system, &messages, &tools)?;

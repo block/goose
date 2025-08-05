@@ -5,10 +5,10 @@ use crate::message::{Message, MessageContent, ToolRequest};
 use crate::providers::base::Provider;
 use chrono::Utc;
 use indoc::indoc;
-use mcp_core::tool::Tool;
-use mcp_core::tool::ToolAnnotations;
+use rmcp::model::{Tool, ToolAnnotations};
+use rmcp::object;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::collections::HashSet;
 use std::sync::Arc;
 
@@ -45,7 +45,7 @@ fn create_read_only_tool() -> Tool {
             Use this analysis to generate the list of tools performing read-only operations from the provided tool requests.
         "#}
         .to_string(),
-        json!({
+        object!({
             "type": "object",
             "properties": {
                 "read_only_tools": {
@@ -57,15 +57,14 @@ fn create_read_only_tool() -> Tool {
                 }
             },
             "required": []
-        }),
-        Some(ToolAnnotations {
-                title: Some("Check tool operation".to_string()),
-                read_only_hint: true,
-                destructive_hint: false,
-                idempotent_hint: false,
-                open_world_hint: false,
-            }),
-    )
+        })
+    ).annotate(ToolAnnotations {
+        title: Some("Check tool operation".to_string()),
+        read_only_hint: Some(true),
+        destructive_hint: Some(false),
+        idempotent_hint: Some(false),
+        open_world_hint: Some(false),
+    })
 }
 
 /// Builds the message to be sent to the LLM for detecting read-only operations.
@@ -266,9 +265,8 @@ mod tests {
     use crate::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
     use crate::providers::errors::ProviderError;
     use chrono::Utc;
-    use mcp_core::ToolCall;
-    use mcp_core::{tool::Tool, ToolResult};
-    use rmcp::model::Role;
+    use mcp_core::{ToolCall, ToolResult};
+    use rmcp::model::{Role, Tool};
     use serde_json::json;
     use tempfile::NamedTempFile;
 
@@ -313,8 +311,8 @@ mod tests {
     }
 
     fn create_mock_provider() -> Arc<dyn Provider> {
-        let mock_model_config =
-            ModelConfig::new("test-model".to_string()).with_context_limit(200_000.into());
+        let config = ModelConfig::new_or_fail("test-model");
+        let mock_model_config = config.with_context_limit(200_000.into());
         Arc::new(MockProvider {
             model_config: mock_model_config,
         })
@@ -324,7 +322,10 @@ mod tests {
     async fn test_create_read_only_tool() {
         let tool = create_read_only_tool();
         assert_eq!(tool.name, "platform__tool_by_tool_permission");
-        assert!(tool.description.contains("read-only operation"));
+        assert!(tool
+            .description
+            .as_ref()
+            .map_or(false, |desc| desc.contains("read-only operation")));
     }
 
     #[test]

@@ -2,7 +2,7 @@ use base64::Engine;
 use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::{formatdoc, indoc};
 use reqwest::{Client, Url};
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::{
     collections::HashMap, fs, future::Future, path::PathBuf, pin::Pin, sync::Arc, sync::Mutex,
 };
@@ -12,13 +12,17 @@ use tokio::{process::Command, sync::mpsc};
 use std::os::unix::fs::PermissionsExt;
 
 use mcp_core::{
-    handler::{PromptError, ResourceError, ToolError},
+    handler::{
+        require_str_parameter, require_u64_parameter, PromptError, ResourceError, ToolError,
+    },
     protocol::ServerCapabilities,
-    tool::{Tool, ToolAnnotations},
 };
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
-use rmcp::model::{AnnotateAble, Content, JsonRpcMessage, Prompt, RawResource, Resource};
+use rmcp::model::{
+    AnnotateAble, Content, JsonRpcMessage, Prompt, RawResource, Resource, Tool, ToolAnnotations,
+};
+use rmcp::object;
 
 mod docx_tool;
 mod pdf_tool;
@@ -58,7 +62,7 @@ impl ComputerControllerRouter {
                 The content is cached locally and can be accessed later using the cache_path
                 returned in the response.
             "#},
-            json!({
+            object!({
                 "type": "object",
                 "required": ["url"],
                 "properties": {
@@ -74,14 +78,14 @@ impl ComputerControllerRouter {
                     }
                 }
             }),
-            Some(ToolAnnotations {
-                title: Some("Web Scrape".to_string()),
-                read_only_hint: true,
-                destructive_hint: false,
-                idempotent_hint: false,
-                open_world_hint: true,
-            }),
-        );
+        )
+        .annotate(ToolAnnotations {
+            title: Some("Web Scrape".to_string()),
+            read_only_hint: Some(true),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(false),
+            open_world_hint: Some(true),
+        });
 
         let computer_control_desc = match std::env::consts::OS {
             "windows" => indoc! {r#"
@@ -131,7 +135,7 @@ impl ComputerControllerRouter {
         let computer_control_tool = Tool::new(
             "computer_control",
             computer_control_desc.to_string(),
-            json!({
+            object!({
                 "type": "object",
                 "required": ["script"],
                 "properties": {
@@ -146,7 +150,6 @@ impl ComputerControllerRouter {
                     }
                 }
             }),
-            None,
         );
 
         let quick_script_desc = match std::env::consts::OS {
@@ -177,7 +180,7 @@ impl ComputerControllerRouter {
         let quick_script_tool = Tool::new(
             "automation_script",
             quick_script_desc.to_string(),
-            json!({
+            object!({
                 "type": "object",
                 "required": ["language", "script"],
                 "properties": {
@@ -197,7 +200,6 @@ impl ComputerControllerRouter {
                     }
                 }
             }),
-            None,
         );
 
         let cache_tool = Tool::new(
@@ -209,7 +211,7 @@ impl ComputerControllerRouter {
                 - delete: Delete a cached file
                 - clear: Clear all cached files
             "#},
-            json!({
+            object!({
                 "type": "object",
                 "required": ["command"],
                 "properties": {
@@ -224,7 +226,6 @@ impl ComputerControllerRouter {
                     }
                 }
             }),
-            None,
         );
 
         let pdf_tool = Tool::new(
@@ -237,7 +238,7 @@ impl ComputerControllerRouter {
 
                 Use this when there is a .pdf file or files that need to be processed.
             "#},
-            json!({
+            object!({
                 "type": "object",
                 "required": ["path", "operation"],
                 "properties": {
@@ -252,14 +253,14 @@ impl ComputerControllerRouter {
                     }
                 }
             }),
-            Some(ToolAnnotations {
-                title: Some("PDF process".to_string()),
-                read_only_hint: true,
-                destructive_hint: false,
-                idempotent_hint: true,
-                open_world_hint: false,
-            }),
-        );
+        )
+        .annotate(ToolAnnotations {
+            title: Some("PDF process".to_string()),
+            read_only_hint: Some(true),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(true),
+            open_world_hint: Some(false),
+        });
 
         let docx_tool = Tool::new(
             "docx_tool",
@@ -276,7 +277,7 @@ impl ComputerControllerRouter {
 
                 Use this when there is a .docx file that needs to be processed or created.
             "#},
-            json!({
+            object!({
                 "type": "object",
                 "required": ["path", "operation"],
                 "properties": {
@@ -357,7 +358,6 @@ impl ComputerControllerRouter {
                     }
                 }
             }),
-            None,
         );
 
         let xlsx_tool = Tool::new(
@@ -375,7 +375,7 @@ impl ComputerControllerRouter {
 
                 Use this when working with Excel spreadsheets to analyze or modify data.
             "#},
-            json!({
+            object!({
                 "type": "object",
                 "required": ["path", "operation"],
                 "properties": {
@@ -419,7 +419,6 @@ impl ComputerControllerRouter {
                     }
                 }
             }),
-            None,
         );
 
         // choose_app_strategy().cache_dir()
@@ -598,11 +597,7 @@ impl ComputerControllerRouter {
     }
 
     async fn web_scrape(&self, params: Value) -> Result<Vec<Content>, ToolError> {
-        let url = params
-            .get("url")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| ToolError::InvalidParameters("Missing 'url' parameter".into()))?;
-
+        let url = require_str_parameter(&params, "url")?;
         let save_as = params
             .get("save_as")
             .and_then(|v| v.as_str())
@@ -919,20 +914,9 @@ impl ComputerControllerRouter {
                 ))])
             }
             "update_cell" => {
-                let row = params.get("row").and_then(|v| v.as_u64()).ok_or_else(|| {
-                    ToolError::InvalidParameters("Missing 'row' parameter".into())
-                })?;
-
-                let col = params.get("col").and_then(|v| v.as_u64()).ok_or_else(|| {
-                    ToolError::InvalidParameters("Missing 'col' parameter".into())
-                })?;
-
-                let value = params
-                    .get("value")
-                    .and_then(|v| v.as_str())
-                    .ok_or_else(|| {
-                        ToolError::InvalidParameters("Missing 'value' parameter".into())
-                    })?;
+                let row = require_u64_parameter(&params, "row")?;
+                let col = require_u64_parameter(&params, "col")?;
+                let value = require_str_parameter(&params, "value")?;
 
                 let worksheet_name = params
                     .get("worksheet")

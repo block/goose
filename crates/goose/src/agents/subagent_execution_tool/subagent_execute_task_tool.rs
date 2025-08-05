@@ -1,5 +1,5 @@
-use mcp_core::{tool::ToolAnnotations, Tool, ToolError};
-use rmcp::model::Content;
+use mcp_core::ToolError;
+use rmcp::model::{Content, ServerNotification, Tool, ToolAnnotations};
 use serde_json::Value;
 
 use crate::agents::subagent_task_config::TaskConfig;
@@ -8,7 +8,7 @@ use crate::agents::{
     subagent_execution_tool::task_types::ExecutionMode,
     subagent_execution_tool::tasks_manager::TasksManager, tool_execution::ToolCallResult,
 };
-use rmcp::model::JsonRpcMessage;
+use rmcp::object;
 use tokio::sync::mpsc;
 use tokio_stream;
 use tokio_util::sync::CancellationToken;
@@ -18,21 +18,21 @@ pub fn create_subagent_execute_task_tool() -> Tool {
     Tool::new(
         SUBAGENT_EXECUTE_TASK_TOOL_NAME,
         "Only use the subagent__execute_task tool when you execute sub recipe task or dynamic task.
-EXECUTION STRATEGY DECISION:
-1. If the tasks are created with execution_mode, use the execution_mode.
-2. Execute tasks sequentially unless user explicitly requests parallel execution. PARALLEL: User uses keywords like 'parallel', 'simultaneously', 'at the same time', 'concurrently'
+        EXECUTION STRATEGY DECISION:
+        1. If the tasks are created with execution_mode, use the execution_mode.
+        2. Execute tasks sequentially unless user explicitly requests parallel execution. PARALLEL: User uses keywords like 'parallel', 'simultaneously', 'at the same time', 'concurrently'
 
-IMPLEMENTATION:
-- Sequential execution: Call this tool multiple times, passing exactly ONE task per call
-- Parallel execution: Call this tool once, passing an ARRAY of all tasks
+        IMPLEMENTATION:
+        - Sequential execution: Call this tool multiple times, passing exactly ONE task per call
+        - Parallel execution: Call this tool once, passing an ARRAY of all tasks
 
-EXAMPLES:
-User Intent Based:
-- User: 'get weather and tell me a joke' → Sequential (2 separate tool calls, 1 task each)
-- User: 'get weather and joke in parallel' → Parallel (1 tool call with array of 2 tasks)
-- User: 'run these simultaneously' → Parallel (1 tool call with task array)
-- User: 'do task A then task B' → Sequential (2 separate tool calls)",
-        serde_json::json!({
+        EXAMPLES:
+        User Intent Based:
+        - User: 'get weather and tell me a joke' → Sequential (2 separate tool calls, 1 task each)
+        - User: 'get weather and joke in parallel' → Parallel (1 tool call with array of 2 tasks)
+        - User: 'run these simultaneously' → Parallel (1 tool call with task array)
+        - User: 'do task A then task B' → Sequential (2 separate tool calls)",
+        object!({
             "type": "object",
             "properties": {
                 "execution_mode": {
@@ -50,15 +50,14 @@ User Intent Based:
                 }
             },
             "required": ["task_ids"]
-        }),
-        Some(ToolAnnotations {
-            title: Some("Run tasks in parallel".to_string()),
-            read_only_hint: false,
-            destructive_hint: true,
-            idempotent_hint: false,
-            open_world_hint: true,
-        }),
-    )
+        })
+    ).annotate(ToolAnnotations {
+        title: Some("Run tasks in parallel".to_string()),
+        read_only_hint: Some(false),
+        destructive_hint: Some(true),
+        idempotent_hint: Some(false),
+        open_world_hint: Some(true),
+    })
 }
 
 pub async fn run_tasks(
@@ -67,7 +66,7 @@ pub async fn run_tasks(
     tasks_manager: &TasksManager,
     cancellation_token: Option<CancellationToken>,
 ) -> ToolCallResult {
-    let (notification_tx, notification_rx) = mpsc::channel::<JsonRpcMessage>(100);
+    let (notification_tx, notification_rx) = mpsc::channel::<ServerNotification>(100);
 
     let tasks_manager_clone = tasks_manager.clone();
     let result_future = async move {

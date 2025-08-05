@@ -5,7 +5,7 @@
     "description": "Built-in developer tools for file editing and shell command execution",
     "command": "",
     "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/developer",
-    "installation_notes": "This is a built-in extension that comes with goose by default. No installation required.",
+    "installation_notes": "This is a built-in extension that comes with Goose by default. No installation required.",
     "is_builtin": true,
     "endorsed": true,
     "environmentVariables": []
@@ -16,7 +16,7 @@
     "description": "Built-in computer controls for webscraping, file caching, and automations",
     "command": "",
     "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/computercontroller",
-    "installation_notes": "This is a built-in extension that comes with goose and can be enabled in the Settings page under 'Extensions'.",
+    "installation_notes": "This is a built-in extension that comes with Goose and can be enabled on the Extensions page.",
     "is_builtin": true,
     "endorsed": true,
     "environmentVariables": []
@@ -27,7 +27,7 @@
     "description": "Built-in memory system for persistent context and information storage",
     "command": "",
     "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/memory",
-    "installation_notes": "This is a built-in extension that comes with goose and can be enabled in the Settings page under 'Extensions'.",
+    "installation_notes": "This is a built-in extension that comes with Goose and can be enabled on the Extensions page.",
     "is_builtin": true,
     "endorsed": true,
     "environmentVariables": []
@@ -38,7 +38,7 @@
     "description": "Built-in JetBrains IDE integration for development workflows",
     "command": "",
     "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/jetbrains",
-    "installation_notes": "This is a built-in extension that comes with goose and can be enabled in the Settings page under 'Extensions'.",
+    "installation_notes": "This is a built-in extension that comes with Goose and can be enabled on the Extensions page.",
     "is_builtin": true,
     "endorsed": true,
     "environmentVariables": []
@@ -307,6 +307,17 @@
     "environmentVariables": []
   },
   {
+    "id": "context7",
+    "name": "Context7",
+    "description": "Use up-to-date code and docs",
+    "command": "npx -y @upstash/context7-mcp",
+    "link": "https://github.com/upstash/context7",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": []
+  },
+  {
     "id": "elevenlabs-mcp",
     "name": "ElevenLabs",
     "description": "Text-to-speech and voice synthesis",
@@ -395,6 +406,28 @@
     "installation_notes": "Install using npx package manager.",
     "is_builtin": false,
     "endorsed": false,
+    "environmentVariables": []
+  },
+  {
+    "id": "mongodb",
+    "name": "MongoDB",
+    "description": "MongoDB database integration",
+    "command": "npx -y mongodb-mcp-server --connection-string mongodb://localhost:27017",
+    "link": "https://github.com/mongodb-js/mongodb-mcp-server",
+    "installation_notes": "Install using npx package manager. Update connection-string as needed to match your MongoDB environment.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": []
+  },
+  {
+    "id": "neon",
+    "name": "Neon",
+    "description": "Manage Neon Postgres databases, projects, and branches",
+    "command": "npx -y @neondatabase/mcp-server-neon start <YOUR_NEON_API_KEY>",
+    "link": "https://github.com/neondatabase-labs/mcp-server-neon",
+    "installation_notes": "Install using npx package manager (add your Neon API key to the command) or connect to the remote server.",
+    "is_builtin": false,
+    "endorsed": true,
     "environmentVariables": []
   },
   {
@@ -522,11 +555,11 @@
   {
     "id": "tutorial-mcp",
     "name": "Tutorial",
-    "description": "Tutorial and learning management system",
-    "command": "npx -y tutorial-mcp",
+    "description": "Built-in tutorial and learning management system",
+    "command": "",
     "link": "https://github.com/tutorial/tutorial-mcp",
-    "installation_notes": "Install using npx package manager.",
-    "is_builtin": false,
+    "installation_notes": "This is a built-in extension that comes with Goose and can be enabled on the Extensions page.",
+    "is_builtin": true,
     "endorsed": false,
     "environmentVariables": []
   },
@@ -534,9 +567,29 @@
     "id": "youtube-transcript-mcp",
     "name": "YouTube Transcript",
     "description": "YouTube video transcript extraction",
-    "command": "npx -y youtube-transcript-mcp",
+    "command": "uvx --from git+https://github.com/jkawamoto/mcp-youtube-transcript mcp-youtube-transcript",
     "link": "https://github.com/jkawamoto/mcp-youtube-transcript",
-    "installation_notes": "Install using npx package manager.",
+    "installation_notes": "Install using uv package manager.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
+    "id": "goose-docs",
+    "name": "Goose Docs",
+    "description": "GitMCP for Goose documentation",
+    "command": "npx mcp-remote https://block.gitmcp.io/goose/",
+    "link": "https://github.com/idosal/git-mcp",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
+    "id": "gitmcp",
+    "name": "GitMCP",
+    "description": "Gets latest documentation for any GitHub project",
+    "command": "npx -y mcp-remote https://gitmcp.io/docs",
+    "link": "https://github.com/idosal/git-mcp",
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": []

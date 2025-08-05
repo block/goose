@@ -45,6 +45,21 @@ export default function ExtensionsSection({
     showEnvVars
   );
 
+  // Update deep link state when props change
+  useEffect(() => {
+    setDeepLinkConfigStateVar(deepLinkConfig);
+    setShowEnvVarsStateVar(showEnvVars);
+  }, [deepLinkConfig, showEnvVars]);
+
+  // Reset deep link state when component is re-mounted (via key prop changes)
+  useEffect(() => {
+    return () => {
+      // Cleanup function to reset state when component unmounts
+      setDeepLinkConfigStateVar(null);
+      setShowEnvVarsStateVar(null);
+    };
+  }, []);
+
   const fetchExtensions = useCallback(async () => {
     const extensionsList = await getExtensions(true); // Force refresh
     // Sort extensions by name to maintain consistent order
@@ -55,8 +70,8 @@ export default function ExtensionsSection({
         if (a.type !== 'builtin' && b.type === 'builtin') return 1;
 
         // Then sort by bundled (handle null/undefined cases)
-        const aBundled = a.bundled === true;
-        const bBundled = b.bundled === true;
+        const aBundled = 'bundled' in a && a.bundled === true;
+        const bBundled = 'bundled' in b && b.bundled === true;
         if (aBundled && !bBundled) return -1;
         if (!aBundled && bBundled) return 1;
 
@@ -69,12 +84,6 @@ export default function ExtensionsSection({
         enabled: disableConfiguration ? selectedExtensions.includes(ext.name) : ext.enabled,
       }));
 
-    console.log(
-      'Setting extensions with selectedExtensions:',
-      selectedExtensions,
-      'Extensions:',
-      sortedExtensions
-    );
     setExtensions(sortedExtensions);
   }, [getExtensions, disableConfiguration, selectedExtensions]);
 
@@ -129,27 +138,33 @@ export default function ExtensionsSection({
     const extensionConfig = createExtensionConfig(formData);
     try {
       await activateExtension({ addToConfig: addExtension, extensionConfig: extensionConfig });
+      // Immediately refresh the extensions list after successful activation
+      await fetchExtensions();
     } catch (error) {
       console.error('Failed to activate extension:', error);
-      // Even if activation fails, we don't reopen the modal
-    } finally {
-      // Add a small delay to ensure backend has updated, then refresh the extensions list
-      setTimeout(async () => {
-        await fetchExtensions();
-      }, 500);
+      await fetchExtensions();
     }
   };
 
   const handleUpdateExtension = async (formData: ExtensionFormData) => {
+    if (!selectedExtension) {
+      console.error('No selected extension for update');
+      return;
+    }
+
     // Close the modal immediately
     handleModalClose();
 
     const extensionConfig = createExtensionConfig(formData);
+    const originalName = selectedExtension.name;
+
     try {
       await updateExtension({
         enabled: formData.enabled,
         extensionConfig: extensionConfig,
         addToConfig: addExtension,
+        removeFromConfig: removeExtension,
+        originalName: originalName,
       });
     } catch (error) {
       console.error('Failed to update extension:', error);
@@ -182,6 +197,11 @@ export default function ExtensionsSection({
     setIsModalOpen(false);
     setIsAddModalOpen(false);
     setSelectedExtension(null);
+
+    // Clear any navigation state that might be cached
+    if (window.history.state?.deepLinkConfig) {
+      window.history.replaceState({}, '', window.location.hash);
+    }
   };
 
   return (

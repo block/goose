@@ -1,6 +1,6 @@
 use ahash::AHasher;
 use dashmap::DashMap;
-use mcp_core::Tool;
+use rmcp::model::Tool;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use tiktoken_rs::CoreBPE;
@@ -79,7 +79,12 @@ impl AsyncTokenCounter {
             for tool in tools {
                 func_token_count += func_init;
                 let name = &tool.name;
-                let description = &tool.description.trim_end_matches('.');
+                let description = &tool
+                    .description
+                    .as_ref()
+                    .map(|d| d.as_ref())
+                    .unwrap_or_default()
+                    .trim_end_matches('.');
 
                 // Note: the separator (:) is likely tokenized with adjacent tokens, so we use original approach for accuracy
                 let line = format!("{}:{}", name, description);
@@ -225,7 +230,12 @@ impl TokenCounter {
             for tool in tools {
                 func_token_count += func_init; // Add tokens for start of each function
                 let name = &tool.name;
-                let description = &tool.description.trim_end_matches('.');
+                let description = &tool
+                    .description
+                    .as_ref()
+                    .map(|d| d.as_ref())
+                    .unwrap_or_default()
+                    .trim_end_matches('.');
                 let line = format!("{}:{}", name, description);
                 func_token_count += self.count_tokens(&line); // Add tokens for name and description
 
@@ -371,9 +381,8 @@ pub async fn create_async_token_counter() -> Result<AsyncTokenCounter, String> {
 mod tests {
     use super::*;
     use crate::message::{Message, MessageContent};
-    use mcp_core::tool::Tool;
-    use rmcp::model::Role;
-    use serde_json::json;
+    use rmcp::model::{Role, Tool};
+    use rmcp::object;
 
     #[test]
     fn test_token_counter_basic() {
@@ -428,10 +437,10 @@ mod tests {
             ),
         ];
 
-        let tools = vec![Tool {
-            name: "get_current_weather".to_string(),
-            description: "Get the current weather in a given location".to_string(),
-            input_schema: json!({
+        let tools = vec![Tool::new(
+            "get_current_weather",
+            "Get the current weather in a given location",
+            object!({
                 "properties": {
                     "location": {
                         "type": "string",
@@ -445,8 +454,7 @@ mod tests {
                 },
                 "required": ["location"]
             }),
-            annotations: None,
-        }];
+        )];
 
         let token_count_without_tools = counter.count_chat_tokens(system_prompt, &messages, &[]);
         println!("Total tokens without tools: {}", token_count_without_tools);
@@ -526,10 +534,10 @@ mod tests {
             ),
         ];
 
-        let tools = vec![Tool {
-            name: "get_current_weather".to_string(),
-            description: "Get the current weather in a given location".to_string(),
-            input_schema: json!({
+        let tools = vec![Tool::new(
+            "get_current_weather",
+            "Get the current weather in a given location",
+            object!({
                 "properties": {
                     "location": {
                         "type": "string",
@@ -543,8 +551,7 @@ mod tests {
                 },
                 "required": ["location"]
             }),
-            annotations: None,
-        }];
+        )];
 
         let token_count_without_tools = counter.count_chat_tokens(system_prompt, &messages, &[]);
         println!(

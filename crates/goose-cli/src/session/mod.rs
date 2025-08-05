@@ -36,7 +36,8 @@ use goose::providers::pricing::initialize_pricing_cache;
 use goose::session;
 use input::InputResult;
 use mcp_core::handler::ToolError;
-use rmcp::model::{JsonRpcMessage, JsonRpcNotification, Notification, PromptMessage};
+use rmcp::model::PromptMessage;
+use rmcp::model::ServerNotification;
 
 use rand::{distributions::Alphanumeric, Rng};
 use rustyline::EditMode;
@@ -363,8 +364,15 @@ impl Session {
     }
 
     /// Process a single message and get the response
-    async fn process_message(&mut self, message: String) -> Result<()> {
-        self.push_message(Message::user().with_text(&message));
+    pub(crate) async fn process_message(
+        &mut self,
+        message: Message,
+        cancel_token: CancellationToken,
+    ) -> Result<()> {
+        let cancel_token = cancel_token.clone();
+        let message_text = message.as_concat_text();
+
+        self.push_message(message);
         // Get the provider from the agent for description generation
         let provider = self.agent.provider().await?;
 
@@ -392,24 +400,27 @@ impl Session {
             .and_then(|s| s.to_str())
             .map(|s| s.to_string());
 
-        if let Err(e) =
-            crate::project_tracker::update_project_tracker(Some(&message), session_id.as_deref())
-        {
+        if let Err(e) = crate::project_tracker::update_project_tracker(
+            Some(&message_text),
+            session_id.as_deref(),
+        ) {
             eprintln!(
                 "Warning: Failed to update project tracker with instruction: {}",
                 e
             );
         }
 
-        self.process_agent_response(false).await?;
+        self.process_agent_response(false, cancel_token).await?;
         Ok(())
     }
 
     /// Start an interactive session, optionally with an initial message
-    pub async fn interactive(&mut self, message: Option<String>) -> Result<()> {
+    pub async fn interactive(&mut self, prompt: Option<String>) -> Result<()> {
         // Process initial message if provided
-        if let Some(msg) = message {
-            self.process_message(msg).await?;
+        if let Some(prompt) = prompt {
+            let msg = Message::user().with_text(&prompt);
+            self.process_message(msg, CancellationToken::default())
+                .await?;
         }
 
         // Initialize the completion cache
@@ -509,7 +520,8 @@ impl Session {
                             }
 
                             output::show_thinking();
-                            self.process_agent_response(true).await?;
+                            self.process_agent_response(true, CancellationToken::default())
+                                .await?;
                             output::hide_thinking();
                         }
                         RunMode::Plan => {
@@ -809,7 +821,8 @@ impl Session {
                     self.push_message(plan_message);
                     // act on the plan
                     output::show_thinking();
-                    self.process_agent_response(true).await?;
+                    self.process_agent_response(true, CancellationToken::default())
+                        .await?;
                     output::hide_thinking();
 
                     // Reset run & goose mode
@@ -835,12 +848,17 @@ impl Session {
     }
 
     /// Process a single message and exit
-    pub async fn headless(&mut self, message: String) -> Result<()> {
-        self.process_message(message).await
+    pub async fn headless(&mut self, prompt: String) -> Result<()> {
+        let message = Message::user().with_text(&prompt);
+        self.process_message(message, CancellationToken::default())
+            .await
     }
 
-    async fn process_agent_response(&mut self, interactive: bool) -> Result<()> {
-        let cancel_token = CancellationToken::new();
+    async fn process_agent_response(
+        &mut self,
+        interactive: bool,
+        cancel_token: CancellationToken,
+    ) -> Result<()> {
         let cancel_token_clone = cancel_token.clone();
 
         let session_config = self.session_file.as_ref().map(|s| {
@@ -1002,6 +1020,17 @@ impl Session {
                             }
                             // otherwise we have a model/tool to render
                             else {
+                                for content in &message.content {
+                                    if let MessageContent::ToolRequest(tool_request) = content {
+                                        if let Ok(tool_call) = &tool_request.tool_call {
+                                            tracing::info!(monotonic_counter.goose.tool_calls = 1,
+                                                tool_name = %tool_call.name,
+                                                "Tool call executed"
+                                            );
+                                        }
+                                    }
+                                }
+
                                 push_message(&mut self.messages, message.clone());
 
                                 // No need to update description on assistant messages
@@ -1023,125 +1052,127 @@ impl Session {
                             }
                         }
                         Some(Ok(AgentEvent::McpNotification((_id, message)))) => {
-                                if let JsonRpcMessage::Notification( JsonRpcNotification {
-                                    notification: Notification {
-                                        method,
-                                        params: o,..
-                                    },..
-                                }) = message {
-                                match method.as_str() {
-                                    "notifications/message" => {
-                                        let data = o.get("data").unwrap_or(&Value::Null);
-                                        let (formatted_message, subagent_id, message_notification_type) = match data {
-                                            Value::String(s) => (s.clone(), None, None),
-                                            Value::Object(o) => {
-                                                // Check for subagent notification structure first
-                                                if let Some(Value::String(msg)) = o.get("message") {
-                                                    // Extract subagent info for better display
-                                                    let subagent_id = o.get("subagent_id")
-                                                        .and_then(|v| v.as_str())
-                                                        .unwrap_or("unknown");
-                                                    let notification_type = o.get("type")
-                                                        .and_then(|v| v.as_str())
-                                                        .unwrap_or("");
+                            match &message {
+                                ServerNotification::LoggingMessageNotification(notification) => {
+                                    let data = &notification.params.data;
+                                    let (formatted_message, subagent_id, message_notification_type) = match data {
+                                        Value::String(s) => (s.clone(), None, None),
+                                        Value::Object(o) => {
+                                            // Check for subagent notification structure first
+                                            if let Some(Value::String(msg)) = o.get("message") {
+                                                // Extract subagent info for better display
+                                                let subagent_id = o.get("subagent_id")
+                                                    .and_then(|v| v.as_str());
+                                                let notification_type = o.get("type")
+                                                    .and_then(|v| v.as_str());
 
-                                                    let formatted = match notification_type {
-                                                        "subagent_created" | "completed" | "terminated" => {
-                                                            format!("🤖 {}", msg)
-                                                        }
-                                                        "tool_usage" | "tool_completed" | "tool_error" => {
-                                                            format!("🔧 {}", msg)
-                                                        }
-                                                        "message_processing" | "turn_progress" => {
-                                                            format!("💭 {}", msg)
-                                                        }
-                                                        "response_generated" => {
-                                                            // Check verbosity setting for subagent response content
-                                                            let config = Config::global();
-                                                            let min_priority = config
-                                                                .get_param::<f32>("GOOSE_CLI_MIN_PRIORITY")
-                                                                .ok()
-                                                                .unwrap_or(0.5);
+                                                let formatted = match notification_type {
+                                                    Some("subagent_created") | Some("completed") | Some("terminated") => {
+                                                        format!("🤖 {}", msg)
+                                                    }
+                                                    Some("tool_usage") | Some("tool_completed") | Some("tool_error") => {
+                                                        format!("🔧 {}", msg)
+                                                    }
+                                                    Some("message_processing") | Some("turn_progress") => {
+                                                        format!("💭 {}", msg)
+                                                    }
+                                                    Some("response_generated") => {
+                                                        // Check verbosity setting for subagent response content
+                                                        let config = Config::global();
+                                                        let min_priority = config
+                                                            .get_param::<f32>("GOOSE_CLI_MIN_PRIORITY")
+                                                            .ok()
+                                                            .unwrap_or(0.5);
 
-                                                            if min_priority > 0.1 && !self.debug {
-                                                                // High/Medium verbosity: show truncated response
-                                                                if let Some(response_content) = msg.strip_prefix("Responded: ") {
-                                                                    format!("🤖 Responded: {}", safe_truncate(response_content, 100))
-                                                                } else {
-                                                                    format!("🤖 {}", msg)
-                                                                }
+                                                        if min_priority > 0.1 && !self.debug {
+                                                            // High/Medium verbosity: show truncated response
+                                                            if let Some(response_content) = msg.strip_prefix("Responded: ") {
+                                                                format!("🤖 Responded: {}", safe_truncate(response_content, 100))
                                                             } else {
-                                                                // All verbosity or debug: show full response
                                                                 format!("🤖 {}", msg)
                                                             }
+                                                        } else {
+                                                            // All verbosity or debug: show full response
+                                                            format!("🤖 {}", msg)
                                                         }
-                                                        _ => {
-                                                            msg.to_string()
-                                                        }
-                                                    };
-                                                    (formatted, Some(subagent_id.to_string()), Some(notification_type.to_string()))
-                                                } else if let Some(Value::String(output)) = o.get("output") {
-                                                    // Fallback for other MCP notification types
-                                                    (output.to_owned(), None, None)
-                                                } else if let Some(result) = format_task_execution_notification(data) {
-                                                    result
-                                                } else {
-                                                    (data.to_string(), None, None)
-                                                }
-                                            },
-                                            v => {
-                                                (v.to_string(), None, None)
-                                            },
-                                        };
+                                                    }
+                                                    _ => {
+                                                        msg.to_string()
+                                                    }
+                                                };
+                                                (formatted, subagent_id.map(str::to_string), notification_type.map(str::to_string))
+                                            } else if let Some(Value::String(output)) = o.get("output") {
+                                                // Fallback for other MCP notification types
+                                                (output.to_owned(), None, None)
+                                            } else if let Some(result) = format_task_execution_notification(data) {
+                                                result
+                                            } else {
+                                                (data.to_string(), None, None)
+                                            }
+                                        },
+                                        v => {
+                                            (v.to_string(), None, None)
+                                        },
+                                    };
 
-                                        // Handle subagent notifications - show immediately
-                                        if let Some(_id) = subagent_id {
-                                            // TODO: proper display for subagent notifications
+                                    // Handle subagent notifications - show immediately
+                                    if let Some(_id) = subagent_id {
+                                        // TODO: proper display for subagent notifications
+                                        if interactive {
+                                            let _ = progress_bars.hide();
+                                            println!("{}", console::style(&formatted_message).green().dim());
+                                        } else {
+                                            progress_bars.log(&formatted_message);
+                                        }
+                                    } else if let Some(ref notification_type) = message_notification_type {
+                                        if notification_type == TASK_EXECUTION_NOTIFICATION_TYPE {
                                             if interactive {
                                                 let _ = progress_bars.hide();
-                                                println!("{}", console::style(&formatted_message).green().dim());
+                                                print!("{}", formatted_message);
+                                                std::io::stdout().flush().unwrap();
                                             } else {
-                                                progress_bars.log(&formatted_message);
-                                            }
-                                        } else if let Some(ref notification_type) = message_notification_type {
-                                            if notification_type == TASK_EXECUTION_NOTIFICATION_TYPE {
-                                                if interactive {
-                                                    let _ = progress_bars.hide();
-                                                    print!("{}", formatted_message);
-                                                    std::io::stdout().flush().unwrap();
-                                                } else {
-                                                    print!("{}", formatted_message);
-                                                    std::io::stdout().flush().unwrap();
-                                                }
+                                                print!("{}", formatted_message);
+                                                std::io::stdout().flush().unwrap();
                                             }
                                         }
-                                        else {
-                                            // Non-subagent notification, display immediately with compact spacing
-                                            if interactive {
-                                                let _ = progress_bars.hide();
-                                                println!("{}", console::style(&formatted_message).green().dim());
-                                            } else {
-                                                progress_bars.log(&formatted_message);
-                                            }
-                                        }
-                                    },
-                                    "notifications/progress" => {
-                                        let progress = o.get("progress").and_then(|v| v.as_f64());
-                                        let token = o.get("progressToken").map(|v| v.to_string());
-                                        let message = o.get("message").and_then(|v| v.as_str());
-                                        let total = o
-                                            .get("total")
-                                            .and_then(|v| v.as_f64());
-                                        if let (Some(progress), Some(token)) = (progress, token) {
-                                            progress_bars.update(
-                                                token.as_str(),
-                                                progress,
-                                                total,
-                                                message,
-                                            );
-                                        }
-                                    },
-                                    _ => (),
+                                    }
+                                    else if output::is_showing_thinking() {
+                                        output::set_thinking_message(&formatted_message);
+                                    } else {
+                                        progress_bars.log(&formatted_message);
+                                    }
+                                },
+                                ServerNotification::ProgressNotification(notification) => {
+                                    let progress = notification.params.progress;
+                                    let text = notification.params.message.as_deref();
+                                    let total = notification.params.total;
+                                    let token = &notification.params.progress_token;
+                                    progress_bars.update(
+                                        &token.0.to_string(),
+                                        progress,
+                                        total,
+                                        text,
+                                    );
+                                },
+                                _ => (),
+                            }
+                        }
+                        Some(Ok(AgentEvent::HistoryReplaced(new_messages))) => {
+                            // Replace the session's message history with the compacted messages
+                            self.messages = new_messages;
+
+                            // Persist the updated messages to the session file
+                            if let Some(session_file) = &self.session_file {
+                                let provider = self.agent.provider().await.ok();
+                                let working_dir = std::env::current_dir().ok();
+                                if let Err(e) = session::persist_messages_with_schedule_id(
+                                    session_file,
+                                    &self.messages,
+                                    provider,
+                                    self.scheduled_job_id.clone(),
+                                    working_dir,
+                                ).await {
+                                    eprintln!("Failed to persist compacted messages: {}", e);
                                 }
                             }
                         }
@@ -1491,7 +1522,8 @@ impl Session {
 
                     if valid {
                         output::show_thinking();
-                        self.process_agent_response(true).await?;
+                        self.process_agent_response(true, CancellationToken::default())
+                            .await?;
                         output::hide_thinking();
                     }
                 }
@@ -1577,7 +1609,7 @@ fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
     };
 
     let model_config =
-        ModelConfig::new_with_context_env(model, Some("GOOSE_PLANNER_CONTEXT_LIMIT"));
+        ModelConfig::new_with_context_env(model, Some("GOOSE_PLANNER_CONTEXT_LIMIT"))?;
     let reasoner = create(&provider, model_config)?;
 
     Ok(reasoner)

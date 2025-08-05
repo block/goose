@@ -40,6 +40,7 @@ import {
   validateConfig,
 } from './api/sdk.gen';
 import PermissionSettingsView from './components/settings/permission/PermissionSetting';
+import { COST_TRACKING_ENABLED } from './updates';
 
 import { type SessionDetails } from './sessions';
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
@@ -535,17 +536,18 @@ const SharedSessionRouteWrapper = ({
   const location = useLocation();
   const navigate = useNavigate();
 
-  const sessionDetails = location.state?.sessionDetails as SharedSessionDetails | null;
-  const error = location.state?.error || sharedSessionError;
-  const shareToken = location.state?.shareToken;
-  const baseUrl = location.state?.baseUrl;
+  const historyState = window.history.state;
+  const sessionDetails = (location.state?.sessionDetails ||
+    historyState?.sessionDetails) as SharedSessionDetails | null;
+  const error = location.state?.error || historyState?.error || sharedSessionError;
+  const shareToken = location.state?.shareToken || historyState?.shareToken;
+  const baseUrl = location.state?.baseUrl || historyState?.baseUrl;
 
   return (
     <SharedSessionView
       session={sessionDetails}
       isLoading={isLoadingSharedSession}
       error={error}
-      onBack={() => navigate('/sessions')}
       onRetry={async () => {
         if (shareToken && baseUrl) {
           setIsLoadingSharedSession(true);
@@ -713,6 +715,7 @@ export default function App() {
   // Create a setView function for useChat hook - we'll use window.history instead of navigate
   const setView = (view: View, viewOptions: ViewOptions = {}) => {
     console.log(`Setting view to: ${view}`, viewOptions);
+    console.trace('setView called from:'); // This will show the call stack
     // Convert view to route navigation using hash routing
     switch (view) {
       case 'chat':
@@ -752,7 +755,10 @@ export default function App() {
         window.location.hash = '#/welcome';
         break;
       default:
-        window.location.hash = '#/';
+        console.error(`Unknown view: ${view}, not navigating anywhere. This is likely a bug.`);
+        console.trace('Invalid setView call stack:');
+        // Don't navigate anywhere for unknown views to avoid unexpected redirects
+        break;
     }
   };
 
@@ -850,53 +856,52 @@ export default function App() {
 
     const initializeApp = async () => {
       try {
-        // Initialize cost database early to pre-load pricing data
-        initializeCostDatabase().catch((error) => {
-          console.error('Failed to initialize cost database:', error);
-        });
+        // Start cost database initialization early (non-blocking) - only if cost tracking is enabled
+        const costDbPromise = COST_TRACKING_ENABLED
+          ? initializeCostDatabase().catch((error) => {
+              console.error('Failed to initialize cost database:', error);
+            })
+          : (() => {
+              console.log('Cost tracking disabled, skipping cost database initialization');
+              return Promise.resolve();
+            })();
 
         await initConfig();
+
         try {
           await readAllConfig({ throwOnError: true });
         } catch (error) {
+          console.warn('Initial config read failed, attempting recovery:', error);
+
           const configVersion = localStorage.getItem('configVersion');
           const shouldMigrateExtensions = !configVersion || parseInt(configVersion, 10) < 3;
+
           if (shouldMigrateExtensions) {
-            await backupConfig({ throwOnError: true });
-            await initConfig();
-          } else {
-            // Config appears corrupted, try recovery
-            console.warn('Config file appears corrupted, attempting recovery...');
+            console.log('Performing extension migration...');
             try {
-              // First try to validate the config
-              try {
-                await validateConfig({ throwOnError: true });
-                // Config is valid but readAllConfig failed for another reason
-                throw new Error('Unable to read config file, it may be malformed');
-              } catch (validateError) {
-                console.log('Config validation failed, attempting recovery...');
+              await backupConfig({ throwOnError: true });
+              await initConfig();
+            } catch (migrationError) {
+              console.error('Migration failed:', migrationError);
+              // Continue with recovery attempts
+            }
+          }
 
-                // Try to recover the config
-                try {
-                  const recoveryResult = await recoverConfig({ throwOnError: true });
-                  console.log('Config recovery result:', recoveryResult);
-
-                  // Try to read config again after recovery
-                  try {
-                    await readAllConfig({ throwOnError: true });
-                    console.log('Config successfully recovered and loaded');
-                  } catch (retryError) {
-                    console.warn('Config still corrupted after recovery, reinitializing...');
-                    await initConfig();
-                  }
-                } catch (recoverError) {
-                  console.warn('Config recovery failed, reinitializing...');
-                  await initConfig();
-                }
-              }
-            } catch (recoveryError) {
-              console.error('Config recovery process failed:', recoveryError);
-              throw new Error('Unable to read config file, it may be malformed');
+          // Try recovery if migration didn't work or wasn't needed
+          console.log('Attempting config recovery...');
+          try {
+            // Try to validate first (faster than recovery)
+            await validateConfig({ throwOnError: true });
+            // If validation passes, try reading again
+            await readAllConfig({ throwOnError: true });
+          } catch (validateError) {
+            console.log('Config validation failed, attempting recovery...');
+            try {
+              await recoverConfig({ throwOnError: true });
+              await readAllConfig({ throwOnError: true });
+            } catch (recoverError) {
+              console.warn('Config recovery failed, reinitializing...');
+              await initConfig();
             }
           }
         }
@@ -907,13 +912,21 @@ export default function App() {
 
         if (provider && model) {
           try {
-            await initializeSystem(provider as string, model as string, {
-              getExtensions,
-              addExtension,
-            });
+            // Initialize system in parallel with cost database (if enabled)
+            const initPromises = [
+              initializeSystem(provider as string, model as string, {
+                getExtensions,
+                addExtension,
+              }),
+            ];
 
-            // Check if we have a recipe config from a deeplink
-            // But skip navigation if we're ignoring recipe config changes (to prevent conflicts with new window creation)
+            if (COST_TRACKING_ENABLED) {
+              initPromises.push(costDbPromise);
+            }
+
+            await Promise.all(initPromises);
+
+            const recipeConfig = window.appConfig.get('recipe');
             if (
               recipeConfig &&
               typeof recipeConfig === 'object' &&
@@ -969,16 +982,16 @@ export default function App() {
               }
             }
           } catch (error) {
-            console.error('Error in initialization:', error);
+            console.error('Error in system initialization:', error);
             if (error instanceof MalformedConfigError) {
               throw error;
             }
-            // Navigate to welcome route
-            window.history.replaceState({}, '', '/welcome');
+            window.location.hash = '#/welcome';
+            window.history.replaceState({}, '', '#/welcome');
           }
         } else {
-          // Navigate to welcome route
-          window.history.replaceState({}, '', '/welcome');
+          window.location.hash = '#/welcome';
+          window.history.replaceState({}, '', '#/welcome');
         }
       } catch (error) {
         console.error('Fatal error during initialization:', error);
@@ -1024,51 +1037,32 @@ export default function App() {
     const handleOpenSharedSession = async (_event: IpcRendererEvent, ...args: unknown[]) => {
       const link = args[0] as string;
       window.electron.logInfo(`Opening shared session from deep link ${link}`);
-      setIsLoadingSession(true);
+      setIsLoadingSharedSession(true);
       setSharedSessionError(null);
       try {
         await openSharedSessionFromDeepLink(
           link,
-          (view: View, _options?: SessionLinksViewOptions) => {
-            // Convert view to route navigation
-            switch (view) {
-              case 'chat':
-                window.history.replaceState({}, '', '/');
-                break;
-              case 'settings':
-                window.history.replaceState({}, '', '/settings');
-                break;
-              case 'sessions':
-                window.history.replaceState({}, '', '/sessions');
-                break;
-              case 'schedules':
-                window.history.replaceState({}, '', '/schedules');
-                break;
-              case 'recipes':
-                window.history.replaceState({}, '', '/recipes');
-                break;
-              case 'permission':
-                window.history.replaceState({}, '', '/permission');
-                break;
-              case 'ConfigureProviders':
-                window.history.replaceState({}, '', '/configure-providers');
-                break;
-              case 'sharedSession':
-                window.history.replaceState({}, '', '/shared-session');
-                break;
-              case 'recipeEditor':
-                window.history.replaceState({}, '', '/recipe-editor');
-                break;
-              default:
-                window.history.replaceState({}, '', '/');
+          (_view: View, _options?: SessionLinksViewOptions) => {
+            // Navigate to shared session view with the session data
+            window.location.hash = '#/shared-session';
+            if (_options) {
+              window.history.replaceState(_options, '', '#/shared-session');
             }
           }
         );
       } catch (error) {
         console.error('Unexpected error opening shared session:', error);
-        window.history.replaceState({}, '', '/sessions');
+        // Navigate to shared session view with error
+        window.location.hash = '#/shared-session';
+        const shareToken = link.replace('goose://sessions/', '');
+        const options = {
+          sessionDetails: null,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          shareToken,
+        };
+        window.history.replaceState(options, '', '#/shared-session');
       } finally {
-        setIsLoadingSession(false);
+        setIsLoadingSharedSession(false);
       }
     };
     window.electron.on('open-shared-session', handleOpenSharedSession);
@@ -1076,6 +1070,45 @@ export default function App() {
       window.electron.off('open-shared-session', handleOpenSharedSession);
     };
   }, [setSharedSessionError]);
+
+  // Handle recipe decode events from main process
+  useEffect(() => {
+    const handleRecipeDecoded = (_event: IpcRendererEvent, ...args: unknown[]) => {
+      const decodedRecipe = args[0] as Recipe;
+      console.log('[App] Recipe decoded successfully:', decodedRecipe);
+
+      // Update the pair chat with the decoded recipe
+      setPairChat((prevChat) => ({
+        ...prevChat,
+        recipeConfig: decodedRecipe,
+        title: decodedRecipe.title || 'Recipe Chat',
+        messages: [], // Start fresh for recipe
+        messageHistoryIndex: 0,
+      }));
+
+      // Navigate to pair view if not already there
+      if (window.location.hash !== '#/pair') {
+        window.location.hash = '#/pair';
+      }
+    };
+
+    const handleRecipeDecodeError = (_event: IpcRendererEvent, ...args: unknown[]) => {
+      const errorMessage = args[0] as string;
+      console.error('[App] Recipe decode error:', errorMessage);
+
+      // Show error to user - you could add a toast notification here
+      // For now, just log the error and navigate to recipes page
+      window.location.hash = '#/recipes';
+    };
+
+    window.electron.on('recipe-decoded', handleRecipeDecoded);
+    window.electron.on('recipe-decode-error', handleRecipeDecodeError);
+
+    return () => {
+      window.electron.off('recipe-decoded', handleRecipeDecoded);
+      window.electron.off('recipe-decode-error', handleRecipeDecodeError);
+    };
+  }, [setPairChat]);
 
   useEffect(() => {
     console.log('Setting up keyboard shortcuts');
@@ -1170,9 +1203,9 @@ export default function App() {
       );
 
       if (section && newView === 'settings') {
-        window.history.replaceState({}, '', `/settings?section=${section}`);
+        window.location.hash = `#/settings?section=${section}`;
       } else {
-        window.history.replaceState({}, '', `/${newView}`);
+        window.location.hash = `#/${newView}`;
       }
     };
     const urlParams = new URLSearchParams(window.location.search);

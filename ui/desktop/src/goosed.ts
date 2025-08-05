@@ -3,7 +3,7 @@ import { createServer } from 'net';
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
-import { getBinaryPath } from './utils/binaryPath';
+import { getBinaryPath } from './utils/pathUtils';
 import log from './utils/logger';
 import { App } from 'electron';
 import { Buffer } from 'node:buffer';
@@ -94,6 +94,7 @@ interface GooseProcessEnv {
 
 export const startGoosed = async (
   app: App,
+  serverSecret: string,
   dir: string | null = null,
   env: Partial<GooseProcessEnv> = {}
 ): Promise<[number, string, ChildProcess]> => {
@@ -182,7 +183,7 @@ export const startGoosed = async (
     PATH: `${path.dirname(resolvedGoosedPath)}${path.delimiter}${process.env.PATH || ''}`,
     // start with the port specified
     GOOSE_PORT: String(port),
-    GOOSE_SERVER__SECRET_KEY: process.env.GOOSE_SERVER__SECRET_KEY,
+    GOOSE_SERVER__SECRET_KEY: serverSecret,
     // Add any additional environment variables passed in
     ...env,
   } as GooseProcessEnv;
@@ -207,20 +208,6 @@ export const startGoosed = async (
     goosedPath = resolvedGoosedPath;
   }
   log.info(`Binary path resolved to: ${goosedPath}`);
-
-  // Verify binary exists and is a regular file
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const fs = require('fs');
-    const stats = fs.statSync(goosedPath);
-    if (!stats.isFile()) {
-      throw new Error(`Path is not a regular file: ${goosedPath}`);
-    }
-    log.info(`Binary exists and is a regular file: ${stats.isFile()}`);
-  } catch (error) {
-    log.error(`Binary not found or invalid at ${goosedPath}:`, error);
-    throw new Error(`Binary not found or invalid at ${goosedPath}`);
-  }
 
   const spawnOptions = {
     cwd: dir,
@@ -282,16 +269,11 @@ export const startGoosed = async (
   // Wait for the server to be ready
   const isReady = await checkServerStatus(port);
   log.info(`Goosed isReady ${isReady}`);
-  if (!isReady) {
-    log.error(`Goosed server failed to start on port ${port}`);
+
+  const try_kill_goose = () => {
     try {
       if (isWindows) {
-        // On Windows, use taskkill to forcefully terminate the process tree
-        // Security: Validate PID is numeric and use safe arguments
         const pid = goosedProcess.pid?.toString() || '0';
-        if (!/^\d+$/.test(pid)) {
-          throw new Error(`Invalid PID: ${pid}`);
-        }
         spawn('taskkill', ['/pid', pid, '/T', '/F'], { shell: false });
       } else {
         goosedProcess.kill?.();
@@ -299,6 +281,11 @@ export const startGoosed = async (
     } catch (error) {
       log.error('Error while terminating goosed process:', error);
     }
+  };
+
+  if (!isReady) {
+    log.error(`Goosed server failed to start on port ${port}`);
+    try_kill_goose();
     throw new Error(`Goosed server failed to start on port ${port}`);
   }
 
@@ -306,22 +293,7 @@ export const startGoosed = async (
   // TODO will need to do it at tab level next
   app.on('will-quit', () => {
     log.info('App quitting, terminating goosed server');
-    try {
-      if (isWindows) {
-        // On Windows, use taskkill to forcefully terminate the process tree
-        // Security: Validate PID is numeric and use safe arguments
-        const pid = goosedProcess.pid?.toString() || '0';
-        if (!/^\d+$/.test(pid)) {
-          log.error(`Invalid PID for termination: ${pid}`);
-          return;
-        }
-        spawn('taskkill', ['/pid', pid, '/T', '/F'], { shell: false });
-      } else {
-        goosedProcess.kill?.();
-      }
-    } catch (error) {
-      log.error('Error while terminating goosed process:', error);
-    }
+    try_kill_goose();
   });
 
   log.info(`Goosed server successfully started on port ${port}`);

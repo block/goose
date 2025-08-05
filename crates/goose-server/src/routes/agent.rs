@@ -6,7 +6,6 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use goose::config::Config;
 use goose::config::PermissionManager;
 use goose::model::ModelConfig;
 use goose::providers::create;
@@ -15,6 +14,7 @@ use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
 };
+use goose::{config::Config, recipe::SubRecipe};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -32,6 +32,16 @@ struct ExtendPromptRequest {
 
 #[derive(Serialize)]
 struct ExtendPromptResponse {
+    success: bool,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct AddSubRecipesRequest {
+    sub_recipes: Vec<SubRecipe>,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct AddSubRecipesResponse {
     success: bool,
 }
 
@@ -86,6 +96,30 @@ async fn get_versions() -> Json<VersionsResponse> {
         available_versions: versions.iter().map(|v| v.to_string()).collect(),
         default_version,
     })
+}
+
+#[utoipa::path(
+    post,
+    path = "/agent/add_sub_recipes",
+    request_body = AddSubRecipesRequest,
+    responses(
+        (status = 200, description = "added sub recipes to agent successfully", body = AddSubRecipesResponse),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+    ),
+)]
+async fn add_sub_recipes(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(payload): Json<AddSubRecipesRequest>,
+) -> Result<Json<AddSubRecipesResponse>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
+    let agent = state
+        .get_agent()
+        .await
+        .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
+    agent.add_sub_recipes(payload.sub_recipes.clone()).await;
+    Ok(Json(AddSubRecipesResponse { success: true }))
 }
 
 async fn extend_prompt(
@@ -173,7 +207,10 @@ async fn get_tools(
 
             ToolInfo::new(
                 &tool.name,
-                &tool.description,
+                tool.description
+                    .as_ref()
+                    .map(|d| d.as_ref())
+                    .unwrap_or_default(),
                 get_parameter_names(&tool),
                 permission,
             )
@@ -189,6 +226,8 @@ async fn get_tools(
     path = "/agent/update_provider",
     responses(
         (status = 200, description = "Update provider completed", body = String),
+        (status = 400, description = "Bad request - missing or invalid parameters"),
+        (status = 401, description = "Unauthorized - invalid secret key"),
         (status = 500, description = "Internal server error")
     )
 )]
@@ -197,15 +236,7 @@ async fn update_agent_provider(
     headers: HeaderMap,
     Json(payload): Json<UpdateProviderRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    // Verify secret key
-    let secret_key = headers
-        .get("X-Secret-Key")
-        .and_then(|value| value.to_str().ok())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-
-    if secret_key != state.secret_key {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
+    verify_secret_key(&headers, &state)?;
 
     let agent = state
         .get_agent()
@@ -213,13 +244,18 @@ async fn update_agent_provider(
         .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
 
     let config = Config::global();
-    let model = payload.model.unwrap_or_else(|| {
-        config
-            .get_param("GOOSE_MODEL")
-            .expect("Did not find a model on payload or in env to update provider with")
-    });
-    let model_config = ModelConfig::new(model);
-    let new_provider = create(&payload.provider, model_config).unwrap();
+    let model = match payload
+        .model
+        .or_else(|| config.get_param("GOOSE_MODEL").ok())
+    {
+        Some(m) => m,
+        None => return Err(StatusCode::BAD_REQUEST),
+    };
+
+    let model_config = ModelConfig::new(&model).map_err(|_| StatusCode::BAD_REQUEST)?;
+
+    let new_provider =
+        create(&payload.provider, model_config).map_err(|_| StatusCode::BAD_REQUEST)?;
     agent
         .update_provider(new_provider)
         .await
@@ -318,5 +354,6 @@ pub fn routes(state: Arc<AppState>) -> Router {
             post(update_router_tool_selector),
         )
         .route("/agent/session_config", post(update_session_config))
+        .route("/agent/add_sub_recipes", post(add_sub_recipes))
         .with_state(state)
 }

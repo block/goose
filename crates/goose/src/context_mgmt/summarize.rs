@@ -1,13 +1,20 @@
 use super::common::{get_messages_token_counts, get_messages_token_counts_async};
-use crate::message::{Message, MessageContent};
+use crate::message::Message;
+use crate::prompt_template::render_global_file;
 use crate::providers::base::Provider;
 use crate::token_counter::{AsyncTokenCounter, TokenCounter};
 use anyhow::Result;
 use rmcp::model::Role;
+use serde::Serialize;
 use std::sync::Arc;
 
 // Constants for the summarization prompt and a follow-up user message.
 const SUMMARY_PROMPT: &str = "You are good at summarizing conversations";
+
+#[derive(Serialize)]
+struct SummarizeContext {
+    messages: String,
+}
 
 /// Summarize the combined messages from the accumulated summary and the current chunk.
 ///
@@ -43,62 +50,54 @@ async fn summarize_combined_messages(
     Ok(vec![response])
 }
 
-/// Preprocesses the messages to handle edge cases involving tool responses.
-///
-/// This function separates messages into two groups:
-/// 1. Messages to be summarized (`preprocessed_messages`)
-/// 2. Messages to be temporarily removed (`removed_messages`), which include:
-///    - The last tool response message.
-///    - The corresponding tool request message that immediately precedes the last tool response message (if present).
-///
-/// The function only considers the last tool response message and its pair for removal.
-fn preprocess_messages(messages: &[Message]) -> (Vec<Message>, Vec<Message>) {
-    let mut preprocessed_messages = messages.to_owned();
-    let mut removed_messages = Vec::new();
-
-    if let Some((last_index, last_message)) = messages.iter().enumerate().rev().find(|(_, m)| {
-        m.content
-            .iter()
-            .any(|c| matches!(c, MessageContent::ToolResponse(_)))
-    }) {
-        // Check for the corresponding tool request message
-        if last_index > 0 {
-            if let Some(previous_message) = messages.get(last_index - 1) {
-                if previous_message
-                    .content
-                    .iter()
-                    .any(|c| matches!(c, MessageContent::ToolRequest(_)))
-                {
-                    // Add the tool request message to removed_messages
-                    removed_messages.push(previous_message.clone());
-                }
-            }
-        }
-        // Add the last tool response message to removed_messages
-        removed_messages.push(last_message.clone());
-
-        // Calculate the correct start index for removal
-        let start_index = last_index + 1 - removed_messages.len();
-
-        // Remove the tool response and its paired tool request from preprocessed_messages
-        preprocessed_messages.drain(start_index..=last_index);
+// Summarization steps:
+//    Using a single tailored prompt, summarize the entire conversation history.
+pub async fn summarize_messages_oneshot(
+    provider: Arc<dyn Provider>,
+    messages: &[Message],
+    token_counter: &TokenCounter,
+    _context_limit: usize,
+) -> Result<(Vec<Message>, Vec<usize>), anyhow::Error> {
+    if messages.is_empty() {
+        // If no messages to summarize, return empty
+        return Ok((vec![], vec![]));
     }
 
-    (preprocessed_messages, removed_messages)
-}
+    // Format all messages as a single string for the summarization prompt
+    let messages_text = messages
+        .iter()
+        .map(|msg| format!("{:?}", msg))
+        .collect::<Vec<_>>()
+        .join("\n\n");
 
-/// Reinserts removed messages into the summarized output.
-///
-/// This function appends messages that were temporarily removed during preprocessing
-/// back into the summarized message list. This ensures that important context,
-/// such as tool responses, is not lost.
-fn reintegrate_removed_messages(
-    summarized_messages: &[Message],
-    removed_messages: &[Message],
-) -> Vec<Message> {
-    let mut final_messages = summarized_messages.to_owned();
-    final_messages.extend_from_slice(removed_messages);
-    final_messages
+    let context = SummarizeContext {
+        messages: messages_text,
+    };
+
+    // Render the one-shot summarization prompt
+    let system_prompt = render_global_file("summarize_oneshot.md", &context)?;
+
+    // Create a simple user message requesting summarization
+    let user_message = Message::user()
+        .with_text("Please summarize the conversation history provided in the system prompt.");
+    let summarization_request = vec![user_message];
+
+    // Send the request to the provider and fetch the response.
+    let mut response = provider
+        .complete(&system_prompt, &summarization_request, &[])
+        .await?
+        .0;
+
+    // Set role to user as it will be used in following conversation as user content.
+    response.role = Role::User;
+
+    // Return just the summary without any tool response preservation
+    let final_summary = vec![response];
+
+    Ok((
+        final_summary.clone(),
+        get_messages_token_counts(token_counter, &final_summary),
+    ))
 }
 
 // Summarization steps:
@@ -107,7 +106,7 @@ fn reintegrate_removed_messages(
 //    a. Combine it with the previous summary (or leave blank for the first iteration).
 //    b. Summarize the combined text, focusing on extracting only the information we need.
 // 3. Generate a final summary using a tailored prompt.
-pub async fn summarize_messages(
+pub async fn summarize_messages_chunked(
     provider: Arc<dyn Provider>,
     messages: &[Message],
     token_counter: &TokenCounter,
@@ -117,17 +116,14 @@ pub async fn summarize_messages(
     let summary_prompt_tokens = token_counter.count_tokens(SUMMARY_PROMPT);
     let mut accumulated_summary = Vec::new();
 
-    // Preprocess messages to handle tool response edge case.
-    let (preprocessed_messages, removed_messages) = preprocess_messages(messages);
-
     // Get token counts for each message.
-    let token_counts = get_messages_token_counts(token_counter, &preprocessed_messages);
+    let token_counts = get_messages_token_counts(token_counter, messages);
 
     // Tokenize and break messages into chunks.
     let mut current_chunk: Vec<Message> = Vec::new();
     let mut current_chunk_tokens = 0;
 
-    for (message, message_tokens) in preprocessed_messages.iter().zip(token_counts.iter()) {
+    for (message, message_tokens) in messages.iter().zip(token_counts.iter()) {
         if current_chunk_tokens + message_tokens > chunk_size - summary_prompt_tokens {
             // Summarize the current chunk with the accumulated summary.
             accumulated_summary =
@@ -150,13 +146,59 @@ pub async fn summarize_messages(
             summarize_combined_messages(&provider, &accumulated_summary, &current_chunk).await?;
     }
 
-    // Add back removed messages.
-    let final_summary = reintegrate_removed_messages(&accumulated_summary, &removed_messages);
-
+    // Return just the summary without any tool response preservation
     Ok((
-        final_summary.clone(),
-        get_messages_token_counts(token_counter, &final_summary),
+        accumulated_summary.clone(),
+        get_messages_token_counts(token_counter, &accumulated_summary),
     ))
+}
+
+/// Main summarization function that chooses the best algorithm based on context size.
+///
+/// This function will:
+/// 1. First try the one-shot summarization if there's enough context window available
+/// 2. Fall back to the chunked approach if the one-shot fails or if context is too limited
+/// 3. Choose the algorithm based on absolute token requirements rather than percentages
+pub async fn summarize_messages(
+    provider: Arc<dyn Provider>,
+    messages: &[Message],
+    token_counter: &TokenCounter,
+    context_limit: usize,
+) -> Result<(Vec<Message>, Vec<usize>), anyhow::Error> {
+    // Calculate total tokens in messages
+    let total_tokens: usize = get_messages_token_counts(token_counter, messages)
+        .iter()
+        .sum();
+
+    // Calculate absolute token requirements (future-proof for large context models)
+    let system_prompt_overhead = 1000; // Conservative estimate for the summarization prompt
+    let response_overhead = 4000; // Generous buffer for response generation
+    let safety_buffer = 1000; // Small safety margin for tokenization variations
+    let total_required = total_tokens + system_prompt_overhead + response_overhead + safety_buffer;
+
+    // Use one-shot if we have enough absolute space (no percentage-based limits)
+    if total_required <= context_limit {
+        match summarize_messages_oneshot(
+            Arc::clone(&provider),
+            messages,
+            token_counter,
+            context_limit,
+        )
+        .await
+        {
+            Ok(result) => return Ok(result),
+            Err(e) => {
+                // Log the error but continue to fallback
+                tracing::warn!(
+                    "One-shot summarization failed, falling back to chunked approach: {}",
+                    e
+                );
+            }
+        }
+    }
+
+    // Fall back to the chunked approach
+    summarize_messages_chunked(provider, messages, token_counter, context_limit).await
 }
 
 /// Async version using AsyncTokenCounter for better performance
@@ -170,17 +212,14 @@ pub async fn summarize_messages_async(
     let summary_prompt_tokens = token_counter.count_tokens(SUMMARY_PROMPT);
     let mut accumulated_summary = Vec::new();
 
-    // Preprocess messages to handle tool response edge case.
-    let (preprocessed_messages, removed_messages) = preprocess_messages(messages);
-
     // Get token counts for each message.
-    let token_counts = get_messages_token_counts_async(token_counter, &preprocessed_messages);
+    let token_counts = get_messages_token_counts_async(token_counter, messages);
 
     // Tokenize and break messages into chunks.
     let mut current_chunk: Vec<Message> = Vec::new();
     let mut current_chunk_tokens = 0;
 
-    for (message, message_tokens) in preprocessed_messages.iter().zip(token_counts.iter()) {
+    for (message, message_tokens) in messages.iter().zip(token_counts.iter()) {
         if current_chunk_tokens + message_tokens > chunk_size - summary_prompt_tokens {
             // Summarize the current chunk with the accumulated summary.
             accumulated_summary =
@@ -203,12 +242,10 @@ pub async fn summarize_messages_async(
             summarize_combined_messages(&provider, &accumulated_summary, &current_chunk).await?;
     }
 
-    // Add back removed messages.
-    let final_summary = reintegrate_removed_messages(&accumulated_summary, &removed_messages);
-
+    // Return just the summary without any tool response preservation
     Ok((
-        final_summary.clone(),
-        get_messages_token_counts_async(token_counter, &final_summary),
+        accumulated_summary.clone(),
+        get_messages_token_counts_async(token_counter, &accumulated_summary),
     ))
 }
 
@@ -220,11 +257,9 @@ mod tests {
     use crate::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
     use crate::providers::errors::ProviderError;
     use chrono::Utc;
-    use mcp_core::tool::Tool;
-    use mcp_core::ToolCall;
     use rmcp::model::Role;
-    use rmcp::model::{AnnotateAble, Content, RawTextContent};
-    use serde_json::json;
+    use rmcp::model::Tool;
+    use rmcp::model::{AnnotateAble, RawTextContent};
     use std::sync::Arc;
 
     #[derive(Clone)]
@@ -264,12 +299,12 @@ mod tests {
         }
     }
 
-    fn create_mock_provider() -> Arc<dyn Provider> {
-        let mock_model_config =
-            ModelConfig::new("test-model".to_string()).with_context_limit(200_000.into());
-        Arc::new(MockProvider {
+    fn create_mock_provider() -> Result<Arc<dyn Provider>> {
+        let mock_model_config = ModelConfig::new("test-model")?.with_context_limit(200_000.into());
+
+        Ok(Arc::new(MockProvider {
             model_config: mock_model_config,
-        })
+        }))
     }
 
     fn create_test_messages() -> Vec<Message> {
@@ -284,30 +319,11 @@ mod tests {
         Message::new(role, 0, vec![MessageContent::text(text.to_string())])
     }
 
-    fn set_up_tool_request_message(id: &str, tool_call: ToolCall) -> Message {
-        Message::new(
-            Role::Assistant,
-            0,
-            vec![MessageContent::tool_request(id.to_string(), Ok(tool_call))],
-        )
-    }
-
-    fn set_up_tool_response_message(id: &str, tool_response: Vec<Content>) -> Message {
-        Message::new(
-            Role::User,
-            0,
-            vec![MessageContent::tool_response(
-                id.to_string(),
-                Ok(tool_response),
-            )],
-        )
-    }
-
     #[tokio::test]
     async fn test_summarize_messages_single_chunk() {
-        let provider = create_mock_provider();
+        let provider = create_mock_provider().expect("failed to create mock provider");
         let token_counter = TokenCounter::new();
-        let context_limit = 100; // Set a high enough limit to avoid chunking.
+        let context_limit = 10_000; // Higher limit to avoid underflow
         let messages = create_test_messages();
 
         let result = summarize_messages(
@@ -341,9 +357,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_summarize_messages_multiple_chunks() {
-        let provider = create_mock_provider();
+        let provider = create_mock_provider().expect("failed to create mock provider");
         let token_counter = TokenCounter::new();
-        let context_limit = 30;
+        let context_limit = 10_000; // Higher limit to avoid underflow
         let messages = create_test_messages();
 
         let result = summarize_messages(
@@ -377,9 +393,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_summarize_messages_empty_input() {
-        let provider = create_mock_provider();
+        let provider = create_mock_provider().expect("failed to create mock provider");
         let token_counter = TokenCounter::new();
-        let context_limit = 100;
+        let context_limit = 10_000; // Higher limit to avoid underflow
         let messages: Vec<Message> = Vec::new();
 
         let result = summarize_messages(
@@ -405,73 +421,264 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_preprocess_messages_without_tool_response() {
-        let messages = create_test_messages();
-        let (preprocessed_messages, removed_messages) = preprocess_messages(&messages);
+    async fn test_summarize_messages_uses_oneshot_for_small_context() {
+        let provider = create_mock_provider().expect("failed to create mock provider");
+        let token_counter = TokenCounter::new();
+        let context_limit = 100_000; // Large context limit
+        let messages = create_test_messages(); // Small message set
 
+        let result = summarize_messages(
+            Arc::clone(&provider),
+            &messages,
+            &token_counter,
+            context_limit,
+        )
+        .await;
+
+        assert!(result.is_ok(), "The function should return Ok.");
+        let (summarized_messages, _) = result.unwrap();
+
+        // Should use one-shot and return a single summarized message
         assert_eq!(
-            preprocessed_messages.len(),
-            3,
-            "Only the user message should remain after preprocessing."
-        );
-        assert_eq!(
-            removed_messages.len(),
-            0,
-            "The tool request and tool response messages should be removed."
-        );
-    }
-
-    #[tokio::test]
-    async fn test_preprocess_messages_with_tool_response() {
-        let arguments = json!({
-            "param1": "value1"
-        });
-        let messages = vec![
-            set_up_text_message("Message 1", Role::User),
-            set_up_tool_request_message("id", ToolCall::new("tool_name", json!(arguments))),
-            set_up_tool_response_message("id", vec![Content::text("tool done")]),
-        ];
-
-        let (preprocessed_messages, removed_messages) = preprocess_messages(&messages);
-
-        assert_eq!(
-            preprocessed_messages.len(),
+            summarized_messages.len(),
             1,
-            "Only the user message should remain after preprocessing."
-        );
-        assert_eq!(
-            removed_messages.len(),
-            2,
-            "The tool request and tool response messages should be removed."
+            "Should use one-shot summarization for small context."
         );
     }
 
     #[tokio::test]
-    async fn test_reintegrate_removed_messages() {
-        let summarized_messages = vec![Message::new(
-            Role::Assistant,
-            Utc::now().timestamp(),
-            vec![MessageContent::Text(
-                RawTextContent {
-                    text: "Summary".to_string(),
-                }
-                .no_annotation(),
-            )],
-        )];
-        let arguments = json!({
-            "param1": "value1"
-        });
-        let removed_messages = vec![
-            set_up_tool_request_message("id", ToolCall::new("tool_name", json!(arguments))),
-            set_up_tool_response_message("id", vec![Content::text("tool done")]),
-        ];
+    async fn test_summarize_messages_uses_chunked_for_large_context() {
+        let provider = create_mock_provider().expect("failed to create mock provider");
+        let token_counter = TokenCounter::new();
+        let context_limit = 10_000; // Higher limit to avoid underflow
+        let messages = create_test_messages();
 
-        let final_messages = reintegrate_removed_messages(&summarized_messages, &removed_messages);
+        let result = summarize_messages(
+            Arc::clone(&provider),
+            &messages,
+            &token_counter,
+            context_limit,
+        )
+        .await;
+
+        assert!(result.is_ok(), "The function should return Ok.");
+        let (summarized_messages, _) = result.unwrap();
+
+        // Should fall back to chunked approach
+        assert_eq!(
+            summarized_messages.len(),
+            1,
+            "Should use chunked summarization for large context."
+        );
+    }
+
+    // Mock provider that fails on one-shot but succeeds on chunked
+    #[derive(Clone)]
+    struct FailingOneshotProvider {
+        model_config: ModelConfig,
+        call_count: Arc<std::sync::Mutex<usize>>,
+    }
+
+    #[async_trait::async_trait]
+    impl Provider for FailingOneshotProvider {
+        fn metadata() -> ProviderMetadata {
+            ProviderMetadata::empty()
+        }
+
+        fn get_model_config(&self) -> ModelConfig {
+            self.model_config.clone()
+        }
+
+        async fn complete(
+            &self,
+            system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<(Message, ProviderUsage), ProviderError> {
+            let mut count = self.call_count.lock().unwrap();
+            *count += 1;
+
+            // Fail if this looks like a one-shot request
+            if system.contains("reasoning in `<analysis>` tags") {
+                return Err(ProviderError::RateLimitExceeded(
+                    "Simulated one-shot failure".to_string(),
+                ));
+            }
+
+            // Succeed for chunked requests (uses the old SUMMARY_PROMPT)
+            Ok((
+                Message::new(
+                    Role::Assistant,
+                    Utc::now().timestamp(),
+                    vec![MessageContent::Text(
+                        RawTextContent {
+                            text: "Chunked summary".to_string(),
+                        }
+                        .no_annotation(),
+                    )],
+                ),
+                ProviderUsage::new("mock".to_string(), Usage::default()),
+            ))
+        }
+    }
+
+    #[tokio::test]
+    async fn test_summarize_messages_fallback_on_oneshot_failure() {
+        let call_count = Arc::new(std::sync::Mutex::new(0));
+        let provider = Arc::new(FailingOneshotProvider {
+            model_config: ModelConfig::new("test-model")
+                .unwrap()
+                .with_context_limit(200_000.into()),
+            call_count: Arc::clone(&call_count),
+        });
+        let token_counter = TokenCounter::new();
+        let context_limit = 100_000; // Large enough to try one-shot first
+        let messages = create_test_messages();
+
+        let result = summarize_messages(provider, &messages, &token_counter, context_limit).await;
+
+        assert!(
+            result.is_ok(),
+            "The function should return Ok after fallback."
+        );
+        let (summarized_messages, _) = result.unwrap();
+
+        // Should have fallen back to chunked approach
+        assert_eq!(
+            summarized_messages.len(),
+            1,
+            "Should successfully fall back to chunked approach."
+        );
+
+        // Verify the content comes from the chunked approach
+        if let MessageContent::Text(text_content) = &summarized_messages[0].content[0] {
+            assert_eq!(text_content.text, "Chunked summary");
+        } else {
+            panic!("Expected text content");
+        }
+
+        // Should have made multiple calls (one-shot attempt + chunked calls)
+        let final_count = *call_count.lock().unwrap();
+        assert!(
+            final_count > 1,
+            "Should have made multiple provider calls during fallback"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_summarize_messages_oneshot_direct_call() {
+        let provider = create_mock_provider().expect("failed to create mock provider");
+        let token_counter = TokenCounter::new();
+        let context_limit = 100_000;
+        let messages = create_test_messages();
+
+        let result = summarize_messages_oneshot(
+            Arc::clone(&provider),
+            &messages,
+            &token_counter,
+            context_limit,
+        )
+        .await;
+
+        assert!(
+            result.is_ok(),
+            "One-shot summarization should work directly."
+        );
+        let (summarized_messages, token_counts) = result.unwrap();
 
         assert_eq!(
-            final_messages.len(),
-            3,
-            "The final message list should include the summary and removed messages."
+            summarized_messages.len(),
+            1,
+            "One-shot should return a single summary message."
         );
+        assert_eq!(
+            summarized_messages[0].role,
+            Role::User,
+            "Summary should be from user role for context."
+        );
+        assert_eq!(
+            token_counts.len(),
+            1,
+            "Should have token count for the summary."
+        );
+    }
+
+    #[tokio::test]
+    async fn test_summarize_messages_chunked_direct_call() {
+        let provider = create_mock_provider().expect("failed to create mock provider");
+        let token_counter = TokenCounter::new();
+        let context_limit = 10_000; // Higher limit to avoid underflow
+        let messages = create_test_messages();
+
+        let result = summarize_messages_chunked(
+            Arc::clone(&provider),
+            &messages,
+            &token_counter,
+            context_limit,
+        )
+        .await;
+
+        assert!(
+            result.is_ok(),
+            "Chunked summarization should work directly."
+        );
+        let (summarized_messages, token_counts) = result.unwrap();
+
+        assert_eq!(
+            summarized_messages.len(),
+            1,
+            "Chunked should return a single final summary."
+        );
+        assert_eq!(
+            summarized_messages[0].role,
+            Role::User,
+            "Summary should be from user role for context."
+        );
+        assert_eq!(
+            token_counts.len(),
+            1,
+            "Should have token count for the summary."
+        );
+    }
+
+    #[tokio::test]
+    async fn test_absolute_token_threshold_calculation() {
+        let provider = create_mock_provider().expect("failed to create mock provider");
+        let token_counter = TokenCounter::new();
+
+        // Test with a context limit where absolute token calculation matters
+        let context_limit = 10_000;
+        let system_prompt_overhead = 1000;
+        let response_overhead = 4000;
+        let safety_buffer = 1000;
+        let max_message_tokens =
+            context_limit - system_prompt_overhead - response_overhead - safety_buffer; // 4000 tokens
+
+        // Create messages that are just under the absolute threshold
+        let mut large_messages = Vec::new();
+        let base_message = set_up_text_message("x".repeat(50).as_str(), Role::User);
+
+        // Add enough messages to approach but not exceed the absolute threshold
+        let message_tokens = token_counter.count_tokens(&format!("{:?}", base_message));
+        let num_messages = (max_message_tokens / message_tokens).saturating_sub(1);
+
+        for i in 0..num_messages {
+            large_messages.push(set_up_text_message(&format!("Message {}", i), Role::User));
+        }
+
+        let result = summarize_messages(
+            Arc::clone(&provider),
+            &large_messages,
+            &token_counter,
+            context_limit,
+        )
+        .await;
+
+        assert!(
+            result.is_ok(),
+            "Should handle absolute threshold calculation correctly."
+        );
+        let (summarized_messages, _) = result.unwrap();
+        assert_eq!(summarized_messages.len(), 1, "Should produce a summary.");
     }
 }

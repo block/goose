@@ -1140,7 +1140,12 @@ async fn run_scheduled_job_internal(
                             .to_string(),
                 }),
             };
-        let model_config = crate::model::ModelConfig::new(model_name.clone());
+        let model_config =
+            crate::model::ModelConfig::new(model_name.as_str()).map_err(|e| JobExecutionError {
+                job_id: job.id.clone(),
+                error: format!("Model config error: {}", e),
+            })?;
+
         agent_provider = create(&provider_name, model_config).map_err(|e| JobExecutionError {
             job_id: job.id.clone(),
             error: format!(
@@ -1231,7 +1236,9 @@ async fn run_scheduled_job_internal(
                         Ok(AgentEvent::ModelChange { .. }) => {
                             // Model change events are informational, just continue
                         }
-
+                        Ok(AgentEvent::HistoryReplaced(_)) => {
+                            // Handle history replacement events if needed
+                        }
                         Err(e) => {
                             tracing::error!(
                                 "[Job {}] Error receiving message from agent: {}",
@@ -1332,7 +1339,7 @@ mod tests {
         providers::base::{ProviderMetadata, ProviderUsage, Usage},
         providers::errors::ProviderError,
     };
-    use mcp_core::tool::Tool;
+    use rmcp::model::Tool;
     use rmcp::model::{AnnotateAble, RawTextContent, Role};
     // Removed: use crate::session::storage::{get_most_recent_session, read_metadata};
     // `read_metadata` is still used by the test itself, so keep it or its module.
@@ -1448,8 +1455,7 @@ mod tests {
             execution_mode: Some("background".to_string()), // Default for test
         };
 
-        // Create the mock provider instance for the test
-        let mock_model_config = ModelConfig::new("test_model".to_string());
+        let mock_model_config = ModelConfig::new_or_fail("test_model");
         let mock_provider_instance = create_scheduler_test_mock_provider(mock_model_config);
 
         // Call run_scheduled_job_internal, passing the mock provider

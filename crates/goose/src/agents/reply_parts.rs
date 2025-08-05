@@ -6,7 +6,6 @@ use async_stream::try_stream;
 use futures::stream::StreamExt;
 
 use crate::agents::router_tool_selector::RouterToolSelectionStrategy;
-use crate::config::Config;
 use crate::message::{Message, MessageContent, ToolRequest};
 use crate::providers::base::{stream_from_single_message, MessageStream, Provider, ProviderUsage};
 use crate::providers::errors::ProviderError;
@@ -15,7 +14,7 @@ use crate::providers::toolshim::{
     modify_system_prompt_for_tool_json, OllamaInterpreter,
 };
 use crate::session;
-use mcp_core::tool::Tool;
+use rmcp::model::Tool;
 
 use super::super::agents::Agent;
 
@@ -34,20 +33,12 @@ async fn toolshim_postprocess(
 
 impl Agent {
     /// Prepares tools and system prompt for a provider request
-    pub(crate) async fn prepare_tools_and_prompt(
-        &self,
-    ) -> anyhow::Result<(Vec<Tool>, Vec<Tool>, String)> {
+    pub async fn prepare_tools_and_prompt(&self) -> anyhow::Result<(Vec<Tool>, Vec<Tool>, String)> {
         // Get tool selection strategy from config
-        let config = Config::global();
-        let router_tool_selection_strategy = config
-            .get_param("GOOSE_ROUTER_TOOL_SELECTION_STRATEGY")
-            .unwrap_or_else(|_| "default".to_string());
-
-        let tool_selection_strategy = match router_tool_selection_strategy.to_lowercase().as_str() {
-            "vector" => Some(RouterToolSelectionStrategy::Vector),
-            "llm" => Some(RouterToolSelectionStrategy::Llm),
-            _ => None,
-        };
+        let tool_selection_strategy = self
+            .tool_route_manager
+            .get_router_tool_selection_strategy()
+            .await;
 
         // Get tools from extension manager
         let mut tools = match tool_selection_strategy {
@@ -110,11 +101,11 @@ impl Agent {
             .iter()
             .fold((HashSet::new(), HashSet::new()), |mut acc, tool| {
                 match &tool.annotations {
-                    Some(annotations) if annotations.read_only_hint => {
-                        acc.0.insert(tool.name.clone());
+                    Some(annotations) if annotations.read_only_hint.unwrap_or(false) => {
+                        acc.0.insert(tool.name.to_string());
                     }
                     _ => {
-                        acc.1.insert(tool.name.clone());
+                        acc.1.insert(tool.name.to_string());
                     }
                 }
                 acc

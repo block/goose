@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription } from '../ui/card';
 // import { Folder } from 'lucide-react';
-import { getApiUrl, getSecretKey } from '../../config';
+import { getApiUrl } from '../../config';
 import { Greeting } from '../common/Greeting';
 import { fetchSessions, fetchSessionDetails, type Session } from '../../sessions';
 // import { fetchProjects, type ProjectMetadata } from '../../projects';
@@ -36,7 +36,7 @@ export function SessionInsights() {
           headers: {
             Accept: 'application/json',
             'Content-Type': 'application/json',
-            'X-Secret-Key': getSecretKey(),
+            'X-Secret-Key': await window.electron.getSecretKey(),
           },
         });
 
@@ -47,6 +47,8 @@ export function SessionInsights() {
 
         const data = await response.json();
         setInsights(data);
+        // Clear any previous error when insights load successfully
+        setError(null);
       } catch (error) {
         console.error('Failed to load insights:', error);
         setError(error instanceof Error ? error.message : 'Failed to load insights');
@@ -97,6 +99,8 @@ export function SessionInsights() {
             totalTokens: 0,
           };
         }
+        // If we already have insights, just make sure loading is false
+        setIsLoading(false);
         return currentInsights;
       });
     }, 10000); // 10 second timeout
@@ -111,7 +115,7 @@ export function SessionInsights() {
         window.clearTimeout(loadingTimeout);
       }
     };
-  }, []); // Empty dependency array to run only once
+  }, []);
 
   const handleSessionClick = async (sessionId: string) => {
     try {

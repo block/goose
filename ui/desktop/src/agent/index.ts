@@ -1,4 +1,4 @@
-import { getApiUrl, getSecretKey } from '../config';
+import { getApiUrl } from '../config';
 
 interface initializeAgentProps {
   model: string;
@@ -10,7 +10,7 @@ export async function initializeAgent({ model, provider }: initializeAgentProps)
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-Secret-Key': getSecretKey(),
+      'X-Secret-Key': await window.electron.getSecretKey(),
     },
     body: JSON.stringify({
       provider: provider.toLowerCase().replace(/ /g, '_'),
