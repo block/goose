@@ -10,42 +10,9 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.1.0"
+    "version": "1.0.29"
   },
   "paths": {
-    "/agent/add_sub_recipes": {
-      "post": {
-        "tags": [
-          "super::routes::agent"
-        ],
-        "operationId": "add_sub_recipes",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AddSubRecipesRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "added sub recipes to agent successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AddSubRecipesResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - invalid secret key"
-          }
-        }
-      }
-    },
     "/agent/tools": {
       "get": {
         "tags": [
@@ -333,31 +300,8 @@
               }
             }
           },
-          "500": {
-            "description": "Unable to get the configuration value"
-          }
-        }
-      }
-    },
-    "/config/recover": {
-      "post": {
-        "tags": [
-          "super::routes::config_management"
-        ],
-        "operationId": "recover_config",
-        "responses": {
-          "200": {
-            "description": "Config recovery attempted",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error"
+          "404": {
+            "description": "Configuration key not found"
           }
         }
       }
@@ -427,29 +371,6 @@
           },
           "500": {
             "description": "Internal server error"
-          }
-        }
-      }
-    },
-    "/config/validate": {
-      "get": {
-        "tags": [
-          "super::routes::config_management"
-        ],
-        "operationId": "validate_config",
-        "responses": {
-          "200": {
-            "description": "Config validation result",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Config file is corrupted"
           }
         }
       }
@@ -530,112 +451,6 @@
             "api_key": []
           }
         ]
-      }
-    },
-    "/recipes/create": {
-      "post": {
-        "tags": [
-          "Recipe Management"
-        ],
-        "summary": "Create a Recipe configuration from the current session",
-        "operationId": "create_recipe",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateRecipeRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Recipe created successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CreateRecipeResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request"
-          },
-          "412": {
-            "description": "Precondition failed - Agent not available"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      }
-    },
-    "/recipes/decode": {
-      "post": {
-        "tags": [
-          "Recipe Management"
-        ],
-        "operationId": "decode_recipe",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DecodeRecipeRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Recipe decoded successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DecodeRecipeResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request"
-          }
-        }
-      }
-    },
-    "/recipes/encode": {
-      "post": {
-        "tags": [
-          "Recipe Management"
-        ],
-        "operationId": "encode_recipe",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EncodeRecipeRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Recipe encoded successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EncodeRecipeResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request"
-          }
-        }
       }
     },
     "/schedule/create": {
@@ -1066,44 +881,6 @@
   },
   "components": {
     "schemas": {
-      "AddSubRecipesRequest": {
-        "type": "object",
-        "required": [
-          "sub_recipes"
-        ],
-        "properties": {
-          "sub_recipes": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SubRecipe"
-            }
-          }
-        }
-      },
-      "AddSubRecipesResponse": {
-        "type": "object",
-        "required": [
-          "success"
-        ],
-        "properties": {
-          "success": {
-            "type": "boolean"
-          }
-        }
-      },
-      "Annotated": {
-        "oneOf": [
-          {
-            "$ref": "#/components/schemas/RawTextContent"
-          },
-          {
-            "$ref": "#/components/schemas/RawImageContent"
-          },
-          {
-            "$ref": "#/components/schemas/RawEmbeddedResource"
-          }
-        ]
-      },
       "Annotations": {
         "type": "object",
         "properties": {
@@ -1111,40 +888,18 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Role"
-            }
+            },
+            "nullable": true
           },
           "priority": {
-            "type": "number"
+            "type": "number",
+            "format": "float",
+            "nullable": true
           },
           "timestamp": {
             "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
-      "Author": {
-        "type": "object",
-        "properties": {
-          "contact": {
-            "type": "string",
-            "nullable": true
-          },
-          "metadata": {
-            "type": "string",
-            "nullable": true
-          }
-        }
-      },
-      "AuthorRequest": {
-        "type": "object",
-        "properties": {
-          "contact": {
-            "type": "string",
-            "nullable": true
-          },
-          "metadata": {
-            "type": "string",
-            "nullable": true
+            "format": "date-time",
+            "example": "2023-01-01T00:00:00Z"
           }
         }
       },
@@ -1203,32 +958,70 @@
           {
             "allOf": [
               {
-                "$ref": "#/components/schemas/RawTextContent"
+                "$ref": "#/components/schemas/TextContent"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "text"
+                    ]
+                  }
+                }
               }
             ]
           },
           {
             "allOf": [
               {
-                "$ref": "#/components/schemas/RawImageContent"
+                "$ref": "#/components/schemas/ImageContent"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "image"
+                    ]
+                  }
+                }
               }
             ]
           },
           {
             "allOf": [
               {
-                "$ref": "#/components/schemas/RawEmbeddedResource"
-              }
-            ]
-          },
-          {
-            "allOf": [
+                "$ref": "#/components/schemas/EmbeddedResource"
+              },
               {
-                "$ref": "#/components/schemas/Annotated"
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "resource"
+                    ]
+                  }
+                }
               }
             ]
           }
-        ]
+        ],
+        "discriminator": {
+          "propertyName": "type"
+        }
       },
       "ContextLengthExceeded": {
         "type": "object",
@@ -1287,60 +1080,6 @@
           }
         }
       },
-      "CreateRecipeRequest": {
-        "type": "object",
-        "required": [
-          "messages",
-          "title",
-          "description"
-        ],
-        "properties": {
-          "activities": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "nullable": true
-          },
-          "author": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/AuthorRequest"
-              }
-            ],
-            "nullable": true
-          },
-          "description": {
-            "type": "string"
-          },
-          "messages": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Message"
-            }
-          },
-          "title": {
-            "type": "string"
-          }
-        }
-      },
-      "CreateRecipeResponse": {
-        "type": "object",
-        "properties": {
-          "error": {
-            "type": "string",
-            "nullable": true
-          },
-          "recipe": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Recipe"
-              }
-            ],
-            "nullable": true
-          }
-        }
-      },
       "CreateScheduleRequest": {
         "type": "object",
         "required": [
@@ -1352,37 +1091,11 @@
           "cron": {
             "type": "string"
           },
-          "execution_mode": {
-            "type": "string",
-            "nullable": true
-          },
           "id": {
             "type": "string"
           },
           "recipe_source": {
             "type": "string"
-          }
-        }
-      },
-      "DecodeRecipeRequest": {
-        "type": "object",
-        "required": [
-          "deeplink"
-        ],
-        "properties": {
-          "deeplink": {
-            "type": "string"
-          }
-        }
-      },
-      "DecodeRecipeResponse": {
-        "type": "object",
-        "required": [
-          "recipe"
-        ],
-        "properties": {
-          "recipe": {
-            "$ref": "#/components/schemas/Recipe"
           }
         }
       },
@@ -1393,39 +1106,15 @@
         ],
         "properties": {
           "annotations": {
-            "anyOf": [
+            "allOf": [
               {
                 "$ref": "#/components/schemas/Annotations"
-              },
-              {
-                "type": "object"
               }
-            ]
+            ],
+            "nullable": true
           },
           "resource": {
             "$ref": "#/components/schemas/ResourceContents"
-          }
-        }
-      },
-      "EncodeRecipeRequest": {
-        "type": "object",
-        "required": [
-          "recipe"
-        ],
-        "properties": {
-          "recipe": {
-            "$ref": "#/components/schemas/Recipe"
-          }
-        }
-      },
-      "EncodeRecipeResponse": {
-        "type": "object",
-        "required": [
-          "deeplink"
-        ],
-        "properties": {
-          "deeplink": {
-            "type": "string"
           }
         }
       },
@@ -1554,10 +1243,6 @@
                 "description": "Whether this extension is bundled with Goose",
                 "nullable": true
               },
-              "description": {
-                "type": "string",
-                "nullable": true
-              },
               "display_name": {
                 "type": "string",
                 "nullable": true
@@ -1577,60 +1262,6 @@
                 "enum": [
                   "builtin"
                 ]
-              }
-            }
-          },
-          {
-            "type": "object",
-            "description": "Streamable HTTP client with a URI endpoint using MCP Streamable HTTP specification",
-            "required": [
-              "name",
-              "uri",
-              "type"
-            ],
-            "properties": {
-              "bundled": {
-                "type": "boolean",
-                "description": "Whether this extension is bundled with Goose",
-                "nullable": true
-              },
-              "description": {
-                "type": "string",
-                "nullable": true
-              },
-              "env_keys": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "envs": {
-                "$ref": "#/components/schemas/Envs"
-              },
-              "headers": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
-              "name": {
-                "type": "string",
-                "description": "The name used to identify this extension"
-              },
-              "timeout": {
-                "type": "integer",
-                "format": "int64",
-                "nullable": true,
-                "minimum": 0
-              },
-              "type": {
-                "type": "string",
-                "enum": [
-                  "streamable_http"
-                ]
-              },
-              "uri": {
-                "type": "string"
               }
             }
           },
@@ -1668,51 +1299,6 @@
                 "type": "string",
                 "enum": [
                   "frontend"
-                ]
-              }
-            }
-          },
-          {
-            "type": "object",
-            "description": "Inline Python code that will be executed using uvx",
-            "required": [
-              "name",
-              "code",
-              "type"
-            ],
-            "properties": {
-              "code": {
-                "type": "string",
-                "description": "The Python code to execute"
-              },
-              "dependencies": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                },
-                "description": "Python package dependencies required by this extension",
-                "nullable": true
-              },
-              "description": {
-                "type": "string",
-                "description": "Description of what the extension does",
-                "nullable": true
-              },
-              "name": {
-                "type": "string",
-                "description": "The name used to identify this extension"
-              },
-              "timeout": {
-                "type": "integer",
-                "format": "int64",
-                "description": "Timeout in seconds",
-                "nullable": true,
-                "minimum": 0
-              },
-              "type": {
-                "type": "string",
-                "enum": [
-                  "inline_python"
                 ]
               }
             }
@@ -1797,14 +1383,12 @@
         ],
         "properties": {
           "annotations": {
-            "anyOf": [
+            "allOf": [
               {
                 "$ref": "#/components/schemas/Annotations"
-              },
-              {
-                "type": "object"
               }
-            ]
+            ],
+            "nullable": true
           },
           "data": {
             "type": "string"
@@ -1862,6 +1446,7 @@
         "description": "A message to or from an LLM",
         "required": [
           "role",
+          "created",
           "content"
         ],
         "properties": {
@@ -1874,10 +1459,6 @@
           "created": {
             "type": "integer",
             "format": "int64"
-          },
-          "id": {
-            "type": "string",
-            "nullable": true
           },
           "role": {
             "$ref": "#/components/schemas/Role"
@@ -2115,31 +1696,9 @@
             "description": "The maximum context length this model supports",
             "minimum": 0
           },
-          "currency": {
-            "type": "string",
-            "description": "Currency for the costs (default: \"$\")",
-            "nullable": true
-          },
-          "input_token_cost": {
-            "type": "number",
-            "format": "double",
-            "description": "Cost per token for input (optional)",
-            "nullable": true
-          },
           "name": {
             "type": "string",
             "description": "The name of the model"
-          },
-          "output_token_cost": {
-            "type": "number",
-            "format": "double",
-            "description": "Cost per token for output (optional)",
-            "nullable": true
-          },
-          "supports_cache_control": {
-            "type": "boolean",
-            "description": "Whether this model supports cache control",
-            "nullable": true
           }
         }
       },
@@ -2259,190 +1818,6 @@
           }
         }
       },
-      "RawEmbeddedResource": {
-        "type": "object",
-        "required": [
-          "resource"
-        ],
-        "properties": {
-          "resource": {
-            "$ref": "#/components/schemas/ResourceContents"
-          }
-        }
-      },
-      "RawImageContent": {
-        "type": "object",
-        "required": [
-          "data",
-          "mimeType"
-        ],
-        "properties": {
-          "data": {
-            "type": "string"
-          },
-          "mimeType": {
-            "type": "string"
-          }
-        }
-      },
-      "RawTextContent": {
-        "type": "object",
-        "required": [
-          "text"
-        ],
-        "properties": {
-          "text": {
-            "type": "string"
-          }
-        }
-      },
-      "Recipe": {
-        "type": "object",
-        "description": "A Recipe represents a personalized, user-generated agent configuration that defines\nspecific behaviors and capabilities within the Goose system.\n\n# Fields\n\n## Required Fields\n* `version` - Semantic version of the Recipe file format (defaults to \"1.0.0\")\n* `title` - Short, descriptive name of the Recipe\n* `description` - Detailed description explaining the Recipe's purpose and functionality\n* `Instructions` - Instructions that defines the Recipe's behavior\n\n## Optional Fields\n* `prompt` - the initial prompt to the session to start with\n* `extensions` - List of extension configurations required by the Recipe\n* `context` - Supplementary context information for the Recipe\n* `activities` - Activity labels that appear when loading the Recipe\n* `author` - Information about the Recipe's creator and metadata\n* `parameters` - Additional parameters for the Recipe\n* `response` - Response configuration including JSON schema validation\n* `retry` - Retry configuration for automated validation and recovery\n# Example\n\n\nuse goose::recipe::Recipe;\n\n// Using the builder pattern\nlet recipe = Recipe::builder()\n.title(\"Example Agent\")\n.description(\"An example Recipe configuration\")\n.instructions(\"Act as a helpful assistant\")\n.build()\n.expect(\"Missing required fields\");\n\n// Or using struct initialization\nlet recipe = Recipe {\nversion: \"1.0.0\".to_string(),\ntitle: \"Example Agent\".to_string(),\ndescription: \"An example Recipe configuration\".to_string(),\ninstructions: Some(\"Act as a helpful assistant\".to_string()),\nprompt: None,\nextensions: None,\ncontext: None,\nactivities: None,\nauthor: None,\nsettings: None,\nparameters: None,\nresponse: None,\nsub_recipes: None,\nretry: None,\n};\n",
-        "required": [
-          "title",
-          "description"
-        ],
-        "properties": {
-          "activities": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "nullable": true
-          },
-          "author": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Author"
-              }
-            ],
-            "nullable": true
-          },
-          "context": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "nullable": true
-          },
-          "description": {
-            "type": "string"
-          },
-          "extensions": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ExtensionConfig"
-            },
-            "nullable": true
-          },
-          "instructions": {
-            "type": "string",
-            "nullable": true
-          },
-          "parameters": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/RecipeParameter"
-            },
-            "nullable": true
-          },
-          "prompt": {
-            "type": "string",
-            "nullable": true
-          },
-          "response": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Response"
-              }
-            ],
-            "nullable": true
-          },
-          "retry": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/RetryConfig"
-              }
-            ],
-            "nullable": true
-          },
-          "settings": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Settings"
-              }
-            ],
-            "nullable": true
-          },
-          "sub_recipes": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SubRecipe"
-            },
-            "nullable": true
-          },
-          "title": {
-            "type": "string"
-          },
-          "version": {
-            "type": "string"
-          }
-        }
-      },
-      "RecipeParameter": {
-        "type": "object",
-        "required": [
-          "key",
-          "input_type",
-          "requirement",
-          "description"
-        ],
-        "properties": {
-          "default": {
-            "type": "string",
-            "nullable": true
-          },
-          "description": {
-            "type": "string"
-          },
-          "input_type": {
-            "$ref": "#/components/schemas/RecipeParameterInputType"
-          },
-          "key": {
-            "type": "string"
-          },
-          "options": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "nullable": true
-          },
-          "requirement": {
-            "$ref": "#/components/schemas/RecipeParameterRequirement"
-          }
-        }
-      },
-      "RecipeParameterInputType": {
-        "type": "string",
-        "enum": [
-          "string",
-          "number",
-          "boolean",
-          "date",
-          "file",
-          "select"
-        ]
-      },
-      "RecipeParameterRequirement": {
-        "type": "string",
-        "enum": [
-          "required",
-          "optional",
-          "user_prompt"
-        ]
-      },
       "RedactedThinkingContent": {
         "type": "object",
         "required": [
@@ -2455,7 +1830,7 @@
         }
       },
       "ResourceContents": {
-        "anyOf": [
+        "oneOf": [
           {
             "type": "object",
             "required": [
@@ -2463,8 +1838,9 @@
               "text"
             ],
             "properties": {
-              "mimeType": {
-                "type": "string"
+              "mime_type": {
+                "type": "string",
+                "nullable": true
               },
               "text": {
                 "type": "string"
@@ -2484,8 +1860,9 @@
               "blob": {
                 "type": "string"
               },
-              "mimeType": {
-                "type": "string"
+              "mime_type": {
+                "type": "string",
+                "nullable": true
               },
               "uri": {
                 "type": "string"
@@ -2494,64 +1871,11 @@
           }
         ]
       },
-      "Response": {
-        "type": "object",
-        "properties": {
-          "json_schema": {
-            "nullable": true
-          }
-        }
-      },
-      "RetryConfig": {
-        "type": "object",
-        "description": "Configuration for retry logic in recipe execution",
-        "required": [
-          "max_retries",
-          "checks"
-        ],
-        "properties": {
-          "checks": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SuccessCheck"
-            },
-            "description": "List of success checks to validate recipe completion"
-          },
-          "max_retries": {
-            "type": "integer",
-            "format": "int32",
-            "description": "Maximum number of retry attempts before giving up",
-            "minimum": 0
-          },
-          "on_failure": {
-            "type": "string",
-            "description": "Optional shell command to run on failure for cleanup",
-            "nullable": true
-          },
-          "on_failure_timeout_seconds": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Timeout in seconds for on_failure commands (default: 600 seconds)",
-            "nullable": true,
-            "minimum": 0
-          },
-          "timeout_seconds": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Timeout in seconds for individual shell commands (default: 300 seconds)",
-            "nullable": true,
-            "minimum": 0
-          }
-        }
-      },
       "Role": {
-        "oneOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "string"
-          }
+        "type": "string",
+        "enum": [
+          "user",
+          "assistant"
         ]
       },
       "RunNowResponse": {
@@ -2582,10 +1906,6 @@
           },
           "currently_running": {
             "type": "boolean"
-          },
-          "execution_mode": {
-            "type": "string",
-            "nullable": true
           },
           "id": {
             "type": "string"
@@ -2780,11 +2100,6 @@
             "description": "The number of output tokens used in the session. Retrieved from the provider's last usage.",
             "nullable": true
           },
-          "project_id": {
-            "type": "string",
-            "description": "ID of the project this session belongs to, if any",
-            "nullable": true
-          },
           "schedule_id": {
             "type": "string",
             "description": "ID of the schedule that triggered this session, if any",
@@ -2813,81 +2128,6 @@
           }
         }
       },
-      "Settings": {
-        "type": "object",
-        "properties": {
-          "goose_model": {
-            "type": "string",
-            "nullable": true
-          },
-          "goose_provider": {
-            "type": "string",
-            "nullable": true
-          },
-          "temperature": {
-            "type": "number",
-            "format": "float",
-            "nullable": true
-          }
-        }
-      },
-      "SubRecipe": {
-        "type": "object",
-        "required": [
-          "name",
-          "path"
-        ],
-        "properties": {
-          "description": {
-            "type": "string",
-            "nullable": true
-          },
-          "name": {
-            "type": "string"
-          },
-          "path": {
-            "type": "string"
-          },
-          "sequential_when_repeated": {
-            "type": "boolean"
-          },
-          "values": {
-            "type": "object",
-            "additionalProperties": {
-              "type": "string"
-            },
-            "nullable": true
-          }
-        }
-      },
-      "SuccessCheck": {
-        "oneOf": [
-          {
-            "type": "object",
-            "description": "Execute a shell command and check its exit status",
-            "required": [
-              "command",
-              "type"
-            ],
-            "properties": {
-              "command": {
-                "type": "string",
-                "description": "The shell command to execute"
-              },
-              "type": {
-                "type": "string",
-                "enum": [
-                  "Shell"
-                ]
-              }
-            }
-          }
-        ],
-        "description": "A single success check to validate recipe completion",
-        "discriminator": {
-          "propertyName": "type"
-        }
-      },
       "SummarizationRequested": {
         "type": "object",
         "required": [
@@ -2906,14 +2146,12 @@
         ],
         "properties": {
           "annotations": {
-            "anyOf": [
+            "allOf": [
               {
                 "$ref": "#/components/schemas/Annotations"
-              },
-              {
-                "type": "object"
               }
-            ]
+            ],
+            "nullable": true
           },
           "text": {
             "type": "string"
@@ -2937,50 +2175,58 @@
       },
       "Tool": {
         "type": "object",
+        "description": "A tool that can be used by a model.",
         "required": [
           "name",
+          "description",
           "inputSchema"
         ],
         "properties": {
           "annotations": {
-            "anyOf": [
+            "allOf": [
               {
                 "$ref": "#/components/schemas/ToolAnnotations"
-              },
-              {
-                "type": "object"
               }
-            ]
+            ],
+            "nullable": true
           },
           "description": {
-            "type": "string"
+            "type": "string",
+            "description": "A description of what the tool does"
           },
           "inputSchema": {
-            "type": "object",
-            "additionalProperties": true
+            "description": "A JSON Schema object defining the expected parameters for the tool"
           },
           "name": {
-            "type": "string"
+            "type": "string",
+            "description": "The name of the tool"
           }
         }
       },
       "ToolAnnotations": {
         "type": "object",
+        "description": "Additional properties describing a tool to clients.\n\nNOTE: all properties in ToolAnnotations are **hints**.\nThey are not guaranteed to provide a faithful description of\ntool behavior (including descriptive properties like `title`).\n\nClients should never make tool use decisions based on ToolAnnotations\nreceived from untrusted servers.",
         "properties": {
           "destructiveHint": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "If true, the tool may perform destructive updates to its environment.\nIf false, the tool performs only additive updates.\n\n(This property is meaningful only when `read_only_hint == false`)\n\nDefault: true"
           },
           "idempotentHint": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "If true, calling the tool repeatedly with the same arguments\nwill have no additional effect on its environment.\n\n(This property is meaningful only when `read_only_hint == false`)\n\nDefault: false"
           },
           "openWorldHint": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "If true, this tool may interact with an \"open world\" of external\nentities. If false, the tool's domain of interaction is closed.\nFor example, the world of a web search tool is open, whereas that\nof a memory tool is not.\n\nDefault: true"
           },
           "readOnlyHint": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "If true, the tool does not modify its environment.\n\nDefault: false"
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "description": "A human-readable title for the tool.",
+            "nullable": true
           }
         }
       },
@@ -3079,6 +2325,31 @@
           "toolResult": {
             "type": "object"
           }
+        }
+      },
+      "ToolResultSchema": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "object"
+          },
+          "message": {
+            "type": "string",
+            "example": "Operation completed successfully",
+            "nullable": true
+          },
+          "success": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "example": {
+          "data": {},
+          "success": true
         }
       },
       "UpdateScheduleRequest": {
