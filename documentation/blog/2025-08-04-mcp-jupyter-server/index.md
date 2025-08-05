@@ -16,7 +16,7 @@ The [**MCP Jupyter Server**](https://github.com/block/mcp-jupyter) solves this b
 
 <!--truncate-->
 
-<iframe class="aspect-ratio" src="https://www.youtube.com/embed/0i6gB_mWaRM?si=yMe8bjG53ZbzZjxD" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+<iframe class="aspect-ratio" src="https://www.youtube.com/embed/0i6gB_mWaRM" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 
 ## The Memory and Context Problem
 
