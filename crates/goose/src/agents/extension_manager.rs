@@ -212,6 +212,7 @@ impl ExtensionManager {
                 uri,
                 timeout,
                 headers,
+                name,
                 ..
             } => {
                 let mut default_headers = HeaderMap::new();
@@ -248,7 +249,7 @@ impl ExtensionManager {
                 let client = if let Err(e) = client_res {
                     // make an attempt at oauth, but failing that, return the original error,
                     // because this might not have been an auth error at all
-                    let am = match oauth_flow(uri.clone()).await {
+                    let am = match oauth_flow(&uri, name).await {
                         Ok(am) => am,
                         Err(_) => return Err(e.into())
                     };

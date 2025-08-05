@@ -10,7 +10,6 @@ use serde::Deserialize;
 use tokio::sync::{oneshot, Mutex};
 
 const CALLBACK_HTML: &str = include_str!("oauth_callback.html");
-const CALLBACK_PORT: u16 = 8020;
 
 #[derive(Clone)]
 struct AppState {
@@ -28,17 +27,13 @@ async fn callback_handler(
     Query(params): Query<CallbackParams>,
     State(state): State<AppState>,
 ) -> Html<String> {
-    eprintln!("Received callback with code: {}", params.code);
-
-    // Send the code to the main thread
     if let Some(sender) = state.code_receiver.lock().await.take() {
         let _ = sender.send(params.code);
     }
-    // Return success page
     Html(CALLBACK_HTML.to_string())
 }
 
-pub async fn oauth_flow(mcp_server_url: impl Into<String>) -> Result<AuthorizationManager, anyhow::Error> {
+pub async fn oauth_flow(mcp_server_url: &String, name: &String) -> Result<AuthorizationManager, anyhow::Error> {
     let (code_sender, code_receiver) = oneshot::channel::<String>();
     let app_state = AppState {
         code_receiver: Arc::new(Mutex::new(Some(code_sender)))
@@ -48,10 +43,10 @@ pub async fn oauth_flow(mcp_server_url: impl Into<String>) -> Result<Authorizati
         .route("/oauth_callback", get(callback_handler))
         .with_state(app_state);
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], CALLBACK_PORT));
-
+    let addr = SocketAddr::from(([127, 0, 0, 1], 0));
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    let used_addr = listener.local_addr()?;
     tokio::spawn(async move {
-        let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
         let result = axum::serve(listener, app).await;
 
         if let Err(e) = result {
@@ -59,15 +54,18 @@ pub async fn oauth_flow(mcp_server_url: impl Into<String>) -> Result<Authorizati
         }
     });
 
-    let mut oauth_state = OAuthState::new(mcp_server_url.into(), None).await?;
-    oauth_state.start_authorization(&[], "http://localhost:8020/oauth_callback").await?;
+    let mut oauth_state = OAuthState::new(mcp_server_url, None).await?;
+    let redirect_uri = format!("http://localhost:{}/oauth_callback", used_addr.port());
+    oauth_state.start_authorization(&[], redirect_uri.as_str()).await?;
 
-    eprintln!("Open the following URL:");
-    eprintln!("  {}", oauth_state.get_authorization_url().await?);
+    let authorization_url = oauth_state.get_authorization_url().await?;
+    if webbrowser::open(authorization_url.as_str()).is_err() {
+        eprintln!("Open the following URL to authorize {}:", name);
+        eprintln!("  {}", authorization_url);
+    }
 
     let auth_code = code_receiver.await?;
     oauth_state.handle_callback(&auth_code).await?;
-    eprintln!("Authorization successful! Access token obtained.");
 
     let am = oauth_state
         .into_authorization_manager()
