@@ -494,6 +494,7 @@ impl ExtensionManager {
                             description: tool.description,
                             input_schema: tool.input_schema,
                             annotations: tool.annotations,
+                            output_schema: tool.output_schema,
                         });
                     }
 
@@ -759,7 +760,7 @@ impl ExtensionManager {
             client_guard
                 .call_tool(&tool_name, arguments)
                 .await
-                .map(|call| call.content)
+                .map(|call| call.content.unwrap_or_default())
                 .map_err(|e| ToolError::ExecutionError(e.to_string()))
         };
 
@@ -970,8 +971,9 @@ mod tests {
         async fn call_tool(&self, name: &str, _arguments: Value) -> Result<CallToolResult, Error> {
             match name {
                 "tool" | "test__tool" => Ok(CallToolResult {
-                    content: vec![],
+                    content: Some(vec![]),
                     is_error: None,
+                    structured_content: None,
                 }),
                 _ => Err(Error::TransportClosed),
             }
