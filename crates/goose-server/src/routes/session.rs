@@ -346,14 +346,14 @@ async fn update_session_metadata(
         .map_err(|_| StatusCode::BAD_REQUEST)?;
 
     // Read current metadata
-    let mut metadata = session::read_metadata(&session_path)
-        .map_err(|_| StatusCode::NOT_FOUND)?;
+    let mut metadata = session::read_metadata(&session_path).map_err(|_| StatusCode::NOT_FOUND)?;
 
     // Update description
     metadata.description = request.description;
 
     // Save updated metadata
-    session::update_metadata(&session_path, &metadata).await
+    session::update_metadata(&session_path, &metadata)
+        .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(StatusCode::OK)
@@ -366,7 +366,10 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/sessions/{session_id}", get(get_session_history))
         .route("/sessions/insights", get(get_session_insights))
         .route("/sessions/activity-heatmap", get(get_activity_heatmap))
-        .route("/sessions/{session_id}/metadata", put(update_session_metadata))
+        .route(
+            "/sessions/{session_id}/metadata",
+            put(update_session_metadata),
+        )
         .with_state(state)
 }
 
