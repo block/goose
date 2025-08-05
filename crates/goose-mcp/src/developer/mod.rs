@@ -98,7 +98,7 @@ static FILE_REFERENCE_REGEX: Lazy<regex::Regex> = Lazy::new(|| {
 /// Parse file references (@-mentions) from content
 fn parse_file_references(content: &str) -> Vec<PathBuf> {
     // Keep size limits for ReDoS protection - .goosehints should be reasonably sized
-    const MAX_CONTENT_LENGTH: usize = 1_000_000; // 1MB limit
+    const MAX_CONTENT_LENGTH: usize = 131_072; // 128KB limit
 
     if content.len() > MAX_CONTENT_LENGTH {
         tracing::warn!(
