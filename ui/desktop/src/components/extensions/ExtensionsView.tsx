@@ -49,8 +49,6 @@ export default function ExtensionsView({
     const extensionConfig = createExtensionConfig(formData);
     try {
       await activateExtension({ addToConfig: addExtension, extensionConfig: extensionConfig });
-      // Trigger a refresh of the extensions list
-      setRefreshKey((prevKey) => prevKey + 1);
     } catch (error) {
       console.error('Failed to activate extension:', error);
       setRefreshKey((prevKey) => prevKey + 1);

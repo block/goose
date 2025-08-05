@@ -22,10 +22,10 @@ export async function extensionApiCall(
   // Determine if we're activating or removing an extension
   const isActivating = endpoint == '/extensions/add';
   const action = {
-    type: isActivating ? 'activating' : 'removing',
-    verb: isActivating ? 'Activating' : 'Removing',
-    pastTense: isActivating ? 'activated' : 'removed',
-    presentTense: isActivating ? 'activate' : 'remove',
+    type: isActivating ? 'activating' : 'deactivating',
+    verb: isActivating ? 'Activating' : 'Deactivating',
+    pastTense: isActivating ? 'activated' : 'deactivated',
+    presentTense: isActivating ? 'activate' : 'deactivate',
   };
 
   // for adding the payload is an extensionConfig, for removing payload is just the name
@@ -71,7 +71,7 @@ export async function extensionApiCall(
     toastService.dismiss(toastId);
     toastService.success({
       title: extensionName,
-      msg: `Successfully ${action.pastTense} extension!`,
+      msg: `Successfully ${action.pastTense} extension`,
     });
     return response;
   } catch (error) {
@@ -114,7 +114,7 @@ function handleErrorResponse(
   }
 
   // General error case
-  const msg = `Failed to ${action.type === 'activating' ? 'add' : 'remove'} ${extensionName} extension: ${errorMsg}`;
+  const msg = `Failed to ${action.type === 'activating' ? 'add' : 'deactivate'} ${extensionName} extension: ${errorMsg}`;
   toastService.dismiss(toastId);
   toastService.error({
     title: extensionName,

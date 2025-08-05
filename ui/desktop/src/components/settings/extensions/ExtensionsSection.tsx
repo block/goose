@@ -33,7 +33,7 @@ export default function ExtensionsSection({
   customToggle,
   selectedExtensions = [],
 }: ExtensionSectionProps) {
-  const { getExtensions, addExtension, removeExtension } = useConfig();
+  const { addExtension, removeExtension, extensionsList } = useConfig();
   const [extensions, setExtensions] = useState<FixedExtensionEntry[]>([]);
   const [selectedExtension, setSelectedExtension] = useState<FixedExtensionEntry | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -60,37 +60,42 @@ export default function ExtensionsSection({
     };
   }, []);
 
-  const fetchExtensions = useCallback(async () => {
-    const extensionsList = await getExtensions(true); // Force refresh
-    // Sort extensions by name to maintain consistent order
-    const sortedExtensions = [...extensionsList]
-      .sort((a, b) => {
-        // First sort by builtin
-        if (a.type === 'builtin' && b.type !== 'builtin') return -1;
-        if (a.type !== 'builtin' && b.type === 'builtin') return 1;
+  const processExtensionsList = useCallback(
+    (rawExtensions: FixedExtensionEntry[]) => {
+      // Sort extensions by name to maintain consistent order
+      const sortedExtensions = [...rawExtensions]
+        .sort((a, b) => {
+          // First sort by builtin
+          if (a.type === 'builtin' && b.type !== 'builtin') return -1;
+          if (a.type !== 'builtin' && b.type === 'builtin') return 1;
 
-        // Then sort by bundled (handle null/undefined cases)
-        const aBundled = 'bundled' in a && a.bundled === true;
-        const bBundled = 'bundled' in b && b.bundled === true;
-        if (aBundled && !bBundled) return -1;
-        if (!aBundled && bBundled) return 1;
+          // Then sort by bundled (handle null/undefined cases)
+          const aBundled = 'bundled' in a && a.bundled === true;
+          const bBundled = 'bundled' in b && b.bundled === true;
+          if (aBundled && !bBundled) return -1;
+          if (!aBundled && bBundled) return 1;
 
-        // Finally sort alphabetically within each group
-        return a.name.localeCompare(b.name);
-      })
-      .map((ext) => ({
-        ...ext,
-        // Use selectedExtensions to determine enabled state in recipe editor
-        enabled: disableConfiguration ? selectedExtensions.includes(ext.name) : ext.enabled,
-      }));
+          // Finally sort alphabetically within each group
+          return a.name.localeCompare(b.name);
+        })
+        .map((ext) => ({
+          ...ext,
+          // Use selectedExtensions to determine enabled state in recipe editor
+          enabled: disableConfiguration ? selectedExtensions.includes(ext.name) : ext.enabled,
+        }));
 
-    setExtensions(sortedExtensions);
-  }, [getExtensions, disableConfiguration, selectedExtensions]);
+      setExtensions(sortedExtensions);
+    },
+    [disableConfiguration, selectedExtensions]
+  );
 
+  // Initial load and reactive updates from ConfigContext
   useEffect(() => {
-    fetchExtensions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    // If extensionsList is empty on mount, ConfigContext will load them automatically
+    if (extensionsList.length > 0) {
+      processExtensionsList(extensionsList);
+    }
+  }, [extensionsList, processExtensionsList]);
 
   const handleExtensionToggle = async (extension: FixedExtensionEntry) => {
     if (customToggle) {
@@ -116,8 +121,6 @@ export default function ExtensionsSection({
         addToConfig: addExtension,
         toastOptions: { silent: false },
       });
-
-      await fetchExtensions(); // Refresh the list after successful toggle
       return true; // Indicate success
     } catch (error) {
       // Don't refresh the extension list on failure - this allows our visual state rollback to work
@@ -138,11 +141,8 @@ export default function ExtensionsSection({
     const extensionConfig = createExtensionConfig(formData);
     try {
       await activateExtension({ addToConfig: addExtension, extensionConfig: extensionConfig });
-      // Immediately refresh the extensions list after successful activation
-      await fetchExtensions();
     } catch (error) {
       console.error('Failed to activate extension:', error);
-      await fetchExtensions();
     }
   };
 
@@ -168,10 +168,6 @@ export default function ExtensionsSection({
       });
     } catch (error) {
       console.error('Failed to update extension:', error);
-      // We don't reopen the modal on failure
-    } finally {
-      // Refresh the extensions list regardless of success or failure
-      await fetchExtensions();
     }
   };
 
@@ -183,10 +179,6 @@ export default function ExtensionsSection({
       await deleteExtension({ name, removeFromConfig: removeExtension });
     } catch (error) {
       console.error('Failed to delete extension:', error);
-      // We don't reopen the modal on failure
-    } finally {
-      // Refresh the extensions list regardless of success or failure
-      await fetchExtensions();
     }
   };
 
