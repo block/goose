@@ -48,6 +48,7 @@ use ignore::gitignore::{Gitignore, GitignoreBuilder};
 
 // Embeds the prompts directory to the build
 static PROMPTS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/developer/prompts");
+const LINE_READ_LIMIT: usize = 2000;
 
 /// Loads prompt files from the embedded PROMPTS_DIR and returns a HashMap of prompts.
 /// Ensures that each prompt name is unique.
@@ -963,139 +964,152 @@ impl DeveloperRouter {
         }
     }
 
+    // Helper method to validate and calculate view range indices
+    fn calculate_view_range(
+        &self,
+        view_range: Option<(usize, i64)>,
+        total_lines: usize,
+    ) -> Result<(usize, usize), ToolError> {
+        if let Some((start_line, end_line)) = view_range {
+            // Convert 1-indexed line numbers to 0-indexed
+            let start_idx = if start_line > 0 { start_line - 1 } else { 0 };
+            let end_idx = if end_line == -1 {
+                total_lines
+            } else {
+                std::cmp::min(end_line as usize, total_lines)
+            };
+
+            if start_idx >= total_lines {
+                return Err(ToolError::InvalidParameters(format!(
+                    "Start line {} is beyond the end of the file (total lines: {})",
+                    start_line, total_lines
+                )));
+            }
+
+            if start_idx >= end_idx {
+                return Err(ToolError::InvalidParameters(format!(
+                    "Start line {} must be less than end line {}",
+                    start_line, end_line
+                )));
+            }
+
+            Ok((start_idx, end_idx))
+        } else {
+            Ok((0, total_lines))
+        }
+    }
+
+    // Helper method to format file content with line numbers
+    fn format_file_content(
+        &self,
+        path: &Path,
+        lines: &[&str],
+        start_idx: usize,
+        end_idx: usize,
+        view_range: Option<(usize, i64)>,
+    ) -> String {
+        let display_content = if lines.is_empty() {
+            String::new()
+        } else {
+            let selected_lines: Vec<String> = lines[start_idx..end_idx]
+                .iter()
+                .enumerate()
+                .map(|(i, line)| format!("{}: {}", start_idx + i + 1, line))
+                .collect();
+
+            selected_lines.join("\n")
+        };
+
+        let language = lang::get_language_identifier(path);
+        if view_range.is_some() {
+            formatdoc! {"
+                ### {path} (lines {start}-{end})
+                ```{language}
+                {content}
+                ```
+                ",
+                path=path.display(),
+                start=view_range.unwrap().0,
+                end=if view_range.unwrap().1 == -1 { "end".to_string() } else { view_range.unwrap().1.to_string() },
+                language=language,
+                content=display_content,
+            }
+        } else {
+            formatdoc! {"
+                ### {path}
+                ```{language}
+                {content}
+                ```
+                ",
+                path=path.display(),
+                language=language,
+                content=display_content,
+            }
+        }
+    }
+
     async fn text_editor_view(
         &self,
         path: &PathBuf,
         view_range: Option<(usize, i64)>,
     ) -> Result<Vec<Content>, ToolError> {
-        if path.is_file() {
-            // Check file size first (400KB limit)
-            const MAX_FILE_SIZE: u64 = 400 * 1024; // 400KB in bytes
-
-            let f = File::open(path)
-                .map_err(|e| ToolError::ExecutionError(format!("Failed to open file: {}", e)))?;
-
-            let file_size = f
-                .metadata()
-                .map_err(|e| {
-                    ToolError::ExecutionError(format!("Failed to get file metadata: {}", e))
-                })?
-                .len();
-
-            if file_size > MAX_FILE_SIZE {
-                return Err(ToolError::ExecutionError(format!(
-                    "File '{}' is too large ({:.2}KB). Maximum size is 400KB to prevent memory issues.",
-                    path.display(),
-                    file_size as f64 / 1024.0
-                )));
-            }
-            // Ensure we never read over that limit even if the file is being concurrently mutated
-            // (e.g. it's a log file)
-            let mut f = f.take(MAX_FILE_SIZE);
-
-            let uri = Url::from_file_path(path)
-                .map_err(|_| ToolError::ExecutionError("Invalid file path".into()))?
-                .to_string();
-
-            let mut content = String::new();
-            f.read_to_string(&mut content)
-                .map_err(|e| ToolError::ExecutionError(format!("Failed to read file: {}", e)))?;
-
-            let lines: Vec<&str> = content.lines().collect();
-            let total_lines = lines.len();
-
-            if view_range.is_none() && total_lines > 2000 {
-                return Err(ToolError::ExecutionError(format!(
-                    "File '{}' is {} lines long, recommended to read in with view_range (or searching) to get bite size content. If you do wish to read all the file, please pass in view_range with [1, {}] to read it all at once",
-                    path.display(),
-                    total_lines,
-                    total_lines
-                )));
-            }
-
-            // Handle view_range if provided, otherwise show all lines
-            let (start_idx, end_idx) = if let Some((start_line, end_line)) = view_range {
-                // Convert 1-indexed line numbers to 0-indexed
-                let start_idx = if start_line > 0 { start_line - 1 } else { 0 };
-                let end_idx = if end_line == -1 {
-                    total_lines
-                } else {
-                    std::cmp::min(end_line as usize, total_lines)
-                };
-
-                if start_idx >= total_lines {
-                    return Err(ToolError::InvalidParameters(format!(
-                        "Start line {} is beyond the end of the file (total lines: {})",
-                        start_line, total_lines
-                    )));
-                }
-
-                if start_idx >= end_idx {
-                    return Err(ToolError::InvalidParameters(format!(
-                        "Start line {} must be less than end line {}",
-                        start_line, end_line
-                    )));
-                }
-
-                (start_idx, end_idx)
-            } else {
-                (0, total_lines)
-            };
-
-            // Always format lines with line numbers for better usability
-            let display_content = if total_lines == 0 {
-                String::new()
-            } else {
-                let selected_lines: Vec<String> = lines[start_idx..end_idx]
-                    .iter()
-                    .enumerate()
-                    .map(|(i, line)| format!("{}: {}", start_idx + i + 1, line))
-                    .collect();
-
-                selected_lines.join("\n")
-            };
-
-            let language = lang::get_language_identifier(path);
-            let formatted = if view_range.is_some() {
-                formatdoc! {"
-                    ### {path} (lines {start}-{end})
-                    ```{language}
-                    {content}
-                    ```
-                    ",
-                    path=path.display(),
-                    start=view_range.unwrap().0,
-                    end=if view_range.unwrap().1 == -1 { "end".to_string() } else { view_range.unwrap().1.to_string() },
-                    language=language,
-                    content=display_content,
-                }
-            } else {
-                formatdoc! {"
-                    ### {path}
-                    ```{language}
-                    {content}
-                    ```
-                    ",
-                    path=path.display(),
-                    language=language,
-                    content=display_content,
-                }
-            };
-
-            // The LLM gets just a quick update as we expect the file to view in the status
-            // but we send a low priority message for the human
-            Ok(vec![
-                Content::embedded_text(uri, content).with_audience(vec![Role::Assistant]),
-                Content::text(formatted)
-                    .with_audience(vec![Role::User])
-                    .with_priority(0.0),
-            ])
-        } else {
-            Err(ToolError::ExecutionError(format!(
+        if !path.is_file() {
+            return Err(ToolError::ExecutionError(format!(
                 "The path '{}' does not exist or is not a file.",
                 path.display()
-            )))
+            )));
         }
+
+        // Check file size first (400KB limit)
+        const MAX_FILE_SIZE: u64 = 400 * 1024; // 400KB in bytes
+
+        let f = File::open(path)
+            .map_err(|e| ToolError::ExecutionError(format!("Failed to open file: {}", e)))?;
+
+        let file_size = f
+            .metadata()
+            .map_err(|e| {
+                ToolError::ExecutionError(format!("Failed to get file metadata: {}", e))
+            })?
+            .len();
+
+        if file_size > MAX_FILE_SIZE {
+            return Err(ToolError::ExecutionError(format!(
+                "File '{}' is too large ({:.2}KB). Maximum size is 400KB to prevent memory issues.",
+                path.display(),
+                file_size as f64 / 1024.0
+            )));
+        }
+
+        // Ensure we never read over that limit even if the file is being concurrently mutated
+        let mut f = f.take(MAX_FILE_SIZE);
+
+        let uri = Url::from_file_path(path)
+            .map_err(|_| ToolError::ExecutionError("Invalid file path".into()))?
+            .to_string();
+
+        let mut content = String::new();
+        f.read_to_string(&mut content)
+            .map_err(|e| ToolError::ExecutionError(format!("Failed to read file: {}", e)))?;
+
+        let lines: Vec<&str> = content.lines().collect();
+        let total_lines = lines.len();
+        
+        if view_range.is_none() && total_lines > LINE_READ_LIMIT {
+            return recommend_read_range(path, total_lines);
+        }
+
+        let (start_idx, end_idx) = self.calculate_view_range(view_range, total_lines)?;
+        let formatted = self.format_file_content(path, &lines, start_idx, end_idx, view_range);
+
+        // The LLM gets just a quick update as we expect the file to view in the status
+        // but we send a low priority message for the human
+        Ok(vec![
+            Content::embedded_text(uri, content).with_audience(vec![Role::Assistant]),
+            Content::text(formatted)
+                .with_audience(vec![Role::User])
+                .with_priority(0.0),
+        ])
     }
 
     async fn text_editor_write(
@@ -1613,6 +1627,15 @@ impl DeveloperRouter {
             Content::image(data, "image/png").with_priority(0.0),
         ])
     }
+}
+
+fn recommend_read_range(path: &Path, total_lines: usize) -> Result<Vec<Content>, ToolError> {
+    Err(ToolError::ExecutionError(format!(
+        "File '{}' is {} lines long, recommended to read in with view_range (or searching) to get bite size content. If you do wish to read all the file, please pass in view_range with [1, {}] to read it all at once",
+        path.display(),
+        total_lines,
+        total_lines
+    )))    
 }
 
 impl Router for DeveloperRouter {
