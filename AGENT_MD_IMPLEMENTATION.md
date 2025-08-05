@@ -1,172 +1,163 @@
-# AGENT.md Support Implementation Plan
+# File Reference (@-mention) Support Implementation
 
-This document outlines the implementation plan for adding AGENT.md support to Goose, following the [AGENT.md specification](https://ampcode.com/AGENT.md).
+This document outlines the implementation of @-mention file reference support for Goose's `.goosehints` configuration files.
+
+## Current Status
+
+- **Phase 1**: ✅ COMPLETED - File reference support (@-mentions) with security features
+- **Phase 2**: ✅ COMPLETED - Security hardening against path traversal attacks
+- **Phase 3**: 🔲 REMOVED - AGENT.md-specific functionality (existing context file system handles this)
+
+**Branch**: `kh/support-agent-md-files`
 
 ## Overview
 
-The goal is to make Goose more agnostic by supporting the standardized AGENT.md format while maintaining backward compatibility with existing `.goosehints` files. This will allow users to have one configuration file that works across multiple agentic coding tools.
+**Update**: After discovering that Goose already has existing functionality to read AGENT.md files through the `CONTEXT_FILE_NAMES` setting, we simplified this implementation to focus solely on the valuable @-mention file reference functionality.
 
-## Phase 1: Basic AGENT.md Support (Backward Compatible)
+The goal is to enhance Goose's existing `.goosehints` system with the ability to reference and include other files using `@filename.md` syntax, while maintaining strong security protections.
 
-### Core Implementation
-- [ ] Extend `DeveloperRouter::new()` in `crates/goose-mcp/src/developer/mod.rs` to look for AGENT.md files
-- [ ] Add AGENT.md to the file search hierarchy (global → local → project-specific)
-- [ ] Implement file discovery order: AGENT.md first, then `.goosehints` for backward compatibility
-- [ ] Parse AGENT.md content and integrate with existing hints system
-- [ ] Ensure AGENT.md takes precedence when both AGENT.md and `.goosehints` exist
+## Core Implementation
 
-### File Discovery
-- [ ] Look for `AGENT.md` in current working directory
-- [ ] Look for global `~/.config/goose/AGENT.md`
-- [ ] Maintain existing `.goosehints` discovery as fallback
-- [ ] Document the precedence order clearly
+### File Reference System (@-mentions)
+- [x] Parse `@filename.md` references in `.goosehints` files using secure regex
+- [x] Expand referenced files inline with attribution markers
+- [x] Support both global (`~/.config/goose/.goosehints`) and local (`./.goosehints`) files
+- [x] Recursive file reference support with circular reference detection
+- [x] Respect `.gooseignore` and `.gitignore` patterns for security
 
-### Content Integration
-- [ ] Extract content from AGENT.md files
-- [ ] Merge AGENT.md content with existing `.goosehints` content
-- [ ] Preserve existing instruction formatting and structure
-- [ ] Add clear attribution for content sources in debug/verbose modes
+### Security Features
+- [x] **Path Traversal Protection**: Reject absolute paths and `../` sequences
+- [x] **ReDoS Protection**: Input size limits (1MB) to prevent regex DoS attacks
+- [x] **Canonical Path Verification**: Ensure files stay within allowed directories
+- [x] **Comprehensive Security Testing**: Full test suite for security edge cases
 
-### Testing
-- [ ] Add unit tests for AGENT.md file discovery
-- [ ] Add tests for content parsing and merging
-- [ ] Add tests for precedence handling (AGENT.md vs .goosehints)
-- [ ] Test backward compatibility with existing `.goosehints` files
+### File Discovery (Existing .goosehints support)
+- [x] Global hints: `~/.config/goose/.goosehints`
+- [x] Local project hints: `./.goosehints` 
+- [x] Both files are processed if they exist
+- [x] @-mentions work in both global and local files
 
-## Phase 2: File Reference Support (@-mentions)
+### Security Layers
 
-### @-mention Parsing
-- [ ] Implement regex-based parsing for `@filename.md` patterns in AGENT.md content
-- [ ] Create `parse_file_references(content: &str) -> Vec<PathBuf>` function
-- [ ] Handle various file reference formats (@file.md, @./path/file.md, etc.)
-- [ ] Support relative and absolute path references
+#### 1. Path Sanitization
+```rust
+/// Sanitize and resolve a file reference path safely
+fn sanitize_reference_path(reference: &Path, base_path: &Path) -> Result<PathBuf, FileReferenceError>
+```
 
-### Referenced File Reading
-- [ ] Implement automatic reading of files referenced via @-mentions
-- [ ] Respect existing `.gooseignore` patterns for referenced files
-- [ ] Add referenced file content to instructions with clear attribution
-- [ ] Handle missing referenced files gracefully (warning, not error)
+**Protection against:**
+- ❌ `@/etc/passwd` (absolute paths)
+- ❌ `@../../../etc/passwd` (path traversal)
+- ❌ `@~/secrets.txt` (tilde expansion attacks)
+- ❌ Symlink-based escapes
 
-### Security and Safety
-- [ ] Implement circular reference detection and prevention
-- [ ] Add recursion depth limits for @-mentions (e.g., max 3 levels deep)
-- [ ] Prevent reading files outside project boundaries (security consideration)
-- [ ] Track visited files to prevent infinite loops
+#### 2. Performance Protection
+```rust
+const MAX_CONTENT_LENGTH: usize = 1_000_000; // 1MB limit
+```
 
-### Error Handling
-- [ ] Graceful handling of missing referenced files
-- [ ] Clear error messages for circular references
-- [ ] Warnings for referenced files that are ignored by `.gooseignore`
-- [ ] Detailed logging for debugging file reference issues
+**Protection against:**
+- ❌ ReDoS (Regular Expression Denial of Service)
+- ❌ Memory exhaustion from large inputs
+- ❌ Infinite processing loops
 
-### Testing
-- [ ] Add tests for @-mention parsing
-- [ ] Add tests for referenced file reading
-- [ ] Add tests for circular reference detection
-- [ ] Add tests for security boundaries
-- [ ] Add integration tests with real file structures
+### Example Usage
 
-## Phase 3: Hierarchical AGENT.md Support
+**Global hints** (`~/.config/goose/.goosehints`):
+```markdown
+These are my global preferences.
 
-### Multiple File Support
-- [ ] Implement support for multiple AGENT.md files in hierarchy
-- [ ] Global: `~/.config/goose/AGENT.md`
-- [ ] Project root: `./AGENT.md`
-- [ ] Subdirectory: `./subdir/AGENT.md` (when working in subdirectories)
+@global-coding-standards.md
+```
 
-### Merging Strategy
-- [ ] Implement intelligent merging of multiple AGENT.md files
-- [ ] More specific files override general ones
-- [ ] Concatenate non-conflicting sections
-- [ ] Define and implement clear precedence rules
-- [ ] Handle section-specific merging (e.g., build commands vs code style)
+**Local hints** (`./.goosehints`):
+```markdown
+This is a Rust project with crates in the crate directory.
 
-### Content Organization
-- [ ] Parse structured sections from AGENT.md (Build & Commands, Code Style, etc.)
-- [ ] Maintain section boundaries during merging
-- [ ] Provide clear attribution for each section's source
-- [ ] Handle conflicts between different AGENT.md files
+Project documentation: @README.md
+Development setup: @docs/setup.md
 
-### Testing
-- [ ] Add tests for hierarchical file discovery
-- [ ] Add tests for content merging strategies
-- [ ] Add tests for precedence rules
-- [ ] Add integration tests with complex directory structures
+Tips:
+- Always run `cargo clippy -- -D warnings`
+- Check git status before starting work
+```
 
-## Phase 4: Enhanced Integration
+**Referenced file** (`docs/setup.md`):
+```markdown
+# Development Setup
 
-### Structured Content Parsing
-- [ ] Implement parsing of specific AGENT.md sections
-- [ ] Extract Build & Commands section for potential shell tool integration
-- [ ] Extract Code Style section for formatting guidance
-- [ ] Extract Testing section for test-related guidance
-- [ ] Make parsed sections available to other Goose components
+1. Install Rust toolchain
+2. Run `cargo build --all`
+3. Install pre-commit hooks
+```
 
-### CLI Integration
-- [ ] Add `goose migrate-hints` command to convert `.goosehints` to `AGENT.md`
-- [ ] Add `goose validate-agent` command to validate AGENT.md format and references
-- [ ] Add `goose show-config` command to display merged configuration
-- [ ] Provide migration guidance and best practices
+**Expanded result in system prompt**:
+```markdown
+### Global Configuration
+These are my global preferences.
 
-### Migration Tooling
-- [ ] Implement automatic migration from `.goosehints` to `AGENT.md`
-- [ ] Create symbolic link creation for backward compatibility
-- [ ] Provide migration suggestions and warnings
-- [ ] Support batch migration for multiple projects
+--- Content from /home/user/.config/goose/global-coding-standards.md ---
+[Content of global-coding-standards.md here]
+--- End of /home/user/.config/goose/global-coding-standards.md ---
 
-### Documentation
-- [ ] Update Goose documentation to explain AGENT.md support
-- [ ] Provide migration guide from `.goosehints` to `AGENT.md`
-- [ ] Document file reference (@-mention) syntax and capabilities
-- [ ] Provide example AGENT.md files for common project types
+### Project Configuration
+This is a Rust project with crates in the crate directory.
+
+Project documentation: 
+--- Content from /current/project/README.md ---
+[Content of README.md here]  
+--- End of /current/project/README.md ---
+
+Development setup:
+--- Content from /current/project/docs/setup.md ---
+# Development Setup
+
+1. Install Rust toolchain
+2. Run `cargo build --all`
+3. Install pre-commit hooks
+--- End of /current/project/docs/setup.md ---
+
+Tips:
+- Always run `cargo clippy -- -D warnings`
+- Check git status before starting work
+```
 
 ### Testing
-- [ ] Add end-to-end tests for CLI commands
-- [ ] Add tests for migration tooling
-- [ ] Add tests for structured content parsing
-- [ ] Performance tests for large AGENT.md files with many references
 
-## Implementation Notes
+- [x] Basic file reference expansion tests
+- [x] Security vulnerability tests (path traversal, ReDoS)
+- [x] Edge case testing (circular references, missing files)
+- [x] Integration tests with real DeveloperRouter
+- [x] Performance tests with large inputs
 
-### Code Organization
-- Primary changes in `crates/goose-mcp/src/developer/mod.rs`
-- New helper functions for AGENT.md parsing and merging
-- Maintain existing `.goosehints` functionality for backward compatibility
-- Consider extracting configuration logic into separate module if it grows large
+## Removed Functionality
 
-### Performance Considerations
-- Cache parsed AGENT.md content to avoid re-reading on each tool call
-- Implement lazy loading of referenced files
-- Consider file watching for development mode to reload changes
-- Optimize file I/O for projects with many AGENT.md files
+The following AGENT.md-specific features were removed as they duplicate existing Goose functionality:
 
-### Security Considerations
-- Validate file paths to prevent directory traversal attacks
-- Respect existing ignore patterns for all file operations
-- Limit file reference depth to prevent resource exhaustion
-- Consider file size limits for referenced files
+- ~~AGENT.md file discovery and precedence handling~~
+- ~~Hierarchical AGENT.md support (multiple directories)~~
+- ~~AGENT.md taking precedence over .goosehints~~
 
-### User Experience
-- Provide clear error messages and helpful suggestions
-- Maintain backward compatibility throughout implementation
-- Offer smooth migration path from existing `.goosehints` files
-- Document best practices for AGENT.md usage
+## Security Audit Results
 
-## Success Criteria
+✅ **No Path Traversal Vulnerabilities**  
+✅ **No ReDoS Attack Vectors**  
+✅ **Proper Input Validation**  
+✅ **Canonical Path Verification**  
+✅ **Comprehensive Test Coverage**
 
-- [ ] Goose can read and use AGENT.md files for project guidance
-- [ ] File references (@-mentions) work correctly and securely
-- [ ] Hierarchical AGENT.md files merge intelligently
-- [ ] Existing `.goosehints` files continue to work unchanged
-- [ ] Migration tools help users transition smoothly
-- [ ] Performance impact is minimal
-- [ ] Security boundaries are maintained
-- [ ] Documentation is comprehensive and helpful
+## Implementation Files
 
-## Future Considerations
+- **Main implementation**: `crates/goose-mcp/src/developer/mod.rs`
+  - `sanitize_reference_path()` - Security layer
+  - `parse_file_references()` - Regex parsing with protection
+  - `read_referenced_files()` - File expansion logic
+  - Security error types and comprehensive testing
 
-- Integration with other Goose extensions and tools
-- Support for AGENT.md templates and scaffolding
-- Community contribution of example AGENT.md files
-- Potential standardization discussions with other tool makers
-- Advanced parsing for structured data within AGENT.md sections
+## Benefits
+
+1. **Enhanced Documentation**: Link to detailed guides and documentation
+2. **Modular Configuration**: Break large .goosehints into smaller, focused files
+3. **Team Collaboration**: Share common configuration files across projects
+4. **Security**: Robust protection against common file inclusion vulnerabilities
+5. **Performance**: Optimized regex compilation and DoS protection
