@@ -1068,9 +1068,7 @@ impl DeveloperRouter {
 
         let file_size = f
             .metadata()
-            .map_err(|e| {
-                ToolError::ExecutionError(format!("Failed to get file metadata: {}", e))
-            })?
+            .map_err(|e| ToolError::ExecutionError(format!("Failed to get file metadata: {}", e)))?
             .len();
 
         if file_size > MAX_FILE_SIZE {
@@ -1094,7 +1092,7 @@ impl DeveloperRouter {
 
         let lines: Vec<&str> = content.lines().collect();
         let total_lines = lines.len();
-        
+
         if view_range.is_none() && total_lines > LINE_READ_LIMIT {
             return recommend_read_range(path, total_lines);
         }
@@ -1635,7 +1633,7 @@ fn recommend_read_range(path: &Path, total_lines: usize) -> Result<Vec<Content>,
         path.display(),
         total_lines,
         total_lines
-    )))    
+    )))
 }
 
 impl Router for DeveloperRouter {
