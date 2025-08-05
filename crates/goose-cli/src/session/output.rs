@@ -115,6 +115,10 @@ impl ThinkingIndicator {
             spinner.stop("");
         }
     }
+
+    pub fn is_shown(&self) -> bool {
+        self.spinner.is_some()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -138,7 +142,10 @@ pub fn hide_thinking() {
     THINKING.with(|t| t.borrow_mut().hide());
 }
 
-#[allow(dead_code)]
+pub fn is_showing_thinking() -> bool {
+    THINKING.with(|t| t.borrow().is_shown())
+}
+
 pub fn set_thinking_message(s: &String) {
     THINKING.with(|t| {
         if let Some(spinner) = t.borrow_mut().spinner.as_mut() {

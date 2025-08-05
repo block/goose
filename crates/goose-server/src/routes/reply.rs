@@ -1,7 +1,7 @@
 use super::utils::verify_secret_key;
 use crate::state::AppState;
 use axum::{
-    extract::State,
+    extract::{DefaultBodyLimit, State},
     http::{self, HeaderMap, StatusCode},
     response::IntoResponse,
     routing::post,
@@ -159,8 +159,15 @@ async fn reply_handler(
             retry_config: None,
         };
 
+        // Messages will be auto-compacted in agent.reply() if needed
+        let messages_to_process = messages.clone();
+
         let mut stream = match agent
-            .reply(&messages, Some(session_config), Some(task_cancel.clone()))
+            .reply(
+                &messages_to_process,
+                Some(session_config),
+                Some(task_cancel.clone()),
+            )
             .await
         {
             Ok(stream) => stream,
@@ -214,6 +221,12 @@ async fn reply_handler(
                                             ).await;
                                             break;
                                         }
+                                    }
+                                    Ok(Some(Ok(AgentEvent::HistoryReplaced(new_messages)))) => {
+                                        // Replace the message history with the compacted messages
+                                        all_messages = new_messages;
+                                        // Note: We don't send this as a stream event since it's an internal operation
+                                        // The client will see the compaction notification message that was sent before this event
                                     }
                                     Ok(Some(Ok(AgentEvent::ModelChange { model, mode }))) => {
                                         if let Err(e) = stream_event(MessageEvent::ModelChange { model, mode }, &tx).await {
@@ -387,9 +400,15 @@ async fn submit_tool_result(
 
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
-        .route("/reply", post(reply_handler))
+        .route(
+            "/reply",
+            post(reply_handler).layer(DefaultBodyLimit::max(50 * 1024 * 1024)),
+        )
         .route("/confirm", post(confirm_permission))
-        .route("/tool_result", post(submit_tool_result))
+        .route(
+            "/tool_result",
+            post(submit_tool_result).layer(DefaultBodyLimit::max(10 * 1024 * 1024)),
+        )
         .with_state(state)
 }
 

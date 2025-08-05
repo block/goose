@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useConfig } from '../components/ConfigContext';
-import { getApiUrl, getSecretKey } from '../config';
+import { getApiUrl } from '../config';
 import { useDictationSettings } from './useDictationSettings';
 import { safeJsonParse } from '../utils/jsonUtils';
 
@@ -117,7 +117,7 @@ export const useWhisper = ({ onTranscription, onError, onSizeWarning }: UseWhisp
         let endpoint = '';
         let headers: Record<string, string> = {
           'Content-Type': 'application/json',
-          'X-Secret-Key': getSecretKey(),
+          'X-Secret-Key': await window.electron.getSecretKey(),
         };
         let body: Record<string, string> = {
           audio: base64Audio,

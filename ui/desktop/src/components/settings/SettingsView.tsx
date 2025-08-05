@@ -4,6 +4,7 @@ import type { View, ViewOptions } from '../../App';
 import ModelsSection from './models/ModelsSection';
 import SessionSharingSection from './sessions/SessionSharingSection';
 import AppSettingsSection from './app/AppSettingsSection';
+import ConfigSettings from './config/ConfigSettings';
 import { ExtensionConfig } from '../../api';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { Bot, Share2, Monitor, MessageSquare } from 'lucide-react';
@@ -124,7 +125,10 @@ export default function SettingsView({
                   value="app"
                   className="mt-0 focus-visible:outline-none focus-visible:ring-0"
                 >
-                  <AppSettingsSection scrollToSection={viewOptions.section} />
+                  <div className="space-y-8">
+                    <ConfigSettings />
+                    <AppSettingsSection scrollToSection={viewOptions.section} />
+                  </div>
                 </TabsContent>
               </ScrollArea>
             </Tabs>

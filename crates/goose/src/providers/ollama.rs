@@ -5,8 +5,10 @@ use crate::impl_provider_default;
 use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
+use crate::utils::safe_truncate;
 use anyhow::Result;
 use async_trait::async_trait;
+use regex::Regex;
 use reqwest::Client;
 use rmcp::model::Tool;
 use serde_json::Value;
@@ -149,5 +151,68 @@ impl Provider for OllamaProvider {
         let model = get_model(&response);
         super::utils::emit_debug_trace(&self.model, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(model, usage)))
+    }
+
+    /// Generate a session name based on the conversation history
+    /// This override filters out reasoning tokens that some Ollama models produce
+    async fn generate_session_name(&self, messages: &[Message]) -> Result<String, ProviderError> {
+        let context = self.get_initial_user_messages(messages);
+        let message = Message::user().with_text(self.create_session_name_prompt(&context));
+        let result = self
+            .complete(
+                "You are a title generator. Output only the requested title of 4 words or less, with no additional text, reasoning, or explanations.",
+                &[message],
+                &[],
+            )
+            .await?;
+
+        let mut description = result.0.as_concat_text();
+        description = Self::filter_reasoning_tokens(&description);
+
+        Ok(safe_truncate(&description, 100))
+    }
+}
+
+impl OllamaProvider {
+    /// Filter out reasoning tokens and thinking patterns from model responses
+    fn filter_reasoning_tokens(text: &str) -> String {
+        let mut filtered = text.to_string();
+
+        // Remove common reasoning patterns
+        let reasoning_patterns = [
+            r"<think>.*?</think>",
+            r"<thinking>.*?</thinking>",
+            r"Let me think.*?\n",
+            r"I need to.*?\n",
+            r"First, I.*?\n",
+            r"Okay, .*?\n",
+            r"So, .*?\n",
+            r"Well, .*?\n",
+            r"Hmm, .*?\n",
+            r"Actually, .*?\n",
+            r"Based on.*?I think",
+            r"Looking at.*?I would say",
+        ];
+
+        for pattern in reasoning_patterns {
+            if let Ok(re) = Regex::new(pattern) {
+                filtered = re.replace_all(&filtered, "").to_string();
+            }
+        }
+        // Remove any remaining thinking markers
+        filtered = filtered
+            .replace("<think>", "")
+            .replace("</think>", "")
+            .replace("<thinking>", "")
+            .replace("</thinking>", "");
+        // Clean up extra whitespace
+        filtered = filtered
+            .lines()
+            .map(|line| line.trim())
+            .filter(|line| !line.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        filtered
     }
 }

@@ -59,6 +59,15 @@ If you're already using a recipe and want to save a modified version:
 When you modify and save a recipe with a new name, a new recipe and new link are generated. You can still run the original recipe from the recipe library, or using the original link. If you edit a recipe without changing its name, the version in the recipe library is updated, but you can still run the original recipe via link.
 :::
 
+**Import Recipe:**
+
+You can import a [shared recipe](/docs/guides/recipes/session-recipes#share-recipe) into your Recipe Library:
+1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+2. Click `Recipes`
+3. Click **Import Recipe** and paste in the recipe URL
+4. Add a name and choose the [storage location](#recipe-storage-locations)
+5. Click **Import Recipe**
+
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
 

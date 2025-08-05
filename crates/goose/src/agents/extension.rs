@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use mcp_client::client::Error as ClientError;
 use rmcp::model::Tool;
+use rmcp::service::ClientInitializeError;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::warn;
@@ -11,25 +12,43 @@ use crate::config;
 use crate::config::extensions::name_to_key;
 use crate::config::permission::PermissionLevel;
 
+#[derive(Error, Debug)]
+#[error("process quit before initialization: stderr = {stderr}")]
+pub struct ProcessExit {
+    stderr: String,
+    #[source]
+    source: ClientInitializeError,
+}
+
+impl ProcessExit {
+    pub fn new<T>(stderr: T, source: ClientInitializeError) -> Self
+    where
+        T: Into<String>,
+    {
+        ProcessExit {
+            stderr: stderr.into(),
+            source,
+        }
+    }
+}
+
 /// Errors from Extension operation
 #[derive(Error, Debug)]
 pub enum ExtensionError {
-    #[error("Failed to start the MCP server from configuration `{0}` `{1}`")]
-    Initialization(Box<ExtensionConfig>, ClientError),
-    #[error("Failed a client call to an MCP server: {0}")]
+    #[error("failed a client call to an MCP server: {0}")]
     Client(#[from] ClientError),
-    #[error("User Message exceeded context-limit. History could not be truncated to accommodate.")]
-    ContextLimit,
-    #[error("Transport error: {0}")]
-    Transport(#[from] mcp_client::transport::Error),
-    #[error("Environment variable `{0}` is not allowed to be overridden.")]
-    InvalidEnvVar(String),
-    #[error("Error during extension setup: {0}")]
+    #[error("invalid config: {0}")]
+    ConfigError(String),
+    #[error("error during extension setup: {0}")]
     SetupError(String),
-    #[error("Join error occurred during task execution: {0}")]
+    #[error("join error occurred during task execution: {0}")]
     TaskJoinError(#[from] tokio::task::JoinError),
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
+    #[error("failed to initialize MCP client: {0}")]
+    InitializeError(#[from] ClientInitializeError),
+    #[error("{0}")]
+    ProcessExit(#[from] ProcessExit),
 }
 
 pub type ExtensionResult<T> = Result<T, ExtensionError>;
@@ -107,7 +126,10 @@ impl Envs {
     pub fn validate(&self) -> Result<(), Box<ExtensionError>> {
         for key in self.map.keys() {
             if Self::is_disallowed(key) {
-                return Err(Box::new(ExtensionError::InvalidEnvVar(key.clone())));
+                return Err(Box::new(ExtensionError::ConfigError(format!(
+                    "environment variable {} not allowed to be overwritten",
+                    key
+                ))));
             }
         }
         Ok(())

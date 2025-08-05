@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription } from '../ui/card';
 // import { Folder } from 'lucide-react';
-import { getApiUrl, getSecretKey } from '../../config';
+import { getApiUrl } from '../../config';
 import { Greeting } from '../common/Greeting';
 import { fetchSessions, fetchSessionDetails, type Session } from '../../sessions';
 // import { fetchProjects, type ProjectMetadata } from '../../projects';
@@ -36,7 +36,7 @@ export function SessionInsights() {
           headers: {
             Accept: 'application/json',
             'Content-Type': 'application/json',
-            'X-Secret-Key': getSecretKey(),
+            'X-Secret-Key': await window.electron.getSecretKey(),
           },
         });
 

@@ -1236,7 +1236,9 @@ async fn run_scheduled_job_internal(
                         Ok(AgentEvent::ModelChange { .. }) => {
                             // Model change events are informational, just continue
                         }
-
+                        Ok(AgentEvent::HistoryReplaced(_)) => {
+                            // Handle history replacement events if needed
+                        }
                         Err(e) => {
                             tracing::error!(
                                 "[Job {}] Error receiving message from agent: {}",
