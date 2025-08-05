@@ -1062,8 +1062,7 @@ impl DeveloperRouter {
             )));
         }
 
-        // Check file size first (400KB limit)
-        const MAX_FILE_SIZE: u64 = 400 * 1024; // 400KB in bytes
+        const MAX_FILE_SIZE: u64 = 400 * 1024; // 400KB
 
         let f = File::open(path)
             .map_err(|e| ToolError::ExecutionError(format!("Failed to open file: {}", e)))?;
@@ -1734,7 +1733,7 @@ impl Clone for DeveloperRouter {
             instructions: self.instructions.clone(),
             file_history: Arc::clone(&self.file_history),
             ignore_patterns: Arc::clone(&self.ignore_patterns),
-            editor_model: create_editor_model(), // Recreate the editor model since it's not Clone
+            editor_model: create_editor_model(),
         }
     }
 }
@@ -3270,9 +3269,9 @@ mod tests {
         let file_path_str = file_path.to_str().unwrap();
         std::env::set_current_dir(&temp_dir).unwrap();
 
-        // Create a file with more than 2000 lines
+        // Create a file with more than LINE_READ_LIMIT lines
         let mut content = String::new();
-        for i in 1..=2001 {
+        for i in 1..=LINE_READ_LIMIT + 1 {
             content.push_str(&format!("Line {}\n", i));
         }
 
