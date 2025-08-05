@@ -1,3 +1,4 @@
+use anstream::println;
 use bat::WrappingMode;
 use console::{style, Color};
 use goose::config::Config;
@@ -11,11 +12,10 @@ use rmcp::model::PromptArgument;
 use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::io::{Error, Write};
+use std::io::{Error, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
-
 // Re-export theme for use in main
 #[derive(Clone, Copy)]
 pub enum Theme {
@@ -135,11 +135,15 @@ thread_local! {
 }
 
 pub fn show_thinking() {
-    THINKING.with(|t| t.borrow_mut().show());
+    if std::io::stdout().is_terminal() {
+        THINKING.with(|t| t.borrow_mut().show());
+    }
 }
 
 pub fn hide_thinking() {
-    THINKING.with(|t| t.borrow_mut().hide());
+    if std::io::stdout().is_terminal() {
+        THINKING.with(|t| t.borrow_mut().hide());
+    }
 }
 
 pub fn is_showing_thinking() -> bool {
@@ -147,11 +151,13 @@ pub fn is_showing_thinking() -> bool {
 }
 
 pub fn set_thinking_message(s: &String) {
-    THINKING.with(|t| {
-        if let Some(spinner) = t.borrow_mut().spinner.as_mut() {
-            spinner.set_message(s);
-        }
-    });
+    if std::io::stdout().is_terminal() {
+        THINKING.with(|t| {
+            if let Some(spinner) = t.borrow_mut().spinner.as_mut() {
+                spinner.set_message(s);
+            }
+        });
+    }
 }
 
 pub fn render_message(message: &Message, debug: bool) {
@@ -166,7 +172,9 @@ pub fn render_message(message: &Message, debug: bool) {
                 println!("Image: [data: {}, type: {}]", image.data, image.mime_type);
             }
             MessageContent::Thinking(thinking) => {
-                if std::env::var("GOOSE_CLI_SHOW_THINKING").is_ok() {
+                if std::env::var("GOOSE_CLI_SHOW_THINKING").is_ok()
+                    && std::io::stdout().is_terminal()
+                {
                     println!("\n{}", style("Thinking:").dim().italic());
                     print_markdown(&thinking.thinking, theme);
                 }
@@ -190,6 +198,10 @@ pub fn render_text(text: &str, color: Option<Color>, dim: bool) {
 }
 
 pub fn render_text_no_newlines(text: &str, color: Option<Color>, dim: bool) {
+    if !std::io::stdout().is_terminal() {
+        println!("{}", text);
+        return;
+    }
     let mut styled_text = style(text);
     if dim {
         styled_text = styled_text.dim();
@@ -472,14 +484,18 @@ pub fn env_no_color() -> bool {
 }
 
 fn print_markdown(content: &str, theme: Theme) {
-    bat::PrettyPrinter::new()
-        .input(bat::Input::from_bytes(content.as_bytes()))
-        .theme(theme.as_str())
-        .colored_output(env_no_color())
-        .language("Markdown")
-        .wrapping_mode(WrappingMode::NoWrapping(true))
-        .print()
-        .unwrap();
+    if std::io::stdout().is_terminal() {
+        bat::PrettyPrinter::new()
+            .input(bat::Input::from_bytes(content.as_bytes()))
+            .theme(theme.as_str())
+            .colored_output(env_no_color())
+            .language("Markdown")
+            .wrapping_mode(WrappingMode::NoWrapping(true))
+            .print()
+            .unwrap();
+    } else {
+        print!("{}", content);
+    }
 }
 
 const INDENT: &str = "    ";
@@ -768,7 +784,7 @@ pub async fn display_cost_usage(
 ) {
     if let Some(cost) = estimate_cost_usd(provider, model, input_tokens, output_tokens).await {
         use console::style;
-        println!(
+        eprintln!(
             "Cost: {} USD ({} tokens: in {}, out {})",
             style(format!("${:.4}", cost)).cyan(),
             input_tokens + output_tokens,

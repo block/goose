@@ -14,18 +14,18 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/Tooltip';
 import { useChatContextManager } from './ChatContextManager';
 import { Message } from '../../types/message';
 
-interface ManualSummarizeButtonProps {
+interface ManualCompactButtonProps {
   messages: Message[];
   isLoading?: boolean; // need this prop to know if Goose is responding
   setMessages: (messages: Message[]) => void; // context management is triggered via special message content types
 }
 
-export const ManualSummarizeButton: React.FC<ManualSummarizeButtonProps> = ({
+export const ManualCompactButton: React.FC<ManualCompactButtonProps> = ({
   messages,
   isLoading = false,
   setMessages,
 }) => {
-  const { handleManualSummarization, isLoadingSummary } = useChatContextManager();
+  const { handleManualCompaction, isLoadingCompaction } = useChatContextManager();
 
   const [isConfirmationOpen, setIsConfirmationOpen] = useState(false);
 
@@ -33,13 +33,13 @@ export const ManualSummarizeButton: React.FC<ManualSummarizeButtonProps> = ({
     setIsConfirmationOpen(true);
   };
 
-  const handleSummarize = async () => {
+  const handleCompaction = async () => {
     setIsConfirmationOpen(false);
 
     try {
-      handleManualSummarization(messages, setMessages);
+      handleManualCompaction(messages, setMessages);
     } catch (error) {
-      console.error('Error in handleSummarize:', error);
+      console.error('Error in handleCompaction:', error);
     }
   };
 
@@ -57,17 +57,17 @@ export const ManualSummarizeButton: React.FC<ManualSummarizeButtonProps> = ({
               type="button"
               className={cn(
                 'flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors',
-                (isLoadingSummary || isLoading) &&
+                (isLoadingCompaction || isLoading) &&
                   'cursor-not-allowed text-text-default/30 hover:text-text-default/30 opacity-50'
               )}
               onClick={handleClick}
-              disabled={isLoadingSummary || isLoading}
+              disabled={isLoadingCompaction || isLoading}
             >
               <ScrollText size={16} />
             </button>
           </TooltipTrigger>
           <TooltipContent>
-            {isLoadingSummary ? 'Summarizing conversation...' : 'Summarize conversation context'}
+            {isLoadingCompaction ? 'Compacting conversation...' : 'Compact conversation context'}
           </TooltipContent>
         </Tooltip>
       </div>
@@ -78,10 +78,11 @@ export const ManualSummarizeButton: React.FC<ManualSummarizeButtonProps> = ({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ScrollText className="text-iconStandard" size={24} />
-              Summarize Conversation
+              Compact Conversation
             </DialogTitle>
             <DialogDescription>
-              This will summarize your conversation history to save context space.
+              This will compact your conversation by summarizing the context into a single message
+              and will help you save context space for future interactions.
             </DialogDescription>
           </DialogHeader>
 
@@ -97,8 +98,8 @@ export const ManualSummarizeButton: React.FC<ManualSummarizeButtonProps> = ({
             <Button type="button" variant="outline" onClick={handleClose}>
               Cancel
             </Button>
-            <Button type="button" onClick={handleSummarize}>
-              Summarize
+            <Button type="button" onClick={handleCompaction}>
+              Compact Conversation
             </Button>
           </DialogFooter>
         </DialogContent>
