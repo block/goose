@@ -194,39 +194,35 @@ async fn await_response(
     let receiver = handle.rx;
     let peer = handle.peer;
     let request_id = handle.id;
-    eprintln!("dispatched request {request_id}");
     tokio::select! {
         result = receiver => {
             result.map_err(|_e| ServiceError::TransportClosed)?
         }
         _ = tokio::time::sleep(timeout) => {
-            cancel(peer, request_id, Some("timed out".to_owned())).await?;
+            send_cancel_message(&peer, request_id, Some("timed out".to_owned())).await?;
             Err(ServiceError::Timeout{timeout})
         }
         _ = cancel_token.cancelled() => {
-            cancel(peer, request_id, Some("operation cancelled".to_owned())).await?;
+            send_cancel_message(&peer, request_id, Some("operation cancelled".to_owned())).await?;
             Err(ServiceError::Cancelled { reason: None })
         }
     }
 }
 
-/// Cancel this request
-async fn cancel(
-    peer: Peer<RoleClient>,
+async fn send_cancel_message(
+    peer: &Peer<RoleClient>,
     request_id: RequestId,
     reason: Option<String>,
 ) -> Result<(), ServiceError> {
-    let notification = CancelledNotification {
-        params: CancelledNotificationParam { request_id, reason },
-        method: CancelledNotificationMethod,
-        extensions: Default::default(),
-    };
-    peer.send_notification(notification.into())
-        .await
-        .inspect_err(|e| {
-            eprintln!("error sending cancellation: {e}");
-        })?;
-    Ok(())
+    peer.send_notification(
+        CancelledNotification {
+            params: CancelledNotificationParam { request_id, reason },
+            method: CancelledNotificationMethod,
+            extensions: Default::default(),
+        }
+        .into(),
+    )
+    .await
 }
 
 #[async_trait::async_trait]
