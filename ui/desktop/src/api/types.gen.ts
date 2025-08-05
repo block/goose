@@ -703,6 +703,9 @@ export type Tool = {
         [key: string]: unknown;
     };
     name: string;
+    outputSchema?: {
+        [key: string]: unknown;
+    };
 };
 
 export type ToolAnnotations = {

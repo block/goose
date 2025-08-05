@@ -2961,6 +2961,10 @@
           },
           "name": {
             "type": "string"
+          },
+          "outputSchema": {
+            "type": "object",
+            "additionalProperties": true
           }
         }
       },
