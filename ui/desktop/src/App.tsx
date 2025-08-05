@@ -3,7 +3,7 @@ import { IpcRendererEvent } from 'electron';
 import { HashRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { openSharedSessionFromDeepLink, type SessionLinksViewOptions } from './sessionLinks';
 import { type SharedSessionDetails } from './sharedSessions';
-import { initializeSystem } from './utils/providerUtils';
+import { initializeSystem, updateSystemPromptWithRecipe } from './utils/providerUtils';
 import { initializeCostDatabase } from './utils/costDatabase';
 import { ErrorUI } from './components/ErrorBoundary';
 import { ConfirmationModal } from './components/ui/ConfirmationModal';
@@ -229,6 +229,11 @@ const PairRouteWrapper = ({
       setChat(updatedChat);
       setPairChat(updatedChat);
 
+      // Update the system prompt with the recipe instructions
+      updateSystemPromptWithRecipe(recipeConfig).catch((error) => {
+        console.error('Failed to update system prompt with recipe:', error);
+      });
+
       // Clear the navigation state to prevent reloading on navigation
       window.history.replaceState({}, document.title);
     } else if (recipeConfig && !chatRef.current.recipeConfig) {
@@ -243,6 +248,11 @@ const PairRouteWrapper = ({
       // Update both the local chat state and the app-level pairChat state
       setChat(updatedChat);
       setPairChat(updatedChat);
+
+      // Update the system prompt with the recipe instructions
+      updateSystemPromptWithRecipe(recipeConfig).catch((error) => {
+        console.error('Failed to update system prompt with recipe:', error);
+      });
 
       // Clear the navigation state to prevent reloading on navigation
       window.history.replaceState({}, document.title);

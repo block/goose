@@ -31,6 +31,7 @@ import BaseChat from './BaseChat';
 import { useRecipeManager } from '../hooks/useRecipeManager';
 import { useIsMobile } from '../hooks/use-mobile';
 import { useSidebar } from './ui/sidebar';
+import { updateSystemPromptWithRecipe } from '../utils/providerUtils';
 import 'react-toastify/dist/ReactToastify.css';
 import { cn } from '../utils';
 
@@ -71,6 +72,11 @@ export default function Pair({
         recipeParameters: null, // Clear parameters for new recipe
       };
       setChat(newChat);
+
+      // Update the system prompt with the recipe instructions
+      updateSystemPromptWithRecipe(location.state.recipeConfig).catch((error) => {
+        console.error('Failed to update system prompt with recipe:', error);
+      });
 
       // Clear the location state to prevent re-processing
       window.history.replaceState({}, '', '/pair');
