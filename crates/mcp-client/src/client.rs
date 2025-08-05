@@ -1,19 +1,22 @@
 use rmcp::{
     model::{
-        CallToolRequest, CallToolRequestParam, CallToolResult, ClientCapabilities, ClientInfo,
+        CallToolRequest, CallToolRequestParam, CallToolResult, CancelledNotification,
+        CancelledNotificationMethod, CancelledNotificationParam, ClientCapabilities, ClientInfo,
         ClientRequest, GetPromptRequest, GetPromptRequestParam, GetPromptResult, Implementation,
         InitializeResult, ListPromptsRequest, ListPromptsResult, ListResourcesRequest,
         ListResourcesResult, ListToolsRequest, ListToolsResult, LoggingMessageNotification,
         LoggingMessageNotificationMethod, PaginatedRequestParam, ProgressNotification,
         ProgressNotificationMethod, ProtocolVersion, ReadResourceRequest, ReadResourceRequestParam,
-        ReadResourceResult, ServerNotification, ServerResult,
+        ReadResourceResult, RequestId, ServerNotification, ServerResult,
     },
-    service::{ClientInitializeError, PeerRequestOptions, RunningService},
+    service::{
+        ClientInitializeError, PeerRequestOptions, RequestHandle, RunningService, ServiceRole,
+    },
     transport::IntoTransport,
-    ClientHandler, RoleClient, ServiceError, ServiceExt,
+    ClientHandler, Peer, RoleClient, ServiceError, ServiceExt,
 };
 use serde_json::Value;
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 use tokio::sync::{
     mpsc::{self, Sender},
     Mutex,
@@ -176,25 +179,54 @@ impl McpClient {
             .client
             .lock()
             .await
-            .send_request_with_option(
-                request,
-                PeerRequestOptions {
-                    timeout: Some(self.timeout),
-                    meta: None,
-                },
-            )
+            .send_cancellable_request(request, PeerRequestOptions::no_options())
             .await?;
 
-        let cancel_token = cancel_token.clone();
-        tokio::select! {
-            res = handle.await_response() => {
-                Ok(res?)
-            }
-            _ = cancel_token.cancelled() => {
-                Err(Error::Cancelled{reason: None})
-            }
+        await_response(handle, self.timeout, &cancel_token).await
+    }
+}
+
+async fn await_response(
+    handle: RequestHandle<RoleClient>,
+    timeout: Duration,
+    cancel_token: &CancellationToken,
+) -> Result<<RoleClient as ServiceRole>::PeerResp, ServiceError> {
+    let receiver = handle.rx;
+    let peer = handle.peer;
+    let request_id = handle.id;
+    eprintln!("dispatched request {request_id}");
+    tokio::select! {
+        result = receiver => {
+            result.map_err(|_e| ServiceError::TransportClosed)?
+        }
+        _ = tokio::time::sleep(timeout) => {
+            cancel(peer, request_id, Some("timed out".to_owned())).await?;
+            Err(ServiceError::Timeout{timeout})
+        }
+        _ = cancel_token.cancelled() => {
+            cancel(peer, request_id, Some("operation cancelled".to_owned())).await?;
+            Err(ServiceError::Cancelled { reason: None })
         }
     }
+}
+
+/// Cancel this request
+async fn cancel(
+    peer: Peer<RoleClient>,
+    request_id: RequestId,
+    reason: Option<String>,
+) -> Result<(), ServiceError> {
+    let notification = CancelledNotification {
+        params: CancelledNotificationParam { request_id, reason },
+        method: CancelledNotificationMethod,
+        extensions: Default::default(),
+    };
+    peer.send_notification(notification.into())
+        .await
+        .inspect_err(|e| {
+            eprintln!("error sending cancellation: {e}");
+        })?;
+    Ok(())
 }
 
 #[async_trait::async_trait]
