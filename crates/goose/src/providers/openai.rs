@@ -21,6 +21,7 @@ use crate::impl_provider_default;
 use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::base::MessageStream;
+use crate::providers::custom_providers::CustomProviderConfig;
 use crate::providers::formats::openai::response_to_streaming_message;
 use crate::providers::utils::handle_status_openai_compat;
 use rmcp::model::Tool;
@@ -84,6 +85,34 @@ impl OpenAiProvider {
             project,
             model,
             custom_headers,
+        })
+    }
+
+    pub fn from_custom_config(model: ModelConfig, config: CustomProviderConfig) -> Result<Self> {
+        let timeout = Duration::from_secs(config.timeout_seconds.unwrap_or(600));
+        let client = Client::builder().timeout(timeout).build()?;
+
+        let api_key = std::env::var(&config.api_key_env)
+            .map_err(|_| anyhow::anyhow!("Missing API key: {}", config.api_key_env))?;
+
+        let url = url::Url::parse(&config.base_url)?;
+        let host = format!(
+            "{}://{}:{}",
+            url.scheme(),
+            url.host_str().unwrap_or(""),
+            url.port_or_known_default().unwrap_or(443)
+        );
+        let base_path = url.path().trim_start_matches('/').to_string();
+
+        Ok(Self {
+            client,
+            host,
+            base_path,
+            api_key,
+            organization: None,
+            project: None,
+            model,
+            custom_headers: config.headers,
         })
     }
 
