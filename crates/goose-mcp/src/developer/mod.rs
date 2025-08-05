@@ -1093,6 +1093,8 @@ impl DeveloperRouter {
         let lines: Vec<&str> = content.lines().collect();
         let total_lines = lines.len();
 
+        // We will gently encourage the LLM to specify a range for large line count files
+        // it can of course specify exact range to read any size file
         if view_range.is_none() && total_lines > LINE_READ_LIMIT {
             return recommend_read_range(path, total_lines);
         }
