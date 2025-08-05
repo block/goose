@@ -35,6 +35,7 @@ import SensitiveVisible from './SensitiveVisible';
 import Send from './Send';
 import Settings from './Settings';
 import Time from './Time';
+import Langfuse from './Langfuse';
 import { Gear } from './Gear';
 import Youtube from './Youtube';
 import { Microphone } from './Microphone';
@@ -86,6 +87,7 @@ export {
   Send,
   Settings,
   Time,
+  Langfuse,
   Watch0,
   Watch1,
   Watch2,

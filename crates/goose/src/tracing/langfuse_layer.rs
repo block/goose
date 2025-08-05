@@ -9,6 +9,7 @@ use std::time::Duration;
 use tokio::sync::Mutex;
 use url::Url;
 use uuid::Uuid;
+use crate::config::Config;
 
 const DEFAULT_LANGFUSE_URL: &str = "http://localhost:3000";
 
@@ -152,12 +153,19 @@ impl BatchManager for LangfuseBatchManager {
     }
 }
 
-pub fn create_langfuse_observer() -> Option<ObservationLayer> {
+pub fn create_langfuse_observer(name: &str) -> Option<ObservationLayer> {
+    let config = Config::global();
+    let public_key_value = config.get_param("LANGFUSE_PUBLIC_KEY");
+    let secret_key_value = config.get_param::<String>("LANGFUSE_SECRET_KEY");
+    let langfuse_url_value = config.get_param("LANGFUSE_URL");
+
     let public_key = env::var("LANGFUSE_PUBLIC_KEY")
+        .or_else(|_| public_key_value)
         .or_else(|_| env::var("LANGFUSE_INIT_PROJECT_PUBLIC_KEY"))
         .unwrap_or_default(); // Use empty string if not found
 
     let secret_key = env::var("LANGFUSE_SECRET_KEY")
+        .or_else(|_| secret_key_value)
         .or_else(|_| env::var("LANGFUSE_INIT_PROJECT_SECRET_KEY"))
         .unwrap_or_default(); // Use empty string if not found
 
@@ -166,7 +174,9 @@ pub fn create_langfuse_observer() -> Option<ObservationLayer> {
         return None;
     }
 
-    let base_url = env::var("LANGFUSE_URL").unwrap_or_else(|_| DEFAULT_LANGFUSE_URL.to_string());
+    let base_url = env::var("LANGFUSE_URL")
+        .or_else(|_| langfuse_url_value)
+        .unwrap_or_else(|_| DEFAULT_LANGFUSE_URL.to_string());
 
     let batch_manager = Arc::new(Mutex::new(LangfuseBatchManager::new(
         public_key, secret_key, base_url,
@@ -177,6 +187,7 @@ pub fn create_langfuse_observer() -> Option<ObservationLayer> {
     }
 
     Some(ObservationLayer {
+        name: name.to_string(),
         batch_manager,
         span_tracker: Arc::new(Mutex::new(SpanTracker::new())),
     })
@@ -403,7 +414,7 @@ mod tests {
             env::remove_var(var);
         }
 
-        let observer = create_langfuse_observer();
+        let observer = create_langfuse_observer("test");
         assert!(
             observer.is_none(),
             "Observer should be None without environment variables"
@@ -411,7 +422,7 @@ mod tests {
 
         // Test 2: Only public key set (regular)
         env::set_var("LANGFUSE_PUBLIC_KEY", "test-public-key");
-        let observer = create_langfuse_observer();
+        let observer = create_langfuse_observer("test");
         assert!(
             observer.is_none(),
             "Observer should be None with only public key"
@@ -420,7 +431,7 @@ mod tests {
 
         // Test 3: Only secret key set (regular)
         env::set_var("LANGFUSE_SECRET_KEY", "test-secret-key");
-        let observer = create_langfuse_observer();
+        let observer = create_langfuse_observer("test");
         assert!(
             observer.is_none(),
             "Observer should be None with only secret key"
@@ -429,7 +440,7 @@ mod tests {
 
         // Test 4: Only public key set (init project)
         env::set_var("LANGFUSE_INIT_PROJECT_PUBLIC_KEY", "test-public-key");
-        let observer = create_langfuse_observer();
+        let observer = create_langfuse_observer("test");
         assert!(
             observer.is_none(),
             "Observer should be None with only init project public key"
@@ -438,7 +449,7 @@ mod tests {
 
         // Test 5: Only secret key set (init project)
         env::set_var("LANGFUSE_INIT_PROJECT_SECRET_KEY", "test-secret-key");
-        let observer = create_langfuse_observer();
+        let observer = create_langfuse_observer("test");
         assert!(
             observer.is_none(),
             "Observer should be None with only init project secret key"
@@ -449,7 +460,7 @@ mod tests {
         env::set_var("LANGFUSE_PUBLIC_KEY", "test-public-key");
         env::set_var("LANGFUSE_SECRET_KEY", "test-secret-key");
         env::set_var("LANGFUSE_URL", fixture.mock_server_uri());
-        let observer = create_langfuse_observer();
+        let observer = create_langfuse_observer("test");
         assert!(
             observer.is_some(),
             "Observer should be Some with both regular keys set"
@@ -462,7 +473,7 @@ mod tests {
         // Test 7: Both init project keys set (should succeed)
         env::set_var("LANGFUSE_INIT_PROJECT_PUBLIC_KEY", "test-public-key");
         env::set_var("LANGFUSE_INIT_PROJECT_SECRET_KEY", "test-secret-key");
-        let observer = create_langfuse_observer();
+        let observer = create_langfuse_observer("test");
         assert!(
             observer.is_some(),
             "Observer should be Some with both init project keys set"

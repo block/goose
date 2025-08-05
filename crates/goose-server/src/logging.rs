@@ -110,7 +110,7 @@ pub fn setup_logging(name: Option<&str>) -> Result<()> {
         );
     }
 
-    if let Some(langfuse) = langfuse_layer::create_langfuse_observer() {
+    if let Some(langfuse) = langfuse_layer::create_langfuse_observer(name.clone().unwrap_or("goose-server")) {
         layers.push(langfuse.with_filter(LevelFilter::DEBUG).boxed());
     }
 

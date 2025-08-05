@@ -155,7 +155,7 @@ fn setup_logging_internal(
                 }
             }
 
-            if let Some(langfuse) = langfuse_layer::create_langfuse_observer() {
+            if let Some(langfuse) = langfuse_layer::create_langfuse_observer(name.clone().unwrap_or("goose-cli")) {
                 layers.push(langfuse.with_filter(LevelFilter::DEBUG).boxed());
             }
 
