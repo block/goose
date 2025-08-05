@@ -3,6 +3,7 @@ use futures::Stream;
 use serde::{Deserialize, Serialize};
 
 use super::errors::ProviderError;
+use super::retry::RetryConfig;
 use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::utils::safe_truncate;
@@ -286,8 +287,12 @@ pub trait Provider: Send + Sync {
     /// Get the model config from the provider
     fn get_model_config(&self) -> ModelConfig;
 
-    /// Optional hook to fetch supported models asynchronously.
-    async fn fetch_supported_models_async(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    fn retry_config(&self) -> RetryConfig {
+        RetryConfig::default()
+    }
+
+    /// Optional hook to fetch supported models.
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         Ok(None)
     }
 

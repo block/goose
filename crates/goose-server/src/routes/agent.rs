@@ -226,6 +226,8 @@ async fn get_tools(
     path = "/agent/update_provider",
     responses(
         (status = 200, description = "Update provider completed", body = String),
+        (status = 400, description = "Bad request - missing or invalid parameters"),
+        (status = 401, description = "Unauthorized - invalid secret key"),
         (status = 500, description = "Internal server error")
     )
 )]
@@ -234,15 +236,7 @@ async fn update_agent_provider(
     headers: HeaderMap,
     Json(payload): Json<UpdateProviderRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    // Verify secret key
-    let secret_key = headers
-        .get("X-Secret-Key")
-        .and_then(|value| value.to_str().ok())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-
-    if secret_key != state.secret_key {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
+    verify_secret_key(&headers, &state)?;
 
     let agent = state
         .get_agent()
@@ -250,13 +244,18 @@ async fn update_agent_provider(
         .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
 
     let config = Config::global();
-    let model = payload.model.unwrap_or_else(|| {
-        config
-            .get_param("GOOSE_MODEL")
-            .expect("Did not find a model on payload or in env to update provider with")
-    });
-    let model_config = ModelConfig::new(&model).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let new_provider = create(&payload.provider, model_config).unwrap();
+    let model = match payload
+        .model
+        .or_else(|| config.get_param("GOOSE_MODEL").ok())
+    {
+        Some(m) => m,
+        None => return Err(StatusCode::BAD_REQUEST),
+    };
+
+    let model_config = ModelConfig::new(&model).map_err(|_| StatusCode::BAD_REQUEST)?;
+
+    let new_provider =
+        create(&payload.provider, model_config).map_err(|_| StatusCode::BAD_REQUEST)?;
     agent
         .update_provider(new_provider)
         .await

@@ -294,17 +294,18 @@ pub fn render_prompts(prompts: &HashMap<String, Vec<String>>) {
 
 pub fn render_prompt_info(info: &PromptInfo) {
     println!();
-
     if let Some(ext) = &info.extension {
         println!(" {}: {}", style("Extension").green(), ext);
     }
-
     println!(" Prompt: {}", style(&info.name).cyan().bold());
-
     if let Some(desc) = &info.description {
         println!("\n {}", desc);
     }
+    render_arguments(info);
+    println!();
+}
 
+fn render_arguments(info: &PromptInfo) {
     if let Some(args) = &info.arguments {
         println!("\n Arguments:");
         for arg in args {
@@ -323,7 +324,6 @@ pub fn render_prompt_info(info: &PromptInfo) {
             );
         }
     }
-    println!();
 }
 
 pub fn render_extension_success(name: &str) {
@@ -491,6 +491,23 @@ fn get_tool_params_max_length() -> usize {
         .unwrap_or(40)
 }
 
+fn print_value(value: &Value, debug: bool) {
+    let formatted = match value {
+        Value::String(s) => {
+            if !debug && s.len() > get_tool_params_max_length() {
+                style(format!("[REDACTED: {} chars]", s.len())).yellow()
+            } else {
+                style(s.to_string()).green()
+            }
+        }
+        Value::Number(n) => style(n.to_string()).yellow(),
+        Value::Bool(b) => style(b.to_string()).yellow(),
+        Value::Null => style("null".to_string()).dim(),
+        _ => unreachable!(),
+    };
+    println!("{}", formatted);
+}
+
 fn print_params(value: &Value, depth: usize, debug: bool) {
     let indent = INDENT.repeat(depth);
 
@@ -509,21 +526,9 @@ fn print_params(value: &Value, depth: usize, debug: bool) {
                             print_params(item, depth + 2, debug);
                         }
                     }
-                    Value::String(s) => {
-                        if !debug && s.len() > get_tool_params_max_length() {
-                            println!("{}{}: {}", indent, style(key).dim(), style("...").dim());
-                        } else {
-                            println!("{}{}: {}", indent, style(key).dim(), style(s).green());
-                        }
-                    }
-                    Value::Number(n) => {
-                        println!("{}{}: {}", indent, style(key).dim(), style(n).blue());
-                    }
-                    Value::Bool(b) => {
-                        println!("{}{}: {}", indent, style(key).dim(), style(b).blue());
-                    }
-                    Value::Null => {
-                        println!("{}{}: {}", indent, style(key).dim(), style("null").dim());
+                    _ => {
+                        print!("{}{}: ", indent, style(key).dim());
+                        print_value(val, debug);
                     }
                 }
             }
@@ -534,26 +539,7 @@ fn print_params(value: &Value, depth: usize, debug: bool) {
                 print_params(item, depth + 1, debug);
             }
         }
-        Value::String(s) => {
-            if !debug && s.len() > get_tool_params_max_length() {
-                println!(
-                    "{}{}",
-                    indent,
-                    style(format!("[REDACTED: {} chars]", s.len())).yellow()
-                );
-            } else {
-                println!("{}{}", indent, style(s).green());
-            }
-        }
-        Value::Number(n) => {
-            println!("{}{}", indent, style(n).yellow());
-        }
-        Value::Bool(b) => {
-            println!("{}{}", indent, style(b).yellow());
-        }
-        Value::Null => {
-            println!("{}{}", indent, style("null").dim());
-        }
+        _ => print_value(value, debug),
     }
 }
 
