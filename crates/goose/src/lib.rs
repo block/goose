@@ -4,6 +4,7 @@ pub mod context_mgmt;
 mod conversation_fixer;
 pub mod message;
 pub mod model;
+pub mod oauth;
 pub mod permission;
 pub mod project;
 pub mod prompt_template;
@@ -19,7 +20,6 @@ pub mod token_counter;
 pub mod tool_monitor;
 pub mod tracing;
 pub mod utils;
-pub mod oauth;
 
 #[cfg(test)]
 mod cron_test;

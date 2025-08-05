@@ -1,12 +1,12 @@
-use std::net::SocketAddr;
-use std::sync::{Arc};
 use axum::extract::{Query, State};
 use axum::response::Html;
-use axum::Router;
 use axum::routing::get;
+use axum::Router;
 use rmcp::transport::auth::OAuthState;
 use rmcp::transport::AuthorizationManager;
 use serde::Deserialize;
+use std::net::SocketAddr;
+use std::sync::Arc;
 use tokio::sync::{oneshot, Mutex};
 
 const CALLBACK_HTML: &str = include_str!("oauth_callback.html");
@@ -33,10 +33,13 @@ async fn callback_handler(
     Html(CALLBACK_HTML.to_string())
 }
 
-pub async fn oauth_flow(mcp_server_url: &String, name: &String) -> Result<AuthorizationManager, anyhow::Error> {
+pub async fn oauth_flow(
+    mcp_server_url: &String,
+    name: &String,
+) -> Result<AuthorizationManager, anyhow::Error> {
     let (code_sender, code_receiver) = oneshot::channel::<String>();
     let app_state = AppState {
-        code_receiver: Arc::new(Mutex::new(Some(code_sender)))
+        code_receiver: Arc::new(Mutex::new(Some(code_sender))),
     };
 
     let app = Router::new()
@@ -56,7 +59,9 @@ pub async fn oauth_flow(mcp_server_url: &String, name: &String) -> Result<Author
 
     let mut oauth_state = OAuthState::new(mcp_server_url, None).await?;
     let redirect_uri = format!("http://localhost:{}/oauth_callback", used_addr.port());
-    oauth_state.start_authorization(&[], redirect_uri.as_str()).await?;
+    oauth_state
+        .start_authorization(&[], redirect_uri.as_str())
+        .await?;
 
     let authorization_url = oauth_state.get_authorization_url().await?;
     if webbrowser::open(authorization_url.as_str()).is_err() {

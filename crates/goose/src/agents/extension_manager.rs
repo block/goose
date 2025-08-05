@@ -27,12 +27,12 @@ use super::extension::{ExtensionConfig, ExtensionError, ExtensionInfo, Extension
 use super::tool_execution::ToolCallResult;
 use crate::agents::extension::{Envs, ProcessExit};
 use crate::config::{Config, ExtensionConfigManager};
+use crate::oauth::oauth_flow;
 use crate::prompt_template;
 use mcp_client::client::{McpClient, McpClientTrait};
 use rmcp::model::{Content, GetPromptResult, Prompt, Resource, ResourceContents, Tool};
 use rmcp::transport::auth::AuthClient;
 use serde_json::Value;
-use crate::oauth::oauth_flow;
 
 // By default, we set it to Jan 1, 2020 if the resource does not have a timestamp
 // This is to ensure that the resource is considered less important than resources with a more recent timestamp
@@ -251,11 +251,9 @@ impl ExtensionManager {
                     // because this might not have been an auth error at all
                     let am = match oauth_flow(&uri, name).await {
                         Ok(am) => am,
-                        Err(_) => return Err(e.into())
+                        Err(_) => return Err(e.into()),
                     };
-                    let client = AuthClient::new(
-                        reqwest::Client::default()
-                        , am);
+                    let client = AuthClient::new(reqwest::Client::default(), am);
                     let transport = StreamableHttpClientTransport::with_client(
                         client,
                         StreamableHttpClientTransportConfig {
@@ -268,7 +266,8 @@ impl ExtensionManager {
                         Duration::from_secs(
                             timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
                         ),
-                    ).await?
+                    )
+                    .await?
                 } else {
                     client_res?
                 };
