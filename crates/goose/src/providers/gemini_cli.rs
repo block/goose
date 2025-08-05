@@ -176,9 +176,6 @@ impl GeminiCliProvider {
 
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
-        let mut child = cmd
-            .spawn()
-            .map_err(|e| ProviderError::RequestFailed(format!("Failed to spawn command: {}", e)))?;
         let mut child = cmd.spawn().map_err(|e| {
             ProviderError::RequestFailed(format!(
                 "Failed to spawn Gemini CLI command '{}': {}. \
