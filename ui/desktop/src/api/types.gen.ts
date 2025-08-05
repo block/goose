@@ -16,6 +16,13 @@ export type Annotations = {
     timestamp?: string;
 };
 
+export type AppListResponse = {
+    /**
+     * List of installed Goose apps
+     */
+    apps: Array<GooseApp>;
+};
+
 export type Author = {
     contact?: string | null;
     metadata?: string | null;
@@ -251,6 +258,12 @@ export type FrontendToolRequest = {
     toolCall: {
         [key: string]: unknown;
     };
+};
+
+export type GooseApp = {
+    description?: string | null;
+    jsImplementation: string;
+    name: string;
 };
 
 export type ImageContent = {
@@ -821,6 +834,33 @@ export type GetToolsResponses = {
 };
 
 export type GetToolsResponse = GetToolsResponses[keyof GetToolsResponses];
+
+export type ListAppsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/apps';
+};
+
+export type ListAppsErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ListAppsResponses = {
+    /**
+     * List of installed apps retrieved successfully
+     */
+    200: AppListResponse;
+};
+
+export type ListAppsResponse = ListAppsResponses[keyof ListAppsResponses];
 
 export type ReadAllConfigData = {
     body?: never;

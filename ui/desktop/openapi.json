@@ -90,6 +90,37 @@
         }
       }
     },
+    "/apps": {
+      "get": {
+        "tags": [
+          "App Management"
+        ],
+        "operationId": "list_apps",
+        "responses": {
+          "200": {
+            "description": "List of installed apps retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/config": {
       "get": {
         "tags": [
@@ -1122,6 +1153,21 @@
           }
         }
       },
+      "AppListResponse": {
+        "type": "object",
+        "required": [
+          "apps"
+        ],
+        "properties": {
+          "apps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GooseApp"
+            },
+            "description": "List of installed Goose apps"
+          }
+        }
+      },
       "Author": {
         "type": "object",
         "properties": {
@@ -1786,6 +1832,25 @@
           },
           "toolCall": {
             "type": "object"
+          }
+        }
+      },
+      "GooseApp": {
+        "type": "object",
+        "required": [
+          "name",
+          "jsImplementation"
+        ],
+        "properties": {
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "jsImplementation": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
           }
         }
       },

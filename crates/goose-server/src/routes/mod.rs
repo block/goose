@@ -4,6 +4,7 @@ pub mod audio;
 pub mod config_management;
 pub mod context;
 pub mod extension;
+pub mod goose_apps;
 pub mod health;
 pub mod project;
 pub mod recipe;
@@ -12,6 +13,7 @@ pub mod schedule;
 pub mod session;
 pub mod setup;
 pub mod utils;
+
 use std::sync::Arc;
 
 use axum::Router;
@@ -25,6 +27,7 @@ pub fn configure(state: Arc<crate::state::AppState>) -> Router {
         .merge(audio::routes(state.clone()))
         .merge(context::routes(state.clone()))
         .merge(extension::routes(state.clone()))
+        .merge(goose_apps::routes(state.clone()))
         .merge(config_management::routes(state.clone()))
         .merge(recipe::routes(state.clone()))
         .merge(session::routes(state.clone()))

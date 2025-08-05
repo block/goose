@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { FileText, Clock, Home, Puzzle, History } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { FileText, Clock, Home, Puzzle, History, AppWindow } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
   SidebarContent,
@@ -13,6 +13,7 @@ import {
 } from '../ui/sidebar';
 import { ChatSmart, Gear } from '../icons';
 import { ViewOptions, View } from '../../App';
+import { listApps } from '../../api';
 
 interface SidebarProps {
   onSelectSession: (sessionId: string) => void;
@@ -40,6 +41,13 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const isActivePath = (path: string) => {
     return currentPath === path;
   };
+
+  const [hasApps, setHasApps] = useState(false);
+  useEffect(() => {
+    listApps()
+      .then((response) => setHasApps(!!response.data && response.data.apps.length > 0))
+      .catch(() => {});
+  }, []);
 
   return (
     <>
@@ -162,6 +170,22 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </div>
+
+              {hasApps && (
+                <div className="sidebar-item">
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      onClick={() => navigate('/apps')}
+                      isActive={isActivePath('/apps')}
+                      tooltip="Run Goose Apps"
+                      className="w-full justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200 data-[active=true]:bg-background-medium"
+                    >
+                      <AppWindow className="w-4 h-4" />
+                      <span>Goose Apps</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </div>
+              )}
             </SidebarGroupContent>
           </SidebarGroup>
 

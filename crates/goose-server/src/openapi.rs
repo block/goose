@@ -385,7 +385,8 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::schedule::sessions_handler,
         super::routes::recipe::create_recipe,
         super::routes::recipe::encode_recipe,
-        super::routes::recipe::decode_recipe
+        super::routes::recipe::decode_recipe,
+        super::routes::goose_apps::list_apps
     ),
     components(schemas(
         super::routes::config_management::UpsertConfigQuery,
@@ -464,6 +465,8 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         goose::agents::types::SuccessCheck,
         super::routes::agent::AddSubRecipesRequest,
         super::routes::agent::AddSubRecipesResponse,
+        super::routes::goose_apps::GooseApp,
+        super::routes::goose_apps::AppListResponse,
     ))
 )]
 pub struct ApiDoc;

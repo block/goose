@@ -48,6 +48,7 @@ import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/E
 import { Recipe } from './recipe';
 import RecipesView from './components/RecipesView';
 import RecipeEditor from './components/RecipeEditor';
+import AppsView from './components/apps/AppsView';
 
 export type View =
   | 'welcome'
@@ -66,7 +67,8 @@ export type View =
   | 'loading'
   | 'recipeEditor'
   | 'recipes'
-  | 'permission';
+  | 'permission'
+  | 'apps';
 // | 'projects';
 
 export type ViewOptions = {
@@ -149,6 +151,9 @@ const HubRouteWrapper = ({
             break;
           case 'recipeEditor':
             navigate('/recipe-editor', { state: options });
+            break;
+          case 'apps':
+            navigate('/apps');
             break;
           case 'welcome':
             navigate('/welcome');
@@ -461,6 +466,10 @@ const RecipeEditorRoute = () => {
   }
 
   return <RecipeEditor config={config} />;
+};
+
+const AppsRoute = () => {
+  return <AppsView />;
 };
 
 const PermissionRoute = () => {
@@ -973,6 +982,7 @@ export default function App() {
                 '#/shared-session',
                 '#/recipe-editor',
                 '#/extensions',
+                '#/apps',
               ];
 
               if (!validRoutes.includes(currentHash)) {
@@ -1479,6 +1489,14 @@ export default function App() {
                   element={
                     <ProviderGuard>
                       <RecipesRoute />
+                    </ProviderGuard>
+                  }
+                />
+                <Route
+                  path="apps"
+                  element={
+                    <ProviderGuard>
+                      <AppsRoute />
                     </ProviderGuard>
                   }
                 />
