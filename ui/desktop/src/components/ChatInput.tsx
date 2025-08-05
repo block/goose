@@ -12,7 +12,7 @@ import { Message } from '../types/message';
 import { DirSwitcher } from './bottom_menu/DirSwitcher';
 import ModelsBottomBar from './settings/models/bottom_bar/ModelsBottomBar';
 import { BottomMenuModeSelection } from './bottom_menu/BottomMenuModeSelection';
-import { ManualSummarizeButton } from './context_management/ManualSummaryButton';
+import { ManualCompactButton } from './context_management/ManualCompactButton';
 import { AlertType, useAlerts } from './alerts';
 import { useToolCount } from './alerts/useToolCount';
 import { useConfig } from './ConfigContext';
@@ -110,7 +110,7 @@ export default function ChatInput({
   const { alerts, addAlert, clearAlerts } = useAlerts();
   const dropdownRef = useRef<HTMLDivElement>(null);
   const toolCount = useToolCount();
-  const { isLoadingSummary } = useChatContextManager();
+  const { isLoadingCompaction } = useChatContextManager();
   const { getProviders, read } = useConfig();
   const { getCurrentModelAndProvider, currentModel, currentProvider } = useModelAndProvider();
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
@@ -416,7 +416,7 @@ export default function ChatInput({
         // Only show warning alert when approaching limit
         addAlert({
           type: AlertType.Warning,
-          message: `Approaching token limit (${numTokens.toLocaleString()}/${tokenLimit.toLocaleString()}) \n You're reaching the model's conversation limit. The session will be saved — copy anything important and start a new one to continue.`,
+          message: `Approaching token limit (${numTokens.toLocaleString()}/${tokenLimit.toLocaleString()}) \n You're reaching the model's conversation limit. Consider compacting the conversation to continue.`,
           autoShow: true, // Auto-show token limit warnings
         });
       } else {
@@ -880,7 +880,7 @@ export default function ChatInput({
       evt.preventDefault();
       const canSubmit =
         !isLoading &&
-        !isLoadingSummary &&
+        !isLoadingCompaction &&
         (displayValue.trim() ||
           pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
           allDroppedFiles.some((file) => !file.error && !file.isLoading));
@@ -894,7 +894,7 @@ export default function ChatInput({
     e.preventDefault();
     const canSubmit =
       !isLoading &&
-      !isLoadingSummary &&
+      !isLoadingCompaction &&
       (displayValue.trim() ||
         pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
         allDroppedFiles.some((file) => !file.error && !file.isLoading));
@@ -1073,7 +1073,7 @@ export default function ChatInput({
                 isAnyDroppedFileLoading ||
                 isRecording ||
                 isTranscribing ||
-                isLoadingSummary
+                isLoadingCompaction
               }
               className={`rounded-full px-10 py-2 flex items-center gap-2 ${
                 !hasSubmittableContent ||
@@ -1081,12 +1081,12 @@ export default function ChatInput({
                 isAnyDroppedFileLoading ||
                 isRecording ||
                 isTranscribing ||
-                isLoadingSummary
+                isLoadingCompaction
                   ? 'bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600'
                   : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600 hover:cursor-pointer'
               }`}
               title={
-                isLoadingSummary
+                isLoadingCompaction
                   ? 'Summarizing conversation...'
                   : isAnyImageLoading
                     ? 'Waiting for images to save...'
@@ -1239,7 +1239,7 @@ export default function ChatInput({
       {/* Secondary actions and controls row below input */}
       <div className="flex flex-row items-center gap-1 p-2 relative">
         {/* Directory path */}
-        <DirSwitcher hasMessages={messages.length > 0} className="mr-0" />
+        <DirSwitcher className="mr-0" />
         <div className="w-px h-4 bg-border-default mx-2" />
 
         {/* Attach button */}
@@ -1287,7 +1287,7 @@ export default function ChatInput({
           <div className="w-px h-4 bg-border-default mx-2" />
           <BottomMenuModeSelection />
           {messages.length > 0 && (
-            <ManualSummarizeButton
+            <ManualCompactButton
               messages={messages}
               isLoading={isLoading}
               setMessages={setMessages}

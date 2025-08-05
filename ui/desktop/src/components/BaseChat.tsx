@@ -127,7 +127,7 @@ function BaseChatContent({
     summaryContent,
     summarizedThread,
     isSummaryModalOpen,
-    isLoadingSummary,
+    isLoadingCompaction,
     resetMessagesWithSummary,
     closeSummaryModal,
     updateSummary,
@@ -513,7 +513,7 @@ function BaseChatContent({
           {chatState !== ChatState.Idle && (
             <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
               <LoadingGoose
-                message={isLoadingSummary ? 'summarizing conversation…' : undefined}
+                message={isLoadingCompaction ? 'summarizing conversation…' : undefined}
                 chatState={chatState}
               />
             </div>

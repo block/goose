@@ -86,7 +86,7 @@ pub fn create_editor_model() -> Option<EditorModel> {
     // Determine which editor to use based on the host
     if host.contains("relace.run") {
         Some(EditorModel::Relace(RelaceEditor::new(api_key, host, model)))
-    } else if host.contains("api.morphllm") {
+    } else if host.contains("api.morphllm") || model.contains("morph") {
         Some(EditorModel::MorphLLM(MorphLLMEditor::new(
             api_key, host, model,
         )))

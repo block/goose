@@ -1,5 +1,7 @@
+use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
+use super::retry::ProviderRetry;
 use super::utils::{get_model, handle_response_openai_compat};
 use crate::impl_provider_default;
 use crate::message::Message;
@@ -9,7 +11,6 @@ use crate::utils::safe_truncate;
 use anyhow::Result;
 use async_trait::async_trait;
 use regex::Regex;
-use reqwest::Client;
 use rmcp::model::Tool;
 use serde_json::Value;
 use std::time::Duration;
@@ -26,8 +27,7 @@ pub const OLLAMA_DOC_URL: &str = "https://ollama.com/library";
 #[derive(serde::Serialize)]
 pub struct OllamaProvider {
     #[serde(skip)]
-    client: Client,
-    host: String,
+    api_client: ApiClient,
     model: ModelConfig,
 }
 
@@ -43,54 +43,53 @@ impl OllamaProvider {
         let timeout: Duration =
             Duration::from_secs(config.get_param("OLLAMA_TIMEOUT").unwrap_or(OLLAMA_TIMEOUT));
 
-        let client = Client::builder().timeout(timeout).build()?;
-
-        Ok(Self {
-            client,
-            host,
-            model,
-        })
-    }
-
-    /// Get the base URL for Ollama API calls
-    fn get_base_url(&self) -> Result<Url, ProviderError> {
         // OLLAMA_HOST is sometimes just the 'host' or 'host:port' without a scheme
-        let base = if self.host.starts_with("http://") || self.host.starts_with("https://") {
-            &self.host
+        let base = if host.starts_with("http://") || host.starts_with("https://") {
+            host.clone()
         } else {
-            &format!("http://{}", self.host)
+            format!("http://{}", host)
         };
 
-        let mut base_url = Url::parse(base)
-            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
+        let mut base_url =
+            Url::parse(&base).map_err(|e| anyhow::anyhow!("Invalid base URL: {e}"))?;
 
         // Set the default port if missing
         // Don't add default port if:
         // 1. URL explicitly ends with standard ports (:80 or :443)
         // 2. URL uses HTTPS (which implicitly uses port 443)
-        let explicit_default_port = self.host.ends_with(":80") || self.host.ends_with(":443");
+        let explicit_default_port = host.ends_with(":80") || host.ends_with(":443");
         let is_https = base_url.scheme() == "https";
 
         if base_url.port().is_none() && !explicit_default_port && !is_https {
-            base_url.set_port(Some(OLLAMA_DEFAULT_PORT)).map_err(|_| {
-                ProviderError::RequestFailed("Failed to set default port".to_string())
-            })?;
+            base_url
+                .set_port(Some(OLLAMA_DEFAULT_PORT))
+                .map_err(|_| anyhow::anyhow!("Failed to set default port"))?;
         }
 
-        Ok(base_url)
+        // No authentication for Ollama
+        let auth = AuthMethod::Custom(Box::new(NoAuth));
+        let api_client = ApiClient::with_timeout(base_url.to_string(), auth, timeout)?;
+
+        Ok(Self { api_client, model })
     }
 
     async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
-        // TODO: remove this later when the UI handles provider config refresh
-        let base_url = self.get_base_url()?;
-
-        let url = base_url.join("v1/chat/completions").map_err(|e| {
-            ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
-        })?;
-
-        let response = self.client.post(url).json(payload).send().await?;
-
+        let response = self
+            .api_client
+            .response_post("v1/chat/completions", payload)
+            .await?;
         handle_response_openai_compat(response).await
+    }
+}
+
+// No authentication provider for Ollama
+struct NoAuth;
+
+#[async_trait]
+impl super::api_client::AuthProvider for NoAuth {
+    async fn get_auth_header(&self) -> Result<(String, String)> {
+        // Return a dummy header that won't be used
+        Ok(("X-No-Auth".to_string(), "true".to_string()))
     }
 }
 
@@ -141,8 +140,13 @@ impl Provider for OllamaProvider {
             filtered_tools,
             &super::utils::ImageFormat::OpenAi,
         )?;
-        let response = self.post(&payload).await?;
-        let message = response_to_message(&response)?;
+        let response = self
+            .with_retry(|| async {
+                let payload_clone = payload.clone();
+                self.post(&payload_clone).await
+            })
+            .await?;
+        let message = response_to_message(&response.clone())?;
 
         let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
             tracing::debug!("Failed to get usage data");
