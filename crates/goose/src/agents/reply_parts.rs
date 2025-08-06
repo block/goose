@@ -1,6 +1,8 @@
 use anyhow::Result;
 use std::collections::HashSet;
 use std::sync::Arc;
+use std::fs::OpenOptions;
+use std::io::Write;
 
 use async_stream::try_stream;
 use futures::stream::StreamExt;
@@ -17,6 +19,20 @@ use crate::providers::toolshim::{
 
 use crate::session;
 use rmcp::model::Tool;
+
+use super::super::agents::Agent;
+
+// Simple logging helper
+fn log_wait_event(event: &str) {
+    if let Ok(mut file) = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("/tmp/goose-waiting.log")
+    {
+        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S.%3f");
+        let _ = writeln!(file, "{} - {}", timestamp, event);
+    }
+}
 
 async fn toolshim_postprocess(
     response: Message,
@@ -125,9 +141,11 @@ impl Agent {
         };
 
         // Call the provider to get a response
+        log_wait_event("WAITING_LLM_START");
         let (mut response, mut usage) = provider
             .complete(system_prompt, messages_for_provider.messages(), tools)
             .await?;
+        log_wait_event("WAITING_LLM_END");
 
         // Ensure we have token counts, estimating if necessary
         usage
@@ -180,7 +198,14 @@ impl Agent {
                     &tools,
                 )
                 .await?
+            log_wait_event("WAITING_LLM_STREAM_START");
+            let stream = provider
+                .stream(system_prompt.as_str(), &messages_for_provider, &tools)
+                .await?;
+            log_wait_event("WAITING_LLM_STREAM_CONNECTED");
+            stream
         } else {
+            log_wait_event("WAITING_LLM_START");
             let (message, mut usage) = provider
                 .complete(
                     system_prompt.as_str(),
@@ -188,6 +213,7 @@ impl Agent {
                     &tools,
                 )
                 .await?;
+            log_wait_event("WAITING_LLM_END");
 
             // Ensure we have token counts for non-streaming case
             usage
