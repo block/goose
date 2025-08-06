@@ -8,7 +8,7 @@ interface MCPUIResourceRendererProps {
 }
 
 export default function MCPUIResourceRenderer({ content }: MCPUIResourceRendererProps) {
-  const stubbledHandleAction = (action: UIActionResult) => {
+  const handleAction = (action: UIActionResult) => {
     console.log(
       `MCP UI message received (but only handled with a toast notification for now):`,
       action
@@ -23,31 +23,31 @@ export default function MCPUIResourceRenderer({ content }: MCPUIResourceRenderer
     switch (result.type) {
       case 'intent': {
         // TODO: Implement intent handling
-        stubbledHandleAction(result);
+        handleAction(result);
         break;
       }
 
       case 'link': {
         // TODO: Implement link handling
-        stubbledHandleAction(result);
+        handleAction(result);
         break;
       }
 
       case 'notify': {
         // TODO: Implement notify handling
-        stubbledHandleAction(result);
+        handleAction(result);
         break;
       }
 
       case 'prompt': {
         // TODO: Implement prompt handling
-        stubbledHandleAction(result);
+        handleAction(result);
         break;
       }
 
       case 'tool': {
         // TODO: Implement tool call handling
-        stubbledHandleAction(result);
+        handleAction(result);
         break;
       }
 
