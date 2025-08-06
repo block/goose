@@ -2,7 +2,6 @@ use anstream::println;
 use bat::WrappingMode;
 use console::{style, Color};
 use goose::config::Config;
-use goose::message::{Message, MessageContent, ToolRequest, ToolResponse};
 use goose::providers::pricing::get_model_pricing;
 use goose::providers::pricing::parse_model_id;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
@@ -16,6 +15,8 @@ use std::io::{Error, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
+use goose::messagefoo::message::{Message, MessageContent, ToolRequest, ToolResponse};
+
 // Re-export theme for use in main
 #[derive(Clone, Copy)]
 pub enum Theme {

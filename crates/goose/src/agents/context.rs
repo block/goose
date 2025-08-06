@@ -1,7 +1,7 @@
 use anyhow::Ok;
 
-use crate::message::conversation::Conversation;
-use crate::message::Message;
+use crate::messagefoo::Conversation;
+use crate::messagefoo::message::Message;
 use crate::token_counter::create_async_token_counter;
 
 use crate::context_mgmt::summarize::summarize_messages_async;

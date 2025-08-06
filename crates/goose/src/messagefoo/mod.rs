@@ -1,9 +1,11 @@
+use std::collections::HashSet;
 use rmcp::model::Role;
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use serde::{Deserialize, Serialize};
+use crate::messagefoo::message::{Message, MessageContent};
 
-use crate::message::{Message, MessageContent};
-use std::{collections::HashSet, result::Result};
+pub mod message;
+mod tool_result_serde;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Conversation {
@@ -362,9 +364,10 @@ pub fn debug_conversation_fix(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use mcp_core::tool::ToolCall;
     use serde_json::json;
+    use crate::messagefoo::{debug_conversation_fix, fix_conversation, Conversation};
+    use crate::messagefoo::message::Message;
 
     fn run_verify(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
         let (fixed, issues) = fix_conversation(Conversation::new_unvalidated(messages.clone()));

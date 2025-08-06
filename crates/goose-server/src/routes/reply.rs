@@ -10,8 +10,8 @@ use axum::{
 use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
 use goose::{
-    agents::{AgentEvent, SessionConfig},
-    message::{Message, MessageContent},
+    agents::{AgentEvent, SessionConfig}
+    ,
     permission::permission_confirmation::PrincipalType,
 };
 use goose::{
@@ -36,7 +36,8 @@ use tokio::time::timeout;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
 use utoipa::ToSchema;
-use goose::message::conversation::Conversation;
+use goose::messagefoo::Conversation;
+use goose::messagefoo::message::{Message, MessageContent};
 
 fn track_tool_telemetry(content: &MessageContent, all_messages: &[Message]) {
     match content {
@@ -524,6 +525,7 @@ mod tests {
             errors::ProviderError,
         },
     };
+    use goose::messagefoo::message::Message;
 
     #[derive(Clone)]
     struct MockProvider {
@@ -558,6 +560,7 @@ mod tests {
         use axum::{body::Body, http::Request};
         use std::sync::Arc;
         use tower::ServiceExt;
+        use goose::messagefoo::message::Message;
 
         #[tokio::test]
         async fn test_reply_endpoint() {

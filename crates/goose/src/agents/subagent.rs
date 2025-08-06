@@ -2,8 +2,8 @@ use crate::agents::subagent_task_config::DEFAULT_SUBAGENT_MAX_TURNS;
 use crate::{
     agents::extension::ExtensionConfig,
     agents::{extension_manager::ExtensionManager, Agent, TaskConfig},
-    config::ExtensionConfigManager,
-    message::{Message, MessageContent, ToolRequest},
+    config::ExtensionConfigManager
+    ,
     prompt_template::render_global_file,
     providers::errors::ProviderError,
 };
@@ -17,7 +17,8 @@ use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{Mutex, RwLock};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, instrument};
-use crate::message::conversation::Conversation;
+use crate::messagefoo::Conversation;
+use crate::messagefoo::message::{Message, MessageContent, ToolRequest};
 
 /// Status of a subagent
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

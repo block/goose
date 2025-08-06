@@ -4,7 +4,7 @@ use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use crate::impl_provider_default;
-use crate::message::Message;
+use crate::messagefoo::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::utils::emit_debug_trace;
 use anyhow::Result;

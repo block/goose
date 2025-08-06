@@ -10,10 +10,10 @@ use super::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::utils::emit_debug_trace;
 use crate::impl_provider_default;
-use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use rmcp::model::Role;
 use rmcp::model::Tool;
+use crate::messagefoo::message::{Message, MessageContent};
 
 pub const GEMINI_CLI_DEFAULT_MODEL: &str = "gemini-2.5-pro";
 pub const GEMINI_CLI_KNOWN_MODELS: &[&str] = &["gemini-2.5-pro"];

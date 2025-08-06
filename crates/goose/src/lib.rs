@@ -1,7 +1,7 @@
 pub mod agents;
 pub mod config;
 pub mod context_mgmt;
-pub mod message;
+pub mod messagefoo;
 pub mod model;
 pub mod oauth;
 pub mod permission;

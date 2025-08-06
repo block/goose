@@ -10,7 +10,7 @@ use axum::{
     routing::{get, put},
     Json, Router,
 };
-use goose::message::conversation::Conversation;
+use goose::messagefoo::Conversation;
 use goose::session;
 use goose::session::info::{get_valid_sorted_sessions, SessionInfo, SortOrder};
 use goose::session::SessionMetadata;

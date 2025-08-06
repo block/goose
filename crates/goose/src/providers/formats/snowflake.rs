@@ -1,4 +1,3 @@
-use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
@@ -7,6 +6,7 @@ use mcp_core::tool::ToolCall;
 use rmcp::model::{Role, Tool};
 use serde_json::{json, Value};
 use std::collections::HashSet;
+use crate::messagefoo::message::{Message, MessageContent};
 
 /// Convert internal Message format to Snowflake's API message specification
 pub fn format_messages(messages: &[Message]) -> Vec<Value> {
@@ -361,6 +361,7 @@ mod tests {
     use super::*;
     use rmcp::object;
     use serde_json::json;
+    use crate::messagefoo::message::Message;
 
     #[test]
     fn test_parse_text_response() -> Result<()> {
@@ -546,6 +547,7 @@ data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-3-5-sonnet","
 
     #[test]
     fn test_create_request_format() -> Result<()> {
+        use crate::messagefoo::message::Message;
         use crate::model::ModelConfig;
 
         let model_config = ModelConfig::new_or_fail("claude-3-5-sonnet");
@@ -654,6 +656,7 @@ data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-3-5-sonnet","
 
     #[test]
     fn test_create_request_excludes_tools_for_description() -> Result<()> {
+        use crate::messagefoo::message::Message;
         use crate::model::ModelConfig;
 
         let model_config = ModelConfig::new_or_fail("claude-3-5-sonnet");
@@ -676,6 +679,7 @@ data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-3-5-sonnet","
     #[test]
     fn test_message_formatting_skips_tool_requests() {
         use mcp_core::tool::ToolCall;
+        use crate::messagefoo::message::Message;
 
         // Create a conversation with text, tool requests, and tool responses
         let tool_call = ToolCall::new("calculator", json!({"expression": "2 + 2"}));

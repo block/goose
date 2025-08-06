@@ -5,12 +5,12 @@ use crate::{
         common::{SYSTEM_PROMPT_TOKEN_OVERHEAD, TOOLS_TOKEN_OVERHEAD},
         get_messages_token_counts_async,
     },
-    message::Message,
     token_counter::create_async_token_counter,
 };
 use anyhow::Result;
 use tracing::{debug, info};
-use crate::message::conversation::Conversation;
+use crate::messagefoo::Conversation;
+use crate::messagefoo::message::Message;
 
 /// Result of auto-compaction check
 #[derive(Debug)]
@@ -245,8 +245,8 @@ pub async fn check_and_compact_messages(
 mod tests {
     use super::*;
     use crate::{
-        agents::Agent,
-        message::{Message, MessageContent},
+        agents::Agent
+        ,
         model::ModelConfig,
         providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage},
         providers::errors::ProviderError,
@@ -254,6 +254,7 @@ mod tests {
     use chrono::Utc;
     use rmcp::model::{AnnotateAble, RawTextContent, Role, Tool};
     use std::sync::Arc;
+    use crate::messagefoo::message::{Message, MessageContent};
 
     #[derive(Clone)]
     struct MockProvider {

@@ -1,4 +1,3 @@
-use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::{ProviderUsage, Usage};
 use crate::providers::utils::{
@@ -13,6 +12,7 @@ use rmcp::model::{AnnotateAble, Content, RawContent, ResourceContents, Role, Too
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::ops::Deref;
+use crate::messagefoo::message::{Message, MessageContent};
 
 #[derive(Serialize, Deserialize, Debug)]
 struct DeltaToolCallFunction {
@@ -645,6 +645,7 @@ mod tests {
     use serde_json::json;
     use tokio::pin;
     use tokio_stream::{self, StreamExt};
+    use crate::messagefoo::message::Message;
 
     #[test]
     fn test_validate_tool_schemas() {

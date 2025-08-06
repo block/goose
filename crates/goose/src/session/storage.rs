@@ -5,8 +5,8 @@
 // - Backup creation
 // Additional debug logging can be added if needed for troubleshooting.
 
-use crate::message::conversation::Conversation;
-use crate::message::Message;
+use crate::messagefoo::Conversation;
+use crate::messagefoo::message::Message;
 use crate::providers::base::Provider;
 use crate::utils::safe_truncate;
 use anyhow::Result;
@@ -686,7 +686,7 @@ fn parse_message_with_truncation(
 
 /// Truncate content within a message in place
 fn truncate_message_content_in_place(message: &mut Message, max_content_size: usize) {
-    use crate::message::MessageContent;
+    use crate::messagefoo::message::MessageContent;
     use rmcp::model::{RawContent, ResourceContents};
 
     for content in &mut message.content {
@@ -1347,7 +1347,7 @@ pub async fn update_metadata(session_file: &Path, metadata: &SessionMetadata) ->
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::message::MessageContent;
+    use crate::messagefoo::message::{Message, MessageContent};
     use tempfile::tempdir;
 
     #[test]

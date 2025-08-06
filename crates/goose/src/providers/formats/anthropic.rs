@@ -1,4 +1,3 @@
-use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
@@ -7,6 +6,7 @@ use mcp_core::tool::ToolCall;
 use rmcp::model::{Role, Tool};
 use serde_json::{json, Value};
 use std::collections::HashSet;
+use crate::messagefoo::message::{Message, MessageContent};
 
 // Constants for frequently used strings in Anthropic API format
 const TYPE_FIELD: &str = "type";
@@ -678,6 +678,7 @@ mod tests {
     use super::*;
     use rmcp::object;
     use serde_json::json;
+    use crate::messagefoo::message::Message;
 
     #[test]
     fn test_parse_text_response() -> Result<()> {
@@ -984,6 +985,7 @@ mod tests {
     #[test]
     fn test_tool_error_handling_maintains_pairing() {
         use mcp_core::handler::ToolError;
+        use crate::messagefoo::message::Message;
 
         let messages = vec![
             Message::assistant().with_tool_request(

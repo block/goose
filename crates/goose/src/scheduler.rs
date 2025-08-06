@@ -15,8 +15,8 @@ use tokio_cron_scheduler::{job::JobId, Job, JobScheduler as TokioJobScheduler};
 use crate::agents::AgentEvent;
 use crate::agents::{Agent, SessionConfig};
 use crate::config::{self, Config};
-use crate::message::conversation::Conversation;
-use crate::message::Message;
+use crate::messagefoo::Conversation;
+use crate::messagefoo::message::Message;
 use crate::providers::base::Provider as GooseProvider; // Alias to avoid conflict in test section
 use crate::providers::create;
 use crate::recipe::Recipe;
@@ -1341,7 +1341,6 @@ mod tests {
     use super::*;
     use crate::recipe::Recipe;
     use crate::{
-        message::MessageContent,
         model::ModelConfig, // Use the actual ModelConfig for the mock's field
         providers::base::{ProviderMetadata, ProviderUsage, Usage},
         providers::errors::ProviderError,
@@ -1356,6 +1355,7 @@ mod tests {
     use std::fs::{self, File};
     use std::io::Write;
     use tempfile::tempdir;
+    use crate::messagefoo::message::{Message, MessageContent};
 
     #[derive(Clone)]
     struct MockSchedulerTestProvider {

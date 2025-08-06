@@ -1,4 +1,3 @@
-use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
@@ -10,6 +9,7 @@ use rmcp::model::{AnnotateAble, RawContent, Role, Tool};
 
 use serde_json::{json, Map, Value};
 use std::ops::Deref;
+use crate::messagefoo::message::{Message, MessageContent};
 
 /// Convert internal Message format to Google's API message specification
 pub fn format_messages(messages: &[Message]) -> Vec<Value> {
@@ -337,6 +337,7 @@ mod tests {
     use super::*;
     use rmcp::{model::Content, object};
     use serde_json::json;
+    use crate::messagefoo::message::Message;
 
     fn set_up_text_message(text: &str, role: Role) -> Message {
         Message::new(role, 0, vec![MessageContent::text(text.to_string())])

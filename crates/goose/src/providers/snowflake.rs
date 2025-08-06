@@ -11,7 +11,7 @@ use super::retry::ProviderRetry;
 use super::utils::{get_model, map_http_error_to_provider_error, ImageFormat};
 use crate::config::ConfigError;
 use crate::impl_provider_default;
-use crate::message::Message;
+use crate::messagefoo::message::Message;
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
 

@@ -1,13 +1,11 @@
 use anyhow::Result;
 use dotenvy::dotenv;
-use goose::{
-    message::Message,
-    providers::{
-        base::{Provider, Usage},
-        databricks::DatabricksProvider,
-    },
+use goose::providers::{
+    base::{Provider, Usage},
+    databricks::DatabricksProvider,
 };
 use tokio_stream::StreamExt;
+use goose::messagefoo::message::Message;
 
 #[tokio::main]
 async fn main() -> Result<()> {

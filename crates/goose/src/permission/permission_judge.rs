@@ -1,8 +1,7 @@
 use crate::agents::platform_tools::PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME;
 use crate::config::permission::PermissionLevel;
 use crate::config::PermissionManager;
-use crate::message::conversation::Conversation;
-use crate::message::{Message, MessageContent, ToolRequest};
+use crate::messagefoo::Conversation;
 use crate::providers::base::Provider;
 use chrono::Utc;
 use indoc::indoc;
@@ -12,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashSet;
 use std::sync::Arc;
+use crate::messagefoo::message::{Message, MessageContent, ToolRequest};
 
 /// Creates the tool definition for checking read-only permissions.
 fn create_read_only_tool() -> Tool {
@@ -261,7 +261,6 @@ pub async fn check_tool_permissions(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::message::{Message, MessageContent, ToolRequest};
     use crate::model::ModelConfig;
     use crate::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
     use crate::providers::errors::ProviderError;
@@ -270,6 +269,7 @@ mod tests {
     use rmcp::model::{Role, Tool};
     use serde_json::json;
     use tempfile::NamedTempFile;
+    use crate::messagefoo::message::{Message, MessageContent, ToolRequest};
 
     #[derive(Clone)]
     struct MockProvider {

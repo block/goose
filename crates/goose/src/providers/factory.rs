@@ -174,11 +174,11 @@ fn create_provider(name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::message::{Message, MessageContent};
     use crate::providers::base::{ProviderMetadata, ProviderUsage, Usage};
     use chrono::Utc;
     use rmcp::model::{AnnotateAble, RawTextContent, Role};
     use std::env;
+    use crate::messagefoo::message::{Message, MessageContent};
 
     #[allow(dead_code)]
     #[derive(Clone)]

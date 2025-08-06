@@ -6,7 +6,7 @@ use axum::{
     routing::post,
     Json, Router,
 };
-use goose::message::conversation::Conversation;
+use goose::messagefoo::Conversation;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use utoipa::ToSchema;

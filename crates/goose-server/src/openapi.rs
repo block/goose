@@ -3,10 +3,6 @@ use goose::agents::extension::ToolInfo;
 use goose::agents::ExtensionConfig;
 use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
-use goose::message::{
-    ContextLengthExceeded, FrontendToolRequest, Message, MessageContent, RedactedThinkingContent,
-    SummarizationRequested, ThinkingContent, ToolConfirmationRequest, ToolRequest, ToolResponse,
-};
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata};
 use goose::session::info::SessionInfo;
@@ -22,6 +18,7 @@ use utoipa::openapi::schema::{
     SchemaFormat, SchemaType,
 };
 use utoipa::openapi::{AllOfBuilder, Ref, RefOr};
+use goose::messagefoo::message::{ContextLengthExceeded, FrontendToolRequest, Message, MessageContent, RedactedThinkingContent, SummarizationRequested, ThinkingContent, ToolConfirmationRequest, ToolRequest, ToolResponse};
 
 macro_rules! derive_utoipa {
     ($inner_type:ident as $schema_name:ident) => {

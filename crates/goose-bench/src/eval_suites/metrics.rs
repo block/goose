@@ -1,9 +1,9 @@
 use crate::bench_session::BenchAgent;
 use crate::eval_suites::EvalMetricValue;
-use goose::message::conversation::Conversation;
-use goose::message::{Message, MessageContent};
+use goose::messagefoo::Conversation;
 use std::collections::HashMap;
 use std::time::Instant;
+use goose::messagefoo::message::{Message, MessageContent};
 
 /// Collect baseline metrics including execution time, tool usage, and token count
 pub async fn collect_baseline_metrics(

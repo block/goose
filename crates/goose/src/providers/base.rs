@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use super::errors::ProviderError;
 use super::retry::RetryConfig;
-use crate::message::conversation::Conversation;
-use crate::message::Message;
+use crate::messagefoo::Conversation;
+use crate::messagefoo::message::Message;
 use crate::model::ModelConfig;
 use crate::utils::safe_truncate;
 use rmcp::model::Tool;

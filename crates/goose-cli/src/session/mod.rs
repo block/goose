@@ -10,7 +10,7 @@ mod thinking;
 use crate::session::task_execution_display::{
     format_task_execution_notification, TASK_EXECUTION_NOTIFICATION_TYPE,
 };
-use goose::message::conversation::Conversation;
+use goose::messagefoo::Conversation;
 use std::io::Write;
 
 pub use self::export::message_to_markdown;
@@ -31,7 +31,6 @@ use goose::agents::extension::{Envs, ExtensionConfig};
 use goose::agents::types::RetryConfig;
 use goose::agents::{Agent, SessionConfig};
 use goose::config::Config;
-use goose::message::{Message, MessageContent};
 use goose::providers::pricing::initialize_pricing_cache;
 use goose::session;
 use input::InputResult;
@@ -48,6 +47,7 @@ use std::sync::Arc;
 use std::time::Instant;
 use tokio;
 use tokio_util::sync::CancellationToken;
+use goose::messagefoo::message::{Message, MessageContent};
 
 pub enum RunMode {
     Normal,

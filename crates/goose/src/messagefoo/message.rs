@@ -1,27 +1,13 @@
-/// Messages which represent the content sent back and forth to LLM provider
-///
-/// We use these messages in the agent code, and interfaces which interact with
-/// the agent. That let's us reuse message histories across different interfaces.
-///
-/// The content of the messages uses MCP types to avoid additional conversions
-/// when interacting with MCP servers.
-use chrono::Utc;
-use mcp_core::handler::ToolResult;
-use mcp_core::tool::ToolCall;
-use rmcp::model::ResourceContents;
-use rmcp::model::Role;
-use rmcp::model::{
-    AnnotateAble, Content, ImageContent, PromptMessage, PromptMessageContent, PromptMessageRole,
-    RawContent, RawImageContent, RawTextContent, TextContent,
-};
 use serde::{Deserialize, Serialize};
+use rmcp::model::{AnnotateAble, Content, ImageContent, PromptMessage, PromptMessageContent, PromptMessageRole, RawContent, RawImageContent, RawTextContent, ResourceContents, Role, TextContent};
+use chrono::Utc;
+use mcp_core::{ToolCall, ToolResult};
 use serde_json::Value;
 use std::collections::HashSet;
 use std::fmt;
 use utoipa::ToSchema;
 
-mod tool_result_serde;
-pub mod conversation;
+use crate::messagefoo::tool_result_serde;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -566,10 +552,11 @@ impl Message {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::messagefoo::*;
     use mcp_core::handler::ToolError;
     use rmcp::model::{PromptMessage, PromptMessageContent, RawEmbeddedResource, ResourceContents};
     use serde_json::{json, Value};
+    use crate::messagefoo::message::{Message, MessageContent};
 
     #[test]
     fn test_message_serialization() {

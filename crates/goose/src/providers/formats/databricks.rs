@@ -1,4 +1,3 @@
-use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::utils::{
     convert_image, detect_image_path, is_valid_function_name, load_image_file, safely_parse_json,
@@ -9,6 +8,8 @@ use mcp_core::{ToolCall, ToolError};
 use rmcp::model::{AnnotateAble, Content, RawContent, ResourceContents, Role, Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use crate::messagefoo::message::{Message, MessageContent};
+
 #[derive(Serialize)]
 struct DatabricksMessage {
     content: Value,
@@ -618,6 +619,7 @@ mod tests {
     use super::*;
     use rmcp::object;
     use serde_json::json;
+    use crate::messagefoo::message::Message;
 
     #[test]
     fn test_validate_tool_schemas() {

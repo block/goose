@@ -33,8 +33,7 @@
 use super::errors::ProviderError;
 use super::ollama::OLLAMA_DEFAULT_PORT;
 use super::ollama::OLLAMA_HOST;
-use crate::message::conversation::Conversation;
-use crate::message::{Message, MessageContent};
+use crate::messagefoo::Conversation;
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::create_request;
 use anyhow::Result;
@@ -45,6 +44,7 @@ use serde_json::{json, Value};
 use std::ops::Deref;
 use std::time::Duration;
 use uuid::Uuid;
+use crate::messagefoo::message::{Message, MessageContent};
 
 /// Default model to use for tool interpretation
 pub const DEFAULT_INTERPRETER_MODEL_OLLAMA: &str = "mistral-nemo";

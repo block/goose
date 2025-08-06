@@ -215,7 +215,7 @@ pub fn handle_session_export(identifier: Identifier, output_path: Option<PathBuf
 /// This function handles the formatting of a complete session including headers,
 /// message organization, and proper tool request/response pairing.
 fn export_session_to_markdown(
-    messages: Vec<goose::message::Message>,
+    messages: Vec<goose::messagefoo::message::Message>,
     session_file: &Path,
     session_name_override: Option<&str>,
 ) -> String {
@@ -243,10 +243,12 @@ fn export_session_to_markdown(
     for message in &messages {
         // Check if this is a User message containing only ToolResponses
         let is_only_tool_response = message.role == rmcp::model::Role::User
-            && message
-                .content
-                .iter()
-                .all(|content| matches!(content, goose::message::MessageContent::ToolResponse(_)));
+            && message.content.iter().all(|content| {
+                matches!(
+                    content,
+                    goose::messagefoo::message::MessageContent::ToolResponse(_)
+                )
+            });
 
         // If the previous message had tool requests and this one is just tool responses,
         // don't create a new User section - we'll attach the responses to the tool calls
@@ -275,11 +277,12 @@ fn export_session_to_markdown(
         markdown_output.push_str("\n\n---\n\n");
 
         // Check if this message has any tool requests, to handle the next message differently
-        if message
-            .content
-            .iter()
-            .any(|content| matches!(content, goose::message::MessageContent::ToolRequest(_)))
-        {
+        if message.content.iter().any(|content| {
+            matches!(
+                content,
+                goose::messagefoo::message::MessageContent::ToolRequest(_)
+            )
+        }) {
             skip_next_if_tool_response = true;
         }
     }

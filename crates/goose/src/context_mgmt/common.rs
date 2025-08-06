@@ -3,10 +3,10 @@ use std::sync::Arc;
 use rmcp::model::Tool;
 
 use crate::{
-    message::Message,
     providers::base::Provider,
     token_counter::{AsyncTokenCounter, TokenCounter},
 };
+use crate::messagefoo::message::Message;
 
 const ESTIMATE_FACTOR: f32 = 0.7;
 pub const SYSTEM_PROMPT_TOKEN_OVERHEAD: usize = 3_000;

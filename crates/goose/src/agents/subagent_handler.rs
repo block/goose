@@ -24,10 +24,10 @@ pub async fn run_complete_subagent_task(
         .flat_map(|message| {
             message.content.iter().filter_map(|content| {
                 match content {
-                    crate::message::MessageContent::Text(text_content) => {
+                    crate::messagefoo::message::MessageContent::Text(text_content) => {
                         Some(text_content.text.clone())
                     }
-                    crate::message::MessageContent::ToolResponse(tool_response) => {
+                    crate::messagefoo::message::MessageContent::ToolResponse(tool_response) => {
                         // Extract text from tool response
                         if let Ok(contents) = &tool_response.tool_result {
                             let texts: Vec<String> = contents
