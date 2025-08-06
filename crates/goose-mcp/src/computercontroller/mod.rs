@@ -4,9 +4,11 @@ use indoc::{formatdoc, indoc};
 use reqwest::{Client, Url};
 use serde_json::Value;
 use std::{
-    collections::HashMap, fs, future::Future, path::PathBuf, pin::Pin, sync::Arc, sync::Mutex,
+    collections::HashMap, fs, future::Future, io::Cursor, path::PathBuf, pin::Pin, sync::Arc,
+    sync::Mutex,
 };
 use tokio::{process::Command, sync::mpsc};
+use xcap::{Monitor, Window};
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
@@ -421,6 +423,61 @@ impl ComputerControllerRouter {
             }),
         );
 
+        let list_windows_tool = Tool::new(
+            "list_windows",
+            indoc! {r#"
+                List all available window titles that can be used with screen_capture.
+                Returns a list of window titles that can be used with the window_title parameter
+                of the screen_capture tool.
+            "#},
+            object!({
+                "type": "object",
+                "required": [],
+                "properties": {}
+            }),
+        )
+        .annotate(ToolAnnotations {
+            title: Some("List available windows".to_string()),
+            read_only_hint: Some(true),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(false),
+            open_world_hint: Some(false),
+        });
+
+        let screen_capture_tool = Tool::new(
+            "screen_capture",
+            indoc! {r#"
+                Capture a screenshot of a specified display or window.
+                You can capture either:
+                1. A full display (monitor) using the display parameter
+                2. A specific window by its title using the window_title parameter
+
+                Only one of display or window_title should be specified.
+            "#},
+            object!({
+                "type": "object",
+                "required": [],
+                "properties": {
+                    "display": {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "The display number to capture (0 is main display)"
+                    },
+                    "window_title": {
+                        "type": "string",
+                        "default": null,
+                        "description": "Optional: the exact title of the window to capture. Use the list_windows tool to find the available windows."
+                    }
+                }
+            })
+        ).annotate(ToolAnnotations {
+            title: Some("Capture a screenshot".to_string()),
+            read_only_hint: Some(true),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(false),
+            open_world_hint: Some(false),
+        });
+
         // choose_app_strategy().cache_dir()
         // - macOS/Linux: ~/.cache/goose/computer_controller/
         // - Windows:     ~\AppData\Local\Block\goose\cache\computer_controller\
@@ -548,6 +605,8 @@ impl ComputerControllerRouter {
                 pdf_tool,
                 docx_tool,
                 xlsx_tool,
+                list_windows_tool,
+                screen_capture_tool,
             ],
             cache_dir,
             active_resources: Arc::new(Mutex::new(HashMap::new())),
@@ -1082,6 +1141,91 @@ impl ComputerControllerRouter {
             )))
         }
     }
+
+    async fn list_windows(&self, _params: Value) -> Result<Vec<Content>, ToolError> {
+        let windows = Window::all()
+            .map_err(|_| ToolError::ExecutionError("Failed to list windows".into()))?;
+
+        let window_titles: Vec<String> =
+            windows.into_iter().map(|w| w.title().to_string()).collect();
+
+        Ok(vec![Content::text(format!(
+            "Available windows:\n{}",
+            window_titles.join("\n")
+        ))])
+    }
+
+    async fn screen_capture(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        let mut image = if let Some(window_title) =
+            params.get("window_title").and_then(|v| v.as_str())
+        {
+            // Try to find and capture the specified window
+            let windows = Window::all()
+                .map_err(|_| ToolError::ExecutionError("Failed to list windows".into()))?;
+
+            let window = windows
+                .into_iter()
+                .find(|w| w.title() == window_title)
+                .ok_or_else(|| {
+                    ToolError::ExecutionError(format!(
+                        "No window found with title '{}'",
+                        window_title
+                    ))
+                })?;
+
+            window.capture_image().map_err(|e| {
+                ToolError::ExecutionError(format!(
+                    "Failed to capture window '{}': {}",
+                    window_title, e
+                ))
+            })?
+        } else {
+            // Default to display capture if no window title is specified
+            let display = params.get("display").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+
+            let monitors = Monitor::all()
+                .map_err(|_| ToolError::ExecutionError("Failed to access monitors".into()))?;
+            let monitor = monitors.get(display).ok_or_else(|| {
+                ToolError::ExecutionError(format!(
+                    "{} was not an available monitor, {} found.",
+                    display,
+                    monitors.len()
+                ))
+            })?;
+
+            monitor.capture_image().map_err(|e| {
+                ToolError::ExecutionError(format!("Failed to capture display {}: {}", display, e))
+            })?
+        };
+
+        // Resize the image to a reasonable width while maintaining aspect ratio
+        let max_width = 768;
+        if image.width() > max_width {
+            let scale = max_width as f32 / image.width() as f32;
+            let new_height = (image.height() as f32 * scale) as u32;
+            image = xcap::image::imageops::resize(
+                &image,
+                max_width,
+                new_height,
+                xcap::image::imageops::FilterType::Lanczos3,
+            )
+        };
+
+        let mut bytes: Vec<u8> = Vec::new();
+        image
+            .write_to(&mut Cursor::new(&mut bytes), xcap::image::ImageFormat::Png)
+            .map_err(|e| {
+                ToolError::ExecutionError(format!("Failed to write image buffer {}", e))
+            })?;
+
+        // Convert to base64
+        let data = base64::prelude::BASE64_STANDARD.encode(bytes);
+
+        Ok(vec![
+            Content::text("Screenshot captured"),
+            Content::image(data, "image/png"),
+        ])
+    }
 }
 
 impl Router for ComputerControllerRouter {
@@ -1121,6 +1265,8 @@ impl Router for ComputerControllerRouter {
                 "pdf_tool" => this.pdf_tool(arguments).await,
                 "docx_tool" => this.docx_tool(arguments).await,
                 "xlsx_tool" => this.xlsx_tool(arguments).await,
+                "list_windows" => this.list_windows(arguments).await,
+                "screen_capture" => this.screen_capture(arguments).await,
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
         })
