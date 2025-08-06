@@ -298,7 +298,7 @@ This Travel Planner example shows how sub-recipes can receive parameters from co
 
 **Usage:**
 ```bash
-goose run --recipe travel-planner.yaml --params target_location="Sydney"
+goose run --recipe travel-planner.yaml
 ```
 
 **Main Recipe:**
@@ -311,16 +311,8 @@ description: "Get weather data and suggest appropriate activities"
 instructions: |
   Plan activities by first getting weather data, then suggesting activities based on conditions.
 
-parameters:
-  - key: target_location
-    input_type: string
-    requirement: required
-    description: "City or location for travel planning"
-
 prompt: |
-  Run the following sub-recipes:
-    - Use weather_data sub-recipe to get current weather for {{ target_location }}
-    - Use activity_suggestions sub-recipe to recommend activities based on the weather conditions
+  Plan activities for Sydney by first getting weather data, then suggesting activities based on the weather conditions we receive.
 
 sub_recipes:
   - name: weather_data
@@ -401,8 +393,8 @@ extensions:
 </details>
 
 In this example:
-- The `weather_data` sub-recipe gets `location: "Sydney"` from the prompt context (extracted from the target_location parameter)
-- The `activity_suggestions` sub-recipe gets `weather_conditions` from the conversation context (the AI agent uses the weather results from the first sub-recipe)
+- The `weather_data` sub-recipe gets the location from the prompt context (the AI extracts "Sydney" from the natural language prompt)
+- The `activity_suggestions` sub-recipe gets weather conditions from the conversation context (the AI uses the weather results from the first sub-recipe)
 
 ## Best Practices
 - **Single responsibility**: Each sub-recipe should have one clear purpose
