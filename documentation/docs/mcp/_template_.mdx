@@ -1,0 +1,106 @@
+---
+title: {Extension Name} Extension
+description: Add {Extension Name} MCP Server as a Goose Extension
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
+import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
+
+
+<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/VIDEO_ID" />
+
+
+This tutorial covers how to add the [{Extension Name} MCP Server](/) as a Goose extension to enable file operations, repository management, search functionality, and more.
+
+:::tip TLDR
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+  [Launch the installer]({goose_url})
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+  **Command**
+  ```sh
+  {command}
+  ```
+  </TabItem>
+</Tabs>
+  **Environment Variable**
+  ```
+  {env_var}: <ENV_VALUE>
+  ```
+:::
+
+## Configuration
+
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+      <!-- For external MCP servers (npx, uvx, git, etc.) -->
+      <GooseDesktopInstaller
+        extensionId="{extension_id}"
+        extensionName="{Extension Name}"
+        extensionDescription="{Extension description}"
+        command="npx"
+        args={["-y", "@package/name"]}
+        cliCommand="{command}"
+        timeout={300}
+        note="Note that you'll need Node.js installed on your system to run this command, as it uses npx."
+      />
+
+      <!-- For built-in extensions -->
+      <GooseBuiltinInstaller
+        extensionName="{Extension Name}"
+        extensionDescription="{Extension description}"
+        extensionId="{extension_id}"
+      />
+
+      <!-- For external MCP servers with environment variables -->
+      <GooseDesktopInstaller
+        extensionId="{extension_id}"
+        extensionName="{Extension Name}"
+        extensionDescription="{Extension description}"
+        command="npx"
+        args={["-y", "@package/name"]}
+        cliCommand="{command}"
+        timeout={300}
+        envVars={[
+          { key: "API_KEY", value: "••••••••••••••••" }
+        ]}
+        infoNote={
+          <>
+            Get your API key from{" "}
+            <a href="https://example.com/api-keys" target="_blank" rel="noopener noreferrer">
+              example.com
+            </a>.
+          </>
+        }
+        note="Note that you'll need Node.js installed on your system to run this command, as it uses npx."
+      />
+    </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+      <CLIExtensionInstructions
+      name="{Extension Name}"
+      command="{command}"
+      timeout={300}
+    />
+  </TabItem>
+
+## Example Usage
+
+{describe any environment setup, access controls, and what you want to accomplish.}
+
+### Goose Prompt
+
+> _exact prompt_
+
+
+### Goose Output
+
+:::note Desktop
+
+{exact output}
+
+:::

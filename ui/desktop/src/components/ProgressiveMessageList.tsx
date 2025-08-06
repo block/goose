@@ -47,9 +47,9 @@ export default function ProgressiveMessageList({
   appendMessage = () => {},
   isUserMessage,
   onScrollToBottom,
-  batchSize = 15, // Render 15 messages per batch (reduced for better UX)
-  batchDelay = 30, // 30ms delay between batches (faster)
-  showLoadingThreshold = 30, // Only show progressive loading for 30+ messages (lower threshold)
+  batchSize = 20,
+  batchDelay = 20,
+  showLoadingThreshold = 50,
   renderMessage, // Custom render function
   isStreamingMessage = false, // Whether messages are currently being streamed
 }: ProgressiveMessageListProps) {

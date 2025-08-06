@@ -44,6 +44,74 @@ pub fn convert_image(image: &ImageContent, image_format: &ImageFormat) -> Value 
     }
 }
 
+fn check_context_length_exceeded(text: &str) -> bool {
+    let check_phrases = [
+        "too long",
+        "context length",
+        "context_length_exceeded",
+        "reduce the length",
+        "token count",
+        "exceeds",
+        "exceed context limit",
+        "input length",
+        "max_tokens",
+        "decrease input length",
+        "context limit",
+    ];
+    let text_lower = text.to_lowercase();
+    check_phrases
+        .iter()
+        .any(|phrase| text_lower.contains(phrase))
+}
+
+#[allow(clippy::cognitive_complexity)]
+pub fn map_http_error_to_provider_error(
+    status: StatusCode,
+    payload: Option<Value>,
+) -> ProviderError {
+    match status {
+        StatusCode::OK => unreachable!("Should not call this function with OK status"),
+        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
+            ProviderError::Authentication(format!(
+                "Authentication failed. Please ensure your API keys are valid and have the required permissions. \
+                Status: {}. Response: {:?}", status, payload
+            ))
+        }
+        StatusCode::BAD_REQUEST => {
+            let mut error_msg = "Unknown error".to_string();
+            if let Some(payload) = &payload {
+                let payload_str = payload.to_string();
+                if check_context_length_exceeded(&payload_str) {
+                    return ProviderError::ContextLengthExceeded(payload_str);
+                }
+
+                if let Some(error) = payload.get("error") {
+                    error_msg = error.get("message")
+                        .and_then(|m| m.as_str())
+                        .unwrap_or("Unknown error")
+                        .to_string();
+                }
+            }
+            tracing::debug!(
+                "Provider request failed with status: {}. Payload: {:?}", status, payload
+            );
+            ProviderError::RequestFailed(format!("Request failed with status: {}. Message: {}", status, error_msg))
+        }
+        StatusCode::TOO_MANY_REQUESTS => {
+            ProviderError::RateLimitExceeded(format!("{:?}", payload))
+        }
+        StatusCode::INTERNAL_SERVER_ERROR | StatusCode::SERVICE_UNAVAILABLE => {
+            ProviderError::ServerError(format!("{:?}", payload))
+        }
+        _ => {
+            tracing::debug!(
+                "Provider request failed with status: {}. Payload: {:?}", status, payload
+            );
+            ProviderError::RequestFailed(format!("Request failed with status: {}", status))
+        }
+    }
+}
+
 /// Handle response from OpenAI compatible endpoints
 /// Error codes: https://platform.openai.com/docs/guides/error-codes
 /// Context window exceeded: https://community.openai.com/t/help-needed-tackling-context-length-limits-in-openai-models/617543
@@ -54,36 +122,31 @@ pub async fn handle_status_openai_compat(response: Response) -> Result<Response,
         StatusCode::OK => Ok(response),
         _ => {
             let body = response.json::<Value>().await;
-            match (body, status) {
-                (Err(e), _) => Err(ProviderError::RequestFailed(e.to_string())),
-                (Ok(body), StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN) => {
-                    Err(ProviderError::Authentication(format!("Authentication failed. Please ensure your API keys are valid and have the required permissions. \
-                        Status: {}. Response: {:?}", status, body)))
-                }
-                (Ok(body), StatusCode::BAD_REQUEST | StatusCode::NOT_FOUND) => {
-                    tracing::debug!(
-                        "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, body)
-                    );
-                    if let Ok(err_resp) = from_value::<OpenAIErrorResponse>(body) {
-                        let err = err_resp.error;
-                        if err.is_context_length_exceeded() {
-                            return Err(ProviderError::ContextLengthExceeded(err.message.unwrap_or("Unknown error".to_string())));
+            match body {
+                Err(e) => Err(ProviderError::RequestFailed(e.to_string())),
+                Ok(body) => {
+                    let error = if matches!(status, StatusCode::BAD_REQUEST | StatusCode::NOT_FOUND)
+                    {
+                        if let Ok(err_resp) = from_value::<OpenAIErrorResponse>(body.clone()) {
+                            let err = err_resp.error;
+                            if err.is_context_length_exceeded() {
+                                ProviderError::ContextLengthExceeded(
+                                    err.message.unwrap_or("Unknown error".to_string()),
+                                )
+                            } else {
+                                ProviderError::RequestFailed(format!(
+                                    "{} (status {})",
+                                    err,
+                                    status.as_u16()
+                                ))
+                            }
+                        } else {
+                            map_http_error_to_provider_error(status, Some(body))
                         }
-                        return Err(ProviderError::RequestFailed(format!("{} (status {})", err, status.as_u16())));
-                    }
-                    Err(ProviderError::RequestFailed(format!("Unknown error (status {})", status)))
-                }
-                (Ok(body), StatusCode::TOO_MANY_REQUESTS) => {
-                    Err(ProviderError::RateLimitExceeded(format!("{:?}", body)))
-                }
-                (Ok(body), StatusCode::INTERNAL_SERVER_ERROR | StatusCode::SERVICE_UNAVAILABLE) => {
-                    Err(ProviderError::ServerError(format!("{:?}", body)))
-                }
-                (Ok(body), _) => {
-                    tracing::debug!(
-                        "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, body)
-                    );
-                    Err(ProviderError::RequestFailed(format!("Request failed with status: {}", status)))
+                    } else {
+                        map_http_error_to_provider_error(status, Some(body))
+                    };
+                    Err(error)
                 }
             }
         }
@@ -347,6 +410,72 @@ pub fn emit_debug_trace<T1, T2>(
     );
 }
 
+/// Safely parse a JSON string that may contain doubly-encoded or malformed JSON.
+/// This function first attempts to parse the input string as-is. If that fails,
+/// it applies control character escaping and tries again.
+///
+/// This approach preserves valid JSON like `{"key1": "value1",\n"key2": "value"}`
+/// (which contains a literal \n but is perfectly valid JSON) while still fixing
+/// broken JSON like `{"key1": "value1\n","key2": "value"}` (which contains an
+/// unescaped newline character).
+pub fn safely_parse_json(s: &str) -> Result<serde_json::Value, serde_json::Error> {
+    // First, try parsing the string as-is
+    match serde_json::from_str(s) {
+        Ok(value) => Ok(value),
+        Err(_) => {
+            // If that fails, try with control character escaping
+            let escaped = json_escape_control_chars_in_string(s);
+            serde_json::from_str(&escaped)
+        }
+    }
+}
+
+/// Helper to escape control characters in a string that is supposed to be a JSON document.
+/// This function iterates through the input string `s` and replaces any literal
+/// control characters (U+0000 to U+001F) with their JSON-escaped equivalents
+/// (e.g., '\n' becomes "\\n", '\u0001' becomes "\\u0001").
+///
+/// It does NOT escape quotes (") or backslashes (\) because it assumes `s` is a
+/// full JSON document, and these characters might be structural (e.g., object delimiters,
+/// existing valid escape sequences). The goal is to fix common LLM errors where
+/// control characters are emitted raw into what should be JSON string values,
+/// making the overall JSON structure unparsable.
+///
+/// If the input string `s` has other JSON syntax errors (e.g., an unescaped quote
+/// *within* a string value like `{"key": "string with " quote"}`), this function
+/// will not fix them. It specifically targets unescaped control characters.
+pub fn json_escape_control_chars_in_string(s: &str) -> String {
+    let mut r = String::with_capacity(s.len()); // Pre-allocate for efficiency
+    for c in s.chars() {
+        match c {
+            // ASCII Control characters (U+0000 to U+001F)
+            '\u{0000}'..='\u{001F}' => {
+                match c {
+                    '\u{0008}' => r.push_str("\\b"), // Backspace
+                    '\u{000C}' => r.push_str("\\f"), // Form feed
+                    '\n' => r.push_str("\\n"),       // Line feed
+                    '\r' => r.push_str("\\r"),       // Carriage return
+                    '\t' => r.push_str("\\t"),       // Tab
+                    // Other control characters (e.g., NUL, SOH, VT, etc.)
+                    // that don't have a specific short escape sequence.
+                    _ => {
+                        r.push_str(&format!("\\u{:04x}", c as u32));
+                    }
+                }
+            }
+            // Other characters are passed through.
+            // This includes quotes (") and backslashes (\). If these are part of the
+            // JSON structure (e.g. {"key": "value"}) or part of an already correctly
+            // escaped sequence within a string value (e.g. "string with \\\" quote"),
+            // they are preserved as is. This function does not attempt to fix
+            // malformed quote or backslash usage *within* string values if the LLM
+            // generates them incorrectly (e.g. {"key": "unescaped " quote in string"}).
+            _ => r.push(c),
+        }
+    }
+    r
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -571,5 +700,90 @@ mod tests {
             let result = get_google_final_status(status.unwrap_or(StatusCode::OK), Some(&payload));
             assert_eq!(result, expected_status);
         }
+    }
+
+    #[test]
+    fn test_safely_parse_json() {
+        // Test valid JSON that should parse without escaping (contains proper escape sequence)
+        let valid_json = r#"{"key1": "value1","key2": "value2"}"#;
+        let result = safely_parse_json(valid_json).unwrap();
+        assert_eq!(result["key1"], "value1");
+        assert_eq!(result["key2"], "value2");
+
+        // Test JSON with actual unescaped newlines that needs escaping
+        let invalid_json = "{\"key1\": \"value1\n\",\"key2\": \"value2\"}";
+        let result = safely_parse_json(invalid_json).unwrap();
+        assert_eq!(result["key1"], "value1\n");
+        assert_eq!(result["key2"], "value2");
+
+        // Test already valid JSON - should parse on first try
+        let good_json = r#"{"test": "value"}"#;
+        let result = safely_parse_json(good_json).unwrap();
+        assert_eq!(result["test"], "value");
+
+        // Test completely invalid JSON that can't be fixed
+        let broken_json = r#"{"key": "unclosed_string"#;
+        assert!(safely_parse_json(broken_json).is_err());
+
+        // Test empty object
+        let empty_json = "{}";
+        let result = safely_parse_json(empty_json).unwrap();
+        assert!(result.as_object().unwrap().is_empty());
+
+        // Test JSON with escaped newlines (valid JSON) - should parse on first try
+        let escaped_json = r#"{"key": "value with\nnewline"}"#;
+        let result = safely_parse_json(escaped_json).unwrap();
+        assert_eq!(result["key"], "value with\nnewline");
+    }
+
+    #[test]
+    fn test_json_escape_control_chars_in_string() {
+        // Test basic control character escaping
+        assert_eq!(
+            json_escape_control_chars_in_string("Hello\nWorld"),
+            "Hello\\nWorld"
+        );
+        assert_eq!(
+            json_escape_control_chars_in_string("Hello\tWorld"),
+            "Hello\\tWorld"
+        );
+        assert_eq!(
+            json_escape_control_chars_in_string("Hello\rWorld"),
+            "Hello\\rWorld"
+        );
+
+        // Test multiple control characters
+        assert_eq!(
+            json_escape_control_chars_in_string("Hello\n\tWorld\r"),
+            "Hello\\n\\tWorld\\r"
+        );
+
+        // Test that quotes and backslashes are preserved (not escaped)
+        assert_eq!(
+            json_escape_control_chars_in_string("Hello \"World\""),
+            "Hello \"World\""
+        );
+        assert_eq!(
+            json_escape_control_chars_in_string("Hello\\World"),
+            "Hello\\World"
+        );
+
+        // Test JSON-like string with control characters
+        assert_eq!(
+            json_escape_control_chars_in_string("{\"message\": \"Hello\nWorld\"}"),
+            "{\"message\": \"Hello\\nWorld\"}"
+        );
+
+        // Test no changes for normal strings
+        assert_eq!(
+            json_escape_control_chars_in_string("Hello World"),
+            "Hello World"
+        );
+
+        // Test other control characters get unicode escapes
+        assert_eq!(
+            json_escape_control_chars_in_string("Hello\u{0001}World"),
+            "Hello\\u0001World"
+        );
     }
 }

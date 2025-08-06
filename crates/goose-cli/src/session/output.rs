@@ -1,8 +1,10 @@
+use anstream::println;
 use bat::WrappingMode;
 use console::{style, Color};
 use goose::config::Config;
 use goose::message::{Message, MessageContent, ToolRequest, ToolResponse};
 use goose::providers::pricing::get_model_pricing;
+use goose::providers::pricing::parse_model_id;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use mcp_core::tool::ToolCall;
 use regex::Regex;
@@ -10,11 +12,10 @@ use rmcp::model::PromptArgument;
 use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::io::{Error, Write};
+use std::io::{Error, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
-
 // Re-export theme for use in main
 #[derive(Clone, Copy)]
 pub enum Theme {
@@ -95,10 +96,17 @@ pub struct ThinkingIndicator {
 impl ThinkingIndicator {
     pub fn show(&mut self) {
         let spinner = cliclack::spinner();
-        spinner.start(format!(
-            "{}...",
-            super::thinking::get_random_thinking_message()
-        ));
+        if Config::global()
+            .get_param("RANDOM_THINKING_MESSAGES")
+            .unwrap_or(true)
+        {
+            spinner.start(format!(
+                "{}...",
+                super::thinking::get_random_thinking_message()
+            ));
+        } else {
+            spinner.start("Thinking...");
+        }
         self.spinner = Some(spinner);
     }
 
@@ -106,6 +114,10 @@ impl ThinkingIndicator {
         if let Some(spinner) = self.spinner.take() {
             spinner.stop("");
         }
+    }
+
+    pub fn is_shown(&self) -> bool {
+        self.spinner.is_some()
     }
 }
 
@@ -123,20 +135,29 @@ thread_local! {
 }
 
 pub fn show_thinking() {
-    THINKING.with(|t| t.borrow_mut().show());
+    if std::io::stdout().is_terminal() {
+        THINKING.with(|t| t.borrow_mut().show());
+    }
 }
 
 pub fn hide_thinking() {
-    THINKING.with(|t| t.borrow_mut().hide());
+    if std::io::stdout().is_terminal() {
+        THINKING.with(|t| t.borrow_mut().hide());
+    }
 }
 
-#[allow(dead_code)]
+pub fn is_showing_thinking() -> bool {
+    THINKING.with(|t| t.borrow().is_shown())
+}
+
 pub fn set_thinking_message(s: &String) {
-    THINKING.with(|t| {
-        if let Some(spinner) = t.borrow_mut().spinner.as_mut() {
-            spinner.set_message(s);
-        }
-    });
+    if std::io::stdout().is_terminal() {
+        THINKING.with(|t| {
+            if let Some(spinner) = t.borrow_mut().spinner.as_mut() {
+                spinner.set_message(s);
+            }
+        });
+    }
 }
 
 pub fn render_message(message: &Message, debug: bool) {
@@ -151,7 +172,9 @@ pub fn render_message(message: &Message, debug: bool) {
                 println!("Image: [data: {}, type: {}]", image.data, image.mime_type);
             }
             MessageContent::Thinking(thinking) => {
-                if std::env::var("GOOSE_CLI_SHOW_THINKING").is_ok() {
+                if std::env::var("GOOSE_CLI_SHOW_THINKING").is_ok()
+                    && std::io::stdout().is_terminal()
+                {
                     println!("\n{}", style("Thinking:").dim().italic());
                     print_markdown(&thinking.thinking, theme);
                 }
@@ -175,6 +198,10 @@ pub fn render_text(text: &str, color: Option<Color>, dim: bool) {
 }
 
 pub fn render_text_no_newlines(text: &str, color: Option<Color>, dim: bool) {
+    if !std::io::stdout().is_terminal() {
+        println!("{}", text);
+        return;
+    }
     let mut styled_text = style(text);
     if dim {
         styled_text = styled_text.dim();
@@ -279,17 +306,18 @@ pub fn render_prompts(prompts: &HashMap<String, Vec<String>>) {
 
 pub fn render_prompt_info(info: &PromptInfo) {
     println!();
-
     if let Some(ext) = &info.extension {
         println!(" {}: {}", style("Extension").green(), ext);
     }
-
     println!(" Prompt: {}", style(&info.name).cyan().bold());
-
     if let Some(desc) = &info.description {
         println!("\n {}", desc);
     }
+    render_arguments(info);
+    println!();
+}
 
+fn render_arguments(info: &PromptInfo) {
     if let Some(args) = &info.arguments {
         println!("\n Arguments:");
         for arg in args {
@@ -308,7 +336,6 @@ pub fn render_prompt_info(info: &PromptInfo) {
             );
         }
     }
-    println!();
 }
 
 pub fn render_extension_success(name: &str) {
@@ -457,14 +484,18 @@ pub fn env_no_color() -> bool {
 }
 
 fn print_markdown(content: &str, theme: Theme) {
-    bat::PrettyPrinter::new()
-        .input(bat::Input::from_bytes(content.as_bytes()))
-        .theme(theme.as_str())
-        .colored_output(env_no_color())
-        .language("Markdown")
-        .wrapping_mode(WrappingMode::NoWrapping(true))
-        .print()
-        .unwrap();
+    if std::io::stdout().is_terminal() {
+        bat::PrettyPrinter::new()
+            .input(bat::Input::from_bytes(content.as_bytes()))
+            .theme(theme.as_str())
+            .colored_output(env_no_color())
+            .language("Markdown")
+            .wrapping_mode(WrappingMode::NoWrapping(true))
+            .print()
+            .unwrap();
+    } else {
+        print!("{}", content);
+    }
 }
 
 const INDENT: &str = "    ";
@@ -474,6 +505,23 @@ fn get_tool_params_max_length() -> usize {
         .get_param::<usize>("GOOSE_CLI_TOOL_PARAMS_TRUNCATION_MAX_LENGTH")
         .ok()
         .unwrap_or(40)
+}
+
+fn print_value(value: &Value, debug: bool) {
+    let formatted = match value {
+        Value::String(s) => {
+            if !debug && s.len() > get_tool_params_max_length() {
+                style(format!("[REDACTED: {} chars]", s.len())).yellow()
+            } else {
+                style(s.to_string()).green()
+            }
+        }
+        Value::Number(n) => style(n.to_string()).yellow(),
+        Value::Bool(b) => style(b.to_string()).yellow(),
+        Value::Null => style("null".to_string()).dim(),
+        _ => unreachable!(),
+    };
+    println!("{}", formatted);
 }
 
 fn print_params(value: &Value, depth: usize, debug: bool) {
@@ -494,21 +542,9 @@ fn print_params(value: &Value, depth: usize, debug: bool) {
                             print_params(item, depth + 2, debug);
                         }
                     }
-                    Value::String(s) => {
-                        if !debug && s.len() > get_tool_params_max_length() {
-                            println!("{}{}: {}", indent, style(key).dim(), style("...").dim());
-                        } else {
-                            println!("{}{}: {}", indent, style(key).dim(), style(s).green());
-                        }
-                    }
-                    Value::Number(n) => {
-                        println!("{}{}: {}", indent, style(key).dim(), style(n).blue());
-                    }
-                    Value::Bool(b) => {
-                        println!("{}{}: {}", indent, style(key).dim(), style(b).blue());
-                    }
-                    Value::Null => {
-                        println!("{}{}: {}", indent, style(key).dim(), style("null").dim());
+                    _ => {
+                        print!("{}{}: ", indent, style(key).dim());
+                        print_value(val, debug);
                     }
                 }
             }
@@ -519,26 +555,7 @@ fn print_params(value: &Value, depth: usize, debug: bool) {
                 print_params(item, depth + 1, debug);
             }
         }
-        Value::String(s) => {
-            if !debug && s.len() > get_tool_params_max_length() {
-                println!(
-                    "{}{}",
-                    indent,
-                    style(format!("[REDACTED: {} chars]", s.len())).yellow()
-                );
-            } else {
-                println!("{}{}", indent, style(s).green());
-            }
-        }
-        Value::Number(n) => {
-            println!("{}{}", indent, style(n).yellow());
-        }
-        Value::Bool(b) => {
-            println!("{}{}", indent, style(b).yellow());
-        }
-        Value::Null => {
-            println!("{}{}", indent, style("null").dim());
-        }
+        _ => print_value(value, debug),
     }
 }
 
@@ -732,9 +749,21 @@ async fn estimate_cost_usd(
     input_tokens: usize,
     output_tokens: usize,
 ) -> Option<f64> {
+    // For OpenRouter, parse the model name to extract real provider/model
+    let openrouter_data = if provider == "openrouter" {
+        parse_model_id(model)
+    } else {
+        None
+    };
+
+    let (provider_to_use, model_to_use) = match &openrouter_data {
+        Some((real_provider, real_model)) => (real_provider.as_str(), real_model.as_str()),
+        None => (provider, model),
+    };
+
     // Use the pricing module's get_model_pricing which handles model name mapping internally
-    let cleaned_model = normalize_model_name(model);
-    let pricing_info = get_model_pricing(provider, &cleaned_model).await;
+    let cleaned_model = normalize_model_name(model_to_use);
+    let pricing_info = get_model_pricing(provider_to_use, &cleaned_model).await;
 
     match pricing_info {
         Some(pricing) => {
@@ -755,7 +784,7 @@ pub async fn display_cost_usage(
 ) {
     if let Some(cost) = estimate_cost_usd(provider, model, input_tokens, output_tokens).await {
         use console::style;
-        println!(
+        eprintln!(
             "Cost: {} USD ({} tokens: in {}, out {})",
             style(format!("${:.4}", cost)).cyan(),
             input_tokens + output_tokens,
@@ -799,11 +828,11 @@ impl McpSpinners {
         spinner.set_message(message.to_string());
     }
 
-    pub fn update(&mut self, token: &str, value: f64, total: Option<f64>, message: Option<&str>) {
+    pub fn update(&mut self, token: &str, value: u32, total: Option<u32>, message: Option<&str>) {
         let bar = self.bars.entry(token.to_string()).or_insert_with(|| {
             if let Some(total) = total {
                 self.multi_bar.add(
-                    ProgressBar::new((total * 100.0) as u64).with_style(
+                    ProgressBar::new((total * 100) as u64).with_style(
                         ProgressStyle::with_template("[{elapsed}] {bar:40} {pos:>3}/{len:3} {msg}")
                             .unwrap(),
                     ),
@@ -812,7 +841,7 @@ impl McpSpinners {
                 self.multi_bar.add(ProgressBar::new_spinner())
             }
         });
-        bar.set_position((value * 100.0) as u64);
+        bar.set_position((value * 100) as u64);
         if let Some(msg) = message {
             bar.set_message(msg.to_string());
         }

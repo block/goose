@@ -1,4 +1,4 @@
-import type { OpenDialogReturnValue } from 'electron';
+import type { OpenDialogOptions, OpenDialogReturnValue } from 'electron';
 import {
   app,
   App,
@@ -16,20 +16,21 @@ import {
   Tray,
 } from 'electron';
 import { Buffer } from 'node:buffer';
+import { MouseUpEvent } from './types/electron';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import started from 'electron-squirrel-startup';
 import path from 'node:path';
+import os from 'node:os';
 import { spawn } from 'child_process';
 import 'dotenv/config';
 import { startGoosed } from './goosed';
-import { getBinaryPath } from './utils/binaryPath';
+import { expandTilde, getBinaryPath } from './utils/pathUtils';
 import { loadShellEnv } from './utils/loadEnv';
 import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
 import {
-  createEnvironmentMenu,
   EnvToggles,
   loadSettings,
   saveSettings,
@@ -462,12 +463,6 @@ const getGooseProvider = () => {
   ];
 };
 
-const generateSecretKey = () => {
-  const key = process.env.GOOSE_EXTERNAL_BACKEND ? 'test' : crypto.randomBytes(32).toString('hex');
-  process.env.GOOSE_SERVER__SECRET_KEY = key;
-  return key;
-};
-
 const getSharingUrl = () => {
   // checks app env for sharing url
   loadShellEnv(app.isPackaged); // will try to take it from the zshrc file
@@ -483,11 +478,15 @@ const getVersion = () => {
   return process.env.GOOSE_VERSION;
 };
 
-let [provider, model, predefinedModels] = getGooseProvider();
+const [provider, model, predefinedModels] = getGooseProvider();
 
-let sharingUrl = getSharingUrl();
+const sharingUrl = getSharingUrl();
 
-let gooseVersion = getVersion();
+const gooseVersion = getVersion();
+
+const SERVER_SECRET = process.env.GOOSE_EXTERNAL_BACKEND
+  ? 'test'
+  : crypto.randomBytes(32).toString('hex');
 
 let appConfig = {
   GOOSE_DEFAULT_PROVIDER: provider,
@@ -498,15 +497,14 @@ let appConfig = {
   GOOSE_WORKING_DIR: '',
   // If GOOSE_ALLOWLIST_WARNING env var is not set, defaults to false (strict blocking mode)
   GOOSE_ALLOWLIST_WARNING: process.env.GOOSE_ALLOWLIST_WARNING === 'true',
-  secretKey: generateSecretKey(),
 };
 
 // Track windows by ID
 let windowCounter = 0;
 const windowMap = new Map<number, BrowserWindow>();
 
-// Track power save blocker ID globally
-let powerSaveBlockerId: number | null = null;
+// Track power save blockers per window
+const windowPowerSaveBlockers = new Map<number, number>(); // windowId -> blockerId
 
 const createChat = async (
   app: App,
@@ -558,24 +556,22 @@ const createChat = async (
     const envVars = {
       GOOSE_SCHEDULER_TYPE: process.env.GOOSE_SCHEDULER_TYPE,
     };
-    const [newPort, newWorkingDir, newGoosedProcess] = await startGoosed(app, dir, envVars);
+    const [newPort, newWorkingDir, newGoosedProcess] = await startGoosed(
+      app,
+      SERVER_SECRET,
+      dir,
+      envVars
+    );
     port = newPort;
     working_dir = newWorkingDir;
     goosedProcess = newGoosedProcess;
   }
 
-  // Decode recipe from deeplink if needed
+  // Create window config with loading state for recipe deeplinks
+  let isLoadingRecipe = false;
   if (!recipe && recipeDeeplink) {
-    const decodedRecipe = await decodeRecipeMain(recipeDeeplink, port);
-    if (decodedRecipe) {
-      recipe = decodedRecipe;
-
-      // Handle scheduled job parameters if present
-      if (scheduledJobId) {
-        recipe.scheduledJobId = scheduledJobId;
-        recipe.isScheduledExecution = true;
-      }
-    }
+    isLoadingRecipe = true;
+    console.log('[Main] Creating window with recipe loading state for deeplink:', recipeDeeplink);
   }
 
   // Load and manage window state
@@ -672,34 +668,30 @@ const createChat = async (
   // We need to wait for the window to load before we can access localStorage
   mainWindow.webContents.on('did-finish-load', () => {
     const configStr = JSON.stringify(windowConfig).replace(/'/g, "\\'");
-    // Add error handling and retry logic for localStorage access
     mainWindow.webContents
       .executeJavaScript(
         `
-      try {
-        if (typeof Storage !== 'undefined' && window.localStorage) {
-          localStorage.setItem('gooseConfig', '${configStr}');
-        } else {
-          console.warn('localStorage not available, retrying in 100ms');
-          setTimeout(() => {
-            try {
+      (function() {
+        function setConfig() {
+          try {
+            if (window.localStorage) {
               localStorage.setItem('gooseConfig', '${configStr}');
-            } catch (e) {
-              console.error('Failed to set localStorage after retry:', e);
+              return true;
+            }
+          } catch (e) {
+            console.warn('localStorage access failed:', e);
+          }
+          return false;
+        }
+
+        if (!setConfig()) {
+          setTimeout(() => {
+            if (!setConfig()) {
+              console.error('Failed to set localStorage after retry - continuing without localStorage config');
             }
           }, 100);
         }
-      } catch (e) {
-        console.error('Failed to access localStorage:', e);
-        // Retry after a short delay
-        setTimeout(() => {
-          try {
-            localStorage.setItem('gooseConfig', '${configStr}');
-          } catch (retryError) {
-            console.error('Failed to set localStorage after retry:', retryError);
-          }
-        }, 100);
-      }
+      })();
     `
       )
       .catch((error) => {
@@ -769,10 +761,96 @@ const createChat = async (
     }
   });
 
+  mainWindow.on('app-command', (e, cmd) => {
+    if (cmd === 'browser-backward') {
+      mainWindow.webContents.send('mouse-back-button-clicked');
+      e.preventDefault();
+    }
+  });
+
+  mainWindow.webContents.on('mouse-up', (_event: MouseUpEvent, mouseButton: number) => {
+    // MouseButton 3 is the back button.
+    if (mouseButton === 3) {
+      mainWindow.webContents.send('mouse-back-button-clicked');
+    }
+  });
+
   windowMap.set(windowId, mainWindow);
+
+  // Handle recipe decoding in the background after window is created
+  if (isLoadingRecipe && recipeDeeplink) {
+    console.log('[Main] Starting background recipe decoding for:', recipeDeeplink);
+
+    // Decode recipe asynchronously after window is created
+    decodeRecipeMain(recipeDeeplink, port)
+      .then((decodedRecipe) => {
+        if (decodedRecipe) {
+          console.log('[Main] Recipe decoded successfully, updating window config');
+
+          // Handle scheduled job parameters if present
+          if (scheduledJobId) {
+            decodedRecipe.scheduledJobId = scheduledJobId;
+            decodedRecipe.isScheduledExecution = true;
+          }
+
+          // Update the window config with the decoded recipe
+          const updatedConfig = {
+            ...windowConfig,
+            recipe: decodedRecipe,
+          };
+
+          // Send the decoded recipe to the renderer process
+          mainWindow.webContents.send('recipe-decoded', decodedRecipe);
+
+          // Update localStorage with the decoded recipe
+          const configStr = JSON.stringify(updatedConfig).replace(/'/g, "\\'");
+          mainWindow.webContents
+            .executeJavaScript(
+              `
+            try {
+              localStorage.setItem('gooseConfig', '${configStr}');
+              console.log('[Renderer] Recipe decoded and config updated');
+            } catch (e) {
+              console.error('[Renderer] Failed to update config with decoded recipe:', e);
+            }
+          `
+            )
+            .catch((error) => {
+              console.error('[Main] Failed to update localStorage with decoded recipe:', error);
+            });
+        } else {
+          console.error('[Main] Failed to decode recipe from deeplink');
+          // Send error to renderer
+          mainWindow.webContents.send('recipe-decode-error', 'Failed to decode recipe');
+        }
+      })
+      .catch((error) => {
+        console.error('[Main] Error decoding recipe:', error);
+        // Send error to renderer
+        mainWindow.webContents.send('recipe-decode-error', error.message || 'Unknown error');
+      });
+  }
+
   // Handle window closure
   mainWindow.on('closed', () => {
     windowMap.delete(windowId);
+
+    if (windowPowerSaveBlockers.has(windowId)) {
+      const blockerId = windowPowerSaveBlockers.get(windowId)!;
+      try {
+        powerSaveBlocker.stop(blockerId);
+        console.log(
+          `[Main] Stopped power save blocker ${blockerId} for closing window ${windowId}`
+        );
+      } catch (error) {
+        console.error(
+          `[Main] Failed to stop power save blocker ${blockerId} for window ${windowId}:`,
+          error
+        );
+      }
+      windowPowerSaveBlockers.delete(windowId);
+    }
+
     if (goosedProcess && typeof goosedProcess === 'object' && 'kill' in goosedProcess) {
       goosedProcess.kill();
     }
@@ -866,8 +944,60 @@ const buildRecentFilesMenu = () => {
 const openDirectoryDialog = async (
   replaceWindow: boolean = false
 ): Promise<OpenDialogReturnValue> => {
+  // Get the current working directory from the focused window
+  let defaultPath: string | undefined;
+  const currentWindow = BrowserWindow.getFocusedWindow();
+
+  if (currentWindow) {
+    try {
+      const currentWorkingDir = await currentWindow.webContents.executeJavaScript(
+        `window.appConfig ? window.appConfig.get('GOOSE_WORKING_DIR') : null`
+      );
+
+      if (currentWorkingDir && typeof currentWorkingDir === 'string') {
+        // Verify the directory exists before using it as default
+        try {
+          const stats = fsSync.lstatSync(currentWorkingDir);
+          if (stats.isDirectory()) {
+            defaultPath = currentWorkingDir;
+          }
+        } catch (error) {
+          if (error && typeof error === 'object' && 'code' in error) {
+            const fsError = error as { code?: string; message?: string };
+            if (
+              fsError.code === 'ENOENT' ||
+              fsError.code === 'EACCES' ||
+              fsError.code === 'EPERM'
+            ) {
+              console.warn(
+                `Current working directory not accessible (${fsError.code}): ${currentWorkingDir}, falling back to home directory`
+              );
+              defaultPath = os.homedir();
+            } else {
+              console.warn(
+                `Unexpected filesystem error (${fsError.code}) for directory ${currentWorkingDir}:`,
+                fsError.message
+              );
+              defaultPath = os.homedir();
+            }
+          } else {
+            console.warn(`Unexpected error checking directory ${currentWorkingDir}:`, error);
+            defaultPath = os.homedir();
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to get current working directory from window:', error);
+    }
+  }
+
+  if (!defaultPath) {
+    defaultPath = os.homedir();
+  }
+
   const result = (await dialog.showOpenDialog({
     properties: ['openFile', 'openDirectory', 'createDirectory'],
+    defaultPath: defaultPath,
   })) as unknown as OpenDialogReturnValue;
 
   if (!result.canceled && result.filePaths.length > 0) {
@@ -975,12 +1105,15 @@ ipcMain.handle('directory-chooser', (_event, replace: boolean = false) => {
 // Handle scheduling engine settings
 ipcMain.handle('get-settings', () => {
   try {
-    const settings = loadSettings();
-    return settings;
+    return loadSettings();
   } catch (error) {
     console.error('Error getting settings:', error);
     return null;
   }
+});
+
+ipcMain.handle('get-secret-key', () => {
+  return SERVER_SECRET;
 });
 
 ipcMain.handle('set-scheduling-engine', async (_event, engine: string) => {
@@ -1152,10 +1285,22 @@ ipcMain.handle('set-wakelock', async (_event, enable: boolean) => {
     settings.enableWakelock = enable;
     saveSettings(settings);
 
-    // Stop any existing power save blocker when disabling the setting
-    if (!enable && powerSaveBlockerId !== null) {
-      powerSaveBlocker.stop(powerSaveBlockerId);
-      powerSaveBlockerId = null;
+    // Stop all existing power save blockers when disabling the setting
+    if (!enable) {
+      for (const [windowId, blockerId] of windowPowerSaveBlockers.entries()) {
+        try {
+          powerSaveBlocker.stop(blockerId);
+          console.log(
+            `[Main] Stopped power save blocker ${blockerId} for window ${windowId} due to wakelock setting disabled`
+          );
+        } catch (error) {
+          console.error(
+            `[Main] Failed to stop power save blocker ${blockerId} for window ${windowId}:`,
+            error
+          );
+        }
+      }
+      windowPowerSaveBlockers.clear();
     }
 
     return true;
@@ -1176,10 +1321,32 @@ ipcMain.handle('get-wakelock-state', () => {
 });
 
 // Add file/directory selection handler
-ipcMain.handle('select-file-or-directory', async () => {
-  const result = (await dialog.showOpenDialog({
+ipcMain.handle('select-file-or-directory', async (_event, defaultPath?: string) => {
+  const dialogOptions: OpenDialogOptions = {
     properties: process.platform === 'darwin' ? ['openFile', 'openDirectory'] : ['openFile'],
-  })) as unknown as OpenDialogReturnValue;
+  };
+
+  // Set default path if provided
+  if (defaultPath) {
+    // Expand tilde to home directory
+    const expandedPath = expandTilde(defaultPath);
+
+    // Check if the path exists
+    try {
+      const stats = await fs.stat(expandedPath);
+      if (stats.isDirectory()) {
+        dialogOptions.defaultPath = expandedPath;
+      } else {
+        dialogOptions.defaultPath = path.dirname(expandedPath);
+      }
+    } catch (error) {
+      // If path doesn't exist, fall back to home directory and log error
+      console.error(`Default path does not exist: ${expandedPath}, falling back to home directory`);
+      dialogOptions.defaultPath = os.homedir();
+    }
+  }
+
+  const result = (await dialog.showOpenDialog(dialogOptions)) as unknown as OpenDialogReturnValue;
 
   if (!result.canceled && result.filePaths.length > 0) {
     return result.filePaths[0];
@@ -1449,9 +1616,7 @@ ipcMain.handle('get-binary-path', (_event, binaryName) => {
 ipcMain.handle('read-file', (_event, filePath) => {
   return new Promise((resolve) => {
     // Expand tilde to home directory
-    const expandedPath = filePath.startsWith('~')
-      ? path.join(app.getPath('home'), filePath.slice(1))
-      : filePath;
+    const expandedPath = expandTilde(filePath);
 
     const cat = spawn('cat', [expandedPath]);
     let output = '';
@@ -1484,9 +1649,7 @@ ipcMain.handle('read-file', (_event, filePath) => {
 ipcMain.handle('write-file', (_event, filePath, content) => {
   return new Promise((resolve) => {
     // Expand tilde to home directory
-    const expandedPath = filePath.startsWith('~')
-      ? path.join(app.getPath('home'), filePath.slice(1))
-      : filePath;
+    const expandedPath = expandTilde(filePath);
 
     // Create a write stream to the file
     // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -1505,9 +1668,7 @@ ipcMain.handle('write-file', (_event, filePath, content) => {
 ipcMain.handle('ensure-directory', async (_event, dirPath) => {
   try {
     // Expand tilde to home directory
-    const expandedPath = dirPath.startsWith('~')
-      ? path.join(app.getPath('home'), dirPath.slice(1))
-      : dirPath;
+    const expandedPath = expandTilde(dirPath);
 
     await fs.mkdir(expandedPath, { recursive: true });
     return true;
@@ -1520,9 +1681,7 @@ ipcMain.handle('ensure-directory', async (_event, dirPath) => {
 ipcMain.handle('list-files', async (_event, dirPath, extension) => {
   try {
     // Expand tilde to home directory
-    const expandedPath = dirPath.startsWith('~')
-      ? path.join(app.getPath('home'), dirPath.slice(1))
-      : dirPath;
+    const expandedPath = expandTilde(dirPath);
 
     const files = await fs.readdir(expandedPath);
     if (extension) {
@@ -1537,8 +1696,7 @@ ipcMain.handle('list-files', async (_event, dirPath, extension) => {
 
 // Handle message box dialogs
 ipcMain.handle('show-message-box', async (_event, options) => {
-  const result = await dialog.showMessageBox(options);
-  return result;
+  return dialog.showMessageBox(options);
 });
 
 ipcMain.handle('get-allowed-extensions', async () => {
@@ -1621,8 +1779,8 @@ app.whenReady().then(async () => {
           "connect-src 'self' http://127.0.0.1:* https://api.github.com https://github.com https://objects.githubusercontent.com" +
           // Don't allow any plugins
           "object-src 'none';" +
-          // Don't allow any frames
-          "frame-src 'none';" +
+          // Allow all frames (iframes)
+          "frame-src 'self' https: http:;" +
           // Font sources - allow self, data URLs, and external fonts
           "font-src 'self' data: https:;" +
           // Media sources - allow microphone
@@ -1757,25 +1915,6 @@ app.whenReady().then(async () => {
       new MenuItem({
         label: 'Find',
         submenu: findSubmenu,
-      })
-    );
-  }
-
-  // Add Environment menu items to View menu
-  const viewMenu = menu?.items.find((item) => item.label === 'View');
-  if (viewMenu?.submenu) {
-    viewMenu.submenu.append(new MenuItem({ type: 'separator' }));
-    viewMenu.submenu.append(
-      new MenuItem({
-        label: 'Environment',
-        submenu: Menu.buildFromTemplate(
-          createEnvironmentMenu(envToggles, (newToggles) => {
-            envToggles = newToggles;
-            const currentSettings = loadSettings();
-            saveSettings({ ...currentSettings, envToggles: newToggles });
-            updateEnvironmentVariables(newToggles);
-          })
-        ),
       })
     );
   }
@@ -1964,21 +2103,36 @@ app.whenReady().then(async () => {
     }
   });
 
-  ipcMain.handle('start-power-save-blocker', () => {
-    if (powerSaveBlockerId === null) {
-      powerSaveBlockerId = powerSaveBlocker.start('prevent-app-suspension');
+  ipcMain.handle('start-power-save-blocker', (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    const windowId = window?.id;
+
+    if (windowId && !windowPowerSaveBlockers.has(windowId)) {
+      const blockerId = powerSaveBlocker.start('prevent-app-suspension');
+      windowPowerSaveBlockers.set(windowId, blockerId);
+      console.log(`[Main] Started power save blocker ${blockerId} for window ${windowId}`);
       return true;
+    }
+
+    if (windowId && windowPowerSaveBlockers.has(windowId)) {
+      console.log(`[Main] Power save blocker already active for window ${windowId}`);
     }
 
     return false;
   });
 
-  ipcMain.handle('stop-power-save-blocker', () => {
-    if (powerSaveBlockerId !== null) {
-      powerSaveBlocker.stop(powerSaveBlockerId);
-      powerSaveBlockerId = null;
+  ipcMain.handle('stop-power-save-blocker', (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    const windowId = window?.id;
+
+    if (windowId && windowPowerSaveBlockers.has(windowId)) {
+      const blockerId = windowPowerSaveBlockers.get(windowId)!;
+      powerSaveBlocker.stop(blockerId);
+      windowPowerSaveBlockers.delete(windowId);
+      console.log(`[Main] Stopped power save blocker ${blockerId} for window ${windowId}`);
       return true;
     }
+
     return false;
   });
 
@@ -2091,11 +2245,24 @@ async function getAllowList(): Promise<string[]> {
 }
 
 app.on('will-quit', async () => {
+  for (const [windowId, blockerId] of windowPowerSaveBlockers.entries()) {
+    try {
+      powerSaveBlocker.stop(blockerId);
+      console.log(
+        `[Main] Stopped power save blocker ${blockerId} for window ${windowId} during app quit`
+      );
+    } catch (error) {
+      console.error(
+        `[Main] Failed to stop power save blocker ${blockerId} for window ${windowId}:`,
+        error
+      );
+    }
+  }
+  windowPowerSaveBlockers.clear();
+
   // Unregister all shortcuts when quitting
   globalShortcut.unregisterAll();
 
-  // Clean up the temp directory on app quit
-  console.log('[Main] App "will-quit". Cleaning up temporary image directory...');
   try {
     await fs.access(gooseTempDir); // Check if directory exists to avoid error on fs.rm if it doesn't
 

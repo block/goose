@@ -51,7 +51,8 @@ impl VectorToolSelector {
                 env::var("GOOSE_EMBEDDING_MODEL_PROVIDER").unwrap_or_else(|_| "openai".to_string());
 
             // Create the provider using the factory
-            let model_config = ModelConfig::new(embedding_model);
+            let model_config = ModelConfig::new(embedding_model.as_str())
+                .context("Failed to create model config for embedding provider")?;
             providers::create(&embedding_provider_name, model_config).context(format!(
                 "Failed to create {} provider for embeddings. If using OpenAI, make sure OPENAI_API_KEY env var is set or that you have configured the OpenAI provider via Goose before.",
                 embedding_provider_name

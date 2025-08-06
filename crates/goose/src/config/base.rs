@@ -507,6 +507,39 @@ impl Config {
         }
     }
 
+    /// Parse an environment variable value into a JSON Value.
+    ///
+    /// This function tries to intelligently parse environment variable values:
+    /// 1. First attempts JSON parsing (for structured data)
+    /// 2. If that fails, tries primitive type parsing for common cases
+    /// 3. Falls back to string if nothing else works
+    fn parse_env_value(val: &str) -> Result<Value, ConfigError> {
+        // First try JSON parsing - this handles quoted strings, objects, arrays, etc.
+        if let Ok(json_value) = serde_json::from_str(val) {
+            return Ok(json_value);
+        }
+
+        let trimmed = val.trim();
+
+        match trimmed.to_lowercase().as_str() {
+            "true" => return Ok(Value::Bool(true)),
+            "false" => return Ok(Value::Bool(false)),
+            _ => {}
+        }
+
+        if let Ok(int_val) = trimmed.parse::<i64>() {
+            return Ok(Value::Number(int_val.into()));
+        }
+
+        if let Ok(float_val) = trimmed.parse::<f64>() {
+            if let Some(num) = serde_json::Number::from_f64(float_val) {
+                return Ok(Value::Number(num));
+            }
+        }
+
+        Ok(Value::String(val.to_string()))
+    }
+
     // check all possible places for a parameter
     pub fn get(&self, key: &str, is_secret: bool) -> Result<Value, ConfigError> {
         if is_secret {
@@ -545,8 +578,7 @@ impl Config {
         // First check environment variables (convert to uppercase)
         let env_key = key.to_uppercase();
         if let Ok(val) = env::var(&env_key) {
-            // Parse the environment variable value into a serde_json::Value
-            let value: Value = serde_json::from_str(&val).unwrap_or(Value::String(val));
+            let value = Self::parse_env_value(&val)?;
             return Ok(serde_json::from_value(value)?);
         }
 
@@ -624,7 +656,7 @@ impl Config {
         // First check environment variables (convert to uppercase)
         let env_key = key.to_uppercase();
         if let Ok(val) = env::var(&env_key) {
-            let value: Value = serde_json::from_str(&val).unwrap_or(Value::String(val));
+            let value = Self::parse_env_value(&val)?;
             return Ok(serde_json::from_value(value)?);
         }
 
@@ -1189,6 +1221,245 @@ mod tests {
             existing_backups.len() <= 6,
             "Should not exceed backup limit"
         ); // .bak + .bak.1 through .bak.5
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_env_var_parsing_strings() -> Result<(), ConfigError> {
+        // Test unquoted strings
+        let value = Config::parse_env_value("ANTHROPIC")?;
+        assert_eq!(value, Value::String("ANTHROPIC".to_string()));
+
+        // Test strings with spaces
+        let value = Config::parse_env_value("hello world")?;
+        assert_eq!(value, Value::String("hello world".to_string()));
+
+        // Test JSON quoted strings
+        let value = Config::parse_env_value("\"ANTHROPIC\"")?;
+        assert_eq!(value, Value::String("ANTHROPIC".to_string()));
+
+        // Test empty string
+        let value = Config::parse_env_value("")?;
+        assert_eq!(value, Value::String("".to_string()));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_env_var_parsing_numbers() -> Result<(), ConfigError> {
+        // Test integers
+        let value = Config::parse_env_value("42")?;
+        assert_eq!(value, Value::Number(42.into()));
+
+        let value = Config::parse_env_value("-123")?;
+        assert_eq!(value, Value::Number((-123).into()));
+
+        // Test floats
+        let value = Config::parse_env_value("3.14")?;
+        assert!(matches!(value, Value::Number(_)));
+        if let Value::Number(n) = value {
+            assert_eq!(n.as_f64().unwrap(), 3.14);
+        }
+
+        let value = Config::parse_env_value("0.01")?;
+        assert!(matches!(value, Value::Number(_)));
+        if let Value::Number(n) = value {
+            assert_eq!(n.as_f64().unwrap(), 0.01);
+        }
+
+        // Test zero
+        let value = Config::parse_env_value("0")?;
+        assert_eq!(value, Value::Number(0.into()));
+
+        let value = Config::parse_env_value("0.0")?;
+        assert!(matches!(value, Value::Number(_)));
+        if let Value::Number(n) = value {
+            assert_eq!(n.as_f64().unwrap(), 0.0);
+        }
+
+        // Test numbers starting with decimal point
+        let value = Config::parse_env_value(".5")?;
+        assert!(matches!(value, Value::Number(_)));
+        if let Value::Number(n) = value {
+            assert_eq!(n.as_f64().unwrap(), 0.5);
+        }
+
+        let value = Config::parse_env_value(".00001")?;
+        assert!(matches!(value, Value::Number(_)));
+        if let Value::Number(n) = value {
+            assert_eq!(n.as_f64().unwrap(), 0.00001);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_env_var_parsing_booleans() -> Result<(), ConfigError> {
+        // Test true variants
+        let value = Config::parse_env_value("true")?;
+        assert_eq!(value, Value::Bool(true));
+
+        let value = Config::parse_env_value("True")?;
+        assert_eq!(value, Value::Bool(true));
+
+        let value = Config::parse_env_value("TRUE")?;
+        assert_eq!(value, Value::Bool(true));
+
+        // Test false variants
+        let value = Config::parse_env_value("false")?;
+        assert_eq!(value, Value::Bool(false));
+
+        let value = Config::parse_env_value("False")?;
+        assert_eq!(value, Value::Bool(false));
+
+        let value = Config::parse_env_value("FALSE")?;
+        assert_eq!(value, Value::Bool(false));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_env_var_parsing_json() -> Result<(), ConfigError> {
+        // Test JSON objects
+        let value = Config::parse_env_value("{\"host\": \"localhost\", \"port\": 8080}")?;
+        assert!(matches!(value, Value::Object(_)));
+        if let Value::Object(obj) = value {
+            assert_eq!(
+                obj.get("host"),
+                Some(&Value::String("localhost".to_string()))
+            );
+            assert_eq!(obj.get("port"), Some(&Value::Number(8080.into())));
+        }
+
+        // Test JSON arrays
+        let value = Config::parse_env_value("[1, 2, 3]")?;
+        assert!(matches!(value, Value::Array(_)));
+        if let Value::Array(arr) = value {
+            assert_eq!(arr.len(), 3);
+            assert_eq!(arr[0], Value::Number(1.into()));
+            assert_eq!(arr[1], Value::Number(2.into()));
+            assert_eq!(arr[2], Value::Number(3.into()));
+        }
+
+        // Test JSON null
+        let value = Config::parse_env_value("null")?;
+        assert_eq!(value, Value::Null);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_env_var_parsing_edge_cases() -> Result<(), ConfigError> {
+        // Test whitespace handling
+        let value = Config::parse_env_value(" 42 ")?;
+        assert_eq!(value, Value::Number(42.into()));
+
+        let value = Config::parse_env_value(" true ")?;
+        assert_eq!(value, Value::Bool(true));
+
+        // Test strings that look like numbers but aren't
+        let value = Config::parse_env_value("123abc")?;
+        assert_eq!(value, Value::String("123abc".to_string()));
+
+        let value = Config::parse_env_value("abc123")?;
+        assert_eq!(value, Value::String("abc123".to_string()));
+
+        // Test strings that look like booleans but aren't
+        let value = Config::parse_env_value("truthy")?;
+        assert_eq!(value, Value::String("truthy".to_string()));
+
+        let value = Config::parse_env_value("falsy")?;
+        assert_eq!(value, Value::String("falsy".to_string()));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_env_var_parsing_numeric_edge_cases() -> Result<(), ConfigError> {
+        // Test leading zeros (should be treated as integers, not octal)
+        let value = Config::parse_env_value("007")?;
+        assert_eq!(value, Value::Number(7.into()));
+
+        // Test large numbers
+        let value = Config::parse_env_value("9223372036854775807")?; // i64::MAX
+        assert_eq!(value, Value::Number(9223372036854775807i64.into()));
+
+        // Test scientific notation (JSON parsing should handle this correctly)
+        let value = Config::parse_env_value("1e10")?;
+        assert!(matches!(value, Value::Number(_)));
+        if let Value::Number(n) = value {
+            assert_eq!(n.as_f64().unwrap(), 1e10);
+        }
+
+        // Test infinity (should be treated as string)
+        let value = Config::parse_env_value("inf")?;
+        assert_eq!(value, Value::String("inf".to_string()));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_env_var_with_config_integration() -> Result<(), ConfigError> {
+        let temp_file = NamedTempFile::new().unwrap();
+        let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
+
+        // Test string environment variable (the original issue case)
+        std::env::set_var("PROVIDER", "ANTHROPIC");
+        let value: String = config.get_param("provider")?;
+        assert_eq!(value, "ANTHROPIC");
+
+        // Test number environment variable
+        std::env::set_var("PORT", "8080");
+        let value: i32 = config.get_param("port")?;
+        assert_eq!(value, 8080);
+
+        // Test boolean environment variable
+        std::env::set_var("ENABLED", "true");
+        let value: bool = config.get_param("enabled")?;
+        assert_eq!(value, true);
+
+        // Test JSON object environment variable
+        std::env::set_var("CONFIG", "{\"debug\": true, \"level\": 5}");
+        #[derive(Deserialize, Debug, PartialEq)]
+        struct TestConfig {
+            debug: bool,
+            level: i32,
+        }
+        let value: TestConfig = config.get_param("config")?;
+        assert_eq!(value.debug, true);
+        assert_eq!(value.level, 5);
+
+        // Clean up
+        std::env::remove_var("PROVIDER");
+        std::env::remove_var("PORT");
+        std::env::remove_var("ENABLED");
+        std::env::remove_var("CONFIG");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_env_var_precedence_over_config_file() -> Result<(), ConfigError> {
+        let temp_file = NamedTempFile::new().unwrap();
+        let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
+
+        // Set value in config file
+        config.set_param("test_precedence", Value::String("file_value".to_string()))?;
+
+        // Verify file value is returned when no env var
+        let value: String = config.get_param("test_precedence")?;
+        assert_eq!(value, "file_value");
+
+        // Set environment variable
+        std::env::set_var("TEST_PRECEDENCE", "env_value");
+
+        // Environment variable should take precedence
+        let value: String = config.get_param("test_precedence")?;
+        assert_eq!(value, "env_value");
+
+        // Clean up
+        std::env::remove_var("TEST_PRECEDENCE");
 
         Ok(())
     }
