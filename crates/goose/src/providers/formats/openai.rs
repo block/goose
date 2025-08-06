@@ -449,37 +449,42 @@ where
                     }
                 }
 
-                let mut done = false;
-                while !done {
-                    if let Some(response_chunk) = stream.next().await {
-                        if response_chunk.as_ref().is_ok_and(|s| s == "data: [DONE]") {
-                            break 'outer;
-                        }
-                        let response_str = response_chunk?;
-                        if let Some(line) = strip_data_prefix(&response_str) {
-                            let tool_chunk: StreamingChunk = serde_json::from_str(line)
-                                .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
+                // Check if this chunk already has finish_reason "tool_calls"
+                let is_complete = chunk.choices[0].finish_reason == Some("tool_calls".to_string());
 
-                            if let Some(delta_tool_calls) = &tool_chunk.choices[0].delta.tool_calls {
-                                for delta_call in delta_tool_calls {
-                                    if let Some(index) = delta_call.index {
-                                        if let Some((_, _, ref mut args)) = tool_call_data.get_mut(&index) {
-                                            args.push_str(&delta_call.function.arguments);
-                                        } else if let (Some(id), Some(name)) = (&delta_call.id, &delta_call.function.name) {
-                                            tool_call_data.insert(index, (id.clone(), name.clone(), delta_call.function.arguments.clone()));
+                if !is_complete {
+                    let mut done = false;
+                    while !done {
+                        if let Some(response_chunk) = stream.next().await {
+                            if response_chunk.as_ref().is_ok_and(|s| s == "data: [DONE]") {
+                                break 'outer;
+                            }
+                            let response_str = response_chunk?;
+                            if let Some(line) = strip_data_prefix(&response_str) {
+                                let tool_chunk: StreamingChunk = serde_json::from_str(line)
+                                    .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
+
+                                if let Some(delta_tool_calls) = &tool_chunk.choices[0].delta.tool_calls {
+                                    for delta_call in delta_tool_calls {
+                                        if let Some(index) = delta_call.index {
+                                            if let Some((_, _, ref mut args)) = tool_call_data.get_mut(&index) {
+                                                args.push_str(&delta_call.function.arguments);
+                                            } else if let (Some(id), Some(name)) = (&delta_call.id, &delta_call.function.name) {
+                                                tool_call_data.insert(index, (id.clone(), name.clone(), delta_call.function.arguments.clone()));
+                                            }
                                         }
                                     }
+                                } else {
+                                    done = true;
                                 }
-                            } else {
-                                done = true;
-                            }
 
-                            if tool_chunk.choices[0].finish_reason == Some("tool_calls".to_string()) {
-                                done = true;
+                                if tool_chunk.choices[0].finish_reason == Some("tool_calls".to_string()) {
+                                    done = true;
+                                }
                             }
+                        } else {
+                            break;
                         }
-                    } else {
-                        break;
                     }
                 }
 
@@ -496,10 +501,12 @@ where
                         };
 
                         let content = match parsed {
-                            Ok(params) => MessageContent::tool_request(
-                                id.clone(),
-                                Ok(ToolCall::new(function_name.clone(), params)),
-                            ),
+                            Ok(params) => {
+                                MessageContent::tool_request(
+                                    id.clone(),
+                                    Ok(ToolCall::new(function_name.clone(), params)),
+                                )
+                            },
                             Err(e) => {
                                 let error = ToolError::InvalidParameters(format!(
                                     "Could not interpret tool use parameters for id {}: {}",
