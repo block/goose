@@ -133,6 +133,78 @@
         }
       }
     },
+    "/config/custom-providers": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "create_custom_provider",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCustomProviderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Custom provider created successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/config/custom-providers/{id}": {
+      "delete": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "remove_custom_provider",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Custom provider removed successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Provider not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/config/extensions": {
       "get": {
         "tags": [
@@ -1294,6 +1366,36 @@
               "minimum": 0
             },
             "description": "Token counts for each processed message"
+          }
+        }
+      },
+      "CreateCustomProviderRequest": {
+        "type": "object",
+        "required": [
+          "provider_type",
+          "display_name",
+          "api_url",
+          "api_key",
+          "models"
+        ],
+        "properties": {
+          "api_key": {
+            "type": "string"
+          },
+          "api_url": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "provider_type": {
+            "type": "string"
           }
         }
       },

@@ -3,6 +3,7 @@ use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::{get_model, handle_response_openai_compat};
+use crate::config::custom_providers::CustomProviderConfig;
 use crate::impl_provider_default;
 use crate::message::Message;
 use crate::model::ModelConfig;
@@ -58,6 +59,36 @@ impl OllamaProvider {
         // 1. URL explicitly ends with standard ports (:80 or :443)
         // 2. URL uses HTTPS (which implicitly uses port 443)
         let explicit_default_port = host.ends_with(":80") || host.ends_with(":443");
+        let is_https = base_url.scheme() == "https";
+
+        if base_url.port().is_none() && !explicit_default_port && !is_https {
+            base_url
+                .set_port(Some(OLLAMA_DEFAULT_PORT))
+                .map_err(|_| anyhow::anyhow!("Failed to set default port"))?;
+        }
+
+        // No authentication for Ollama
+        let auth = AuthMethod::Custom(Box::new(NoAuth));
+        let api_client = ApiClient::with_timeout(base_url.to_string(), auth, timeout)?;
+
+        Ok(Self { api_client, model })
+    }
+
+    pub fn from_custom_config(model: ModelConfig, config: CustomProviderConfig) -> Result<Self> {
+        let timeout = Duration::from_secs(config.timeout_seconds.unwrap_or(OLLAMA_TIMEOUT));
+        
+        // Parse and normalize the custom URL
+        let base = if config.base_url.starts_with("http://") || config.base_url.starts_with("https://") {
+            config.base_url.clone()
+        } else {
+            format!("http://{}", config.base_url)
+        };
+
+        let mut base_url = Url::parse(&base)
+            .map_err(|e| anyhow::anyhow!("Invalid base URL '{}': {}", config.base_url, e))?;
+
+        // Set default port if missing and not using standard ports
+        let explicit_default_port = config.base_url.ends_with(":80") || config.base_url.ends_with(":443");
         let is_https = base_url.scheme() == "https";
 
         if base_url.port().is_none() && !explicit_default_port && !is_https {
