@@ -9,7 +9,6 @@ use mcp_core::{ToolCall, ToolError};
 use rmcp::model::{AnnotateAble, Content, RawContent, ResourceContents, Role, Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use tracing_subscriber::registry::Data;
 #[derive(Serialize)]
 struct DatabricksMessage {
     content: Value,
