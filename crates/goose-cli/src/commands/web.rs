@@ -320,10 +320,8 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                     let mut sessions = state.sessions.write().await;
 
                                     // Load existing messages from JSONL file if it exists
-                                    let existing_messages = session::read_messages(&session_file)
-                                        .unwrap_or_else(|_| {
-                                            Conversation::new_unvalidated(Vec::new())
-                                        });
+                                    let existing_messages =
+                                        session::read_messages(&session_file).unwrap_or_default();
 
                                     let new_session = Arc::new(Mutex::new(existing_messages));
                                     sessions.insert(session_id.clone(), new_session.clone());

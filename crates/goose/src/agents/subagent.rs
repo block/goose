@@ -254,12 +254,6 @@ impl SubAgent {
             }
         }
 
-        // Update the conversation with the final messages
-        {
-            let mut conversation = self.conversation.lock().await;
-            *conversation = messages.clone();
-        }
-
         // Handle error cases or return the last message
         if let Some(error) = last_error {
             Err(error)
