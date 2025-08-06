@@ -236,7 +236,7 @@ The `sub_recipes` field specifies the [sub-recipes](/docs/guides/recipes/sub-rec
 | `name` | String | Unique identifier for the sub-recipe |
 | `path` | String | Relative or absolute path to the sub-recipe file |
 | `values` | Object | (Optional) Pre-configured parameter values that are passed to the sub-recipe |
-| `sequential_when_repeated` | Boolean | (Optional) Forces sequential execution of multiple sub-recipe instances. See [Running Sub-Recipes In Parallel](/docs/experimental/sub-recipes-in-parallel) for details |
+| `sequential_when_repeated` | Boolean | (Optional) Forces sequential execution of multiple sub-recipe instances. See [Running Sub-Recipes In Parallel](/docs/tutorials/sub-recipes-in-parallel) for details |
 
 ### Example Sub-Recipe Configuration
 

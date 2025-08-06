@@ -39,11 +39,6 @@ The list of experimental features may change as Goose development progresses. So
       description="An experimental extension enabling Goose to work within VS Code."
       link="/docs/experimental/vs-code-extension"
     />
-    <Card 
-      title="Running Sub-Recipes In Parallel"
-      description="Run multiple sub-recipes instances concurrently with real-time progress tracking."
-      link="/docs/experimental/sub-recipes-in-parallel"
-    />
   </div>
 </div>
 

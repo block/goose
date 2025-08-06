@@ -1,7 +1,6 @@
 ---
 title: Running Sub-Recipes In Parallel
-sidebar_position: 5
-sidebar_label: Running Sub-Recipe In Parallel
+sidebar_label: Sub-Recipes In Parallel
 description: Run multiple sub-recipes instances concurrently with real-time progress tracking
 ---
 
@@ -179,6 +178,7 @@ extensions:
       - key: weather_context
         input_type: string
         requirement: optional
+        default: ""
         description: weather conditions to consider for activity recommendations
     ```
 </details>

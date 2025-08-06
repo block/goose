@@ -9,6 +9,10 @@ Sub-recipes are recipes that are used by another recipe to perform specific task
 - **Multi-step workflows** - Break complex tasks into distinct phases with specialized expertise
 - **Reusable components** - Create common tasks that can be used in various workflows
 
+:::warning Experimental Feature
+Running sub-recipes in parallel is an experimental feature in active development. Behavior and configuration may change in future releases.
+:::
+
 ## How Sub-Recipes Work
 
 The "main recipe" registers its sub-recipes in the `sub_recipes` field, which contains the following fields:
@@ -152,7 +156,7 @@ prompt: |
 </details>
 
 :::tip
-For faster execution when sub-recipes are independent, see [Running Sub-Recipes In Parallel](/docs/experimental/sub-recipes-in-parallel) to execute multiple sub-recipes concurrently.
+For faster execution when sub-recipes are independent, see [Running Sub-Recipes In Parallel](/docs/tutorials/sub-recipes-in-parallel) to execute multiple sub-recipes concurrently.
 :::
 
 ### Conditional Processing
