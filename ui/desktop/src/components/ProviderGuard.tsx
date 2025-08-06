@@ -222,7 +222,7 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
               {ollamaDetected ? (
                 <>
                   <span className="text-text-success">●</span>
-                  Configure Ollama (detected)
+                  Configure Ollama (auto detected)
                 </>
               ) : (
                 'Set up Ollama (run AI locally)'
