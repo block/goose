@@ -52,7 +52,7 @@ export default function MCPUIResourceRenderer({ content }: MCPUIResourceRenderer
       }
 
       default: {
-        console.warn('Unknown message sent from MCP-UI:', result);
+        console.warn('unsupported message sent from MCP-UI:', result);
         break;
       }
     }
@@ -65,7 +65,10 @@ export default function MCPUIResourceRenderer({ content }: MCPUIResourceRenderer
           resource={content.resource}
           onUIAction={handleUIAction}
           htmlProps={{
-            autoResizeIframe: true,
+            autoResizeIframe: {
+              height: true,
+              width: false, // set to false to allow for responsive design
+            },
           }}
         />
       </div>
