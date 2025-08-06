@@ -703,6 +703,9 @@ export type Tool = {
         [key: string]: unknown;
     };
     name: string;
+    outputSchema?: {
+        [key: string]: unknown;
+    };
 };
 
 export type ToolAnnotations = {
@@ -1015,9 +1018,9 @@ export type ReadConfigData = {
 
 export type ReadConfigErrors = {
     /**
-     * Configuration key not found
+     * Unable to get the configuration value
      */
-    404: unknown;
+    500: unknown;
 };
 
 export type ReadConfigResponses = {

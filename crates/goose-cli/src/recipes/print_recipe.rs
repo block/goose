@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use anstream::println;
 use console::style;
 use goose::recipe::{Recipe, BUILT_IN_RECIPE_DIR_PARAM};
 
@@ -81,16 +82,16 @@ pub fn missing_parameters_command_line(missing_params: Vec<String>) -> String {
 }
 
 pub fn print_recipe_info(recipe: &Recipe, params: Vec<(String, String)>) {
-    println!(
+    eprintln!(
         "{} {}",
         style("Loading recipe:").green().bold(),
         style(&recipe.title).green()
     );
-    println!("{} {}", style("Description:").bold(), &recipe.description);
+    eprintln!("{} {}", style("Description:").bold(), &recipe.description);
 
     if !params.is_empty() {
-        println!("{}", style("Parameters used to load this recipe:").bold());
+        eprintln!("{}", style("Parameters used to load this recipe:").bold());
         print_parameters_with_values(params.into_iter().collect());
     }
-    println!();
+    eprintln!();
 }

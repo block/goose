@@ -16,12 +16,13 @@ mcp-core = { path = "../mcp-core" }
 goose-mcp = { path = "../goose-mcp" }
 mcp-server = { path = "../mcp-server" }
 rmcp = { workspace = true }
+schemars = "1.0"
 axum = { version = "0.8.1", features = ["ws", "macros"] }
 tokio = { version = "1.43", features = ["full"] }
 chrono = "0.4"
 tower-http = { version = "0.5", features = ["cors"] }
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+serde_json = { version = "1.0", features = ["preserve_order"] }
 futures = "0.3"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json", "time"] }

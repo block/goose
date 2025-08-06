@@ -19,7 +19,7 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({ className = '' }) => {
         <TooltipTrigger asChild>
           <button
             className={`z-[100] hover:cursor-pointer text-text-default/70 hover:text-text-default text-xs flex items-center transition-colors pl-1 [&>svg]:size-4 ${className}`}
-            onClick={handleDirectoryChange}
+            onClick={handleDirectoryClick}
           >
             <FolderDot className="mr-1" size={16} />
             <div className="max-w-[200px] truncate [direction:rtl]">

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ name }} OAuth Success</title>
+    <style>
+      body {
+        font-family: "Cash Sans", -apple-system, BlinkMacSystemFont, "Segoe UI",
+          Roboto, sans-serif;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        margin: 0;
+        background-color: #f4f6f7;
+        color: #3f434b;
+      }
+
+      .container {
+        text-align: center;
+        padding: 2rem;
+        background: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0px 12px 32px 0px rgba(0, 0, 0, 0.04),
+          0px 8px 16px 0px rgba(0, 0, 0, 0.02),
+          0px 2px 4px 0px rgba(0, 0, 0, 0.04),
+          0px 0px 1px 0px rgba(0, 0, 0, 0.2);
+        max-width: 400px;
+      }
+
+      h1 {
+        color: #32353b;
+        margin-bottom: 1rem;
+        font-weight: 500;
+      }
+
+      .client-name {
+        font-weight: 700;
+        color: #22252a;
+      }
+
+      button {
+        background-color: #32353b;
+        color: #ffffff;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 1rem;
+        font-family: "Cash Sans", sans-serif;
+        font-weight: 500;
+        margin-top: 1rem;
+        transition: background-color 0.2s ease;
+      }
+
+      button:hover {
+        background-color: #22252a;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Authorization Success</h1>
+      <p>
+        You have successfully authorized
+        <span class="client-name">{{ name }}</span>. You can now close this
+        window and return to Goose.
+      </p>
+    </div>
+  </body>
+</html>

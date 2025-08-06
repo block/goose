@@ -112,6 +112,7 @@ type ElectronAPI = {
   closeWindow: () => void;
   hasAcceptedRecipeBefore: (recipeConfig: Recipe) => Promise<boolean>;
   recordRecipeHash: (recipeConfig: Recipe) => Promise<boolean>;
+  openDirectoryInExplorer: (directoryPath: string) => Promise<boolean>;
 };
 
 type AppConfigAPI = {
@@ -240,6 +241,8 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke('has-accepted-recipe-before', recipeConfig),
   recordRecipeHash: (recipeConfig: Recipe) =>
     ipcRenderer.invoke('record-recipe-hash', recipeConfig),
+  openDirectoryInExplorer: (directoryPath: string) =>
+    ipcRenderer.invoke('open-directory-in-explorer', directoryPath),
 };
 
 const appConfigAPI: AppConfigAPI = {

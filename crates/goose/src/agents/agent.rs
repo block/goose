@@ -41,6 +41,7 @@ use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
 use crate::scheduler_trait::SchedulerTrait;
+use crate::session;
 use crate::tool_monitor::{ToolCall, ToolMonitor};
 use crate::utils::is_token_cancelled;
 use mcp_core::{ToolError, ToolResult};
@@ -224,7 +225,7 @@ impl Agent {
         if !issues.is_empty() {
             tracing::warn!(
                 "Conversation issue fixed: {}",
-                debug_conversation_fix(&messages, unfixed_messages, &issues)
+                debug_conversation_fix(unfixed_messages, &messages, &issues)
             );
         }
         let initial_messages = messages.clone();
@@ -439,13 +440,19 @@ impl Agent {
             // Check if the tool is read_resource and handle it separately
             ToolCallResult::from(
                 extension_manager
-                    .read_resource(tool_call.arguments.clone())
+                    .read_resource(
+                        tool_call.arguments.clone(),
+                        cancellation_token.unwrap_or_default(),
+                    )
                     .await,
             )
         } else if tool_call.name == PLATFORM_LIST_RESOURCES_TOOL_NAME {
             ToolCallResult::from(
                 extension_manager
-                    .list_resources(tool_call.arguments.clone())
+                    .list_resources(
+                        tool_call.arguments.clone(),
+                        cancellation_token.unwrap_or_default(),
+                    )
                     .await,
             )
         } else if tool_call.name == PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME {
@@ -469,7 +476,7 @@ impl Agent {
         } else {
             // Clone the result to ensure no references to extension_manager are returned
             let result = extension_manager
-                .dispatch_tool_call(tool_call.clone())
+                .dispatch_tool_call(tool_call.clone(), cancellation_token.unwrap_or_default())
                 .await;
             result.unwrap_or_else(|e| {
                 ToolCallResult::from(Err(ToolError::ExecutionError(e.to_string())))
@@ -752,8 +759,25 @@ impl Agent {
     async fn handle_auto_compaction(
         &self,
         messages: &[Message],
+        session: &Option<SessionConfig>,
     ) -> Result<Option<(Vec<Message>, String)>> {
-        let compact_result = auto_compact::check_and_compact_messages(self, messages, None).await?;
+        // Try to get session metadata for more accurate token counts
+        let session_metadata = if let Some(session_config) = session {
+            match session::storage::get_path(session_config.id.clone()) {
+                Ok(session_file_path) => session::storage::read_metadata(&session_file_path).ok(),
+                Err(_) => None,
+            }
+        } else {
+            None
+        };
+
+        let compact_result = auto_compact::check_and_compact_messages(
+            self,
+            messages,
+            None,
+            session_metadata.as_ref(),
+        )
+        .await?;
 
         if compact_result.compacted {
             let compacted_messages = compact_result.messages;
@@ -786,7 +810,9 @@ impl Agent {
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         // Handle auto-compaction before processing
-        let (messages, compaction_msg) = match self.handle_auto_compaction(unfixed_messages).await?
+        let (messages, compaction_msg) = match self
+            .handle_auto_compaction(unfixed_messages, &session)
+            .await?
         {
             Some((compacted_messages, msg)) => (compacted_messages, Some(msg)),
             None => {
@@ -1161,7 +1187,7 @@ impl Agent {
     pub async fn list_extension_prompts(&self) -> HashMap<String, Vec<Prompt>> {
         let extension_manager = self.extension_manager.read().await;
         extension_manager
-            .list_prompts()
+            .list_prompts(CancellationToken::default())
             .await
             .expect("Failed to list prompts")
     }
@@ -1171,7 +1197,7 @@ impl Agent {
 
         // First find which extension has this prompt
         let prompts = extension_manager
-            .list_prompts()
+            .list_prompts(CancellationToken::default())
             .await
             .map_err(|e| anyhow!("Failed to list prompts: {}", e))?;
 
@@ -1181,7 +1207,7 @@ impl Agent {
             .map(|(extension, _)| extension)
         {
             return extension_manager
-                .get_prompt(extension, name, arguments)
+                .get_prompt(extension, name, arguments, CancellationToken::default())
                 .await
                 .map_err(|e| anyhow!("Failed to get prompt: {}", e));
         }

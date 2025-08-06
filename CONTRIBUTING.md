@@ -61,7 +61,7 @@ As you make changes to the rust code, you can try it out on the CLI, or also run
 cargo check  # do your changes compile
 cargo test  # do the tests pass with your changes
 cargo fmt   # format your code
-cargo clippy  # run the linter
+./scripts/clippy-lint # run the linter
 ```
 
 ### Node

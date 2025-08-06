@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 // use serde_json::{self};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{Mutex, RwLock};
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, instrument};
 
 /// Status of a subagent
@@ -197,7 +198,7 @@ impl SubAgent {
                                 .extension_manager
                                 .read()
                                 .await
-                                .dispatch_tool_call(tool_call.clone())
+                                .dispatch_tool_call(tool_call.clone(), CancellationToken::default())
                                 .await
                             {
                                 Ok(result) => result.result.await,

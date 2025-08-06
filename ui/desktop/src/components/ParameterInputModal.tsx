@@ -115,68 +115,76 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
         </div>
       ) : (
         // Main parameter form
-        <div className="bg-background-default border border-borderSubtle rounded-xl p-8 shadow-2xl w-full max-w-lg">
-          <h2 className="text-xl font-bold text-textProminent mb-6">Recipe Parameters</h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {parameters.map((param) => (
-              <div key={param.key}>
-                <label className="block text-md font-medium text-textStandard mb-2">
-                  {param.description || param.key}
-                  {param.requirement === 'required' && <span className="text-red-500 ml-1">*</span>}
-                </label>
+        <div className="bg-background-default border border-borderSubtle rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
+          <div className="p-8 pb-4 flex-shrink-0">
+            <h2 className="text-xl font-bold text-textProminent mb-6">Recipe Parameters</h2>
+          </div>
+          <div className="flex-1 overflow-y-auto px-8">
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {parameters.map((param) => (
+                <div key={param.key}>
+                  <label className="block text-md font-medium text-textStandard mb-2">
+                    {param.description || param.key}
+                    {param.requirement === 'required' && (
+                      <span className="text-red-500 ml-1">*</span>
+                    )}
+                  </label>
 
-                {/* Render different input types */}
-                {param.input_type === 'select' && param.options ? (
-                  <select
-                    value={inputValues[param.key] || ''}
-                    onChange={(e) => handleChange(param.key, e.target.value)}
-                    className={`w-full p-3 border rounded-lg bg-bgSubtle text-textStandard focus:outline-none focus:ring-2 ${
-                      validationErrors[param.key]
-                        ? 'border-red-500 focus:ring-red-500'
-                        : 'border-borderSubtle focus:ring-borderProminent'
-                    }`}
-                  >
-                    <option value="">Select an option...</option>
-                    {param.options.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                ) : param.input_type === 'boolean' ? (
-                  <select
-                    value={inputValues[param.key] || ''}
-                    onChange={(e) => handleChange(param.key, e.target.value)}
-                    className={`w-full p-3 border rounded-lg bg-bgSubtle text-textStandard focus:outline-none focus:ring-2 ${
-                      validationErrors[param.key]
-                        ? 'border-red-500 focus:ring-red-500'
-                        : 'border-borderSubtle focus:ring-borderProminent'
-                    }`}
-                  >
-                    <option value="">Select...</option>
-                    <option value="true">True</option>
-                    <option value="false">False</option>
-                  </select>
-                ) : (
-                  <input
-                    type={param.input_type === 'number' ? 'number' : 'text'}
-                    value={inputValues[param.key] || ''}
-                    onChange={(e) => handleChange(param.key, e.target.value)}
-                    className={`w-full p-3 border rounded-lg bg-bgSubtle text-textStandard focus:outline-none focus:ring-2 ${
-                      validationErrors[param.key]
-                        ? 'border-red-500 focus:ring-red-500'
-                        : 'border-borderSubtle focus:ring-borderProminent'
-                    }`}
-                    placeholder={param.default || `Enter value for ${param.key}...`}
-                  />
-                )}
+                  {/* Render different input types */}
+                  {param.input_type === 'select' && param.options ? (
+                    <select
+                      value={inputValues[param.key] || ''}
+                      onChange={(e) => handleChange(param.key, e.target.value)}
+                      className={`w-full p-3 border rounded-lg bg-bgSubtle text-textStandard focus:outline-none focus:ring-2 ${
+                        validationErrors[param.key]
+                          ? 'border-red-500 focus:ring-red-500'
+                          : 'border-borderSubtle focus:ring-borderProminent'
+                      }`}
+                    >
+                      <option value="">Select an option...</option>
+                      {param.options.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  ) : param.input_type === 'boolean' ? (
+                    <select
+                      value={inputValues[param.key] || ''}
+                      onChange={(e) => handleChange(param.key, e.target.value)}
+                      className={`w-full p-3 border rounded-lg bg-bgSubtle text-textStandard focus:outline-none focus:ring-2 ${
+                        validationErrors[param.key]
+                          ? 'border-red-500 focus:ring-red-500'
+                          : 'border-borderSubtle focus:ring-borderProminent'
+                      }`}
+                    >
+                      <option value="">Select...</option>
+                      <option value="true">True</option>
+                      <option value="false">False</option>
+                    </select>
+                  ) : (
+                    <input
+                      type={param.input_type === 'number' ? 'number' : 'text'}
+                      value={inputValues[param.key] || ''}
+                      onChange={(e) => handleChange(param.key, e.target.value)}
+                      className={`w-full p-3 border rounded-lg bg-bgSubtle text-textStandard focus:outline-none focus:ring-2 ${
+                        validationErrors[param.key]
+                          ? 'border-red-500 focus:ring-red-500'
+                          : 'border-borderSubtle focus:ring-borderProminent'
+                      }`}
+                      placeholder={param.default || `Enter value for ${param.key}...`}
+                    />
+                  )}
 
-                {validationErrors[param.key] && (
-                  <p className="text-red-500 text-sm mt-1">{validationErrors[param.key]}</p>
-                )}
-              </div>
-            ))}
-            <div className="flex justify-end gap-4 pt-6">
+                  {validationErrors[param.key] && (
+                    <p className="text-red-500 text-sm mt-1">{validationErrors[param.key]}</p>
+                  )}
+                </div>
+              ))}
+            </form>
+          </div>
+          <div className="p-8 pt-4 flex-shrink-0">
+            <div className="flex justify-end gap-4">
               <Button
                 type="button"
                 onClick={handleCancel}
@@ -186,11 +194,17 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
               >
                 Cancel
               </Button>
-              <Button type="submit" variant="default" size="default" className="rounded-full">
+              <Button
+                type="button"
+                onClick={handleSubmit}
+                variant="default"
+                size="default"
+                className="rounded-full"
+              >
                 Start Recipe
               </Button>
             </div>
-          </form>
+          </div>
         </div>
       )}
     </div>

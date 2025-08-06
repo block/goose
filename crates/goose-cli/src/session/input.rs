@@ -35,6 +35,25 @@ pub struct PlanCommandOptions {
     pub message_text: String,
 }
 
+struct CtrlCHandler;
+
+impl rustyline::ConditionalEventHandler for CtrlCHandler {
+    /// Handle Ctrl+C to clear the line if text is entered, otherwise exit the session.
+    fn handle(
+        &self,
+        _event: &rustyline::Event,
+        _n: usize,
+        _positive: bool,
+        ctx: &rustyline::EventContext,
+    ) -> Option<rustyline::Cmd> {
+        if !ctx.line().is_empty() {
+            Some(rustyline::Cmd::Kill(rustyline::Movement::WholeBuffer))
+        } else {
+            Some(rustyline::Cmd::Interrupt)
+        }
+    }
+}
+
 pub fn get_input(
     editor: &mut Editor<GooseCompleter, rustyline::history::DefaultHistory>,
 ) -> Result<InputResult> {
@@ -44,7 +63,13 @@ pub fn get_input(
         rustyline::EventHandler::Simple(rustyline::Cmd::Newline),
     );
 
+    editor.bind_sequence(
+        rustyline::KeyEvent(rustyline::KeyCode::Char('c'), rustyline::Modifiers::CTRL),
+        rustyline::EventHandler::Conditional(Box::new(CtrlCHandler)),
+    );
+
     let prompt = format!("{} ", console::style("( O)>").cyan().bold());
+
     let input = match editor.readline(&prompt) {
         Ok(text) => text,
         Err(e) => match e {
@@ -270,7 +295,7 @@ fn print_help() {
 /clear - Clears the current chat history
 
 Navigation:
-Ctrl+C - Interrupt goose (resets the interaction to before the interrupted user request)
+Ctrl+C - Clear current line if text is entered, otherwise exit the session
 Ctrl+J - Add a newline
 Up/Down arrows - Navigate through command history"
     );

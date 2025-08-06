@@ -1,16 +1,42 @@
 import React from 'react';
 import CodeBlock from '@theme/CodeBlock';
 
+interface EnvVar {
+  key: string;
+  value: string;
+}
+
+interface CLIExtensionInstructionsProps {
+  name: string;
+  type?: 'stdio' | 'http';
+  command?: string; // Only for stdio
+  url?: string; // Only for http
+  timeout?: number;
+  envVars?: EnvVar[];
+  infoNote?: string;
+}
+
 export default function CLIExtensionInstructions({
   name,
+  type = 'stdio',
   command,
+  url,
   timeout = 300,
   envVars = [],
   infoNote,
-}) {
+}: CLIExtensionInstructionsProps) {
   const hasEnvVars = envVars.length > 0;
-  const envStepText = hasEnvVars
+  const isHttp = type === 'http';
+
+  // Determine last-step prompt text
+  const lastStepText = isHttp
+    ? 'Would you like to add custom headers?'
+    : 'Would you like to add environment variables?';
+
+  const lastStepInstruction = hasEnvVars
     ? `Add environment variable${envVars.length > 1 ? 's' : ''} for ${name}`
+    : isHttp
+    ? 'Choose No when asked to add custom headers'
     : 'Choose No when asked to add environment variables';
 
   return (
@@ -21,19 +47,23 @@ export default function CLIExtensionInstructions({
       <CodeBlock language="sh">{`goose configure`}</CodeBlock>
 
       <ol start={2}>
-        <li>Choose to add a <code>Command-line Extension</code>.</li>
+        <li>
+          Choose to add a{' '}
+          <code>{isHttp ? 'Remote Extension (Streaming HTTP)' : 'Command-line Extension'}</code>.
+        </li>
       </ol>
       <CodeBlock language="sh">{`┌   goose-configure 
 │
 ◇  What would you like to configure?
-│  Add Extension (Connect to a new extension)
+│  Add Extension 
 │
 ◆  What type of extension would you like to add?
-│  ○ Built-in Extension 
-// highlight-start    
-│  ● Command-line Extension (Run a local command or script)
-// highlight-end  
-│  ○ Remote Extension 
+│  ○ Built-in Extension
+${
+  isHttp
+    ? '│  ● Remote Extension (Streaming HTTP)\n│  ○ Command-line Extension (Run a local command or script)'
+    : '│  ○ Remote Extension\n│  ● Command-line Extension (Run a local command or script)'
+}
 └`}</CodeBlock>
 
       <ol start={3}>
@@ -42,23 +72,48 @@ export default function CLIExtensionInstructions({
       <CodeBlock language="sh">{`┌   goose-configure 
 │
 ◇  What would you like to configure?
-│  Add Extension (Connect to a new extension)
+│  Add Extension
 │
 ◇  What type of extension would you like to add?
-│  Command-line Extension 
+│  ${isHttp ? 'Remote Extension (Streaming HTTP)' : 'Command-line Extension'}
+│
 // highlight-start
 ◆  What would you like to call this extension?
 │  ${name}
 // highlight-end
 └`}</CodeBlock>
 
-      <ol start={4}>
-        <li>Enter the command to run when this extension is used.</li>
-      </ol>
-      <CodeBlock language="sh">{`┌   goose-configure 
+      {isHttp ? (
+        <>
+          <ol start={4}>
+            <li>Enter the Streaming HTTP endpoint URI.</li>
+          </ol>
+          <CodeBlock language="sh">{`┌   goose-configure 
 │
 ◇  What would you like to configure?
-│  Add Extension (Connect to a new extension)
+│  Add Extension 
+│
+◇  What type of extension would you like to add?
+│  Remote Extension (Streaming HTTP)
+│
+◇  What would you like to call this extension?
+│  ${name}
+│
+// highlight-start
+◆  What is the Streaming HTTP endpoint URI?
+│  ${url}
+// highlight-end
+└`}</CodeBlock>
+        </>
+      ) : (
+        <>
+          <ol start={4}>
+            <li>Enter the command to run when this extension is used.</li>
+          </ol>
+          <CodeBlock language="sh">{`┌   goose-configure 
+│
+◇  What would you like to configure?
+│  Add Extension
 │
 ◇  What type of extension would you like to add?
 │  Command-line Extension 
@@ -71,26 +126,31 @@ export default function CLIExtensionInstructions({
 │  ${command}
 // highlight-end
 └`}</CodeBlock>
+        </>
+      )}
 
       <ol start={5}>
         <li>
-          Enter the number of seconds Goose should wait for actions to complete before timing out. Default is <code>300</code> seconds.
+          Enter the number of seconds Goose should wait for actions to complete before timing out. Default is{' '}
+          <code>300</code> seconds.
         </li>
       </ol>
       <CodeBlock language="sh">{`┌   goose-configure 
 │
 ◇  What would you like to configure?
-│  Add Extension (Connect to a new extension) 
+│  Add Extension
 │
 ◇  What type of extension would you like to add?
-│  Command-line Extension 
+│  ${isHttp ? 'Remote Extension (Streaming HTTP)' : 'Command-line Extension'}
 │
 ◇  What would you like to call this extension?
 │  ${name}
 │
-◇  What command should be run?
-│  ${command}
-│
+${
+  isHttp
+    ? `◇  What is the Streaming HTTP endpoint URI?\n│  ${url}\n│`
+    : `◇  What command should be run?\n│  ${command}\n│`
+}
 // highlight-start
 ◆  Please set the timeout for this tool (in secs):
 │  ${timeout}
@@ -98,22 +158,24 @@ export default function CLIExtensionInstructions({
 └`}</CodeBlock>
 
       <ol start={6}>
-        <li>Choose to add a description. If you select <code>Yes</code>, you’ll be prompted to enter a description for the extension.</li>
+        <li>Choose to add a description. If you select <code>No</code>, Goose will skip it.</li>
       </ol>
       <CodeBlock language="sh">{`┌   goose-configure 
 │
 ◇  What would you like to configure?
-│  Add Extension (Connect to a new extension)
+│  Add Extension
 │
 ◇  What type of extension would you like to add?
-│  Command-line Extension 
+│  ${isHttp ? 'Remote Extension (Streaming HTTP)' : 'Command-line Extension'}
 │
 ◇  What would you like to call this extension?
 │  ${name}
 │
-◇  What command should be run?
-│  ${command}
-│
+${
+  isHttp
+    ? `◇  What is the Streaming HTTP endpoint URI?\n│  ${url}\n│`
+    : `◇  What command should be run?\n│  ${command}\n│`
+}
 ◇  Please set the timeout for this tool (in secs):
 │  ${timeout}
 │
@@ -124,24 +186,26 @@ export default function CLIExtensionInstructions({
 └`}</CodeBlock>
 
       <ol start={7}>
-        <li>{envStepText}</li>
+        <li>{lastStepInstruction}</li>
       </ol>
 
       {!hasEnvVars && (
         <CodeBlock language="sh">{`┌   goose-configure 
 │
 ◇  What would you like to configure?
-│  Add Extension (Connect to a new extension) 
+│  Add Extension 
 │
 ◇  What type of extension would you like to add?
-│  Command-line Extension 
+│  ${isHttp ? 'Remote Extension (Streaming HTTP)' : 'Command-line Extension'}
 │
 ◇  What would you like to call this extension?
 │  ${name}
 │
-◇  What command should be run?
-│  ${command}
-│
+${
+  isHttp
+    ? `◇  What is the Streaming HTTP endpoint URI?\n│  ${url}\n│`
+    : `◇  What command should be run?\n│  ${command}\n│`
+}
 ◇  Please set the timeout for this tool (in secs):
 │  ${timeout}
 │
@@ -149,7 +213,7 @@ export default function CLIExtensionInstructions({
 │  No
 │
 // highlight-start
-◆  Would you like to add environment variables?
+◆  ${lastStepText}
 │  No
 // highlight-end
 └  Added ${name} extension`}</CodeBlock>
@@ -162,17 +226,19 @@ export default function CLIExtensionInstructions({
           <CodeBlock language="sh">{`┌   goose-configure 
 │
 ◇  What would you like to configure?
-│  Add Extension (Connect to a new extension)
+│  Add Extension
 │
 ◇  What type of extension would you like to add?
-│  Command-line Extension 
+│  ${isHttp ? 'Remote Extension (Streaming HTTP)' : 'Command-line Extension'}
 │
 ◇  What would you like to call this extension?
 │  ${name}
 │
-◇  What command should be run?
-│  ${command}
-│
+${
+  isHttp
+    ? `◇  What is the Streaming HTTP endpoint URI?\n│  ${url}\n│`
+    : `◇  What command should be run?\n│  ${command}\n│`
+}
 ◇  Please set the timeout for this tool (in secs):
 │  ${timeout}
 │
@@ -180,7 +246,7 @@ export default function CLIExtensionInstructions({
 │  No
 │
 // highlight-start
-◆  Would you like to add environment variables?
+◆  ${lastStepText}
 │  Yes
 ${envVars
   .map(

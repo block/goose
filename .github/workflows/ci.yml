@@ -89,7 +89,7 @@ jobs:
         run: |
           source ./bin/activate-hermit
           export CARGO_INCREMENTAL=0
-          cargo clippy --jobs 2 -- -D warnings
+          ./scripts/clippy-lint.sh
 
       - name: Install Node.js Dependencies for OpenAPI Check
         run: source ../../bin/activate-hermit && npm ci

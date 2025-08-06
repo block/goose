@@ -82,10 +82,21 @@ goose run --recipe trip.yaml --params destination=Africa --params duration=14
 
 By default, Goose uses the `temperature` and `model` you've already chosen, which usually works just fine. But sometimes you might want more control. For example, when performing a subjective task like planning a trip, it can help to turn up the `temperature` setting. Think of temperature like a creativity dial - the higher it is, the more varied and unexpected the results. If the first suggestion isn't quite right, the user can just run the recipe again to get a new one.
 
+You can also specify which AI provider and model to use for a specific recipe:
+
 ```yaml
 settings:
-    temperature: 0.8
+  goose_provider: "anthropic"
+  goose_model: "claude-3-5-sonnet-latest"
+  temperature: 0.8
 ```
+
+The available settings are:
+- `goose_provider`: The AI provider (e.g., "anthropic", "openai")
+- `goose_model`: The specific model name
+- `temperature`: Controls creativity/randomness (0.0-1.0, higher = more creative)
+
+These settings will override your default Goose configuration when this recipe runs.
 
 ## External Files
 
