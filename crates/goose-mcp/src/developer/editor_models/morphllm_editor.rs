@@ -67,8 +67,6 @@ impl EditorModelImpl for MorphLLMEditor {
         _old_str: &str,
         update_snippet: &str,
     ) -> Result<String, String> {
-        eprintln!("Calling MorphLLM Editor API");
-
         // Construct the full URL
         let provider_url = if self.host.ends_with("/chat/completions") {
             self.host.clone()
@@ -128,7 +126,6 @@ impl EditorModelImpl for MorphLLMEditor {
             .and_then(|content| content.as_str())
             .ok_or_else(|| "Invalid response format".to_string())?;
 
-        eprintln!("MorphLLM Editor API worked");
         Ok(content.to_string())
     }
 
