@@ -27,7 +27,7 @@ LLMs have context windows, which are limits on how much conversation history the
 Turning on too many extensions can degrade performance. Enable only essential [extensions and tools](/docs/guides/managing-tools/tool-permissions) to improve tool selection accuracy, save context window space, and stay within provider tool limits.
 
 ### Teach Goose your preferences
-Help Goose remember how you like to work by using [`.goosehints`](/docs/guides/using-goosehints/) for permanent project preferences and the [Memory extension](/docs/mcp/memory-mcp) for things you want Goose to dynamically recall later. Both can help save valuable context window space while keeping your preferences available.
+Help Goose remember how you like to work by using [`.goosehints` or other context files](/docs/guides/using-goosehints/) for permanent project preferences and the [Memory extension](/docs/mcp/memory-mcp) for things you want Goose to dynamically recall later. Both can help save valuable context window space while keeping your preferences available.
 
 ### Protect sensitive files
 Goose is often eager to make changes. You can stop it from changing specific files by creating a [.gooseignore](/docs/guides/using-gooseignore) file. In this file, you can list all the file paths you want it to avoid.

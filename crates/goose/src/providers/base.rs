@@ -3,6 +3,8 @@ use futures::Stream;
 use serde::{Deserialize, Serialize};
 
 use super::errors::ProviderError;
+use super::retry::RetryConfig;
+use crate::conversation::Conversation;
 use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::utils::safe_truncate;
@@ -116,7 +118,7 @@ impl ProviderMetadata {
                 .iter()
                 .map(|&name| ModelInfo {
                     name: name.to_string(),
-                    context_limit: ModelConfig::new(name.to_string()).context_limit(),
+                    context_limit: ModelConfig::new_or_fail(name).context_limit(),
                     input_token_cost: None,
                     output_token_cost: None,
                     currency: None,
@@ -286,8 +288,12 @@ pub trait Provider: Send + Sync {
     /// Get the model config from the provider
     fn get_model_config(&self) -> ModelConfig;
 
-    /// Optional hook to fetch supported models asynchronously.
-    async fn fetch_supported_models_async(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    fn retry_config(&self) -> RetryConfig {
+        RetryConfig::default()
+    }
+
+    /// Optional hook to fetch supported models.
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         Ok(None)
     }
 
@@ -340,30 +346,25 @@ pub trait Provider: Send + Sync {
         }
     }
 
-    /// Generate a session name/description based on the conversation history
-    /// This method can be overridden by providers to implement custom session naming strategies.
-    /// The default implementation creates a prompt asking for a concise description in 4 words or less.
-    async fn generate_session_name(&self, messages: &[Message]) -> Result<String, ProviderError> {
-        // Create a prompt for a concise description
-        let mut description_prompt = "Based on the conversation so far, provide a concise description of this session in 4 words or less. This will be used for finding the session later in a UI with limited space - reply *ONLY* with the description".to_string();
-
-        // Get context from the first 3 user messages
-        let context: Vec<String> = messages
+    /// Returns the first 3 user messages as strings for session naming
+    fn get_initial_user_messages(&self, messages: &Conversation) -> Vec<String> {
+        messages
             .iter()
             .filter(|m| m.role == rmcp::model::Role::User)
             .take(3)
             .map(|m| m.as_concat_text())
-            .collect();
+            .collect()
+    }
 
-        if !context.is_empty() {
-            description_prompt = format!(
-                "Here are the first few user messages:\n{}\n\n{}",
-                context.join("\n"),
-                description_prompt
-            );
-        }
-
-        let message = Message::user().with_text(&description_prompt);
+    /// Generate a session name/description based on the conversation history
+    /// Creates a prompt asking for a concise description in 4 words or less.
+    async fn generate_session_name(
+        &self,
+        messages: &Conversation,
+    ) -> Result<String, ProviderError> {
+        let context = self.get_initial_user_messages(messages);
+        let prompt = self.create_session_name_prompt(&context);
+        let message = Message::user().with_text(&prompt);
         let result = self
             .complete(
                 "Reply with only a description in four words or less",
@@ -373,13 +374,23 @@ pub trait Provider: Send + Sync {
             .await?;
 
         let description = result.0.as_concat_text();
-        let sanitized_description = if description.chars().count() > 100 {
-            safe_truncate(&description, 100)
-        } else {
-            description
-        };
 
-        Ok(sanitized_description)
+        Ok(safe_truncate(&description, 100))
+    }
+
+    // Generate a prompt for a session name based on the conversation history
+    fn create_session_name_prompt(&self, context: &[String]) -> String {
+        // Create a prompt for a concise description
+        let mut prompt = "Based on the conversation so far, provide a concise description of this session in 4 words or less. This will be used for finding the session later in a UI with limited space - reply *ONLY* with the description".to_string();
+
+        if !context.is_empty() {
+            prompt = format!(
+                "Here are the first few user messages:\n{}\n\n{}",
+                context.join("\n"),
+                prompt
+            );
+        }
+        prompt
     }
 }
 
@@ -401,7 +412,6 @@ mod tests {
     use std::collections::HashMap;
 
     use serde_json::json;
-
     #[test]
     fn test_usage_creation() {
         let usage = Usage::new(Some(10), Some(20), Some(30));

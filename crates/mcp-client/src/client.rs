@@ -1,454 +1,356 @@
-use mcp_core::protocol::{
-    CallToolResult, Implementation, InitializeResult, ListPromptsResult, ListResourcesResult,
-    ListToolsResult, ReadResourceResult, ServerCapabilities, METHOD_NOT_FOUND,
+use rmcp::{
+    model::{
+        CallToolRequest, CallToolRequestParam, CallToolResult, ClientCapabilities, ClientInfo,
+        ClientRequest, GetPromptRequest, GetPromptRequestParam, GetPromptResult, Implementation,
+        InitializeResult, ListPromptsRequest, ListPromptsResult, ListResourcesRequest,
+        ListResourcesResult, ListToolsRequest, ListToolsResult, LoggingMessageNotification,
+        LoggingMessageNotificationMethod, PaginatedRequestParam, ProgressNotification,
+        ProgressNotificationMethod, ProtocolVersion, ReadResourceRequest, ReadResourceRequestParam,
+        ReadResourceResult, ServerNotification, ServerResult,
+    },
+    service::{ClientInitializeError, PeerRequestOptions, RunningService},
+    transport::IntoTransport,
+    ClientHandler, RoleClient, ServiceError, ServiceExt,
 };
-use rmcp::model::{
-    GetPromptResult, JsonRpcError, JsonRpcMessage, JsonRpcNotification, JsonRpcRequest,
-    JsonRpcResponse, JsonRpcVersion2_0, Notification, NumberOrString, Request, RequestId,
-    ServerNotification,
+use serde_json::Value;
+use std::sync::Arc;
+use tokio::sync::{
+    mpsc::{self, Sender},
+    Mutex,
 };
-use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
-use std::sync::{
-    atomic::{AtomicU64, Ordering},
-    Arc,
-};
-use thiserror::Error;
-use tokio::sync::{mpsc, Mutex};
-use tower::{timeout::TimeoutLayer, Layer, Service, ServiceExt};
-
-use crate::{McpService, TransportHandle};
+use tokio_util::sync::CancellationToken;
 
 pub type BoxError = Box<dyn std::error::Error + Sync + Send>;
 
-/// Error type for MCP client operations.
-#[derive(Debug, Error)]
-pub enum Error {
-    #[error("Transport error: {0}")]
-    Transport(#[from] super::transport::Error),
-
-    #[error("RPC error: code={code}, message={message}")]
-    RpcError { code: i32, message: String },
-
-    #[error("Serialization error: {0}")]
-    Serialization(#[from] serde_json::Error),
-
-    #[error("Unexpected response from server: {0}")]
-    UnexpectedResponse(String),
-
-    #[error("Not initialized")]
-    NotInitialized,
-
-    #[error("Timeout or service not ready")]
-    NotReady,
-
-    #[error("Request timed out")]
-    Timeout(#[from] tower::timeout::error::Elapsed),
-
-    #[error("Error from mcp-server: {0}")]
-    ServerBoxError(BoxError),
-
-    #[error("Call to '{server}' failed for '{method}'. {source}")]
-    McpServerError {
-        method: String,
-        server: String,
-        #[source]
-        source: BoxError,
-    },
-}
-
-// BoxError from mcp-server gets converted to our Error type
-impl From<BoxError> for Error {
-    fn from(err: BoxError) -> Self {
-        Error::ServerBoxError(err)
-    }
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct ClientInfo {
-    pub name: String,
-    pub version: String,
-}
-
-#[derive(Serialize, Deserialize, Default)]
-pub struct ClientCapabilities {
-    // Add fields as needed. For now, empty capabilities are fine.
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct InitializeParams {
-    #[serde(rename = "protocolVersion")]
-    pub protocol_version: String,
-    pub capabilities: ClientCapabilities,
-    #[serde(rename = "clientInfo")]
-    pub client_info: ClientInfo,
-}
+pub type Error = rmcp::ServiceError;
 
 #[async_trait::async_trait]
 pub trait McpClientTrait: Send + Sync {
-    async fn initialize(
-        &mut self,
-        info: ClientInfo,
-        capabilities: ClientCapabilities,
-    ) -> Result<InitializeResult, Error>;
-
     async fn list_resources(
         &self,
         next_cursor: Option<String>,
+        cancel_token: CancellationToken,
     ) -> Result<ListResourcesResult, Error>;
 
-    async fn read_resource(&self, uri: &str) -> Result<ReadResourceResult, Error>;
+    async fn read_resource(
+        &self,
+        uri: &str,
+        cancel_token: CancellationToken,
+    ) -> Result<ReadResourceResult, Error>;
 
-    async fn list_tools(&self, next_cursor: Option<String>) -> Result<ListToolsResult, Error>;
+    async fn list_tools(
+        &self,
+        next_cursor: Option<String>,
+        cancel_token: CancellationToken,
+    ) -> Result<ListToolsResult, Error>;
 
-    async fn call_tool(&self, name: &str, arguments: Value) -> Result<CallToolResult, Error>;
+    async fn call_tool(
+        &self,
+        name: &str,
+        arguments: Value,
+        cancel_token: CancellationToken,
+    ) -> Result<CallToolResult, Error>;
 
-    async fn list_prompts(&self, next_cursor: Option<String>) -> Result<ListPromptsResult, Error>;
+    async fn list_prompts(
+        &self,
+        next_cursor: Option<String>,
+        cancel_token: CancellationToken,
+    ) -> Result<ListPromptsResult, Error>;
 
-    async fn get_prompt(&self, name: &str, arguments: Value) -> Result<GetPromptResult, Error>;
+    async fn get_prompt(
+        &self,
+        name: &str,
+        arguments: Value,
+        cancel_token: CancellationToken,
+    ) -> Result<GetPromptResult, Error>;
 
     async fn subscribe(&self) -> mpsc::Receiver<ServerNotification>;
+
+    fn get_info(&self) -> Option<&InitializeResult>;
+}
+
+pub struct GooseClient {
+    notification_handlers: Arc<Mutex<Vec<Sender<ServerNotification>>>>,
+}
+
+impl GooseClient {
+    pub fn new(handlers: Arc<Mutex<Vec<Sender<ServerNotification>>>>) -> Self {
+        GooseClient {
+            notification_handlers: handlers,
+        }
+    }
+}
+
+impl ClientHandler for GooseClient {
+    async fn on_progress(
+        &self,
+        params: rmcp::model::ProgressNotificationParam,
+        context: rmcp::service::NotificationContext<rmcp::RoleClient>,
+    ) {
+        self.notification_handlers
+            .lock()
+            .await
+            .iter()
+            .for_each(|handler| {
+                let _ = handler.try_send(ServerNotification::ProgressNotification(
+                    ProgressNotification {
+                        params: params.clone(),
+                        method: ProgressNotificationMethod,
+                        extensions: context.extensions.clone(),
+                    },
+                ));
+            });
+    }
+
+    async fn on_logging_message(
+        &self,
+        params: rmcp::model::LoggingMessageNotificationParam,
+        context: rmcp::service::NotificationContext<rmcp::RoleClient>,
+    ) {
+        self.notification_handlers
+            .lock()
+            .await
+            .iter()
+            .for_each(|handler| {
+                let _ = handler.try_send(ServerNotification::LoggingMessageNotification(
+                    LoggingMessageNotification {
+                        params: params.clone(),
+                        method: LoggingMessageNotificationMethod,
+                        extensions: context.extensions.clone(),
+                    },
+                ));
+            });
+    }
+
+    fn get_info(&self) -> ClientInfo {
+        ClientInfo {
+            protocol_version: ProtocolVersion::V_2025_03_26,
+            capabilities: ClientCapabilities::builder().build(),
+            client_info: Implementation {
+                name: "goose".to_string(),
+                version: env!("CARGO_PKG_VERSION").to_owned(),
+            },
+        }
+    }
 }
 
 /// The MCP client is the interface for MCP operations.
-pub struct McpClient<T>
-where
-    T: TransportHandle + Send + Sync + 'static,
-{
-    service: Mutex<tower::timeout::Timeout<McpService<T>>>,
-    next_id_counter: AtomicU64, // Added for atomic ID generation
-    server_capabilities: Option<ServerCapabilities>,
-    server_info: Option<Implementation>,
+pub struct McpClient {
+    client: Mutex<RunningService<RoleClient, GooseClient>>,
     notification_subscribers: Arc<Mutex<Vec<mpsc::Sender<ServerNotification>>>>,
+    server_info: Option<InitializeResult>,
+    timeout: std::time::Duration,
 }
 
-impl<T> McpClient<T>
-where
-    T: TransportHandle + Send + Sync + 'static,
-{
-    pub async fn connect(transport: T, timeout: std::time::Duration) -> Result<Self, Error> {
-        let service = McpService::new(transport.clone());
-        let service_ptr = service.clone();
+impl McpClient {
+    pub async fn connect<T, E, A>(
+        transport: T,
+        timeout: std::time::Duration,
+    ) -> Result<Self, ClientInitializeError>
+    where
+        T: IntoTransport<RoleClient, E, A>,
+        E: std::error::Error + From<std::io::Error> + Send + Sync + 'static,
+    {
         let notification_subscribers =
             Arc::new(Mutex::new(Vec::<mpsc::Sender<ServerNotification>>::new()));
-        let subscribers_ptr = notification_subscribers.clone();
 
-        tokio::spawn(async move {
-            loop {
-                match transport.receive().await {
-                    Ok(message) => {
-                        tracing::info!("Received message: {:?}", message);
-                        match message {
-                            JsonRpcMessage::Response(JsonRpcResponse {
-                                id: NumberOrString::Number(id),
-                                ..
-                            })
-                            | JsonRpcMessage::Error(JsonRpcError {
-                                id: NumberOrString::Number(id),
-                                ..
-                            }) => {
-                                service_ptr.respond(&id.to_string(), Ok(message)).await;
-                            }
-                            JsonRpcMessage::Notification(JsonRpcNotification {
-                                notification,
-                                ..
-                            }) => {
-                                let mut subs = subscribers_ptr.lock().await;
-                                if let Some(server_notification) = notification.into() {
-                                    subs.retain(|sub| {
-                                        sub.try_send(server_notification.clone()).is_ok()
-                                    });
-                                }
-                            }
-                            _ => {
-                                tracing::warn!(
-                                    "Received unexpected received message type: {:?}",
-                                    message
-                                );
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        service_ptr.hangup(e).await;
-                        subscribers_ptr.lock().await.clear();
-                        break;
-                    }
-                }
-            }
-        });
-
-        let middleware = TimeoutLayer::new(timeout);
+        let client = GooseClient::new(notification_subscribers.clone());
+        let client: rmcp::service::RunningService<rmcp::RoleClient, GooseClient> =
+            client.serve(transport).await?;
+        let server_info = client.peer_info().cloned();
 
         Ok(Self {
-            service: Mutex::new(middleware.layer(service)),
-            next_id_counter: AtomicU64::new(1),
-            server_capabilities: None,
-            server_info: None,
+            client: Mutex::new(client),
             notification_subscribers,
+            server_info,
+            timeout,
         })
     }
 
-    /// Send a JSON-RPC request and check we don't get an error response.
-    async fn send_request<R>(&self, method: &str, params: Value) -> Result<R, Error>
-    where
-        R: for<'de> Deserialize<'de>,
-    {
-        let mut service = self.service.lock().await;
-        service.ready().await.map_err(|_| Error::NotReady)?;
-        let id_num = self.next_id_counter.fetch_add(1, Ordering::SeqCst);
-        let id = RequestId::Number(id_num as u32);
-
-        let mut params = params.clone();
-        params["_meta"] = json!({
-            "progressToken": format!("prog-{}", id),
-        });
-
-        let request = JsonRpcMessage::Request(JsonRpcRequest {
-            jsonrpc: JsonRpcVersion2_0,
-            id,
-            request: Request {
-                method: method.to_string(),
-                params: params.as_object().unwrap().clone(),
-                extensions: Default::default(),
-            },
-        });
-
-        let response_msg = service
-            .call(request)
+    async fn send_request(
+        &self,
+        request: ClientRequest,
+        cancel_token: CancellationToken,
+    ) -> Result<ServerResult, Error> {
+        let handle = self
+            .client
+            .lock()
             .await
-            .map_err(|e| Error::McpServerError {
-                server: self
-                    .server_info
-                    .as_ref()
-                    .map(|s| s.name.clone())
-                    .unwrap_or("".to_string()),
-                method: method.to_string(),
-                // we don't need include params because it can be really large
-                source: Box::<Error>::new(e.into()),
-            })?;
+            .send_request_with_option(
+                request,
+                PeerRequestOptions {
+                    timeout: Some(self.timeout),
+                    meta: None,
+                },
+            )
+            .await?;
 
-        match response_msg {
-            JsonRpcMessage::Response(JsonRpcResponse { id, result, .. }) => {
-                // Verify id matches - convert current id to match expected format
-                let expected_id = RequestId::Number((id_num) as u32);
-                if id != expected_id {
-                    return Err(Error::UnexpectedResponse(
-                        "id mismatch for JsonRpcResponse".to_string(),
-                    ));
-                }
-                Ok(serde_json::from_value(serde_json::to_value(result)?)?)
+        let cancel_token = cancel_token.clone();
+        tokio::select! {
+            res = handle.await_response() => {
+                Ok(res?)
             }
-            JsonRpcMessage::Error(JsonRpcError { id, error, .. }) => {
-                let expected_id = RequestId::Number((id_num) as u32);
-                if id != expected_id {
-                    return Err(Error::UnexpectedResponse(
-                        "id mismatch for JsonRpcError".to_string(),
-                    ));
-                }
-                Err(Error::RpcError {
-                    code: error.code.0,                 // Extract the i32 from ErrorCode
-                    message: error.message.to_string(), // Convert Cow to String
-                })
-            }
-            _ => {
-                // Requests/notifications not expected as a response
-                Err(Error::UnexpectedResponse(
-                    "unexpected message type".to_string(),
-                ))
+            _ = cancel_token.cancelled() => {
+                Err(Error::Cancelled{reason: None})
             }
         }
-    }
-
-    /// Send a JSON-RPC notification.
-    async fn send_notification(&self, method: &str, params: Value) -> Result<(), Error> {
-        let mut service = self.service.lock().await;
-        service.ready().await.map_err(|_| Error::NotReady)?;
-
-        let notification = JsonRpcMessage::Notification(JsonRpcNotification {
-            jsonrpc: JsonRpcVersion2_0,
-            notification: Notification {
-                method: method.to_string(),
-                params: params.as_object().unwrap().clone(),
-                extensions: Default::default(),
-            },
-        });
-
-        service
-            .call(notification)
-            .await
-            .map_err(|e| Error::McpServerError {
-                server: self
-                    .server_info
-                    .as_ref()
-                    .map(|s| s.name.clone())
-                    .unwrap_or("".to_string()),
-                method: method.to_string(),
-                // we don't need include params because it can be really large
-                source: Box::<Error>::new(e.into()),
-            })?;
-
-        Ok(())
-    }
-
-    // Check if the client has completed initialization
-    fn completed_initialization(&self) -> bool {
-        self.server_capabilities.is_some()
     }
 }
 
 #[async_trait::async_trait]
-impl<T> McpClientTrait for McpClient<T>
-where
-    T: TransportHandle + Send + Sync + 'static,
-{
-    async fn initialize(
-        &mut self,
-        info: ClientInfo,
-        capabilities: ClientCapabilities,
-    ) -> Result<InitializeResult, Error> {
-        let params = InitializeParams {
-            protocol_version: "2025-03-26".to_string(),
-            client_info: info,
-            capabilities,
-        };
-        let result: InitializeResult = self
-            .send_request("initialize", serde_json::to_value(params)?)
-            .await?;
-
-        self.send_notification("notifications/initialized", serde_json::json!({}))
-            .await?;
-
-        self.server_capabilities = Some(result.capabilities.clone());
-
-        self.server_info = Some(result.server_info.clone());
-
-        Ok(result)
+impl McpClientTrait for McpClient {
+    fn get_info(&self) -> Option<&InitializeResult> {
+        self.server_info.as_ref()
     }
 
     async fn list_resources(
         &self,
-        next_cursor: Option<String>,
+        cursor: Option<String>,
+        cancel_token: CancellationToken,
     ) -> Result<ListResourcesResult, Error> {
-        if !self.completed_initialization() {
-            return Err(Error::NotInitialized);
-        }
-        // If resources is not supported, return an empty list
-        if self
-            .server_capabilities
-            .as_ref()
-            .unwrap()
-            .resources
-            .is_none()
-        {
-            return Ok(ListResourcesResult {
-                resources: vec![],
-                next_cursor: None,
-            });
-        }
+        let res = self
+            .send_request(
+                ClientRequest::ListResourcesRequest(ListResourcesRequest {
+                    params: Some(PaginatedRequestParam { cursor }),
+                    method: Default::default(),
+                    extensions: Default::default(),
+                }),
+                cancel_token,
+            )
+            .await?;
 
-        let payload = next_cursor
-            .map(|cursor| serde_json::json!({"cursor": cursor}))
-            .unwrap_or_else(|| serde_json::json!({}));
-
-        self.send_request("resources/list", payload).await
+        match res {
+            ServerResult::ListResourcesResult(result) => Ok(result),
+            _ => Err(ServiceError::UnexpectedResponse),
+        }
     }
 
-    async fn read_resource(&self, uri: &str) -> Result<ReadResourceResult, Error> {
-        if !self.completed_initialization() {
-            return Err(Error::NotInitialized);
-        }
-        // If resources is not supported, return an error
-        if self
-            .server_capabilities
-            .as_ref()
-            .unwrap()
-            .resources
-            .is_none()
-        {
-            return Err(Error::RpcError {
-                code: METHOD_NOT_FOUND,
-                message: "Server does not support 'resources' capability".to_string(),
-            });
-        }
+    async fn read_resource(
+        &self,
+        uri: &str,
+        cancel_token: CancellationToken,
+    ) -> Result<ReadResourceResult, Error> {
+        let res = self
+            .send_request(
+                ClientRequest::ReadResourceRequest(ReadResourceRequest {
+                    params: ReadResourceRequestParam {
+                        uri: uri.to_string(),
+                    },
+                    method: Default::default(),
+                    extensions: Default::default(),
+                }),
+                cancel_token,
+            )
+            .await?;
 
-        let params = serde_json::json!({ "uri": uri });
-        self.send_request("resources/read", params).await
+        match res {
+            ServerResult::ReadResourceResult(result) => Ok(result),
+            _ => Err(ServiceError::UnexpectedResponse),
+        }
     }
 
-    async fn list_tools(&self, next_cursor: Option<String>) -> Result<ListToolsResult, Error> {
-        if !self.completed_initialization() {
-            return Err(Error::NotInitialized);
-        }
-        // If tools is not supported, return an empty list
-        if self.server_capabilities.as_ref().unwrap().tools.is_none() {
-            return Ok(ListToolsResult {
-                tools: vec![],
-                next_cursor: None,
-            });
-        }
+    async fn list_tools(
+        &self,
+        cursor: Option<String>,
+        cancel_token: CancellationToken,
+    ) -> Result<ListToolsResult, Error> {
+        let res = self
+            .send_request(
+                ClientRequest::ListToolsRequest(ListToolsRequest {
+                    params: Some(PaginatedRequestParam { cursor }),
+                    method: Default::default(),
+                    extensions: Default::default(),
+                }),
+                cancel_token,
+            )
+            .await?;
 
-        let payload = next_cursor
-            .map(|cursor| serde_json::json!({"cursor": cursor}))
-            .unwrap_or_else(|| serde_json::json!({}));
-
-        self.send_request("tools/list", payload).await
+        match res {
+            ServerResult::ListToolsResult(result) => Ok(result),
+            _ => Err(ServiceError::UnexpectedResponse),
+        }
     }
 
-    async fn call_tool(&self, name: &str, arguments: Value) -> Result<CallToolResult, Error> {
-        if !self.completed_initialization() {
-            return Err(Error::NotInitialized);
-        }
-        // If tools is not supported, return an error
-        if self.server_capabilities.as_ref().unwrap().tools.is_none() {
-            return Err(Error::RpcError {
-                code: METHOD_NOT_FOUND,
-                message: "Server does not support 'tools' capability".to_string(),
-            });
-        }
+    async fn call_tool(
+        &self,
+        name: &str,
+        arguments: Value,
+        cancel_token: CancellationToken,
+    ) -> Result<CallToolResult, Error> {
+        let arguments = match arguments {
+            Value::Object(map) => Some(map),
+            _ => None,
+        };
+        let res = self
+            .send_request(
+                ClientRequest::CallToolRequest(CallToolRequest {
+                    params: CallToolRequestParam {
+                        name: name.to_string().into(),
+                        arguments,
+                    },
+                    method: Default::default(),
+                    extensions: Default::default(),
+                }),
+                cancel_token,
+            )
+            .await?;
 
-        let params = serde_json::json!({ "name": name, "arguments": arguments });
-
-        // TODO ERROR: check that if there is an error, we send back is_error: true with msg
-        // https://modelcontextprotocol.io/docs/concepts/tools#error-handling-2
-        self.send_request("tools/call", params).await
+        match res {
+            ServerResult::CallToolResult(result) => Ok(result),
+            _ => Err(ServiceError::UnexpectedResponse),
+        }
     }
 
-    async fn list_prompts(&self, next_cursor: Option<String>) -> Result<ListPromptsResult, Error> {
-        if !self.completed_initialization() {
-            return Err(Error::NotInitialized);
+    async fn list_prompts(
+        &self,
+        cursor: Option<String>,
+        cancel_token: CancellationToken,
+    ) -> Result<ListPromptsResult, Error> {
+        let res = self
+            .send_request(
+                ClientRequest::ListPromptsRequest(ListPromptsRequest {
+                    params: Some(PaginatedRequestParam { cursor }),
+                    method: Default::default(),
+                    extensions: Default::default(),
+                }),
+                cancel_token,
+            )
+            .await?;
+
+        match res {
+            ServerResult::ListPromptsResult(result) => Ok(result),
+            _ => Err(ServiceError::UnexpectedResponse),
         }
-
-        // If prompts is not supported, return an error
-        if self.server_capabilities.as_ref().unwrap().prompts.is_none() {
-            return Err(Error::RpcError {
-                code: METHOD_NOT_FOUND,
-                message: "Server does not support 'prompts' capability".to_string(),
-            });
-        }
-
-        let payload = next_cursor
-            .map(|cursor| serde_json::json!({"cursor": cursor}))
-            .unwrap_or_else(|| serde_json::json!({}));
-
-        self.send_request("prompts/list", payload).await
     }
 
-    async fn get_prompt(&self, name: &str, arguments: Value) -> Result<GetPromptResult, Error> {
-        if !self.completed_initialization() {
-            return Err(Error::NotInitialized);
+    async fn get_prompt(
+        &self,
+        name: &str,
+        arguments: Value,
+        cancel_token: CancellationToken,
+    ) -> Result<GetPromptResult, Error> {
+        let arguments = match arguments {
+            Value::Object(map) => Some(map),
+            _ => None,
+        };
+        let res = self
+            .send_request(
+                ClientRequest::GetPromptRequest(GetPromptRequest {
+                    params: GetPromptRequestParam {
+                        name: name.to_string(),
+                        arguments,
+                    },
+                    method: Default::default(),
+                    extensions: Default::default(),
+                }),
+                cancel_token,
+            )
+            .await?;
+
+        match res {
+            ServerResult::GetPromptResult(result) => Ok(result),
+            _ => Err(ServiceError::UnexpectedResponse),
         }
-
-        // If prompts is not supported, return an error
-        if self.server_capabilities.as_ref().unwrap().prompts.is_none() {
-            return Err(Error::RpcError {
-                code: METHOD_NOT_FOUND,
-                message: "Server does not support 'prompts' capability".to_string(),
-            });
-        }
-
-        let params = serde_json::json!({ "name": name, "arguments": arguments });
-
-        self.send_request("prompts/get", params).await
     }
 
     async fn subscribe(&self) -> mpsc::Receiver<ServerNotification> {

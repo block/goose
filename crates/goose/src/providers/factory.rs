@@ -98,17 +98,16 @@ fn create_lead_worker_from_env(
         .get_param::<usize>("GOOSE_LEAD_FALLBACK_TURNS")
         .unwrap_or(default_fallback_turns());
 
-    // Create model configs with context limit environment variable support
     let lead_model_config = ModelConfig::new_with_context_env(
         lead_model_name.to_string(),
         Some("GOOSE_LEAD_CONTEXT_LIMIT"),
-    );
+    )?;
 
     // For worker model, preserve the original context_limit from config (highest precedence)
     // while still allowing environment variable overrides
     let worker_model_config = {
         // Start with a clone of the original model to preserve user-specified settings
-        let mut worker_config = ModelConfig::new(default_model.model_name.clone())
+        let mut worker_config = ModelConfig::new_or_fail(default_model.model_name.as_str())
             .with_context_limit(default_model.context_limit)
             .with_temperature(default_model.temperature)
             .with_max_tokens(default_model.max_tokens)
@@ -242,7 +241,8 @@ mod tests {
         env::set_var("GOOSE_LEAD_MODEL", "gpt-4o");
 
         // This will try to create a lead/worker provider
-        let result = create("openai", ModelConfig::new("gpt-4o-mini".to_string()));
+        let gpt4mini_config = ModelConfig::new_or_fail("gpt-4o-mini");
+        let result = create("openai", gpt4mini_config.clone());
 
         // The creation might succeed or fail depending on API keys, but we can verify the logic path
         match result {
@@ -261,7 +261,7 @@ mod tests {
         env::set_var("GOOSE_LEAD_PROVIDER", "anthropic");
         env::set_var("GOOSE_LEAD_TURNS", "5");
 
-        let _result = create("openai", ModelConfig::new("gpt-4o-mini".to_string()));
+        let _result = create("openai", gpt4mini_config);
         // Similar validation as above - will fail due to missing API keys but confirms the logic
 
         // Restore env vars
@@ -305,7 +305,7 @@ mod tests {
         env::set_var("GOOSE_LEAD_MODEL", "grok-3");
 
         // This should use defaults for all other values
-        let result = create("openai", ModelConfig::new("gpt-4o-mini".to_string()));
+        let result = create("openai", ModelConfig::new_or_fail("gpt-4o-mini"));
 
         // Should attempt to create lead/worker provider (will fail due to missing API keys but confirms logic)
         match result {
@@ -324,7 +324,7 @@ mod tests {
         env::set_var("GOOSE_LEAD_FAILURE_THRESHOLD", "4");
         env::set_var("GOOSE_LEAD_FALLBACK_TURNS", "3");
 
-        let _result = create("openai", ModelConfig::new("gpt-4o-mini".to_string()));
+        let _result = create("openai", ModelConfig::new_or_fail("gpt-4o-mini"));
         // Should still attempt to create lead/worker provider with custom settings
 
         // Restore all env vars
@@ -353,7 +353,7 @@ mod tests {
         env::remove_var("GOOSE_LEAD_FALLBACK_TURNS");
 
         // This should try to create a regular provider
-        let result = create("openai", ModelConfig::new("gpt-4o-mini".to_string()));
+        let result = create("openai", ModelConfig::new_or_fail("gpt-4o-mini"));
 
         // The creation might succeed or fail depending on API keys
         match result {
@@ -368,7 +368,6 @@ mod tests {
             }
         }
 
-        // Restore env vars
         if let Some(val) = saved_lead {
             env::set_var("GOOSE_LEAD_MODEL", val);
         }
@@ -410,7 +409,7 @@ mod tests {
 
         // Create a default model with explicit context_limit
         let default_model =
-            ModelConfig::new("gpt-3.5-turbo".to_string()).with_context_limit(Some(16_000));
+            ModelConfig::new_or_fail("gpt-3.5-turbo").with_context_limit(Some(16_000));
 
         // Test case 1: No environment variables - should preserve original context_limit
         let result = create_lead_worker_from_env("openai", &default_model, "gpt-4o");

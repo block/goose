@@ -40,6 +40,7 @@ import {
   validateConfig,
 } from './api/sdk.gen';
 import PermissionSettingsView from './components/settings/permission/PermissionSetting';
+import { COST_TRACKING_ENABLED } from './updates';
 
 import { type SessionDetails } from './sessions';
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
@@ -855,53 +856,52 @@ export default function App() {
 
     const initializeApp = async () => {
       try {
-        // Initialize cost database early to pre-load pricing data
-        initializeCostDatabase().catch((error) => {
-          console.error('Failed to initialize cost database:', error);
-        });
+        // Start cost database initialization early (non-blocking) - only if cost tracking is enabled
+        const costDbPromise = COST_TRACKING_ENABLED
+          ? initializeCostDatabase().catch((error) => {
+              console.error('Failed to initialize cost database:', error);
+            })
+          : (() => {
+              console.log('Cost tracking disabled, skipping cost database initialization');
+              return Promise.resolve();
+            })();
 
         await initConfig();
+
         try {
           await readAllConfig({ throwOnError: true });
         } catch (error) {
+          console.warn('Initial config read failed, attempting recovery:', error);
+
           const configVersion = localStorage.getItem('configVersion');
           const shouldMigrateExtensions = !configVersion || parseInt(configVersion, 10) < 3;
+
           if (shouldMigrateExtensions) {
-            await backupConfig({ throwOnError: true });
-            await initConfig();
-          } else {
-            // Config appears corrupted, try recovery
-            console.warn('Config file appears corrupted, attempting recovery...');
+            console.log('Performing extension migration...');
             try {
-              // First try to validate the config
-              try {
-                await validateConfig({ throwOnError: true });
-                // Config is valid but readAllConfig failed for another reason
-                throw new Error('Unable to read config file, it may be malformed');
-              } catch (validateError) {
-                console.log('Config validation failed, attempting recovery...');
+              await backupConfig({ throwOnError: true });
+              await initConfig();
+            } catch (migrationError) {
+              console.error('Migration failed:', migrationError);
+              // Continue with recovery attempts
+            }
+          }
 
-                // Try to recover the config
-                try {
-                  const recoveryResult = await recoverConfig({ throwOnError: true });
-                  console.log('Config recovery result:', recoveryResult);
-
-                  // Try to read config again after recovery
-                  try {
-                    await readAllConfig({ throwOnError: true });
-                    console.log('Config successfully recovered and loaded');
-                  } catch (retryError) {
-                    console.warn('Config still corrupted after recovery, reinitializing...');
-                    await initConfig();
-                  }
-                } catch (recoverError) {
-                  console.warn('Config recovery failed, reinitializing...');
-                  await initConfig();
-                }
-              }
-            } catch (recoveryError) {
-              console.error('Config recovery process failed:', recoveryError);
-              throw new Error('Unable to read config file, it may be malformed');
+          // Try recovery if migration didn't work or wasn't needed
+          console.log('Attempting config recovery...');
+          try {
+            // Try to validate first (faster than recovery)
+            await validateConfig({ throwOnError: true });
+            // If validation passes, try reading again
+            await readAllConfig({ throwOnError: true });
+          } catch (validateError) {
+            console.log('Config validation failed, attempting recovery...');
+            try {
+              await recoverConfig({ throwOnError: true });
+              await readAllConfig({ throwOnError: true });
+            } catch (recoverError) {
+              console.warn('Config recovery failed, reinitializing...');
+              await initConfig();
             }
           }
         }
@@ -912,13 +912,21 @@ export default function App() {
 
         if (provider && model) {
           try {
-            await initializeSystem(provider as string, model as string, {
-              getExtensions,
-              addExtension,
-            });
+            // Initialize system in parallel with cost database (if enabled)
+            const initPromises = [
+              initializeSystem(provider as string, model as string, {
+                getExtensions,
+                addExtension,
+              }),
+            ];
 
-            // Check if we have a recipe config from a deeplink
-            // But skip navigation if we're ignoring recipe config changes (to prevent conflicts with new window creation)
+            if (COST_TRACKING_ENABLED) {
+              initPromises.push(costDbPromise);
+            }
+
+            await Promise.all(initPromises);
+
+            const recipeConfig = window.appConfig.get('recipe');
             if (
               recipeConfig &&
               typeof recipeConfig === 'object' &&
@@ -974,16 +982,16 @@ export default function App() {
               }
             }
           } catch (error) {
-            console.error('Error in initialization:', error);
+            console.error('Error in system initialization:', error);
             if (error instanceof MalformedConfigError) {
               throw error;
             }
-            // Navigate to welcome route
-            window.history.replaceState({}, '', '/welcome');
+            window.location.hash = '#/welcome';
+            window.history.replaceState({}, '', '#/welcome');
           }
         } else {
-          // Navigate to welcome route
-          window.history.replaceState({}, '', '/welcome');
+          window.location.hash = '#/welcome';
+          window.history.replaceState({}, '', '#/welcome');
         }
       } catch (error) {
         console.error('Fatal error during initialization:', error);

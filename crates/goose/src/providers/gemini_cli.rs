@@ -9,6 +9,7 @@ use tokio::process::Command;
 use super::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::utils::emit_debug_trace;
+use crate::impl_provider_default;
 use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use rmcp::model::Role;
@@ -25,12 +26,7 @@ pub struct GeminiCliProvider {
     model: ModelConfig,
 }
 
-impl Default for GeminiCliProvider {
-    fn default() -> Self {
-        let model = ModelConfig::new(GeminiCliProvider::metadata().default_model);
-        GeminiCliProvider::from_env(model).expect("Failed to initialize Gemini CLI provider")
-    }
-}
+impl_provider_default!(GeminiCliProvider);
 
 impl GeminiCliProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
@@ -180,9 +176,13 @@ impl GeminiCliProvider {
 
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
-        let mut child = cmd
-            .spawn()
-            .map_err(|e| ProviderError::RequestFailed(format!("Failed to spawn command: {}", e)))?;
+        let mut child = cmd.spawn().map_err(|e| {
+            ProviderError::RequestFailed(format!(
+                "Failed to spawn Gemini CLI command '{}': {}. \
+                Make sure the Gemini CLI is installed and in your PATH.",
+                self.command, e
+            ))
+        })?;
 
         let stdout = child
             .stdout
@@ -376,7 +376,7 @@ mod tests {
     #[test]
     fn test_gemini_cli_invalid_model_no_fallback() {
         // Test that an invalid model is kept as-is (no fallback)
-        let invalid_model = ModelConfig::new("invalid-model".to_string());
+        let invalid_model = ModelConfig::new_or_fail("invalid-model");
         let provider = GeminiCliProvider::from_env(invalid_model).unwrap();
         let config = provider.get_model_config();
 
@@ -386,7 +386,7 @@ mod tests {
     #[test]
     fn test_gemini_cli_valid_model() {
         // Test that a valid model is preserved
-        let valid_model = ModelConfig::new(GEMINI_CLI_DEFAULT_MODEL.to_string());
+        let valid_model = ModelConfig::new_or_fail(GEMINI_CLI_DEFAULT_MODEL);
         let provider = GeminiCliProvider::from_env(valid_model).unwrap();
         let config = provider.get_model_config();
 

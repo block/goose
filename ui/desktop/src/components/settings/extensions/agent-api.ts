@@ -1,5 +1,5 @@
 import { ExtensionConfig } from '../../../api/types.gen';
-import { getApiUrl, getSecretKey } from '../../../config';
+import { getApiUrl } from '../../../config';
 import { toastService, ToastServiceOptions } from '../../../toasts';
 import { replaceWithShims } from './utils';
 
@@ -46,7 +46,7 @@ export async function extensionApiCall(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Secret-Key': getSecretKey(),
+        'X-Secret-Key': await window.electron.getSecretKey(),
       },
       body: JSON.stringify(payload),
     });
@@ -178,6 +178,6 @@ export async function removeFromAgent(
   }
 }
 
-function sanitizeName(name: string) {
+export function sanitizeName(name: string) {
   return name.toLowerCase().replace(/-/g, '').replace(/_/g, '').replace(/\s/g, '');
 }

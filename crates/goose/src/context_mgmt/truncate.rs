@@ -434,13 +434,12 @@ mod tests {
         tokens: usize,
         remove_last: bool,
     ) -> (Conversation, Vec<usize>) {
-        let mut messages = Conversation::new((0..num_pairs).flat_map(|i| {
+        let mut messages = Conversation::new_unvalidated((0..num_pairs).flat_map(|i| {
             vec![
                 user_text(i * 2, tokens).0,
                 assistant_text((i * 2) + 1, tokens).0,
             ]
-        }))
-        .unwrap();
+        }));
 
         if remove_last {
             messages.pop();

@@ -1141,7 +1141,12 @@ async fn run_scheduled_job_internal(
                             .to_string(),
                 }),
             };
-        let model_config = crate::model::ModelConfig::new(model_name.clone());
+        let model_config =
+            crate::model::ModelConfig::new(model_name.as_str()).map_err(|e| JobExecutionError {
+                job_id: job.id.clone(),
+                error: format!("Model config error: {}", e),
+            })?;
+
         agent_provider = create(&provider_name, model_config).map_err(|e| JobExecutionError {
             job_id: job.id.clone(),
             error: format!(
@@ -1236,7 +1241,9 @@ async fn run_scheduled_job_internal(
                         Ok(AgentEvent::ModelChange { .. }) => {
                             // Model change events are informational, just continue
                         }
-
+                        Ok(AgentEvent::HistoryReplaced(_)) => {
+                            // Handle history replacement events if needed
+                        }
                         Err(e) => {
                             tracing::error!(
                                 "[Job {}] Error receiving message from agent: {}",
@@ -1254,7 +1261,7 @@ async fn run_scheduled_job_internal(
                         if let Err(e) = crate::session::storage::save_messages_with_metadata(
                             &session_file_path,
                             &updated_metadata,
-                            all_session_messages.messages(),
+                            &all_session_messages,
                         ) {
                             tracing::error!(
                                 "[Job {}] Failed to persist final messages: {}",
@@ -1285,7 +1292,7 @@ async fn run_scheduled_job_internal(
                         if let Err(e_fb) = crate::session::storage::save_messages_with_metadata(
                             &session_file_path,
                             &fallback_metadata,
-                            all_session_messages.messages(),
+                            &all_session_messages,
                         ) {
                             tracing::error!("[Job {}] Failed to persist final messages with fallback metadata: {}", job.id, e_fb);
                         }
@@ -1313,7 +1320,7 @@ async fn run_scheduled_job_internal(
             ..Default::default()
         };
         if let Err(e) =
-            crate::session::storage::save_messages_with_metadata(&session_file_path, &metadata, &[])
+            crate::session::storage::save_messages_with_metadata(&session_file_path, &metadata, &Conversation::new_unvalidated(vec![]))
         {
             tracing::error!(
                 "[Job {}] Failed to persist metadata for empty job: {}",
@@ -1453,8 +1460,7 @@ mod tests {
             execution_mode: Some("background".to_string()), // Default for test
         };
 
-        // Create the mock provider instance for the test
-        let mock_model_config = ModelConfig::new("test_model".to_string());
+        let mock_model_config = ModelConfig::new_or_fail("test_model");
         let mock_provider_instance = create_scheduler_test_mock_provider(mock_model_config);
 
         // Call run_scheduled_job_internal, passing the mock provider

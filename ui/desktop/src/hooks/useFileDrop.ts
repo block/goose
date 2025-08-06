@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useRef, useEffect } from 'react';
 
 export interface DroppedFile {
   id: string;
@@ -13,6 +13,24 @@ export interface DroppedFile {
 
 export const useFileDrop = () => {
   const [droppedFiles, setDroppedFiles] = useState<DroppedFile[]>([]);
+  const activeReadersRef = useRef<Set<FileReader>>(new Set());
+
+  // Cleanup effect to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      // Abort any active FileReaders on unmount
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      const readers = activeReadersRef.current;
+      readers.forEach((reader) => {
+        try {
+          reader.abort();
+        } catch (error) {
+          // Reader might already be done, ignore errors
+        }
+      });
+      readers.clear();
+    };
+  }, []);
 
   const handleDrop = useCallback(async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -56,12 +74,16 @@ export const useFileDrop = () => {
         // For images, generate a preview (only if successfully processed)
         if (droppedFile.isImage && !droppedFile.error) {
           const reader = new FileReader();
+          activeReadersRef.current.add(reader);
+
           reader.onload = (event) => {
             const dataUrl = event.target?.result as string;
             setDroppedFiles((prev) =>
               prev.map((f) => (f.id === droppedFile.id ? { ...f, dataUrl, isLoading: false } : f))
             );
+            activeReadersRef.current.delete(reader);
           };
+
           reader.onerror = () => {
             console.error('Failed to generate preview for:', file.name);
             setDroppedFiles((prev) =>
@@ -71,7 +93,13 @@ export const useFileDrop = () => {
                   : f
               )
             );
+            activeReadersRef.current.delete(reader);
           };
+
+          reader.onabort = () => {
+            activeReadersRef.current.delete(reader);
+          };
+
           reader.readAsDataURL(file);
         }
       }

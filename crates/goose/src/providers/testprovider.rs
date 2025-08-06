@@ -156,7 +156,7 @@ impl Provider for TestProvider {
     }
 
     fn get_model_config(&self) -> ModelConfig {
-        ModelConfig::new("test-model".to_string())
+        ModelConfig::new_or_fail("test-model")
     }
 }
 
@@ -224,7 +224,7 @@ mod tests {
         );
 
         let mock = Arc::new(MockProvider {
-            model_config: ModelConfig::new("mock-model".to_string()),
+            model_config: ModelConfig::new_or_fail("mock-model"),
             response: "Hello, world!".to_string(),
         });
 

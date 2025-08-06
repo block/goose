@@ -12,6 +12,7 @@ use goose::providers::{create, testprovider::TestProvider};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
 
 pub const SCENARIO_TESTS_DIR: &str = "src/scenario_tests";
 
@@ -176,10 +177,7 @@ where
 
         let original_env = setup_environment(config)?;
 
-        let inner_provider = create(
-            &factory_name,
-            ModelConfig::new(config.model_name.to_string()),
-        )?;
+        let inner_provider = create(&factory_name, ModelConfig::new(&config.model_name)?)?;
 
         let test_provider = Arc::new(TestProvider::new_recording(inner_provider, &file_path));
         (
@@ -208,7 +206,10 @@ where
 
     let mut error = None;
     for message in &messages {
-        if let Err(e) = session.process_message(message.clone()).await {
+        if let Err(e) = session
+            .process_message(message.clone(), CancellationToken::default())
+            .await
+        {
             error = Some(e.to_string());
             break;
         }

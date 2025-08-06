@@ -1052,7 +1052,7 @@ pub fn read_metadata(session_file: &Path) -> Result<SessionMetadata> {
 /// - Validates file paths to prevent directory traversal
 pub async fn persist_messages(
     session_file: &Path,
-    messages: &[Message],
+    messages: &Conversation,
     provider: Option<Arc<dyn Provider>>,
     working_dir: Option<PathBuf>,
 ) -> Result<()> {
@@ -1070,7 +1070,7 @@ pub async fn persist_messages(
 /// - Uses atomic file operations via save_messages_with_metadata
 pub async fn persist_messages_with_schedule_id(
     session_file: &Path,
-    messages: &[Message],
+    messages: &Conversation,
     provider: Option<Arc<dyn Provider>>,
     schedule_id: Option<String>,
     working_dir: Option<PathBuf>,
@@ -1145,7 +1145,7 @@ pub async fn persist_messages_with_schedule_id(
 pub fn save_messages_with_metadata(
     session_file: &Path,
     metadata: &SessionMetadata,
-    messages: &[Message],
+    messages: &Conversation,
 ) -> Result<()> {
     use fs2::FileExt;
 
@@ -1258,7 +1258,7 @@ pub fn save_messages_with_metadata(
 /// of the session based on the conversation history.
 pub async fn generate_description(
     session_file: &Path,
-    messages: &[Message],
+    messages: &Conversation,
     provider: Arc<dyn Provider>,
     working_dir: Option<PathBuf>,
 ) -> Result<()> {
@@ -1276,7 +1276,7 @@ pub async fn generate_description(
 /// - Uses secure file operations for saving
 pub async fn generate_description_with_schedule_id(
     session_file: &Path,
-    messages: &[Message],
+    messages: &Conversation,
     provider: Arc<dyn Provider>,
     schedule_id: Option<String>,
     working_dir: Option<PathBuf>,
@@ -1341,7 +1341,7 @@ pub async fn update_metadata(session_file: &Path, metadata: &SessionMetadata) ->
     let messages = read_messages(&secure_path)?;
 
     // Rewrite the file with the new metadata and existing messages
-    save_messages_with_metadata(&secure_path, metadata, messages.messages())
+    save_messages_with_metadata(&secure_path, metadata, &messages)
 }
 
 #[cfg(test)]
@@ -1429,10 +1429,10 @@ mod tests {
         let file_path = dir.path().join("test.jsonl");
 
         // Create some test messages
-        let messages = vec![
+        let messages = Conversation::new_unvalidated(vec![
             Message::user().with_text("Hello"),
             Message::assistant().with_text("Hi there"),
-        ];
+        ]);
 
         // Write messages
         persist_messages(&file_path, &messages, None, None).await?;
@@ -1536,7 +1536,7 @@ mod tests {
             "}]",
         ];
 
-        let mut messages = Vec::new();
+        let mut messages = Conversation::empty();
         for text in special_chars {
             messages.push(Message::user().with_text(text));
             messages.push(Message::assistant().with_text(text));
@@ -1602,10 +1602,10 @@ mod tests {
 
         // Create a message with content larger than the 50KB truncation limit
         let very_large_text = "A".repeat(100_000); // 100KB of text
-        let messages = vec![
+        let messages = Conversation::new_unvalidated(vec![
             Message::user().with_text(&very_large_text),
             Message::assistant().with_text("Small response"),
-        ];
+        ]);
 
         // Write messages
         persist_messages(&file_path, &messages, None, None).await?;
@@ -1655,7 +1655,7 @@ mod tests {
         let mut metadata = SessionMetadata::default();
         metadata.description = "Description with\nnewline and \"quotes\" and 🦆".to_string();
 
-        let messages = vec![Message::user().with_text("test")];
+        let messages = Conversation::new_unvalidated(vec![Message::user().with_text("test")]);
 
         // Write with special metadata
         save_messages_with_metadata(&file_path, &metadata, &messages)?;
@@ -1682,7 +1682,7 @@ mod tests {
         assert_eq!(metadata.working_dir, get_home_dir());
 
         // Test deserialization of invalid directory
-        let messages = vec![Message::user().with_text("test")];
+        let messages = Conversation::new_unvalidated(vec![Message::user().with_text("test")]);
         save_messages_with_metadata(&file_path, &metadata, &messages)?;
 
         // Modify the file to include invalid directory
@@ -1712,7 +1712,7 @@ mod tests {
         let working_dir_path = working_dir.path().to_path_buf();
 
         // Create messages
-        let messages = vec![Message::user().with_text("test message")];
+        let messages = Conversation::new_unvalidated(vec![Message::user().with_text("test message")]);
 
         // Use persist_messages_with_schedule_id to set working dir
         persist_messages_with_schedule_id(
@@ -1731,7 +1731,7 @@ mod tests {
         // Verify the messages are also preserved
         let read_messages = read_messages(&file_path)?;
         assert_eq!(read_messages.len(), 1);
-        assert_eq!(read_messages.first().unwrap().role, messages[0].role);
+        assert_eq!(read_messages.first().unwrap().role, messages.messages()[0].role);
 
         Ok(())
     }
@@ -1747,7 +1747,7 @@ mod tests {
         let working_dir_path = working_dir.path().to_path_buf();
 
         // Create messages
-        let messages = vec![Message::user().with_text("test message")];
+        let messages = Conversation::new_unvalidated(vec![Message::user().with_text("test message")]);
 
         // Get the home directory for comparison
         let home_dir = get_home_dir();
@@ -1914,10 +1914,10 @@ mod tests {
         let dir = tempdir()?;
         let file_path = dir.path().join("test_save_session.jsonl");
 
-        let messages = vec![
+        let messages = Conversation::new_unvalidated(vec![
             Message::user().with_text("Hello"),
             Message::assistant().with_text("Hi there"),
-        ];
+        ]);
 
         let metadata = SessionMetadata::default();
 
@@ -1940,10 +1940,10 @@ mod tests {
         let dir = tempdir()?;
         let file_path = dir.path().join("test_persist_no_save.jsonl");
 
-        let messages = vec![
+        let messages = Conversation::new_unvalidated(vec![
             Message::user().with_text("Test message"),
             Message::assistant().with_text("Test response"),
-        ];
+        ]);
 
         // Test persist_messages_with_schedule_id with working_dir parameter
         persist_messages_with_schedule_id(

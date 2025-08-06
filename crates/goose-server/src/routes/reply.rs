@@ -1,7 +1,7 @@
 use super::utils::verify_secret_key;
 use crate::state::AppState;
 use axum::{
-    extract::State,
+    extract::{DefaultBodyLimit, State},
     http::{self, HeaderMap, StatusCode},
     response::IntoResponse,
     routing::post,
@@ -100,19 +100,24 @@ enum MessageEvent {
         request_id: String,
         message: ServerNotification,
     },
+    Ping,
 }
 
 async fn stream_event(
     event: MessageEvent,
     tx: &mpsc::Sender<String>,
-) -> Result<(), mpsc::error::SendError<String>> {
+    cancel_token: &CancellationToken,
+) {
     let json = serde_json::to_string(&event).unwrap_or_else(|e| {
         format!(
             r#"{{"type":"Error","error":"Failed to serialize event: {}"}}"#,
             e
         )
     });
-    tx.send(format!("data: {}\n\n", json)).await
+    if tx.send(format!("data: {}\n\n", json)).await.is_err() {
+        tracing::info!("client hung up");
+        cancel_token.cancel();
+    }
 }
 
 async fn reply_handler(
@@ -145,6 +150,7 @@ async fn reply_handler(
                         error: "No agent configured".to_string(),
                     },
                     &task_tx,
+                    &cancel_token,
                 )
                 .await;
                 return;
@@ -160,9 +166,12 @@ async fn reply_handler(
             retry_config: None,
         };
 
+        // Messages will be auto-compacted in agent.reply() if needed
+        let messages_to_process = messages.clone();
+
         let mut stream = match agent
             .reply(
-                messages.clone(),
+                messages_to_process,
                 Some(session_config),
                 Some(task_cancel.clone()),
             )
@@ -171,11 +180,12 @@ async fn reply_handler(
             Ok(stream) => stream,
             Err(e) => {
                 tracing::error!("Failed to start reply stream: {:?}", e);
-                let _ = stream_event(
+                stream_event(
                     MessageEvent::Error {
                         error: e.to_string(),
                     },
                     &task_tx,
+                    &cancel_token,
                 )
                 .await;
                 return;
@@ -192,6 +202,7 @@ async fn reply_handler(
                         error: format!("Failed to get session path: {}", e),
                     },
                     &task_tx,
+                    &cancel_token,
                 )
                 .await;
                 return;
@@ -199,75 +210,61 @@ async fn reply_handler(
         };
         let saved_message_count = all_messages.len();
 
+        let mut heartbeat_interval = tokio::time::interval(Duration::from_millis(500));
         loop {
             tokio::select! {
-                            _ = task_cancel.cancelled() => {
-                                tracing::info!("Agent task cancelled");
+                _ = task_cancel.cancelled() => {
+                    tracing::info!("Agent task cancelled");
+                    break;
+                }
+                _ = heartbeat_interval.tick() => {
+                    stream_event(MessageEvent::Ping, &tx, &cancel_token).await;
+                }
+                response = timeout(Duration::from_millis(500), stream.next()) => {
+                    match response {
+                        Ok(Some(Ok(AgentEvent::Message(message)))) => {
+                            all_messages.push(message.clone());
+                            stream_event(MessageEvent::Message { message }, &tx, &cancel_token).await;
+                        }
+                        Ok(Some(Ok(AgentEvent::HistoryReplaced(new_messages)))) => {
+                            // Replace the message history with the compacted messages
+                            all_messages = Conversation::new_unvalidated(new_messages);
+                            // Note: We don't send this as a stream event since it's an internal operation
+                            // The client will see the compaction notification message that was sent before this event
+                        }
+                        Ok(Some(Ok(AgentEvent::ModelChange { model, mode }))) => {
+                            stream_event(MessageEvent::ModelChange { model, mode }, &tx, &cancel_token).await;
+                        }
+                        Ok(Some(Ok(AgentEvent::McpNotification((request_id, n))))) => {
+                            stream_event(MessageEvent::Notification{
+                                request_id: request_id.clone(),
+                                message: n,
+                            }, &tx, &cancel_token).await;
+                        }
+
+                        Ok(Some(Err(e))) => {
+                            tracing::error!("Error processing message: {}", e);
+                            stream_event(
+                                MessageEvent::Error {
+                                    error: e.to_string(),
+                                },
+                                &tx,
+                                &cancel_token,
+                            ).await;
+                            break;
+                        }
+                        Ok(None) => {
+                            break;
+                        }
+                        Err(_) => {
+                            if tx.is_closed() {
                                 break;
                             }
-            response = timeout(Duration::from_millis(500), stream.next()) => {
-                                match response {
-                                    Ok(Some(Ok(AgentEvent::Message(message)))) => {
-                                        all_messages.push(message.clone());
-                                        if let Err(e) = stream_event(MessageEvent::Message { message }, &tx).await {
-                                            tracing::error!("Error sending message through channel: {}", e);
-                                            let _ = stream_event(
-                                                MessageEvent::Error {
-                                                    error: e.to_string(),
-                                                },
-                                                &tx,
-                                            ).await;
-                                            break;
-                                        }
-                                    }
-                                    Ok(Some(Ok(AgentEvent::ModelChange { model, mode }))) => {
-                                        if let Err(e) = stream_event(MessageEvent::ModelChange { model, mode }, &tx).await {
-                                            tracing::error!("Error sending model change through channel: {}", e);
-                                            let _ = stream_event(
-                                                MessageEvent::Error {
-                                                    error: e.to_string(),
-                                                },
-                                                &tx,
-                                            ).await;
-                                        }
-                                    }
-                                    Ok(Some(Ok(AgentEvent::McpNotification((request_id, n))))) => {
-                                        if let Err(e) = stream_event(MessageEvent::Notification{
-                                            request_id: request_id.clone(),
-                                            message: n,
-                                        }, &tx).await {
-                                            tracing::error!("Error sending message through channel: {}", e);
-                                            let _ = stream_event(
-                                                MessageEvent::Error {
-                                                    error: e.to_string(),
-                                                },
-                                                &tx,
-                                            ).await;
-                                        }
-                                    }
-
-                                    Ok(Some(Err(e))) => {
-                                        tracing::error!("Error processing message: {}", e);
-                                        let _ = stream_event(
-                                            MessageEvent::Error {
-                                                error: e.to_string(),
-                                            },
-                                            &tx,
-                                        ).await;
-                                        break;
-                                    }
-                                    Ok(None) => {
-                                        break;
-                                    }
-                                    Err(_) => {
-                                        if tx.is_closed() {
-                                            break;
-                                        }
-                                        continue;
-                                    }
-                                }
-                            }
+                            continue;
                         }
+                    }
+                }
+            }
         }
 
         if all_messages.len() > saved_message_count {
@@ -276,7 +273,7 @@ async fn reply_handler(
                 tokio::spawn(async move {
                     if let Err(e) = session::persist_messages(
                         &session_path,
-                        all_messages.messages(),
+                        &all_messages,
                         Some(provider),
                         Some(PathBuf::from(&session_working_dir)),
                     )
@@ -293,6 +290,7 @@ async fn reply_handler(
                 reason: "stop".to_string(),
             },
             &task_tx,
+            &cancel_token,
         )
         .await;
     }));
@@ -392,9 +390,15 @@ async fn submit_tool_result(
 
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
-        .route("/reply", post(reply_handler))
+        .route(
+            "/reply",
+            post(reply_handler).layer(DefaultBodyLimit::max(50 * 1024 * 1024)),
+        )
         .route("/confirm", post(confirm_permission))
-        .route("/tool_result", post(submit_tool_result))
+        .route(
+            "/tool_result",
+            post(submit_tool_result).layer(DefaultBodyLimit::max(10 * 1024 * 1024)),
+        )
         .with_state(state)
 }
 
@@ -446,7 +450,7 @@ mod tests {
 
         #[tokio::test]
         async fn test_reply_endpoint() {
-            let mock_model_config = ModelConfig::new("test-model".to_string());
+            let mock_model_config = ModelConfig::new("test-model").unwrap();
             let mock_provider = Arc::new(MockProvider {
                 model_config: mock_model_config,
             });

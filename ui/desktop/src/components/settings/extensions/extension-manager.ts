@@ -1,6 +1,6 @@
 import type { ExtensionConfig } from '../../../api/types.gen';
 import { toastService, ToastServiceOptions } from '../../../toasts';
-import { addToAgent, removeFromAgent } from './agent-api';
+import { addToAgent, removeFromAgent, sanitizeName } from './agent-api';
 
 interface ActivateExtensionProps {
   addToConfig: (name: string, extensionConfig: ExtensionConfig, enabled: boolean) => Promise<void>;
@@ -129,46 +129,121 @@ export async function addToAgentOnStartup({
 interface UpdateExtensionProps {
   enabled: boolean;
   addToConfig: (name: string, extensionConfig: ExtensionConfig, enabled: boolean) => Promise<void>;
+  removeFromConfig: (name: string) => Promise<void>;
   extensionConfig: ExtensionConfig;
+  originalName?: string;
 }
 
 /**
- * Updates an extension configuration without changing its enabled state
+ * Updates an extension configuration, handling name changes
  */
 export async function updateExtension({
   enabled,
   addToConfig,
+  removeFromConfig,
   extensionConfig,
+  originalName,
 }: UpdateExtensionProps) {
-  if (enabled) {
+  // Sanitize the new name to match the behavior when adding extensions
+  const sanitizedNewName = sanitizeName(extensionConfig.name);
+  const sanitizedOriginalName = originalName ? sanitizeName(originalName) : undefined;
+
+  // Check if the sanitized name has changed
+  const nameChanged = sanitizedOriginalName && sanitizedOriginalName !== sanitizedNewName;
+
+  if (nameChanged) {
+    // Handle name change: remove old extension and add new one
+
+    // First remove the old extension from agent (using original name)
     try {
-      // AddToAgent
-      await addToAgent(extensionConfig);
+      await removeFromAgent(originalName!, { silent: true }); // Suppress removal toast since we'll show update toast
     } catch (error) {
-      console.error('[updateExtension]: Failed to add extension to agent during update:', error);
-      // Failed to add to agent -- show that error to user and do not update the config file
+      console.error('Failed to remove old extension from agent during rename:', error);
+      // Continue with the process even if agent removal fails
+    }
+
+    // Remove old extension from config (using original name)
+    try {
+      await removeFromConfig(originalName!); // We know originalName is not undefined here because nameChanged is true
+    } catch (error) {
+      console.error('Failed to remove old extension from config during rename:', error);
+      throw error; // This is more critical, so we throw
+    }
+
+    // Create a copy of the extension config with the sanitized name
+    const sanitizedExtensionConfig = {
+      ...extensionConfig,
+      name: sanitizedNewName,
+    };
+
+    // Add new extension with sanitized name
+    if (enabled) {
+      try {
+        // AddToAgent with silent option to avoid duplicate toasts
+        await addToAgent(sanitizedExtensionConfig, { silent: true });
+      } catch (error) {
+        console.error('[updateExtension]: Failed to add renamed extension to agent:', error);
+        throw error;
+      }
+    }
+
+    // Add to config with sanitized name
+    try {
+      await addToConfig(sanitizedNewName, sanitizedExtensionConfig, enabled);
+    } catch (error) {
+      console.error('[updateExtension]: Failed to add renamed extension to config:', error);
       throw error;
     }
 
-    // Then add to config
-    try {
-      await addToConfig(extensionConfig.name, extensionConfig, enabled);
-    } catch (error) {
-      console.error('[updateExtension]: Failed to update extension in config:', error);
-      throw error;
-    }
-  } else {
-    try {
-      await addToConfig(extensionConfig.name, extensionConfig, enabled);
-    } catch (error) {
-      console.error('[updateExtension]: Failed to update disabled extension in config:', error);
-      throw error;
-    }
-    // show a toast that it was successfully updated
+    toastService.configure({ silent: false });
     toastService.success({
       title: `Update extension`,
-      msg: `Successfully updated ${extensionConfig.name} extension`,
+      msg: `Successfully updated ${sanitizedNewName} extension`,
     });
+  } else {
+    // Create a copy of the extension config with the sanitized name
+    const sanitizedExtensionConfig = {
+      ...extensionConfig,
+      name: sanitizedNewName,
+    };
+
+    if (enabled) {
+      try {
+        // AddToAgent with silent option to avoid duplicate toasts
+        await addToAgent(sanitizedExtensionConfig, { silent: true });
+      } catch (error) {
+        console.error('[updateExtension]: Failed to add extension to agent during update:', error);
+        // Failed to add to agent -- show that error to user and do not update the config file
+        throw error;
+      }
+
+      // Then add to config
+      try {
+        await addToConfig(sanitizedNewName, sanitizedExtensionConfig, enabled);
+      } catch (error) {
+        console.error('[updateExtension]: Failed to update extension in config:', error);
+        throw error;
+      }
+
+      // show a toast that it was successfully updated
+      toastService.success({
+        title: `Update extension`,
+        msg: `Successfully updated ${sanitizedNewName} extension`,
+      });
+    } else {
+      try {
+        await addToConfig(sanitizedNewName, sanitizedExtensionConfig, enabled);
+      } catch (error) {
+        console.error('[updateExtension]: Failed to update disabled extension in config:', error);
+        throw error;
+      }
+
+      // show a toast that it was successfully updated
+      toastService.success({
+        title: `Update extension`,
+        msg: `Successfully updated ${sanitizedNewName} extension`,
+      });
+    }
   }
 }
 

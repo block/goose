@@ -21,20 +21,19 @@ use crate::agents::recipe_tools::dynamic_task_tools::{
     create_dynamic_task, create_dynamic_task_tool, DYNAMIC_TASK_TOOL_NAME_PREFIX,
 };
 use crate::agents::retry::{RetryManager, RetryResult};
-use crate::agents::router_tool_selector::{
-    create_tool_selector, RouterToolSelectionStrategy, RouterToolSelector,
-};
+use crate::agents::router_tool_selector::RouterToolSelectionStrategy;
 use crate::agents::router_tools::{ROUTER_LLM_SEARCH_TOOL_NAME, ROUTER_VECTOR_SEARCH_TOOL_NAME};
 use crate::agents::sub_recipe_manager::SubRecipeManager;
 use crate::agents::subagent_execution_tool::subagent_execute_task_tool::{
     self, SUBAGENT_EXECUTE_TASK_TOOL_NAME,
 };
 use crate::agents::subagent_execution_tool::tasks_manager::TasksManager;
+use crate::agents::tool_route_manager::ToolRouteManager;
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
-use crate::agents::tool_vectordb::generate_table_id;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, ToolResultReceiver};
 use crate::config::{Config, ExtensionConfigManager, PermissionManager};
+use crate::context_mgmt::auto_compact;
 use crate::conversation::Conversation;
 use crate::message::{Message, ToolRequest};
 use crate::permission::permission_judge::{check_tool_permissions, PermissionCheckResult};
@@ -43,6 +42,7 @@ use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
 use crate::scheduler_trait::SchedulerTrait;
+use crate::session;
 use crate::tool_monitor::{ToolCall, ToolMonitor};
 use crate::utils::is_token_cancelled;
 use mcp_core::{ToolError, ToolResult};
@@ -55,7 +55,6 @@ use tracing::{debug, error, info, instrument};
 
 use super::final_output_tool::FinalOutputTool;
 use super::platform_tools;
-use super::router_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::subagent_task_config::TaskConfig;
 use crate::conversation::{debug_conversation_fix, fix_conversation};
@@ -73,8 +72,7 @@ pub struct ReplyContext {
     pub config: &'static Config,
 }
 
-/// Result of processing tool requests
-pub struct ToolProcessingResult {
+pub struct ToolCategorizeResult {
     pub frontend_requests: Vec<ToolRequest>,
     pub remaining_requests: Vec<ToolRequest>,
     pub filtered_response: Message,
@@ -97,7 +95,7 @@ pub struct Agent {
     pub(super) tool_result_tx: mpsc::Sender<(String, ToolResult<Vec<Content>>)>,
     pub(super) tool_result_rx: ToolResultReceiver,
     pub(super) tool_monitor: Arc<Mutex<Option<ToolMonitor>>>,
-    pub(super) router_tool_selector: Mutex<Option<Arc<Box<dyn RouterToolSelector>>>>,
+    pub(super) tool_route_manager: ToolRouteManager,
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
     pub(super) retry_manager: RetryManager,
 }
@@ -107,6 +105,7 @@ pub enum AgentEvent {
     Message(Message),
     McpNotification((String, ServerNotification)),
     ModelChange { model: String, mode: String },
+    HistoryReplaced(Vec<Message>),
 }
 
 impl Default for Agent {
@@ -172,7 +171,7 @@ impl Agent {
             tool_result_tx: tool_tx,
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
             tool_monitor,
-            router_tool_selector: Mutex::new(None),
+            tool_route_manager: ToolRouteManager::new(),
             scheduler_service: Mutex::new(None),
             retry_manager,
         }
@@ -224,11 +223,15 @@ impl Agent {
         session: &Option<SessionConfig>,
     ) -> Result<ReplyContext> {
         let unfixed_messages = unfixed_conversation.messages().clone();
-        let (conversation, issues) = fix_conversation(unfixed_conversation);
+        let (conversation, issues) = fix_conversation(unfixed_conversation.clone());
         if !issues.is_empty() {
             tracing::warn!(
                 "Conversation issue fixed: {}",
-                debug_conversation_fix(conversation.messages(), &unfixed_messages, &issues)
+                debug_conversation_fix(
+                    unfixed_messages.as_slice(),
+                    conversation.messages(),
+                    &issues
+                )
             );
         }
         let initial_messages = conversation.messages().clone();
@@ -248,38 +251,18 @@ impl Agent {
         })
     }
 
-    /// Process tool requests by categorizing them and recording them in the router selector
-    async fn process_tool_requests(
+    async fn categorize_tools(
         &self,
         response: &Message,
         tools: &[rmcp::model::Tool],
-    ) -> ToolProcessingResult {
+    ) -> ToolCategorizeResult {
         let (readonly_tools, regular_tools) = Self::categorize_tools_by_annotation(tools);
 
         // Categorize tool requests
         let (frontend_requests, remaining_requests, filtered_response) =
             self.categorize_tool_requests(response).await;
 
-        // Record tool calls in the router selector
-        let selector = self.router_tool_selector.lock().await.clone();
-        if let Some(selector) = selector {
-            for request in &frontend_requests {
-                if let Ok(tool_call) = &request.tool_call {
-                    if let Err(e) = selector.record_tool_call(&tool_call.name).await {
-                        error!("Failed to record frontend tool call: {}", e);
-                    }
-                }
-            }
-            for request in &remaining_requests {
-                if let Ok(tool_call) = &request.tool_call {
-                    if let Err(e) = selector.record_tool_call(&tool_call.name).await {
-                        error!("Failed to record tool call: {}", e);
-                    }
-                }
-            }
-        }
-
-        ToolProcessingResult {
+        ToolCategorizeResult {
             frontend_requests,
             remaining_requests,
             filtered_response,
@@ -336,6 +319,10 @@ impl Agent {
     pub async fn set_scheduler(&self, scheduler: Arc<dyn SchedulerTrait>) {
         let mut scheduler_service = self.scheduler_service.lock().await;
         *scheduler_service = Some(scheduler);
+    }
+
+    pub async fn disable_router_for_recipe(&self) {
+        self.tool_route_manager.disable_router_for_recipe().await;
     }
 
     /// Get a reference count clone to the provider
@@ -459,13 +446,19 @@ impl Agent {
             // Check if the tool is read_resource and handle it separately
             ToolCallResult::from(
                 extension_manager
-                    .read_resource(tool_call.arguments.clone())
+                    .read_resource(
+                        tool_call.arguments.clone(),
+                        cancellation_token.unwrap_or_default(),
+                    )
                     .await,
             )
         } else if tool_call.name == PLATFORM_LIST_RESOURCES_TOOL_NAME {
             ToolCallResult::from(
                 extension_manager
-                    .list_resources(tool_call.arguments.clone())
+                    .list_resources(
+                        tool_call.arguments.clone(),
+                        cancellation_token.unwrap_or_default(),
+                    )
                     .await,
             )
         } else if tool_call.name == PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME {
@@ -478,47 +471,18 @@ impl Agent {
         } else if tool_call.name == ROUTER_VECTOR_SEARCH_TOOL_NAME
             || tool_call.name == ROUTER_LLM_SEARCH_TOOL_NAME
         {
-            let selector = self.router_tool_selector.lock().await.clone();
-            let mut selected_tools = match selector.as_ref() {
-                Some(selector) => match selector.select_tools(tool_call.arguments.clone()).await {
-                    Ok(tools) => tools,
-                    Err(e) => {
-                        return (
-                            request_id,
-                            Err(ToolError::ExecutionError(format!(
-                                "Failed to select tools: {}",
-                                e
-                            ))),
-                        )
-                    }
-                },
-                None => {
-                    return (
-                        request_id,
-                        Err(ToolError::ExecutionError(
-                            "No tool selector available".to_string(),
-                        )),
-                    )
-                }
-            };
-
-            // Append final_output tool if present (for structured output recipes, [Issue #3700](https://github.com/block/goose/issues/3700)
-            if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
-                let tool = final_output_tool.tool();
-                let tool_content = Content::text(format!(
-                    "Tool: {}\nDescription: {}\nSchema: {}",
-                    tool.name,
-                    tool.description.unwrap_or_default(),
-                    serde_json::to_string_pretty(&tool.input_schema).unwrap_or_default()
-                ));
-                selected_tools.push(tool_content);
+            match self
+                .tool_route_manager
+                .dispatch_route_search_tool(tool_call.arguments)
+                .await
+            {
+                Ok(tool_result) => tool_result,
+                Err(e) => return (request_id, Err(e)),
             }
-
-            ToolCallResult::from(Ok(selected_tools))
         } else {
             // Clone the result to ensure no references to extension_manager are returned
             let result = extension_manager
-                .dispatch_tool_call(tool_call.clone())
+                .dispatch_tool_call(tool_call.clone(), cancellation_token.unwrap_or_default())
                 .await;
             result.unwrap_or_else(|e| {
                 ToolCallResult::from(Err(ToolError::ExecutionError(e.to_string())))
@@ -544,9 +508,7 @@ impl Agent {
         extension_name: String,
         request_id: String,
     ) -> (String, Result<Vec<Content>, ToolError>) {
-        let mut extension_manager = self.extension_manager.write().await;
-
-        let selector = self.router_tool_selector.lock().await.clone();
+        let selector = self.tool_route_manager.get_router_tool_selector().await;
         if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
             if let Some(selector) = selector {
                 let selector_action = if action == "disable" { "remove" } else { "add" };
@@ -570,7 +532,7 @@ impl Agent {
                 }
             }
         }
-
+        let mut extension_manager = self.extension_manager.write().await;
         if action == "disable" {
             let result = extension_manager
                 .remove_extension(&extension_name)
@@ -606,7 +568,6 @@ impl Agent {
                 )
             }
         };
-
         let result = extension_manager
             .add_extension(config)
             .await
@@ -618,9 +579,10 @@ impl Agent {
             })
             .map_err(|e| ToolError::ExecutionError(e.to_string()));
 
+        drop(extension_manager);
         // Update vector index if operation was successful and vector routing is enabled
         if result.is_ok() {
-            let selector = self.router_tool_selector.lock().await.clone();
+            let selector = self.tool_route_manager.get_router_tool_selector().await;
             if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
                 if let Some(selector) = selector {
                     let vector_action = if action == "disable" { "remove" } else { "add" };
@@ -683,7 +645,7 @@ impl Agent {
         }
 
         // If vector tool selection is enabled, index the tools
-        let selector = self.router_tool_selector.lock().await.clone();
+        let selector = self.tool_route_manager.get_router_tool_selector().await;
         if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
             if let Some(selector) = selector {
                 let extension_manager = self.extension_manager.read().await;
@@ -752,46 +714,18 @@ impl Agent {
         &self,
         strategy: Option<RouterToolSelectionStrategy>,
     ) -> Vec<Tool> {
-        let mut prefixed_tools = vec![];
-        match strategy {
-            Some(RouterToolSelectionStrategy::Vector) => {
-                prefixed_tools.push(router_tools::vector_search_tool());
-            }
-            Some(RouterToolSelectionStrategy::Llm) => {
-                prefixed_tools.push(router_tools::llm_search_tool());
-            }
-            None => {}
-        }
-
-        // Get recent tool calls from router tool selector if available
-        let selector = self.router_tool_selector.lock().await.clone();
-        if let Some(selector) = selector {
-            if let Ok(recent_calls) = selector.get_recent_tool_calls(20).await {
-                let extension_manager = self.extension_manager.read().await;
-                // Add recent tool calls to the list, avoiding duplicates
-                for tool_name in recent_calls {
-                    // Find the tool in the extension manager's tools
-                    if let Ok(extension_tools) = extension_manager.get_prefixed_tools(None).await {
-                        if let Some(tool) = extension_tools.iter().find(|t| t.name == tool_name) {
-                            // Only add if not already in prefixed_tools
-                            if !prefixed_tools.iter().any(|t| t.name == tool.name) {
-                                prefixed_tools.push(tool.clone());
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        prefixed_tools
+        self.tool_route_manager
+            .list_tools_for_router(strategy, &self.extension_manager)
+            .await
     }
 
     pub async fn remove_extension(&self, name: &str) -> Result<()> {
         let mut extension_manager = self.extension_manager.write().await;
         extension_manager.remove_extension(name).await?;
+        drop(extension_manager);
 
         // If vector tool selection is enabled, remove tools from the index
-        let selector = self.router_tool_selector.lock().await.clone();
+        let selector = self.tool_route_manager.get_router_tool_selector().await;
         if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
             if let Some(selector) = selector {
                 let extension_manager = self.extension_manager.read().await;
@@ -827,6 +761,53 @@ impl Agent {
         }
     }
 
+    /// Handle auto-compaction logic and return compacted messages if needed
+    async fn handle_auto_compaction(
+        &self,
+        messages: &[Message],
+        session: &Option<SessionConfig>,
+    ) -> Result<Option<(Conversation, String)>> {
+        // Try to get session metadata for more accurate token counts
+        let session_metadata = if let Some(session_config) = session {
+            match session::storage::get_path(session_config.id.clone()) {
+                Ok(session_file_path) => session::storage::read_metadata(&session_file_path).ok(),
+                Err(_) => None,
+            }
+        } else {
+            None
+        };
+
+        let compact_result = auto_compact::check_and_compact_messages(
+            self,
+            messages,
+            None,
+            session_metadata.as_ref(),
+        )
+        .await?;
+
+        if compact_result.compacted {
+            let compacted_messages = compact_result.messages;
+
+            // Create compaction notification message
+            let compaction_msg = if let (Some(before), Some(after)) =
+                (compact_result.tokens_before, compact_result.tokens_after)
+            {
+                format!(
+                    "Auto-compacted context: {} → {} tokens ({:.0}% reduction)\n\n",
+                    before,
+                    after,
+                    (1.0 - (after as f64 / before as f64)) * 100.0
+                )
+            } else {
+                "Auto-compacted context to reduce token usage\n\n".to_string()
+            };
+
+            return Ok(Some((compacted_messages, compaction_msg)));
+        }
+
+        Ok(None)
+    }
+
     #[instrument(skip(self, unfixed_conversation, session), fields(user_message))]
     pub async fn reply(
         &self,
@@ -834,9 +815,46 @@ impl Agent {
         session: Option<SessionConfig>,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        let context = self
-            .prepare_reply_context(unfixed_conversation, &session)
-            .await?;
+        // Handle auto-compaction before processing
+        let (messages, compaction_msg) = match self
+            .handle_auto_compaction(&unfixed_conversation.messages(), &session)
+            .await?
+        {
+            Some((compacted_messages, msg)) => (compacted_messages, Some(msg)),
+            None => {
+                let context = self
+                    .prepare_reply_context(unfixed_conversation, &session)
+                    .await?;
+                (context.messages, None)
+            }
+        };
+
+        // If we compacted, yield the compaction message and history replacement event
+        if let Some(compaction_msg) = compaction_msg {
+            return Ok(Box::pin(async_stream::try_stream! {
+                yield AgentEvent::Message(Message::assistant().with_text(compaction_msg));
+                yield AgentEvent::HistoryReplaced(messages.messages().clone());
+
+                // Continue with normal reply processing using compacted messages
+                let mut reply_stream = self.reply_internal(messages, session, cancel_token).await?;
+                while let Some(event) = reply_stream.next().await {
+                    yield event?;
+                }
+            }));
+        }
+
+        // No compaction needed, proceed with normal processing
+        self.reply_internal(messages, session, cancel_token).await
+    }
+
+    /// Main reply method that handles the actual agent processing
+    async fn reply_internal(
+        &self,
+        messages: Conversation,
+        session: Option<SessionConfig>,
+        cancel_token: Option<CancellationToken>,
+    ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
+        let context = self.prepare_reply_context(messages, &session).await?;
         let ReplyContext {
             mut messages,
             mut tools,
@@ -846,7 +864,6 @@ impl Agent {
             initial_messages,
             config,
         } = context;
-
         let reply_span = tracing::Span::current();
         self.reset_retry_attempts().await;
 
@@ -940,14 +957,17 @@ impl Agent {
                             }
 
                             if let Some(response) = response {
-                                let tool_result = self.process_tool_requests(&response, &tools).await;
-                                let ToolProcessingResult {
+                                let ToolCategorizeResult {
                                     frontend_requests,
                                     remaining_requests,
                                     filtered_response,
                                     readonly_tools,
                                     regular_tools,
-                                } = tool_result;
+                                } = self.categorize_tools(&response, &tools).await;
+                                let requests_to_record: Vec<ToolRequest> = frontend_requests.iter().chain(remaining_requests.iter()).cloned().collect();
+                                self.tool_route_manager
+                                    .record_tool_requests(&requests_to_record)
+                                    .await;
 
                                 yield AgentEvent::Message(filtered_response.clone());
                                 tokio::task::yield_now().await;
@@ -1153,67 +1173,15 @@ impl Agent {
         provider: Option<Arc<dyn Provider>>,
         reindex_all: Option<bool>,
     ) -> Result<()> {
-        let config = Config::global();
-        let _extension_manager = self.extension_manager.read().await;
         let provider = match provider {
             Some(p) => p,
             None => self.provider().await?,
         };
 
-        let router_tool_selection_strategy = config
-            .get_param("GOOSE_ROUTER_TOOL_SELECTION_STRATEGY")
-            .unwrap_or_else(|_| "default".to_string());
-
-        let strategy = match router_tool_selection_strategy.to_lowercase().as_str() {
-            "vector" => Some(RouterToolSelectionStrategy::Vector),
-            "llm" => Some(RouterToolSelectionStrategy::Llm),
-            _ => None,
-        };
-
-        let selector = match strategy {
-            Some(RouterToolSelectionStrategy::Vector) => {
-                let table_name = generate_table_id();
-                let selector = create_tool_selector(strategy, provider.clone(), Some(table_name))
-                    .await
-                    .map_err(|e| anyhow!("Failed to create tool selector: {}", e))?;
-                Arc::new(selector)
-            }
-            Some(RouterToolSelectionStrategy::Llm) => {
-                let selector = create_tool_selector(strategy, provider.clone(), None)
-                    .await
-                    .map_err(|e| anyhow!("Failed to create tool selector: {}", e))?;
-                Arc::new(selector)
-            }
-            None => return Ok(()),
-        };
-
-        // First index platform tools
-        let extension_manager = self.extension_manager.read().await;
-        ToolRouterIndexManager::index_platform_tools(&selector, &extension_manager).await?;
-
-        if reindex_all.unwrap_or(false) {
-            let enabled_extensions = extension_manager.list_extensions().await?;
-            for extension_name in enabled_extensions {
-                if let Err(e) = ToolRouterIndexManager::update_extension_tools(
-                    &selector,
-                    &extension_manager,
-                    &extension_name,
-                    "add",
-                )
-                .await
-                {
-                    error!(
-                        "Failed to index tools for extension {}: {}",
-                        extension_name, e
-                    );
-                }
-            }
-        }
-
-        // Update the selector
-        *self.router_tool_selector.lock().await = Some(selector.clone());
-
-        Ok(())
+        // Delegate to ToolRouteManager
+        self.tool_route_manager
+            .update_router_tool_selector(provider, reindex_all, &self.extension_manager)
+            .await
     }
 
     /// Override the system prompt with a custom template
@@ -1225,7 +1193,7 @@ impl Agent {
     pub async fn list_extension_prompts(&self) -> HashMap<String, Vec<Prompt>> {
         let extension_manager = self.extension_manager.read().await;
         extension_manager
-            .list_prompts()
+            .list_prompts(CancellationToken::default())
             .await
             .expect("Failed to list prompts")
     }
@@ -1235,7 +1203,7 @@ impl Agent {
 
         // First find which extension has this prompt
         let prompts = extension_manager
-            .list_prompts()
+            .list_prompts(CancellationToken::default())
             .await
             .map_err(|e| anyhow!("Failed to list prompts: {}", e))?;
 
@@ -1245,7 +1213,7 @@ impl Agent {
             .map(|(extension, _)| extension)
         {
             return extension_manager
-                .get_prompt(extension, name, arguments)
+                .get_prompt(extension, name, arguments, CancellationToken::default())
                 .await
                 .map_err(|e| anyhow!("Failed to get prompt: {}", e));
         }
