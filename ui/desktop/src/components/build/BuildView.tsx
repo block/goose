@@ -24,6 +24,19 @@ const BuildView: React.FC = () => {
   const [appName, setAppName] = useState('');
   const [creationProgress, setCreationProgress] = useState('');
   const [hasError, setHasError] = useState(false);
+  const [colorPickerAppId, setColorPickerAppId] = useState<string | null>(null);
+  const [appColors, setAppColors] = useState<Record<string, { bg: string; inner: string }>>({});
+  
+  // Available color combinations for app icons
+  const colorCombinations = [
+    { bg: 'bg-blue-100', inner: 'bg-blue-200', name: 'Blue' },
+    { bg: 'bg-green-100', inner: 'bg-green-200', name: 'Green' },
+    { bg: 'bg-red-100', inner: 'bg-red-200', name: 'Red' },
+    { bg: 'bg-yellow-100', inner: 'bg-yellow-200', name: 'Yellow' },
+    { bg: 'bg-purple-100', inner: 'bg-purple-200', name: 'Purple' },
+    { bg: 'bg-pink-100', inner: 'bg-pink-200', name: 'Pink' },
+    { bg: 'bg-background-medium', inner: 'bg-background-strong', name: 'Default' },
+  ];
 
   const loadApps = async () => {
     try {
@@ -207,14 +220,13 @@ const BuildView: React.FC = () => {
                     <div className="flex flex-col items-start">
                       {/* App image placeholder - 32x32 rounded square */}
                       <div 
-                        className="w-8 h-8 bg-background-medium rounded-md mb-3 flex items-center justify-center cursor-pointer hover:bg-background-strong/50 transition-colors duration-200"
+                        className={`w-8 h-8 ${appColors[app.id]?.bg || 'bg-background-medium'} rounded-md mb-3 flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity duration-200`}
                         onClick={(e) => {
                           e.stopPropagation(); // Prevent triggering the app click
-                          // TODO: Open color picker modal
-                          console.log('Color picker for app:', app.app_name);
+                          setColorPickerAppId(app.id);
                         }}
                       >
-                        <div className="w-4 h-4 bg-background-strong rounded-sm"></div>
+                        <div className={`w-4 h-4 ${appColors[app.id]?.inner || 'bg-background-strong'} rounded-sm`}></div>
                       </div>
                       
                       <h3 className="text-base truncate mb-1 text-text-default">{app.app_name}</h3>
@@ -279,6 +291,46 @@ const BuildView: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Color Picker Dialog */}
+      {colorPickerAppId && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50">
+          <div className="bg-background-default border border-border-subtle rounded-lg p-6 w-[320px] max-w-[90vw]">
+            <h3 className="text-lg font-medium text-text-standard mb-4">Choose App Icon Color</h3>
+
+            <div className="grid grid-cols-4 gap-3 mb-6">
+              {colorCombinations.map((combo, index) => (
+                <div
+                  key={index}
+                  className="flex flex-col items-center cursor-pointer group"
+                  onClick={() => {
+                    // Save color selection for the app
+                    setAppColors(prev => ({
+                      ...prev,
+                      [colorPickerAppId]: { bg: combo.bg, inner: combo.inner }
+                    }));
+                    setColorPickerAppId(null);
+                  }}
+                >
+                  <div className={`w-8 h-8 ${combo.bg} rounded-md mb-2 flex items-center justify-center group-hover:scale-110 transition-transform duration-200`}>
+                    <div className={`w-4 h-4 ${combo.inner} rounded-sm`}></div>
+                  </div>
+                  <span className="text-xs text-text-muted">{combo.name}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end">
+              <Button 
+                onClick={() => setColorPickerAppId(null)} 
+                variant="ghost"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create App Dialog */}
       {showCreateDialog && (
