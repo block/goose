@@ -199,21 +199,56 @@ const BuildView: React.FC = () => {
               </div>
             </div>
           ) : apps.length > 0 ? (
-            /* Apps exist - single container */
-            <div className="bg-background-default rounded-2xl flex-1 py-6 px-6">
-              <div className="h-full">
-                <div className="mb-4">
-                  <h2 className="text-lg text-text-default">Your Apps</h2>
-                </div>
-                <ScrollArea className="h-[calc(100%-3rem)]">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 pb-4">
-                    {apps.map((app) => (
-                      <AppTile key={app.id} app={app} />
-                    ))}
+            /* Apps exist - individual containers for each app */
+            <>
+              {apps.map((app) => (
+                <div key={app.id} className="bg-background-default rounded-2xl py-6 px-6">
+                  <div className="flex flex-col h-full text-text-muted page-transition">
+                    <div className="flex flex-col items-start">
+                      {/* App image placeholder - 32x32 rounded square */}
+                      <div 
+                        className="w-8 h-8 bg-background-medium rounded-md mb-3 flex items-center justify-center cursor-pointer hover:bg-background-strong/50 transition-colors duration-200"
+                        onClick={(e) => {
+                          e.stopPropagation(); // Prevent triggering the app click
+                          // TODO: Open color picker modal
+                          console.log('Color picker for app:', app.app_name);
+                        }}
+                      >
+                        <div className="w-4 h-4 bg-background-strong rounded-sm"></div>
+                      </div>
+                      
+                      <h3 className="text-base truncate mb-1 text-text-default">{app.app_name}</h3>
+                      
+                      {/* Timestamp */}
+                      <div className="flex items-center text-text-muted text-xs mb-1">
+                        <Clock className="w-3 h-3 mr-1 flex-shrink-0" />
+                        <span>{formatMessageTimestamp(app.last_edited)}</span>
+                      </div>
+
+                      {/* Path */}
+                      <div className="flex items-center text-text-muted text-xs mb-4">
+                        <FolderOpen className="w-3 h-3 mr-1 flex-shrink-0" />
+                        <span className="truncate">{app.path}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-end mt-auto pt-6">
+                      <Button
+                        onClick={() => handleAppClick(app)}
+                        variant="secondary"
+                        className="flex items-center gap-2"
+                      >
+                        <FolderOpen className="w-4 h-4" />
+                        Open App
+                      </Button>
+                    </div>
                   </div>
-                </ScrollArea>
-              </div>
-            </div>
+                </div>
+              ))}
+              
+              {/* Filler container - extends to fill remaining space */}
+              <div className="bg-background-default rounded-2xl flex-1"></div>
+            </>
           ) : (
             /* Empty state - two separate containers */
             <>
