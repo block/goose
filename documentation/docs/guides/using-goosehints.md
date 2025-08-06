@@ -74,6 +74,8 @@ The `.goosehints` file can include any instructions or contextual details releva
 
 A good time to consider adding a `.goosehints` file is when you find yourself repeating prompts, or providing the same kind of instructions multiple times. It's also a great way to provide a lot of context which might be better suited in a file.
 
+Goosehints are loaded at the start of your session and become part of the system prompt sent with every request. This means the content of `.goosehints` contributes to token usage, so keeping it concise can save both cost and processing time.
+
 ## Setting up hints
 
 The `.goosehints` file supports natural language.
