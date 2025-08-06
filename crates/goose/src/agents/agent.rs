@@ -816,7 +816,7 @@ impl Agent {
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         // Handle auto-compaction before processing
         let (messages, compaction_msg) = match self
-            .handle_auto_compaction(&unfixed_conversation.messages(), &session)
+            .handle_auto_compaction(unfixed_conversation.messages(), &session)
             .await?
         {
             Some((compacted_messages, msg)) => (compacted_messages, Some(msg)),

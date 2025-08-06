@@ -277,7 +277,7 @@ async fn reply_handler(
                     match response {
                         Ok(Some(Ok(AgentEvent::Message(message)))) => {
                             for content in &message.content {
-                                track_tool_telemetry(content, &all_messages.messages());
+                                track_tool_telemetry(content, all_messages.messages());
                             }
 
                             all_messages.push(message.clone());

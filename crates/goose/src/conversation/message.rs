@@ -558,7 +558,11 @@ mod tests {
     use crate::conversation::message::{Message, MessageContent};
     use crate::conversation::*;
     use mcp_core::handler::ToolError;
-    use rmcp::model::{PromptMessage, PromptMessageContent, RawEmbeddedResource, ResourceContents};
+    use mcp_core::ToolCall;
+    use rmcp::model::{
+        AnnotateAble, PromptMessage, PromptMessageContent, PromptMessageRole, RawEmbeddedResource,
+        RawImageContent, ResourceContents,
+    };
     use serde_json::{json, Value};
 
     #[test]

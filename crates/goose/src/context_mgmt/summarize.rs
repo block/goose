@@ -97,7 +97,7 @@ pub async fn summarize_messages_oneshot(
 
     // Return just the summary without any tool response preservation
     let final_summary = Conversation::new_unvalidated([response].into_iter());
-    let counts = get_messages_token_counts(token_counter, &final_summary.messages());
+    let counts = get_messages_token_counts(token_counter, final_summary.messages());
 
     Ok((final_summary, counts))
 }
@@ -230,7 +230,7 @@ pub async fn summarize_messages_async(
             // Summarize the current chunk with the accumulated summary.
             accumulated_summary = summarize_combined_messages(
                 &provider,
-                &accumulated_summary.messages(),
+                accumulated_summary.messages(),
                 &current_chunk,
             )
             .await?;
@@ -248,11 +248,11 @@ pub async fn summarize_messages_async(
     // Summarize the final chunk if it exists.
     if !current_chunk.is_empty() {
         accumulated_summary =
-            summarize_combined_messages(&provider, &accumulated_summary.messages(), &current_chunk)
+            summarize_combined_messages(&provider, accumulated_summary.messages(), &current_chunk)
                 .await?;
     }
 
-    let count = get_messages_token_counts_async(token_counter, &accumulated_summary.messages());
+    let count = get_messages_token_counts_async(token_counter, accumulated_summary.messages());
 
     // Return just the summary without any tool response preservation
     Ok((accumulated_summary.clone(), count))

@@ -111,7 +111,7 @@ impl Conversation {
         if !issues.is_empty() {
             let reason = issues.join("\n");
             Err(InvalidConversation {
-                reason: reason,
+                reason,
                 conversation: self,
             })
         } else {
@@ -367,6 +367,7 @@ mod tests {
     use crate::conversation::message::Message;
     use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
     use mcp_core::tool::ToolCall;
+    use rmcp::model::Role;
     use serde_json::json;
 
     fn run_verify(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
