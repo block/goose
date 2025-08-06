@@ -10,7 +10,7 @@ use axum::{
     routing::{get, put},
     Json, Router,
 };
-use goose::conversation::Conversation;
+use goose::conversation::message::Message;
 use goose::session;
 use goose::session::info::{get_valid_sorted_sessions, SessionInfo, SortOrder};
 use goose::session::SessionMetadata;
@@ -33,7 +33,7 @@ pub struct SessionHistoryResponse {
     /// Session metadata containing creation time and other details
     metadata: SessionMetadata,
     /// List of messages in the session conversation
-    messages: Conversation,
+    messages: Vec<Message>,
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -137,7 +137,7 @@ async fn get_session_history(
     Ok(Json(SessionHistoryResponse {
         session_id,
         metadata,
-        messages,
+        messages: messages.messages().clone(),
     }))
 }
 

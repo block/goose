@@ -6,7 +6,7 @@ use axum::{
     routing::post,
     Json, Router,
 };
-use goose::conversation::Conversation;
+use goose::conversation::{message::Message, Conversation};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use utoipa::ToSchema;
@@ -16,7 +16,7 @@ use utoipa::ToSchema;
 #[serde(rename_all = "camelCase")]
 pub struct ContextManageRequest {
     /// Collection of messages to be managed
-    pub messages: Conversation,
+    pub messages: Vec<Message>,
     /// Operation to perform: "truncation" or "summarize"
     pub manage_action: String,
 }
@@ -26,7 +26,7 @@ pub struct ContextManageRequest {
 #[serde(rename_all = "camelCase")]
 pub struct ContextManageResponse {
     /// Processed messages after the operation
-    pub messages: Conversation,
+    pub messages: Vec<Message>,
     /// Token counts for each processed message
     pub token_counts: Vec<usize>,
 }
@@ -63,18 +63,18 @@ async fn manage_context(
 
     if request.manage_action == "truncation" {
         (processed_messages, token_counts) = agent
-            .truncate_context(request.messages.messages())
+            .truncate_context(&request.messages)
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     } else if request.manage_action == "summarize" {
         (processed_messages, token_counts) = agent
-            .summarize_context(request.messages.messages())
+            .summarize_context(&request.messages)
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     }
 
     Ok(Json(ContextManageResponse {
-        messages: processed_messages,
+        messages: processed_messages.messages().clone(),
         token_counts,
     }))
 }

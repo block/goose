@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
-use goose::conversation::Conversation;
+use goose::conversation::{message::Message, Conversation};
 use goose::recipe::Recipe;
 use goose::recipe_deeplink;
 use serde::{Deserialize, Serialize};
@@ -11,7 +11,7 @@ use crate::state::AppState;
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateRecipeRequest {
-    messages: Conversation,
+    messages: Vec<Message>,
     // Required metadata
     title: String,
     description: String,
@@ -83,7 +83,9 @@ async fn create_recipe(
         .map_err(|_| (StatusCode::PRECONDITION_FAILED, Json(error_response)))?;
 
     // Create base recipe from agent state and messages
-    let recipe_result = agent.create_recipe(request.messages).await;
+    let recipe_result = agent
+        .create_recipe(Conversation::new_unvalidated(request.messages))
+        .await;
 
     match recipe_result {
         Ok(mut recipe) => {
