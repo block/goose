@@ -159,67 +159,74 @@ const BuildView: React.FC = () => {
 
   return (
     <MainPanelLayout>
-      <div className="flex-1 flex flex-col min-h-0">
-        <div className="bg-background-default px-8 pb-8 pt-16">
-          <div className="flex flex-col page-transition">
-            <div className="flex justify-between items-center mb-1">
-              <h1 className="text-4xl font-light">Build</h1>
-              {/* Create App button on the right */}
-              <Button
-                onClick={handleCreateAppClick}
-                variant="default"
-                className="flex items-center gap-2"
-                disabled={isCreating}
-              >
-                <Plus className="w-4 h-4" />
-                Create App
-              </Button>
+      <div className="bg-background-muted flex flex-col h-full">
+        {/* Header container with rounded bottom - matching home page */}
+        <div className="bg-background-default rounded-b-2xl mb-0.5">
+          <div className="px-8 pb-8 pt-16">
+            <div className="flex flex-col page-transition">
+              <div className="flex justify-between items-center mb-1">
+                <h1 className="text-4xl font-light">Build</h1>
+                {/* Create App button on the right */}
+                <Button
+                  onClick={handleCreateAppClick}
+                  variant="default"
+                  className="flex items-center gap-2"
+                  disabled={isCreating}
+                >
+                  <Plus className="w-4 h-4" />
+                  Create App
+                </Button>
+              </div>
+              <p className="text-text-muted text-sm mt-2">
+                Develop a goose hosted web app that you can share and create in the open.
+              </p>
             </div>
           </div>
         </div>
 
-        {/* Apps grid - similar to SessionListView */}
-        <div className="flex-1 min-h-0 relative px-8">
-          <ScrollArea className="h-full">
-            <div className="space-y-8 pb-8">
-              {/* Recent Apps section */}
-              <div className="space-y-4">
-                <div className="sticky top-0 z-10 bg-background-default/95 backdrop-blur-sm">
-                  <h2 className="text-text-muted">Your Apps</h2>
+        {/* Main content area with card-based layout - matching home page structure */}
+        <div className="flex flex-col flex-1 space-y-0.5">
+          {/* Apps container card - extends to fill remaining space */}
+          <div className="bg-background-default rounded-2xl flex-1 py-6 px-6">
+            <div className="h-full">
+              {isLoading ? (
+                <div className="flex items-center justify-center h-full text-text-muted">
+                  <div className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-text-muted"></div>
+                    <span>Loading apps...</span>
+                  </div>
                 </div>
-
-                {isLoading ? (
-                  <div className="flex items-center justify-center py-12 text-text-muted">
-                    <div className="flex items-center gap-2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-text-muted"></div>
-                      <span>Loading apps...</span>
+              ) : apps.length > 0 ? (
+                <div className="h-full">
+                  <div className="mb-4">
+                    <h2 className="text-lg text-text-default">Your Apps</h2>
+                  </div>
+                  <ScrollArea className="h-[calc(100%-3rem)]">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 pb-4">
+                      {apps.map((app) => (
+                        <AppTile key={app.id} app={app} />
+                      ))}
                     </div>
-                  </div>
-                ) : apps.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-                    {apps.map((app) => (
-                      <AppTile key={app.id} app={app} />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-12 text-text-muted">
-                    <Hammer className="h-12 w-12 mb-4" />
-                    <p className="text-lg mb-2">No apps yet</p>
-                    <p className="text-sm mb-4">Create your first app to get started</p>
-                    <Button
-                      onClick={handleCreateAppClick}
-                      variant="default"
-                      className="flex items-center gap-2"
-                      disabled={isCreating}
-                    >
-                      <Plus className="w-4 h-4" />
-                      Create Your First App
-                    </Button>
-                  </div>
-                )}
-              </div>
+                  </ScrollArea>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-text-muted page-transition">
+                  <Hammer className="h-12 w-12 mb-4" />
+                  <p className="text-lg mb-2">No apps yet</p>
+                  <p className="text-sm mb-4">Create your first app to get started</p>
+                  <Button
+                    onClick={handleCreateAppClick}
+                    variant="default"
+                    className="flex items-center gap-2"
+                    disabled={isCreating}
+                  >
+                    <Plus className="w-4 h-4" />
+                    Create Your First App
+                  </Button>
+                </div>
+              )}
             </div>
-          </ScrollArea>
+          </div>
         </div>
       </div>
 
