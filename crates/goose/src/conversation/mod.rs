@@ -1,15 +1,38 @@
 use crate::conversation::message::{Message, MessageContent};
 use rmcp::model::Role;
-use serde::{Deserialize, Serialize};
+use serde::{ser::SerializeSeq, Deserialize, Serialize};
 use std::collections::HashSet;
 use thiserror::Error;
 
 pub mod message;
 mod tool_result_serde;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct Conversation {
     messages: Vec<Message>,
+}
+
+impl Serialize for Conversation {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut seq = serializer.serialize_seq(Some(self.len()))?;
+        for elem in self.messages.iter() {
+            seq.serialize_element(elem)?;
+        }
+        seq.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for Conversation {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let messages = Vec::<Message>::deserialize(deserializer)?;
+        Ok(Self { messages })
+    }
 }
 
 #[derive(Error, Debug)]
