@@ -38,6 +38,7 @@ use mcp_core::handler::ToolError;
 use rmcp::model::PromptMessage;
 use rmcp::model::ServerNotification;
 
+use goose::conversation::message::{Message, MessageContent};
 use rand::{distributions::Alphanumeric, Rng};
 use rustyline::EditMode;
 use serde_json::Value;
@@ -47,7 +48,6 @@ use std::sync::Arc;
 use std::time::Instant;
 use tokio;
 use tokio_util::sync::CancellationToken;
-use goose::conversation::message::{Message, MessageContent};
 
 pub enum RunMode {
     Normal,

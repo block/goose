@@ -11,8 +11,8 @@ use crate::agents::types::{
     RetryConfig, SuccessCheck, DEFAULT_ON_FAILURE_TIMEOUT_SECONDS, DEFAULT_RETRY_TIMEOUT_SECONDS,
 };
 use crate::config::Config;
-use crate::conversation::Conversation;
 use crate::conversation::message::Message;
+use crate::conversation::Conversation;
 use crate::tool_monitor::ToolMonitor;
 
 /// Result of a retry logic evaluation

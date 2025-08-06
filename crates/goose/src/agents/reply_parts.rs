@@ -5,7 +5,9 @@ use std::sync::Arc;
 use async_stream::try_stream;
 use futures::stream::StreamExt;
 
+use super::super::agents::Agent;
 use crate::agents::router_tool_selector::RouterToolSelectionStrategy;
+use crate::conversation::message::{Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
 use crate::providers::base::{stream_from_single_message, MessageStream, Provider, ProviderUsage};
 use crate::providers::errors::ProviderError;
@@ -15,8 +17,6 @@ use crate::providers::toolshim::{
 };
 use crate::session;
 use rmcp::model::Tool;
-use crate::conversation::message::{Message, MessageContent, ToolRequest};
-use super::super::agents::Agent;
 
 async fn toolshim_postprocess(
     response: Message,

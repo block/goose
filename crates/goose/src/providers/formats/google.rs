@@ -7,9 +7,9 @@ use mcp_core::tool::ToolCall;
 use rand::{distributions::Alphanumeric, Rng};
 use rmcp::model::{AnnotateAble, RawContent, Role, Tool};
 
+use crate::conversation::message::{Message, MessageContent};
 use serde_json::{json, Map, Value};
 use std::ops::Deref;
-use crate::conversation::message::{Message, MessageContent};
 
 /// Convert internal Message format to Google's API message specification
 pub fn format_messages(messages: &[Message]) -> Vec<Value> {
@@ -335,9 +335,9 @@ pub fn create_request(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::conversation::message::Message;
     use rmcp::{model::Content, object};
     use serde_json::json;
-    use crate::conversation::message::Message;
 
     fn set_up_text_message(text: &str, role: Role) -> Message {
         Message::new(role, 0, vec![MessageContent::text(text.to_string())])

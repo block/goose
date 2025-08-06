@@ -1,3 +1,4 @@
+use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::Conversation;
 use crate::utils::safe_truncate;
 use anyhow::{anyhow, Result};
@@ -5,7 +6,6 @@ use rmcp::model::{RawContent, ResourceContents, Role};
 use std::collections::HashSet;
 use std::ops::DerefMut;
 use tracing::{debug, warn};
-use crate::conversation::message::{Message, MessageContent};
 
 /// Maximum size for truncated content in characters
 const MAX_TRUNCATED_CONTENT_SIZE: usize = 5000;

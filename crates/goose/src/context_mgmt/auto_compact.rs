@@ -1,3 +1,5 @@
+use crate::conversation::message::Message;
+use crate::conversation::Conversation;
 use crate::{
     agents::Agent,
     config::Config,
@@ -9,8 +11,6 @@ use crate::{
 };
 use anyhow::Result;
 use tracing::{debug, info};
-use crate::conversation::Conversation;
-use crate::conversation::message::Message;
 
 /// Result of auto-compaction check
 #[derive(Debug)]
@@ -244,9 +244,9 @@ pub async fn check_and_compact_messages(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::conversation::message::{Message, MessageContent};
     use crate::{
-        agents::Agent
-        ,
+        agents::Agent,
         model::ModelConfig,
         providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage},
         providers::errors::ProviderError,
@@ -254,7 +254,6 @@ mod tests {
     use chrono::Utc;
     use rmcp::model::{AnnotateAble, RawTextContent, Role, Tool};
     use std::sync::Arc;
-    use crate::conversation::message::{Message, MessageContent};
 
     #[derive(Clone)]
     struct MockProvider {

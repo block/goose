@@ -13,11 +13,11 @@ use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::emit_debug_trace;
+use crate::conversation::message::{Message, MessageContent};
 use crate::impl_provider_default;
 use crate::model::ModelConfig;
 use chrono::Utc;
 use rmcp::model::Role;
-use crate::conversation::message::{Message, MessageContent};
 
 pub const SAGEMAKER_TGI_DOC_LINK: &str =
     "https://docs.aws.amazon.com/sagemaker/latest/dg/realtime-endpoints.html";

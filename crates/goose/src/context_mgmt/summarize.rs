@@ -1,7 +1,7 @@
 use super::common::get_messages_token_counts_async;
 use crate::context_mgmt::get_messages_token_counts;
-use crate::conversation::Conversation;
 use crate::conversation::message::Message;
+use crate::conversation::Conversation;
 use crate::prompt_template::render_global_file;
 use crate::providers::base::Provider;
 use crate::token_counter::{AsyncTokenCounter, TokenCounter};
@@ -261,6 +261,7 @@ pub async fn summarize_messages_async(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::conversation::message::{Message, MessageContent};
     use crate::model::ModelConfig;
     use crate::providers::base::{ProviderMetadata, ProviderUsage, Usage};
     use crate::providers::errors::ProviderError;
@@ -269,7 +270,6 @@ mod tests {
     use rmcp::model::Tool;
     use rmcp::model::{AnnotateAble, RawTextContent};
     use std::sync::Arc;
-    use crate::conversation::message::{Message, MessageContent};
 
     #[derive(Clone)]
     struct MockProvider {

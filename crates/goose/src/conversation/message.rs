@@ -1,7 +1,10 @@
-use serde::{Deserialize, Serialize};
-use rmcp::model::{AnnotateAble, Content, ImageContent, PromptMessage, PromptMessageContent, PromptMessageRole, RawContent, RawImageContent, RawTextContent, ResourceContents, Role, TextContent};
 use chrono::Utc;
 use mcp_core::{ToolCall, ToolResult};
+use rmcp::model::{
+    AnnotateAble, Content, ImageContent, PromptMessage, PromptMessageContent, PromptMessageRole,
+    RawContent, RawImageContent, RawTextContent, ResourceContents, Role, TextContent,
+};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashSet;
 use std::fmt;
@@ -552,11 +555,11 @@ impl Message {
 
 #[cfg(test)]
 mod tests {
+    use crate::conversation::message::{Message, MessageContent};
     use crate::conversation::*;
     use mcp_core::handler::ToolError;
     use rmcp::model::{PromptMessage, PromptMessageContent, RawEmbeddedResource, ResourceContents};
     use serde_json::{json, Value};
-    use crate::conversation::message::{Message, MessageContent};
 
     #[test]
     fn test_message_serialization() {

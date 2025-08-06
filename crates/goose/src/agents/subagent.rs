@@ -2,8 +2,7 @@ use crate::agents::subagent_task_config::DEFAULT_SUBAGENT_MAX_TURNS;
 use crate::{
     agents::extension::ExtensionConfig,
     agents::{extension_manager::ExtensionManager, Agent, TaskConfig},
-    config::ExtensionConfigManager
-    ,
+    config::ExtensionConfigManager,
     prompt_template::render_global_file,
     providers::errors::ProviderError,
 };
@@ -13,12 +12,12 @@ use mcp_core::handler::ToolError;
 use rmcp::model::Tool;
 use serde::{Deserialize, Serialize};
 // use serde_json::{self};
+use crate::conversation::message::{Message, MessageContent, ToolRequest};
+use crate::conversation::Conversation;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{Mutex, RwLock};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, instrument};
-use crate::conversation::Conversation;
-use crate::conversation::message::{Message, MessageContent, ToolRequest};
 
 /// Status of a subagent
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

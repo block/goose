@@ -1,3 +1,4 @@
+use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
@@ -6,7 +7,6 @@ use mcp_core::tool::ToolCall;
 use rmcp::model::{Role, Tool};
 use serde_json::{json, Value};
 use std::collections::HashSet;
-use crate::conversation::message::{Message, MessageContent};
 
 /// Convert internal Message format to Snowflake's API message specification
 pub fn format_messages(messages: &[Message]) -> Vec<Value> {
@@ -359,9 +359,9 @@ pub fn create_request(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::conversation::message::Message;
     use rmcp::object;
     use serde_json::json;
-    use crate::conversation::message::Message;
 
     #[test]
     fn test_parse_text_response() -> Result<()> {
@@ -678,8 +678,8 @@ data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-3-5-sonnet","
 
     #[test]
     fn test_message_formatting_skips_tool_requests() {
-        use mcp_core::tool::ToolCall;
         use crate::conversation::message::Message;
+        use mcp_core::tool::ToolCall;
 
         // Create a conversation with text, tool requests, and tool responses
         let tool_call = ToolCall::new("calculator", json!({"expression": "2 + 2"}));

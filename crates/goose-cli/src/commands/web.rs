@@ -10,8 +10,8 @@ use axum::{
 };
 use futures::{sink::SinkExt, stream::StreamExt};
 use goose::agents::{Agent, AgentEvent};
-use goose::conversation::Conversation;
 use goose::conversation::message::Message as GooseMessage;
+use goose::conversation::Conversation;
 use goose::session;
 use serde::{Deserialize, Serialize};
 use std::{net::SocketAddr, sync::Arc};

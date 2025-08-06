@@ -9,8 +9,8 @@ use std::sync::{Arc, Mutex};
 
 use super::base::{Provider, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
-use crate::conversation::Conversation;
 use crate::conversation::message::Message;
+use crate::conversation::Conversation;
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
 
@@ -163,11 +163,11 @@ impl Provider for TestProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::conversation::message::{Message, MessageContent};
     use crate::providers::base::{ProviderUsage, Usage};
     use chrono::Utc;
     use rmcp::model::{RawTextContent, Role, TextContent};
     use std::env;
-    use crate::conversation::message::{Message, MessageContent};
 
     #[derive(Clone)]
     struct MockProvider {

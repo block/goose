@@ -6,10 +6,10 @@ use tokio::sync::Mutex;
 
 use super::base::{LeadWorkerProviderTrait, Provider, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
+use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
 use rmcp::model::{Content, RawContent};
-use crate::conversation::message::{Message, MessageContent};
 
 /// A provider that switches between a lead model and a worker model based on turn count
 /// and can fallback to lead model on consecutive failures

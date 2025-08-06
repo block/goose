@@ -380,9 +380,9 @@ pub async fn create_async_token_counter() -> Result<AsyncTokenCounter, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::conversation::message::{Message, MessageContent};
     use rmcp::model::{Role, Tool};
     use rmcp::object;
-    use crate::conversation::message::{Message, MessageContent};
 
     #[test]
     fn test_token_counter_basic() {

@@ -1,3 +1,4 @@
+use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::{ProviderUsage, Usage};
 use crate::providers::utils::{
@@ -12,7 +13,6 @@ use rmcp::model::{AnnotateAble, Content, RawContent, ResourceContents, Role, Too
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::ops::Deref;
-use crate::conversation::message::{Message, MessageContent};
 
 #[derive(Serialize, Deserialize, Debug)]
 struct DeltaToolCallFunction {
@@ -641,11 +641,11 @@ pub fn create_request(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::conversation::message::Message;
     use rmcp::object;
     use serde_json::json;
     use tokio::pin;
     use tokio_stream::{self, StreamExt};
-    use crate::conversation::message::Message;
 
     #[test]
     fn test_validate_tool_schemas() {

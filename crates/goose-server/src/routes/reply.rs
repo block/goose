@@ -9,9 +9,10 @@ use axum::{
 };
 use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
+use goose::conversation::message::{Message, MessageContent};
+use goose::conversation::Conversation;
 use goose::{
-    agents::{AgentEvent, SessionConfig}
-    ,
+    agents::{AgentEvent, SessionConfig},
     permission::permission_confirmation::PrincipalType,
 };
 use goose::{
@@ -36,8 +37,6 @@ use tokio::time::timeout;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
 use utoipa::ToSchema;
-use goose::conversation::Conversation;
-use goose::conversation::message::{Message, MessageContent};
 
 fn track_tool_telemetry(content: &MessageContent, all_messages: &[Message]) {
     match content {
@@ -517,6 +516,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use goose::conversation::message::Message;
     use goose::{
         agents::Agent,
         model::ModelConfig,
@@ -525,7 +525,6 @@ mod tests {
             errors::ProviderError,
         },
     };
-    use goose::conversation::message::Message;
 
     #[derive(Clone)]
     struct MockProvider {
@@ -558,9 +557,9 @@ mod tests {
     mod integration_tests {
         use super::*;
         use axum::{body::Body, http::Request};
+        use goose::conversation::message::Message;
         use std::sync::Arc;
         use tower::ServiceExt;
-        use goose::conversation::message::Message;
 
         #[tokio::test]
         async fn test_reply_endpoint() {

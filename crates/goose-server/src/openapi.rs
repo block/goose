@@ -13,12 +13,15 @@ use rmcp::model::{
 };
 use utoipa::{OpenApi, ToSchema};
 
+use goose::conversation::message::{
+    ContextLengthExceeded, FrontendToolRequest, Message, MessageContent, RedactedThinkingContent,
+    SummarizationRequested, ThinkingContent, ToolConfirmationRequest, ToolRequest, ToolResponse,
+};
 use utoipa::openapi::schema::{
     AdditionalProperties, AnyOfBuilder, ArrayBuilder, ObjectBuilder, OneOfBuilder, Schema,
     SchemaFormat, SchemaType,
 };
 use utoipa::openapi::{AllOfBuilder, Ref, RefOr};
-use goose::conversation::message::{ContextLengthExceeded, FrontendToolRequest, Message, MessageContent, RedactedThinkingContent, SummarizationRequested, ThinkingContent, ToolConfirmationRequest, ToolRequest, ToolResponse};
 
 macro_rules! derive_utoipa {
     ($inner_type:ident as $schema_name:ident) => {

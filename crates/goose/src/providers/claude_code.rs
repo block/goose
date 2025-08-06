@@ -11,10 +11,10 @@ use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::utils::emit_debug_trace;
 use crate::config::Config;
+use crate::conversation::message::{Message, MessageContent};
 use crate::impl_provider_default;
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
-use crate::conversation::message::{Message, MessageContent};
 
 pub const CLAUDE_CODE_DEFAULT_MODEL: &str = "claude-3-5-sonnet-latest";
 pub const CLAUDE_CODE_KNOWN_MODELS: &[&str] = &["sonnet", "opus", "claude-3-5-sonnet-latest"];

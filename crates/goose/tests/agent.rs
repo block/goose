@@ -5,8 +5,8 @@ use std::sync::Arc;
 use anyhow::Result;
 use futures::StreamExt;
 use goose::agents::{Agent, AgentEvent};
-use goose::conversation::Conversation;
 use goose::conversation::message::Message;
+use goose::conversation::Conversation;
 use goose::model::ModelConfig;
 use goose::providers::base::Provider;
 use goose::providers::{
@@ -555,11 +555,11 @@ mod final_output_tool_tests {
     #[tokio::test]
     async fn test_final_output_assistant_message_in_reply() -> Result<()> {
         use async_trait::async_trait;
+        use goose::conversation::message::Message;
         use goose::model::ModelConfig;
         use goose::providers::base::{Provider, ProviderUsage, Usage};
         use goose::providers::errors::ProviderError;
         use rmcp::model::Tool;
-        use goose::conversation::message::Message;
 
         #[derive(Clone)]
         struct MockProvider {
@@ -656,11 +656,11 @@ mod final_output_tool_tests {
     #[tokio::test]
     async fn test_when_final_output_not_called_in_reply() -> Result<()> {
         use async_trait::async_trait;
+        use goose::conversation::message::Message;
         use goose::model::ModelConfig;
         use goose::providers::base::{Provider, ProviderUsage};
         use goose::providers::errors::ProviderError;
         use rmcp::model::Tool;
-        use goose::conversation::message::Message;
 
         #[derive(Clone)]
         struct MockProvider {
@@ -778,6 +778,7 @@ mod retry_tests {
     use super::*;
     use async_trait::async_trait;
     use goose::agents::types::{RetryConfig, SessionConfig, SuccessCheck};
+    use goose::conversation::message::Message;
     use goose::conversation::Conversation;
     use goose::model::ModelConfig;
     use goose::providers::base::{Provider, ProviderUsage, Usage};
@@ -785,7 +786,6 @@ mod retry_tests {
     use rmcp::model::Tool;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
-    use goose::conversation::message::Message;
 
     #[derive(Clone)]
     struct MockRetryProvider {
@@ -960,8 +960,8 @@ mod retry_tests {
 mod max_turns_tests {
     use super::*;
     use async_trait::async_trait;
-    use goose::conversation::Conversation;
     use goose::conversation::message::{Message, MessageContent};
+    use goose::conversation::Conversation;
     use goose::model::ModelConfig;
     use goose::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
     use goose::providers::errors::ProviderError;

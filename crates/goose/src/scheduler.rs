@@ -15,8 +15,8 @@ use tokio_cron_scheduler::{job::JobId, Job, JobScheduler as TokioJobScheduler};
 use crate::agents::AgentEvent;
 use crate::agents::{Agent, SessionConfig};
 use crate::config::{self, Config};
-use crate::conversation::Conversation;
 use crate::conversation::message::Message;
+use crate::conversation::Conversation;
 use crate::providers::base::Provider as GooseProvider; // Alias to avoid conflict in test section
 use crate::providers::create;
 use crate::recipe::Recipe;
@@ -1351,11 +1351,11 @@ mod tests {
     // `read_metadata` is still used by the test itself, so keep it or its module.
     use crate::session::storage::read_metadata;
 
+    use crate::conversation::message::{Message, MessageContent};
     use std::env;
     use std::fs::{self, File};
     use std::io::Write;
     use tempfile::tempdir;
-    use crate::conversation::message::{Message, MessageContent};
 
     #[derive(Clone)]
     struct MockSchedulerTestProvider {
