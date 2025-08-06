@@ -209,8 +209,6 @@ jobs:
       - name: Install npm dependencies
         run: |
           cd ui/desktop
-          # Clear npm cache and remove lock file as suggested by the error
-          rm -rf node_modules package-lock.json || true
           npm cache clean --force || true
           npm install
           # Verify installation
