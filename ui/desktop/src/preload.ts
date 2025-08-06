@@ -123,6 +123,8 @@ type ElectronAPI = {
   createApp: (appName: string, template?: string) => Promise<{ success: boolean; path: string }>;
   listApps: () => Promise<AppTile[]>;
   openApp: (appPath: string) => Promise<{ success: boolean }>;
+  saveAppColor: (appId: string, colors: { bg: string; inner: string }) => Promise<boolean>;
+  loadAppColors: () => Promise<Record<string, { bg: string; inner: string }>>;
 };
 
 type AppConfigAPI = {
@@ -255,6 +257,9 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke('create-app', appName, template),
   listApps: () => ipcRenderer.invoke('list-apps'),
   openApp: (appPath: string) => ipcRenderer.invoke('open-app', appPath),
+  saveAppColor: (appId: string, colors: { bg: string; inner: string }) =>
+    ipcRenderer.invoke('save-app-color', appId, colors),
+  loadAppColors: () => ipcRenderer.invoke('load-app-colors'),
 };
 
 const appConfigAPI: AppConfigAPI = {

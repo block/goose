@@ -55,6 +55,7 @@ const BuildView: React.FC = () => {
 
   useEffect(() => {
     loadApps();
+    loadAppColors();
 
     // Listen for app creation progress
     const handleProgress = (_event: IpcRendererEvent, ...args: unknown[]) => {
@@ -73,6 +74,15 @@ const BuildView: React.FC = () => {
       window.electron.off('app-creation-progress', handleProgress);
     };
   }, []);
+
+  const loadAppColors = async () => {
+    try {
+      const savedColors = await window.electron.loadAppColors();
+      setAppColors(savedColors);
+    } catch (err) {
+      console.error('Failed to load app colors:', err);
+    }
+  };
 
   const handleCreateAppClick = () => {
     setAppName('');
@@ -303,12 +313,21 @@ const BuildView: React.FC = () => {
                 <div
                   key={index}
                   className="flex flex-col items-center cursor-pointer group"
-                  onClick={() => {
+                  onClick={async () => {
                     // Save color selection for the app
+                    const newColors = { bg: combo.bg, inner: combo.inner };
                     setAppColors(prev => ({
                       ...prev,
-                      [colorPickerAppId]: { bg: combo.bg, inner: combo.inner }
+                      [colorPickerAppId]: newColors
                     }));
+                    
+                    // Persist to storage
+                    try {
+                      await window.electron.saveAppColor(colorPickerAppId, newColors);
+                    } catch (err) {
+                      console.error('Failed to save app color:', err);
+                    }
+                    
                     setColorPickerAppId(null);
                   }}
                 >
