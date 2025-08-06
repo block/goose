@@ -1438,12 +1438,17 @@ impl Session {
             .get_param::<String>("GOOSE_PROVIDER")
             .unwrap_or_else(|_| "unknown".to_string());
 
-        // Initialize pricing cache on startup
-        tracing::info!("Initializing pricing cache...");
-        if let Err(e) = initialize_pricing_cache().await {
-            tracing::warn!(
-                "Failed to initialize pricing cache: {e}. Pricing data may not be available."
-            );
+        // Do not get costing information if show cost is disabled
+        // This will prevent the API call to openrouter.ai
+        // This is useful if for cases where openrouter.ai may be blocked by corporate firewalls
+        if show_cost {
+            // Initialize pricing cache on startup
+            tracing::info!("Initializing pricing cache...");
+            if let Err(e) = initialize_pricing_cache().await {
+                tracing::warn!(
+                    "Failed to initialize pricing cache: {e}. Pricing data may not be available."
+                );
+            }
         }
 
         match self.get_metadata() {
