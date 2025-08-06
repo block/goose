@@ -1,39 +1,14 @@
 use crate::conversation::message::{Message, MessageContent};
 use rmcp::model::Role;
-use serde::{ser::SerializeSeq, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use thiserror::Error;
 
 pub mod message;
 mod tool_result_serde;
 
-#[derive(Debug, Clone)]
-pub struct Conversation {
-    messages: Vec<Message>,
-}
-
-impl Serialize for Conversation {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let mut seq = serializer.serialize_seq(Some(self.len()))?;
-        for elem in self.messages.iter() {
-            seq.serialize_element(elem)?;
-        }
-        seq.end()
-    }
-}
-
-impl<'de> Deserialize<'de> for Conversation {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let messages = Vec::<Message>::deserialize(deserializer)?;
-        Ok(Self { messages })
-    }
-}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Conversation(Vec<Message>);
 
 #[derive(Error, Debug)]
 #[error("invalid conversation: {reason}")]
@@ -54,9 +29,7 @@ impl Conversation {
     where
         I: IntoIterator<Item = Message>,
     {
-        Self {
-            messages: messages.into_iter().collect(),
-        }
+        Self(messages.into_iter().collect())
     }
 
     pub fn empty() -> Self {
@@ -64,12 +37,12 @@ impl Conversation {
     }
 
     pub fn messages(&self) -> &Vec<Message> {
-        &self.messages
+        &self.0
     }
 
     pub fn push(&mut self, message: Message) {
         if let Some(last) = self
-            .messages
+            .0
             .last_mut()
             .filter(|m| m.id.is_some() && m.id == message.id)
         {
@@ -84,24 +57,24 @@ impl Conversation {
                 }
             }
         } else {
-            self.messages.push(message);
+            self.0.push(message);
         }
     }
 
     pub fn last(&self) -> Option<&Message> {
-        self.messages.last()
+        self.0.last()
     }
 
     pub fn first(&self) -> Option<&Message> {
-        self.messages.first()
+        self.0.first()
     }
 
     pub fn len(&self) -> usize {
-        self.messages.len()
+        self.0.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.messages.is_empty()
+        self.0.is_empty()
     }
 
     pub fn extend<I>(&mut self, iter: I)
@@ -114,23 +87,23 @@ impl Conversation {
     }
 
     pub fn iter(&self) -> std::slice::Iter<Message> {
-        self.messages.iter()
+        self.0.iter()
     }
 
     pub fn pop(&mut self) -> Option<Message> {
-        self.messages.pop()
+        self.0.pop()
     }
 
     pub fn truncate(&mut self, len: usize) {
-        self.messages.truncate(len);
+        self.0.truncate(len);
     }
 
     pub fn clear(&mut self) {
-        self.messages.clear();
+        self.0.clear();
     }
 
     fn validate(self) -> Result<Self, InvalidConversation> {
-        let (_messages, issues) = fix_messages(self.messages.clone());
+        let (_messages, issues) = fix_messages(self.0.clone());
         if !issues.is_empty() {
             let reason = issues.join("\n");
             Err(InvalidConversation {
