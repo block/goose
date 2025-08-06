@@ -32,7 +32,7 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
 
   // TEMPORARY: Force show first time setup for testing
   // TODO: Remove this before committing
-  const FORCE_SHOW_SETUP = true;
+  const FORCE_SHOW_SETUP = false;
 
   const handleOpenRouterSetup = async () => {
     setOpenRouterSetupState({
