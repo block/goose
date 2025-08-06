@@ -350,6 +350,13 @@ extensions:
       description: "City or location to get weather data for"
 
   extensions:
+    - type: stdio
+      name: weather
+      cmd: uvx
+      args:
+        - mcp_weather@latest
+      timeout: 300
+      description: "Weather data for trip planning"
     - type: builtin
       name: developer
       timeout: 300
