@@ -13,19 +13,6 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({ className = '' }) => {
     window.electron.directoryChooser(true);
   };
 
-  const handleDirectoryClick = async (event: React.MouseEvent) => {
-    const isCmdOrCtrlClick = event.metaKey || event.ctrlKey;
-
-    if (isCmdOrCtrlClick) {
-      event.preventDefault();
-      event.stopPropagation();
-      const workingDir = window.appConfig.get('GOOSE_WORKING_DIR') as string;
-      await window.electron.openDirectoryInExplorer(workingDir);
-    } else {
-      await handleDirectoryChange();
-    }
-  };
-
   return (
     <TooltipProvider>
       <Tooltip open={isTooltipOpen} onOpenChange={setIsTooltipOpen}>
