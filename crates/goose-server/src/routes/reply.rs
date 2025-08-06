@@ -87,7 +87,7 @@ fn track_tool_telemetry(content: &MessageContent, all_messages: &[Message]) {
 
 #[derive(Debug, Deserialize, Serialize)]
 struct ChatRequest {
-    messages: Conversation,
+    messages: Vec<Message>,
     session_id: Option<String>,
     session_working_dir: String,
     scheduled_job_id: Option<String>,
@@ -187,7 +187,7 @@ async fn reply_handler(
     let stream = ReceiverStream::new(rx);
     let cancel_token = CancellationToken::new();
 
-    let messages = request.messages;
+    let messages = Conversation::new_unvalidated(request.messages);
     let session_working_dir = request.session_working_dir.clone();
 
     let session_id = request
@@ -222,12 +222,9 @@ async fn reply_handler(
             retry_config: None,
         };
 
-        // Messages will be auto-compacted in agent.reply() if needed
-        let messages_to_process = messages.clone();
-
         let mut stream = match agent
             .reply(
-                messages_to_process,
+                messages.clone(),
                 Some(session_config),
                 Some(task_cancel.clone()),
             )
@@ -581,10 +578,7 @@ mod tests {
                 .header("x-secret-key", "test-secret")
                 .body(Body::from(
                     serde_json::to_string(&ChatRequest {
-                        messages: Conversation::new(
-                            vec![Message::user().with_text("test message")],
-                        )
-                        .unwrap(),
+                        messages: vec![Message::user().with_text("test message")],
                         session_id: Some("test-session".to_string()),
                         session_working_dir: "test-working-dir".to_string(),
                         scheduled_job_id: None,

@@ -160,7 +160,10 @@ impl Provider for OllamaProvider {
 
     /// Generate a session name based on the conversation history
     /// This override filters out reasoning tokens that some Ollama models produce
-    async fn generate_session_name(&self, messages: &Conversation) -> Result<String, ProviderError> {
+    async fn generate_session_name(
+        &self,
+        messages: &Conversation,
+    ) -> Result<String, ProviderError> {
         let context = self.get_initial_user_messages(messages);
         let message = Message::user().with_text(self.create_session_name_prompt(&context));
         let result = self

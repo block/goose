@@ -1712,7 +1712,8 @@ mod tests {
         let working_dir_path = working_dir.path().to_path_buf();
 
         // Create messages
-        let messages = Conversation::new_unvalidated(vec![Message::user().with_text("test message")]);
+        let messages =
+            Conversation::new_unvalidated(vec![Message::user().with_text("test message")]);
 
         // Use persist_messages_with_schedule_id to set working dir
         persist_messages_with_schedule_id(
@@ -1731,7 +1732,10 @@ mod tests {
         // Verify the messages are also preserved
         let read_messages = read_messages(&file_path)?;
         assert_eq!(read_messages.len(), 1);
-        assert_eq!(read_messages.first().unwrap().role, messages.messages()[0].role);
+        assert_eq!(
+            read_messages.first().unwrap().role,
+            messages.messages()[0].role
+        );
 
         Ok(())
     }
@@ -1747,7 +1751,8 @@ mod tests {
         let working_dir_path = working_dir.path().to_path_buf();
 
         // Create messages
-        let messages = Conversation::new_unvalidated(vec![Message::user().with_text("test message")]);
+        let messages =
+            Conversation::new_unvalidated(vec![Message::user().with_text("test message")]);
 
         // Get the home directory for comparison
         let home_dir = get_home_dir();
