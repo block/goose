@@ -471,6 +471,7 @@ fn ensure_valid_json_schema(schema: &mut Value) {
     }
 }
 
+#[allow(clippy::too_many_lines)]
 pub fn create_request(
     model_config: &ModelConfig,
     system: &str,
