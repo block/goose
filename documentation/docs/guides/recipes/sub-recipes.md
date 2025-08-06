@@ -35,7 +35,7 @@ Parameters received by sub-recipes can be used in prompts and instructions using
 1. **Pre-set values**: Fixed parameter values defined in the `values` field are automatically provided and cannot be overridden at runtime
 2. **Context-based parameters**: The AI agent can extract parameter values from the conversation context, including results from previous sub-recipes
 
-Pre-set values take precedence over context-based parameters. If both the conversation context and `values` field provide the same parameter, the `values` version is used..
+Pre-set values take precedence over context-based parameters. If both the conversation context and `values` field provide the same parameter, the `values` version is used.
 
 :::tip
 Use the `indent()` filter to maintain valid YAML format when passing multi-line parameter values to sub-recipes, for example: `{{ content | indent(2) }}`. See [Template Support](/docs/guides/recipes/recipe-reference#template-support) for more details.
