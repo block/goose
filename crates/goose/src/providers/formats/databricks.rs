@@ -8,7 +8,7 @@ use mcp_core::{ToolCall, ToolError};
 use rmcp::model::{AnnotateAble, Content, RawContent, ResourceContents, Role, Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use crate::messagefoo::message::{Message, MessageContent};
+use crate::conversation::message::{Message, MessageContent};
 
 #[derive(Serialize)]
 struct DatabricksMessage {
@@ -619,7 +619,7 @@ mod tests {
     use super::*;
     use rmcp::object;
     use serde_json::json;
-    use crate::messagefoo::message::Message;
+    use crate::conversation::message::Message;
 
     #[test]
     fn test_validate_tool_schemas() {

@@ -10,7 +10,7 @@ use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
 use crate::impl_provider_default;
-use crate::messagefoo::message::Message;
+use crate::conversation::message::Message;
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
 

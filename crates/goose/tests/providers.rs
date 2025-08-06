@@ -12,7 +12,7 @@ use rmcp::object;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Mutex;
-use goose::messagefoo::message::{Message, MessageContent};
+use goose::conversation::message::{Message, MessageContent};
 
 #[derive(Debug, Clone, Copy)]
 enum TestStatus {
@@ -258,7 +258,7 @@ impl ProviderTester {
     async fn test_image_content_support(&self) -> Result<()> {
         use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
         use std::fs;
-        use goose::messagefoo::message::Message;
+        use goose::conversation::message::Message;
 
         // Try to read the test image
         let image_path = "crates/goose/examples/test_assets/test_image.png";

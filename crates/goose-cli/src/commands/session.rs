@@ -215,7 +215,7 @@ pub fn handle_session_export(identifier: Identifier, output_path: Option<PathBuf
 /// This function handles the formatting of a complete session including headers,
 /// message organization, and proper tool request/response pairing.
 fn export_session_to_markdown(
-    messages: Vec<goose::messagefoo::message::Message>,
+    messages: Vec<goose::conversation::message::Message>,
     session_file: &Path,
     session_name_override: Option<&str>,
 ) -> String {
@@ -246,7 +246,7 @@ fn export_session_to_markdown(
             && message.content.iter().all(|content| {
                 matches!(
                     content,
-                    goose::messagefoo::message::MessageContent::ToolResponse(_)
+                    goose::conversation::message::MessageContent::ToolResponse(_)
                 )
             });
 
@@ -280,7 +280,7 @@ fn export_session_to_markdown(
         if message.content.iter().any(|content| {
             matches!(
                 content,
-                goose::messagefoo::message::MessageContent::ToolRequest(_)
+                goose::conversation::message::MessageContent::ToolRequest(_)
             )
         }) {
             skip_next_if_tool_response = true;

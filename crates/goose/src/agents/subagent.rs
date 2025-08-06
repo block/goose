@@ -17,8 +17,8 @@ use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{Mutex, RwLock};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, instrument};
-use crate::messagefoo::Conversation;
-use crate::messagefoo::message::{Message, MessageContent, ToolRequest};
+use crate::conversation::Conversation;
+use crate::conversation::message::{Message, MessageContent, ToolRequest};
 
 /// Status of a subagent
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

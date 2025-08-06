@@ -19,7 +19,7 @@ use super::retry::ProviderRetry;
 use super::utils::{get_model, handle_response_openai_compat, ImageFormat};
 use crate::config::ConfigError;
 use crate::impl_provider_default;
-use crate::messagefoo::message::Message;
+use crate::conversation::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{get_usage, response_to_streaming_message};
 use crate::providers::retry::{

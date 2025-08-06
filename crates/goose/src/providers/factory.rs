@@ -178,7 +178,7 @@ mod tests {
     use chrono::Utc;
     use rmcp::model::{AnnotateAble, RawTextContent, Role};
     use std::env;
-    use crate::messagefoo::message::{Message, MessageContent};
+    use crate::conversation::message::{Message, MessageContent};
 
     #[allow(dead_code)]
     #[derive(Clone)]

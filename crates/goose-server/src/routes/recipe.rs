@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
-use goose::messagefoo::Conversation;
+use goose::conversation::Conversation;
 use goose::recipe::Recipe;
 use goose::recipe_deeplink;
 use serde::{Deserialize, Serialize};

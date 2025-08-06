@@ -31,7 +31,7 @@ impl From<ToolResult<Vec<Content>>> for ToolCallResult {
 
 use super::agent::{tool_stream, ToolStream};
 use crate::agents::Agent;
-use crate::messagefoo::message::{Message, ToolRequest};
+use crate::conversation::message::{Message, ToolRequest};
 
 pub const DECLINED_RESPONSE: &str = "The user has declined to run this tool. \
     DO NOT attempt to call this tool again. \

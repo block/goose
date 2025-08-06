@@ -15,7 +15,7 @@ use std::io::{Error, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
-use goose::messagefoo::message::{Message, MessageContent, ToolRequest, ToolResponse};
+use goose::conversation::message::{Message, MessageContent, ToolRequest, ToolResponse};
 
 // Re-export theme for use in main
 #[derive(Clone, Copy)]

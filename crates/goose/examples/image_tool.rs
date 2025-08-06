@@ -7,7 +7,7 @@ use rmcp::model::{Content, Tool};
 use rmcp::object;
 use serde_json::json;
 use std::fs;
-use goose::messagefoo::message::Message;
+use goose::conversation::message::Message;
 
 #[tokio::main]
 async fn main() -> Result<()> {

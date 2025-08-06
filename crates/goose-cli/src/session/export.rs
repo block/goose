@@ -1,7 +1,7 @@
 use goose::utils::safe_truncate;
 use rmcp::model::{RawContent, ResourceContents, Role};
 use serde_json::Value;
-use goose::messagefoo::message::{Message, MessageContent, ToolRequest, ToolResponse};
+use goose::conversation::message::{Message, MessageContent, ToolRequest, ToolResponse};
 
 const MAX_STRING_LENGTH_MD_EXPORT: usize = 4096; // Generous limit for export
 const REDACTED_PREFIX_LENGTH: usize = 100; // Show first 100 chars before trimming
@@ -363,7 +363,7 @@ mod tests {
     use mcp_core::tool::ToolCall;
     use rmcp::model::{Content, RawTextContent, TextContent};
     use serde_json::json;
-    use goose::messagefoo::message::{Message, ToolRequest, ToolResponse};
+    use goose::conversation::message::{Message, ToolRequest, ToolResponse};
 
     #[test]
     fn test_value_to_simple_markdown_string_normal() {

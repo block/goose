@@ -17,7 +17,7 @@ use crate::impl_provider_default;
 use crate::model::ModelConfig;
 use chrono::Utc;
 use rmcp::model::Role;
-use crate::messagefoo::message::{Message, MessageContent};
+use crate::conversation::message::{Message, MessageContent};
 
 pub const SAGEMAKER_TGI_DOC_LINK: &str =
     "https://docs.aws.amazon.com/sagemaker/latest/dg/realtime-endpoints.html";

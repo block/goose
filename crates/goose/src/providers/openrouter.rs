@@ -11,7 +11,7 @@ use super::utils::{
     is_google_model,
 };
 use crate::impl_provider_default;
-use crate::messagefoo::message::Message;
+use crate::conversation::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
 use rmcp::model::Tool;

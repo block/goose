@@ -10,7 +10,7 @@ mod thinking;
 use crate::session::task_execution_display::{
     format_task_execution_notification, TASK_EXECUTION_NOTIFICATION_TYPE,
 };
-use goose::messagefoo::Conversation;
+use goose::conversation::Conversation;
 use std::io::Write;
 
 pub use self::export::message_to_markdown;
@@ -47,7 +47,7 @@ use std::sync::Arc;
 use std::time::Instant;
 use tokio;
 use tokio_util::sync::CancellationToken;
-use goose::messagefoo::message::{Message, MessageContent};
+use goose::conversation::message::{Message, MessageContent};
 
 pub enum RunMode {
     Normal,

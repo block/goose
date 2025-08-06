@@ -2,7 +2,7 @@ use crate::session::build_session;
 use crate::session::SessionBuilderConfig;
 use crate::{logging, session, Session};
 use async_trait::async_trait;
-use goose::messagefoo::Conversation;
+use goose::conversation::Conversation;
 use goose_bench::bench_session::{BenchAgent, BenchBaseSession};
 use goose_bench::eval_suites::ExtensionRequirements;
 use std::path::PathBuf;

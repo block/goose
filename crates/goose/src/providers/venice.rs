@@ -13,7 +13,7 @@ use crate::impl_provider_default;
 use crate::model::ModelConfig;
 use mcp_core::{ToolCall, ToolResult};
 use rmcp::model::{Role, Tool};
-use crate::messagefoo::message::{Message, MessageContent};
+use crate::conversation::message::{Message, MessageContent};
 
 // ---------- Capability Flags ----------
 #[derive(Debug)]

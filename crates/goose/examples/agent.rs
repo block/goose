@@ -4,8 +4,8 @@ use dotenvy::dotenv;
 use futures::StreamExt;
 use goose::agents::{Agent, AgentEvent, ExtensionConfig};
 use goose::config::{DEFAULT_EXTENSION_DESCRIPTION, DEFAULT_EXTENSION_TIMEOUT};
-use goose::messagefoo::Conversation;
-use goose::messagefoo::message::Message;
+use goose::conversation::Conversation;
+use goose::conversation::message::Message;
 use goose::providers::databricks::DatabricksProvider;
 
 #[tokio::main]

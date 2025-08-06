@@ -5,7 +5,7 @@ use goose::providers::{
     databricks::DatabricksProvider,
 };
 use tokio_stream::StreamExt;
-use goose::messagefoo::message::Message;
+use goose::conversation::message::Message;
 
 #[tokio::main]
 async fn main() -> Result<()> {

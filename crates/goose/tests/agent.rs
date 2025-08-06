@@ -5,8 +5,8 @@ use std::sync::Arc;
 use anyhow::Result;
 use futures::StreamExt;
 use goose::agents::{Agent, AgentEvent};
-use goose::messagefoo::Conversation;
-use goose::messagefoo::message::Message;
+use goose::conversation::Conversation;
+use goose::conversation::message::Message;
 use goose::model::ModelConfig;
 use goose::providers::base::Provider;
 use goose::providers::{
@@ -168,11 +168,11 @@ async fn run_truncate_test(
     assert_eq!(responses[0].content.len(), 1);
 
     match responses[0].content[0] {
-        goose::messagefoo::message::MessageContent::Text(ref text_content) => {
+        goose::conversation::message::MessageContent::Text(ref text_content) => {
             assert!(text_content.text.to_lowercase().contains("no"));
             assert!(!text_content.text.to_lowercase().contains("yes"));
         }
-        goose::messagefoo::message::MessageContent::ContextLengthExceeded(_) => {
+        goose::conversation::message::MessageContent::ContextLengthExceeded(_) => {
             // This is an acceptable outcome for providers that don't truncate themselves
             // and correctly report that the context length was exceeded.
             println!(
@@ -548,7 +548,7 @@ mod final_output_tool_tests {
     use goose::agents::final_output_tool::{
         FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME,
     };
-    use goose::messagefoo::Conversation;
+    use goose::conversation::Conversation;
     use goose::providers::base::MessageStream;
     use goose::recipe::Response;
 
@@ -559,7 +559,7 @@ mod final_output_tool_tests {
         use goose::providers::base::{Provider, ProviderUsage, Usage};
         use goose::providers::errors::ProviderError;
         use rmcp::model::Tool;
-        use goose::messagefoo::message::Message;
+        use goose::conversation::message::Message;
 
         #[derive(Clone)]
         struct MockProvider {
@@ -660,7 +660,7 @@ mod final_output_tool_tests {
         use goose::providers::base::{Provider, ProviderUsage};
         use goose::providers::errors::ProviderError;
         use rmcp::model::Tool;
-        use goose::messagefoo::message::Message;
+        use goose::conversation::message::Message;
 
         #[derive(Clone)]
         struct MockProvider {
@@ -778,14 +778,14 @@ mod retry_tests {
     use super::*;
     use async_trait::async_trait;
     use goose::agents::types::{RetryConfig, SessionConfig, SuccessCheck};
-    use goose::messagefoo::Conversation;
+    use goose::conversation::Conversation;
     use goose::model::ModelConfig;
     use goose::providers::base::{Provider, ProviderUsage, Usage};
     use goose::providers::errors::ProviderError;
     use rmcp::model::Tool;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
-    use goose::messagefoo::message::Message;
+    use goose::conversation::message::Message;
 
     #[derive(Clone)]
     struct MockRetryProvider {
@@ -960,8 +960,8 @@ mod retry_tests {
 mod max_turns_tests {
     use super::*;
     use async_trait::async_trait;
-    use goose::messagefoo::Conversation;
-    use goose::messagefoo::message::{Message, MessageContent};
+    use goose::conversation::Conversation;
+    use goose::conversation::message::{Message, MessageContent};
     use goose::model::ModelConfig;
     use goose::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
     use goose::providers::errors::ProviderError;

@@ -9,8 +9,8 @@ use crate::{
 };
 use anyhow::Result;
 use tracing::{debug, info};
-use crate::messagefoo::Conversation;
-use crate::messagefoo::message::Message;
+use crate::conversation::Conversation;
+use crate::conversation::message::Message;
 
 /// Result of auto-compaction check
 #[derive(Debug)]
@@ -254,7 +254,7 @@ mod tests {
     use chrono::Utc;
     use rmcp::model::{AnnotateAble, RawTextContent, Role, Tool};
     use std::sync::Arc;
-    use crate::messagefoo::message::{Message, MessageContent};
+    use crate::conversation::message::{Message, MessageContent};
 
     #[derive(Clone)]
     struct MockProvider {

@@ -6,7 +6,7 @@ use std::sync::Arc;
 use tiktoken_rs::CoreBPE;
 use tokio::sync::OnceCell;
 
-use crate::messagefoo::message::Message;
+use crate::conversation::message::Message;
 
 // Global tokenizer instance to avoid repeated initialization
 static TOKENIZER: OnceCell<Arc<CoreBPE>> = OnceCell::const_new();
@@ -382,7 +382,7 @@ mod tests {
     use super::*;
     use rmcp::model::{Role, Tool};
     use rmcp::object;
-    use crate::messagefoo::message::{Message, MessageContent};
+    use crate::conversation::message::{Message, MessageContent};
 
     #[test]
     fn test_token_counter_basic() {

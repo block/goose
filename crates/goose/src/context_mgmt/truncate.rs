@@ -1,11 +1,11 @@
-use crate::messagefoo::Conversation;
+use crate::conversation::Conversation;
 use crate::utils::safe_truncate;
 use anyhow::{anyhow, Result};
 use rmcp::model::{RawContent, ResourceContents, Role};
 use std::collections::HashSet;
 use std::ops::DerefMut;
 use tracing::{debug, warn};
-use crate::messagefoo::message::{Message, MessageContent};
+use crate::conversation::message::{Message, MessageContent};
 
 /// Maximum size for truncated content in characters
 const MAX_TRUNCATED_CONTENT_SIZE: usize = 5000;
@@ -388,7 +388,7 @@ impl TruncationStrategy for OldestFirstTruncation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::messagefoo::message::Message;
+    use crate::conversation::message::Message;
     use anyhow::Result;
     use mcp_core::tool::ToolCall;
     use rmcp::model::Content;

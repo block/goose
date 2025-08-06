@@ -6,7 +6,7 @@ use crate::{
     providers::base::Provider,
     token_counter::{AsyncTokenCounter, TokenCounter},
 };
-use crate::messagefoo::message::Message;
+use crate::conversation::message::Message;
 
 const ESTIMATE_FACTOR: f32 = 0.7;
 pub const SYSTEM_PROMPT_TOKEN_OVERHEAD: usize = 3_000;

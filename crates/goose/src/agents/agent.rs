@@ -34,7 +34,7 @@ use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, ToolResultReceiver};
 use crate::config::{Config, ExtensionConfigManager, PermissionManager};
 use crate::context_mgmt::auto_compact;
-use crate::messagefoo::{debug_conversation_fix, fix_conversation, Conversation};
+use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::permission::permission_judge::{check_tool_permissions, PermissionCheckResult};
 use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
@@ -56,7 +56,7 @@ use super::final_output_tool::FinalOutputTool;
 use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::subagent_task_config::TaskConfig;
-use crate::messagefoo::message::{Message, ToolRequest};
+use crate::conversation::message::{Message, ToolRequest};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 

@@ -7,7 +7,7 @@ use std::collections::HashSet;
 use std::fmt;
 use utoipa::ToSchema;
 
-use crate::messagefoo::tool_result_serde;
+use crate::conversation::tool_result_serde;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -552,11 +552,11 @@ impl Message {
 
 #[cfg(test)]
 mod tests {
-    use crate::messagefoo::*;
+    use crate::conversation::*;
     use mcp_core::handler::ToolError;
     use rmcp::model::{PromptMessage, PromptMessageContent, RawEmbeddedResource, ResourceContents};
     use serde_json::{json, Value};
-    use crate::messagefoo::message::{Message, MessageContent};
+    use crate::conversation::message::{Message, MessageContent};
 
     #[test]
     fn test_message_serialization() {

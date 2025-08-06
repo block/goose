@@ -18,7 +18,7 @@ use utoipa::openapi::schema::{
     SchemaFormat, SchemaType,
 };
 use utoipa::openapi::{AllOfBuilder, Ref, RefOr};
-use goose::messagefoo::message::{ContextLengthExceeded, FrontendToolRequest, Message, MessageContent, RedactedThinkingContent, SummarizationRequested, ThinkingContent, ToolConfirmationRequest, ToolRequest, ToolResponse};
+use goose::conversation::message::{ContextLengthExceeded, FrontendToolRequest, Message, MessageContent, RedactedThinkingContent, SummarizationRequested, ThinkingContent, ToolConfirmationRequest, ToolRequest, ToolResponse};
 
 macro_rules! derive_utoipa {
     ($inner_type:ident as $schema_name:ident) => {

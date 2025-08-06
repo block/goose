@@ -10,8 +10,8 @@ use axum::{
 };
 use futures::{sink::SinkExt, stream::StreamExt};
 use goose::agents::{Agent, AgentEvent};
-use goose::messagefoo::Conversation;
-use goose::messagefoo::message::Message as GooseMessage;
+use goose::conversation::Conversation;
+use goose::conversation::message::Message as GooseMessage;
 use goose::session;
 use serde::{Deserialize, Serialize};
 use std::{net::SocketAddr, sync::Arc};
@@ -443,7 +443,7 @@ async fn process_message_streaming(
 ) -> Result<()> {
     use futures::StreamExt;
     use goose::agents::SessionConfig;
-    use goose::messagefoo::message::MessageContent;
+    use goose::conversation::message::MessageContent;
     use goose::session;
 
     // Create a user message
