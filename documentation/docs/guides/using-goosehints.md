@@ -120,4 +120,4 @@ Like prompts, this is not an extensive list to shape your `.goosehints` file. Yo
 - **Keep file updated**: Regularly update the `.goosehints` file to reflect any changes in project protocols or priorities.
 - **Be concise**: Make sure the content is straightforward and to the point, ensuring Goose can quickly parse and act on the information.
 - **Start small**: Create a small set of clear, specific hints and gradually expand them based on your needs. This makes it easier to understand how Goose interprets and applies your instructions.
-
+- **Reference other files**: Since `.goosehints` is sent with every request, writing rules like "if I ask for help writing JavaScript, refer to /path/to/javascript_nodes.txt" will help Goose understand where to find additional context and reduce context window size.

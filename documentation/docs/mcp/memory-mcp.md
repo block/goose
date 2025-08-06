@@ -244,3 +244,11 @@ If you frequently work with API standards or other structured knowledge, Goose m
 
     Would you like me to implement the full endpoint logic?
     ```
+
+## Pro-Tip: Reference other files
+
+Goose sends every memory you save to the LLM with every request you type into goose. If you want to reduce your memory context window size, you can write lengthy rules and guidelines into separate files on your system, and create your memories this way:
+
+```
+Remember that if I ask for help writing JavaScript, I want you to refer to "/path/to/javascript_nodes.txt" and follow the instructions in that file.
+```
