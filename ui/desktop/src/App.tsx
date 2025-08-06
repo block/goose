@@ -986,12 +986,12 @@ export default function App() {
             if (error instanceof MalformedConfigError) {
               throw error;
             }
-            window.location.hash = '#/welcome';
-            window.history.replaceState({}, '', '#/welcome');
+            window.location.hash = '#/';
+            window.history.replaceState({}, '', '#/');
           }
         } else {
-          window.location.hash = '#/welcome';
-          window.history.replaceState({}, '', '#/welcome');
+          window.location.hash = '#/';
+          window.history.replaceState({}, '', '#/');
         }
       } catch (error) {
         console.error('Fatal error during initialization:', error);
