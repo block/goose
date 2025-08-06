@@ -172,7 +172,7 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
               <button
                 onClick={handleDownloadModel}
                 disabled={false}
-                className="w-full px-6 py-3 bg-background-primary text-text-on-primary rounded-lg hover:bg-background-primary-hover transition-colors font-medium"
+                className="w-full px-6 py-3 bg-background-muted text-text-standard rounded-lg hover:bg-background-hover transition-colors font-medium flex items-center justify-center gap-2"
               >
                 Download {getPreferredModel()} (~11GB)
               </button>
