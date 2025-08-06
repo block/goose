@@ -11,7 +11,6 @@ use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
 use goose::{
     agents::{AgentEvent, SessionConfig},
-    conversation::Conversation,
     message::{Message, MessageContent},
     permission::permission_confirmation::PrincipalType,
 };
@@ -37,6 +36,7 @@ use tokio::time::timeout;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
 use utoipa::ToSchema;
+use goose::message::conversation::Conversation;
 
 fn track_tool_telemetry(content: &MessageContent, all_messages: &[Message]) {
     match content {

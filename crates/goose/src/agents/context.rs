@@ -1,6 +1,6 @@
 use anyhow::Ok;
 
-use crate::conversation::Conversation;
+use crate::message::conversation::Conversation;
 use crate::message::Message;
 use crate::token_counter::create_async_token_counter;
 

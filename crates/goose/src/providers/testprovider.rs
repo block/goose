@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 
 use super::base::{Provider, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
-use crate::conversation::Conversation;
+use crate::message::conversation::Conversation;
 use crate::message::Message;
 use crate::model::ModelConfig;
 use rmcp::model::Tool;

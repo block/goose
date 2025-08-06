@@ -5,7 +5,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use futures::StreamExt;
 use goose::agents::{Agent, AgentEvent};
-use goose::conversation::Conversation;
+use goose::message::conversation::Conversation;
 use goose::message::Message;
 use goose::model::ModelConfig;
 use goose::providers::base::Provider;
@@ -548,7 +548,7 @@ mod final_output_tool_tests {
     use goose::agents::final_output_tool::{
         FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME,
     };
-    use goose::conversation::Conversation;
+    use goose::message::conversation::Conversation;
     use goose::providers::base::MessageStream;
     use goose::recipe::Response;
 
@@ -776,7 +776,7 @@ mod retry_tests {
     use super::*;
     use async_trait::async_trait;
     use goose::agents::types::{RetryConfig, SessionConfig, SuccessCheck};
-    use goose::conversation::Conversation;
+    use goose::message::conversation::Conversation;
     use goose::model::ModelConfig;
     use goose::providers::base::{Provider, ProviderUsage, Usage};
     use goose::providers::errors::ProviderError;
@@ -957,7 +957,7 @@ mod retry_tests {
 mod max_turns_tests {
     use super::*;
     use async_trait::async_trait;
-    use goose::conversation::Conversation;
+    use goose::message::conversation::Conversation;
     use goose::message::MessageContent;
     use goose::model::ModelConfig;
     use goose::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};

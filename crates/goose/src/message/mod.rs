@@ -21,6 +21,7 @@ use std::fmt;
 use utoipa::ToSchema;
 
 mod tool_result_serde;
+pub mod conversation;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

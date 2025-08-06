@@ -10,7 +10,7 @@ use axum::{
 };
 use futures::{sink::SinkExt, stream::StreamExt};
 use goose::agents::{Agent, AgentEvent};
-use goose::conversation::Conversation;
+use goose::message::conversation::Conversation;
 use goose::message::Message as GooseMessage;
 use goose::session;
 use serde::{Deserialize, Serialize};

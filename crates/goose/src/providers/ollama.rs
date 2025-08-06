@@ -3,7 +3,7 @@ use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::{get_model, handle_response_openai_compat};
-use crate::conversation::Conversation;
+use crate::message::conversation::Conversation;
 use crate::impl_provider_default;
 use crate::message::Message;
 use crate::model::ModelConfig;

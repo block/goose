@@ -1,4 +1,4 @@
-use crate::conversation::Conversation;
+use crate::message::conversation::Conversation;
 use crate::message::{Message, MessageContent};
 use crate::utils::safe_truncate;
 use anyhow::{anyhow, Result};

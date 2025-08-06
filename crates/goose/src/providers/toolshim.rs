@@ -33,7 +33,7 @@
 use super::errors::ProviderError;
 use super::ollama::OLLAMA_DEFAULT_PORT;
 use super::ollama::OLLAMA_HOST;
-use crate::conversation::Conversation;
+use crate::message::conversation::Conversation;
 use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::create_request;

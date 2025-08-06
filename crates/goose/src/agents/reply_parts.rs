@@ -6,7 +6,7 @@ use async_stream::try_stream;
 use futures::stream::StreamExt;
 
 use crate::agents::router_tool_selector::RouterToolSelectionStrategy;
-use crate::conversation::Conversation;
+use crate::message::conversation::Conversation;
 use crate::message::{Message, MessageContent, ToolRequest};
 use crate::providers::base::{stream_from_single_message, MessageStream, Provider, ProviderUsage};
 use crate::providers::errors::ProviderError;

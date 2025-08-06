@@ -5,7 +5,7 @@
 // - Backup creation
 // Additional debug logging can be added if needed for troubleshooting.
 
-use crate::conversation::Conversation;
+use crate::message::conversation::Conversation;
 use crate::message::Message;
 use crate::providers::base::Provider;
 use crate::utils::safe_truncate;

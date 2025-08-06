@@ -3,7 +3,6 @@ use crate::{
     agents::extension::ExtensionConfig,
     agents::{extension_manager::ExtensionManager, Agent, TaskConfig},
     config::ExtensionConfigManager,
-    conversation::Conversation,
     message::{Message, MessageContent, ToolRequest},
     prompt_template::render_global_file,
     providers::errors::ProviderError,
@@ -18,6 +17,7 @@ use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{Mutex, RwLock};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, instrument};
+use crate::message::conversation::Conversation;
 
 /// Status of a subagent
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

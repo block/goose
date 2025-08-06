@@ -1,6 +1,6 @@
 use super::common::get_messages_token_counts_async;
 use crate::context_mgmt::get_messages_token_counts;
-use crate::conversation::Conversation;
+use crate::message::conversation::Conversation;
 use crate::message::Message;
 use crate::prompt_template::render_global_file;
 use crate::providers::base::Provider;

@@ -10,7 +10,7 @@ mod thinking;
 use crate::session::task_execution_display::{
     format_task_execution_notification, TASK_EXECUTION_NOTIFICATION_TYPE,
 };
-use goose::conversation::Conversation;
+use goose::message::conversation::Conversation;
 use std::io::Write;
 
 pub use self::export::message_to_markdown;

@@ -5,12 +5,12 @@ use crate::{
         common::{SYSTEM_PROMPT_TOKEN_OVERHEAD, TOOLS_TOKEN_OVERHEAD},
         get_messages_token_counts_async,
     },
-    conversation::Conversation,
     message::Message,
     token_counter::create_async_token_counter,
 };
 use anyhow::Result;
 use tracing::{debug, info};
+use crate::message::conversation::Conversation;
 
 /// Result of auto-compaction check
 #[derive(Debug)]

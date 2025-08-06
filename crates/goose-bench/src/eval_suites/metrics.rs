@@ -1,6 +1,6 @@
 use crate::bench_session::BenchAgent;
 use crate::eval_suites::EvalMetricValue;
-use goose::conversation::Conversation;
+use goose::message::conversation::Conversation;
 use goose::message::{Message, MessageContent};
 use std::collections::HashMap;
 use std::time::Instant;

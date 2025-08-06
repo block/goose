@@ -1,5 +1,5 @@
 use dotenvy::dotenv;
-use goose::conversation::Conversation;
+use goose::message::conversation::Conversation;
 
 use crate::scenario_tests::message_generator::MessageGenerator;
 use crate::scenario_tests::mock_client::weather_client;
