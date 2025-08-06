@@ -207,7 +207,7 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
           <div className="space-y-4">
             <button
               onClick={handleOpenRouterSetup}
-              className="w-full px-6 py-3 bg-background-primary text-text-on-primary rounded-lg hover:bg-background-primary-hover transition-colors font-medium"
+              className="w-full px-6 py-3 bg-background-muted text-text-standard rounded-lg hover:bg-background-hover transition-colors font-medium flex items-center justify-center gap-2"
             >
               Automatic setup with OpenRouter (recommended)
             </button>
