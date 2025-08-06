@@ -1156,10 +1156,13 @@ async fn run_scheduled_job_internal(
     }
     if let Some(recipe_extensions) = recipe.extensions {
         for extension in recipe_extensions {
-            agent.add_extension(extension.clone()).await.map_err(|e| JobExecutionError {
-                job_id: job.id.clone(),
-                error: format!("Failed to add extension '{}': {}", extension.name(), e),
-            })?;
+            agent
+                .add_extension(extension.clone())
+                .await
+                .map_err(|e| JobExecutionError {
+                    job_id: job.id.clone(),
+                    error: format!("Failed to add extension '{}': {}", extension.name(), e),
+                })?;
         }
     }
 
