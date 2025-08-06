@@ -2423,6 +2423,124 @@ ipcMain.handle('open-app', async (_event, appPath: string) => {
   }
 });
 
+// Generate favicon from color combination
+function generateFavicon(bgColor: string, innerColor: string): Buffer {
+  // Create a simple 32x32 favicon as SVG, then convert to ICO format
+  // For now, we'll create a simple PNG and save it as favicon.ico
+  const svgContent = `
+    <svg width="32" height="32" xmlns="http://www.w3.org/2000/svg">
+      <rect width="32" height="32" rx="6" fill="${bgColor}" />
+      <rect x="8" y="8" width="16" height="16" rx="4" fill="${innerColor}" />
+    </svg>
+  `;
+  
+  // For now, return the SVG as a buffer - in a real implementation,
+  // you'd want to convert this to ICO format using a library like 'sharp'
+  return Buffer.from(svgContent, 'utf8');
+}
+
+// Convert Tailwind color classes to hex colors
+function tailwindToHex(colorClass: string): string {
+  const colorMap: Record<string, string> = {
+    'bg-blue-100': '#dbeafe',
+    'bg-blue-200': '#bfdbfe',
+    'bg-green-100': '#dcfce7',
+    'bg-green-200': '#bbf7d0',
+    'bg-red-100': '#fee2e2',
+    'bg-red-200': '#fecaca',
+    'bg-yellow-100': '#fef3c7',
+    'bg-yellow-200': '#fde68a',
+    'bg-purple-100': '#f3e8ff',
+    'bg-purple-200': '#ddd6fe',
+    'bg-pink-100': '#fce7f3',
+    'bg-pink-200': '#fbcfe8',
+    'bg-background-medium': '#f3f4f6',
+    'bg-background-strong': '#e5e7eb',
+  };
+  
+  return colorMap[colorClass] || '#f3f4f6'; // Default to medium gray
+}
+
+// Save app color and generate favicon
+ipcMain.handle('save-app-color', async (_event, appId: string, colors: { bg: string; inner: string }) => {
+  try {
+    console.log(`[Main] Saving color for app ${appId}:`, colors);
+    
+    // Find the app path
+    const appPath = path.join(APPS_DIR, appId);
+    
+    // Check if app exists
+    try {
+      await fs.access(appPath);
+    } catch {
+      throw new Error(`App "${appId}" not found`);
+    }
+    
+    // Ensure public directory exists
+    const publicPath = path.join(appPath, 'public');
+    await fs.mkdir(publicPath, { recursive: true });
+    
+    // Convert Tailwind classes to hex colors
+    const bgHex = tailwindToHex(colors.bg);
+    const innerHex = tailwindToHex(colors.inner);
+    
+    // Generate favicon content as SVG (which can be saved as .ico)
+    const faviconSvg = `<svg width="32" height="32" xmlns="http://www.w3.org/2000/svg">
+  <rect width="32" height="32" rx="6" fill="${bgHex}" />
+  <rect x="8" y="8" width="16" height="16" rx="4" fill="${innerHex}" />
+</svg>`;
+    
+    // Save as favicon.ico (browsers will accept SVG content in .ico files)
+    const faviconPath = path.join(publicPath, 'favicon.ico');
+    await fs.writeFile(faviconPath, faviconSvg, 'utf8');
+    
+    // Also save color info to a metadata file for persistence
+    const colorMetaPath = path.join(publicPath, '.goose-colors.json');
+    await fs.writeFile(colorMetaPath, JSON.stringify(colors, null, 2), 'utf8');
+    
+    console.log(`[Main] Saved favicon and colors for app ${appId}`);
+    return true;
+  } catch (err) {
+    console.error(`[Main] Failed to save app color:`, err);
+    return false;
+  }
+});
+
+// Load app colors from metadata files
+ipcMain.handle('load-app-colors', async () => {
+  try {
+    await ensureAppsDir();
+    
+    const entries = await fs.readdir(APPS_DIR, { withFileTypes: true });
+    const colors: Record<string, { bg: string; inner: string }> = {};
+    
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const colorMetaPath = path.join(APPS_DIR, entry.name, 'public', '.goose-colors.json');
+        
+        try {
+          const colorData = await fs.readFile(colorMetaPath, 'utf8');
+          const parsedColors = JSON.parse(colorData);
+          
+          // Validate the color data structure
+          if (parsedColors && typeof parsedColors.bg === 'string' && typeof parsedColors.inner === 'string') {
+            colors[entry.name] = parsedColors;
+          }
+        } catch {
+          // Ignore if metadata file doesn't exist or is invalid
+          // App will use default colors
+        }
+      }
+    }
+    
+    console.log(`[Main] Loaded colors for ${Object.keys(colors).length} apps`);
+    return colors;
+  } catch (err) {
+    console.error('[Main] Failed to load app colors:', err);
+    return {};
+  }
+});
+
 app.on('will-quit', async () => {
   for (const [windowId, blockerId] of windowPowerSaveBlockers.entries()) {
     try {
