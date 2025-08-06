@@ -97,17 +97,15 @@ export default function DictationSection() {
     checkOpenAIKey();
   }, [getProviders]);
 
-  // Also check OpenAI configuration when dropdown is opened
   const handleDropdownToggle = async () => {
     const newShowState = !showProviderDropdown;
     setShowProviderDropdown(newShowState);
-    
-    // Refresh OpenAI configuration status when opening dropdown
+
     if (newShowState) {
       try {
-        const providers = await getProviders(true); // Force refresh
+        const providers = await getProviders(true);
         const openAIProvider = providers.find((p) => p.name === 'openai');
-        const isConfigured = openAIProvider?.is_configured || false;
+        const isConfigured = !!openAIProvider?.is_configured;
         setHasOpenAIKey(isConfigured);
       } catch (error) {
         console.error('Error checking OpenAI configuration:', error);
