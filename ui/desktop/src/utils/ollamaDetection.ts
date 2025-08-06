@@ -1,4 +1,4 @@
-const DEFAULT_OLLAMA_HOST = 'http://localhost:11434';
+const DEFAULT_OLLAMA_HOST = 'http://127.0.0.1:11434';
 const OLLAMA_DOWNLOAD_URL = 'https://ollama.com/download';
 const PREFERRED_MODEL = 'gpt-oss:20b';
 
