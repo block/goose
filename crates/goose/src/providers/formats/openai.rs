@@ -48,7 +48,7 @@ struct StreamingChunk {
     created: Option<i64>,
     id: Option<String>,
     usage: Option<Value>,
-    model: String,
+    model: Option<String>,
 }
 
 /// Convert internal Message format to OpenAI's API message specification
@@ -428,7 +428,7 @@ where
             let chunk: StreamingChunk = serde_json::from_str(line
                 .ok_or_else(|| anyhow!("unexpected stream format"))?)
                 .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
-            let model = chunk.model.clone();
+            let model = chunk.model.clone().unwrap_or_default();
 
             let usage = chunk.usage.as_ref().map(|u| {
                 ProviderUsage {
