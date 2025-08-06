@@ -11,7 +11,7 @@ interface ChatContextManagerState {
   summaryContent: string;
   summarizedThread: Message[];
   isSummaryModalOpen: boolean;
-  isLoadingSummary: boolean;
+  isLoadingCompaction: boolean;
   errorLoadingSummary: boolean;
   preparingManualSummary: boolean;
 }
@@ -32,10 +32,7 @@ interface ChatContextManagerActions {
   hasSummarizationRequestedContent: (message: Message) => boolean;
   getContextHandlerType: (message: Message) => 'contextLengthExceeded' | 'summarizationRequested';
   handleContextLengthExceeded: (messages: Message[]) => Promise<void>;
-  handleManualSummarization: (
-    messages: Message[],
-    setMessages: (messages: Message[]) => void
-  ) => void;
+  handleManualCompaction: (messages: Message[], setMessages: (messages: Message[]) => void) => void;
 }
 
 // Create the context
@@ -50,12 +47,12 @@ export const ChatContextManagerProvider: React.FC<{ children: React.ReactNode }>
   const [summaryContent, setSummaryContent] = useState<string>('');
   const [summarizedThread, setSummarizedThread] = useState<Message[]>([]);
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState<boolean>(false);
-  const [isLoadingSummary, setIsLoadingSummary] = useState<boolean>(false);
+  const [isLoadingCompaction, setIsLoadingCompaction] = useState<boolean>(false);
   const [errorLoadingSummary, setErrorLoadingSummary] = useState<boolean>(false);
   const [preparingManualSummary, setPreparingManualSummary] = useState<boolean>(false);
 
   const handleContextLengthExceeded = async (messages: Message[]): Promise<void> => {
-    setIsLoadingSummary(true);
+    setIsLoadingCompaction(true);
     setErrorLoadingSummary(false);
     setPreparingManualSummary(true);
 
@@ -79,17 +76,17 @@ export const ChatContextManagerProvider: React.FC<{ children: React.ReactNode }>
         setSummarizedThread(convertedMessages);
       }
 
-      setIsLoadingSummary(false);
+      setIsLoadingCompaction(false);
     } catch (err) {
       console.error('Error handling context length exceeded:', err);
       setErrorLoadingSummary(true);
-      setIsLoadingSummary(false);
+      setIsLoadingCompaction(false);
     } finally {
       setPreparingManualSummary(false);
     }
   };
 
-  const handleManualSummarization = (
+  const handleManualCompaction = (
     messages: Message[],
     setMessages: (messages: Message[]) => void
   ): void => {
@@ -242,7 +239,7 @@ export const ChatContextManagerProvider: React.FC<{ children: React.ReactNode }>
     summaryContent,
     summarizedThread,
     isSummaryModalOpen,
-    isLoadingSummary,
+    isLoadingCompaction,
     errorLoadingSummary,
     preparingManualSummary,
 
@@ -256,7 +253,7 @@ export const ChatContextManagerProvider: React.FC<{ children: React.ReactNode }>
     hasSummarizationRequestedContent,
     getContextHandlerType,
     handleContextLengthExceeded,
-    handleManualSummarization,
+    handleManualCompaction,
   };
 
   return (

@@ -39,6 +39,8 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    outputs:
+        artifact-url: ${{ steps.upload-app-bundle.outputs.artifact-url }}
     steps:
       # Debug information about the workflow and inputs
       - name: Debug workflow info
@@ -294,6 +296,7 @@ jobs:
           df -h
 
       - name: Upload Desktop artifact
+        id: upload-app-bundle
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # pin@v4
         with:
           name: Goose-darwin-arm64

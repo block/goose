@@ -19,7 +19,6 @@ import type {
   ExtensionConfig,
 } from '../api';
 import { removeShims } from './settings/extensions/utils';
-import { ensureClientInitialized } from '../utils';
 
 export type { ExtensionConfig } from '../api/types.gen';
 
@@ -183,7 +182,6 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
   useEffect(() => {
     // Load all configuration data and providers on mount
     (async () => {
-      await ensureClientInitialized();
       // Load config
       const configResponse = await readAllConfig();
       setConfig(configResponse.data?.config || {});
