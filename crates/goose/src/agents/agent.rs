@@ -1139,8 +1139,8 @@ impl Agent {
         let mode = session.and_then(|s| s.execution_mode.as_deref());
 
         match mode {
-            Some("foreground") => "auto".to_string(),
-            Some("background") => "chat".to_string(),
+            Some("foreground") => "chat".to_string(),
+            Some("background") => "auto".to_string(),
             _ => config
                 .get_param("GOOSE_MODE")
                 .unwrap_or_else(|_| "auto".to_string()),
