@@ -61,14 +61,6 @@ impl Conversation {
         } else {
             self.messages.push(message);
         }
-
-        *self = match std::mem::take(self).validate() {
-            Ok(c) => c,
-            Err(err) => {
-                eprintln!("conversation invalid: {}", err.reason);
-                err.conversation
-            }
-        };
     }
 
     pub fn last(&self) -> Option<&Message> {
