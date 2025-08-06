@@ -174,7 +174,7 @@ const BuildView: React.FC = () => {
                   disabled={isCreating}
                 >
                   <Plus className="w-4 h-4" />
-                  Create App
+                  Create a new web app
                 </Button>
               </div>
               <p className="text-text-muted text-sm mt-2">
@@ -221,7 +221,7 @@ const BuildView: React.FC = () => {
                     disabled={isCreating}
                   >
                     <Plus className="w-4 h-4" />
-                    Create Your First App
+                    Create your first web app
                   </Button>
                 </div>
               )}
