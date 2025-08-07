@@ -13,7 +13,7 @@ use goose::config::{
     Config, ConfigError, ExperimentManager, ExtensionConfigManager, ExtensionEntry,
     PermissionManager,
 };
-use goose::message::Message;
+use goose::conversation::message::Message;
 use goose::providers::{create, providers};
 use rmcp::model::{Tool, ToolAnnotations};
 use rmcp::object;
@@ -246,6 +246,39 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
     }
 }
 
+/// Helper function to handle OAuth configuration for a provider
+async fn handle_oauth_configuration(
+    provider_name: &str,
+    key_name: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use goose::model::ModelConfig;
+    use goose::providers::create;
+
+    let _ = cliclack::log::info(format!(
+        "Configuring {} using OAuth device code flow...",
+        key_name
+    ));
+
+    // Create a temporary provider instance to handle OAuth
+    let temp_model = ModelConfig::new("temp")?;
+    match create(provider_name, temp_model) {
+        Ok(provider) => match provider.configure_oauth().await {
+            Ok(_) => {
+                let _ = cliclack::log::success("OAuth authentication completed successfully!");
+                Ok(())
+            }
+            Err(e) => {
+                let _ = cliclack::log::error(format!("Failed to authenticate: {}", e));
+                Err(format!("OAuth authentication failed for {}: {}", key_name, e).into())
+            }
+        },
+        Err(e) => {
+            let _ = cliclack::log::error(format!("Failed to create provider for OAuth: {}", e));
+            Err(format!("Failed to create provider for OAuth: {}", e).into())
+        }
+    }
+}
+
 /// Dialog for configuring the AI provider and model
 pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
     // Get global config instance
@@ -313,13 +346,52 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
                     Ok(_) => {
                         let _ = cliclack::log::info(format!("{} is already configured", key.name));
                         if cliclack::confirm("Would you like to update this value?").interact()? {
-                            let new_value: String = if key.secret {
-                                cliclack::password(format!("Enter new value for {}", key.name))
-                                    .mask('▪')
-                                    .interact()?
+                            // Check if this key uses OAuth flow
+                            if key.oauth_flow {
+                                handle_oauth_configuration(provider_name, &key.name).await?;
                             } else {
-                                let mut input =
-                                    cliclack::input(format!("Enter new value for {}", key.name));
+                                // Non-OAuth key, use manual entry
+                                let value: String = if key.secret {
+                                    cliclack::password(format!("Enter new value for {}", key.name))
+                                        .mask('▪')
+                                        .interact()?
+                                } else {
+                                    let mut input = cliclack::input(format!(
+                                        "Enter new value for {}",
+                                        key.name
+                                    ));
+                                    if key.default.is_some() {
+                                        input = input.default_input(&key.default.clone().unwrap());
+                                    }
+                                    input.interact()?
+                                };
+
+                                if key.secret {
+                                    config.set_secret(&key.name, Value::String(value))?;
+                                } else {
+                                    config.set_param(&key.name, Value::String(value))?;
+                                }
+                            }
+                        }
+                    }
+                    Err(_) => {
+                        // Check if this key uses OAuth flow
+                        if key.oauth_flow {
+                            handle_oauth_configuration(provider_name, &key.name).await?;
+                        } else {
+                            // Non-OAuth key, use manual entry
+                            let value: String = if key.secret {
+                                cliclack::password(format!(
+                                    "Provider {} requires {}, please enter a value",
+                                    provider_meta.display_name, key.name
+                                ))
+                                .mask('▪')
+                                .interact()?
+                            } else {
+                                let mut input = cliclack::input(format!(
+                                    "Provider {} requires {}, please enter a value",
+                                    provider_meta.display_name, key.name
+                                ));
                                 if key.default.is_some() {
                                     input = input.default_input(&key.default.clone().unwrap());
                                 }
@@ -327,35 +399,10 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
                             };
 
                             if key.secret {
-                                config.set_secret(&key.name, Value::String(new_value))?;
+                                config.set_secret(&key.name, Value::String(value))?;
                             } else {
-                                config.set_param(&key.name, Value::String(new_value))?;
+                                config.set_param(&key.name, Value::String(value))?;
                             }
-                        }
-                    }
-                    Err(_) => {
-                        let value: String = if key.secret {
-                            cliclack::password(format!(
-                                "Provider {} requires {}, please enter a value",
-                                provider_meta.display_name, key.name
-                            ))
-                            .mask('▪')
-                            .interact()?
-                        } else {
-                            let mut input = cliclack::input(format!(
-                                "Provider {} requires {}, please enter a value",
-                                provider_meta.display_name, key.name
-                            ));
-                            if key.default.is_some() {
-                                input = input.default_input(&key.default.clone().unwrap());
-                            }
-                            input.interact()?
-                        };
-
-                        if key.secret {
-                            config.set_secret(&key.name, Value::String(value))?;
-                        } else {
-                            config.set_param(&key.name, Value::String(value))?;
                         }
                     }
                 }
@@ -369,7 +416,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
     let models_res = {
         let temp_model_config = goose::model::ModelConfig::new(&provider_meta.default_model)?;
         let temp_provider = create(provider_name, temp_model_config)?;
-        temp_provider.fetch_supported_models_async().await
+        temp_provider.fetch_supported_models().await
     };
     spin.stop(style("Model fetch complete").green());
 
@@ -1504,7 +1551,7 @@ pub fn configure_max_turns_dialog() -> Result<(), Box<dyn Error>> {
 /// Handle OpenRouter authentication
 pub async fn handle_openrouter_auth() -> Result<(), Box<dyn Error>> {
     use goose::config::{configure_openrouter, signup_openrouter::OpenRouterAuth};
-    use goose::message::Message;
+    use goose::conversation::message::Message;
     use goose::providers::create;
 
     // Use the OpenRouter authentication flow

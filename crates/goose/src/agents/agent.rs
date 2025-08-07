@@ -34,13 +34,14 @@ use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, ToolResultReceiver};
 use crate::config::{Config, ExtensionConfigManager, PermissionManager};
 use crate::context_mgmt::auto_compact;
-use crate::message::{push_message, Message, ToolRequest};
+use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::permission::permission_judge::{check_tool_permissions, PermissionCheckResult};
 use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
 use crate::scheduler_trait::SchedulerTrait;
+use crate::session;
 use crate::tool_monitor::{ToolCall, ToolMonitor};
 use crate::utils::is_token_cancelled;
 use mcp_core::{ToolError, ToolResult};
@@ -55,13 +56,13 @@ use super::final_output_tool::FinalOutputTool;
 use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::subagent_task_config::TaskConfig;
-use crate::conversation_fixer::{debug_conversation_fix, ConversationFixer};
+use crate::conversation::message::{Message, ToolRequest};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 
 /// Context needed for the reply function
 pub struct ReplyContext {
-    pub messages: Vec<Message>,
+    pub messages: Conversation,
     pub tools: Vec<Tool>,
     pub toolshim_tools: Vec<Tool>,
     pub system_prompt: String,
@@ -198,7 +199,7 @@ impl Agent {
     /// Handle retry logic for the agent reply loop
     async fn handle_retry_logic(
         &self,
-        messages: &mut Vec<Message>,
+        messages: &mut Conversation,
         session: &Option<SessionConfig>,
         initial_messages: &[Message],
     ) -> Result<bool> {
@@ -217,24 +218,29 @@ impl Agent {
 
     async fn prepare_reply_context(
         &self,
-        unfixed_messages: &[Message],
+        unfixed_conversation: Conversation,
         session: &Option<SessionConfig>,
     ) -> Result<ReplyContext> {
-        let (messages, issues) = ConversationFixer::fix_conversation(Vec::from(unfixed_messages));
+        let unfixed_messages = unfixed_conversation.messages().clone();
+        let (conversation, issues) = fix_conversation(unfixed_conversation.clone());
         if !issues.is_empty() {
             tracing::warn!(
                 "Conversation issue fixed: {}",
-                debug_conversation_fix(&messages, unfixed_messages, &issues)
+                debug_conversation_fix(
+                    unfixed_messages.as_slice(),
+                    conversation.messages(),
+                    &issues
+                )
             );
         }
-        let initial_messages = messages.clone();
+        let initial_messages = conversation.messages().clone();
         let config = Config::global();
 
         let (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
         let goose_mode = Self::determine_goose_mode(session.as_ref(), config);
 
         Ok(ReplyContext {
-            messages,
+            messages: conversation,
             tools,
             toolshim_tools,
             system_prompt,
@@ -439,13 +445,19 @@ impl Agent {
             // Check if the tool is read_resource and handle it separately
             ToolCallResult::from(
                 extension_manager
-                    .read_resource(tool_call.arguments.clone())
+                    .read_resource(
+                        tool_call.arguments.clone(),
+                        cancellation_token.unwrap_or_default(),
+                    )
                     .await,
             )
         } else if tool_call.name == PLATFORM_LIST_RESOURCES_TOOL_NAME {
             ToolCallResult::from(
                 extension_manager
-                    .list_resources(tool_call.arguments.clone())
+                    .list_resources(
+                        tool_call.arguments.clone(),
+                        cancellation_token.unwrap_or_default(),
+                    )
                     .await,
             )
         } else if tool_call.name == PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME {
@@ -469,7 +481,7 @@ impl Agent {
         } else {
             // Clone the result to ensure no references to extension_manager are returned
             let result = extension_manager
-                .dispatch_tool_call(tool_call.clone())
+                .dispatch_tool_call(tool_call.clone(), cancellation_token.unwrap_or_default())
                 .await;
             result.unwrap_or_else(|e| {
                 ToolCallResult::from(Err(ToolError::ExecutionError(e.to_string())))
@@ -752,8 +764,25 @@ impl Agent {
     async fn handle_auto_compaction(
         &self,
         messages: &[Message],
-    ) -> Result<Option<(Vec<Message>, String)>> {
-        let compact_result = auto_compact::check_and_compact_messages(self, messages, None).await?;
+        session: &Option<SessionConfig>,
+    ) -> Result<Option<(Conversation, String)>> {
+        // Try to get session metadata for more accurate token counts
+        let session_metadata = if let Some(session_config) = session {
+            match session::storage::get_path(session_config.id.clone()) {
+                Ok(session_file_path) => session::storage::read_metadata(&session_file_path).ok(),
+                Err(_) => None,
+            }
+        } else {
+            None
+        };
+
+        let compact_result = auto_compact::check_and_compact_messages(
+            self,
+            messages,
+            None,
+            session_metadata.as_ref(),
+        )
+        .await?;
 
         if compact_result.compacted {
             let compacted_messages = compact_result.messages;
@@ -778,20 +807,22 @@ impl Agent {
         Ok(None)
     }
 
-    #[instrument(skip(self, unfixed_messages, session), fields(user_message))]
+    #[instrument(skip(self, unfixed_conversation, session), fields(user_message))]
     pub async fn reply(
         &self,
-        unfixed_messages: &[Message],
+        unfixed_conversation: Conversation,
         session: Option<SessionConfig>,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         // Handle auto-compaction before processing
-        let (messages, compaction_msg) = match self.handle_auto_compaction(unfixed_messages).await?
+        let (messages, compaction_msg) = match self
+            .handle_auto_compaction(unfixed_conversation.messages(), &session)
+            .await?
         {
             Some((compacted_messages, msg)) => (compacted_messages, Some(msg)),
             None => {
                 let context = self
-                    .prepare_reply_context(unfixed_messages, &session)
+                    .prepare_reply_context(unfixed_conversation, &session)
                     .await?;
                 (context.messages, None)
             }
@@ -801,10 +832,10 @@ impl Agent {
         if let Some(compaction_msg) = compaction_msg {
             return Ok(Box::pin(async_stream::try_stream! {
                 yield AgentEvent::Message(Message::assistant().with_text(compaction_msg));
-                yield AgentEvent::HistoryReplaced(messages.clone());
+                yield AgentEvent::HistoryReplaced(messages.messages().clone());
 
                 // Continue with normal reply processing using compacted messages
-                let mut reply_stream = self.reply_internal(&messages, session, cancel_token).await?;
+                let mut reply_stream = self.reply_internal(messages, session, cancel_token).await?;
                 while let Some(event) = reply_stream.next().await {
                     yield event?;
                 }
@@ -812,13 +843,13 @@ impl Agent {
         }
 
         // No compaction needed, proceed with normal processing
-        self.reply_internal(&messages, session, cancel_token).await
+        self.reply_internal(messages, session, cancel_token).await
     }
 
     /// Main reply method that handles the actual agent processing
     async fn reply_internal(
         &self,
-        messages: &[Message],
+        messages: Conversation,
         session: Option<SessionConfig>,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
@@ -879,7 +910,7 @@ impl Agent {
                 let mut stream = Self::stream_response_from_provider(
                     self.provider().await?,
                     &system_prompt,
-                    &messages,
+                    messages.messages(),
                     &tools,
                     &toolshim_tools,
                 ).await?;
@@ -1048,8 +1079,8 @@ impl Agent {
                                 yield AgentEvent::Message(final_message_tool_resp.clone());
 
                                 added_message = true;
-                                push_message(&mut messages_to_add, response);
-                                push_message(&mut messages_to_add, final_message_tool_resp);
+                                messages_to_add.push(response);
+                                messages_to_add.push(final_message_tool_resp);
                             }
                         }
                         Err(ProviderError::ContextLengthExceeded(_)) => {
@@ -1113,8 +1144,8 @@ impl Agent {
         let mode = session.and_then(|s| s.execution_mode.as_deref());
 
         match mode {
-            Some("foreground") => "auto".to_string(),
-            Some("background") => "chat".to_string(),
+            Some("foreground") => "chat".to_string(),
+            Some("background") => "auto".to_string(),
             _ => config
                 .get_param("GOOSE_MODE")
                 .unwrap_or_else(|_| "auto".to_string()),
@@ -1161,7 +1192,7 @@ impl Agent {
     pub async fn list_extension_prompts(&self) -> HashMap<String, Vec<Prompt>> {
         let extension_manager = self.extension_manager.read().await;
         extension_manager
-            .list_prompts()
+            .list_prompts(CancellationToken::default())
             .await
             .expect("Failed to list prompts")
     }
@@ -1171,7 +1202,7 @@ impl Agent {
 
         // First find which extension has this prompt
         let prompts = extension_manager
-            .list_prompts()
+            .list_prompts(CancellationToken::default())
             .await
             .map_err(|e| anyhow!("Failed to list prompts: {}", e))?;
 
@@ -1181,7 +1212,7 @@ impl Agent {
             .map(|(extension, _)| extension)
         {
             return extension_manager
-                .get_prompt(extension, name, arguments)
+                .get_prompt(extension, name, arguments, CancellationToken::default())
                 .await
                 .map_err(|e| anyhow!("Failed to get prompt: {}", e));
         }
@@ -1218,7 +1249,7 @@ impl Agent {
         }
     }
 
-    pub async fn create_recipe(&self, mut messages: Vec<Message>) -> Result<Recipe> {
+    pub async fn create_recipe(&self, mut messages: Conversation) -> Result<Recipe> {
         let extension_manager = self.extension_manager.read().await;
         let extensions_info = extension_manager.get_extensions_info().await;
 
@@ -1247,7 +1278,7 @@ impl Agent {
             .await
             .as_ref()
             .unwrap()
-            .complete(&system_prompt, &messages, &tools)
+            .complete(&system_prompt, messages.messages(), &tools)
             .await?;
 
         let content = result.as_concat_text();

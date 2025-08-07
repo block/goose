@@ -8,13 +8,13 @@ use aws_sdk_bedrockruntime::config::ProvideCredentials;
 use aws_sdk_sagemakerruntime::Client as SageMakerClient;
 use rmcp::model::Tool;
 use serde_json::{json, Value};
-use tokio::time::sleep;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
+use super::retry::ProviderRetry;
 use super::utils::emit_debug_trace;
+use crate::conversation::message::{Message, MessageContent};
 use crate::impl_provider_default;
-use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use chrono::Utc;
 use rmcp::model::Role;
@@ -295,63 +295,33 @@ impl Provider for SageMakerTgiProvider {
             ProviderError::RequestFailed(format!("Failed to create request: {}", e))
         })?;
 
-        // Retry configuration
-        const MAX_RETRIES: u32 = 3;
-        const INITIAL_BACKOFF_MS: u64 = 1000; // 1 second
-        const MAX_BACKOFF_MS: u64 = 30000; // 30 seconds
+        let response = self
+            .with_retry(|| self.invoke_endpoint(request_payload.clone()))
+            .await?;
 
-        let mut attempts = 0;
-        let mut backoff_ms = INITIAL_BACKOFF_MS;
+        let message = self.parse_tgi_response(response)?;
 
-        loop {
-            attempts += 1;
+        // TGI doesn't provide usage statistics, so we estimate
+        let usage = Usage {
+            input_tokens: Some(0),  // Would need to tokenize input to get accurate count
+            output_tokens: Some(0), // Would need to tokenize output to get accurate count
+            total_tokens: Some(0),
+        };
 
-            match self.invoke_endpoint(request_payload.clone()).await {
-                Ok(response) => {
-                    let message = self.parse_tgi_response(response)?;
+        // Add debug trace
+        let debug_payload = serde_json::json!({
+            "system": system,
+            "messages": messages,
+            "tools": tools
+        });
+        emit_debug_trace(
+            &self.model,
+            &debug_payload,
+            &serde_json::to_value(&message).unwrap_or_default(),
+            &usage,
+        );
 
-                    // TGI doesn't provide usage statistics, so we estimate
-                    let usage = Usage {
-                        input_tokens: Some(0),  // Would need to tokenize input to get accurate count
-                        output_tokens: Some(0), // Would need to tokenize output to get accurate count
-                        total_tokens: Some(0),
-                    };
-
-                    // Add debug trace
-                    let debug_payload = serde_json::json!({
-                        "system": system,
-                        "messages": messages,
-                        "tools": tools
-                    });
-                    emit_debug_trace(
-                        &self.model,
-                        &debug_payload,
-                        &serde_json::to_value(&message).unwrap_or_default(),
-                        &usage,
-                    );
-
-                    let provider_usage = ProviderUsage::new(model_name.to_string(), usage);
-                    return Ok((message, provider_usage));
-                }
-                Err(err) => {
-                    if attempts > MAX_RETRIES {
-                        return Err(err);
-                    }
-
-                    // Log retry attempt
-                    tracing::warn!(
-                        "SageMaker TGI request failed (attempt {}/{}), retrying in {} ms: {:?}",
-                        attempts,
-                        MAX_RETRIES,
-                        backoff_ms,
-                        err
-                    );
-
-                    // Wait before retry
-                    sleep(Duration::from_millis(backoff_ms)).await;
-                    backoff_ms = (backoff_ms * 2).min(MAX_BACKOFF_MS);
-                }
-            }
-        }
+        let provider_usage = ProviderUsage::new(model_name.to_string(), usage);
+        Ok((message, provider_usage))
     }
 }

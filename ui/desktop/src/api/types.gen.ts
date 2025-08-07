@@ -33,10 +33,30 @@ export type AuthorRequest = {
     metadata?: string | null;
 };
 
+/**
+ * Configuration key metadata for provider setup
+ */
 export type ConfigKey = {
+    /**
+     * Optional default value for the key
+     */
     default?: string | null;
+    /**
+     * The name of the configuration key (e.g., "API_KEY")
+     */
     name: string;
+    /**
+     * Whether this key should be configured using OAuth device code flow
+     * When true, the provider's configure_oauth() method will be called instead of prompting for manual input
+     */
+    oauth_flow: boolean;
+    /**
+     * Whether this key is required for the provider to function
+     */
     required: boolean;
+    /**
+     * Whether this key should be stored securely (e.g., in keychain)
+     */
     secret: boolean;
 };
 
@@ -716,6 +736,9 @@ export type Tool = {
         [key: string]: unknown;
     };
     name: string;
+    outputSchema?: {
+        [key: string]: unknown;
+    };
 };
 
 export type ToolAnnotations = {
@@ -839,7 +862,7 @@ export type ListAppsData = {
     body?: never;
     path?: never;
     query?: never;
-    url: '/apps';
+    url: '/apps/list_apps';
 };
 
 export type ListAppsErrors = {

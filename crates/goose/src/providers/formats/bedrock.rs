@@ -11,7 +11,7 @@ use rmcp::model::{Content, RawContent, ResourceContents, Role, Tool};
 use serde_json::Value;
 
 use super::super::base::Usage;
-use crate::message::{Message, MessageContent};
+use crate::conversation::message::{Message, MessageContent};
 
 pub fn to_bedrock_message(message: &Message) -> Result<bedrock::Message> {
     bedrock::Message::builder()

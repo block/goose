@@ -3,9 +3,9 @@ use std::sync::Arc;
 
 use crate::state::AppState;
 use axum::{
-    extract::State,
+    extract::{Path, State},
     http::{HeaderMap, StatusCode},
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -28,11 +28,11 @@ pub struct AppListResponse {
 
 #[utoipa::path(
     get,
-    path = "/apps",
+    path = "/apps/list_apps",
     responses(
        (status = 200, description = "List of installed apps retrieved successfully", body = AppListResponse),
-       (status = 401, description = "Unauthorized - Invalid or missing API key"),
-       (status = 500, description = "Internal server error")
+       (status = 401, description = "Unauthorized - Invalid or missing API key", body = ErrorResponse),
+       (status = 500, description = "Internal server error", body = ErrorResponse),
     ),
     security(
        ("api_key" = [])
@@ -72,8 +72,24 @@ class ClockWidget extends GooseWidget {
     }))
 }
 
+#[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct LaunchAppRequest {
+    /// Name of the app to launch
+    pub app_name: String,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct LaunchAppResponse {
+    /// Success message
+    pub message: String,
+    /// Port on which the app is running (if applicable)
+    pub port: Option<u16>,
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
-        .route("/list_apps", get(list_apps))
+        .route("/apps/list_apps", get(list_apps))
         .with_state(state)
 }

@@ -38,7 +38,7 @@ export const getTools = <ThrowOnError extends boolean = false>(options?: Options
 
 export const listApps = <ThrowOnError extends boolean = false>(options?: Options<ListAppsData, ThrowOnError>) => {
     return (options?.client ?? _heyApiClient).get<ListAppsResponse, unknown, ThrowOnError>({
-        url: '/apps',
+        url: '/apps/list_apps',
         ...options
     });
 };

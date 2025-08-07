@@ -944,8 +944,60 @@ const buildRecentFilesMenu = () => {
 const openDirectoryDialog = async (
   replaceWindow: boolean = false
 ): Promise<OpenDialogReturnValue> => {
+  // Get the current working directory from the focused window
+  let defaultPath: string | undefined;
+  const currentWindow = BrowserWindow.getFocusedWindow();
+
+  if (currentWindow) {
+    try {
+      const currentWorkingDir = await currentWindow.webContents.executeJavaScript(
+        `window.appConfig ? window.appConfig.get('GOOSE_WORKING_DIR') : null`
+      );
+
+      if (currentWorkingDir && typeof currentWorkingDir === 'string') {
+        // Verify the directory exists before using it as default
+        try {
+          const stats = fsSync.lstatSync(currentWorkingDir);
+          if (stats.isDirectory()) {
+            defaultPath = currentWorkingDir;
+          }
+        } catch (error) {
+          if (error && typeof error === 'object' && 'code' in error) {
+            const fsError = error as { code?: string; message?: string };
+            if (
+              fsError.code === 'ENOENT' ||
+              fsError.code === 'EACCES' ||
+              fsError.code === 'EPERM'
+            ) {
+              console.warn(
+                `Current working directory not accessible (${fsError.code}): ${currentWorkingDir}, falling back to home directory`
+              );
+              defaultPath = os.homedir();
+            } else {
+              console.warn(
+                `Unexpected filesystem error (${fsError.code}) for directory ${currentWorkingDir}:`,
+                fsError.message
+              );
+              defaultPath = os.homedir();
+            }
+          } else {
+            console.warn(`Unexpected error checking directory ${currentWorkingDir}:`, error);
+            defaultPath = os.homedir();
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to get current working directory from window:', error);
+    }
+  }
+
+  if (!defaultPath) {
+    defaultPath = os.homedir();
+  }
+
   const result = (await dialog.showOpenDialog({
     properties: ['openFile', 'openDirectory', 'createDirectory'],
+    defaultPath: defaultPath,
   })) as unknown as OpenDialogReturnValue;
 
   if (!result.canceled && result.filePaths.length > 0) {
@@ -2159,6 +2211,15 @@ app.whenReady().then(async () => {
   // Handler for getting app version
   ipcMain.on('get-app-version', (event) => {
     event.returnValue = app.getVersion();
+  });
+
+  ipcMain.handle('open-directory-in-explorer', async (_event, path: string) => {
+    try {
+      return !!(await shell.openPath(path));
+    } catch (error) {
+      console.error('Error opening directory in explorer:', error);
+      return false;
+    }
   });
 });
 

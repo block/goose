@@ -13,6 +13,7 @@ use rmcp::{
 use serde_json::Value;
 use std::collections::HashMap;
 use tokio::sync::mpsc::{self, Receiver};
+use tokio_util::sync::CancellationToken;
 
 pub struct MockClient {
     tools: HashMap<String, Tool>,
@@ -43,6 +44,7 @@ impl McpClientTrait for MockClient {
     async fn list_resources(
         &self,
         _next_cursor: Option<String>,
+        _cancel_token: CancellationToken,
     ) -> Result<ListResourcesResult, Error> {
         Ok(ListResourcesResult {
             resources: vec![],
@@ -54,11 +56,19 @@ impl McpClientTrait for MockClient {
         todo!()
     }
 
-    async fn read_resource(&self, _uri: &str) -> Result<ReadResourceResult, Error> {
+    async fn read_resource(
+        &self,
+        _uri: &str,
+        _cancel_token: CancellationToken,
+    ) -> Result<ReadResourceResult, Error> {
         Err(Error::UnexpectedResponse)
     }
 
-    async fn list_tools(&self, _: Option<String>) -> Result<ListToolsResult, Error> {
+    async fn list_tools(
+        &self,
+        _: Option<String>,
+        _cancel_token: CancellationToken,
+    ) -> Result<ListToolsResult, Error> {
         let rmcp_tools: Vec<rmcp::model::Tool> = self
             .tools
             .values()
@@ -77,28 +87,43 @@ impl McpClientTrait for MockClient {
         })
     }
 
-    async fn call_tool(&self, name: &str, arguments: Value) -> Result<CallToolResult, Error> {
+    async fn call_tool(
+        &self,
+        name: &str,
+        arguments: Value,
+        _cancel_token: CancellationToken,
+    ) -> Result<CallToolResult, Error> {
         if let Some(handler) = self.handlers.get(name) {
             match handler(&arguments) {
                 Ok(content) => Ok(CallToolResult {
-                    content,
+                    content: Some(content),
                     is_error: None,
+                    structured_content: None,
                 }),
-                Err(e) => Err(Error::UnexpectedResponse),
+                Err(_e) => Err(Error::UnexpectedResponse),
             }
         } else {
             Err(Error::UnexpectedResponse)
         }
     }
 
-    async fn list_prompts(&self, _next_cursor: Option<String>) -> Result<ListPromptsResult, Error> {
+    async fn list_prompts(
+        &self,
+        _next_cursor: Option<String>,
+        _cancel_token: CancellationToken,
+    ) -> Result<ListPromptsResult, Error> {
         Ok(ListPromptsResult {
             prompts: vec![],
             next_cursor: None,
         })
     }
 
-    async fn get_prompt(&self, _name: &str, _arguments: Value) -> Result<GetPromptResult, Error> {
+    async fn get_prompt(
+        &self,
+        _name: &str,
+        _arguments: Value,
+        _cancel_token: CancellationToken,
+    ) -> Result<GetPromptResult, Error> {
         Err(Error::UnexpectedResponse)
     }
 

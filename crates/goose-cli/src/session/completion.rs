@@ -1,8 +1,8 @@
-use rustyline::completion::{Completer, Pair};
+use rustyline::completion::{Completer, FilenameCompleter, Pair};
 use rustyline::highlight::{CmdKind, Highlighter};
 use rustyline::hint::Hinter;
 use rustyline::validate::Validator;
-use rustyline::{Helper, Result};
+use rustyline::{Context, Helper, Result};
 use std::borrow::Cow;
 use std::sync::Arc;
 
@@ -11,12 +11,16 @@ use super::CompletionCache;
 /// Completer for Goose CLI commands
 pub struct GooseCompleter {
     completion_cache: Arc<std::sync::RwLock<CompletionCache>>,
+    filename_completer: FilenameCompleter,
 }
 
 impl GooseCompleter {
     /// Create a new GooseCompleter with a reference to the Session's completion cache
     pub fn new(completion_cache: Arc<std::sync::RwLock<CompletionCache>>) -> Self {
-        Self { completion_cache }
+        Self {
+            completion_cache,
+            filename_completer: FilenameCompleter::new(),
+        }
     }
 
     /// Complete prompt names for the /prompt command
@@ -254,6 +258,35 @@ impl GooseCompleter {
         // No completions available
         Ok((line.len(), vec![]))
     }
+
+    /// Complete file paths
+    fn complete_file_path(&self, line: &str, ctx: &Context) -> Result<(usize, Vec<Pair>)> {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+
+        if let Some(last_part) = parts.last() {
+            // Skip filename completion for words starting with special characters
+            if last_part.starts_with('/') && last_part.len() == 1 {
+                // Just a slash - no completion
+                return Ok((line.len(), vec![]));
+            }
+
+            if last_part.starts_with('-') || last_part.contains('=') {
+                // Skip flag or key-value pairs
+                return Ok((line.len(), vec![]));
+            }
+
+            // Complete the partial path
+            let pos = line.len() - last_part.len();
+            let (start, candidates) =
+                self.filename_completer
+                    .complete(last_part, last_part.len(), ctx)?;
+
+            // Return the completion results, with adjusted position
+            return Ok((pos + start, candidates));
+        }
+
+        Ok((line.len(), vec![]))
+    }
 }
 
 impl Completer for GooseCompleter {
@@ -263,7 +296,7 @@ impl Completer for GooseCompleter {
         &self,
         line: &str,
         pos: usize,
-        _ctx: &rustyline::Context<'_>,
+        ctx: &Context<'_>,
     ) -> Result<(usize, Vec<Self::Candidate>)> {
         // If the cursor is not at the end of the line, don't try to complete
         if pos < line.len() {
@@ -338,10 +371,12 @@ impl Completer for GooseCompleter {
             if line.starts_with("/mode") {
                 return self.complete_mode_flags(line);
             }
+
+            return Ok((pos, vec![]));
         }
 
-        // Default: no completions
-        Ok((pos, vec![]))
+        // For normal text (not slash commands), try file path completion
+        self.complete_file_path(line, ctx)
     }
 }
 
@@ -352,7 +387,7 @@ impl Helper for GooseCompleter {}
 impl Hinter for GooseCompleter {
     type Hint = String;
 
-    fn hint(&self, line: &str, _pos: usize, _ctx: &rustyline::Context<'_>) -> Option<Self::Hint> {
+    fn hint(&self, line: &str, _pos: usize, _ctx: &Context<'_>) -> Option<Self::Hint> {
         // Only show hint when line is empty
         if line.is_empty() {
             Some("Press Enter to send, Ctrl-J for new line".to_string())
@@ -390,7 +425,7 @@ impl Validator for GooseCompleter {
     fn validate(
         &self,
         _ctx: &mut rustyline::validate::ValidationContext,
-    ) -> rustyline::Result<rustyline::validate::ValidationResult> {
+    ) -> Result<rustyline::validate::ValidationResult> {
         Ok(rustyline::validate::ValidationResult::Valid(None))
     }
 }

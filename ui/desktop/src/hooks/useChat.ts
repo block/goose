@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ChatType } from '../types/chat';
 import { fetchSessionDetails, generateSessionId } from '../sessions';
-import { ensureClientInitialized } from '../utils';
 import { View, ViewOptions } from '../App';
 
 type UseChatArgs = {
@@ -30,7 +29,6 @@ export const useChat = ({ setIsLoadingSession, setView, setPairChat }: UseChatAr
 
       setIsLoadingSession(true);
       try {
-        await ensureClientInitialized();
         const sessionDetails = await fetchSessionDetails(resumeSessionId);
 
         // Only set view if we have valid session details

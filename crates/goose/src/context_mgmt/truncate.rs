@@ -1,4 +1,5 @@
-use crate::message::{Message, MessageContent};
+use crate::conversation::message::{Message, MessageContent};
+use crate::conversation::Conversation;
 use crate::utils::safe_truncate;
 use anyhow::{anyhow, Result};
 use rmcp::model::{RawContent, ResourceContents, Role};
@@ -16,7 +17,7 @@ fn handle_oversized_messages(
     token_counts: &[usize],
     context_limit: usize,
     strategy: &dyn TruncationStrategy,
-) -> Result<(Vec<Message>, Vec<usize>), anyhow::Error> {
+) -> Result<(Conversation, Vec<usize>), anyhow::Error> {
     let mut truncated_messages = Vec::new();
     let mut truncated_token_counts = Vec::new();
     let mut any_truncated = false;
@@ -67,7 +68,10 @@ fn handle_oversized_messages(
         );
     }
 
-    Ok((truncated_messages, truncated_token_counts))
+    Ok((
+        Conversation::new_unvalidated(truncated_messages),
+        truncated_token_counts,
+    ))
 }
 
 /// Truncates the content within a message while preserving its structure
@@ -180,7 +184,7 @@ pub fn truncate_messages(
     token_counts: &[usize],
     context_limit: usize,
     strategy: &dyn TruncationStrategy,
-) -> Result<(Vec<Message>, Vec<usize>), anyhow::Error> {
+) -> Result<(Conversation, Vec<usize>), anyhow::Error> {
     let mut messages = messages.to_owned();
     let mut token_counts = token_counts.to_owned();
 
@@ -221,7 +225,10 @@ pub fn truncate_messages(
     }
 
     if total_tokens <= context_limit {
-        return Ok((messages, token_counts)); // No truncation needed
+        return Ok((
+            Conversation::new_unvalidated(messages.to_vec()),
+            token_counts.to_vec(),
+        )); // No truncation needed
     }
 
     // Step 2: Determine indices to remove based on strategy
@@ -303,7 +310,10 @@ pub fn truncate_messages(
     }
 
     debug!("Truncation complete. Total tokens: {}", total_tokens);
-    Ok((messages, token_counts))
+    Ok((
+        Conversation::new_unvalidated(messages.to_vec()),
+        token_counts.to_vec(),
+    ))
 }
 
 /// Trait representing a truncation strategy
@@ -378,7 +388,7 @@ impl TruncationStrategy for OldestFirstTruncation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::message::Message;
+    use crate::conversation::message::Message;
     use anyhow::Result;
     use mcp_core::tool::ToolCall;
     use rmcp::model::Content;
@@ -423,15 +433,13 @@ mod tests {
         num_pairs: usize,
         tokens: usize,
         remove_last: bool,
-    ) -> (Vec<Message>, Vec<usize>) {
-        let mut messages: Vec<Message> = (0..num_pairs)
-            .flat_map(|i| {
-                vec![
-                    user_text(i * 2, tokens).0,
-                    assistant_text((i * 2) + 1, tokens).0,
-                ]
-            })
-            .collect();
+    ) -> (Conversation, Vec<usize>) {
+        let mut messages = Conversation::new_unvalidated((0..num_pairs).flat_map(|i| {
+            vec![
+                user_text(i * 2, tokens).0,
+                assistant_text((i * 2) + 1, tokens).0,
+            ]
+        }));
 
         if remove_last {
             messages.pop();
@@ -498,13 +506,13 @@ mod tests {
         let context_limit = 25;
 
         let result = truncate_messages(
-            &messages,
+            &messages.messages(),
             &token_counts,
             context_limit,
             &OldestFirstTruncation,
         )?;
 
-        assert_eq!(result.0, messages);
+        assert_eq!(result.0.messages(), messages.messages());
         assert_eq!(result.1, token_counts);
         Ok(())
     }
@@ -582,7 +590,7 @@ mod tests {
         let context_limit = 100; // Exactly matches total tokens
 
         let result = truncate_messages(
-            &messages,
+            &messages.messages(),
             &token_counts,
             context_limit,
             &OldestFirstTruncation,
@@ -597,7 +605,7 @@ mod tests {
         token_counts.push(1);
 
         let result = truncate_messages(
-            &messages,
+            &messages.messages(),
             &token_counts,
             context_limit,
             &OldestFirstTruncation,
@@ -702,7 +710,7 @@ mod tests {
         // Test impossibly small context window
         let (messages, token_counts) = create_messages_with_counts(1, 10, false);
         let result = truncate_messages(
-            &messages,
+            &messages.messages(),
             &token_counts,
             5, // Impossibly small context
             &OldestFirstTruncation,

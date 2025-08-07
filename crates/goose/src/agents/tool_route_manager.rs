@@ -7,7 +7,7 @@ use crate::agents::tool_execution::ToolCallResult;
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::tool_vectordb::generate_table_id;
 use crate::config::Config;
-use crate::message::ToolRequest;
+use crate::conversation::message::ToolRequest;
 use crate::providers::base::Provider;
 use anyhow::{anyhow, Result};
 use mcp_core::ToolError;

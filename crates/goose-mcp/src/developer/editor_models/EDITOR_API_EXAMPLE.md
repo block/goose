@@ -36,7 +36,7 @@ export GOOSE_EDITOR_MODEL="claude-3-5-sonnet-20241022"
 ```bash
 export GOOSE_EDITOR_API_KEY="sk-..."
 export GOOSE_EDITOR_HOST="https://api.morphllm.com/v1"
-export GOOSE_EDITOR_MODEL="morph-v0"
+export GOOSE_EDITOR_MODEL="morph-v3-large"
 ```
 
 **Relace**
