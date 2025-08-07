@@ -451,7 +451,7 @@ const BuildView: React.FC = () => {
       {showCreateDialog && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50">
           <div className="bg-background-default border border-border-subtle rounded-lg p-6 w-[500px] max-w-[90vw]">
-            <h3 className="text-lg font-medium text-text-standard mb-4">Create New App</h3>
+            <h3 className="text-lg font-medium text-text-standard mb-4">Create new web app</h3>
 
             <div className="space-y-4">
               <div>
