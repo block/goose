@@ -1,7 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Sidecar, useSidecar } from '../SidecarLayout';
-import { GripVertical } from 'lucide-react';
 
 export const MainPanelLayout: React.FC<{
   children: React.ReactNode;
@@ -73,10 +72,9 @@ export const MainPanelLayout: React.FC<{
             }`}
             onMouseDown={handleMouseDown}
           >
-            <GripVertical
-              size={12}
-              className={`text-textSubtle group-hover:text-textStandard transition-colors ${
-                isResizing ? 'text-textStandard' : ''
+            <div
+              className={`w-0.5 h-8 bg-border-subtle group-hover:bg-border-strong rounded-full transition-colors ${
+                isResizing ? 'bg-border-strong' : ''
               }`}
             />
           </div>
