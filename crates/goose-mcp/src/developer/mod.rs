@@ -152,6 +152,85 @@ fn parse_file_references(content: &str) -> Vec<PathBuf> {
 }
 
 /// Read referenced files and expand their content
+/// Check if a file reference should be processed
+fn should_process_reference_v2(
+    reference: &Path,
+    visited: &HashSet<PathBuf>,
+    base_path: &Path,
+    ignore_patterns: &Gitignore,
+) -> Option<PathBuf> {
+    // Check if we've already visited this file (circular reference protection)
+    if visited.contains(reference) {
+        return None;
+    }
+
+    // Sanitize the path
+    let safe_path = match sanitize_reference_path(reference, base_path) {
+        Ok(path) => path,
+        Err(_) => {
+            tracing::warn!("Skipping unsafe file reference: {:?}", reference);
+            return None;
+        }
+    };
+
+    // Check if the file should be ignored
+    if ignore_patterns.matched(&safe_path, false).is_ignore() {
+        tracing::debug!("Skipping ignored file reference: {:?}", safe_path);
+        return None;
+    }
+
+    // Check if file exists
+    if !safe_path.is_file() {
+        return None;
+    }
+
+    Some(safe_path)
+}
+
+/// Process a single file reference and return the replacement content
+fn process_file_reference_v2(
+    reference: &Path,
+    safe_path: &Path,
+    visited: &mut HashSet<PathBuf>,
+    base_path: &Path,
+    depth: usize,
+    ignore_patterns: &Gitignore,
+) -> Option<(String, String)> {
+    match std::fs::read_to_string(safe_path) {
+        Ok(file_content) => {
+            // Mark this file as visited
+            visited.insert(reference.to_path_buf());
+
+            // Recursively expand any references in the included file
+            let expanded_content = read_referenced_files(
+                &file_content,
+                base_path,
+                visited,
+                depth + 1,
+                ignore_patterns,
+            );
+
+            // Create the replacement content
+            let reference_pattern = format!("@{}", reference.to_string_lossy());
+            let replacement = format!(
+                "--- Content from {} ---\n{}\n--- End of {} ---",
+                reference.display(),
+                expanded_content,
+                reference.display()
+            );
+
+            // Remove from visited so it can be referenced again in different contexts
+            visited.remove(reference);
+
+            Some((reference_pattern, replacement))
+        }
+        Err(e) => {
+            tracing::warn!("Could not read referenced file {:?}: {}", safe_path, e);
+            None
+        }
+    }
+}
+
 fn read_referenced_files(
     content: &str,
     base_path: &Path,
@@ -170,59 +249,20 @@ fn read_referenced_files(
     let mut result = content.to_string();
 
     for reference in references {
-        // Check if we've already visited this file (circular reference protection)
-        if visited.contains(&reference) {
-            continue;
-        }
-
-        // Sanitize the path
-        let safe_path = match sanitize_reference_path(&reference, base_path) {
-            Ok(path) => path,
-            Err(_) => {
-                tracing::warn!("Skipping unsafe file reference: {:?}", reference);
-                continue;
-            }
+        let safe_path = match should_process_reference_v2(&reference, visited, base_path, ignore_patterns) {
+            Some(path) => path,
+            None => continue,
         };
 
-        // Check if the file should be ignored
-        if ignore_patterns.matched(&safe_path, false).is_ignore() {
-            tracing::debug!("Skipping ignored file reference: {:?}", safe_path);
-            continue;
-        }
-
-        // Try to read the file
-        if safe_path.is_file() {
-            match std::fs::read_to_string(&safe_path) {
-                Ok(file_content) => {
-                    // Mark this file as visited
-                    visited.insert(reference.clone());
-
-                    // Recursively expand any references in the included file
-                    let expanded_content = read_referenced_files(
-                        &file_content,
-                        base_path,
-                        visited,
-                        depth + 1,
-                        ignore_patterns,
-                    );
-
-                    // Replace the @-mention with the expanded content
-                    let reference_pattern = format!("@{}", reference.to_string_lossy());
-                    let replacement = format!(
-                        "--- Content from {} ---\n{}\n--- End of {} ---",
-                        reference.display(),
-                        expanded_content,
-                        reference.display()
-                    );
-                    result = result.replace(&reference_pattern, &replacement);
-
-                    // Remove from visited so it can be referenced again in different contexts
-                    visited.remove(&reference);
-                }
-                Err(e) => {
-                    tracing::warn!("Could not read referenced file {:?}: {}", safe_path, e);
-                }
-            }
+        if let Some((pattern, replacement)) = process_file_reference_v2(
+            &reference,
+            &safe_path,
+            visited,
+            base_path,
+            depth,
+            ignore_patterns,
+        ) {
+            result = result.replace(&pattern, &replacement);
         }
     }
 
