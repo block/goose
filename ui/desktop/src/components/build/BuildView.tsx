@@ -26,15 +26,28 @@ const BuildView: React.FC = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [appName, setAppName] = useState('');
+  const [displayAppName, setDisplayAppName] = useState(''); // What the user types
   const [subdomain, setSubdomain] = useState('');
   const [isCheckingSubdomain, setIsCheckingSubdomain] = useState(false);
   const [subdomainAvailable, setSubdomainAvailable] = useState<boolean | null>(null);
   const [subdomainCheckError, setSubdomainCheckError] = useState<string | null>(null);
   const [canConnectToSites, setCanConnectToSites] = useState(true);
   const [creationProgress, setCreationProgress] = useState('');
+  const [creationLog, setCreationLog] = useState<string[]>([]); // Array to store all log entries
   const [hasError, setHasError] = useState(false);
   const [colorPickerAppId, setColorPickerAppId] = useState<string | null>(null);
   const [appColors, setAppColors] = useState<Record<string, { bg: string; inner: string }>>({});
+
+  // Helper function to convert user input to a valid app name
+  const convertToValidAppName = (input: string): string => {
+    return input
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-zA-Z0-9\s-_]/g, '') // Remove invalid characters but keep spaces
+      .replace(/\s+/g, '-') // Replace spaces with hyphens
+      .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
+      .replace(/^-|-$/g, ''); // Remove leading/trailing hyphens
+  };
 
   // Available color combinations for app icons
   const colorCombinations = [
@@ -69,7 +82,13 @@ const BuildView: React.FC = () => {
     // Listen for app creation progress
     const handleProgress = (_event: IpcRendererEvent, ...args: unknown[]) => {
       const data = args[0] as { appName: string; lastLine: string; type: 'stdout' | 'stderr' };
+      
+      // Update current progress line
       setCreationProgress(data.lastLine);
+      
+      // Add to log history for streaming display
+      setCreationLog(prev => [...prev, data.lastLine]);
+      
       // Mark if we're getting stderr (potential errors)
       if (data.type === 'stderr') {
         setHasError(true);
@@ -95,6 +114,7 @@ const BuildView: React.FC = () => {
 
   const handleCreateAppClick = async () => {
     setAppName('');
+    setDisplayAppName('');
     setSubdomain('');
     setSubdomainAvailable(null);
     setSubdomainCheckError(null);
@@ -186,6 +206,7 @@ const BuildView: React.FC = () => {
 
     setIsCreating(true);
     setCreationProgress('Starting app creation...');
+    setCreationLog([]); // Clear previous log entries
     setHasError(false);
 
     try {
@@ -219,9 +240,11 @@ const BuildView: React.FC = () => {
       // Close dialog and reset
       setShowCreateDialog(false);
       setAppName('');
+      setDisplayAppName('');
       setSubdomain('');
       setSubdomainAvailable(null);
       setCreationProgress('');
+      setCreationLog([]); // Clear log entries
       setHasError(false);
     } catch (err) {
       console.error('[BuildView] Failed to create app:', err);
@@ -240,6 +263,7 @@ const BuildView: React.FC = () => {
     if (!isCreating) {
       setShowCreateDialog(false);
       setAppName('');
+      setDisplayAppName('');
       setSubdomain('');
       setSubdomainAvailable(null);
       setSubdomainCheckError(null);
@@ -450,180 +474,241 @@ const BuildView: React.FC = () => {
       {/* Create App Dialog */}
       {showCreateDialog && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50">
-          <div className="bg-background-default border border-border-subtle rounded-lg p-6 w-[500px] max-w-[90vw]">
-            <h3 className="text-lg font-medium text-text-standard mb-4">Create new web app</h3>
+          <div className={`bg-background-default border border-border-subtle rounded-lg p-6 max-w-[90vw] transition-all duration-300 ${
+            isCreating ? 'w-[700px] h-[600px]' : 'w-[500px] h-[400px]'
+          }`}>
+            <h3 className="text-lg font-medium text-text-standard mb-4">
+              {isCreating ? 'Creating your web app' : 'Create new web app'}
+            </h3>
 
-            <div className="space-y-4">
-              <div>
-                <label
-                  htmlFor="app-name"
-                  className="block text-sm font-medium text-text-standard mb-2"
-                >
-                  App Name
-                </label>
-                <Input
-                  id="app-name"
-                  type="text"
-                  value={appName}
-                  onChange={(e) => setAppName(e.target.value)}
-                  placeholder="my-awesome-app"
-                  className="w-full"
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (
-                      e.key === 'Enter' &&
-                      appName.trim() &&
-                      (!subdomain.trim() || subdomainAvailable)
-                    ) {
-                      handleCreateApp();
-                    } else if (e.key === 'Escape') {
-                      handleCancelCreate();
-                    }
-                  }}
-                />
-                <p className="text-xs text-text-muted mt-1">
-                  Only letters, numbers, hyphens, and underscores are allowed
-                </p>
-              </div>
-
-              {/* Subdomain field */}
-              <div>
-                <label
-                  htmlFor="subdomain"
-                  className="block text-sm font-medium text-text-standard mb-2"
-                >
-                  Subdomain (Optional)
-                </label>
-                <div className="relative">
-                  <Input
-                    id="subdomain"
-                    type="text"
-                    value={subdomain}
-                    onChange={(e) => {
-                      const value = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
-                      setSubdomain(value);
-                      setSubdomainAvailable(null);
-                      setSubdomainCheckError(null);
-                      // Debounce the check
-                      if (value) {
-                        setTimeout(() => {
-                          if (value === e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')) {
-                            checkSubdomainAvailability(value);
+            <div className={`${isCreating ? 'h-[520px]' : 'h-[320px]'} flex flex-col`}>
+              {!isCreating ? (
+                /* Input Form - shown before creation starts */
+                <div className="flex flex-col h-full">
+                  <div className="flex-1 space-y-4">
+                    <div>
+                      <label
+                        htmlFor="app-name"
+                        className="block text-sm font-medium text-text-standard mb-2"
+                      >
+                        App Name
+                      </label>
+                      <Input
+                        id="app-name"
+                        type="text"
+                        value={displayAppName}
+                        onChange={(e) => {
+                          const userInput = e.target.value;
+                          setDisplayAppName(userInput);
+                          const convertedName = convertToValidAppName(userInput);
+                          setAppName(convertedName);
+                        }}
+                        placeholder="My Awesome App"
+                        className="w-full"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (
+                            e.key === 'Enter' &&
+                            appName.trim() &&
+                            (!subdomain.trim() || subdomainAvailable)
+                          ) {
+                            handleCreateApp();
+                          } else if (e.key === 'Escape') {
+                            handleCancelCreate();
                           }
-                        }, 500);
-                      }
-                    }}
-                    placeholder="my-site"
-                    className={`w-full pr-10 ${!canConnectToSites ? 'opacity-50' : ''} ${
-                      subdomain && subdomainAvailable === false
-                        ? 'border-red-500'
-                        : subdomain && subdomainAvailable === true
-                          ? 'border-green-500'
-                          : ''
-                    }`}
-                    disabled={!canConnectToSites}
-                    onKeyDown={(e) => {
-                      if (
-                        e.key === 'Enter' &&
-                        appName.trim() &&
-                        (!subdomain.trim() || subdomainAvailable)
-                      ) {
-                        handleCreateApp();
-                      } else if (e.key === 'Escape') {
-                        handleCancelCreate();
-                      }
-                    }}
-                  />
-                  {/* Status indicator */}
-                  {subdomain && (
-                    <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                      {isCheckingSubdomain ? (
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-                      ) : subdomainAvailable === true ? (
-                        <div className="text-green-500">✓</div>
-                      ) : subdomainAvailable === false ? (
-                        <div className="text-red-500">✗</div>
-                      ) : null}
+                        }}
+                      />
+                      {displayAppName && appName !== displayAppName && (
+                        <div className="mt-1 p-2 bg-background-muted rounded text-xs">
+                          <span className="text-text-muted">App folder name: </span>
+                          <span className="text-text-standard font-mono">{appName || '(invalid name)'}</span>
+                        </div>
+                      )}
+                      <p className="text-xs text-text-muted mt-1">
+                        Type any name you like - we'll automatically convert it to a valid folder name
+                      </p>
                     </div>
-                  )}
-                </div>
-                {!canConnectToSites ? (
-                  <p className="text-xs text-yellow-600 mt-1">
-                    Website claiming is currently unavailable (cannot connect to service)
-                  </p>
-                ) : subdomain ? (
-                  <p className="text-xs mt-1">
-                    {isCheckingSubdomain ? (
-                      <span className="text-text-muted">Checking availability...</span>
-                    ) : subdomainAvailable === true ? (
-                      <span className="text-green-600">
-                        {subdomain}
-                        {DOMAIN} is available!
-                      </span>
-                    ) : subdomainAvailable === false ? (
-                      <span className="text-red-600">
-                        {subdomain}
-                        {DOMAIN} is already taken
-                      </span>
-                    ) : subdomainCheckError ? (
-                      <span className="text-yellow-600">{subdomainCheckError}</span>
-                    ) : (
-                      <span className="text-text-muted">
-                        Your site will be available at {subdomain}
-                        {DOMAIN}
-                      </span>
-                    )}
-                  </p>
-                ) : (
-                  <p className="text-xs text-text-muted mt-1">
-                    Claim a subdomain for your app (e.g., my-site{DOMAIN})
-                  </p>
-                )}
-              </div>
 
-              {/* Progress indicator */}
-              {isCreating && (
-                <div className="mt-3 p-3 bg-background-muted rounded-lg border border-border-subtle">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-                    <span className="text-sm font-medium text-text-standard">
-                      {creationProgress || 'Creating app...'}
-                    </span>
-                  </div>
-                  {creationProgress && (
-                    <div
-                      className={`text-xs font-mono bg-background-default p-2 rounded border ${
-                        hasError ? 'text-red-600 border-red-300' : 'text-text-muted'
-                      }`}
-                    >
-                      {creationProgress}
+                    {/* Subdomain field */}
+                    <div>
+                      <label
+                        htmlFor="subdomain"
+                        className="block text-sm font-medium text-text-standard mb-2"
+                      >
+                        Subdomain (Optional)
+                      </label>
+                      <div className="relative">
+                        <Input
+                          id="subdomain"
+                          type="text"
+                          value={subdomain}
+                          onChange={(e) => {
+                            const value = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+                            setSubdomain(value);
+                            setSubdomainAvailable(null);
+                            setSubdomainCheckError(null);
+                            // Debounce the check
+                            if (value) {
+                              setTimeout(() => {
+                                if (value === e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')) {
+                                  checkSubdomainAvailability(value);
+                                }
+                              }, 500);
+                            }
+                          }}
+                          placeholder="my-site"
+                          className={`w-full pr-10 ${!canConnectToSites ? 'opacity-50' : ''} ${
+                            subdomain && subdomainAvailable === false
+                              ? 'border-red-500'
+                              : subdomain && subdomainAvailable === true
+                                ? 'border-green-500'
+                                : ''
+                          }`}
+                          disabled={!canConnectToSites}
+                          onKeyDown={(e) => {
+                            if (
+                              e.key === 'Enter' &&
+                              appName.trim() &&
+                              (!subdomain.trim() || subdomainAvailable)
+                            ) {
+                              handleCreateApp();
+                            } else if (e.key === 'Escape') {
+                              handleCancelCreate();
+                            }
+                          }}
+                        />
+                        {/* Status indicator */}
+                        {subdomain && (
+                          <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                            {isCheckingSubdomain ? (
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                            ) : subdomainAvailable === true ? (
+                              <div className="text-green-500">✓</div>
+                            ) : subdomainAvailable === false ? (
+                              <div className="text-red-500">✗</div>
+                            ) : null}
+                          </div>
+                        )}
+                      </div>
+                      {!canConnectToSites ? (
+                        <p className="text-xs text-yellow-600 mt-1">
+                          Website claiming is currently unavailable (cannot connect to service)
+                        </p>
+                      ) : subdomain ? (
+                        <p className="text-xs mt-1">
+                          {isCheckingSubdomain ? (
+                            <span className="text-text-muted">Checking availability...</span>
+                          ) : subdomainAvailable === true ? (
+                            <span className="text-green-600">
+                              {subdomain}
+                              {DOMAIN} is available!
+                            </span>
+                          ) : subdomainAvailable === false ? (
+                            <span className="text-red-600">
+                              {subdomain}
+                              {DOMAIN} is already taken
+                            </span>
+                          ) : subdomainCheckError ? (
+                            <span className="text-yellow-600">{subdomainCheckError}</span>
+                          ) : (
+                            <span className="text-text-muted">
+                              Your site will be available at {subdomain}
+                              {DOMAIN}
+                            </span>
+                          )}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-text-muted mt-1">
+                          Claim a subdomain for your app (e.g., my-site{DOMAIN})
+                        </p>
+                      )}
                     </div>
-                  )}
+                  </div>
+
+                  <div className="flex justify-end space-x-3 mt-6">
+                    <Button onClick={handleCancelCreate} variant="ghost">
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleCreateApp}
+                      disabled={
+                        !appName.trim() || (!!subdomain.trim() && !subdomainAvailable)
+                      }
+                      variant="default"
+                      className="min-w-[120px]"
+                    >
+                      Create App
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                /* Creation Progress View - shown during creation */
+                <div className="flex flex-col h-full">
+                  <div className="flex-1 flex flex-col space-y-4 min-h-0">
+                    {/* App Details Summary */}
+                    <div className="flex-shrink-0 p-4 bg-background-muted rounded-lg border border-border-subtle">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-sm font-medium text-text-standard">{displayAppName || appName}</h4>
+                          <p className="text-xs text-text-muted">Folder: {appName}</p>
+                        </div>
+                        {subdomain && (
+                          <div className="text-right">
+                            <p className="text-xs text-text-muted">Subdomain:</p>
+                            <p className="text-xs text-blue-600 font-mono">{subdomain}{DOMAIN}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Progress Status */}
+                    <div className="flex-shrink-0 flex items-center gap-3 p-3 bg-background-muted rounded-lg">
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
+                      <span className="text-sm font-medium text-text-standard">
+                        {creationProgress || 'Starting app creation...'}
+                      </span>
+                    </div>
+
+                    {/* Terminal Output - This should take remaining space and scroll */}
+                    <div className="flex-1 flex flex-col min-h-0">
+                      <h5 className="flex-shrink-0 text-sm font-medium text-text-standard mb-2">Creation Log:</h5>
+                      <div className={`flex-1 p-4 rounded-lg border overflow-y-auto min-h-0 ${
+                        hasError 
+                          ? 'bg-red-50 border-red-200 text-red-800' 
+                          : 'bg-background-default border-border-subtle'
+                      }`}>
+                        <pre className={`text-xs font-mono whitespace-pre-wrap ${
+                          hasError ? 'text-red-700' : 'text-text-muted'
+                        }`}>
+                          {creationLog.length > 0 ? creationLog.join('\n') : 'Initializing...'}
+                        </pre>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons - Fixed at bottom */}
+                  <div className="flex-shrink-0 flex justify-end space-x-3 mt-6">
+                    <Button 
+                      onClick={handleCancelCreate} 
+                      variant="ghost" 
+                      disabled={true}
+                      className="opacity-50"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      disabled={true}
+                      variant="default"
+                      className="min-w-[120px] opacity-50"
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        Creating...
+                      </div>
+                    </Button>
+                  </div>
                 </div>
               )}
-            </div>
-
-            <div className="flex justify-end space-x-3 mt-6">
-              <Button onClick={handleCancelCreate} variant="ghost" disabled={isCreating}>
-                Cancel
-              </Button>
-              <Button
-                onClick={handleCreateApp}
-                disabled={
-                  !appName.trim() || isCreating || (!!subdomain.trim() && !subdomainAvailable)
-                }
-                variant="default"
-                className="min-w-[120px]"
-              >
-                {isCreating ? (
-                  <div className="flex items-center gap-2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    Creating...
-                  </div>
-                ) : (
-                  'Create App'
-                )}
-              </Button>
             </div>
           </div>
         </div>
