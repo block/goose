@@ -289,26 +289,36 @@ impl Agent {
 
         metadata.schedule_id = session_config.schedule_id.clone();
 
-        metadata.total_tokens = usage.usage.total_tokens;
-        metadata.input_tokens = usage.usage.input_tokens;
-        metadata.output_tokens = usage.usage.output_tokens;
+        // For streaming providers, the usage values provided are cumulative totals for the current response.
+        // We should use the maximum of the current value and the new value to handle streaming updates correctly.
+        let take_max = |current: Option<i32>, new: Option<i32>| -> Option<i32> {
+            match (current, new) {
+                (Some(c), Some(n)) => Some(c.max(n)),
+                (Some(c), None) => Some(c),
+                (None, Some(n)) => Some(n),
+                (None, None) => None,
+            }
+        };
+
+        // Update the current usage values with the maximum (for streaming, this captures the final values)
+        metadata.total_tokens = take_max(metadata.total_tokens, usage.usage.total_tokens);
+        metadata.input_tokens = take_max(metadata.input_tokens, usage.usage.input_tokens);
+        metadata.output_tokens = take_max(metadata.output_tokens, usage.usage.output_tokens);
 
         metadata.message_count = messages_length + 1;
 
-        let accumulate = |a: Option<i32>, b: Option<i32>| -> Option<i32> {
-            match (a, b) {
-                (Some(x), Some(y)) => Some(x + y),
-                _ => a.or(b),
-            }
-        };
-        metadata.accumulated_total_tokens =
-            accumulate(metadata.accumulated_total_tokens, usage.usage.total_tokens);
-        metadata.accumulated_input_tokens =
-            accumulate(metadata.accumulated_input_tokens, usage.usage.input_tokens);
-        metadata.accumulated_output_tokens = accumulate(
-            metadata.accumulated_output_tokens,
-            usage.usage.output_tokens,
-        );
+        // Keep track of previous values to calculate the delta
+        let prev_total = metadata.accumulated_total_tokens.unwrap_or(0) 
+            - metadata.total_tokens.unwrap_or(0);
+        let prev_input = metadata.accumulated_input_tokens.unwrap_or(0) 
+            - metadata.input_tokens.unwrap_or(0);
+        let prev_output = metadata.accumulated_output_tokens.unwrap_or(0) 
+            - metadata.output_tokens.unwrap_or(0);
+
+        // Update accumulated tokens with the new values
+        metadata.accumulated_total_tokens = usage.usage.total_tokens.map(|n| prev_total + n);
+        metadata.accumulated_input_tokens = usage.usage.input_tokens.map(|n| prev_input + n);
+        metadata.accumulated_output_tokens = usage.usage.output_tokens.map(|n| prev_output + n);
 
         session::storage::update_metadata(&session_file_path, &metadata).await?;
 
