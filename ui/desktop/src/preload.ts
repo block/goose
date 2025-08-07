@@ -55,6 +55,7 @@ type ElectronAPI = {
     recipe?: Recipe,
     viewType?: string
   ) => void;
+  launchGooseApp: (appName: string, jsImplementation: string) => Promise<{ success: boolean; error?: string }>;
   logInfo: (txt: string) => void;
   showNotification: (data: NotificationData) => void;
   showMessageBox: (options: MessageBoxOptions) => Promise<MessageBoxResponse>;
@@ -150,6 +151,8 @@ const electronAPI: ElectronAPI = {
     viewType?: string
   ) =>
     ipcRenderer.send('create-chat-window', query, dir, version, resumeSessionId, recipe, viewType),
+  launchGooseApp: (appName: string, jsImplementation: string) =>
+    ipcRenderer.invoke('launch-goose-app', appName, jsImplementation),
   logInfo: (txt: string) => ipcRenderer.send('logInfo', txt),
   showNotification: (data: NotificationData) => ipcRenderer.send('notify', data),
   showMessageBox: (options: MessageBoxOptions) => ipcRenderer.invoke('show-message-box', options),

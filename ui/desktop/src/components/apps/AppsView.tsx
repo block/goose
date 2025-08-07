@@ -25,9 +25,19 @@ export default function AppsView() {
     loadApps();
   }, []);
 
-  const handleLaunchApp = (app: GooseApp) => {
-    // TODO: Implement app launching
-    console.log('Launching app:', app.name);
+  const handleLaunchApp = async (app: GooseApp) => {
+    try {
+      console.log('Launching app:', app.name);
+      const result = await window.electron.launchGooseApp(app.name, app.jsImplementation);
+      
+      if (!result.success) {
+        console.error('Failed to launch app:', result.error);
+        // Could add a toast notification here in the future
+      }
+    } catch (error) {
+      console.error('Error launching app:', error);
+      // Could add a toast notification here in the future
+    }
   };
 
   if (loading) {
