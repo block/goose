@@ -1,4 +1,3 @@
-use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
@@ -8,6 +7,7 @@ use mcp_core::tool::ToolCall;
 use rand::{distributions::Alphanumeric, Rng};
 use rmcp::model::{AnnotateAble, RawContent, Role, Tool};
 
+use crate::conversation::message::{Message, MessageContent};
 use serde_json::{json, Map, Value};
 use std::ops::Deref;
 
@@ -335,6 +335,7 @@ pub fn create_request(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::conversation::message::Message;
     use rmcp::{model::Content, object};
     use serde_json::json;
 

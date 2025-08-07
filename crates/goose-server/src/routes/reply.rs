@@ -9,9 +9,10 @@ use axum::{
 };
 use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
+use goose::conversation::message::{Message, MessageContent};
+use goose::conversation::Conversation;
 use goose::{
     agents::{AgentEvent, SessionConfig},
-    message::{push_message, Message, MessageContent},
     permission::permission_confirmation::PrincipalType,
 };
 use goose::{
@@ -186,7 +187,7 @@ async fn reply_handler(
     let stream = ReceiverStream::new(rx);
     let cancel_token = CancellationToken::new();
 
-    let messages = request.messages;
+    let messages = Conversation::new_unvalidated(request.messages);
     let session_working_dir = request.session_working_dir.clone();
 
     let session_id = request
@@ -221,12 +222,9 @@ async fn reply_handler(
             retry_config: None,
         };
 
-        // Messages will be auto-compacted in agent.reply() if needed
-        let messages_to_process = messages.clone();
-
         let mut stream = match agent
             .reply(
-                &messages_to_process,
+                messages.clone(),
                 Some(session_config),
                 Some(task_cancel.clone()),
             )
@@ -279,15 +277,15 @@ async fn reply_handler(
                     match response {
                         Ok(Some(Ok(AgentEvent::Message(message)))) => {
                             for content in &message.content {
-                                            track_tool_telemetry(content, &all_messages);
-                                        }
+                                track_tool_telemetry(content, all_messages.messages());
+                            }
 
-                                        push_message(&mut all_messages, message.clone());
-                                        stream_event(MessageEvent::Message { message }, &tx, &cancel_token).await;
+                            all_messages.push(message.clone());
+                            stream_event(MessageEvent::Message { message }, &tx, &cancel_token).await;
                         }
                         Ok(Some(Ok(AgentEvent::HistoryReplaced(new_messages)))) => {
                             // Replace the message history with the compacted messages
-                            all_messages = new_messages;
+                            all_messages = Conversation::new_unvalidated(new_messages);
                             // Note: We don't send this as a stream event since it's an internal operation
                             // The client will see the compaction notification message that was sent before this event
                         }
@@ -518,6 +516,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use goose::conversation::message::Message;
     use goose::{
         agents::Agent,
         model::ModelConfig,
@@ -558,6 +557,7 @@ mod tests {
     mod integration_tests {
         use super::*;
         use axum::{body::Body, http::Request};
+        use goose::conversation::message::Message;
         use std::sync::Arc;
         use tower::ServiceExt;
 

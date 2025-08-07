@@ -10,13 +10,13 @@ mod thinking;
 use crate::session::task_execution_display::{
     format_task_execution_notification, TASK_EXECUTION_NOTIFICATION_TYPE,
 };
+use goose::conversation::Conversation;
 use std::io::Write;
 
 pub use self::export::message_to_markdown;
 pub use builder::{build_session, SessionBuilderConfig, SessionSettings};
 use console::Color;
 use goose::agents::AgentEvent;
-use goose::message::push_message;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::Permission;
 use goose::permission::PermissionConfirmation;
@@ -31,7 +31,6 @@ use goose::agents::extension::{Envs, ExtensionConfig};
 use goose::agents::types::RetryConfig;
 use goose::agents::{Agent, SessionConfig};
 use goose::config::Config;
-use goose::message::{Message, MessageContent};
 use goose::providers::pricing::initialize_pricing_cache;
 use goose::session;
 use input::InputResult;
@@ -39,6 +38,7 @@ use mcp_core::handler::ToolError;
 use rmcp::model::PromptMessage;
 use rmcp::model::ServerNotification;
 
+use goose::conversation::message::{Message, MessageContent};
 use rand::{distributions::Alphanumeric, Rng};
 use rustyline::EditMode;
 use serde_json::Value;
@@ -56,7 +56,7 @@ pub enum RunMode {
 
 pub struct Session {
     agent: Agent,
-    messages: Vec<Message>,
+    messages: Conversation,
     session_file: Option<PathBuf>,
     // Cache for completion data - using std::sync for thread safety without async
     completion_cache: Arc<std::sync::RwLock<CompletionCache>>,
@@ -134,11 +134,11 @@ impl Session {
         let messages = if let Some(session_file) = &session_file {
             session::read_messages(session_file).unwrap_or_else(|e| {
                 eprintln!("Warning: Failed to load message history: {}", e);
-                Vec::new()
+                Conversation::new_unvalidated(Vec::new())
             })
         } else {
             // Don't try to read messages if we're not saving sessions
-            Vec::new()
+            Conversation::new_unvalidated(Vec::new())
         };
 
         Session {
@@ -157,12 +157,12 @@ impl Session {
 
     /// Helper function to summarize context messages
     async fn summarize_context_messages(
-        messages: &mut Vec<Message>,
+        messages: &mut Conversation,
         agent: &Agent,
         message_suffix: &str,
     ) -> Result<()> {
         // Summarize messages to fit within context length
-        let (summarized_messages, _) = agent.summarize_context(messages).await?;
+        let (summarized_messages, _) = agent.summarize_context(messages.messages()).await?;
         let msg = format!("Context maxed out\n{}\n{}", "-".repeat(50), message_suffix);
         output::render_text(&msg, Some(Color::Yellow), true);
         *messages = summarized_messages;
@@ -719,8 +719,10 @@ impl Session {
                         let provider = self.agent.provider().await?;
 
                         // Call the summarize_context method which uses the summarize_messages function
-                        let (summarized_messages, _) =
-                            self.agent.summarize_context(&self.messages).await?;
+                        let (summarized_messages, _) = self
+                            .agent
+                            .summarize_context(self.messages.messages())
+                            .await?;
 
                         // Update the session messages with the summarized ones
                         self.messages = summarized_messages;
@@ -771,12 +773,14 @@ impl Session {
 
     async fn plan_with_reasoner_model(
         &mut self,
-        plan_messages: Vec<Message>,
+        plan_messages: Conversation,
         reasoner: Arc<dyn Provider>,
     ) -> Result<(), anyhow::Error> {
         let plan_prompt = self.agent.get_plan_prompt().await?;
         output::show_thinking();
-        let (plan_response, _usage) = reasoner.complete(&plan_prompt, &plan_messages, &[]).await?;
+        let (plan_response, _usage) = reasoner
+            .complete(&plan_prompt, plan_messages.messages(), &[])
+            .await?;
         output::render_message(&plan_response, self.debug);
         output::hide_thinking();
         let planner_response_type =
@@ -875,7 +879,11 @@ impl Session {
         });
         let mut stream = self
             .agent
-            .reply(&self.messages, session_config.clone(), Some(cancel_token))
+            .reply(
+                self.messages.clone(),
+                session_config.clone(),
+                Some(cancel_token),
+            )
             .await?;
 
         let mut progress_bars = output::McpSpinners::new();
@@ -921,7 +929,7 @@ impl Session {
                                         confirmation.id.clone(),
                                         Err(ToolError::ExecutionError("Tool call cancelled by user".to_string()))
                                     ));
-                                    push_message(&mut self.messages, response_message);
+                                    self.messages.push(response_message);
                                     if let Some(session_file) = &self.session_file {
                                         let working_dir = std::env::current_dir().ok();
                                         session::persist_messages_with_schedule_id(
@@ -983,7 +991,7 @@ impl Session {
                                     }
                                     "truncate" => {
                                         // Truncate messages to fit within context length
-                                        let (truncated_messages, _) = self.agent.truncate_context(&self.messages).await?;
+                                        let (truncated_messages, _) = self.agent.truncate_context(self.messages.messages()).await?;
                                         let msg = if context_strategy == "truncate" {
                                             format!("Context maxed out - automatically truncated messages.\n{}\nGoose tried its best to truncate messages for you.", "-".repeat(50))
                                         } else {
@@ -1013,7 +1021,7 @@ impl Session {
                                 stream = self
                                     .agent
                                     .reply(
-                                        &self.messages,
+                                        self.messages.clone(),
                                         session_config.clone(),
                                         None
                                     )
@@ -1065,7 +1073,7 @@ impl Session {
                                     }
                                 }
 
-                                push_message(&mut self.messages, message.clone());
+                                self.messages.push(message.clone());
 
                                 // No need to update description on assistant messages
                                 if let Some(session_file) = &self.session_file {
@@ -1193,7 +1201,7 @@ impl Session {
                         }
                         Some(Ok(AgentEvent::HistoryReplaced(new_messages))) => {
                             // Replace the session's message history with the compacted messages
-                            self.messages = new_messages;
+                            self.messages = Conversation::new_unvalidated(new_messages);
 
                             // Persist the updated messages to the session file
                             if let Some(session_file) = &self.session_file {
@@ -1414,7 +1422,7 @@ impl Session {
         cache.last_updated = Instant::now();
     }
 
-    pub fn message_history(&self) -> Vec<Message> {
+    pub fn message_history(&self) -> Conversation {
         self.messages.clone()
     }
 
@@ -1432,7 +1440,7 @@ impl Session {
         );
 
         // Render each message
-        for message in &self.messages {
+        for message in self.messages.iter() {
             output::render_message(message, self.debug);
         }
 
@@ -1612,7 +1620,7 @@ impl Session {
     }
 
     fn push_message(&mut self, message: Message) {
-        push_message(&mut self.messages, message);
+        self.messages.push(message);
     }
 }
 

@@ -1,4 +1,4 @@
-use crate::message::ToolRequest;
+use crate::conversation::message::ToolRequest;
 use anyhow::Result;
 use blake3::Hasher;
 use chrono::Utc;

@@ -100,7 +100,7 @@ impl McpClientTrait for MockClient {
                     is_error: None,
                     structured_content: None,
                 }),
-                Err(e) => Err(Error::UnexpectedResponse),
+                Err(_e) => Err(Error::UnexpectedResponse),
             }
         } else {
             Err(Error::UnexpectedResponse)

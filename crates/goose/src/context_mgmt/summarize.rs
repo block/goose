@@ -1,5 +1,7 @@
-use super::common::{get_messages_token_counts, get_messages_token_counts_async};
-use crate::message::Message;
+use super::common::get_messages_token_counts_async;
+use crate::context_mgmt::get_messages_token_counts;
+use crate::conversation::message::Message;
+use crate::conversation::Conversation;
 use crate::prompt_template::render_global_file;
 use crate::providers::base::Provider;
 use crate::token_counter::{AsyncTokenCounter, TokenCounter};
@@ -23,13 +25,15 @@ async fn summarize_combined_messages(
     provider: &Arc<dyn Provider>,
     accumulated_summary: &[Message],
     current_chunk: &[Message],
-) -> Result<Vec<Message>, anyhow::Error> {
+) -> Result<Conversation, anyhow::Error> {
     // Combine the accumulated summary and current chunk into a single batch.
-    let combined_messages: Vec<Message> = accumulated_summary
-        .iter()
-        .cloned()
-        .chain(current_chunk.iter().cloned())
-        .collect();
+    let combined_messages = Conversation::new_unvalidated(
+        accumulated_summary
+            .iter()
+            .cloned()
+            .chain(current_chunk.iter().cloned())
+            .collect::<Vec<_>>(),
+    );
 
     // Format the batch as a summarization request.
     let request_text = format!(
@@ -47,7 +51,7 @@ async fn summarize_combined_messages(
     response.role = Role::User;
 
     // Return the summary as the new accumulated summary.
-    Ok(vec![response])
+    Ok(Conversation::new_unvalidated(vec![response]))
 }
 
 // Summarization steps:
@@ -57,10 +61,10 @@ pub async fn summarize_messages_oneshot(
     messages: &[Message],
     token_counter: &TokenCounter,
     _context_limit: usize,
-) -> Result<(Vec<Message>, Vec<usize>), anyhow::Error> {
+) -> Result<(Conversation, Vec<usize>), anyhow::Error> {
     if messages.is_empty() {
         // If no messages to summarize, return empty
-        return Ok((vec![], vec![]));
+        return Ok((Conversation::empty(), vec![]));
     }
 
     // Format all messages as a single string for the summarization prompt
@@ -92,12 +96,10 @@ pub async fn summarize_messages_oneshot(
     response.role = Role::User;
 
     // Return just the summary without any tool response preservation
-    let final_summary = vec![response];
+    let final_summary = Conversation::new_unvalidated([response].into_iter());
+    let counts = get_messages_token_counts(token_counter, final_summary.messages());
 
-    Ok((
-        final_summary.clone(),
-        get_messages_token_counts(token_counter, &final_summary),
-    ))
+    Ok((final_summary, counts))
 }
 
 // Summarization steps:
@@ -111,10 +113,10 @@ pub async fn summarize_messages_chunked(
     messages: &[Message],
     token_counter: &TokenCounter,
     context_limit: usize,
-) -> Result<(Vec<Message>, Vec<usize>), anyhow::Error> {
+) -> Result<(Conversation, Vec<usize>), anyhow::Error> {
     let chunk_size = context_limit / 3; // 33% of the context window.
     let summary_prompt_tokens = token_counter.count_tokens(SUMMARY_PROMPT);
-    let mut accumulated_summary = Vec::new();
+    let mut accumulated_summary = Conversation::empty();
 
     // Get token counts for each message.
     let token_counts = get_messages_token_counts(token_counter, messages);
@@ -126,9 +128,12 @@ pub async fn summarize_messages_chunked(
     for (message, message_tokens) in messages.iter().zip(token_counts.iter()) {
         if current_chunk_tokens + message_tokens > chunk_size - summary_prompt_tokens {
             // Summarize the current chunk with the accumulated summary.
-            accumulated_summary =
-                summarize_combined_messages(&provider, &accumulated_summary, &current_chunk)
-                    .await?;
+            accumulated_summary = summarize_combined_messages(
+                &provider,
+                accumulated_summary.messages(),
+                &current_chunk,
+            )
+            .await?;
 
             // Reset for the next chunk.
             current_chunk.clear();
@@ -143,13 +148,14 @@ pub async fn summarize_messages_chunked(
     // Summarize the final chunk if it exists.
     if !current_chunk.is_empty() {
         accumulated_summary =
-            summarize_combined_messages(&provider, &accumulated_summary, &current_chunk).await?;
+            summarize_combined_messages(&provider, accumulated_summary.messages(), &current_chunk)
+                .await?;
     }
 
     // Return just the summary without any tool response preservation
     Ok((
         accumulated_summary.clone(),
-        get_messages_token_counts(token_counter, &accumulated_summary),
+        get_messages_token_counts(token_counter, accumulated_summary.messages()),
     ))
 }
 
@@ -164,7 +170,7 @@ pub async fn summarize_messages(
     messages: &[Message],
     token_counter: &TokenCounter,
     context_limit: usize,
-) -> Result<(Vec<Message>, Vec<usize>), anyhow::Error> {
+) -> Result<(Conversation, Vec<usize>), anyhow::Error> {
     // Calculate total tokens in messages
     let total_tokens: usize = get_messages_token_counts(token_counter, messages)
         .iter()
@@ -207,24 +213,27 @@ pub async fn summarize_messages_async(
     messages: &[Message],
     token_counter: &AsyncTokenCounter,
     context_limit: usize,
-) -> Result<(Vec<Message>, Vec<usize>), anyhow::Error> {
+) -> Result<(Conversation, Vec<usize>), anyhow::Error> {
     let chunk_size = context_limit / 3; // 33% of the context window.
     let summary_prompt_tokens = token_counter.count_tokens(SUMMARY_PROMPT);
-    let mut accumulated_summary = Vec::new();
+    let mut accumulated_summary = Conversation::empty();
 
     // Get token counts for each message.
     let token_counts = get_messages_token_counts_async(token_counter, messages);
 
     // Tokenize and break messages into chunks.
-    let mut current_chunk: Vec<Message> = Vec::new();
+    let mut current_chunk = Vec::new();
     let mut current_chunk_tokens = 0;
 
     for (message, message_tokens) in messages.iter().zip(token_counts.iter()) {
         if current_chunk_tokens + message_tokens > chunk_size - summary_prompt_tokens {
             // Summarize the current chunk with the accumulated summary.
-            accumulated_summary =
-                summarize_combined_messages(&provider, &accumulated_summary, &current_chunk)
-                    .await?;
+            accumulated_summary = summarize_combined_messages(
+                &provider,
+                accumulated_summary.messages(),
+                &current_chunk,
+            )
+            .await?;
 
             // Reset for the next chunk.
             current_chunk.clear();
@@ -239,22 +248,22 @@ pub async fn summarize_messages_async(
     // Summarize the final chunk if it exists.
     if !current_chunk.is_empty() {
         accumulated_summary =
-            summarize_combined_messages(&provider, &accumulated_summary, &current_chunk).await?;
+            summarize_combined_messages(&provider, accumulated_summary.messages(), &current_chunk)
+                .await?;
     }
 
+    let count = get_messages_token_counts_async(token_counter, accumulated_summary.messages());
+
     // Return just the summary without any tool response preservation
-    Ok((
-        accumulated_summary.clone(),
-        get_messages_token_counts_async(token_counter, &accumulated_summary),
-    ))
+    Ok((accumulated_summary.clone(), count))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::message::{Message, MessageContent};
+    use crate::conversation::message::{Message, MessageContent};
     use crate::model::ModelConfig;
-    use crate::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
+    use crate::providers::base::{ProviderMetadata, ProviderUsage, Usage};
     use crate::providers::errors::ProviderError;
     use chrono::Utc;
     use rmcp::model::Role;
@@ -343,7 +352,7 @@ mod tests {
             "The summary should contain one message."
         );
         assert_eq!(
-            summarized_messages[0].role,
+            summarized_messages.first().unwrap().role,
             Role::User,
             "The summarized message should be from the user."
         );
@@ -379,7 +388,7 @@ mod tests {
             "There should be one final summarized message."
         );
         assert_eq!(
-            summarized_messages[0].role,
+            summarized_messages.first().unwrap().role,
             Role::User,
             "The summarized message should be from the user."
         );
@@ -551,7 +560,8 @@ mod tests {
         );
 
         // Verify the content comes from the chunked approach
-        if let MessageContent::Text(text_content) = &summarized_messages[0].content[0] {
+        if let MessageContent::Text(text_content) = &summarized_messages.first().unwrap().content[0]
+        {
             assert_eq!(text_content.text, "Chunked summary");
         } else {
             panic!("Expected text content");
@@ -592,7 +602,7 @@ mod tests {
             "One-shot should return a single summary message."
         );
         assert_eq!(
-            summarized_messages[0].role,
+            summarized_messages.first().unwrap().role,
             Role::User,
             "Summary should be from user role for context."
         );
@@ -630,7 +640,7 @@ mod tests {
             "Chunked should return a single final summary."
         );
         assert_eq!(
-            summarized_messages[0].role,
+            summarized_messages.first().unwrap().role,
             Role::User,
             "Summary should be from user role for context."
         );

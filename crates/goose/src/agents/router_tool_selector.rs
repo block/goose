@@ -12,7 +12,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::agents::tool_vectordb::ToolVectorDB;
-use crate::message::Message;
+use crate::conversation::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::{self, base::Provider};
 

@@ -13,7 +13,7 @@ use goose::config::{
     Config, ConfigError, ExperimentManager, ExtensionConfigManager, ExtensionEntry,
     PermissionManager,
 };
-use goose::message::Message;
+use goose::conversation::message::Message;
 use goose::providers::{create, providers};
 use rmcp::model::{Tool, ToolAnnotations};
 use rmcp::object;
@@ -1551,7 +1551,7 @@ pub fn configure_max_turns_dialog() -> Result<(), Box<dyn Error>> {
 /// Handle OpenRouter authentication
 pub async fn handle_openrouter_auth() -> Result<(), Box<dyn Error>> {
     use goose::config::{configure_openrouter, signup_openrouter::OpenRouterAuth};
-    use goose::message::Message;
+    use goose::conversation::message::Message;
     use goose::providers::create;
 
     // Use the OpenRouter authentication flow

@@ -8,7 +8,7 @@ use serde_json::Value;
 use tokio::time::sleep;
 use url::Url;
 
-use crate::message::Message;
+use crate::conversation::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
 

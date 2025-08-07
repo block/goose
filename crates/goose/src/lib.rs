@@ -1,8 +1,7 @@
 pub mod agents;
 pub mod config;
 pub mod context_mgmt;
-mod conversation_fixer;
-pub mod message;
+pub mod conversation;
 pub mod model;
 pub mod oauth;
 pub mod permission;
