@@ -347,7 +347,7 @@ pub struct Message {
     #[serde(default = "default_created")]
     pub created: i64,
     pub content: Vec<MessageContent>,
-    pub sanitize_needed: bool, // New field to track if sanitization occurred
+    pub sanitize_needed: bool,
 }
 
 impl fmt::Debug for Message {
@@ -565,9 +565,7 @@ impl Message {
     }
 }
 
-/// Remove Unicode Tags characters from text
 fn sanitize_unicode_tags(text: &str) -> String {
-    // Unicode normalization to NFC form
     let normalized: String = text.nfc().collect();
     
     // Remove Unicode Tags Block characters only
@@ -591,34 +589,31 @@ mod tests {
 
     #[test]
     fn test_unicode_tags_block_removal() {
-        // Test the critical Unicode Tags block (invisible ASCII mirror)
         let malicious = "Hello\u{E0041}\u{E0042}\u{E0043}world"; // Invisible "ABC"
         let cleaned = sanitize_unicode_tags(malicious);
-        assert_eq!(cleaned, "Helloworld"); // Should be completely removed
+        assert_eq!(cleaned, "Helloworld");
     }
 
     #[test]
     fn test_no_tags_present() {
         let clean_text = "Hello world 世界 🌍";
         let cleaned = sanitize_unicode_tags(clean_text);
-        assert_eq!(cleaned, clean_text); // Should be unchanged
+        assert_eq!(cleaned, clean_text);
     }
 
     #[test]
     fn test_message_sanitize_needed_flag() {
-        // Test that sanitize_needed flag is set when Unicode Tags are removed
         let malicious = "Hello\u{E0041}\u{E0042}\u{E0043}world"; // Invisible "ABC"
         let message = Message::user().with_text(malicious);
-        assert!(message.sanitize_needed); // Should be flagged
+        assert!(message.sanitize_needed);
         assert_eq!(message.as_concat_text(), "Helloworld");
     }
 
     #[test]
     fn test_message_no_sanitize_needed_flag() {
-        // Test that sanitize_needed flag is NOT set for clean text
         let clean_text = "Hello world 世界 🌍";
         let message = Message::user().with_text(clean_text);
-        assert!(!message.sanitize_needed); // Should NOT be flagged
+        assert!(!message.sanitize_needed);
         assert_eq!(message.as_concat_text(), clean_text);
     }
 
