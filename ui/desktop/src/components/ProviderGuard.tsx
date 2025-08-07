@@ -30,10 +30,6 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
     autoClose?: number;
   } | null>(null);
 
-  // TEMPORARY: Force show first time setup for testing
-  // TODO: Remove this before committing
-  const FORCE_SHOW_SETUP = false;
-
   const handleOpenRouterSetup = async () => {
     setOpenRouterSetupState({
       show: true,
@@ -113,11 +109,11 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
         const ollamaStatus = await checkOllamaStatus();
         setOllamaDetected(ollamaStatus.isRunning);
 
-        if (provider && model && !FORCE_SHOW_SETUP) {
+        if (provider && model) {
           console.log('ProviderGuard - Provider and model found, continuing normally');
           setHasProvider(true);
         } else {
-          console.log('ProviderGuard - No provider/model configured or FORCE_SHOW_SETUP enabled');
+          console.log('ProviderGuard - No provider/model configured');
           setShowFirstTimeSetup(true);
         }
       } catch (error) {
