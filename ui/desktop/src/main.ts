@@ -2505,7 +2505,7 @@ ipcMain.handle('check-subdomain', async (_event, subdomain: string) => {
     console.log(`[Main] Checking subdomain availability for: ${subdomain}`);
 
     const response = await fetch(
-      'https://goose-dev-sites-playpen-baxen--goose-dev-sites.stage.sqprod.co/api/v1/check',
+      'https://goose-dev-sites.stage.sqprod.co/api/v1/check',
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
