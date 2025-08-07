@@ -1,5 +1,6 @@
 use anyhow::{Error, Result};
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use super::api_client::{ApiClient, AuthMethod};
@@ -10,6 +11,7 @@ use super::utils::{
     emit_debug_trace, get_model, handle_response_google_compat, handle_response_openai_compat,
     is_google_model,
 };
+use crate::context_mgmt::middle_out::MiddleOutCompression;
 use crate::impl_provider_default;
 use crate::message::Message;
 use crate::model::ModelConfig;
@@ -18,6 +20,7 @@ use rmcp::model::Tool;
 
 pub const OPENROUTER_DEFAULT_MODEL: &str = "anthropic/claude-3.5-sonnet";
 pub const OPENROUTER_MODEL_PREFIX_ANTHROPIC: &str = "anthropic";
+pub const ANTHROPIC_MAX_MESSAGES: usize = 200000;
 
 // OpenRouter can run many models, we suggest the default
 pub const OPENROUTER_KNOWN_MODELS: &[&str] = &[
@@ -31,16 +34,31 @@ pub const OPENROUTER_KNOWN_MODELS: &[&str] = &[
 ];
 pub const OPENROUTER_DOC_URL: &str = "https://openrouter.ai/models";
 
+#[derive(Serialize, Deserialize, Clone)]
+pub struct TransformOptions {
+    pub transforms: Vec<String>,
+}
+
 #[derive(serde::Serialize)]
 pub struct OpenRouterProvider {
     #[serde(skip)]
     api_client: ApiClient,
     model: ModelConfig,
+    transforms: Option<Vec<String>>,
 }
 
 impl_provider_default!(OpenRouterProvider);
 
 impl OpenRouterProvider {
+    pub fn set_transforms(&mut self, transforms: Option<Vec<String>>) {
+        self.transforms = transforms;
+    }
+
+    pub fn with_transforms(mut self, transforms: Vec<String>) -> Self {
+        self.transforms = Some(transforms);
+        self
+    }
+
     pub fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("OPENROUTER_API_KEY")?;
@@ -53,7 +71,32 @@ impl OpenRouterProvider {
             .with_header("HTTP-Referer", "https://block.github.io/goose")?
             .with_header("X-Title", "Goose")?;
 
-        Ok(Self { api_client, model })
+        let context_limit = model.max_tokens.unwrap_or(128000) as usize;
+
+        // Check if transforms are explicitly disabled via environment variable
+        let disable_transforms = config
+            .get_param("OPENROUTER_DISABLE_TRANSFORMS")
+            .unwrap_or_else(|_| "false".to_string())
+            .parse::<bool>()
+            .unwrap_or(false);
+
+        let transforms = if disable_transforms {
+            None
+        } else if MiddleOutCompression::should_apply_by_default(context_limit) {
+            tracing::debug!(
+                "Enabling middle-out compression by default for model with {}k context",
+                context_limit / 1000
+            );
+            Some(vec!["middle-out".to_string()])
+        } else {
+            None
+        };
+
+        Ok(Self {
+            api_client,
+            model,
+            transforms,
+        })
     }
 
     async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
@@ -91,7 +134,11 @@ impl OpenRouterProvider {
             let error_code = error_obj.get("code").and_then(|c| c.as_u64()).unwrap_or(0);
 
             // Check for context length errors in the error message
-            if error_code == 400 && error_message.contains("maximum context length") {
+            if error_code == 400
+                && (error_message.contains("maximum context length")
+                    || error_message.contains("context window")
+                    || error_message.contains("token limit"))
+            {
                 return Err(ProviderError::ContextLengthExceeded(
                     error_message.to_string(),
                 ));
@@ -202,6 +249,12 @@ fn create_request_based_on_model(
         payload = update_request_for_anthropic(&payload);
     }
 
+    if let Some(transforms) = &provider.transforms {
+        if let Some(obj) = payload.as_object_mut() {
+            obj.insert("transforms".to_string(), json!(transforms));
+        }
+    }
+
     Ok(payload)
 }
 
@@ -241,8 +294,31 @@ impl Provider for OpenRouterProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
+        // Check if we need to handle Anthropic message count limits
+        let processed_messages = if self
+            .model
+            .model_name
+            .starts_with(OPENROUTER_MODEL_PREFIX_ANTHROPIC)
+            && messages.len() > ANTHROPIC_MAX_MESSAGES
+        {
+            tracing::debug!("Applying middle-out compression for Anthropic message count limit");
+            let token_counts = vec![100; messages.len()]; // Rough estimate
+            let (compressed_msgs, _compressed_counts) =
+                MiddleOutCompression::compress_for_message_count(
+                    messages,
+                    &token_counts,
+                    ANTHROPIC_MAX_MESSAGES,
+                )
+                .map_err(|e| {
+                    ProviderError::ExecutionError(format!("Failed to compress messages: {}", e))
+                })?;
+            compressed_msgs
+        } else {
+            messages.to_vec()
+        };
+
         // Create the base payload
-        let payload = create_request_based_on_model(self, system, messages, tools)?;
+        let payload = create_request_based_on_model(self, system, &processed_messages, tools)?;
 
         // Make request
         let response = self
