@@ -163,21 +163,45 @@ impl ProviderMetadata {
     }
 }
 
+/// Configuration key metadata for provider setup
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ConfigKey {
+    /// The name of the configuration key (e.g., "API_KEY")
     pub name: String,
+    /// Whether this key is required for the provider to function
     pub required: bool,
+    /// Whether this key should be stored securely (e.g., in keychain)
     pub secret: bool,
+    /// Optional default value for the key
     pub default: Option<String>,
+    /// Whether this key should be configured using OAuth device code flow
+    /// When true, the provider's configure_oauth() method will be called instead of prompting for manual input
+    pub oauth_flow: bool,
 }
 
 impl ConfigKey {
+    /// Create a new ConfigKey
     pub fn new(name: &str, required: bool, secret: bool, default: Option<&str>) -> Self {
         Self {
             name: name.to_string(),
             required,
             secret,
             default: default.map(|s| s.to_string()),
+            oauth_flow: false,
+        }
+    }
+
+    /// Create a new ConfigKey that uses OAuth device code flow for configuration
+    ///
+    /// This is used for providers that support OAuth authentication instead of manual API key entry.
+    /// When oauth_flow is true, the configuration system will call the provider's configure_oauth() method.
+    pub fn new_oauth(name: &str, required: bool, secret: bool, default: Option<&str>) -> Self {
+        Self {
+            name: name.to_string(),
+            required,
+            secret,
+            default: default.map(|s| s.to_string()),
+            oauth_flow: true,
         }
     }
 }
@@ -387,6 +411,23 @@ pub trait Provider: Send + Sync {
             );
         }
         prompt
+    }
+
+    /// Configure OAuth authentication for this provider
+    ///
+    /// This method is called when a provider has configuration keys marked with oauth_flow = true.
+    /// Providers that support OAuth should override this method to implement their specific OAuth flow.
+    ///
+    /// # Returns
+    /// * `Ok(())` if OAuth configuration succeeds and credentials are saved
+    /// * `Err(ProviderError)` if OAuth fails or is not supported by this provider
+    ///
+    /// # Default Implementation
+    /// The default implementation returns an error indicating OAuth is not supported.
+    async fn configure_oauth(&self) -> Result<(), ProviderError> {
+        Err(ProviderError::ExecutionError(
+            "OAuth configuration not supported by this provider".to_string(),
+        ))
     }
 }
 

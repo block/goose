@@ -6,6 +6,7 @@ use anyhow::Result;
 use base64::Engine;
 use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::formatdoc;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
     collections::HashMap,
@@ -33,7 +34,7 @@ use mcp_server::Router;
 
 use rmcp::model::{
     Content, JsonRpcMessage, JsonRpcNotification, JsonRpcVersion2_0, Notification, Prompt,
-    PromptArgument, PromptTemplate, Resource, Role, Tool, ToolAnnotations,
+    PromptArgument, Resource, Role, Tool, ToolAnnotations,
 };
 use rmcp::object;
 
@@ -45,6 +46,20 @@ use std::sync::{Arc, Mutex};
 use xcap::{Monitor, Window};
 
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PromptTemplate {
+    pub id: String,
+    pub template: String,
+    pub arguments: Vec<PromptArgumentTemplate>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PromptArgumentTemplate {
+    pub name: String,
+    pub description: Option<String>,
+    pub required: Option<bool>,
+}
 
 // Embeds the prompts directory to the build
 static PROMPTS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/developer/prompts");

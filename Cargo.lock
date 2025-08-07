@@ -6988,14 +6988,15 @@ dependencies = [
 
 [[package]]
 name = "rmcp"
-version = "0.3.1"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "824daba0a34f8c5c5392295d381e0800f88fd986ba291699f8785f05fa344c1e"
+checksum = "9a04b2d9da174d72bc0511410242eb3e8f47a02d9e23868e4b076c7c70208eb4"
 dependencies = [
  "base64 0.22.1",
  "chrono",
  "futures",
  "http 1.2.0",
+ "oauth2",
  "paste",
  "pin-project-lite",
  "process-wrap",
@@ -7010,13 +7011,14 @@ dependencies = [
  "tokio-stream",
  "tokio-util",
  "tracing",
+ "url",
 ]
 
 [[package]]
 name = "rmcp-macros"
-version = "0.3.1"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ad6543c0572a4dbc125c23e6f54963ea9ba002294fd81dd4012c204219b0dcaa"
+checksum = "651b4292f292d4a4ba191e64f0ce553aef5455b8ddf831dc6a8cd328dd68d721"
 dependencies = [
  "darling 0.21.0",
  "proc-macro2",

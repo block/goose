@@ -13,6 +13,7 @@ import {
 } from '../ui/sidebar';
 import { ChatSmart, Gear } from '../icons';
 import { ViewOptions, View } from '../../App';
+import { useChatContext } from '../../contexts/ChatContext';
 
 interface SidebarProps {
   onSelectSession: (sessionId: string) => void;
@@ -23,12 +24,80 @@ interface SidebarProps {
   currentPath?: string;
 }
 
-// Main Sidebar Component
+interface NavigationItem {
+  type: 'item';
+  path: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  tooltip: string;
+}
+
+interface NavigationSeparator {
+  type: 'separator';
+}
+
+type NavigationEntry = NavigationItem | NavigationSeparator;
+
+const menuItems: NavigationEntry[] = [
+  {
+    type: 'item',
+    path: '/',
+    label: 'Home',
+    icon: Home,
+    tooltip: 'Go back to the main chat screen',
+  },
+  { type: 'separator' },
+  {
+    type: 'item',
+    path: '/pair',
+    label: 'Chat',
+    icon: ChatSmart,
+    tooltip: 'Start pairing with Goose',
+  },
+  {
+    type: 'item',
+    path: '/sessions',
+    label: 'History',
+    icon: History,
+    tooltip: 'View your session history',
+  },
+  { type: 'separator' },
+  {
+    type: 'item',
+    path: '/recipes',
+    label: 'Recipes',
+    icon: FileText,
+    tooltip: 'Browse your saved recipes',
+  },
+  {
+    type: 'item',
+    path: '/schedules',
+    label: 'Scheduler',
+    icon: Clock,
+    tooltip: 'Manage scheduled runs',
+  },
+  {
+    type: 'item',
+    path: '/extensions',
+    label: 'Extensions',
+    icon: Puzzle,
+    tooltip: 'Manage your extensions',
+  },
+  { type: 'separator' },
+  {
+    type: 'item',
+    path: '/settings',
+    label: 'Settings',
+    icon: Gear,
+    tooltip: 'Configure Goose settings',
+  },
+];
+
 const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const navigate = useNavigate();
+  const chatContext = useChatContext();
 
   useEffect(() => {
-    // Trigger animation after a small delay
     const timer = setTimeout(() => {
       // setIsVisible(true);
     }, 100);
@@ -36,156 +105,62 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     return () => clearTimeout(timer);
   }, []);
 
-  // Helper function to check if a path is active
+  useEffect(() => {
+    const currentItem = menuItems.find(
+      (item) => item.type === 'item' && item.path === currentPath
+    ) as NavigationItem | undefined;
+
+    const titleBits = ['Goose'];
+
+    if (
+      currentPath === '/pair' &&
+      chatContext?.chat?.title &&
+      chatContext.chat.title !== 'New Chat'
+    ) {
+      titleBits.push(chatContext.chat.title);
+    } else if (currentPath !== '/' && currentItem) {
+      titleBits.push(currentItem.label);
+    }
+
+    document.title = titleBits.join(' - ');
+  }, [currentPath, chatContext?.chat?.title]);
+
   const isActivePath = (path: string) => {
     return currentPath === path;
+  };
+
+  const renderMenuItem = (entry: NavigationEntry, index: number) => {
+    if (entry.type === 'separator') {
+      return <SidebarSeparator key={index} />;
+    }
+
+    const IconComponent = entry.icon;
+
+    return (
+      <SidebarGroup key={entry.path}>
+        <SidebarGroupContent className="space-y-1">
+          <div className="sidebar-item">
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => navigate(entry.path)}
+                isActive={isActivePath(entry.path)}
+                tooltip={entry.tooltip}
+                className="w-full justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200 data-[active=true]:bg-background-medium"
+              >
+                <IconComponent className="w-4 h-4" />
+                <span>{entry.label}</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </div>
+        </SidebarGroupContent>
+      </SidebarGroup>
+    );
   };
 
   return (
     <>
       <SidebarContent className="pt-16">
-        {/* Menu */}
-        <SidebarMenu>
-          {/* Navigation Group */}
-          <SidebarGroup>
-            <SidebarGroupContent className="space-y-1">
-              <div className="sidebar-item">
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    onClick={() => {
-                      navigate('/');
-                    }}
-                    isActive={isActivePath('/')}
-                    tooltip="Go back to the main chat screen"
-                    className="w-full justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200 data-[active=true]:bg-background-medium"
-                  >
-                    <Home className="w-4 h-4" />
-                    <span>Home</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </div>
-            </SidebarGroupContent>
-          </SidebarGroup>
-
-          <SidebarSeparator />
-
-          {/* Chat & Configuration Group */}
-          <SidebarGroup>
-            <SidebarGroupContent className="space-y-1">
-              <div className="sidebar-item">
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    onClick={() => navigate('/pair')}
-                    isActive={isActivePath('/pair')}
-                    tooltip="Start pairing with Goose"
-                    className="w-full justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200 data-[active=true]:bg-background-medium"
-                  >
-                    <ChatSmart className="w-4 h-4" />
-                    <span>Chat</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </div>
-
-              <div className="sidebar-item">
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    onClick={() => navigate('/sessions')}
-                    isActive={isActivePath('/sessions')}
-                    tooltip="View your session history"
-                    className="w-full justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200 data-[active=true]:bg-background-medium"
-                  >
-                    <History className="w-4 h-4" />
-                    <span>History</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </div>
-            </SidebarGroupContent>
-          </SidebarGroup>
-
-          <SidebarSeparator />
-
-          {/* Content Group */}
-          <SidebarGroup>
-            <SidebarGroupContent className="space-y-1">
-              {/*<div className="sidebar-item">*/}
-              {/*  <SidebarMenuItem>*/}
-              {/*    <SidebarMenuButton*/}
-              {/*      onClick={() => navigate('/projects')}*/}
-              {/*      isActive={isActivePath('/projects')}*/}
-              {/*      tooltip="Manage your projects"*/}
-              {/*      className="w-full justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200 data-[active=true]:bg-background-medium"*/}
-              {/*    >*/}
-              {/*      <FolderKanban className="w-4 h-4" />*/}
-              {/*      <span>Projects</span>*/}
-              {/*    </SidebarMenuButton>*/}
-              {/*  </SidebarMenuItem>*/}
-              {/*</div>*/}
-
-              <div className="sidebar-item">
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    onClick={() => navigate('/recipes')}
-                    isActive={isActivePath('/recipes')}
-                    tooltip="Browse your saved recipes"
-                    className="w-full justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200 data-[active=true]:bg-background-medium"
-                  >
-                    <FileText className="w-4 h-4" />
-                    <span>Recipes</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </div>
-
-              <div className="sidebar-item">
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    onClick={() => navigate('/schedules')}
-                    isActive={isActivePath('/schedules')}
-                    tooltip="Manage scheduled runs"
-                    className="w-full justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200 data-[active=true]:bg-background-medium"
-                  >
-                    <Clock className="w-4 h-4" />
-                    <span>Scheduler</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </div>
-
-              <div className="sidebar-item">
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    onClick={() => navigate('/extensions')}
-                    isActive={isActivePath('/extensions')}
-                    tooltip="Manage your extensions"
-                    className="w-full justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200 data-[active=true]:bg-background-medium"
-                  >
-                    <Puzzle className="w-4 h-4" />
-                    <span>Extensions</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </div>
-            </SidebarGroupContent>
-          </SidebarGroup>
-
-          <SidebarSeparator />
-
-          {/* Settings Group */}
-          <SidebarGroup>
-            <SidebarGroupContent className="space-y-1">
-              <div className="sidebar-item">
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    onClick={() => navigate('/settings')}
-                    isActive={isActivePath('/settings')}
-                    tooltip="Configure Goose settings"
-                    className="w-full justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200 data-[active=true]:bg-background-medium"
-                  >
-                    <Gear className="w-4 h-4" />
-                    <span>Settings</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </div>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        </SidebarMenu>
+        <SidebarMenu>{menuItems.map((entry, index) => renderMenuItem(entry, index))}</SidebarMenu>
       </SidebarContent>
 
       <SidebarFooter />

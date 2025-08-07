@@ -851,7 +851,8 @@ impl Session {
     pub async fn headless(&mut self, prompt: String) -> Result<()> {
         let message = Message::user().with_text(&prompt);
         self.process_message(message, CancellationToken::default())
-            .await
+            .await?;
+        Ok(())
     }
 
     async fn process_agent_response(
@@ -1023,11 +1024,44 @@ impl Session {
                                 for content in &message.content {
                                     if let MessageContent::ToolRequest(tool_request) = content {
                                         if let Ok(tool_call) = &tool_request.tool_call {
-                                            tracing::info!(monotonic_counter.goose.tool_calls = 1,
+                                            tracing::info!(counter.goose.tool_calls = 1,
                                                 tool_name = %tool_call.name,
-                                                "Tool call executed"
+                                                "Tool call started"
                                             );
                                         }
+                                    }
+                                    if let MessageContent::ToolResponse(tool_response) = content {
+                                        let tool_name = self.messages
+                                            .iter()
+                                            .rev()
+                                            .find_map(|msg| {
+                                                msg.content.iter().find_map(|c| {
+                                                    if let MessageContent::ToolRequest(req) = c {
+                                                        if req.id == tool_response.id {
+                                                            if let Ok(tool_call) = &req.tool_call {
+                                                                Some(tool_call.name.clone())
+                                                            } else {
+                                                                None
+                                                            }
+                                                        } else {
+                                                            None
+                                                        }
+                                                    } else {
+                                                        None
+                                                    }
+                                                })
+                                            })
+                                            .unwrap_or_else(|| "unknown".to_string());
+
+                                        let success = tool_response.tool_result.is_ok();
+                                        let result_status = if success { "success" } else { "error" };
+
+                                        tracing::info!(
+                                            counter.goose.tool_completions = 1,
+                                            tool_name = %tool_name,
+                                            result = %result_status,
+                                            "Tool call completed"
+                                        );
                                     }
                                 }
 

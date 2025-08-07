@@ -2212,6 +2212,15 @@ app.whenReady().then(async () => {
   ipcMain.on('get-app-version', (event) => {
     event.returnValue = app.getVersion();
   });
+
+  ipcMain.handle('open-directory-in-explorer', async (_event, path: string) => {
+    try {
+      return !!(await shell.openPath(path));
+    } catch (error) {
+      console.error('Error opening directory in explorer:', error);
+      return false;
+    }
+  });
 });
 
 async function getAllowList(): Promise<string[]> {
