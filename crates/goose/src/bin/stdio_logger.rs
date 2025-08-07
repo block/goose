@@ -34,7 +34,10 @@ fn handle_output_stream<R: BufRead + Send + 'static>(
     })
 }
 
-fn handle_stdin_stream(mut child_stdin: ChildStdin, sender: mpsc::Sender<(StreamType, String)>) -> JoinHandle<()> {
+fn handle_stdin_stream(
+    mut child_stdin: ChildStdin,
+    sender: mpsc::Sender<(StreamType, String)>,
+) -> JoinHandle<()> {
     thread::spawn(move || {
         let stdin = io::stdin();
 
@@ -56,14 +59,15 @@ fn handle_stdin_stream(mut child_stdin: ChildStdin, sender: mpsc::Sender<(Stream
 fn main() -> io::Result<()> {
     let args: Vec<String> = env::args().collect();
 
-    if args.len() < 2 {
-        eprintln!("Usage: {} <command> [args...]", args[0]);
+    if args.len() < 3 {
+        eprintln!("Usage: {} <log file> <command> [args...]", args[0]);
         eprintln!("Example: {{}} ls -la");
         std::process::exit(1);
     }
 
-    let cmd = &args[1];
-    let cmd_args = &args[2..];
+    let log_file_path = &args[1];
+    let cmd = &args[2];
+    let cmd_args = &args[3..];
 
     let (tx, rx) = mpsc::channel();
 
@@ -71,7 +75,7 @@ fn main() -> io::Result<()> {
         .create(true)
         .write(true)
         .truncate(true)
-        .open("stdio.log")?;
+        .open(log_file_path)?;
 
     let mut child = Command::new(cmd)
         .args(cmd_args)
