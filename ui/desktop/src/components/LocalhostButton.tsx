@@ -12,7 +12,21 @@ interface LocalhostButtonProps {
 export function LocalhostButton({ className = '', size = 'sm' }: LocalhostButtonProps) {
   const sidecar = useSidecar();
   const [showInput, setShowInput] = useState(false);
-  const [url, setUrl] = useState('3000');
+  const [url, setUrl] = useState(() => {
+    // Initialize from localStorage or default to '3000'
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('goose-localhost-url') || '3000';
+    }
+    return '3000';
+  });
+
+  // Save to localStorage whenever URL changes
+  const handleUrlChange = (newUrl: string) => {
+    setUrl(newUrl);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('goose-localhost-url', newUrl);
+    }
+  };
 
   if (!sidecar) return null;
 
@@ -27,7 +41,14 @@ export function LocalhostButton({ className = '', size = 'sm' }: LocalhostButton
       formattedUrl = `http://${urlToOpen.trim()}`;
     }
 
-    sidecar.showLocalhostViewer(formattedUrl, 'Localhost Viewer');
+    console.log('LocalhostButton: Opening URL:', formattedUrl);
+    console.log('LocalhostButton: Sidecar available:', !!sidecar);
+    
+    if (sidecar) {
+      sidecar.showLocalhostViewer(formattedUrl, 'Localhost Viewer');
+    } else {
+      console.error('LocalhostButton: No sidecar available');
+    }
     setShowInput(false);
   };
 
@@ -41,7 +62,7 @@ export function LocalhostButton({ className = '', size = 'sm' }: LocalhostButton
         <input
           type="text"
           value={url}
-          onChange={(e) => setUrl(e.target.value)}
+          onChange={(e) => handleUrlChange(e.target.value)}
           onKeyPress={(e) => {
             if (e.key === 'Enter') {
               handleOpenLocalhost();
@@ -77,7 +98,7 @@ export function LocalhostButton({ className = '', size = 'sm' }: LocalhostButton
             variant="ghost"
             size={size}
             onClick={() => setShowInput(true)}
-            className="p-1 h-8 w-8 text-textSubtle hover:text-primary"
+            className="p-1 h-8 w-8 text-red-500 hover:text-red-600"
           >
             <Globe size={size === 'sm' ? 14 : 16} />
           </Button>

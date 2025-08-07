@@ -4,9 +4,10 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/
 
 interface DirSwitcherProps {
   className?: string;
+  isNarrowContainer?: boolean;
 }
 
-export const DirSwitcher: React.FC<DirSwitcherProps> = ({ className = '' }) => {
+export const DirSwitcher: React.FC<DirSwitcherProps> = ({ className = '', isNarrowContainer = false }) => {
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
 
   const handleDirectoryChange = async () => {
@@ -35,7 +36,7 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({ className = '' }) => {
             onClick={handleDirectoryClick}
           >
             <FolderDot className="mr-1" size={16} />
-            <div className="max-w-[200px] truncate [direction:rtl]">
+            <div className={`max-w-[200px] truncate [direction:rtl] ${isNarrowContainer ? 'hidden' : 'block'}`}>
               {String(window.appConfig.get('GOOSE_WORKING_DIR'))}
             </div>
           </button>

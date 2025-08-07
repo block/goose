@@ -604,9 +604,7 @@ function BaseChatContent({
 export default function BaseChat(props: BaseChatProps) {
   return (
     <ChatContextManagerProvider>
-      <SidecarProvider>
-        <BaseChatContent {...props} />
-      </SidecarProvider>
+      <BaseChatContent {...props} />
     </ChatContextManagerProvider>
   );
 }

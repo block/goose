@@ -38,8 +38,21 @@ export function LocalhostViewer({
   initialUrl = 'http://localhost:3000',
   onUrlChange,
 }: LocalhostViewerProps) {
-  const [url, setUrl] = useState(initialUrl);
-  const [inputUrl, setInputUrl] = useState(initialUrl);
+  // Initialize from localStorage or use initialUrl
+  const [url, setUrl] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('goose-sidecar-url') || initialUrl;
+    }
+    return initialUrl;
+  });
+  
+  const [inputUrl, setInputUrl] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('goose-sidecar-url') || initialUrl;
+    }
+    return initialUrl;
+  });
+  
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [canGoBack, setCanGoBack] = useState(false);
@@ -64,6 +77,11 @@ export function LocalhostViewer({
     setUrl(formattedUrl);
     setInputUrl(formattedUrl);
     setIsLoading(true);
+    
+    // Save to localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('goose-sidecar-url', formattedUrl);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {

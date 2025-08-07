@@ -1,14 +1,18 @@
 import React, { useState, useRef, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Sidecar, useSidecar } from '../SidecarLayout';
-import { GripVertical } from 'lucide-react';
 
 export const MainPanelLayout: React.FC<{
   children: React.ReactNode;
   removeTopPadding?: boolean;
   backgroundColor?: string;
 }> = ({ children, removeTopPadding = false, backgroundColor = 'bg-background-default' }) => {
+  const location = useLocation();
   const sidecar = useSidecar();
-  const isVisible = sidecar?.activeView && sidecar?.views.find((v) => v.id === sidecar.activeView);
+  
+  // Only show sidecar on chat-related pages
+  const shouldShowSidecar = location.pathname === '/' || location.pathname === '/chat' || location.pathname === '/pair';
+  const isVisible = shouldShowSidecar && sidecar?.activeView && sidecar?.views.find((v) => v.id === sidecar.activeView);
 
   // State for resizing
   const [sidecarWidth, setSidecarWidth] = useState(50); // Percentage
@@ -53,6 +57,7 @@ export const MainPanelLayout: React.FC<{
           className="flex flex-col min-w-0 transition-all duration-300 ease-out"
           style={{
             width: isVisible ? `${100 - sidecarWidth}%` : '100%',
+            minWidth: '450px', // Ensure main content never goes below 450px
             transition: isResizing ? 'none' : 'width 300ms ease-out',
           }}
         >
@@ -67,10 +72,9 @@ export const MainPanelLayout: React.FC<{
             }`}
             onMouseDown={handleMouseDown}
           >
-            <GripVertical
-              size={12}
-              className={`text-textSubtle group-hover:text-textStandard transition-colors ${
-                isResizing ? 'text-textStandard' : ''
+            <div
+              className={`w-0.5 h-8 bg-border-subtle group-hover:bg-border-strong rounded-full transition-colors ${
+                isResizing ? 'bg-border-strong' : ''
               }`}
             />
           </div>

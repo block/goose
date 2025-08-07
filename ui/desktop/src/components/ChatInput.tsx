@@ -23,12 +23,12 @@ import { toastError } from '../toasts';
 import MentionPopover, { FileItemWithMatch } from './MentionPopover';
 import { useDictationSettings } from '../hooks/useDictationSettings';
 import { useChatContextManager } from './context_management/ChatContextManager';
-import LocalhostButton from './LocalhostButton';
 import { useChatContext } from '../contexts/ChatContext';
 import { COST_TRACKING_ENABLED } from '../updates';
 import { CostTracker } from './bottom_menu/CostTracker';
 import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
 import { Recipe } from '../recipe';
+
 
 interface PastedImage {
   id: string;
@@ -257,6 +257,10 @@ export default function ChatInput({
   const [hasUserTyped, setHasUserTyped] = useState(false);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const timeoutRefsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  
+  // Container width detection for responsive behavior
+  const [containerWidth, setContainerWidth] = useState<number>(0);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Use shared file drop hook for ChatInput
   const {
@@ -321,6 +325,29 @@ export default function ChatInput({
     if (textAreaRef.current) {
       textAreaRef.current.focus();
     }
+  }, []);
+
+  // Container width detection for responsive behavior
+  useEffect(() => {
+    const updateContainerWidth = () => {
+      if (containerRef.current) {
+        setContainerWidth(containerRef.current.offsetWidth);
+      }
+    };
+
+    // Initial measurement
+    updateContainerWidth();
+
+    // Set up ResizeObserver to watch for container size changes
+    const resizeObserver = new ResizeObserver(updateContainerWidth);
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
+
+    // Cleanup
+    return () => {
+      resizeObserver.disconnect();
+    };
   }, []);
 
   // Load model limits from the API
@@ -943,8 +970,12 @@ export default function ChatInput({
   const isAnyImageLoading = pastedImages.some((img) => img.isLoading);
   const isAnyDroppedFileLoading = allDroppedFiles.some((file) => file.isLoading);
 
+  // Determine if container is narrow (for responsive behavior)
+  const isNarrowContainer = containerWidth > 0 && containerWidth < 600;
+
   return (
     <div
+      ref={containerRef}
       className={`flex flex-col relative h-auto p-4 transition-colors ${
         disableAnimation ? '' : 'page-transition'
       } ${
@@ -1076,7 +1107,7 @@ export default function ChatInput({
                 isTranscribing ||
                 isLoadingCompaction
               }
-              className={`rounded-full px-10 py-2 flex items-center gap-2 ${
+              className={`rounded-full ${isNarrowContainer ? 'px-6' : 'px-10'} py-2 flex items-center gap-2 ${
                 !hasSubmittableContent ||
                 isAnyImageLoading ||
                 isAnyDroppedFileLoading ||
@@ -1101,7 +1132,7 @@ export default function ChatInput({
               }
             >
               <Send className="w-4 h-4" />
-              <span className="text-sm">Send</span>
+              <span className={`text-sm ${isNarrowContainer ? 'hidden' : 'inline'}`}>Send</span>
             </Button>
           )}
 
@@ -1238,10 +1269,10 @@ export default function ChatInput({
       )}
 
       {/* Secondary actions and controls row below input */}
-      <div className="flex flex-row items-center gap-1 p-2 relative">
+      <div className={`flex flex-row items-center p-2 relative ${isNarrowContainer ? 'gap-0' : 'gap-1'}`}>
         {/* Directory path */}
-        <DirSwitcher className="mr-0" />
-        <div className="w-px h-4 bg-border-default mx-2" />
+        <DirSwitcher className="mr-0" isNarrowContainer={isNarrowContainer} />
+        <div className="w-px h-4 bg-border-default mx-1"></div>
 
         {/* Attach button */}
         <Tooltip>
@@ -1259,12 +1290,10 @@ export default function ChatInput({
           <TooltipContent>Attach file or directory</TooltipContent>
         </Tooltip>
 
-        {/* Localhost viewer button */}
-        <LocalhostButton />
-        <div className="w-px h-4 bg-border-default mx-2" />
+        <div className="w-px h-4 bg-border-default mx-1"></div>
 
         {/* Model selector, mode selector, alerts, summarize button */}
-        <div className="flex flex-row items-center">
+        <div className={`flex flex-row items-center ${isNarrowContainer ? 'gap-0' : ''}`}>
           {/* Cost Tracker */}
           {COST_TRACKING_ENABLED && (
             <>
@@ -1285,19 +1314,23 @@ export default function ChatInput({
                 alerts={alerts}
                 recipeConfig={recipeConfig}
                 hasMessages={messages.length > 0}
+                isNarrowContainer={isNarrowContainer}
               />
             </div>
           </Tooltip>
-          <div className="w-px h-4 bg-border-default mx-2" />
-          <BottomMenuModeSelection />
+          <div className="w-px h-4 bg-border-default mx-1"></div>
+          <BottomMenuModeSelection isNarrowContainer={isNarrowContainer} />
           {messages.length > 0 && (
-            <ManualCompactButton
-              messages={messages}
-              isLoading={isLoading}
-              setMessages={setMessages}
-            />
+            <>
+              <div className="w-px h-4 bg-border-default mx-1"></div>
+              <ManualCompactButton
+                messages={messages}
+                isLoading={isLoading}
+                setMessages={setMessages}
+              />
+            </>
           )}
-          <div className="w-px h-4 bg-border-default mx-2" />
+          <div className="w-px h-4 bg-border-default mx-1"></div>
           <div className="flex items-center h-full">
             <Tooltip>
               <TooltipTrigger asChild>
@@ -1313,6 +1346,7 @@ export default function ChatInput({
               <TooltipContent>Configure goosehints</TooltipContent>
             </Tooltip>
           </div>
+
         </div>
 
         <MentionPopover
