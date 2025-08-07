@@ -12,7 +12,21 @@ interface LocalhostButtonProps {
 export function LocalhostButton({ className = '', size = 'sm' }: LocalhostButtonProps) {
   const sidecar = useSidecar();
   const [showInput, setShowInput] = useState(false);
-  const [url, setUrl] = useState('3000');
+  const [url, setUrl] = useState(() => {
+    // Initialize from localStorage or default to '3000'
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('goose-localhost-url') || '3000';
+    }
+    return '3000';
+  });
+
+  // Save to localStorage whenever URL changes
+  const handleUrlChange = (newUrl: string) => {
+    setUrl(newUrl);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('goose-localhost-url', newUrl);
+    }
+  };
 
   if (!sidecar) return null;
 
@@ -48,7 +62,7 @@ export function LocalhostButton({ className = '', size = 'sm' }: LocalhostButton
         <input
           type="text"
           value={url}
-          onChange={(e) => setUrl(e.target.value)}
+          onChange={(e) => handleUrlChange(e.target.value)}
           onKeyPress={(e) => {
             if (e.key === 'Enter') {
               handleOpenLocalhost();
