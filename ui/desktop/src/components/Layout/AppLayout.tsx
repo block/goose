@@ -117,8 +117,9 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
             </Button>
           </div>
           
-          {/* Right side globe button - show on chat-related pages (not home/hub) */}
-          {(location.pathname === '/chat' || location.pathname === '/pair') && (
+          {/* Right side globe button - show on chat-related pages (not home/hub) and hide when sidecar is open */}
+          {(location.pathname === '/chat' || location.pathname === '/pair') && 
+           !(sidecar?.activeView && sidecar?.views.find((v) => v.id === sidecar.activeView)) && (
             <div className="absolute top-3 right-4 z-100">
               <Tooltip>
                 <TooltipTrigger asChild>
