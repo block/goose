@@ -562,7 +562,8 @@ pub fn create_request(
         ));
     }
 
-    let is_ox_model = model_config.model_name.starts_with("o");
+    let is_ox_model =
+        model_config.model_name.starts_with("o") || model_config.model_name.starts_with("gpt-5");
 
     // Only extract reasoning effort for O1/O3 models
     let (model_name, reasoning_effort) = if is_ox_model {
