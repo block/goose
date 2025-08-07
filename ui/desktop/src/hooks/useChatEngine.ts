@@ -44,7 +44,9 @@ export const useChatEngine = ({
 }: UseChatEngineProps) => {
   const [lastInteractionTime, setLastInteractionTime] = useState<number>(Date.now());
   const [sessionTokenCount, setSessionTokenCount] = useState<number>(0);
-  const [ancestorMessages, setAncestorMessages] = useState<Message[]>([]);
+  const [ancestorMessages, setAncestorMessages] = useState<Message[]>(
+    Array.isArray(chat.ancestorMessages) ? chat.ancestorMessages : []
+  );
   const [sessionInputTokens, setSessionInputTokens] = useState<number>(0);
   const [sessionOutputTokens, setSessionOutputTokens] = useState<number>(0);
   const [localInputTokens, setLocalInputTokens] = useState<number>(0);
@@ -96,7 +98,7 @@ export const useChatEngine = ({
   } = useMessageStream({
     api: getApiUrl('/reply'),
     id: chat.id,
-    initialMessages: chat.messages,
+    initialMessages: [...(chat.ancestorMessages || []), ...chat.messages],
     body: { session_id: chat.id, session_working_dir: window.appConfig.get('GOOSE_WORKING_DIR') },
     onFinish: async (_message, _reason) => {
       stopPowerSaveBlocker();
@@ -377,7 +379,8 @@ export const useChatEngine = ({
   }, [stop, messages, _setInput, setMessages, stopPowerSaveBlocker, enableLocalStorage]);
 
   const filteredMessages = useMemo(() => {
-    return [...ancestorMessages, ...messages].filter((message) => message.display ?? true);
+    const allMessages = [...ancestorMessages, ...messages];
+    return allMessages.filter((message) => message.display ?? true);
   }, [ancestorMessages, messages]);
 
   // Generate command history from filtered messages

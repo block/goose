@@ -185,6 +185,7 @@ export const ChatContextManagerProvider: React.FC<{ children: React.ReactNode }>
         ...msg,
         display: true,
         sendToLLM: false,
+        isAncestor: true,
       }));
 
       // Append new ancestor messages to existing ones
@@ -195,6 +196,7 @@ export const ChatContextManagerProvider: React.FC<{ children: React.ReactNode }>
         ...msg,
         display: true,
         sendToLLM: false,
+        isAncestor: true,
       }));
 
       setAncestorMessages(newAncestorMessages);

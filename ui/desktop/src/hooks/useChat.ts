@@ -37,6 +37,7 @@ export const useChat = ({ setIsLoadingSession, setView, setPairChat }: UseChatAr
             id: sessionDetails.session_id,
             title: sessionDetails.metadata?.description || `ID: ${sessionDetails.session_id}`,
             messages: sessionDetails.messages,
+            ancestorMessages: sessionDetails.ancestorMessages || [],
             messageHistoryIndex: sessionDetails.messages.length,
             recipeConfig: null, // Sessions don't have recipes by default
           };
