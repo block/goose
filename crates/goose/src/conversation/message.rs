@@ -347,7 +347,6 @@ pub struct Message {
     #[serde(default = "default_created")]
     pub created: i64,
     pub content: Vec<MessageContent>,
-    pub sanitize_needed: bool,
 }
 
 impl fmt::Debug for Message {
@@ -374,7 +373,6 @@ impl Message {
             role,
             created,
             content,
-            sanitize_needed: false,
         }
     }
     pub fn debug(&self) -> String {
@@ -388,7 +386,6 @@ impl Message {
             role: Role::User,
             created: Utc::now().timestamp(),
             content: Vec::new(),
-            sanitize_needed: false,
         }
     }
 
@@ -399,7 +396,6 @@ impl Message {
             role: Role::Assistant,
             created: Utc::now().timestamp(),
             content: Vec::new(),
-            sanitize_needed: false,
         }
     }
 
@@ -418,10 +414,6 @@ impl Message {
     pub fn with_text<S: Into<String>>(mut self, text: S) -> Self {
         let raw_text = text.into();
         let sanitized_text = sanitize_unicode_tags(&raw_text);
-
-        if raw_text != sanitized_text {
-            self.sanitize_needed = true;
-        }
 
         self.with_content(MessageContent::Text(RawTextContent { text: sanitized_text }.no_annotation()))
     }
@@ -588,32 +580,30 @@ mod tests {
     use serde_json::{json, Value};
 
     #[test]
-    fn test_unicode_tags_block_removal() {
+    fn test_sanitize_unicode_tags() {
         let malicious = "Hello\u{E0041}\u{E0042}\u{E0043}world"; // Invisible "ABC"
         let cleaned = sanitize_unicode_tags(malicious);
         assert_eq!(cleaned, "Helloworld");
     }
 
     #[test]
-    fn test_no_tags_present() {
+    fn test_no_sanitize_unicode_tags() {
         let clean_text = "Hello world 世界 🌍";
         let cleaned = sanitize_unicode_tags(clean_text);
         assert_eq!(cleaned, clean_text);
     }
 
     #[test]
-    fn test_message_sanitize_needed_flag() {
+    fn test_sanitize_with_text() {
         let malicious = "Hello\u{E0041}\u{E0042}\u{E0043}world"; // Invisible "ABC"
         let message = Message::user().with_text(malicious);
-        assert!(message.sanitize_needed);
         assert_eq!(message.as_concat_text(), "Helloworld");
     }
 
     #[test]
-    fn test_message_no_sanitize_needed_flag() {
+    fn test_no_sanitize_with_text() {
         let clean_text = "Hello world 世界 🌍";
         let message = Message::user().with_text(clean_text);
-        assert!(!message.sanitize_needed);
         assert_eq!(message.as_concat_text(), clean_text);
     }
 
@@ -700,8 +690,7 @@ mod tests {
                         }
                     }
                 }
-            ],
-            "sanitizeNeeded": false
+            ]
         }"#;
 
         let message: Message = serde_json::from_str(json_str).unwrap();

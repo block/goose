@@ -525,7 +525,6 @@ where
                         role: Role::Assistant,
                         created: chrono::Utc::now().timestamp(),
                         content: contents,
-                        sanitize_needed: false,
                     }),
                     usage,
                 )
@@ -536,7 +535,6 @@ where
                         role: Role::Assistant,
                         created: chrono::Utc::now().timestamp(),
                         content: vec![MessageContent::text(text)],
-                        sanitize_needed: false,
                     }),
                     if chunk.choices[0].finish_reason.is_some() {
                         usage
