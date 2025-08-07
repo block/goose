@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashSet;
 use std::fmt;
+use unicode_normalization::UnicodeNormalization;
 use utoipa::ToSchema;
 
 use crate::conversation::tool_result_serde;
@@ -346,6 +347,7 @@ pub struct Message {
     #[serde(default = "default_created")]
     pub created: i64,
     pub content: Vec<MessageContent>,
+    pub sanitize_needed: bool, // New field to track if sanitization occurred
 }
 
 impl fmt::Debug for Message {
@@ -372,6 +374,7 @@ impl Message {
             role,
             created,
             content,
+            sanitize_needed: false,
         }
     }
     pub fn debug(&self) -> String {
@@ -385,6 +388,7 @@ impl Message {
             role: Role::User,
             created: Utc::now().timestamp(),
             content: Vec::new(),
+            sanitize_needed: false,
         }
     }
 
@@ -395,6 +399,7 @@ impl Message {
             role: Role::Assistant,
             created: Utc::now().timestamp(),
             content: Vec::new(),
+            sanitize_needed: false,
         }
     }
 
@@ -410,8 +415,15 @@ impl Message {
     }
 
     /// Add text content to the message
-    pub fn with_text<S: Into<String>>(self, text: S) -> Self {
-        self.with_content(MessageContent::text(text))
+    pub fn with_text<S: Into<String>>(mut self, text: S) -> Self {
+        let raw_text = text.into();
+        let sanitized_text = sanitize_unicode_tags(&raw_text);
+
+        if raw_text != sanitized_text {
+            self.sanitize_needed = true;
+        }
+
+        self.with_content(MessageContent::Text(RawTextContent { text: sanitized_text }.no_annotation()))
     }
 
     /// Add image content to the message
@@ -553,6 +565,18 @@ impl Message {
     }
 }
 
+/// Remove Unicode Tags characters from text
+fn sanitize_unicode_tags(text: &str) -> String {
+    // Unicode normalization to NFC form
+    let normalized: String = text.nfc().collect();
+    
+    // Remove Unicode Tags Block characters only
+    normalized
+        .chars()
+        .filter(|&c| !matches!(c, '\u{E0000}'..='\u{E007F}'))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use crate::conversation::message::{Message, MessageContent};
@@ -564,6 +588,39 @@ mod tests {
         RawImageContent, ResourceContents,
     };
     use serde_json::{json, Value};
+
+    #[test]
+    fn test_unicode_tags_block_removal() {
+        // Test the critical Unicode Tags block (invisible ASCII mirror)
+        let malicious = "Hello\u{E0041}\u{E0042}\u{E0043}world"; // Invisible "ABC"
+        let cleaned = sanitize_unicode_tags(malicious);
+        assert_eq!(cleaned, "Helloworld"); // Should be completely removed
+    }
+
+    #[test]
+    fn test_no_tags_present() {
+        let clean_text = "Hello world 世界 🌍";
+        let cleaned = sanitize_unicode_tags(clean_text);
+        assert_eq!(cleaned, clean_text); // Should be unchanged
+    }
+
+    #[test]
+    fn test_message_sanitize_needed_flag() {
+        // Test that sanitize_needed flag is set when Unicode Tags are removed
+        let malicious = "Hello\u{E0041}\u{E0042}\u{E0043}world"; // Invisible "ABC"
+        let message = Message::user().with_text(malicious);
+        assert!(message.sanitize_needed); // Should be flagged
+        assert_eq!(message.as_concat_text(), "Helloworld");
+    }
+
+    #[test]
+    fn test_message_no_sanitize_needed_flag() {
+        // Test that sanitize_needed flag is NOT set for clean text
+        let clean_text = "Hello world 世界 🌍";
+        let message = Message::user().with_text(clean_text);
+        assert!(!message.sanitize_needed); // Should NOT be flagged
+        assert_eq!(message.as_concat_text(), clean_text);
+    }
 
     #[test]
     fn test_message_serialization() {
@@ -648,7 +705,8 @@ mod tests {
                         }
                     }
                 }
-            ]
+            ],
+            "sanitizeNeeded": false
         }"#;
 
         let message: Message = serde_json::from_str(json_str).unwrap();
