@@ -6,6 +6,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
 interface LocalhostViewerProps {
   initialUrl?: string;
   onUrlChange?: (url: string) => void;
+  showStartupLoading?: boolean; // Show "starting development server" state
 }
 
 function isValidLocalhostUrl(url: string): boolean {
@@ -37,6 +38,7 @@ function formatUrl(input: string): string {
 export function LocalhostViewer({
   initialUrl = 'http://localhost:3000',
   onUrlChange,
+  showStartupLoading = false,
 }: LocalhostViewerProps) {
   // Initialize from localStorage or use initialUrl
   const [url, setUrl] = useState(() => {
@@ -227,24 +229,37 @@ export function LocalhostViewer({
 
       {/* Iframe Content */}
       <div className="flex-1 relative overflow-hidden">
-        <iframe
-          ref={iframeRef}
-          src={url}
-          className="w-full h-full border-0"
-          title="Localhost Viewer"
-          onLoad={handleIframeLoad}
-          onError={handleIframeError}
-          sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation allow-top-navigation-by-user-activation"
-        />
-
-        {/* Loading overlay */}
-        {isLoading && (
-          <div className="absolute inset-0 bg-background-default/80 flex items-center justify-center">
+        {showStartupLoading ? (
+          // Startup loading state - show before server is ready
+          <div className="flex items-center justify-center h-full bg-background-default">
             <div className="text-center">
-              <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2 text-primary" />
-              <p className="text-textSubtle text-sm">Loading {url}...</p>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
+              <p className="text-textStandard font-medium">Starting development server...</p>
+              <p className="text-textSubtle text-sm mt-2">This may take a few moments</p>
             </div>
           </div>
+        ) : (
+          <>
+            <iframe
+              ref={iframeRef}
+              src={url}
+              className="w-full h-full border-0"
+              title="Localhost Viewer"
+              onLoad={handleIframeLoad}
+              onError={handleIframeError}
+              sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation allow-top-navigation-by-user-activation"
+            />
+
+            {/* Loading overlay */}
+            {isLoading && (
+              <div className="absolute inset-0 bg-background-default/80 flex items-center justify-center">
+                <div className="text-center">
+                  <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2 text-primary" />
+                  <p className="text-textSubtle text-sm">Loading {url}...</p>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

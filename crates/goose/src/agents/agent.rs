@@ -736,6 +736,55 @@ impl Agent {
         Ok(())
     }
 
+    /// Configure extensions for build page mode - clear all extensions and load only nocode extension
+    pub async fn configure_extensions_for_build_page(&self, project_path: String) -> Result<Option<u16>> {
+        tracing::info!("Configuring extensions for build page mode with project path: {}", project_path);
+        
+        let mut extension_manager = self.extension_manager.write().await;
+        
+        // Check if already configured for this project path
+        if extension_manager.is_build_page_configured(&project_path) {
+            tracing::info!("Build page already configured for project: {}, getting port", project_path);
+            
+            // Try to get the port from the existing extension
+            match extension_manager.start_nocode_extension(project_path.clone()).await {
+                Ok(port) => {
+                    tracing::info!("Retrieved existing nocode extension port: {}", port);
+                    return Ok(Some(port));
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to get port from existing extension, will reconfigure: {}", e);
+                    // Clear and reconfigure below
+                    extension_manager.clear_all_extensions().await?;
+                }
+            }
+        } else {
+            tracing::info!("Configuring build page for new project: {}", project_path);
+            // Clear all existing extensions for new project
+            extension_manager.clear_all_extensions().await?;
+        }
+        
+        // Find and add the nocode extension with project path configuration
+        let nocode_extension = extension_manager.find_nocode_extension(project_path.clone()).await?;
+        
+        if let Some(extension_config) = nocode_extension {
+            tracing::info!("Found nocode extension: {}", extension_config.name());
+            extension_manager.add_extension(extension_config).await?;
+            
+            // Get the port from the nocode extension (it auto-starts with project path)
+            let port = extension_manager.start_nocode_extension(project_path.clone()).await?;
+            tracing::info!("Started nocode extension on port: {}", port);
+            
+            // Mark this project as configured
+            extension_manager.set_build_page_project(project_path);
+            
+            Ok(Some(port))
+        } else {
+            tracing::warn!("No nocode extension found");
+            Ok(None)
+        }
+    }
+
     pub async fn list_extensions(&self) -> Vec<String> {
         let extension_manager = self.extension_manager.read().await;
         extension_manager

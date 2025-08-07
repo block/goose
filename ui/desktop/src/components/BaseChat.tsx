@@ -42,7 +42,7 @@
  * while remaining flexible enough to support different UI contexts (Hub vs Pair).
  */
 
-import React, { useEffect, useContext, createContext, useRef, useCallback } from 'react';
+import React, { useEffect, useContext, createContext, useRef, useCallback, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { SearchView } from './conversation/SearchView';
 import { AgentHeader } from './AgentHeader';
@@ -56,12 +56,13 @@ import {
   ChatContextManagerProvider,
   useChatContextManager,
 } from './context_management/ChatContextManager';
-import { SidecarProvider } from './SidecarLayout';
+import { SidecarProvider, useSidecar } from './SidecarLayout';
 import { type View, ViewOptions } from '../App';
 import { MainPanelLayout } from './Layout/MainPanelLayout';
 import ChatInput from './ChatInput';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
 import { RecipeWarningModal } from './ui/RecipeWarningModal';
+import { getApiUrl } from '../config';
 import ParameterInputModal from './ParameterInputModal';
 import { useChatEngine } from '../hooks/useChatEngine';
 import { useRecipeManager } from '../hooks/useRecipeManager';
@@ -201,6 +202,131 @@ function BaseChatContent({
     handleRecipeAccept,
     handleRecipeCancel,
   } = useRecipeManager(messages, location.state);
+
+  // Sidecar for localhost viewing
+  const sidecar = useSidecar();
+
+  // Listen for dev server flow events from main process
+  useEffect(() => {
+    const handleDevServerFlow = (_event: any, { port, projectPath }: { port: number, projectPath: string }) => {
+      if (sidecar) {
+        // First show loading state while server starts up
+        sidecar.showLocalhostViewer(
+          `http://localhost:${port}`, 
+          'Development Server',
+          true // Show startup loading
+        );
+        
+        console.log(`[BaseChat] Started dev server flow for ${projectPath} on port ${port}`);
+
+        // Just wait a moment for server to start, then show the iframe
+        // The iframe itself will handle retrying if the server isn't ready
+        setTimeout(() => {
+          sidecar.showLocalhostViewer(
+            `http://localhost:${port}`, 
+            'Development Server',
+            false // Remove startup loading after delay
+          );
+        }, 3000);
+      }
+    };
+    
+    window.electron.on('start-dev-server-flow', handleDevServerFlow);
+    return () => {
+      window.electron.off('start-dev-server-flow', handleDevServerFlow);
+    };
+  }, [sidecar]);
+
+  // Use useRef to track if we've already attempted configuration for this session
+  const extensionConfigurationAttempted = useRef(false);
+
+  // Configure extensions for build page windows
+  useEffect(() => {
+    // Only run if we haven't attempted configuration yet and sidecar is available
+    if (extensionConfigurationAttempted.current || !sidecar) {
+      return;
+    }
+
+    const configureBuildPageExtensions = async () => {
+      // Double-check if we've already attempted configuration
+      if (extensionConfigurationAttempted.current) {
+        return;
+      }
+
+      // Check if this is a build page window by looking for working directory and REQUEST_DIR
+      const workingDir = window.appConfig?.get?.('GOOSE_WORKING_DIR') as string | undefined;
+      const requestDir = window.appConfig?.get?.('REQUEST_DIR') as string | undefined;
+      
+      console.log('[BaseChat] Build page extension check:', {
+        workingDir,
+        requestDir,
+        areEqual: workingDir === requestDir,
+        sidecarAvailable: !!sidecar,
+        alreadyAttempted: extensionConfigurationAttempted.current
+      });
+      
+      // Only configure extensions if this window has both a working dir and request dir (indicating it was opened for a specific app)
+      if (workingDir && requestDir && workingDir === requestDir) {
+        // Mark as attempted immediately to prevent any concurrent calls
+        extensionConfigurationAttempted.current = true;
+        
+        try {
+          console.log(`[BaseChat] Configuring extensions for build page with project path: ${workingDir}`);
+          
+          // Call the build page configuration API
+          const response = await fetch(getApiUrl('/extensions/configure-build-page'), {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Secret-Key': await window.electron.getSecretKey(),
+            },
+            body: JSON.stringify({
+              project_path: workingDir
+            }),
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            console.log(`[BaseChat] Build page extension configuration result:`, result);
+            
+            if (result.port) {
+              // Show the sidecar with localhost viewer
+              if (sidecar) {
+                console.log(`[BaseChat] Starting dev server flow with port: ${result.port}`);
+                sidecar.showLocalhostViewer(
+                  `http://localhost:${result.port}`, 
+                  'Development Server',
+                  true // Show startup loading
+                );
+
+                // Just wait a moment for server to start, then show the iframe
+                // The iframe itself will handle retrying if the server isn't ready
+                setTimeout(() => {
+                  sidecar.showLocalhostViewer(
+                    `http://localhost:${result.port}`, 
+                    'Development Server',
+                    false // Remove startup loading after delay
+                  );
+                }, 3000);
+              }
+            }
+          } else {
+            console.error(`[BaseChat] Failed to configure build page extensions:`, response.status, response.statusText);
+          }
+        } catch (error) {
+          console.error(`[BaseChat] Error configuring build page extensions:`, error);
+        }
+      }
+    };
+
+    // Run after a short delay to ensure everything is initialized
+    const timeoutId = setTimeout(configureBuildPageExtensions, 1000);
+    
+    // Cleanup timeout on unmount or dependency changes
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [sidecar]); // Only depend on sidecar, not on state that might change
 
   // Reset recipe usage tracking when recipe changes
   useEffect(() => {

@@ -102,8 +102,19 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
         const model = (await read('GOOSE_MODEL', false)) ?? config.GOOSE_DEFAULT_MODEL;
 
         if (provider && model) {
-          console.log('ProviderGuard - Provider and model found, continuing normally');
-          setHasProvider(true);
+          console.log('ProviderGuard - Provider and model found, initializing system...');
+          try {
+            await initializeSystem(provider as string, model as string, {
+              getExtensions: getExtensions,
+              addExtension: addExtension,
+            });
+            console.log('ProviderGuard - System initialized successfully');
+            setHasProvider(true);
+          } catch (error) {
+            console.error('ProviderGuard - Failed to initialize system:', error);
+            // If initialization fails, still show the UI but log the error
+            setHasProvider(true);
+          }
         } else {
           console.log('ProviderGuard - No provider/model configured, showing first time setup');
           setShowFirstTimeSetup(true);

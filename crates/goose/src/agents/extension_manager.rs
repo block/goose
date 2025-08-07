@@ -42,6 +42,8 @@ pub struct ExtensionManager {
     instructions: HashMap<String, String>,
     resource_capable_extensions: HashSet<String>,
     temp_dirs: HashMap<String, tempfile::TempDir>,
+    /// Track the currently configured build page project path to avoid redundant reconfigurations
+    current_build_page_project: Option<String>,
 }
 
 /// A flattened representation of a resource used by the agent to prepare inference
@@ -113,6 +115,7 @@ impl ExtensionManager {
             instructions: HashMap::new(),
             resource_capable_extensions: HashSet::new(),
             temp_dirs: HashMap::new(),
+            current_build_page_project: None,
         }
     }
 
@@ -917,6 +920,140 @@ impl ExtensionManager {
         }
 
         Ok(vec![Content::text(output_parts.join("\n"))])
+    }
+
+    /// Clear all extensions from the manager
+    pub async fn clear_all_extensions(&mut self) -> ExtensionResult<()> {
+        self.clients.clear();
+        self.instructions.clear();
+        self.resource_capable_extensions.clear();
+        self.temp_dirs.clear();
+        self.current_build_page_project = None;
+        Ok(())
+    }
+
+    /// Check if build page is already configured for the given project path
+    pub fn is_build_page_configured(&self, project_path: &str) -> bool {
+        matches!(&self.current_build_page_project, Some(configured_path) if configured_path == project_path)
+    }
+
+    /// Set the current build page project path
+    pub fn set_build_page_project(&mut self, project_path: String) {
+        self.current_build_page_project = Some(project_path);
+    }
+
+    /// Find the first extension that starts with "nocode" and configure it with project path
+    pub async fn find_nocode_extension(&self, project_path: String) -> ExtensionResult<Option<ExtensionConfig>> {
+        // Get all available extension configurations
+        let all_configs = ExtensionConfigManager::get_all()
+            .map_err(|e| ExtensionError::ConfigError(format!("Failed to get extensions: {}", e)))?;
+        
+        // Find the first one that starts with "nocode"
+        for extension in all_configs {
+            if extension.config.name().starts_with("nocode") {
+                // Clone and modify the config to include the project path argument
+                let mut config = extension.config.clone();
+                
+                // Add the --project-path argument to the extension
+                if let ExtensionConfig::Stdio { ref mut args, .. } = config {
+                    args.push("--project-path".to_string());
+                    args.push(project_path);
+                }
+                
+                return Ok(Some(config));
+            }
+        }
+        
+        Ok(None)
+    }
+
+    /// Start the nocode extension with the given project path
+    pub async fn start_nocode_extension(&self, _project_path: String) -> ExtensionResult<u16> {
+        // Find the nocode client
+        let nocode_client = self.clients
+            .iter()
+            .find(|(name, _)| name.starts_with("nocode"))
+            .ok_or(ExtensionError::ConfigError("Nocode extension not found".to_string()))?;
+
+        // Wait a moment for the extension to auto-start its server
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+
+        // The nocode extension auto-starts a server when it receives a project path
+        // We need to call the get_port_tool to get the port of the running server
+        let tool_call = ToolCall {
+            name: format!("{}__get_port_tool", nocode_client.0),
+            arguments: serde_json::json!({}),
+        };
+
+        // Execute the tool call
+        let result = self.dispatch_tool_call(tool_call, CancellationToken::default()).await
+            .map_err(|e| ExtensionError::ConfigError(format!("Failed to dispatch tool call: {}", e)))?;
+        let response = result.result.await
+            .map_err(|e| ExtensionError::ConfigError(format!("Tool execution failed: {}", e)))?;
+
+        // Extract port from the response
+        tracing::debug!("Received response with {} content items", response.len());
+        if let Some(content) = response.first() {
+            tracing::debug!("First content item type: {:?}", &**content);
+            
+            // Extract the text content from the Content enum
+            let content_text = match &**content {
+                rmcp::model::RawContent::Text(text_content) => {
+                    tracing::debug!("Found text content: {}", &text_content.text);
+                    &text_content.text
+                },
+                _ => {
+                    tracing::warn!("Expected text content from nocode extension, got: {:?}", content);
+                    return Err(ExtensionError::ConfigError("Expected text content from nocode extension".to_string()));
+                }
+            };
+            
+            tracing::info!("Attempting to parse JSON from nocode extension: {}", content_text);
+            
+            // Check if this is an error message that contains the JSON we need
+            let json_text = if content_text.contains("Got str: '") && content_text.contains("Tools should wrap non-dict values") {
+                // Extract JSON from error message: "Got str: 'JSON_HERE'"
+                if let Some(start) = content_text.find("Got str: '") {
+                    let start = start + "Got str: '".len();
+                    if let Some(end) = content_text[start..].find("'. Tools should wrap") {
+                        let json_part = &content_text[start..start + end];
+                        tracing::info!("Extracted JSON from error message: {}", json_part);
+                        json_part
+                    } else {
+                        content_text
+                    }
+                } else {
+                    content_text
+                }
+            } else {
+                // The response might be wrapped in single quotes, so we need to strip them
+                if content_text.starts_with("'") && content_text.ends_with("'") && content_text.len() > 1 {
+                    &content_text[1..content_text.len()-1]
+                } else {
+                    content_text
+                }
+            };
+            
+            tracing::info!("JSON text after processing: {}", json_text);
+            
+            // Parse the text content as JSON
+            if let Ok(response_data) = serde_json::from_str::<serde_json::Value>(json_text) {
+                tracing::info!("Successfully parsed JSON: {:?}", response_data);
+                if let Some(port) = response_data.get("port").and_then(|p| p.as_u64()) {
+                    tracing::info!("Extracted port: {}", port);
+                    return Ok(port as u16);
+                } else {
+                    tracing::warn!("No 'port' field found in JSON or it's not a valid number");
+                }
+            } else {
+                tracing::warn!("Failed to parse content as JSON: {}", json_text);
+            }
+        } else {
+            tracing::warn!("No content in response from nocode extension");
+        }
+
+        // If we can't parse the port, return an error
+        Err(ExtensionError::ConfigError("Failed to get port from nocode extension".to_string()))
     }
 }
 

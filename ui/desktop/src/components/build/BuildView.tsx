@@ -250,12 +250,12 @@ const BuildView: React.FC = () => {
 
   const handleAppClick = async (app: AppTile) => {
     try {
-      await window.electron.openApp(app.path);
+      await window.electron.openAppInGoose(app.path, { fromBuildPage: true });
     } catch (err) {
-      console.error('Failed to open app:', err);
+      console.error('Failed to open app in goose:', err);
       toastError({
         title: 'Failed to open app',
-        msg: 'Could not open the app directory',
+        msg: 'Could not open the app in a new goose window',
       });
     }
   };

@@ -506,6 +506,29 @@ const windowMap = new Map<number, BrowserWindow>();
 // Track power save blockers per window
 const windowPowerSaveBlockers = new Map<number, number>(); // windowId -> blockerId
 
+// Helper function to configure extensions for build page mode
+const configureExtensionsForBuildPage = async (goosePort: number, projectPath: string): Promise<number | null> => {
+  try {
+    // Call the goosed API to configure extensions for build page mode
+    const response = await fetch(`http://localhost:${goosePort}/extensions/configure-build-page`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project_path: projectPath })
+    });
+    
+    if (!response.ok) {
+      console.error('Failed to configure extensions for build page:', response.statusText);
+      return null;
+    }
+    
+    const data = await response.json();
+    return data.port || null;
+  } catch (error) {
+    console.error('Failed to configure extensions for build page:', error);
+    return null;
+  }
+};
+
 const createChat = async (
   app: App,
   query?: string,
@@ -515,12 +538,14 @@ const createChat = async (
   recipe?: Recipe, // Recipe configuration when already loaded, takes precedence over deeplink
   viewType?: string,
   recipeDeeplink?: string, // Raw deeplink used as a fallback when recipe is not loaded. Required on new windows as we need to wait for the window to load before decoding.
-  scheduledJobId?: string // Scheduled job ID if applicable
+  scheduledJobId?: string, // Scheduled job ID if applicable
+  fromBuildPage?: boolean // Flag to indicate this was opened from build page
 ) => {
   // Initialize variables for process and configuration
   let port = 0;
   let working_dir = '';
   let goosedProcess: import('child_process').ChildProcess | null = null;
+  let devServerPort: number | null = null;
 
   if (viewType === 'recipeEditor') {
     // For recipeEditor, get the port from existing windows' config
@@ -565,6 +590,19 @@ const createChat = async (
     port = newPort;
     working_dir = newWorkingDir;
     goosedProcess = newGoosedProcess;
+
+    // Configure extensions for build page mode if requested
+    if (fromBuildPage && working_dir) {
+      try {
+        devServerPort = await configureExtensionsForBuildPage(port, working_dir);
+        if (devServerPort) {
+          console.log(`[Main] Configured nocode extension with dev server on port ${devServerPort}`);
+        }
+      } catch (error) {
+        console.error('Failed to configure extensions for build page:', error);
+        // Continue with normal flow, just log the error
+      }
+    }
   }
 
   // Create window config with loading state for recipe deeplinks
@@ -855,6 +893,17 @@ const createChat = async (
       goosedProcess.kill();
     }
   });
+
+  // If this is a build page window and we have a dev server port, send it to the window
+  if (fromBuildPage && devServerPort && working_dir) {
+    mainWindow.webContents.once('dom-ready', () => {
+      mainWindow.webContents.send('start-dev-server-flow', {
+        port: devServerPort,
+        projectPath: working_dir
+      });
+    });
+  }
+
   return mainWindow;
 };
 
@@ -2458,6 +2507,35 @@ ipcMain.handle('open-app', async (_event, appPath: string) => {
     return { success: true };
   } catch (err) {
     throw new Error(`Failed to open app: ${err instanceof Error ? err.message : String(err)}`);
+  }
+});
+
+// Open app in new goose window
+ipcMain.handle('open-app-in-goose', async (_event, appPath: string, options?: { fromBuildPage?: boolean }) => {
+  try {
+    const newWindow = await createChat(
+      app,
+      undefined, // query
+      appPath, // dir
+      undefined, // version
+      undefined, // resumeSessionId
+      undefined, // recipe
+      'chat', // viewType
+      undefined, // recipeDeeplink
+      undefined, // scheduledJobId
+      options?.fromBuildPage // fromBuildPage
+    );
+    
+    if (newWindow) {
+      newWindow.show();
+      newWindow.focus();
+      newWindow.moveTop();
+      return { success: true };
+    }
+    return { success: false, error: 'Failed to create window' };
+  } catch (error) {
+    console.error('Failed to open app in goose:', error);
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 });
 

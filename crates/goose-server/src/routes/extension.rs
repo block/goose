@@ -97,6 +97,20 @@ struct ExtensionResponse {
     message: Option<String>,
 }
 
+/// Request structure for configuring extensions for build page mode.
+#[derive(Deserialize)]
+struct BuildPageConfigRequest {
+    project_path: String,
+}
+
+/// Response structure for build page configuration.
+#[derive(Serialize)]
+struct BuildPageConfigResponse {
+    error: bool,
+    message: Option<String>,
+    port: Option<u16>,
+}
+
 /// Handler for adding a new extension configuration.
 async fn add_extension(
     State(state): State<Arc<AppState>>,
@@ -317,11 +331,51 @@ async fn remove_extension(
     }
 }
 
+/// Handler for configuring extensions for build page mode
+async fn configure_build_page_extensions(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(request): Json<BuildPageConfigRequest>,
+) -> Result<Json<BuildPageConfigResponse>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
+    tracing::info!(
+        "Configuring extensions for build page mode with project path: {}",
+        request.project_path
+    );
+
+    // Get a reference to the agent
+    let agent = state
+        .get_agent()
+        .await
+        .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
+
+    // Configure extensions for build page mode
+    let response = agent.configure_extensions_for_build_page(request.project_path).await;
+
+    match response {
+        Ok(port) => Ok(Json(BuildPageConfigResponse {
+            error: false,
+            message: None,
+            port,
+        })),
+        Err(e) => {
+            tracing::error!("Failed to configure extensions for build page: {:?}", e);
+            Ok(Json(BuildPageConfigResponse {
+                error: true,
+                message: Some(format!("Failed to configure extensions: {:?}", e)),
+                port: None,
+            }))
+        }
+    }
+}
+
 /// Registers the extension management routes with the Axum router.
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/extensions/add", post(add_extension))
         .route("/extensions/remove", post(remove_extension))
+        .route("/extensions/configure-build-page", post(configure_build_page_extensions))
         .with_state(state)
 }
 

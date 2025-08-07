@@ -19,7 +19,7 @@ interface SidecarContextType {
   hideView: () => void;
   showDiffViewer: (diffContent: string, fileName?: string) => void;
   hideDiffViewer: () => void;
-  showLocalhostViewer: (url?: string, title?: string) => void;
+  showLocalhostViewer: (url?: string, title?: string, showStartupLoading?: boolean) => void;
   hideLocalhostViewer: () => void;
 }
 
@@ -338,7 +338,7 @@ export function SidecarProvider({ children, showSidecar = true }: SidecarProvide
     }
   };
 
-  const showLocalhostViewer = (url = 'http://localhost:3000', title = 'Localhost Viewer') => {
+  const showLocalhostViewer = (url = 'http://localhost:3000', title = 'Localhost Viewer', showStartupLoading = false) => {
     const localhostView: SidecarView = {
       id: 'localhost',
       title: title,
@@ -346,6 +346,7 @@ export function SidecarProvider({ children, showSidecar = true }: SidecarProvide
       content: (
         <LocalhostViewer
           initialUrl={url}
+          showStartupLoading={showStartupLoading}
           onUrlChange={(newUrl) => {
             // Update the view title with the current URL
             setViews((prev) =>

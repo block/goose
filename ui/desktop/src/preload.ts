@@ -123,6 +123,7 @@ type ElectronAPI = {
   createApp: (appName: string, template?: string) => Promise<{ success: boolean; path: string }>;
   listApps: () => Promise<AppTile[]>;
   openApp: (appPath: string) => Promise<{ success: boolean }>;
+  openAppInGoose: (appPath: string, options?: { fromBuildPage?: boolean }) => Promise<{ success: boolean; error?: string }>;
   saveAppColor: (appId: string, colors: { bg: string; inner: string }) => Promise<boolean>;
   loadAppColors: () => Promise<Record<string, { bg: string; inner: string }>>;
   openDirectoryInExplorer: (directoryPath: string) => Promise<boolean>;
@@ -262,6 +263,8 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke('create-app', appName, template),
   listApps: () => ipcRenderer.invoke('list-apps'),
   openApp: (appPath: string) => ipcRenderer.invoke('open-app', appPath),
+  openAppInGoose: (appPath: string, options?: { fromBuildPage?: boolean }) =>
+    ipcRenderer.invoke('open-app-in-goose', appPath, options),
   saveAppColor: (appId: string, colors: { bg: string; inner: string }) =>
     ipcRenderer.invoke('save-app-color', appId, colors),
   loadAppColors: () => ipcRenderer.invoke('load-app-colors'),
