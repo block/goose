@@ -146,7 +146,9 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
     <div className="space-y-6">
       <div className="text-center">
         <h3 className="text-lg font-semibold text-text-standard mb-2">Ollama Setup</h3>
-        <p className="text-text-muted">Ollama lets you run AI models locally on your computer.</p>
+        <p className="text-text-muted">
+          Ollama lets you run AI models for free, private and locally on your computer.
+        </p>
       </div>
 
       {ollamaDetected ? (

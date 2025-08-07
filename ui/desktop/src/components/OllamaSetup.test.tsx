@@ -157,7 +157,6 @@ describe('OllamaSetup', () => {
 
       await waitFor(() => {
         expect(screen.getByText(/Ollama is running on your system/)).toBeInTheDocument();
-        expect(screen.getByText('Connect to Ollama')).toBeInTheDocument();
       });
     });
 
@@ -167,7 +166,7 @@ describe('OllamaSetup', () => {
       render(<OllamaSetup onSuccess={mockOnSuccess} onCancel={mockOnCancel} />);
 
       await waitFor(() => {
-        fireEvent.click(screen.getByText('Connect to Ollama'));
+        fireEvent.click(screen.getByText(/Use Goose with Ollama/));
       });
 
       await waitFor(() => {
@@ -191,7 +190,7 @@ describe('OllamaSetup', () => {
       render(<OllamaSetup onSuccess={mockOnSuccess} onCancel={mockOnCancel} />);
 
       await waitFor(() => {
-        fireEvent.click(screen.getByText('Connect to Ollama'));
+        fireEvent.click(screen.getByText('Use Goose with Ollama'));
       });
 
       await waitFor(() => {

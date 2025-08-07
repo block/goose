@@ -222,10 +222,10 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
               {ollamaDetected ? (
                 <>
                   <span className="text-text-success">●</span>
-                  Configure Ollama (auto detected)
+                  Use Ollama (auto detected)
                 </>
               ) : (
-                'Set up Ollama (run AI locally)'
+                'Set up Ollama (run AI locally and free)'
               )}
             </button>
 
@@ -241,7 +241,7 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
             OpenRouter provides instant access to multiple AI models with a simple setup.
             {ollamaDetected
               ? ' Ollama is also detected on your system for running models locally.'
-              : ' You can also install Ollama to run AI models locally on your computer.'}
+              : ' You can also install Ollama to run free AI models locally on your computer.'}
           </p>
         </div>
       </div>
