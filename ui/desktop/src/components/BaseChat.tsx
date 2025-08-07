@@ -143,7 +143,7 @@ function BaseChatContent({
     chatState,
     error,
     setMessages,
-    input: _input,
+    input,
     setInput: _setInput,
     handleSubmit: engineHandleSubmit,
     onStopGoose,
@@ -530,7 +530,7 @@ function BaseChatContent({
             chatState={chatState}
             onStop={onStopGoose}
             commandHistory={commandHistory}
-            initialValue={recipeConfig?.isScheduledExecution ? '' : _input || ''}
+            initialValue={input || ''}
             setView={setView}
             numTokens={sessionTokenCount}
             inputTokens={sessionInputTokens || localInputTokens}
