@@ -16,7 +16,7 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 - fetch & mutate files in containers
 - automate development, CI, and DevOps workflows
 
-<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/kD2YA61NTLU" />
+<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/X3tf61_Tak0" />
 
 
 ## Configuration
