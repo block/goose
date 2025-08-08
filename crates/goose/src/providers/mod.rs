@@ -1,5 +1,5 @@
 pub mod anthropic;
-mod api_client;
+pub mod api_client;
 pub mod azure;
 pub mod azureauth;
 pub mod base;
