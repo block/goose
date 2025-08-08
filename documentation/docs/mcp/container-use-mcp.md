@@ -1,6 +1,6 @@
 ---
 title: Container-Use MCP
-description: Integrate container workflows with Goose using the Container-Use MCP
+description: User Container-Use MCP as a Goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
