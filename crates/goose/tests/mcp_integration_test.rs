@@ -1,7 +1,7 @@
 use std::collections::HashMap;
-use std::env;
 use std::fs::File;
 use std::path::PathBuf;
+use std::{env, fs};
 
 use rmcp::model::Content;
 use serde_json::json;
@@ -110,36 +110,47 @@ async fn test_replayed_session(
     };
 
     let mut extension_manager = ExtensionManager::new();
+
     let result = extension_manager.add_extension(extension_config).await;
     assert!(result.is_ok(), "Failed to add extension: {:?}", result);
 
-    let mut results = Vec::new();
-    for tool_call in tool_calls {
-        let tool_call = ToolCall::new(format!("test__{}", tool_call.name), tool_call.arguments);
-        let result = extension_manager
-            .dispatch_tool_call(tool_call, CancellationToken::default())
-            .await;
+    let result = (async || -> Result<(), Box<dyn std::error::Error>> {
+        let mut results = Vec::new();
+        for tool_call in tool_calls {
+            let tool_call = ToolCall::new(format!("test__{}", tool_call.name), tool_call.arguments);
+            let result = extension_manager
+                .dispatch_tool_call(tool_call, CancellationToken::default())
+                .await;
 
-        let tool_result = result.expect("tool dispatch should succeed");
-        results.push(tool_result.result.await.expect("should get a result"));
+            let tool_result = result?;
+            results.push(tool_result.result.await?);
+        }
+
+        let mut results_path = replay_file_path.clone();
+        results_path.pop();
+        results_path.push(format!("{}.results.json", &replay_file_name));
+
+        match mode {
+            TestMode::Record => {
+                serde_json::to_writer_pretty(File::create(results_path)?, &results)?
+            }
+            TestMode::Replay => assert_eq!(
+                serde_json::from_reader::<_, Vec<Vec<Content>>>(File::open(results_path)?)?,
+                results
+            ),
+        };
+
+        Ok(())
+    })()
+    .await;
+
+    if let Err(err) = result {
+        let errors =
+            fs::read_to_string(format!("{}.errors.txt", replay_file_path.to_string_lossy()))
+                .expect("could not read errors");
+        eprintln!("errors from {}", replay_file_path.to_string_lossy());
+        eprintln!("{}", errors);
+        eprintln!();
+        panic!("Test failed: {:?}", err);
     }
-
-    let mut results_path = replay_file_path.clone();
-    results_path.pop();
-    results_path.push(format!("{}.results.json", &replay_file_name));
-
-    match mode {
-        TestMode::Record => serde_json::to_writer_pretty(
-            File::create(results_path).expect("could not reate results file"),
-            &results,
-        )
-        .expect("could not write results"),
-        TestMode::Replay => assert_eq!(
-            serde_json::from_reader::<_, Vec<Vec<Content>>>(
-                File::open(results_path).expect("could not read results file")
-            )
-            .expect("could not deserialize results"),
-            results
-        ),
-    };
 }

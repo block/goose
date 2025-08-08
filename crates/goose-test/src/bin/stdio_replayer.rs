@@ -1,3 +1,4 @@
+use core::error;
 use std::env;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Write};
@@ -60,6 +61,7 @@ fn main() -> io::Result<()> {
 
     let log_file_path = &args[1];
     let entries = load_log_file(log_file_path)?;
+    let errors_file = File::create(format!("{}.errors.txt", log_file_path))?;
 
     let stdin = io::stdin();
     let mut stdout = io::stdout();
@@ -82,7 +84,11 @@ fn main() -> io::Result<()> {
                 input = input.trim_end_matches('\n').to_string();
 
                 if input != entry.content {
-                    eprintln!("Expected: '{}', got: '{}'", entry.content, input);
+                    writeln!(
+                        &errors_file,
+                        "Expected:\n\t'{}'\n\ngot:\n\t'{}'",
+                        entry.content, input
+                    )?;
                     process::exit(1);
                 }
             }

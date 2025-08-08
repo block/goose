@@ -1,8 +1,0 @@
-STDIN: {"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"goose","version":"0.1.0"}}}
-STDOUT: A GitHub MCP server that handles various tools and resources.
-STDOUT: 
-STDOUT: Usage:
-STDOUT:   server [command]
-STDOUT: 
-STDOUT: Available Commands:
-STDOUT
