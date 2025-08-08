@@ -17,56 +17,54 @@ struct LogEntry {
 }
 
 fn parse_log_line(line: &str) -> Option<LogEntry> {
-    if let Some(colon_pos) = line.find(": ") {
-        let (prefix, content) = line.split_at(colon_pos);
+    line.find(": ").and_then(|pos| {
+        let (prefix, content) = line.split_at(pos);
         let content = &content[2..]; // Skip ": "
-        
+
         let stream_type = match prefix {
             "STDIN" => StreamType::Stdin,
             "STDOUT" => StreamType::Stdout,
             "STDERR" => StreamType::Stderr,
             _ => return None,
         };
-        
+
         Some(LogEntry {
             stream_type,
             content: content.to_string(),
         })
-    } else {
-        None
-    }
+    })
 }
 
 fn load_log_file(file_path: &str) -> io::Result<Vec<LogEntry>> {
     let file = File::open(file_path)?;
     let reader = BufReader::new(file);
     let mut entries = Vec::new();
-    
+
     for line in reader.lines() {
         let line = line?;
         if let Some(entry) = parse_log_line(&line) {
             entries.push(entry);
         }
     }
-    
+
     Ok(entries)
 }
 
 fn main() -> io::Result<()> {
     let args: Vec<String> = env::args().collect();
-    
+
     if args.len() != 2 {
         eprintln!("Usage: {} <log_file>", args[0]);
         process::exit(1);
     }
-    
+
     let log_file_path = &args[1];
     let entries = load_log_file(log_file_path)?;
-    
+
     let stdin = io::stdin();
     let mut stdout = io::stdout();
     let mut stderr = io::stderr();
-    
+
     for entry in entries {
         match entry.stream_type {
             StreamType::Stdout => {
@@ -82,7 +80,7 @@ fn main() -> io::Result<()> {
                 let mut input = String::new();
                 stdin.read_line(&mut input)?;
                 input = input.trim_end_matches('\n').to_string();
-                
+
                 if input != entry.content {
                     eprintln!("Expected: '{}', got: '{}'", entry.content, input);
                     process::exit(1);
@@ -90,6 +88,6 @@ fn main() -> io::Result<()> {
             }
         }
     }
-    
+
     Ok(())
 }

@@ -3333,6 +3333,7 @@ dependencies = [
  "sha2",
  "temp-env",
  "tempfile",
+ "test-case",
  "thiserror 1.0.69",
  "tiktoken-rs",
  "tokio",
@@ -3513,6 +3514,10 @@ dependencies = [
  "tracing-subscriber",
  "utoipa",
 ]
+
+[[package]]
+name = "goose-test"
+version = "1.1.0"
 
 [[package]]
 name = "grep-cli"
