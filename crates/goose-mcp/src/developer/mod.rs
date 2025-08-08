@@ -249,10 +249,11 @@ fn read_referenced_files(
     let mut result = content.to_string();
 
     for reference in references {
-        let safe_path = match should_process_reference_v2(&reference, visited, base_path, ignore_patterns) {
-            Some(path) => path,
-            None => continue,
-        };
+        let safe_path =
+            match should_process_reference_v2(&reference, visited, base_path, ignore_patterns) {
+                Some(path) => path,
+                None => continue,
+            };
 
         if let Some((pattern, replacement)) = process_file_reference_v2(
             &reference,
@@ -657,7 +658,7 @@ impl DeveloperRouter {
         let mut hints = String::new();
         if !global_hints_contents.is_empty() {
             hints.push_str("\n### Global Hints\nThe developer extension includes some global hints that apply to all projects & directories.\n");
-            
+
             // Expand file references in global hints
             let mut visited = HashSet::new();
             let global_hints_text = global_hints_contents.join("\n");
@@ -681,17 +682,12 @@ impl DeveloperRouter {
                 hints.push_str("\n\n");
             }
             hints.push_str("### Project Hints\nThe developer extension includes some hints for working on the project in this directory.\n");
-            
+
             // Expand file references in local hints
             let mut visited = HashSet::new();
             let local_hints_text = local_hints_contents.join("\n");
-            let expanded_local_hints = read_referenced_files(
-                &local_hints_text,
-                &cwd,
-                &mut visited,
-                0,
-                &ignore_patterns,
-            );
+            let expanded_local_hints =
+                read_referenced_files(&local_hints_text, &cwd, &mut visited, 0, &ignore_patterns);
             hints.push_str(&expanded_local_hints);
         }
 
@@ -3479,7 +3475,8 @@ mod tests {
 
         let mut visited = HashSet::new();
         let basic_content = "Main content\n@basic.md\nMore content";
-        let expanded = read_referenced_files(basic_content, base_path, &mut visited, 0, &ignore_patterns);
+        let expanded =
+            read_referenced_files(basic_content, base_path, &mut visited, 0, &ignore_patterns);
 
         assert!(expanded.contains("Main content"));
         assert!(expanded.contains("--- Content from"));
@@ -3496,7 +3493,8 @@ mod tests {
 
         visited.clear();
         let nested_content = "Main content\n@level1.md";
-        let expanded = read_referenced_files(nested_content, base_path, &mut visited, 0, &ignore_patterns);
+        let expanded =
+            read_referenced_files(nested_content, base_path, &mut visited, 0, &ignore_patterns);
 
         assert!(expanded.contains("Main content"));
         assert!(expanded.contains("Level 1 content"));
@@ -3521,7 +3519,13 @@ mod tests {
 
         let mut visited = HashSet::new();
         let circular_content = "Main\n@file1.md";
-        let expanded = read_referenced_files(circular_content, base_path, &mut visited, 0, &ignore_patterns);
+        let expanded = read_referenced_files(
+            circular_content,
+            base_path,
+            &mut visited,
+            0,
+            &ignore_patterns,
+        );
 
         assert!(expanded.contains("File 1"));
         assert!(expanded.contains("File 2"));
@@ -3542,7 +3546,8 @@ mod tests {
 
         visited.clear();
         let depth_content = "Main\n@level1.md";
-        let expanded = read_referenced_files(depth_content, base_path, &mut visited, 0, &ignore_patterns);
+        let expanded =
+            read_referenced_files(depth_content, base_path, &mut visited, 0, &ignore_patterns);
 
         // Should contain up to level 3 (MAX_DEPTH = 3)
         assert!(expanded.contains("Level 1 content"));
@@ -3555,7 +3560,13 @@ mod tests {
         // Test 3: Missing file
         visited.clear();
         let missing_content = "Main\n@missing.md\nMore content";
-        let expanded = read_referenced_files(missing_content, base_path, &mut visited, 0, &ignore_patterns);
+        let expanded = read_referenced_files(
+            missing_content,
+            base_path,
+            &mut visited,
+            0,
+            &ignore_patterns,
+        );
 
         // Should keep the original reference unchanged
         assert!(expanded.contains("@missing.md"));
