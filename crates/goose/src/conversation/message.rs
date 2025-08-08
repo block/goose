@@ -904,7 +904,8 @@ mod tests {
     fn test_message_deserialization_sanitizes_text_content() {
         // Create a test string with Unicode Tags characters
         let malicious_text = "Hello\u{E0041}\u{E0042}\u{E0043}world";
-        let malicious_json = format!(r#"{{
+        let malicious_json = format!(
+            r#"{{
             "id": "test-id",
             "role": "user",
             "created": 1640995200,
@@ -919,7 +920,9 @@ mod tests {
                     "mimeType": "image/png"
                 }}
             ]
-        }}"#, malicious_text);
+        }}"#,
+            malicious_text
+        );
 
         let message: Message = serde_json::from_str(&malicious_json).unwrap();
 
