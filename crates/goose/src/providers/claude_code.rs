@@ -48,41 +48,103 @@ impl ClaudeCodeProvider {
         })
     }
 
+    /// Get platform-specific search paths for claude executable
+    #[cfg(unix)]
+    fn get_platform_search_paths(executable_name: &str) -> Vec<String> {
+        let mut paths = Vec::new();
+        if let Ok(home) = std::env::var("HOME") {
+            paths.extend(vec![
+                format!("{}/.claude/local/{}", home, executable_name),
+                format!("{}/.local/bin/{}", home, executable_name),
+                format!("{}/bin/{}", home, executable_name),
+            ]);
+        }
+        paths.extend(vec![
+            format!("/usr/local/bin/{}", executable_name),
+            format!("/usr/bin/{}", executable_name),
+            format!("/opt/claude/{}", executable_name),
+        ]);
+        paths
+    }
+
+    #[cfg(windows)]
+    fn get_platform_search_paths(executable_name: &str) -> Vec<String> {
+        let mut paths = Vec::new();
+        if let Ok(local_appdata) = std::env::var("LOCALAPPDATA") {
+            paths.extend(vec![
+                format!("{}\\Programs\\claude\\{}", local_appdata, executable_name),
+                format!("{}\\claude\\{}", local_appdata, executable_name),
+            ]);
+        }
+        if let Ok(appdata) = std::env::var("APPDATA") {
+            paths.extend(vec![
+                format!("{}\\claude\\{}", appdata, executable_name),
+                format!("{}\\claude\\bin\\{}", appdata, executable_name),
+                // npm global install location on Windows
+                format!("{}\\npm\\{}", appdata, executable_name),
+            ]);
+        }
+        if let Ok(program_files) = std::env::var("ProgramFiles") {
+            paths.extend(vec![
+                format!("{}\\claude\\{}", program_files, executable_name),
+                format!("{}\\claude\\bin\\{}", program_files, executable_name),
+            ]);
+        }
+        if let Ok(program_files_x86) = std::env::var("ProgramFiles(x86)") {
+            paths.extend(vec![
+                format!("{}\\claude\\{}", program_files_x86, executable_name),
+                format!("{}\\claude\\bin\\{}", program_files_x86, executable_name),
+            ]);
+        }
+        if let Ok(userprofile) = std::env::var("USERPROFILE") {
+            paths.extend(vec![
+                format!("{}\\claude\\{}", userprofile, executable_name),
+                format!("{}\\.claude\\{}", userprofile, executable_name),
+            ]);
+        }
+        paths
+    }
+
+    /// Check if a file at the given path is executable
+    fn is_executable_file(path_buf: &PathBuf) -> bool {
+        if path_buf.exists() && path_buf.is_file() {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                if let Ok(metadata) = std::fs::metadata(path_buf) {
+                    let permissions = metadata.permissions();
+                    return permissions.mode() & 0o111 != 0;
+                }
+                false
+            }
+            #[cfg(not(unix))]
+            {
+                true
+            }
+        } else {
+            false
+        }
+    }
+
     /// Search for claude executable in common installation locations
     fn find_claude_executable(command_name: &str) -> Option<String> {
-        let home = std::env::var("HOME").ok()?;
+        // Add .exe extension on Windows
+        #[cfg(windows)]
+        let executable_name = format!("{}.exe", command_name);
+        #[cfg(not(windows))]
+        let executable_name = command_name.to_string();
 
-        let search_paths = vec![
-            format!("{}/.claude/local/{}", home, command_name),
-            format!("{}/.local/bin/{}", home, command_name),
-            format!("{}/bin/{}", home, command_name),
-            format!("/usr/local/bin/{}", command_name),
-            format!("/usr/bin/{}", command_name),
-            format!("/opt/claude/{}", command_name),
-        ];
-
+        // Search in platform-specific paths
+        let search_paths = Self::get_platform_search_paths(&executable_name);
         for path in search_paths {
             let path_buf = PathBuf::from(&path);
-            if path_buf.exists() && path_buf.is_file() {
-                #[cfg(unix)]
-                {
-                    use std::os::unix::fs::PermissionsExt;
-                    if let Ok(metadata) = std::fs::metadata(&path_buf) {
-                        let permissions = metadata.permissions();
-                        if permissions.mode() & 0o111 != 0 {
-                            tracing::info!("Found claude executable at: {}", path);
-                            return Some(path);
-                        }
-                    }
-                }
-                #[cfg(not(unix))]
-                {
-                    tracing::info!("Found claude executable at: {}", path);
-                    return Some(path);
-                }
+            if Self::is_executable_file(&path_buf) {
+                tracing::info!("Found claude executable at: {}", path);
+                return Some(path);
             }
         }
 
+        // Search in PATH
         if let Ok(path_var) = std::env::var("PATH") {
             #[cfg(unix)]
             let path_separator = ':';
@@ -90,8 +152,8 @@ impl ClaudeCodeProvider {
             let path_separator = ';';
 
             for dir in path_var.split(path_separator) {
-                let path_buf = PathBuf::from(dir).join(command_name);
-                if path_buf.exists() && path_buf.is_file() {
+                let path_buf = PathBuf::from(dir).join(&executable_name);
+                if Self::is_executable_file(&path_buf) {
                     let full_path = path_buf.to_string_lossy().to_string();
                     tracing::info!("Found claude executable in PATH at: {}", full_path);
                     return Some(full_path);
