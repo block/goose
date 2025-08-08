@@ -537,10 +537,37 @@ fn print_params(value: &Value, depth: usize, debug: bool) {
                         print_params(val, depth + 1, debug);
                     }
                     Value::Array(arr) => {
-                        println!("{}{}:", indent, style(key).dim());
-                        for item in arr.iter() {
-                            println!("{}{}- ", indent, INDENT);
-                            print_params(item, depth + 2, debug);
+                        // Check if all items are simple values (not objects or arrays)
+                        let all_simple = arr.iter().all(|item| {
+                            matches!(
+                                item,
+                                Value::String(_) | Value::Number(_) | Value::Bool(_) | Value::Null
+                            )
+                        });
+
+                        if all_simple {
+                            // Render inline for simple arrays, truncation will be handled by print_value if needed
+                            let values: Vec<String> = arr
+                                .iter()
+                                .map(|item| match item {
+                                    Value::String(s) => s.clone(),
+                                    Value::Number(n) => n.to_string(),
+                                    Value::Bool(b) => b.to_string(),
+                                    Value::Null => "null".to_string(),
+                                    _ => unreachable!(),
+                                })
+                                .collect();
+                            let joined_values = values.join(", ");
+                            print!("{}{}: ", indent, style(key).dim());
+                            // Use print_value to handle truncation consistently
+                            print_value(&Value::String(joined_values), debug);
+                        } else {
+                            // Use the original multi-line format for complex arrays
+                            println!("{}{}:", indent, style(key).dim());
+                            for item in arr.iter() {
+                                println!("{}{}- ", indent, INDENT);
+                                print_params(item, depth + 2, debug);
+                            }
                         }
                     }
                     _ => {
