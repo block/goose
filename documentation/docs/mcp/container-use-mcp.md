@@ -1,5 +1,5 @@
 ---
-title: Container-Use MCP
+title: Container Use
 description: Use Container-Use MCP as a Goose Extension
 ---
 
@@ -88,7 +88,7 @@ You'll need [Docker](https://www.docker.com/) installed on your system. If you w
 
 ## Example Usage
 
-Here's a simple example of how to use Container Use to update a file-based to-do app to use a SQLite database plus full testing.
+Here's a simple example of updating a file-based to-do app to use a SQLite database plus full testing - all within an isolated container environment.
 
 #### Prompt
 
