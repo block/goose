@@ -308,12 +308,12 @@ impl Agent {
         metadata.message_count = messages_length + 1;
 
         // Keep track of previous values to calculate the delta
-        let prev_total = metadata.accumulated_total_tokens.unwrap_or(0) 
-            - metadata.total_tokens.unwrap_or(0);
-        let prev_input = metadata.accumulated_input_tokens.unwrap_or(0) 
-            - metadata.input_tokens.unwrap_or(0);
-        let prev_output = metadata.accumulated_output_tokens.unwrap_or(0) 
-            - metadata.output_tokens.unwrap_or(0);
+        let prev_total =
+            metadata.accumulated_total_tokens.unwrap_or(0) - metadata.total_tokens.unwrap_or(0);
+        let prev_input =
+            metadata.accumulated_input_tokens.unwrap_or(0) - metadata.input_tokens.unwrap_or(0);
+        let prev_output =
+            metadata.accumulated_output_tokens.unwrap_or(0) - metadata.output_tokens.unwrap_or(0);
 
         // Update accumulated tokens with the new values
         metadata.accumulated_total_tokens = usage.usage.total_tokens.map(|n| prev_total + n);
