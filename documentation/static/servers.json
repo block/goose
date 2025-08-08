@@ -589,6 +589,7 @@
     "description": "Integrate container workflows with Goose using the Container-Use MCP",
     "command": "npx -y mcp-remote https://container-use.com/mcp",
     "link": "https://container-use.com",
+    "installation_notes": "Requires Node.js and Docker.",
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": []
