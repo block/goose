@@ -1,8 +1,15 @@
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 use thiserror::Error;
 
 const DEFAULT_CONTEXT_LIMIT: usize = 128_000;
+
+// Attempt to fetch from Git repo first (raw URL), then fall back to local file, then defaults
+const DEFAULT_MODEL_LIMITS_YAML_URL: &str =
+    "https://raw.githubusercontent.com/block/goose/main/model-limits.yaml";
+const DEFAULT_MODEL_LIMITS_JSON_URL: &str =
+    "https://raw.githubusercontent.com/block/goose/main/model-limits.json";
 
 #[derive(Error, Debug)]
 pub enum ConfigError {
@@ -13,56 +20,6 @@ pub enum ConfigError {
     #[error("Value for '{0}' is out of valid range: {1}")]
     InvalidRange(String, String),
 }
-
-static MODEL_SPECIFIC_LIMITS: Lazy<Vec<(&'static str, usize)>> = Lazy::new(|| {
-    vec![
-        // openai
-        ("gpt-5", 272_000),
-        ("gpt-4-turbo", 128_000),
-        ("gpt-4.1", 1_000_000),
-        ("gpt-4-1", 1_000_000),
-        ("gpt-4o", 128_000),
-        ("o4-mini", 200_000),
-        ("o3-mini", 200_000),
-        ("o3", 200_000),
-        // anthropic - all 200k
-        ("claude", 200_000),
-        // google
-        ("gemini-1", 128_000),
-        ("gemini-2", 1_000_000),
-        ("gemma-3-27b", 128_000),
-        ("gemma-3-12b", 128_000),
-        ("gemma-3-4b", 128_000),
-        ("gemma-3-1b", 32_000),
-        ("gemma3-27b", 128_000),
-        ("gemma3-12b", 128_000),
-        ("gemma3-4b", 128_000),
-        ("gemma3-1b", 32_000),
-        ("gemma-2-27b", 8_192),
-        ("gemma-2-9b", 8_192),
-        ("gemma-2-2b", 8_192),
-        ("gemma2-", 8_192),
-        ("gemma-7b", 8_192),
-        ("gemma-2b", 8_192),
-        ("gemma1", 8_192),
-        ("gemma", 8_192),
-        // facebook
-        ("llama-2-1b", 32_000),
-        ("llama", 128_000),
-        // qwen
-        ("qwen3-coder", 262_144),
-        ("qwen2-7b", 128_000),
-        ("qwen2-14b", 128_000),
-        ("qwen2-32b", 131_072),
-        ("qwen2-70b", 262_144),
-        ("qwen2", 128_000),
-        ("qwen3-32b", 131_072),
-        // other
-        ("kimi-k2", 131_072),
-        ("grok-4", 256_000),
-        ("grok", 131_072),
-    ]
-});
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelConfig {
@@ -78,6 +35,267 @@ pub struct ModelConfig {
 pub struct ModelLimitConfig {
     pub pattern: String,
     pub context_limit: usize,
+}
+
+#[cfg(test)]
+static MODEL_SPECIFIC_LIMITS: Lazy<Vec<ModelLimitConfig>> = Lazy::new(|| {
+    // In tests, always use the built-in default list to keep expectations deterministic
+    ModelLimitConfig::default_list()
+});
+
+#[cfg(not(test))]
+static MODEL_SPECIFIC_LIMITS: Lazy<Vec<ModelLimitConfig>> = Lazy::new(|| {
+    if let Some(list) = load_model_limits_from_remote() {
+        return list;
+    }
+    ModelLimitConfig::default_list()
+});
+
+fn load_model_limits_from_remote() -> Option<Vec<ModelLimitConfig>> {
+    let handle = std::thread::spawn(|| {
+        let url_env = std::env::var("GOOSE_MODEL_LIMITS_URL").ok();
+
+        let urls: Vec<&str> = match url_env.as_deref() {
+            Some(u) => vec![u],
+            None => vec![DEFAULT_MODEL_LIMITS_YAML_URL, DEFAULT_MODEL_LIMITS_JSON_URL],
+        };
+
+        let client = match reqwest::blocking::Client::builder()
+            .timeout(Duration::from_secs(5))
+            .user_agent("goose/1.0 model-limits-fetcher")
+            .build()
+        {
+            Ok(c) => c,
+            Err(_) => return None,
+        };
+
+        for url in urls {
+            if let Ok(resp) = client.get(url).send() {
+                if let Ok(resp) = resp.error_for_status() {
+                    if let Ok(text) = resp.text() {
+                        if let Ok(list) = serde_yaml::from_str::<Vec<ModelLimitConfig>>(&text) {
+                            if !list.is_empty() {
+                                return Some(list);
+                            }
+                        }
+                        if let Ok(yaml_value) = serde_yaml::from_str::<serde_yaml::Value>(&text) {
+                            if let Ok(json_value) = serde_json::to_value(yaml_value) {
+                                if let Some(list) = parse_limits_from_json_value(&json_value) {
+                                    if !list.is_empty() {
+                                        return Some(list);
+                                    }
+                                }
+                            }
+                        }
+                        if let Ok(list) = serde_json::from_str::<Vec<ModelLimitConfig>>(&text) {
+                            if !list.is_empty() {
+                                return Some(list);
+                            }
+                        }
+                        if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&text) {
+                            if let Some(list) = parse_limits_from_json_value(&json_value) {
+                                if !list.is_empty() {
+                                    return Some(list);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        None
+    });
+
+    handle.join().unwrap_or_default()
+}
+
+fn parse_limits_from_json_value(v: &serde_json::Value) -> Option<Vec<ModelLimitConfig>> {
+    match v {
+        serde_json::Value::Array(_) => {
+            serde_json::from_value::<Vec<ModelLimitConfig>>(v.clone()).ok()
+        }
+        serde_json::Value::Object(map) => {
+            for key in ["models", "model_limits", "limits"].iter() {
+                if let Some(val) = map.get(*key) {
+                    if let Ok(list) = serde_json::from_value::<Vec<ModelLimitConfig>>(val.clone()) {
+                        return Some(list);
+                    }
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+impl ModelLimitConfig {
+    #[allow(clippy::too_many_lines)]
+    fn default_list() -> Vec<ModelLimitConfig> {
+        vec![
+            // openai
+            ModelLimitConfig {
+                pattern: "gpt-5".to_string(),
+                context_limit: 256_000,
+            },
+            ModelLimitConfig {
+                pattern: "gpt-4-turbo".to_string(),
+                context_limit: 128_000,
+            },
+            ModelLimitConfig {
+                pattern: "gpt-4.1".to_string(),
+                context_limit: 1_000_000,
+            },
+            ModelLimitConfig {
+                pattern: "gpt-4-1".to_string(),
+                context_limit: 1_000_000,
+            },
+            ModelLimitConfig {
+                pattern: "gpt-4o".to_string(),
+                context_limit: 128_000,
+            },
+            ModelLimitConfig {
+                pattern: "o4-mini".to_string(),
+                context_limit: 200_000,
+            },
+            ModelLimitConfig {
+                pattern: "o3-mini".to_string(),
+                context_limit: 200_000,
+            },
+            ModelLimitConfig {
+                pattern: "o3".to_string(),
+                context_limit: 200_000,
+            },
+            // anthropic - all 200k
+            ModelLimitConfig {
+                pattern: "claude".to_string(),
+                context_limit: 200_000,
+            },
+            // google
+            ModelLimitConfig {
+                pattern: "gemini-1".to_string(),
+                context_limit: 128_000,
+            },
+            ModelLimitConfig {
+                pattern: "gemini-2".to_string(),
+                context_limit: 1_000_000,
+            },
+            ModelLimitConfig {
+                pattern: "gemma-3-27b".to_string(),
+                context_limit: 128_000,
+            },
+            ModelLimitConfig {
+                pattern: "gemma-3-12b".to_string(),
+                context_limit: 128_000,
+            },
+            ModelLimitConfig {
+                pattern: "gemma-3-4b".to_string(),
+                context_limit: 128_000,
+            },
+            ModelLimitConfig {
+                pattern: "gemma-3-1b".to_string(),
+                context_limit: 32_000,
+            },
+            ModelLimitConfig {
+                pattern: "gemma3-27b".to_string(),
+                context_limit: 128_000,
+            },
+            ModelLimitConfig {
+                pattern: "gemma3-12b".to_string(),
+                context_limit: 128_000,
+            },
+            ModelLimitConfig {
+                pattern: "gemma3-4b".to_string(),
+                context_limit: 128_000,
+            },
+            ModelLimitConfig {
+                pattern: "gemma3-1b".to_string(),
+                context_limit: 32_000,
+            },
+            ModelLimitConfig {
+                pattern: "gemma-2-27b".to_string(),
+                context_limit: 8_192,
+            },
+            ModelLimitConfig {
+                pattern: "gemma-2-9b".to_string(),
+                context_limit: 8_192,
+            },
+            ModelLimitConfig {
+                pattern: "gemma-2-2b".to_string(),
+                context_limit: 8_192,
+            },
+            ModelLimitConfig {
+                pattern: "gemma2-".to_string(),
+                context_limit: 8_192,
+            },
+            ModelLimitConfig {
+                pattern: "gemma-7b".to_string(),
+                context_limit: 8_192,
+            },
+            ModelLimitConfig {
+                pattern: "gemma-2b".to_string(),
+                context_limit: 8_192,
+            },
+            ModelLimitConfig {
+                pattern: "gemma1".to_string(),
+                context_limit: 8_192,
+            },
+            ModelLimitConfig {
+                pattern: "gemma".to_string(),
+                context_limit: 8_192,
+            },
+            // facebook
+            ModelLimitConfig {
+                pattern: "llama-2-1b".to_string(),
+                context_limit: 32_000,
+            },
+            ModelLimitConfig {
+                pattern: "llama".to_string(),
+                context_limit: 128_000,
+            },
+            // qwen
+            ModelLimitConfig {
+                pattern: "qwen3-coder".to_string(),
+                context_limit: 262_144,
+            },
+            ModelLimitConfig {
+                pattern: "qwen2-7b".to_string(),
+                context_limit: 128_000,
+            },
+            ModelLimitConfig {
+                pattern: "qwen2-14b".to_string(),
+                context_limit: 128_000,
+            },
+            ModelLimitConfig {
+                pattern: "qwen2-32b".to_string(),
+                context_limit: 131_072,
+            },
+            ModelLimitConfig {
+                pattern: "qwen2-70b".to_string(),
+                context_limit: 262_144,
+            },
+            ModelLimitConfig {
+                pattern: "qwen2".to_string(),
+                context_limit: 128_000,
+            },
+            ModelLimitConfig {
+                pattern: "qwen3-32b".to_string(),
+                context_limit: 131_072,
+            },
+            // other
+            ModelLimitConfig {
+                pattern: "kimi-k2".to_string(),
+                context_limit: 131_072,
+            },
+            ModelLimitConfig {
+                pattern: "grok-4".to_string(),
+                context_limit: 256_000,
+            },
+            ModelLimitConfig {
+                pattern: "grok".to_string(),
+                context_limit: 131_072,
+            },
+        ]
+    }
 }
 
 impl ModelConfig {
@@ -190,18 +408,12 @@ impl ModelConfig {
     fn get_model_specific_limit(model_name: &str) -> Option<usize> {
         MODEL_SPECIFIC_LIMITS
             .iter()
-            .find(|(pattern, _)| model_name.contains(pattern))
-            .map(|(_, limit)| *limit)
+            .find(|ml| model_name.contains(&ml.pattern))
+            .map(|ml| ml.context_limit)
     }
 
     pub fn get_all_model_limits() -> Vec<ModelLimitConfig> {
-        MODEL_SPECIFIC_LIMITS
-            .iter()
-            .map(|(pattern, context_limit)| ModelLimitConfig {
-                pattern: pattern.to_string(),
-                context_limit: *context_limit,
-            })
-            .collect()
+        MODEL_SPECIFIC_LIMITS.clone()
     }
 
     pub fn with_context_limit(mut self, limit: Option<usize>) -> Self {
