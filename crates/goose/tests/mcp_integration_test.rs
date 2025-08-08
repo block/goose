@@ -34,7 +34,12 @@ const REPLAY_BINARY: &str = "stdio_replayer";
 #[test_case(
     vec!["github-mcp-server", "stdio"],
     vec![
-        ToolCall::new("get_pull_request", json!({"owner": "block", "repo": "goose", "pullNumber": 3939})),
+        ToolCall::new("get_file_contents", json!({
+            "owner": "block",
+            "repo": "goose",
+            "path": "README.md",
+            "sha": "48c1ec8afdb7d4d5b4f6e67e623926c884034776"
+        })),
     ],
     vec!["GITHUB_PERSONAL_ACCESS_TOKEN"]
 )]
