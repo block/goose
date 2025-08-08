@@ -1,4 +1,4 @@
-use goose::message::{Message, MessageContent, ToolRequest, ToolResponse};
+use goose::conversation::message::{Message, MessageContent, ToolRequest, ToolResponse};
 use goose::utils::safe_truncate;
 use rmcp::model::{RawContent, ResourceContents, Role};
 use serde_json::Value;
@@ -360,7 +360,7 @@ pub fn message_to_markdown(message: &Message, export_all_content: bool) -> Strin
 #[cfg(test)]
 mod tests {
     use super::*;
-    use goose::message::{Message, ToolRequest, ToolResponse};
+    use goose::conversation::message::{Message, ToolRequest, ToolResponse};
     use mcp_core::tool::ToolCall;
     use rmcp::model::{Content, RawTextContent, TextContent};
     use serde_json::json;

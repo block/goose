@@ -6,7 +6,13 @@ import { ProviderDetails } from '../../../api';
 
 const GridLayout = memo(function GridLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-[repeat(auto-fill,_minmax(140px,_1fr))] gap-3 [&_*]:z-20">
+    <div
+      className="grid gap-4 [&_*]:z-20 p-1"
+      style={{
+        gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 200px))',
+        justifyContent: 'start',
+      }}
+    >
       {children}
     </div>
   );
@@ -32,6 +38,11 @@ const ProviderCards = memo(function ProviderCards({
       openModal(provider, {
         onSubmit: () => {
           // Only refresh if the function is provided
+          if (refreshProviders) {
+            refreshProviders();
+          }
+        },
+        onDelete: () => {
           if (refreshProviders) {
             refreshProviders();
           }

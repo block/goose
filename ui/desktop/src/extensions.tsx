@@ -1,4 +1,4 @@
-import { getApiUrl, getSecretKey } from './config';
+import { getApiUrl } from './config';
 import { toast } from 'react-toastify';
 import { safeJsonParse } from './utils/jsonUtils';
 
@@ -100,7 +100,7 @@ export async function addExtension(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Secret-Key': getSecretKey(),
+        'X-Secret-Key': await window.electron.getSecretKey(),
       },
       body: JSON.stringify(config),
     });
@@ -177,7 +177,7 @@ export async function removeExtension(name: string, silent: boolean = false): Pr
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Secret-Key': getSecretKey(),
+        'X-Secret-Key': await window.electron.getSecretKey(),
       },
       body: JSON.stringify(sanitizeName(name)),
     });

@@ -1,7 +1,6 @@
-import { useState, useCallback, useEffect, useRef, useId, useReducer } from 'react';
+import { useCallback, useEffect, useId, useReducer, useRef, useState } from 'react';
 import useSWR from 'swr';
-import { getSecretKey } from '../config';
-import { Message, createUserMessage, hasCompletedToolCalls } from '../types/message';
+import { createUserMessage, hasCompletedToolCalls, Message } from '../types/message';
 import { getSessionHistory } from '../api';
 import { ChatState } from '../types/chatState';
 
@@ -382,9 +381,7 @@ export function useMessageStream({
                       break; // Don't throw error, just add the message
                     }
 
-                    // For non-token-limit errors, still throw the error
-                    const error = new Error(parsedEvent.error);
-                    throw error;
+                    throw new Error(parsedEvent.error);
                   }
 
                   case 'Finish': {
@@ -478,7 +475,7 @@ export function useMessageStream({
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Secret-Key': getSecretKey(),
+            'X-Secret-Key': await window.electron.getSecretKey(),
             ...extraMetadataRef.current.headers,
           },
           body: JSON.stringify({

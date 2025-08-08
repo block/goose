@@ -19,7 +19,7 @@ permissions:
 name: Bundle ARM64 Desktop App
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ (github.event.issue && github.event.issue.number) || github.event.inputs.pr_number }}
   cancel-in-progress: true
 
 jobs:
@@ -107,15 +107,12 @@ jobs:
     needs: [trigger-on-command]
     if: ${{ needs.trigger-on-command.outputs.continue == 'true' }}
     uses: ./.github/workflows/bundle-desktop.yml
+    permissions:
+      id-token: write
+      contents: read
     with:
-      signing: true
+      signing: false
       ref: ${{ needs.trigger-on-command.outputs.pr_sha }}
-    secrets:
-      CERTIFICATE_OSX_APPLICATION: ${{ secrets.CERTIFICATE_OSX_APPLICATION }}
-      CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
-      APPLE_ID: ${{ secrets.APPLE_ID }}
-      APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
   pr-comment-arm64:
     name: PR Comment with macOS ARM64 App

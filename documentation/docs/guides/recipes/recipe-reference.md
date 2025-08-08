@@ -79,6 +79,7 @@ Goose automatically adds metadata fields to recipes saved from the Desktop app.
 | `prompt` | String | A template prompt that can include parameter substitutions; required in headless (non-interactive) mode |
 | `parameters` | Array | List of parameter definitions |
 | `extensions` | Array | List of extension configurations |
+| `settings` | Object | Configuration for model provider, model name, and other settings |
 | `sub_recipes` | Array | List of sub-recipes |
 | `response` | Object | Configuration for structured output validation |
 | `retry` | Object | Configuration for automated retry logic with success validation |
@@ -139,6 +140,7 @@ The `extensions` field allows you to specify which Model Context Protocol (MCP) 
 | `name` | String | Unique name for the extension |
 | `cmd` | String | Command to run the extension |
 | `args` | Array | List of arguments for the command |
+| `env_keys` | Array | (Optional) Names of environment variables required by the extension |
 | `timeout` | Number | Timeout in seconds |
 | `bundled` | Boolean | (Optional) Whether the extension is bundled with Goose |
 | `description` | String | Description of what the extension does |
@@ -162,8 +164,66 @@ extensions:
     cmd: uvx
     args:
       - 'mcp_presidio@latest'
-    description: "For searching logs using Presidio"
+
+  - type: stdio
+    name: github-mcp
+    cmd: github-mcp-server
+    args: []
+    env_keys:
+      - GITHUB_PERSONAL_ACCESS_TOKEN
+    timeout: 60
+    description: "GitHub MCP extension for repository operations"
 ```
+
+### Extension Secrets
+
+This feature is only available through the CLI.
+
+If a recipe uses an extension that requires a secret, Goose can prompt users to provide the secret when running the recipe:
+
+1. When a recipe is loaded, Goose scans all extensions (including those in sub-recipes) for `env_keys` fields
+2. If any required environment variables are missing from the secure keyring, Goose prompts the user to enter them
+3. Values are stored securely in the system keyring and reused for subsequent runs
+
+To update a stored secret, remove it from the system keyring and run the recipe again to be re-prompted.
+
+:::info
+This feature is designed to prompt for and securely store secrets (such as API keys), but `env_keys` can include any environment variable needed by the extension (such as API endpoints, configuration values, etc.).
+
+Users can press `ESC` to skip entering a variable if it's optional for the extension. 
+:::
+
+## Settings
+
+The `settings` field allows you to configure the AI model and provider settings for the recipe. This overrides the default configuration when the recipe is executed.
+
+### Settings Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `goose_provider` | String | (Optional) The AI provider to use (e.g., "anthropic", "openai") |
+| `goose_model` | String | (Optional) The specific model name to use |
+| `temperature` | Number | (Optional) The temperature setting for the model (typically 0.0-1.0) |
+
+### Example Settings Configuration
+
+```yaml
+settings:
+  goose_provider: "anthropic"
+  goose_model: "claude-3-5-sonnet-latest"
+  temperature: 0.7
+```
+
+```yaml
+settings:
+  goose_provider: "openai"
+  goose_model: "gpt-4o"
+  temperature: 0.3
+```
+
+:::note
+Settings specified in a recipe will override your default Goose configuration when that recipe is executed. If no settings are specified, Goose will use your configured defaults.
+:::
 
 ## Sub-Recipes
 
@@ -176,6 +236,7 @@ The `sub_recipes` field specifies the [sub-recipes](/docs/guides/recipes/sub-rec
 | `name` | String | Unique identifier for the sub-recipe |
 | `path` | String | Relative or absolute path to the sub-recipe file |
 | `values` | Object | (Optional) Pre-configured parameter values that are passed to the sub-recipe |
+| `sequential_when_repeated` | Boolean | (Optional) Forces sequential execution of multiple sub-recipe instances. See [Running Sub-Recipes In Parallel](/docs/tutorials/sub-recipes-in-parallel) for details |
 
 ### Example Sub-Recipe Configuration
 
@@ -279,7 +340,7 @@ The `response` field enables recipes to enforce a final structured JSON output f
 1. **Validate the output**: Validates the output JSON against your JSON schema with basic JSON schema validations
 2. **Final structured output**: Ensure the final output of the agent is a response matching your JSON structure
 
-This **enables automation** by returning consistent, parseable results for scripts and workflows. Recipes can produce structured output when run from either the Goose CLI or Goose Desktop.
+This **enables automation** by returning consistent, parseable results for scripts and workflows. Recipes can produce structured output when run from either the Goose CLI or Goose Desktop. See [use cases and ideas for automation workflows](/docs/guides/recipes/session-recipes#structured-output-for-automation).
 
 ### Basic Structure
 
@@ -337,6 +398,20 @@ Advanced template features include:
   Default content
   {% endblock %}
   ```
+- `indent()` template filter
+
+### indent() Filter For Multi-Line Values
+
+Use the `indent()` filter to ensure multi-line parameter values are properly indented and can be resolved as valid JSON or YAML format. This example uses `{{ raw_data | indent(2) }}` to specify an indentation of two spaces when passing data to a sub-recipe:
+
+```yaml
+sub_recipes:
+  - name: "analyze"
+    path: "./analyze.yaml"
+    values:
+      content: |
+        {{ raw_data | indent(2) }}
+```
 
 ## Built-in Parameters
 
@@ -378,6 +453,11 @@ extensions:
     timeout: 300
     bundled: true
     description: "Query codesearch directly from goose"
+
+settings:
+  goose_provider: "anthropic"
+  goose_model: "claude-3-5-sonnet-latest"
+  temperature: 0.7
 
 retry:
   max_retries: 3

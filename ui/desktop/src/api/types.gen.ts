@@ -8,6 +8,8 @@ export type AddSubRecipesResponse = {
     success: boolean;
 };
 
+export type Annotated = RawTextContent | RawImageContent | RawEmbeddedResource;
+
 export type Annotations = {
     audience?: Array<Role>;
     priority?: number;
@@ -24,10 +26,30 @@ export type AuthorRequest = {
     metadata?: string | null;
 };
 
+/**
+ * Configuration key metadata for provider setup
+ */
 export type ConfigKey = {
+    /**
+     * Optional default value for the key
+     */
     default?: string | null;
+    /**
+     * The name of the configuration key (e.g., "API_KEY")
+     */
     name: string;
+    /**
+     * Whether this key should be configured using OAuth device code flow
+     * When true, the provider's configure_oauth() method will be called instead of prompting for manual input
+     */
+    oauth_flow: boolean;
+    /**
+     * Whether this key is required for the provider to function
+     */
     required: boolean;
+    /**
+     * Whether this key should be stored securely (e.g., in keychain)
+     */
     secret: boolean;
 };
 
@@ -40,22 +62,7 @@ export type ConfigResponse = {
     config: {};
 };
 
-export type Content = {
-    text: string;
-    type: string;
-} | {
-    data: string;
-    mimeType: string;
-    type: string;
-} | {
-    resource: ResourceContents;
-    type: string;
-} | {
-    annotations?: Annotations;
-    data: string;
-    mimeType: string;
-    type: string;
-};
+export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | Annotated;
 
 export type ContextLengthExceeded = {
     msg: string;
@@ -118,7 +125,9 @@ export type DecodeRecipeResponse = {
 };
 
 export type EmbeddedResource = {
-    annotations?: Annotations;
+    annotations?: Annotations | {
+        [key: string]: unknown;
+    };
     resource: ResourceContents;
 };
 
@@ -265,7 +274,9 @@ export type FrontendToolRequest = {
 };
 
 export type ImageContent = {
-    annotations?: Annotations;
+    annotations?: Annotations | {
+        [key: string]: unknown;
+    };
     data: string;
     mimeType: string;
 };
@@ -289,7 +300,7 @@ export type ListSchedulesResponse = {
  */
 export type Message = {
     content: Array<MessageContent>;
-    created: number;
+    created?: number;
     id?: string | null;
     role: Role;
 };
@@ -407,6 +418,19 @@ export type ProvidersResponse = {
     providers: Array<ProviderDetails>;
 };
 
+export type RawEmbeddedResource = {
+    resource: ResourceContents;
+};
+
+export type RawImageContent = {
+    data: string;
+    mimeType: string;
+};
+
+export type RawTextContent = {
+    text: string;
+};
+
 /**
  * A Recipe represents a personalized, user-generated agent configuration that defines
  * specific behaviors and capabilities within the Goose system.
@@ -495,12 +519,12 @@ export type RedactedThinkingContent = {
 };
 
 export type ResourceContents = {
-    mime_type?: string;
+    mimeType?: string;
     text: string;
     uri: string;
 } | {
     blob: string;
-    mime_type?: string;
+    mimeType?: string;
     uri: string;
 };
 
@@ -679,7 +703,9 @@ export type SummarizationRequested = {
 };
 
 export type TextContent = {
-    annotations?: Annotations;
+    annotations?: Annotations | {
+        [key: string]: unknown;
+    };
     text: string;
 };
 
@@ -689,12 +715,17 @@ export type ThinkingContent = {
 };
 
 export type Tool = {
-    annotations?: ToolAnnotations;
+    annotations?: ToolAnnotations | {
+        [key: string]: unknown;
+    };
     description?: string;
     inputSchema: {
         [key: string]: unknown;
     };
     name: string;
+    outputSchema?: {
+        [key: string]: unknown;
+    };
 };
 
 export type ToolAnnotations = {
@@ -1007,9 +1038,9 @@ export type ReadConfigData = {
 
 export type ReadConfigErrors = {
     /**
-     * Configuration key not found
+     * Unable to get the configuration value
      */
-    404: unknown;
+    500: unknown;
 };
 
 export type ReadConfigResponses = {

@@ -1,4 +1,3 @@
-use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
@@ -8,6 +7,7 @@ use mcp_core::tool::ToolCall;
 use rand::{distributions::Alphanumeric, Rng};
 use rmcp::model::{AnnotateAble, RawContent, Role, Tool};
 
+use crate::conversation::message::{Message, MessageContent};
 use serde_json::{json, Map, Value};
 use std::ops::Deref;
 
@@ -335,8 +335,8 @@ pub fn create_request(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rmcp::model::Content;
-    use rmcp::object;
+    use crate::conversation::message::Message;
+    use rmcp::{model::Content, object};
     use serde_json::json;
 
     fn set_up_text_message(text: &str, role: Role) -> Message {
@@ -680,18 +680,12 @@ mod tests {
 
     #[test]
     fn test_tools_to_google_spec_with_empty_properties() {
-        use rmcp::model::object;
-        use std::borrow::Cow;
-        use std::sync::Arc;
-
-        let schema = json!({
-            "properties": {}
-        });
-
         let tools = vec![Tool::new(
-            Cow::Borrowed("tool1"),
-            Cow::Borrowed("description1"),
-            Arc::new(object(schema)),
+            "tool1".to_string(),
+            "description1".to_string(),
+            object!({
+                "properties": {}
+            }),
         )];
         let result = format_tools(&tools);
         assert_eq!(result.len(), 1);

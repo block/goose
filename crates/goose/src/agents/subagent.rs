@@ -3,7 +3,6 @@ use crate::{
     agents::extension::ExtensionConfig,
     agents::{extension_manager::ExtensionManager, Agent, TaskConfig},
     config::ExtensionConfigManager,
-    message::{Message, MessageContent, ToolRequest},
     prompt_template::render_global_file,
     providers::errors::ProviderError,
 };
@@ -13,8 +12,11 @@ use mcp_core::handler::ToolError;
 use rmcp::model::Tool;
 use serde::{Deserialize, Serialize};
 // use serde_json::{self};
+use crate::conversation::message::{Message, MessageContent, ToolRequest};
+use crate::conversation::Conversation;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{Mutex, RwLock};
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, instrument};
 
 /// Status of a subagent
@@ -40,7 +42,7 @@ pub struct SubAgentProgress {
 /// A specialized agent that can handle specific tasks independently
 pub struct SubAgent {
     pub id: String,
-    pub conversation: Arc<Mutex<Vec<Message>>>,
+    pub conversation: Arc<Mutex<Conversation>>,
     pub status: Arc<RwLock<SubAgentStatus>>,
     pub config: TaskConfig,
     pub turn_count: Arc<Mutex<usize>>,
@@ -79,7 +81,7 @@ impl SubAgent {
 
         let subagent = Arc::new(SubAgent {
             id: task_config.id.clone(),
-            conversation: Arc::new(Mutex::new(Vec::new())),
+            conversation: Arc::new(Mutex::new(Conversation::new_unvalidated(Vec::new()))),
             status: Arc::new(RwLock::new(SubAgentStatus::Ready)),
             config: task_config,
             turn_count: Arc::new(Mutex::new(0)),
@@ -91,11 +93,6 @@ impl SubAgent {
         Ok(subagent)
     }
 
-    /// Get the current status of the subagent
-    pub async fn get_status(&self) -> SubAgentStatus {
-        self.status.read().await.clone()
-    }
-
     /// Update the status of the subagent
     async fn set_status(&self, status: SubAgentStatus) {
         // Update the status first, then release the lock
@@ -105,33 +102,13 @@ impl SubAgent {
         } // Write lock is released here!
     }
 
-    /// Get current progress information
-    pub async fn get_progress(&self) -> SubAgentProgress {
-        let status = self.get_status().await;
-        let turn_count = *self.turn_count.lock().await;
-
-        SubAgentProgress {
-            subagent_id: self.id.clone(),
-            status: status.clone(),
-            message: match &status {
-                SubAgentStatus::Ready => "Ready to process messages".to_string(),
-                SubAgentStatus::Processing => "Processing request...".to_string(),
-                SubAgentStatus::Completed(msg) => msg.clone(),
-                SubAgentStatus::Terminated => "Subagent terminated".to_string(),
-            },
-            turn: turn_count,
-            max_turns: self.config.max_turns,
-            timestamp: Utc::now(),
-        }
-    }
-
     /// Process a message and generate a response using the subagent's provider
     #[instrument(skip(self, message))]
     pub async fn reply_subagent(
         &self,
         message: String,
         task_config: TaskConfig,
-    ) -> Result<Vec<Message>, anyhow::Error> {
+    ) -> Result<Conversation, anyhow::Error> {
         debug!("Processing message for subagent {}", self.id);
 
         // Get provider from task config
@@ -152,7 +129,10 @@ impl SubAgent {
         }
 
         // Get the current conversation for context
-        let mut messages = self.get_conversation().await;
+        let mut messages = {
+            let conversation = self.conversation.lock().await;
+            conversation.clone()
+        };
 
         // Get tools from the subagent's own extension manager
         let tools: Vec<Tool> = self
@@ -180,7 +160,7 @@ impl SubAgent {
             match Agent::generate_response_from_provider(
                 Arc::clone(provider),
                 &system_prompt,
-                &messages,
+                messages.messages(),
                 &tools,
                 &toolshim_tools,
             )
@@ -222,7 +202,7 @@ impl SubAgent {
                                 .extension_manager
                                 .read()
                                 .await
-                                .dispatch_tool_call(tool_call.clone())
+                                .dispatch_tool_call(tool_call.clone(), CancellationToken::default())
                                 .await
                             {
                                 Ok(result) => result.result.await,
@@ -283,35 +263,9 @@ impl SubAgent {
     }
 
     /// Add a message to the conversation (for tracking agent responses)
-    pub async fn add_message(&self, message: Message) {
+    async fn add_message(&self, message: Message) {
         let mut conversation = self.conversation.lock().await;
         conversation.push(message);
-    }
-
-    /// Get the full conversation history
-    pub async fn get_conversation(&self) -> Vec<Message> {
-        self.conversation.lock().await.clone()
-    }
-
-    /// Check if the subagent has completed its task
-    pub async fn is_completed(&self) -> bool {
-        matches!(
-            self.get_status().await,
-            SubAgentStatus::Completed(_) | SubAgentStatus::Terminated
-        )
-    }
-
-    /// Terminate the subagent
-    pub async fn terminate(&self) -> Result<(), anyhow::Error> {
-        debug!("Terminating subagent {}", self.id);
-        self.set_status(SubAgentStatus::Terminated).await;
-        Ok(())
-    }
-
-    /// Filter out subagent spawning tools to prevent infinite recursion
-    fn _filter_subagent_tools(tools: Vec<Tool>) -> Vec<Tool> {
-        // TODO: add this in subagent loop
-        tools
     }
 
     /// Build the system prompt for the subagent using the template

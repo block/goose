@@ -50,17 +50,20 @@ Present the information in order of significance or quality. Focus specifically 
         ).await;
 
         // Write response to file and get the text content
-        let response_text =
-            match write_response_to_file(&response, run_loc, "restaurant_research_output.txt") {
-                Ok(text) => text,
-                Err(e) => {
-                    println!("Warning: Failed to write restaurant research output: {}", e);
-                    // If file write fails, still continue with the evaluation
-                    response
-                        .last()
-                        .map_or_else(String::new, |msg| msg.as_concat_text())
-                }
-            };
+        let response_text = match write_response_to_file(
+            response.messages(),
+            run_loc,
+            "restaurant_research_output.txt",
+        ) {
+            Ok(text) => text,
+            Err(e) => {
+                println!("Warning: Failed to write restaurant research output: {}", e);
+                // If file write fails, still continue with the evaluation
+                response
+                    .last()
+                    .map_or_else(String::new, |msg| msg.as_concat_text())
+            }
+        };
 
         // Convert HashMap to Vec for our metrics
         let mut metrics = metrics_hashmap_to_vec(perf_metrics);
@@ -79,7 +82,7 @@ Present the information in order of significance or quality. Focus specifically 
         ));
 
         // Check if the fetch tool was used
-        let used_fetch_tool = crate::eval_suites::used_tool(&response, "fetch");
+        let used_fetch_tool = crate::eval_suites::used_tool(response.messages(), "fetch");
         metrics.push((
             "used_fetch_tool".to_string(),
             EvalMetricValue::Boolean(used_fetch_tool),

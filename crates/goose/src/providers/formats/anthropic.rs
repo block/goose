@@ -1,4 +1,4 @@
-use crate::message::{Message, MessageContent};
+use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
@@ -676,6 +676,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::conversation::message::Message;
     use rmcp::object;
     use serde_json::json;
 
@@ -911,15 +912,11 @@ mod tests {
 
     #[test]
     fn test_create_request_with_thinking() -> Result<()> {
-        // Save the original env var value if it exists
         let original_value = std::env::var("CLAUDE_THINKING_ENABLED").ok();
-
-        // Set the env var for this test
         std::env::set_var("CLAUDE_THINKING_ENABLED", "true");
 
-        // Execute the test
         let result = (|| {
-            let model_config = ModelConfig::new("claude-3-7-sonnet-20250219".to_string());
+            let model_config = ModelConfig::new_or_fail("claude-3-7-sonnet-20250219");
             let system = "You are a helpful assistant.";
             let messages = vec![Message::user().with_text("Hello")];
             let tools = vec![];
@@ -987,6 +984,7 @@ mod tests {
 
     #[test]
     fn test_tool_error_handling_maintains_pairing() {
+        use crate::conversation::message::Message;
         use mcp_core::handler::ToolError;
 
         let messages = vec![

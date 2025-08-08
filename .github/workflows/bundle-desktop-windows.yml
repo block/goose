@@ -276,17 +276,7 @@ jobs:
         run: |
           cd ui/desktop
           
-          # Fix for rollup native module issue (npm optional dependencies bug)
-          echo "🔧 Fixing npm optional dependencies issue..."
-          rm -rf node_modules package-lock.json
           npm install
-          
-          # Verify rollup native module is installed
-          if [ ! -d "node_modules/@rollup/rollup-linux-x64-gnu" ]; then
-            echo "⚠️ Rollup native module missing, installing manually..."
-            npm install @rollup/rollup-linux-x64-gnu --save-optional
-          fi
-          
           npm run bundle:windows
 
       # 7) Copy exe/dll to final out folder and prepare flat distribution

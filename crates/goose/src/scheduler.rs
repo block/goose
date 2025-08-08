@@ -15,7 +15,8 @@ use tokio_cron_scheduler::{job::JobId, Job, JobScheduler as TokioJobScheduler};
 use crate::agents::AgentEvent;
 use crate::agents::{Agent, SessionConfig};
 use crate::config::{self, Config};
-use crate::message::Message;
+use crate::conversation::message::Message;
+use crate::conversation::Conversation;
 use crate::providers::base::Provider as GooseProvider; // Alias to avoid conflict in test section
 use crate::providers::create;
 use crate::recipe::Recipe;
@@ -1140,7 +1141,12 @@ async fn run_scheduled_job_internal(
                             .to_string(),
                 }),
             };
-        let model_config = crate::model::ModelConfig::new(model_name.clone());
+        let model_config =
+            crate::model::ModelConfig::new(model_name.as_str()).map_err(|e| JobExecutionError {
+                job_id: job.id.clone(),
+                error: format!("Model config error: {}", e),
+            })?;
+
         agent_provider = create(&provider_name, model_config).map_err(|e| JobExecutionError {
             job_id: job.id.clone(),
             error: format!(
@@ -1148,6 +1154,17 @@ async fn run_scheduled_job_internal(
                 provider_name, e
             ),
         })?;
+    }
+    if let Some(recipe_extensions) = recipe.extensions {
+        for extension in recipe_extensions {
+            agent
+                .add_extension(extension.clone())
+                .await
+                .map_err(|e| JobExecutionError {
+                    job_id: job.id.clone(),
+                    error: format!("Failed to add extension '{}': {}", extension.name(), e),
+                })?;
+        }
     }
 
     if let Err(e) = agent.update_provider(agent_provider).await {
@@ -1185,8 +1202,8 @@ async fn run_scheduled_job_internal(
     };
 
     if let Some(prompt_text) = recipe.prompt {
-        let mut all_session_messages: Vec<Message> =
-            vec![Message::user().with_text(prompt_text.clone())];
+        let mut all_session_messages =
+            Conversation::new_unvalidated(vec![Message::user().with_text(prompt_text.clone())]);
 
         let current_dir = match std::env::current_dir() {
             Ok(cd) => cd,
@@ -1208,7 +1225,11 @@ async fn run_scheduled_job_internal(
         };
 
         match agent
-            .reply(&all_session_messages, Some(session_config.clone()), None)
+            .reply(
+                all_session_messages.clone(),
+                Some(session_config.clone()),
+                None,
+            )
             .await
         {
             Ok(mut stream) => {
@@ -1231,7 +1252,9 @@ async fn run_scheduled_job_internal(
                         Ok(AgentEvent::ModelChange { .. }) => {
                             // Model change events are informational, just continue
                         }
-
+                        Ok(AgentEvent::HistoryReplaced(_)) => {
+                            // Handle history replacement events if needed
+                        }
                         Err(e) => {
                             tracing::error!(
                                 "[Job {}] Error receiving message from agent: {}",
@@ -1307,9 +1330,11 @@ async fn run_scheduled_job_internal(
             message_count: 0,
             ..Default::default()
         };
-        if let Err(e) =
-            crate::session::storage::save_messages_with_metadata(&session_file_path, &metadata, &[])
-        {
+        if let Err(e) = crate::session::storage::save_messages_with_metadata(
+            &session_file_path,
+            &metadata,
+            &Conversation::new_unvalidated(vec![]),
+        ) {
             tracing::error!(
                 "[Job {}] Failed to persist metadata for empty job: {}",
                 job.id,
@@ -1327,7 +1352,6 @@ mod tests {
     use super::*;
     use crate::recipe::Recipe;
     use crate::{
-        message::MessageContent,
         model::ModelConfig, // Use the actual ModelConfig for the mock's field
         providers::base::{ProviderMetadata, ProviderUsage, Usage},
         providers::errors::ProviderError,
@@ -1338,6 +1362,7 @@ mod tests {
     // `read_metadata` is still used by the test itself, so keep it or its module.
     use crate::session::storage::read_metadata;
 
+    use crate::conversation::message::{Message, MessageContent};
     use std::env;
     use std::fs::{self, File};
     use std::io::Write;
@@ -1448,8 +1473,7 @@ mod tests {
             execution_mode: Some("background".to_string()), // Default for test
         };
 
-        // Create the mock provider instance for the test
-        let mock_model_config = ModelConfig::new("test_model".to_string());
+        let mock_model_config = ModelConfig::new_or_fail("test_model");
         let mock_provider_instance = create_scheduler_test_mock_provider(mock_model_config);
 
         // Call run_scheduled_job_internal, passing the mock provider

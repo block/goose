@@ -432,7 +432,6 @@ impl RecipeBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
 
     #[test]
     fn test_from_content_with_json() {

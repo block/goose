@@ -6,8 +6,9 @@ import { Content, ToolRequestMessageContent, ToolResponseMessageContent } from '
 import { cn, snakeToTitleCase } from '../utils';
 import Dot, { LoadingStatus } from './ui/Dot';
 import { NotificationEvent } from '../hooks/useMessageStream';
-import { ChevronRight, LoaderCircle } from 'lucide-react';
+import { ChevronRight, FlaskConical, LoaderCircle } from 'lucide-react';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
+import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
@@ -30,15 +31,42 @@ export default function ToolCallWithResponse({
   }
 
   return (
-    <div
-      className={cn(
-        'w-full text-sm rounded-lg overflow-hidden border-borderSubtle border bg-background-muted'
-      )}
-    >
-      <ToolCallView
-        {...{ isCancelledMessage, toolCall, toolResponse, notifications, isStreamingMessage }}
-      />
-    </div>
+    <>
+      <div
+        className={cn(
+          'w-full text-sm rounded-lg overflow-hidden border-borderSubtle border bg-background-muted'
+        )}
+      >
+        <ToolCallView
+          {...{
+            isCancelledMessage,
+            toolCall,
+            toolResponse,
+            notifications,
+            isStreamingMessage,
+          }}
+        />
+      </div>
+      {/* MCP UI — Inline */}
+      {toolResponse?.toolResult?.value &&
+        toolResponse.toolResult.value.map((content, index) => {
+          if (content.type === 'resource' && content.resource.uri?.startsWith('ui://')) {
+            return (
+              <div key={`${content.type}-${index}`} className="mt-3">
+                <MCPUIResourceRenderer content={content} />
+                <div className="mt-3 p-4 py-3 border border-borderSubtle rounded-lg bg-background-muted flex items-center">
+                  <FlaskConical className="mr-2" size={20} />
+                  <div className="text-sm font-medium mono">
+                    MCP UI is experimental and may change at any time.
+                  </div>
+                </div>
+              </div>
+            );
+          } else {
+            return null;
+          }
+        })}
+    </>
   );
 }
 
@@ -536,6 +564,7 @@ function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
             }}
           />
         )}
+        {result.type === 'resource' && <pre>{JSON.stringify(result, null, 2)}</pre>}
       </div>
     </ToolCallExpandable>
   );

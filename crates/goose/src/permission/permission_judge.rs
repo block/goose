@@ -1,7 +1,8 @@
 use crate::agents::platform_tools::PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME;
 use crate::config::permission::PermissionLevel;
 use crate::config::PermissionManager;
-use crate::message::{Message, MessageContent, ToolRequest};
+use crate::conversation::message::{Message, MessageContent, ToolRequest};
+use crate::conversation::Conversation;
 use crate::providers::base::Provider;
 use chrono::Utc;
 use indoc::indoc;
@@ -68,7 +69,7 @@ fn create_read_only_tool() -> Tool {
 }
 
 /// Builds the message to be sent to the LLM for detecting read-only operations.
-fn create_check_messages(tool_requests: Vec<&ToolRequest>) -> Vec<Message> {
+fn create_check_messages(tool_requests: Vec<&ToolRequest>) -> Conversation {
     let tool_names: Vec<String> = tool_requests
         .iter()
         .filter_map(|req| {
@@ -93,7 +94,7 @@ fn create_check_messages(tool_requests: Vec<&ToolRequest>) -> Vec<Message> {
                 tool_names.join(", "),
             ))],
     ));
-    check_messages
+    Conversation::new_unvalidated(check_messages)
 }
 
 /// Processes the response to extract the list of tools with read-only operations.
@@ -135,7 +136,7 @@ pub async fn detect_read_only_tools(
     let res = provider
         .complete(
             "You are a good analyst and can detect operations whether they have read-only operations.",
-            &check_messages,
+            check_messages.messages(),
             &[tool.clone()],
         )
         .await;
@@ -260,7 +261,7 @@ pub async fn check_tool_permissions(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::message::{Message, MessageContent, ToolRequest};
+    use crate::conversation::message::{Message, MessageContent, ToolRequest};
     use crate::model::ModelConfig;
     use crate::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
     use crate::providers::errors::ProviderError;
@@ -311,8 +312,8 @@ mod tests {
     }
 
     fn create_mock_provider() -> Arc<dyn Provider> {
-        let mock_model_config =
-            ModelConfig::new("test-model".to_string()).with_context_limit(200_000.into());
+        let config = ModelConfig::new_or_fail("test-model");
+        let mock_model_config = config.with_context_limit(200_000.into());
         Arc::new(MockProvider {
             model_config: mock_model_config,
         })
@@ -340,7 +341,7 @@ mod tests {
 
         let messages = create_check_messages(vec![&tool_request]);
         assert_eq!(messages.len(), 1);
-        let content = &messages[0].content[0];
+        let content = &messages.first().unwrap().content[0];
         if let MessageContent::Text(text_content) = content {
             assert!(text_content
                 .text

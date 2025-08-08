@@ -1,4 +1,4 @@
-import { getApiUrl, getSecretKey } from '../config';
+import { getApiUrl } from '../config';
 import { FullExtensionConfig } from '../extensions';
 import { initializeAgent } from '../agent';
 import {
@@ -98,7 +98,7 @@ export const updateSystemPromptWithParameters = async (
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Secret-Key': getSecretKey(),
+        'X-Secret-Key': await window.electron.getSecretKey(),
       },
       body: JSON.stringify({
         extension: `${desktopPromptBot}\nIMPORTANT instructions for you to operate as agent:\n${substitutedInstructions}`,
@@ -135,8 +135,6 @@ export const updateSystemPromptWithParameters = async (
  * NOTE: This logic can be removed eventually when enough versions have passed
  * We leave the existing user settings in localStorage, in case users downgrade
  * or things need to be reverted.
- *
- * @param addExtension Function to add extension to config.yaml
  */
 export const migrateExtensionsToSettingsV3 = async () => {
   console.log('need to perform extension migration v3');
@@ -153,17 +151,20 @@ export const migrateExtensionsToSettingsV3 = async () => {
     console.error('Failed to parse user settings:', error);
   }
 
+  if (localStorageExtensions.length === 0) {
+    localStorage.setItem('configVersion', '3');
+    console.log('No extensions to migrate. Config version set to 3.');
+    return;
+  }
+
   const migrationErrors: { name: string; error: unknown }[] = [];
 
-  for (const extension of localStorageExtensions) {
-    // NOTE: skip migrating builtin types since there was a format change
-    // instead we rely on initializeBundledExtensions & syncBundledExtensions
-    // to handle updating / creating the new builtins to the config.yaml
-    // For all other extension types we migrate them to config.yaml
-    if (extension.type !== 'builtin') {
+  // Process extensions in parallel for better performance
+  const migrationPromises = localStorageExtensions
+    .filter((extension) => extension.type !== 'builtin') // Skip builtins as before
+    .map(async (extension) => {
       console.log(`Migrating extension ${extension.name} to config.yaml`);
       try {
-        // manually import apiAddExtension to set throwOnError true
         const query: ExtensionQuery = {
           name: extension.name,
           config: extension,
@@ -180,8 +181,9 @@ export const migrateExtensionsToSettingsV3 = async () => {
           error: `failed migration with ${JSON.stringify(err)}`,
         });
       }
-    }
-  }
+    });
+
+  await Promise.allSettled(migrationPromises);
 
   if (migrationErrors.length === 0) {
     localStorage.setItem('configVersion', '3');
@@ -227,7 +229,7 @@ export const initializeSystem = async (
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Secret-Key': getSecretKey(),
+        'X-Secret-Key': await window.electron.getSecretKey(),
       },
       body: JSON.stringify({
         extension: prompt,
@@ -247,7 +249,7 @@ export const initializeSystem = async (
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Secret-Key': getSecretKey(),
+          'X-Secret-Key': await window.electron.getSecretKey(),
         },
         body: JSON.stringify({
           response: responseConfig,

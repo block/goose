@@ -6,7 +6,7 @@ use axum::{
     routing::post,
     Json, Router,
 };
-use goose::message::Message;
+use goose::conversation::{message::Message, Conversation};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use utoipa::ToSchema;
@@ -58,7 +58,7 @@ async fn manage_context(
         .await
         .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
 
-    let mut processed_messages: Vec<Message> = vec![];
+    let mut processed_messages = Conversation::new_unvalidated(vec![]);
     let mut token_counts: Vec<usize> = vec![];
 
     if request.manage_action == "truncation" {
@@ -74,7 +74,7 @@ async fn manage_context(
     }
 
     Ok(Json(ContextManageResponse {
-        messages: processed_messages,
+        messages: processed_messages.messages().clone(),
         token_counts,
     }))
 }

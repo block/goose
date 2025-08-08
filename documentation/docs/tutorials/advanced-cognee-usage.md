@@ -49,7 +49,7 @@ Use instruction files for consistent behavior across sessions. This method uses 
 
 Create `~/.config/goose/cognee-instructions.md`:
 
-```markdown
+````markdown
 You are an LLM agent with access to a Cognee knowledge graph for memory.
 
 **IMPORTANT RULES:**
@@ -86,7 +86,7 @@ You are an LLM agent with access to a Cognee knowledge graph for memory.
 - When asked to analyze code repositories
 - Use: `cognee-mcp__codify(\{ repo_path: "path" \})`
 - Only process files returned by `rg --files`
-```
+````
 
 Start Goose with instructions:
 ```bash

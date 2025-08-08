@@ -32,7 +32,7 @@ goose run --recipe trip.yaml
 
 ## Extensions
 
-Goose recipes have a section where you can specify which extensions Goose can use during execution. Goose will only use the ones you specify. 
+Goose recipes have a section where you can specify which [extensions](/docs/guides/recipes/recipe-reference#extensions) Goose can use during execution. Goose will only use the ones you specify. 
 
 Let's say we want to make sure we have good weather during our Europe trip. We can just add a weather extension (this example uses the [weather-mcp-server](https://github.com/TuanKiri/weather-mcp-server) by TuanKiri under the MIT License) to our recipe, modify the prompt a bit and now Goose will check the weather before adding a city to our trip.
 
@@ -53,6 +53,8 @@ extensions:
     args: []
     timeout: 300
     description: "Weather data for trip planning"
+    env_keys:
+      - WEATHER_API_KEY
 ```
 
 ## Parameters
@@ -82,10 +84,21 @@ goose run --recipe trip.yaml --params destination=Africa --params duration=14
 
 By default, Goose uses the `temperature` and `model` you've already chosen, which usually works just fine. But sometimes you might want more control. For example, when performing a subjective task like planning a trip, it can help to turn up the `temperature` setting. Think of temperature like a creativity dial - the higher it is, the more varied and unexpected the results. If the first suggestion isn't quite right, the user can just run the recipe again to get a new one.
 
+You can also specify which AI provider and model to use for a specific recipe:
+
 ```yaml
 settings:
-    temperature: 0.8
+  goose_provider: "anthropic"
+  goose_model: "claude-3-5-sonnet-latest"
+  temperature: 0.8
 ```
+
+The available settings are:
+- `goose_provider`: The AI provider (e.g., "anthropic", "openai")
+- `goose_model`: The specific model name
+- `temperature`: Controls creativity/randomness (0.0-1.0, higher = more creative)
+
+These settings will override your default Goose configuration when this recipe runs.
 
 ## External Files
 
