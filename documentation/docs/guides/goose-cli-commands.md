@@ -254,6 +254,7 @@ Remove one or more saved sessions.
 
 **Options:**
 - **`-i, --id <id>`**: Remove a specific session by its ID
+- **`-n, --name <name>`**: Remove a specific session by its name
 - **`-r, --regex <pattern>`**: Remove sessions matching a regex pattern. For example:
 
 **Usage:**
@@ -261,6 +262,9 @@ Remove one or more saved sessions.
 ```bash
 # Remove a specific session by ID
 goose session remove -i 20250305_113223
+
+# Remove a specific session by its name
+goose session remove -n my-session
 
 # Remove all sessions starting with "project-"
 goose session remove -r "project-.*"
@@ -280,6 +284,7 @@ Session removal is permanent and cannot be undone. Goose will show which session
 Export a session to Markdown format for sharing, documentation, or archival purposes.
 
 **Options:**
+- **`-i, --id <id>`**: Export a specific session by ID
 - **`-n, --name <name>`**: Export a specific session by name
 - **`-p, --path <path>`**: Export a specific session by file path  
 - **`-o, --output <file>`**: Save exported content to a file (default: stdout)
@@ -621,31 +626,6 @@ Goose CLI supports several shortcuts and built-in commands for easier navigation
 - **`Ctrl+C`** - Interrupt the current request
 - **`Ctrl+J`** - Add a newline
 - **`Cmd+Up/Down arrows`** - Navigate through command history
-- **`Ctrl+R`** - Interactive command history search (reverse search)
-
-### Command History Search
-
-The `Ctrl+R` shortcut provides interactive search through your stored CLI [command history](/docs/guides/logs#command-history). This feature makes it easy to find and reuse recent commands without retyping them. When you type a search term, Goose searches backwards through your history for matches.
-
-**How it works:**
-1. Press `Ctrl+R` in your Goose CLI session
-2. Type a search term
-3. Navigate through the results using:
-   - `Ctrl+R` to cycle backwards through earlier matches
-   - `Ctrl+S` to cycle forward through newer matches
-4. Press `Return` (or `Enter`) to run the found command, or `Esc` to cancel
-
-For example, instead of retyping this long command:
-
-```
-analyze the performance issues in the sales database queries and suggest optimizations
-```
-
-Use the `"sales database"` or `"optimization"` search term to find and rerun it.
-
-**Search tips:**
-- **Distinctive terms work best**: Choose unique words or phrases to help filter the results
-- **Partial matches and multiple words are supported**: You can search for phrases like `"gith"` and `"run the unit test"`
 
 ### Slash Commands
 - **`/exit` or `/quit`** - Exit the session
