@@ -43,6 +43,15 @@ const REPLAY_BINARY: &str = "stdio_replayer";
     ],
     vec!["GITHUB_PERSONAL_ACCESS_TOKEN"]
 )]
+#[test_case(
+    vec!["uvx", "mcp-server-fetch"],
+    vec![
+        ToolCall::new("fetch", json!({
+            "url": "https://example.com",
+        })),
+    ],
+    vec![]
+)]
 #[tokio::test]
 async fn test_replayed_session(
     command: Vec<&str>,
