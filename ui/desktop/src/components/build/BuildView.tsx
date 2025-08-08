@@ -414,11 +414,11 @@ const BuildView: React.FC = () => {
 
         {/* Main content area with card-based layout - matching home page structure */}
         <div className="flex-1 overflow-hidden">
-          <div className="h-full overflow-y-auto">
+          <div className="h-full overflow-y-auto scroll-smooth" style={{ scrollSnapType: 'y mandatory' }}>
             <div className="flex flex-col space-y-0.5 p-0.5">
               {isLoading ? (
                 /* Loading state - single container */
-                <div className="bg-background-default rounded-2xl py-6 px-6 min-h-[400px]">
+                <div className="bg-background-default rounded-2xl py-6 px-6 min-h-[400px]" style={{ scrollSnapAlign: 'start' }}>
                   <div className="flex items-center justify-center h-full text-text-muted">
                     <div className="flex items-center gap-2">
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-text-muted"></div>
@@ -431,7 +431,7 @@ const BuildView: React.FC = () => {
                 <>
                   {/* Render creating apps first (skeleton placeholders) */}
                   {creatingApps.map((creatingApp) => (
-                <div key={creatingApp.id} className="bg-background-default rounded-2xl py-6 px-6 shadow-inner animate-pulse-slow">
+                <div key={creatingApp.id} className="bg-background-default rounded-2xl py-6 px-6 shadow-inner animate-pulse-slow" style={{ scrollSnapAlign: 'start' }}>
                   <div className="flex flex-col h-full text-text-muted page-transition">
                     <div className="flex flex-col items-start">
                       {/* App image placeholder - animated skeleton */}
@@ -483,7 +483,7 @@ const BuildView: React.FC = () => {
 
               {/* Render existing apps */}
               {apps.map((app) => (
-                <div key={app.id} className="bg-background-default rounded-2xl py-6 px-6 shadow-lg transition-shadow duration-700 ease-out">
+                <div key={app.id} className="bg-background-default rounded-2xl py-6 px-6 shadow-lg transition-shadow duration-700 ease-out" style={{ scrollSnapAlign: 'start' }}>
                   <div className="flex flex-col h-full text-text-muted page-transition">
                     <div className="flex flex-col items-start">
                       {/* App image placeholder - 32x32 rounded square */}
@@ -544,7 +544,7 @@ const BuildView: React.FC = () => {
                 /* Empty state - two separate containers */
                 <>
                   {/* Empty state content container */}
-                  <div className="bg-background-default rounded-2xl py-6 px-6">
+                  <div className="bg-background-default rounded-2xl py-6 px-6" style={{ scrollSnapAlign: 'start' }}>
                     <div className="flex flex-col h-full text-text-muted page-transition">
                       <div className="flex flex-col items-start">
                         <Hammer className="h-4 w-4 mb-4 text-inverse" />
