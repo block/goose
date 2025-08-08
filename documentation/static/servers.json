@@ -590,7 +590,7 @@
     "command": "npx -y mcp-remote https://container-use.com/mcp",
     "link": "https://container-use.com",
     "is_builtin": false,
-    "endorsed": false,
+    "endorsed": true,
     "environmentVariables": []
   }
 ]
