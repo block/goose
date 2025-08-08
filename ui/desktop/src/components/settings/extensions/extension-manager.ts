@@ -336,7 +336,7 @@ export async function deleteExtension({ name, removeFromConfig }: DeleteExtensio
   // remove from agent
   let agentRemoveError = null;
   try {
-    await removeFromAgent(name);
+    await removeFromAgent(name, { isDelete: true });
   } catch (error) {
     console.error('Failed to remove extension from agent during deletion:', error);
     agentRemoveError = error;
