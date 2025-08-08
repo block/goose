@@ -254,6 +254,7 @@ Remove one or more saved sessions.
 
 **Options:**
 - **`-i, --id <id>`**: Remove a specific session by its ID
+- **`-n, --name <name>`**: Remove a specific session by its name
 - **`-r, --regex <pattern>`**: Remove sessions matching a regex pattern. For example:
 
 **Usage:**
@@ -261,6 +262,9 @@ Remove one or more saved sessions.
 ```bash
 # Remove a specific session by ID
 goose session remove -i 20250305_113223
+
+# Remove a specific session by its name
+goose session remove -n my-session
 
 # Remove all sessions starting with "project-"
 goose session remove -r "project-.*"
@@ -280,6 +284,7 @@ Session removal is permanent and cannot be undone. Goose will show which session
 Export a session to Markdown format for sharing, documentation, or archival purposes.
 
 **Options:**
+- **`-i, --id <id>`**: Export a specific session by ID
 - **`-n, --name <name>`**: Export a specific session by name
 - **`-p, --path <path>`**: Export a specific session by file path  
 - **`-o, --output <file>`**: Save exported content to a file (default: stdout)
