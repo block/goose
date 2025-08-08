@@ -669,6 +669,49 @@ impl Agent {
         Ok(())
     }
 
+    pub async fn add_extensions(&self, extensions: Vec<ExtensionConfig>) -> ExtensionResult<()> {
+        let mut extension_manager = self.extension_manager.write().await;
+        
+        let mut other_extensions = Vec::new();
+        for extension in extensions {
+            match extension {
+                ExtensionConfig::Frontend { .. } => {
+                    self.add_extension(extension).await?;
+                }
+                _ => {
+                    other_extensions.push(extension);
+                }
+            }
+        }
+        extension_manager.add_extensions(other_extensions.clone()).await?;
+
+        for extension in other_extensions {
+            let selector = self.tool_route_manager.get_router_tool_selector().await;
+            if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
+                if let Some(selector) = selector {
+                    let extension_manager = self.extension_manager.read().await;
+                    let selector = Arc::new(selector);
+                    if let Err(e) = ToolRouterIndexManager::update_extension_tools(
+                        &selector,
+                        &extension_manager,
+                        &extension.name(),
+                        "add",
+                    )
+                    .await
+                    {
+                        return Err(ExtensionError::SetupError(format!(
+                            "Failed to index tools for extension {}: {}",
+                            extension.name(),
+                            e
+                        )));
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     pub async fn list_tools(&self, extension_name: Option<String>) -> Vec<Tool> {
         let extension_manager = self.extension_manager.read().await;
         let mut prefixed_tools = extension_manager

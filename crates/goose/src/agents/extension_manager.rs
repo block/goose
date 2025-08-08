@@ -394,6 +394,309 @@ impl ExtensionManager {
         Ok(())
     }
 
+    // Helper function that create client and return (client, sanitized_name)
+    async fn create_client(
+        config: ExtensionConfig,
+    ) -> Result<(Box<dyn McpClientTrait>, String), ExtensionError> {
+        let config_name = config.key().to_string();
+        let sanitized_name = normalize(config_name.clone());
+
+        /// Helper function to merge environment variables from direct envs and keychain-stored env_keys
+        async fn merge_environments(
+            envs: &Envs,
+            env_keys: &[String],
+            ext_name: &str,
+        ) -> Result<HashMap<String, String>, ExtensionError> {
+            let mut all_envs = envs.get_env();
+            let config_instance = Config::global();
+
+            for key in env_keys {
+                // If the Envs payload already contains the key, prefer that value
+                // over looking into the keychain/secret store
+                if all_envs.contains_key(key) {
+                    continue;
+                }
+
+                match config_instance.get(key, true) {
+                    Ok(value) => {
+                        if value.is_null() {
+                            warn!(
+                                key = %key,
+                                ext_name = %ext_name,
+                                "Secret key not found in config (returned null)."
+                            );
+                            continue;
+                        }
+
+                        // Try to get string value
+                        if let Some(str_val) = value.as_str() {
+                            all_envs.insert(key.clone(), str_val.to_string());
+                        } else {
+                            warn!(
+                                key = %key,
+                                ext_name = %ext_name,
+                                value_type = %value.get("type").and_then(|t| t.as_str()).unwrap_or("unknown"),
+                                "Secret value is not a string; skipping."
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        error!(
+                            key = %key,
+                            ext_name = %ext_name,
+                            error = %e,
+                            "Failed to fetch secret from config."
+                        );
+                        return Err(ExtensionError::ConfigError(format!(
+                            "Failed to fetch secret '{}' from config: {}",
+                            key, e
+                        )));
+                    }
+                }
+            }
+
+            Ok(all_envs)
+        }
+
+        let client: Box<dyn McpClientTrait> = match &config {
+            ExtensionConfig::Sse { uri, timeout, .. } => {
+                let transport = SseClientTransport::start(uri.to_string()).await.map_err(
+                    |transport_error| {
+                        ClientInitializeError::transport::<SseClientTransport<reqwest::Client>>(
+                            transport_error,
+                            "connect",
+                        )
+                    },
+                )?;
+                Box::new(
+                    McpClient::connect(
+                        transport,
+                        Duration::from_secs(
+                            timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
+                        ),
+                    )
+                    .await?,
+                )
+            }
+            ExtensionConfig::StreamableHttp {
+                uri,
+                timeout,
+                headers,
+                name,
+                ..
+            } => {
+                let mut default_headers = HeaderMap::new();
+                for (key, value) in headers {
+                    default_headers.insert(
+                        HeaderName::try_from(key).map_err(|_| {
+                            ExtensionError::ConfigError(format!("invalid header: {}", key))
+                        })?,
+                        value.parse().map_err(|_| {
+                            ExtensionError::ConfigError(format!("invalid header value: {}", key))
+                        })?,
+                    );
+                }
+                let client = reqwest::Client::builder()
+                    .default_headers(default_headers)
+                    .build()
+                    .map_err(|_| {
+                        ExtensionError::ConfigError("could not construct http client".to_string())
+                    })?;
+                let transport = StreamableHttpClientTransport::with_client(
+                    client,
+                    StreamableHttpClientTransportConfig {
+                        uri: uri.clone().into(),
+                        ..Default::default()
+                    },
+                );
+                let client_res = McpClient::connect(
+                    transport,
+                    Duration::from_secs(
+                        timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
+                    ),
+                )
+                .await;
+                let client = if let Err(e) = client_res {
+                    // make an attempt at oauth, but failing that, return the original error,
+                    // because this might not have been an auth error at all
+                    let am = match oauth_flow(uri, name).await {
+                        Ok(am) => am,
+                        Err(_) => return Err(e.into()),
+                    };
+                    let client = AuthClient::new(reqwest::Client::default(), am);
+                    let transport = StreamableHttpClientTransport::with_client(
+                        client,
+                        StreamableHttpClientTransportConfig {
+                            uri: uri.clone().into(),
+                            ..Default::default()
+                        },
+                    );
+                    McpClient::connect(
+                        transport,
+                        Duration::from_secs(
+                            timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
+                        ),
+                    )
+                    .await?
+                } else {
+                    client_res?
+                };
+                Box::new(client)
+            }
+            ExtensionConfig::Stdio {
+                cmd,
+                args,
+                envs,
+                env_keys,
+                timeout,
+                ..
+            } => {
+                let all_envs = merge_environments(envs, env_keys, &sanitized_name).await?;
+                let command = Command::new(cmd).configure(|command| {
+                    command.args(args).envs(all_envs);
+                });
+                let (transport, mut stderr) = TokioChildProcess::builder(command)
+                    .stderr(Stdio::piped())
+                    .spawn()?;
+                let mut stderr = stderr
+                    .take()
+                    .expect("should have a stderr handle because it was requested");
+
+                let stderr_task = tokio::spawn(async move {
+                    let mut all_stderr = Vec::new();
+                    stderr.read_to_end(&mut all_stderr).await?;
+                    Ok::<String, std::io::Error>(String::from_utf8_lossy(&all_stderr).into())
+                });
+
+                let client_result = McpClient::connect(
+                    transport,
+                    Duration::from_secs(
+                        timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
+                    ),
+                )
+                .await;
+
+                let client = match client_result {
+                    Ok(client) => Ok(client),
+                    Err(error) => {
+                        let error_task_out = stderr_task.await?;
+                        Err::<McpClient, ExtensionError>(match error_task_out {
+                            Ok(stderr_content) => ProcessExit::new(stderr_content, error).into(),
+                            Err(e) => e.into(),
+                        })
+                    }
+                }?;
+
+                Box::new(client)
+            }
+            ExtensionConfig::Builtin {
+                name,
+                display_name: _,
+                description: _,
+                timeout,
+                bundled: _,
+            } => {
+                let cmd = std::env::current_exe()
+                    .expect("should find the current executable")
+                    .to_str()
+                    .expect("should resolve executable to string path")
+                    .to_string();
+
+                let transport = TokioChildProcess::new(Command::new(cmd).configure(|command| {
+                    command.arg("mcp").arg(name);
+                }))?;
+                Box::new(
+                    McpClient::connect(
+                        transport,
+                        Duration::from_secs(
+                            timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
+                        ),
+                    )
+                    .await?,
+                )
+            }
+            ExtensionConfig::InlinePython {
+                name,
+                code,
+                timeout,
+                dependencies,
+                ..
+            } => {
+                let temp_dir = tempdir()?;
+                let file_path = temp_dir.path().join(format!("{}.py", name));
+                std::fs::write(&file_path, code)?;
+
+                let command = Command::new("uvx").configure(|command| {
+                    command.arg("--with").arg("mcp");
+
+                    dependencies.iter().flatten().for_each(|dep| {
+                        command.arg("--with").arg(dep);
+                    });
+
+                    command.arg("python").arg(file_path.to_str().unwrap());
+                });
+                let transport = TokioChildProcess::new(command)?;
+
+                let client = Box::new(
+                    McpClient::connect(
+                        transport,
+                        Duration::from_secs(
+                            timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
+                        ),
+                    )
+                    .await?,
+                );
+
+                // self.temp_dirs.insert(sanitized_name.clone(), temp_dir);
+
+                client
+            }
+            _ => unreachable!(),
+        };
+
+        return Ok((client, sanitized_name));
+    }
+
+    // Add multiple extensions concurrently
+    // internally, run create_client concurrently, finally obtain info and add_client
+    pub async fn add_extensions(&mut self, extensions: Vec<ExtensionConfig>) -> ExtensionResult<()> {
+        let mut tasks = Vec::new();
+
+        for config in extensions {
+            let client_future = Self::create_client(config);
+            tasks.push(task::spawn(async move {
+                client_future.await
+            }));
+        }
+
+        for task in tasks {
+            match task.await {
+                Ok(Ok((client, sanitized_name))) => {
+                    let info = client.get_info();
+                    if let Some(instructions) = info.and_then(|info| info.instructions.as_ref()) {
+                        self.instructions
+                            .insert(sanitized_name.clone(), instructions.clone());
+                    }
+
+                    if let Some(_resources) = info.and_then(|info| info.capabilities.resources.as_ref()) {
+                        self.resource_capable_extensions
+                            .insert(sanitized_name.clone());
+                    }
+
+                    self.add_client(sanitized_name, client);
+                }
+                Ok(Err(e)) => {
+                    return Err(e);
+                }
+                Err(e) => {
+                    return Err(ExtensionError::TaskJoinError(e));
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn add_client(&mut self, client_name: String, client: Box<dyn McpClientTrait>) {
         let sanitized_name = normalize(client_name);
         self.clients

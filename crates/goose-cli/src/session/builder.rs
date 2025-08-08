@@ -355,39 +355,11 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             .collect()
     };
 
-    for extension in extensions_to_run {
-        if let Err(e) = agent.add_extension(extension.clone()).await {
-            let err = e.to_string();
-            eprintln!(
-                "{}",
-                style(format!(
-                    "Warning: Failed to start extension '{}': {}",
-                    extension.name(),
-                    err
-                ))
-                .yellow()
-            );
-            eprintln!(
-                "{}",
-                style(format!(
-                    "Continuing without extension '{}'",
-                    extension.name()
-                ))
-                .yellow()
-            );
-
-            // Offer debugging help
-            if let Err(debug_err) = offer_extension_debugging_help(
-                &extension.name(),
-                &err,
-                Arc::clone(&provider_for_display),
-                session_config.interactive,
-            )
-            .await
-            {
-                eprintln!("Note: Could not start debugging session: {}", debug_err);
-            }
-        }
+    if let Err(e) = agent.add_extensions(extensions_to_run).await {
+        eprintln!(
+            "{}",
+            style(format!("Failed to add extensions: {}", e)).red()
+        );
     }
 
     // Determine editor mode
