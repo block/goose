@@ -9,6 +9,7 @@ import { formatMessageTimestamp } from '../../utils/timeUtils';
 import { toastSuccess, toastError } from '../../toasts';
 import { Input } from '../ui/input';
 import { getApiUrl } from '../../config';
+import { ChatSmart } from '../icons';
 
 interface AppTile {
   id: string;
@@ -538,8 +539,8 @@ const BuildView: React.FC = () => {
                         variant="secondary"
                         className="flex items-center gap-2"
                       >
-                        <FolderOpen className="w-4 h-4" />
-                        Open App
+                        <ChatSmart className="w-4 h-4" />
+                        Open in chat
                       </Button>
                     </div>
                   </div>
