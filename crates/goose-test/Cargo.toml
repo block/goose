@@ -1,0 +1,19 @@
+[package]
+name = "goose-test"
+edition.workspace = true
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "stdio_logger"
+path = "src/bin/stdio_logger.rs"
+
+[[bin]]
+name = "stdio_replayer"
+path = "src/bin/stdio_replayer.rs"
