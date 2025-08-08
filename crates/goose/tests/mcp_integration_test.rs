@@ -1,6 +1,8 @@
 use std::env;
+use std::fs::File;
 use std::path::PathBuf;
 
+use rmcp::model::Content;
 use serde_json::json;
 use tokio_util::sync::CancellationToken;
 
@@ -22,6 +24,9 @@ const REPLAY_BINARY: &str = "stdio_replayer";
     vec!["npx", "-y", "@modelcontextprotocol/server-everything"],
     vec![
         ToolCall::new("echo", json!({"message": "Hello, world!"})),
+        ToolCall::new("add", json!({"a": 1, "b": 2})),
+        ToolCall::new("longRunningOperation", json!({"duration": 1, "steps": 5})),
+        ToolCall::new("structuredContent", json!({"location": "11238"})),
     ]
 )]
 #[tokio::test]
@@ -35,7 +40,7 @@ async fn test_replayed_session(command: Vec<&str>, tool_calls: Vec<ToolCall>) {
         PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("should find the project root"));
     replay_file_path.push("tests");
     replay_file_path.push("mcp_replays");
-    replay_file_path.push(replay_file_name);
+    replay_file_path.push(&replay_file_name);
 
     let mode = if env::var("GOOSE_RECORD_MCP").is_ok() {
         TestMode::Record
@@ -75,6 +80,7 @@ async fn test_replayed_session(command: Vec<&str>, tool_calls: Vec<ToolCall>) {
     let result = extension_manager.add_extension(extension_config).await;
     assert!(result.is_ok(), "Failed to add extension: {:?}", result);
 
+    let mut results = Vec::new();
     for tool_call in tool_calls {
         let tool_call = ToolCall::new(format!("test__{}", tool_call.name), tool_call.arguments);
         let result = extension_manager
@@ -82,6 +88,25 @@ async fn test_replayed_session(command: Vec<&str>, tool_calls: Vec<ToolCall>) {
             .await;
 
         let tool_result = result.expect("tool dispatch should succeed");
-        tool_result.result.await.expect("should get a result");
+        results.push(tool_result.result.await.expect("should get a result"));
     }
+
+    let mut results_path = replay_file_path.clone();
+    results_path.pop();
+    results_path.push(format!("{}.results.json", &replay_file_name));
+
+    match mode {
+        TestMode::Record => serde_json::to_writer_pretty(
+            File::create(results_path).expect("could not reate results file"),
+            &results,
+        )
+        .expect("could not write results"),
+        TestMode::Replay => assert_eq!(
+            serde_json::from_reader::<_, Vec<Vec<Content>>>(
+                File::open(results_path).expect("could not read results file")
+            )
+            .expect("could not deserialize results"),
+            results
+        ),
+    };
 }

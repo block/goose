@@ -4,3 +4,14 @@ STDOUT: {"result":{"protocolVersion":"2025-03-26","capabilities":{"prompts":{},"
 STDIN: {"jsonrpc":"2.0","method":"notifications/initialized"}
 STDIN: {"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"_meta":{"progressToken":0},"name":"echo","arguments":{"message":"Hello, world!"}}}
 STDOUT: {"result":{"content":[{"type":"text","text":"Echo: Hello, world!"}]},"jsonrpc":"2.0","id":1}
+STDIN: {"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"_meta":{"progressToken":1},"name":"add","arguments":{"a":1,"b":2}}}
+STDOUT: {"result":{"content":[{"type":"text","text":"The sum of 1 and 2 is 3."}]},"jsonrpc":"2.0","id":2}
+STDIN: {"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"_meta":{"progressToken":2},"name":"longRunningOperation","arguments":{"duration":1,"steps":5}}}
+STDOUT: {"method":"notifications/progress","params":{"progress":1,"total":5,"progressToken":2},"jsonrpc":"2.0"}
+STDOUT: {"method":"notifications/progress","params":{"progress":2,"total":5,"progressToken":2},"jsonrpc":"2.0"}
+STDOUT: {"method":"notifications/progress","params":{"progress":3,"total":5,"progressToken":2},"jsonrpc":"2.0"}
+STDOUT: {"method":"notifications/progress","params":{"progress":4,"total":5,"progressToken":2},"jsonrpc":"2.0"}
+STDOUT: {"method":"notifications/progress","params":{"progress":5,"total":5,"progressToken":2},"jsonrpc":"2.0"}
+STDOUT: {"result":{"content":[{"type":"text","text":"Long running operation completed. Duration: 1 seconds, Steps: 5."}]},"jsonrpc":"2.0","id":3}
+STDIN: {"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"_meta":{"progressToken":3},"name":"structuredContent","arguments":{"location":"11238"}}}
+STDOUT: {"result":{"content":[{"type":"text","text":"{\"temperature\":22.5,\"conditions\":\"Partly cloudy\",\"humidity\":65}"}],"structuredContent":{"temperature":22.5,"conditions":"Partly cloudy","humidity":65}},"jsonrpc":"2.0","id":4}
