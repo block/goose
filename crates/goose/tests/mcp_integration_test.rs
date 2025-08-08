@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::env;
 use std::fs::File;
 use std::path::PathBuf;
@@ -27,10 +28,22 @@ const REPLAY_BINARY: &str = "stdio_replayer";
         ToolCall::new("add", json!({"a": 1, "b": 2})),
         ToolCall::new("longRunningOperation", json!({"duration": 1, "steps": 5})),
         ToolCall::new("structuredContent", json!({"location": "11238"})),
-    ]
+    ],
+    vec![]
+)]
+#[test_case(
+    vec!["github-mcp-server", "stdio"],
+    vec![
+        ToolCall::new("get_pull_request", json!({"owner": "block", "repo": "goose", "pullNumber": 3939})),
+    ],
+    vec!["GITHUB_PERSONAL_ACCESS_TOKEN"]
 )]
 #[tokio::test]
-async fn test_replayed_session(command: Vec<&str>, tool_calls: Vec<ToolCall>) {
+async fn test_replayed_session(
+    command: Vec<&str>,
+    tool_calls: Vec<ToolCall>,
+    required_envs: Vec<&str>,
+) {
     let replay_file_name = command
         .iter()
         .map(|s| s.replace("/", "_"))
@@ -61,16 +74,31 @@ async fn test_replayed_session(command: Vec<&str>, tool_calls: Vec<ToolCall>) {
 
     args.push(replay_file_path.to_string_lossy().to_string());
 
+    let mut env = HashMap::new();
+
     if matches!(mode, TestMode::Record) {
         args.extend(command.into_iter().map(str::to_string));
+
+        for key in required_envs {
+            match env::var(key) {
+                Ok(v) => {
+                    env.insert(key.to_string(), v);
+                }
+                Err(_) => {
+                    eprintln!("skipping due to missing required env variable: {}", key);
+                    return;
+                }
+            }
+        }
     }
 
+    let envs = Envs::new(env);
     let extension_config = ExtensionConfig::Stdio {
         name: "test".to_string(),
         description: Some("Test".to_string()),
         cmd,
         args,
-        envs: Envs::default(),
+        envs,
         env_keys: vec![],
         timeout: Some(30),
         bundled: Some(false),
