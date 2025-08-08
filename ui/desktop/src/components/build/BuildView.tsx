@@ -519,7 +519,14 @@ const BuildView: React.FC = () => {
                       </div>
 
                       {/* Path */}
-                      <div className="flex items-center text-text-muted text-xs mb-4">
+                      <div 
+                        className="flex items-center text-text-muted text-xs mb-4 cursor-pointer hover:text-text-standard transition-colors duration-200"
+                        onClick={(e) => {
+                          e.stopPropagation(); // Prevent triggering the app click
+                          window.electron.openDirectoryInExplorer(app.path);
+                        }}
+                        title="Open in Finder"
+                      >
                         <FolderOpen className="w-3 h-3 mr-1 flex-shrink-0" />
                         <span className="truncate">{app.path}</span>
                       </div>
