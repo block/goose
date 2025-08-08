@@ -3,6 +3,8 @@ use std::fs::File;
 use std::io::{self, BufRead, BufReader, Write};
 use std::process;
 
+use serde_json::Value;
+
 #[derive(Debug, Clone)]
 enum StreamType {
     Stdin,
@@ -82,11 +84,14 @@ fn main() -> io::Result<()> {
                 stdin.read_line(&mut input)?;
                 input = input.trim_end_matches('\n').to_string();
 
-                if input != entry.content {
+                let input_value: Value = serde_json::from_str::<Value>(&input)?;
+                let entry_value: Value = serde_json::from_str::<Value>(&entry.content)?;
+                if input_value != entry_value {
                     writeln!(
                         &errors_file,
-                        "Expected:\n\t'{}'\n\ngot:\n\t'{}'",
-                        entry.content, input
+                        "expected:\n{}\ngot:\n{}",
+                        serde_json::to_string(&input_value)?,
+                        serde_json::to_string(&entry_value)?
                     )?;
                     process::exit(1);
                 }

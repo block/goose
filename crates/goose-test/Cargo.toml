@@ -17,3 +17,6 @@ path = "src/bin/stdio_logger.rs"
 [[bin]]
 name = "stdio_replayer"
 path = "src/bin/stdio_replayer.rs"
+
+[dependencies]
+serde_json = "1.0.142"

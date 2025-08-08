@@ -3518,6 +3518,9 @@ dependencies = [
 [[package]]
 name = "goose-test"
 version = "1.1.0"
+dependencies = [
+ "serde_json",
+]
 
 [[package]]
 name = "grep-cli"
@@ -7453,9 +7456,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.140"
+version = "1.0.142"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "20068b6e96dc6c9bd23e01df8827e6c7e1f2fddd43c21810382803c136b99373"
+checksum = "030fedb782600dcbd6f02d479bf0d817ac3bb40d644745b769d6a96bc3afc5a7"
 dependencies = [
  "indexmap 2.7.1",
  "itoa",
