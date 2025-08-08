@@ -582,5 +582,15 @@
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": []
+  },
+  {
+    "id": "container-use",
+    "name": "Container Use",
+    "description": "Integrate container workflows with Goose using the Container-Use MCP",
+    "command": "npx -y mcp-remote https://container-use.com/mcp",
+    "link": "https://container-use.com",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
   }
 ]
