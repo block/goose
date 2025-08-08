@@ -99,41 +99,26 @@ jobs:
           # Check disk space after cleanup
           df -h
 
-      - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@9d7e65c320fdb52dcd45ffaa68deb6c02c8754d9 # pin@v1
-        with:
-          toolchain: stable
+      - name: Activate hermit and set CARGO_HOME
+        run: |
+          source bin/activate-hermit
+          echo "CARGO_HOME=$CARGO_HOME" >> $GITHUB_ENV
+          echo "RUSTUP_HOME=$RUSTUP_HOME" >> $GITHUB_ENV
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 23
-          cache: 'npm'
-          cache-dependency-path: ui/desktop/package-lock.json
+      - name: Install cross
+        run: source ./bin/activate-hermit && cargo install cross --git https://github.com/cross-rs/cross
 
-      - name: Cache Cargo registry
-        uses: actions/cache@v4
+      - name: Cache Cargo artifacts
+        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
         with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          path: |
+            ${{ env.CARGO_HOME }}/bin/
+            ${{ env.CARGO_HOME }}/registry/index/
+            ${{ env.CARGO_HOME }}/registry/cache/
+            ${{ env.CARGO_HOME }}/git/db/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-registry-
-
-      - name: Cache Cargo index
-        uses: actions/cache@v4
-        with:
-          path: ~/.cargo/index
-          key: ${{ runner.os }}-cargo-index
-          restore-keys: |
-            ${{ runner.os }}-cargo-index
-
-      - name: Cache Cargo build
-        uses: actions/cache@v4
-        with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-build-
+            ${{ runner.os }}-cargo-
 
       - name: Set up Go
         uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # pin@v5
@@ -148,51 +133,31 @@ jobs:
           echo "temporal-service built successfully"
 
       - name: Build goosed binary
+        env:
+          CROSS_NO_WARNINGS: 0
+          RUST_LOG: debug
+          RUST_BACKTRACE: 1
+          CROSS_VERBOSE: 1
         run: |
-          echo "Building goosed binary for Linux..."
-          cargo build --release -p goose-server
-          ls -la target/release/
-          file target/release/goosed
-
-      - name: Clean up build artifacts
-        run: |
-          echo "Cleaning up to save disk space..."
-          # Remove debug artifacts
-          rm -rf target/debug || true
-          # Remove incremental build files
-          rm -rf target/release/incremental || true
-          rm -rf target/release/deps || true
-          rm -rf target/release/build || true
-          # Remove other target directories that aren't needed
-          find target -name "*.rlib" -delete || true
-          find target -name "*.rmeta" -delete || true
-          # Don't run cargo clean as it will remove our binary
-          # Check disk space
-          df -h
+          source ./bin/activate-hermit
+          export TARGET="x86_64-unknown-linux-gnu"
+          rustup target add "${TARGET}"
+          cross build --release --target ${TARGET} -p goose-server
 
       - name: Copy binaries into Electron folder
         run: |
           echo "Copying binaries to ui/desktop/src/bin/"
+          export TARGET="x86_64-unknown-linux-gnu"
           mkdir -p ui/desktop/src/bin
-          cp target/release/goosed ui/desktop/src/bin/
+          cp target/$TARGET/release/goosed ui/desktop/src/bin/
           cp temporal-service/temporal-service ui/desktop/src/bin/
           chmod +x ui/desktop/src/bin/goosed
           chmod +x ui/desktop/src/bin/temporal-service
           ls -la ui/desktop/src/bin/
 
-      - name: Final cleanup before npm build
-        run: |
-          echo "Final cleanup before npm build..."
-          # Now we can remove the entire target directory since we copied the binary
-          rm -rf target || true
-          # Clean any remaining caches
-          rm -rf ~/.cargo/registry/cache || true
-          rm -rf ~/.cargo/git/db || true
-          # Check final disk space
-          df -h
-
       - name: Install npm dependencies
         run: |
+          source ./bin/activate-hermit
           cd ui/desktop
           npm cache clean --force || true
           npm install
@@ -201,6 +166,7 @@ jobs:
 
       - name: Build Linux packages
         run: |
+          source ./bin/activate-hermit
           cd ui/desktop
           echo "Building Linux packages (.deb and .rpm)..."
           
