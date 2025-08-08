@@ -44,7 +44,7 @@ struct Identifier {
         value_name = "NAME",
         help = "Name for the chat session (e.g., 'project-x')",
         long_help = "Specify a name for your chat session. When used with --resume, will resume this specific session if it exists.",
-        long_alias = "id",
+        alias = "id",
         short_alias = 'i'
     )]
     name: Option<String>,
@@ -100,7 +100,7 @@ enum SessionCommand {
     },
     #[command(about = "Remove sessions. Runs interactively if no ID or regex is provided.")]
     Remove {
-        #[arg(short, long, long_alias = "name", short_alias = 'n', help = "Session ID to be removed (optional)")]
+        #[arg(short, long, alias = "name", short_alias = 'n', help = "Session ID to be removed (optional)")]
         id: Option<String>,
         #[arg(short, long, help = "Regex for removing matched sessions (optional)")]
         regex: Option<String>,
