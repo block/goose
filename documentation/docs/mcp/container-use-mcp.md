@@ -11,7 +11,7 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/X3tf61_Tak0" />
 
-This tutorial covers how to add the [Container Use MCP Server](https://container-use.com) as a Goose extension enabling Goose to work in an isolated environment
+This tutorial covers how to add the [Container Use MCP Server](https://container-use.com) as a Goose extension enabling Goose to work in an isolated environment.
 
 :::tip TLDR
 <Tabs groupId="interface">
