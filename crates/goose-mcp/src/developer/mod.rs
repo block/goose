@@ -44,6 +44,8 @@ use self::shell::{expand_path, get_shell_config, is_absolute_path, normalize_lin
 use indoc::indoc;
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
+
+#[cfg(feature = "screen_capture")]
 use xcap::{Monitor, Window};
 
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
@@ -277,6 +279,7 @@ impl DeveloperRouter {
             }),
         );
 
+        #[cfg(feature = "screen_capture")]
         let list_windows_tool = Tool::new(
             "list_windows",
             indoc! {r#"
@@ -298,6 +301,7 @@ impl DeveloperRouter {
             open_world_hint: Some(false),
         });
 
+        #[cfg(feature = "screen_capture")]
         let screen_capture_tool = Tool::new(
             "screen_capture",
             indoc! {r#"
@@ -332,6 +336,7 @@ impl DeveloperRouter {
             open_world_hint: Some(false),
         });
 
+        #[cfg(feature = "screen_capture")]
         let image_processor_tool = Tool::new(
             "image_processor",
             indoc! {r#"
@@ -515,13 +520,16 @@ impl DeveloperRouter {
         let ignore_patterns = builder.build().expect("Failed to build ignore patterns");
 
         Self {
-            tools: vec![
-                bash_tool,
-                text_editor_tool,
-                list_windows_tool,
-                screen_capture_tool,
-                image_processor_tool,
-            ],
+            tools: {
+                let tools = vec![bash_tool, text_editor_tool];
+                #[cfg(feature = "screen_capture")]
+                {
+                    tools.push(list_windows_tool);
+                    tools.push(screen_capture_tool);
+                    tools.push(image_processor_tool);
+                }
+                tools
+            },
             prompts: Arc::new(load_prompt_files()),
             instructions,
             file_history: Arc::new(Mutex::new(HashMap::new())),
@@ -1257,6 +1265,7 @@ impl DeveloperRouter {
         Ok(())
     }
 
+    #[cfg(feature = "screen_capture")]
     async fn list_windows(&self, _params: Value) -> Result<Vec<Content>, ToolError> {
         let windows = Window::all()
             .map_err(|_| ToolError::ExecutionError("Failed to list windows".into()))?;
@@ -1274,6 +1283,7 @@ impl DeveloperRouter {
     }
 
     // Helper function to handle Mac screenshot filenames that contain U+202F (narrow no-break space)
+    #[cfg(feature = "screen_capture")]
     fn normalize_mac_screenshot_path(&self, path: &Path) -> PathBuf {
         // Only process if the path has a filename
         if let Some(filename) = path.file_name().and_then(|f| f.to_str()) {
@@ -1309,6 +1319,7 @@ impl DeveloperRouter {
         path.to_path_buf()
     }
 
+    #[cfg(feature = "screen_capture")]
     async fn image_processor(&self, params: Value) -> Result<Vec<Content>, ToolError> {
         let path_str = params
             .get("path")
@@ -1392,6 +1403,7 @@ impl DeveloperRouter {
         ])
     }
 
+    #[cfg(feature = "screen_capture")]
     async fn screen_capture(&self, params: Value) -> Result<Vec<Content>, ToolError> {
         let mut image = if let Some(window_title) =
             params.get("window_title").and_then(|v| v.as_str())
@@ -1506,8 +1518,11 @@ impl Router for DeveloperRouter {
             match tool_name.as_str() {
                 "shell" => this.bash(arguments, notifier).await,
                 "text_editor" => this.text_editor(arguments).await,
+                #[cfg(feature = "screen_capture")]
                 "list_windows" => this.list_windows(arguments).await,
+                #[cfg(feature = "screen_capture")]
                 "screen_capture" => this.screen_capture(arguments).await,
+                #[cfg(feature = "screen_capture")]
                 "image_processor" => this.image_processor(arguments).await,
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
