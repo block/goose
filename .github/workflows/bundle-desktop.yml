@@ -287,7 +287,7 @@ jobs:
 
           # download the signed app from S3
           echo "⬇️ downloading signed app"
-          aws s3 cp --quiet "${signed_url}" out/Goose-darwin-arm64/Goose.zip
+          aws s3 cp --quiet "${signed_url}" out/Goose-darwin-arm64/Goose.tar.gz
         working-directory: ui/desktop
 
       - name: Final cleanup before artifact upload
@@ -303,7 +303,7 @@ jobs:
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # pin@v4
         with:
           name: Goose-darwin-arm64
-          path: ui/desktop/out/Goose-darwin-arm64/Goose.zip
+          path: ui/desktop/out/Goose-darwin-arm64/Goose.tar.gz
 
       - name: Quick launch test (macOS)
         if: ${{ inputs.quick_test }}
