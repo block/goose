@@ -1,6 +1,6 @@
 ---
 title: Container-Use MCP
-description: User Container-Use MCP as a Goose Extension
+description: Use Container-Use MCP as a Goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
