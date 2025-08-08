@@ -56,17 +56,17 @@ const menuItems: NavigationEntry[] = [
   },
   {
     type: 'item',
-    path: '/sessions',
-    label: 'History',
-    icon: History,
-    tooltip: 'View your session history',
-  },
-  {
-    type: 'item',
     path: '/build',
     label: 'Build',
     icon: Hammer,
     tooltip: 'Build new apps',
+  },
+  {
+    type: 'item',
+    path: '/sessions',
+    label: 'History',
+    icon: History,
+    tooltip: 'View your session history',
   },
   { type: 'separator' },
   {
