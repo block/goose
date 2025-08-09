@@ -56,6 +56,9 @@ use super::final_output_tool::FinalOutputTool;
 use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::subagent_task_config::TaskConfig;
+use crate::agents::todo_tools::{
+    todo_read_tool, todo_write_tool, TODO_READ_TOOL_NAME, TODO_WRITE_TOOL_NAME,
+};
 use crate::conversation::message::{Message, ToolRequest};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
@@ -97,6 +100,7 @@ pub struct Agent {
     pub(super) tool_route_manager: ToolRouteManager,
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
     pub(super) retry_manager: RetryManager,
+    pub(super) todo_list: Arc<Mutex<String>>,
 }
 
 #[derive(Clone, Debug)]
@@ -148,6 +152,15 @@ where
 }
 
 impl Agent {
+    const DEFAULT_TODO_MAX_CHARS: usize = 50_000;
+
+    fn get_todo_max_chars() -> usize {
+        std::env::var("GOOSE_TODO_MAX_CHARS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(Self::DEFAULT_TODO_MAX_CHARS)
+    }
+
     pub fn new() -> Self {
         // Create channels with buffer size 32 (adjust if needed)
         let (confirm_tx, confirm_rx) = mpsc::channel(32);
@@ -173,6 +186,7 @@ impl Agent {
             tool_route_manager: ToolRouteManager::new(),
             scheduler_service: Mutex::new(None),
             retry_manager,
+            todo_list: Arc::new(Mutex::new(String::new())),
         }
     }
 
@@ -467,6 +481,45 @@ impl Agent {
             ToolCallResult::from(Err(ToolError::ExecutionError(
                 "Frontend tool execution required".to_string(),
             )))
+        } else if tool_call.name == TODO_READ_TOOL_NAME {
+            // Handle task planner read tool
+            let todo_content = self.todo_list.lock().await.clone();
+            ToolCallResult::from(Ok(vec![Content::text(todo_content)]))
+        } else if tool_call.name == TODO_WRITE_TOOL_NAME {
+            // Handle task planner write tool
+            let content = tool_call
+                .arguments
+                .get("content")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+
+            // Acquire lock first to prevent race condition
+            let mut todo_list = self.todo_list.lock().await;
+
+            // Character limit validation
+            let char_count = content.chars().count();
+            let max_chars = Self::get_todo_max_chars();
+
+            // Simple validation - reject if over limit (0 means unlimited)
+            if max_chars > 0 && char_count > max_chars {
+                return (
+                    request_id,
+                    Ok(ToolCallResult::from(Err(ToolError::ExecutionError(
+                        format!(
+                            "Todo list too large: {} chars (max: {})",
+                            char_count, max_chars
+                        ),
+                    )))),
+                );
+            }
+
+            *todo_list = content;
+
+            ToolCallResult::from(Ok(vec![Content::text(format!(
+                "Updated ({} chars)",
+                char_count
+            ))]))
         } else if tool_call.name == ROUTER_VECTOR_SEARCH_TOOL_NAME
             || tool_call.name == ROUTER_LLM_SEARCH_TOOL_NAME
         {
@@ -683,6 +736,9 @@ impl Agent {
                 platform_tools::manage_extensions_tool(),
                 platform_tools::manage_schedule_tool(),
             ]);
+
+            // Add task planner tools
+            prefixed_tools.extend([todo_read_tool(), todo_write_tool()]);
 
             // Dynamic task tool
             prefixed_tools.push(create_dynamic_task_tool());
@@ -1429,6 +1485,26 @@ mod tests {
         let final_output_tool_system_prompt =
             final_output_tool_ref.as_ref().unwrap().system_prompt();
         assert!(system_prompt.contains(&final_output_tool_system_prompt));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_todo_tools_integration() -> Result<()> {
+        let agent = Agent::new();
+
+        // Test that task planner tools are listed
+        let tools = agent.list_tools(None).await;
+
+        let todo_read = tools.iter().find(|tool| tool.name == TODO_READ_TOOL_NAME);
+        let todo_write = tools.iter().find(|tool| tool.name == TODO_WRITE_TOOL_NAME);
+
+        assert!(todo_read.is_some(), "TODO read tool should be present");
+        assert!(todo_write.is_some(), "TODO write tool should be present");
+
+        // Test todo_list initialization
+        let todo_content = agent.todo_list.lock().await;
+        assert_eq!(*todo_content, "", "TODO list should be initially empty");
+
         Ok(())
     }
 }
