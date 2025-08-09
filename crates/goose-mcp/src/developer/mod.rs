@@ -2291,32 +2291,32 @@ mod tests {
         assert!(text_editor_tool
             .description
             .as_ref()
-            .map_or(false, |desc| desc
+            .is_some_and(|desc| desc
                 .contains("Replace a string in a file with a new string")));
         assert!(text_editor_tool
             .description
             .as_ref()
-            .map_or(false, |desc| desc
+            .is_some_and(|desc| desc
                 .contains("the `old_str` needs to exactly match one")));
         assert!(text_editor_tool
             .description
             .as_ref()
-            .map_or(false, |desc| desc.contains("str_replace")));
+            .is_some_and(|desc| desc.contains("str_replace")));
 
         // Should not contain editor API description or edit_file command
         assert!(!text_editor_tool
             .description
             .as_ref()
-            .map_or(false, |desc| desc
+            .is_some_and(|desc| desc
                 .contains("Edit the file with the new content")));
         assert!(!text_editor_tool
             .description
             .as_ref()
-            .map_or(false, |desc| desc.contains("edit_file")));
+            .is_some_and(|desc| desc.contains("edit_file")));
         assert!(!text_editor_tool
             .description
             .as_ref()
-            .map_or(false, |desc| desc
+            .is_some_and(|desc| desc
                 .contains("work out how to place old_str with it intelligently")));
 
         temp_dir.close().unwrap();
