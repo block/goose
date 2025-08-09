@@ -149,7 +149,6 @@ export async function addExtensionFromDeepLink(
   const transportType =
     parsedUrl.searchParams.get('transport') || parsedUrl.searchParams.get('type') || 'sse'; // Default to SSE for backward compatibility
 
-  // Extract headers from URL parameters for streamable_http extensions
   const headerParams = parsedUrl.searchParams.getAll('header');
   const headers =
     headerParams.length > 0
