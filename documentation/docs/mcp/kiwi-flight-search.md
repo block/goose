@@ -12,7 +12,7 @@ import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
 import { PanelLeft } from 'lucide-react';
 
 
-This tutorial covers how to add the [Kiwi Flight Search MCP Server](https://mcp.kiwi.com) as a Goose extension to enable flight search, price comparison, and booking functionality directly from your AI assistant.
+This tutorial covers how to add the [Kiwi Flight Search MCP Server](https://mcp.kiwi.com) as a Goose extension to enable flight search and price comparison.
 
 :::tip TLDR
 <Tabs groupId="interface">
@@ -63,7 +63,7 @@ Let's search for flights between any two locations on specific dates. You can se
 ### Goose Prompt
 
 ```
-Can you help me book a flight from Paris to Rome for August 9?
+Can you help me search for a flight from Paris to Rome for August 9?
 ```
 
 ### Goose Output

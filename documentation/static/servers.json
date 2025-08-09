@@ -336,7 +336,7 @@
   {
     "id": "kiwi-flight-search",
     "name": "Kiwi Flight Search",
-    "description": "Search and book flights",
+    "description": "Search for flights",
     "url": "https://mcp.kiwi.com",
     "link": "https://mcp-install-instructions.alpic.cloud/servers/kiwi-com-flight-search",
     "installation_notes": "This is a remote extension. Configure using the endpoint URL in Goose settings.",
