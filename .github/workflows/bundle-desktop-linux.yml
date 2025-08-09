@@ -15,6 +15,7 @@ on:
         type: string
         required: false
         default: ''
+  pull_request:
 
 name: "Bundle Desktop (Linux)"
 
