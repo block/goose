@@ -5,7 +5,6 @@ use crate::agents::router_tool_selector::{
 use crate::agents::router_tools::{self};
 use crate::agents::tool_execution::ToolCallResult;
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
-use crate::agents::tool_vectordb::generate_table_id;
 use crate::config::Config;
 use crate::conversation::message::ToolRequest;
 use crate::providers::base::Provider;
@@ -79,7 +78,6 @@ impl ToolRouteManager {
             .unwrap_or_else(|_| "default".to_string());
 
         match router_tool_selection_strategy.to_lowercase().as_str() {
-            "vector" => Some(RouterToolSelectionStrategy::Vector),
             "llm" => Some(RouterToolSelectionStrategy::Llm),
             _ => None,
         }
@@ -93,15 +91,8 @@ impl ToolRouteManager {
     ) -> Result<()> {
         let strategy = self.get_router_tool_selection_strategy().await;
         let selector = match strategy {
-            Some(RouterToolSelectionStrategy::Vector) => {
-                let table_name = generate_table_id();
-                let selector = create_tool_selector(strategy, provider.clone(), Some(table_name))
-                    .await
-                    .map_err(|e| anyhow!("Failed to create tool selector: {}", e))?;
-                Arc::new(selector)
-            }
             Some(RouterToolSelectionStrategy::Llm) => {
-                let selector = create_tool_selector(strategy, provider.clone(), None)
+                let selector = create_tool_selector(strategy, provider.clone())
                     .await
                     .map_err(|e| anyhow!("Failed to create tool selector: {}", e))?;
                 Arc::new(selector)
@@ -153,9 +144,6 @@ impl ToolRouteManager {
 
         let mut prefixed_tools = vec![];
         match strategy {
-            Some(RouterToolSelectionStrategy::Vector) => {
-                prefixed_tools.push(router_tools::vector_search_tool());
-            }
             Some(RouterToolSelectionStrategy::Llm) => {
                 prefixed_tools.push(router_tools::llm_search_tool());
             }

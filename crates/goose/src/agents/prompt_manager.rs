@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use crate::agents::extension::ExtensionInfo;
 use crate::agents::router_tool_selector::RouterToolSelectionStrategy;
-use crate::agents::router_tools::{llm_search_tool_prompt, vector_search_tool_prompt};
+use crate::agents::router_tools::llm_search_tool_prompt;
 use crate::providers::base::get_current_model;
 use crate::{config::Config, prompt_template};
 
@@ -86,12 +86,6 @@ impl PromptManager {
         context.insert("extensions", serde_json::to_value(extensions_info).unwrap());
 
         match tool_selection_strategy {
-            Some(RouterToolSelectionStrategy::Vector) => {
-                context.insert(
-                    "tool_selection_strategy",
-                    Value::String(vector_search_tool_prompt()),
-                );
-            }
             Some(RouterToolSelectionStrategy::Llm) => {
                 context.insert(
                     "tool_selection_strategy",

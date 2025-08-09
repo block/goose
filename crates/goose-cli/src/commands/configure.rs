@@ -1177,9 +1177,9 @@ pub fn configure_goose_router_strategy_dialog() -> Result<(), Box<dyn Error>> {
 
     let strategy = cliclack::select("Which router strategy would you like to use?")
         .item(
-            "vector",
-            "Vector Strategy",
-            "Use vector-based similarity to select tools",
+            "llm",
+            "LLM Strategy",
+            "Use LLM-based intelligence to select tools",
         )
         .item(
             "default",
@@ -1189,13 +1189,13 @@ pub fn configure_goose_router_strategy_dialog() -> Result<(), Box<dyn Error>> {
         .interact()?;
 
     match strategy {
-        "vector" => {
+        "llm" => {
             config.set_param(
                 "GOOSE_ROUTER_TOOL_SELECTION_STRATEGY",
-                Value::String("vector".to_string()),
+                Value::String("llm".to_string()),
             )?;
             cliclack::outro(
-                "Set to Vector Strategy - using vector-based similarity for tool selection",
+                "Set to LLM Strategy - using LLM-based intelligence for tool selection",
             )?;
         }
         "default" => {

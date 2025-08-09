@@ -15,11 +15,6 @@ export const all_tool_selection_strategies: ToolSelectionStrategy[] = [
     description: 'Loads all tools from enabled extensions',
   },
   {
-    key: 'vector',
-    label: 'Vector',
-    description: 'Filter tools based on vector similarity.',
-  },
-  {
     key: 'llm',
     label: 'LLM-based',
     description:

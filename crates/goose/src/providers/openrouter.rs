@@ -122,29 +122,6 @@ fn update_request_for_anthropic(original_payload: &Value) -> Value {
         .and_then(|obj| obj.get_mut("messages"))
         .and_then(|messages| messages.as_array_mut())
     {
-        // Add "cache_control" to the last and second-to-last "user" messages.
-        // During each turn, we mark the final message with cache_control so the conversation can be
-        // incrementally cached. The second-to-last user message is also marked for caching with the
-        // cache_control parameter, so that this checkpoint can read from the previous cache.
-        let mut user_count = 0;
-        for message in messages_spec.iter_mut().rev() {
-            if message.get("role") == Some(&json!("user")) {
-                if let Some(content) = message.get_mut("content") {
-                    if let Some(content_str) = content.as_str() {
-                        *content = json!([{
-                            "type": "text",
-                            "text": content_str,
-                            "cache_control": { "type": "ephemeral" }
-                        }]);
-                    }
-                }
-                user_count += 1;
-                if user_count >= 2 {
-                    break;
-                }
-            }
-        }
-
         // Update the system message to have cache_control field.
         if let Some(system_message) = messages_spec
             .iter_mut()

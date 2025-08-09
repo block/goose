@@ -42,10 +42,6 @@ impl Agent {
 
         // Get tools from extension manager
         let mut tools = match tool_selection_strategy {
-            Some(RouterToolSelectionStrategy::Vector) => {
-                self.list_tools_for_router(Some(RouterToolSelectionStrategy::Vector))
-                    .await
-            }
             Some(RouterToolSelectionStrategy::Llm) => {
                 self.list_tools_for_router(Some(RouterToolSelectionStrategy::Llm))
                     .await

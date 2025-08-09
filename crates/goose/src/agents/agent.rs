@@ -21,8 +21,8 @@ use crate::agents::recipe_tools::dynamic_task_tools::{
     create_dynamic_task, create_dynamic_task_tool, DYNAMIC_TASK_TOOL_NAME_PREFIX,
 };
 use crate::agents::retry::{RetryManager, RetryResult};
-use crate::agents::router_tool_selector::RouterToolSelectionStrategy;
-use crate::agents::router_tools::{ROUTER_LLM_SEARCH_TOOL_NAME, ROUTER_VECTOR_SEARCH_TOOL_NAME};
+use crate::agents::router_tool_selector::{RouterToolSelectionStrategy, RouterToolSelector};
+use crate::agents::router_tools::ROUTER_LLM_SEARCH_TOOL_NAME;
 use crate::agents::sub_recipe_manager::SubRecipeManager;
 use crate::agents::subagent_execution_tool::subagent_execute_task_tool::{
     self, SUBAGENT_EXECUTE_TASK_TOOL_NAME,
@@ -467,9 +467,7 @@ impl Agent {
             ToolCallResult::from(Err(ToolError::ExecutionError(
                 "Frontend tool execution required".to_string(),
             )))
-        } else if tool_call.name == ROUTER_VECTOR_SEARCH_TOOL_NAME
-            || tool_call.name == ROUTER_LLM_SEARCH_TOOL_NAME
-        {
+        } else if tool_call.name == ROUTER_LLM_SEARCH_TOOL_NAME {
             match self
                 .tool_route_manager
                 .dispatch_route_search_tool(tool_call.arguments)
@@ -524,7 +522,7 @@ impl Agent {
                     return (
                         request_id,
                         Err(ToolError::ExecutionError(format!(
-                            "Failed to update vector index: {}",
+                            "Failed to update LLM index: {}",
                             e
                         ))),
                     );
@@ -579,26 +577,26 @@ impl Agent {
             .map_err(|e| ToolError::ExecutionError(e.to_string()));
 
         drop(extension_manager);
-        // Update vector index if operation was successful and vector routing is enabled
+        // Update LLM index if operation was successful and LLM routing is enabled
         if result.is_ok() {
             let selector = self.tool_route_manager.get_router_tool_selector().await;
             if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
                 if let Some(selector) = selector {
-                    let vector_action = if action == "disable" { "remove" } else { "add" };
+                    let llm_action = if action == "disable" { "remove" } else { "add" };
                     let extension_manager = self.extension_manager.read().await;
                     let selector = Arc::new(selector);
                     if let Err(e) = ToolRouterIndexManager::update_extension_tools(
                         &selector,
                         &extension_manager,
                         &extension_name,
-                        vector_action,
+                        llm_action,
                     )
                     .await
                     {
                         return (
                             request_id,
                             Err(ToolError::ExecutionError(format!(
-                                "Failed to update vector index: {}",
+                                "Failed to update LLM index: {}",
                                 e
                             ))),
                         );
@@ -643,8 +641,9 @@ impl Agent {
             }
         }
 
-        // If vector tool selection is enabled, index the tools
-        let selector = self.tool_route_manager.get_router_tool_selector().await;
+        // If LLM tool selection is enabled, index the tools
+        let selector: Option<Arc<Box<dyn RouterToolSelector>>> =
+            self.tool_route_manager.get_router_tool_selector().await;
         if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
             if let Some(selector) = selector {
                 let extension_manager = self.extension_manager.read().await;
@@ -723,7 +722,7 @@ impl Agent {
         extension_manager.remove_extension(name).await?;
         drop(extension_manager);
 
-        // If vector tool selection is enabled, remove tools from the index
+        // If LLM tool selection is enabled, remove tools from the index
         let selector = self.tool_route_manager.get_router_tool_selector().await;
         if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
             if let Some(selector) = selector {
