@@ -8,7 +8,6 @@ use axum::{
 };
 use etcetera::{choose_app_strategy, AppStrategy};
 use goose::config::APP_STRATEGY;
-use goose::config::{extensions::name_to_key, PermissionManager};
 use goose::config::{Config, ConfigError};
 use goose::config::{ExtensionConfigManager, ExtensionEntry};
 use goose::model::ModelConfig;
@@ -78,6 +77,15 @@ pub struct ToolPermission {
 #[derive(Deserialize, ToSchema)]
 pub struct UpsertPermissionsQuery {
     pub tool_permissions: Vec<ToolPermission>,
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct CreateCustomProviderRequest {
+    pub provider_type: String,
+    pub display_name: String,
+    pub api_url: String,
+    pub api_key: String,
+    pub models: Vec<String>,
 }
 
 #[utoipa::path(
@@ -229,7 +237,7 @@ pub async fn add_extension(
 
     let extensions =
         ExtensionConfigManager::get_all().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let key = name_to_key(&extension_query.name);
+    let key = goose::config::extensions::name_to_key(&extension_query.name);
 
     let is_update = extensions.iter().any(|e| e.config.key() == key);
 
@@ -264,7 +272,7 @@ pub async fn remove_extension(
 ) -> Result<Json<String>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    let key = name_to_key(&name);
+    let key = goose::config::extensions::name_to_key(&name);
     match ExtensionConfigManager::remove(&key) {
         Ok(_) => Ok(Json(format!("Removed extension {}", name))),
         Err(_) => Err(StatusCode::NOT_FOUND),
@@ -306,7 +314,68 @@ pub async fn providers(
 ) -> Result<Json<Vec<ProviderDetails>>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    let providers_metadata = get_providers();
+    let mut providers_metadata = get_providers();
+
+    let config_dir = etcetera::choose_app_strategy(goose::config::base::APP_STRATEGY.clone())
+        .expect("goose requires a home dir")
+        .config_dir();
+    let custom_providers_dir = config_dir.join("custom_providers");
+
+    if custom_providers_dir.exists() {
+        if let Ok(entries) = std::fs::read_dir(&custom_providers_dir) {
+            for entry in entries.flatten() {
+                if let Some(extension) = entry.path().extension() {
+                    if extension == "json" {
+                        if let Ok(content) = std::fs::read_to_string(entry.path()) {
+                            if let Ok(custom_provider) = serde_json::from_str::<
+                                goose::config::custom_providers::CustomProviderConfig,
+                            >(&content)
+                            {
+                                // CustomProviderConfig => ProviderMetadata
+                                let default_model = custom_provider
+                                    .models
+                                    .first()
+                                    .map(|m| m.name.clone())
+                                    .unwrap_or_default();
+
+                                let metadata = goose::providers::base::ProviderMetadata {
+                                    name: custom_provider.name.clone(),
+                                    display_name: custom_provider.display_name.clone(),
+                                    description: custom_provider
+                                        .description
+                                        .clone()
+                                        .unwrap_or_else(|| {
+                                            format!(
+                                                "Custom {} provider",
+                                                custom_provider.display_name
+                                            )
+                                        }),
+                                    default_model,
+                                    known_models: custom_provider.models.clone(),
+                                    model_doc_link: "Custom provider".to_string(),
+                                    config_keys: vec![
+                                        goose::providers::base::ConfigKey::new(
+                                            &custom_provider.api_key_env,
+                                            true,
+                                            true,
+                                            None,
+                                        ),
+                                        goose::providers::base::ConfigKey::new(
+                                            "CUSTOM_PROVIDER_BASE_URL",
+                                            true,
+                                            false,
+                                            Some(&custom_provider.base_url),
+                                        ),
+                                    ],
+                                };
+                                providers_metadata.push(metadata);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     let providers_response: Vec<ProviderDetails> = providers_metadata
         .into_iter()
@@ -493,7 +562,7 @@ pub async fn upsert_permissions(
 ) -> Result<Json<String>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    let mut permission_manager = PermissionManager::default();
+    let mut permission_manager = goose::config::PermissionManager::default();
 
     for tool_permission in &query.tool_permissions {
         permission_manager.update_user_permission(
@@ -639,6 +708,132 @@ pub async fn get_current_model(
     })))
 }
 
+#[utoipa::path(
+    post,
+    path = "/config/custom-providers",
+    request_body = CreateCustomProviderRequest,
+    responses(
+        (status = 200, description = "Custom provider created successfully", body = String),
+        (status = 400, description = "Invalid request"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn create_custom_provider(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(request): Json<CreateCustomProviderRequest>,
+) -> Result<Json<String>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
+    // use display name as name
+    let id = format!(
+        "custom_{}",
+        request.display_name.to_lowercase().replace(' ', "_")
+    );
+
+    // key naming convention
+    let api_key_name = format!(
+        "{}_API_KEY",
+        request
+            .display_name
+            .to_uppercase()
+            .replace(" ", "_")
+            .replace("-", "_")
+    );
+
+    // api-key -> keyring
+    let config = Config::global();
+    config
+        .set_secret(
+            &api_key_name,
+            serde_json::Value::String(request.api_key.clone()),
+        )
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // models -> ModelInfo fmt
+    let model_infos: Vec<goose::providers::base::ModelInfo> = request
+        .models
+        .iter()
+        .map(|name| goose::providers::base::ModelInfo::new(name.clone(), 128000))
+        .collect();
+
+    let provider_config = goose::config::custom_providers::CustomProviderConfig {
+        name: id.clone(),
+        engine: match request.provider_type.as_str() {
+            "openai_compatible" => goose::config::custom_providers::ProviderEngine::OpenAI,
+            "anthropic_compatible" => goose::config::custom_providers::ProviderEngine::Anthropic,
+            "ollama_compatible" => goose::config::custom_providers::ProviderEngine::Ollama,
+            _ => return Err(StatusCode::BAD_REQUEST),
+        },
+        display_name: request.display_name,
+        description: None,
+        api_key_env: api_key_name,
+        base_url: request.api_url,
+        models: model_infos,
+        headers: None,
+        timeout_seconds: None,
+    };
+
+    // create custom provider
+    let config_dir = etcetera::choose_app_strategy(goose::config::base::APP_STRATEGY.clone())
+        .expect("goose requires a home dir")
+        .config_dir();
+    let custom_providers_dir = config_dir.join("custom_providers");
+    std::fs::create_dir_all(&custom_providers_dir)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let json_content = serde_json::to_string_pretty(&provider_config)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let file_path = custom_providers_dir.join(format!("{}.json", id));
+    std::fs::write(file_path, json_content).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if let Err(e) = goose::providers::refresh_custom_providers() {
+        tracing::warn!("Failed to refresh custom providers after creation: {}", e);
+    }
+
+    Ok(Json(format!("Custom provider added - ID: {}", id)))
+}
+
+#[utoipa::path(
+    delete,
+    path = "/config/custom-providers/{id}",
+    responses(
+        (status = 200, description = "Custom provider removed successfully", body = String),
+        (status = 404, description = "Provider not found"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn remove_custom_provider(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Result<Json<String>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
+    let config = Config::global();
+    let api_key_name = format!("{}_API_KEY", id.to_uppercase());
+    let _ = config.delete_secret(&api_key_name);
+
+    // remove provider
+    let config_dir = etcetera::choose_app_strategy(goose::config::base::APP_STRATEGY.clone())
+        .expect("goose requires a home dir")
+        .config_dir();
+    let custom_providers_dir = config_dir.join("custom_providers");
+    let file_path = custom_providers_dir.join(format!("{}.json", id));
+
+    if file_path.exists() {
+        std::fs::remove_file(file_path).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+        if let Err(e) = goose::providers::refresh_custom_providers() {
+            tracing::warn!("Failed to refresh custom providers after deletion: {}", e);
+        }
+    } else {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    Ok(Json(format!("Removed custom provider: {}", id)))
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/config", get(read_all_config))
@@ -656,6 +851,11 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/validate", get(validate_config))
         .route("/config/permissions", post(upsert_permissions))
         .route("/config/current-model", get(get_current_model))
+        .route("/config/custom-providers", post(create_custom_provider))
+        .route(
+            "/config/custom-providers/{id}",
+            delete(remove_custom_provider),
+        )
         .with_state(state)
 }
 

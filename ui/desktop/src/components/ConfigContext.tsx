@@ -170,9 +170,15 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
   const getProviders = useCallback(
     async (forceRefresh = false): Promise<ProviderDetails[]> => {
       if (forceRefresh || providersList.length === 0) {
-        const response = await providers();
-        setProvidersList(response.data || []);
-        return response.data || [];
+        try {
+          const response = await providers();
+          const providersData = response.data || [];
+          setProvidersList(providersData);
+          return providersData;
+        } catch (error) {
+          console.error('Failed to fetch providers:', error);
+          return [];
+        }
       }
       return providersList;
     },
@@ -189,9 +195,11 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
       // Load providers
       try {
         const providersResponse = await providers();
-        setProvidersList(providersResponse.data || []);
+        const providersData = providersResponse.data || [];
+        setProvidersList(providersData);
       } catch (error) {
         console.error('Failed to load providers:', error);
+        setProvidersList([]);
       }
 
       // Load extensions

@@ -1,5 +1,6 @@
 use cliclack::spinner;
 use console::style;
+use etcetera::{choose_app_strategy, AppStrategy};
 use goose::agents::extension::ToolInfo;
 use goose::agents::extension_manager::get_parameter_names;
 use goose::agents::platform_tools::{
@@ -7,6 +8,8 @@ use goose::agents::platform_tools::{
 };
 use goose::agents::Agent;
 use goose::agents::{extension::Envs, ExtensionConfig};
+use goose::config::base::APP_STRATEGY;
+use goose::config::custom_providers::{CustomProviderConfig, ProviderEngine};
 use goose::config::extensions::name_to_key;
 use goose::config::permission::PermissionLevel;
 use goose::config::{
@@ -14,6 +17,7 @@ use goose::config::{
     PermissionManager,
 };
 use goose::conversation::message::Message;
+use goose::providers::base::ModelInfo;
 use goose::providers::{create, providers};
 use rmcp::model::{Tool, ToolAnnotations};
 use rmcp::object;
@@ -221,6 +225,11 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
                 "Configure Providers",
                 "Change provider or update credentials",
             )
+            .item(
+                "custom_providers",
+                "Custom Providers",
+                "Add OpenAI or Anthropic compatible APIs",
+            )
             .item("add", "Add Extension", "Connect to a new extension")
             .item(
                 "toggle",
@@ -241,6 +250,7 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
             "remove" => remove_extension_dialog(),
             "settings" => configure_settings_dialog().await.and(Ok(())),
             "providers" => configure_provider_dialog().await.and(Ok(())),
+            "custom_providers" => configure_custom_provider_dialog(),
             _ => unreachable!(),
         }
     }
@@ -1646,6 +1656,172 @@ pub async fn handle_openrouter_auth() -> Result<(), Box<dyn Error>> {
             eprintln!("Authentication failed: {}", e);
             return Err(e.into());
         }
+    }
+
+    Ok(())
+}
+
+pub fn configure_custom_provider_dialog() -> Result<(), Box<dyn Error>> {
+    let action = cliclack::select("What would you like to do?")
+        .item(
+            "add",
+            "Add A Custom Provider",
+            "Add a new OpenAI/Anthropic compatible Provider",
+        )
+        .item(
+            "remove",
+            "Remove Custom Provider",
+            "Remove an existing custom provider",
+        )
+        .interact()?;
+
+    match action {
+        "add" => {
+            let provider_type = cliclack::select("What type of API is this?")
+                .item(
+                    "openai_compatible",
+                    "OpenAI Compatible",
+                    "Uses OpenAI API format",
+                )
+                .item(
+                    "anthropic_compatible",
+                    "Anthropic Compatible",
+                    "Uses Anthropic API format",
+                )
+                .item(
+                    "ollama_compatible",
+                    "Ollama Compatible",
+                    "Uses Ollama API format",
+                )
+                .interact()?;
+
+            let display_name: String = cliclack::input("What should we call this provider?")
+                .placeholder("Your Provider Name")
+                .validate(|input: &String| {
+                    if input.is_empty() {
+                        Err("Please enter a name")
+                    } else {
+                        Ok(())
+                    }
+                })
+                .interact()?;
+
+            let api_url: String = cliclack::input("Provider API URL:")
+                .placeholder("https://api.example.com/v1/messages")
+                .validate(|input: &String| {
+                    if !input.starts_with("http://") && !input.starts_with("https://") {
+                        Err("Inputed URL must start with either http:// or https://")
+                    } else {
+                        Ok(())
+                    }
+                })
+                .interact()?;
+
+            let api_key: String = cliclack::password("API key:").mask('▪').interact()?;
+
+            let models_input: String = cliclack::input("Available models (seperate with commas):")
+                .placeholder("model-a, model-b, model-c")
+                .validate(|input: &String| {
+                    if input.trim().is_empty() {
+                        Err("Please enter at least one model name")
+                    } else {
+                        Ok(())
+                    }
+                })
+                .interact()?;
+
+            let models: Vec<String> = models_input
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+
+            // Generate name from display name
+            let id = format!("custom_{}", display_name.to_lowercase().replace(' ', "_"));
+
+            // api-key -> keyring
+            let config = Config::global();
+            let api_key_name = format!("{}_API_KEY", id.to_uppercase());
+            config.set_secret(&api_key_name, Value::String(api_key))?;
+
+            let display_name_clone = display_name.clone();
+
+            let model_infos: Vec<ModelInfo> = models
+                .iter()
+                .map(|name| ModelInfo::new(name.clone(), 128000))
+                .collect();
+
+            // create final provider config
+            let provider_config = CustomProviderConfig {
+                name: id.clone(),
+                engine: match provider_type {
+                    "openai_compatible" => ProviderEngine::OpenAI,
+                    "anthropic_compatible" => ProviderEngine::Anthropic,
+                    "ollama_compatible" => ProviderEngine::Ollama,
+                    _ => unreachable!(),
+                },
+                display_name: display_name_clone,
+                description: Some(format!("Custom {} provider", display_name)),
+                api_key_env: api_key_name,
+                base_url: api_url,
+                models: model_infos,
+                headers: None,
+                timeout_seconds: None,
+            };
+
+            let config_dir = choose_app_strategy(APP_STRATEGY.clone())
+                .expect("goose requires a home dir")
+                .config_dir();
+            let custom_providers_dir = config_dir.join("custom_providers");
+            std::fs::create_dir_all(&custom_providers_dir)?;
+
+            let json_content = serde_json::to_string_pretty(&provider_config)?;
+            let file_path = custom_providers_dir.join(format!("{}.json", id));
+            std::fs::write(file_path, json_content)?;
+
+            cliclack::outro(format!("Custom provider added: {}", display_name))?;
+        }
+        "remove" => {
+            // load custom providers from JSON files
+            let config_dir = choose_app_strategy(APP_STRATEGY.clone())
+                .expect("goose requires a home dir")
+                .config_dir();
+            let custom_providers_dir = config_dir.join("custom_providers");
+
+            let custom_providers = if custom_providers_dir.exists() {
+                goose::config::custom_providers::load_custom_providers(&custom_providers_dir)?
+            } else {
+                Vec::new()
+            };
+            if custom_providers.is_empty() {
+                cliclack::outro("No custom providers added just yet.")?;
+                return Ok(());
+            }
+
+            let provider_items: Vec<_> = custom_providers
+                .iter()
+                .map(|p| (&p.name, &p.display_name, "Custom provider"))
+                .collect();
+
+            let selected_id = cliclack::select("Which custom provider would you like to remove?")
+                .items(&provider_items)
+                .interact()?;
+
+            // TODO: remove api-key from keyring
+
+            let config = Config::global();
+            let api_key_name = format!("{}_API_KEY", selected_id.to_uppercase());
+            let _ = config.delete_secret(&api_key_name);
+
+            // remove json file
+            let file_path = custom_providers_dir.join(format!("{}.json", selected_id));
+            if file_path.exists() {
+                std::fs::remove_file(file_path)?;
+            }
+
+            cliclack::outro(format!("Removed custom provider: {}", selected_id))?;
+        }
+        _ => unreachable!(),
     }
 
     Ok(())

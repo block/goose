@@ -3,7 +3,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
+  // DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '../../../ui/dialog';
@@ -18,7 +18,7 @@ import OllamaForm from './subcomponents/forms/OllamaForm';
 import { useConfig } from '../../../ConfigContext';
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import { AlertTriangle } from 'lucide-react';
-import { ConfigKey } from '../../../../api';
+import { ConfigKey, removeCustomProvider } from '../../../../api';
 
 interface FormValues {
   [key: string]: string | number | boolean | null;
@@ -162,13 +162,21 @@ export default function ProviderConfigurationModal() {
     }
 
     try {
-      // Remove the provider configuration
-      // get the keys
-      const params = currentProvider.metadata.config_keys;
+      const isCustomProvider = currentProvider.name.startsWith('custom_');
 
-      // go through the keys are remove them
-      for (const param of params) {
-        await remove(param.name, param.secret);
+      if (isCustomProvider) {
+        await removeCustomProvider({
+          path: { id: currentProvider.name },
+        });
+      } else {
+        // Remove the provider configuration
+        // get the keys
+        const params = currentProvider.metadata.config_keys;
+
+        // go through the keys are remove them
+        for (const param of params) {
+          await remove(param.name, param.secret);
+        }
       }
 
       // Call onDelete callback if provided
@@ -235,23 +243,21 @@ export default function ProviderConfigurationModal() {
           ) : null}
         </div>
 
-        <DialogFooter>
-          <ProviderSetupActions
-            requiredParameters={requiredParameters}
-            onCancel={handleCancel}
-            onSubmit={handleSubmitForm}
-            onDelete={handleDelete}
-            showDeleteConfirmation={showDeleteConfirmation}
-            onConfirmDelete={handleConfirmDelete}
-            onCancelDelete={() => {
-              setShowDeleteConfirmation(false);
-              setIsActiveProvider(false);
-            }}
-            canDelete={isConfigured && !isActiveProvider} // Disable delete button for active provider
-            providerName={currentProvider.metadata.display_name}
-            isActiveProvider={isActiveProvider} // Pass this to actions for button state
-          />
-        </DialogFooter>
+        <ProviderSetupActions
+          requiredParameters={requiredParameters}
+          onCancel={handleCancel}
+          onSubmit={handleSubmitForm}
+          onDelete={handleDelete}
+          showDeleteConfirmation={showDeleteConfirmation}
+          onConfirmDelete={handleConfirmDelete}
+          onCancelDelete={() => {
+            setShowDeleteConfirmation(false);
+            setIsActiveProvider(false);
+          }}
+          canDelete={isConfigured && !isActiveProvider} // Disable delete button for active provider
+          providerName={currentProvider.metadata.display_name}
+          isActiveProvider={isActiveProvider} // Pass this to actions for button state
+        />
       </DialogContent>
     </Dialog>
   );
