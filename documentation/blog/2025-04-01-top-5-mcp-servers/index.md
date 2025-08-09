@@ -63,7 +63,7 @@ This works differently from the Knowledge Graph extension even though they both 
 
 ## VS Code Extension: Your Favorite Editor, Connected
 
-One of the biggest points in conversations with people especially around vibe coding, is finding ways to track what changes are being made. While version control is always recommended, sometimes I want to be able to stop or change direction before going too far. The [VS Code Extension](/docs/mcp/vscode-mcp) alongside other features, allows me to preview the diff of my code changes before I commit them. 
+One of the biggest points in conversations with people especially around vibe coding, is finding ways to track what changes are being made. While version control is always recommended, sometimes I want to be able to stop or change direction before going too far. The [VS Code Extension](/docs/mcp/vs-code-mcp) alongside other features, allows me to preview the diff of my code changes before I commit them. 
 
 I can choose to accept or refuse these changes, or tell Goose to try something else before any actual changes are made.
 

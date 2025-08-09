@@ -5,6 +5,7 @@ use crate::recipe::{
 };
 use anyhow::Result;
 use std::collections::{HashMap, HashSet};
+use std::path::Path;
 
 #[derive(Debug, thiserror::Error)]
 pub enum RecipeError {
@@ -66,6 +67,7 @@ pub fn build_recipe_from_template<F>(
 where
     F: Fn(&str, &str) -> Result<String, anyhow::Error>,
 {
+    let recipe_parent_dir = recipe_file.parent_dir.clone();
     let (rendered_content, missing_params) =
         render_recipe_template(recipe_file, params.clone(), user_prompt_fn)
             .map_err(|source| RecipeError::TemplateRendering { source })?;
@@ -76,8 +78,18 @@ where
         });
     }
 
-    let recipe = Recipe::from_content(&rendered_content)
+    let mut recipe = Recipe::from_content(&rendered_content)
         .map_err(|source| RecipeError::RecipeParsing { source })?;
+
+    if let Some(ref mut sub_recipes) = recipe.sub_recipes {
+        for sub_recipe in sub_recipes {
+            if let Ok(resolved_path) = resolve_sub_recipe_path(&sub_recipe.path, &recipe_parent_dir)
+            {
+                sub_recipe.path = resolved_path;
+            }
+        }
+    }
+
     Ok(recipe)
 }
 
@@ -183,6 +195,25 @@ where
         }
     }
     Ok((param_map, missing_params))
+}
+
+fn resolve_sub_recipe_path(
+    sub_recipe_path: &str,
+    parent_recipe_dir: &Path,
+) -> Result<String, RecipeError> {
+    let path = if Path::new(sub_recipe_path).is_absolute() {
+        sub_recipe_path.to_string()
+    } else {
+        parent_recipe_dir
+            .join(sub_recipe_path)
+            .to_str()
+            .ok_or_else(|| RecipeError::RecipeParsing {
+                source: anyhow::anyhow!("Invalid sub-recipe path: {}", sub_recipe_path),
+            })?
+            .to_string()
+    };
+
+    Ok(path)
 }
 
 #[cfg(test)]

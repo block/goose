@@ -87,6 +87,12 @@ You can turn your current Goose session into a reusable recipe that includes the
      goose_provider: $provider    # Provider to use for this recipe
      goose_model: $model          # Specific model to use for this recipe
      temperature: $temperature    # Model temperature setting for this recipe (0.0 to 1.0)
+   retry:                         # Automated retry logic with success validation
+     max_retries: $max_retries    # Maximum number of retry attempts
+     checks:                      # Success validation checks
+     - type: shell
+       command: $validation_command
+     on_failure: $cleanup_command # Optional cleanup command on failure
    ```
    </details>
 
@@ -407,10 +413,11 @@ You can turn your current Goose session into a reusable recipe that includes the
 
      </TabItem>
    </Tabs>
-  :::info Privacy & Isolation
+  :::info Privacy, Isolation, & Secrets
   - Each person gets their own private session
   - No data is shared between users
   - Your session won't affect the original recipe creator's session
+  - The CLI can prompt users for required [extension secrets](/docs/guides/recipes/recipe-reference#extension-secrets)
   :::
 
    </TabItem>
@@ -449,13 +456,15 @@ You can turn your current Goose session into a reusable recipe that includes the
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-    Share your recipe with Desktop users by copying the recipe URL from the recipe creation dialog. When someone clicks the URL, it will open Goose Desktop with your recipe configuration.
+    Share your recipe with Desktop users by copying the recipe URL from the recipe creation dialog.
 
     To copy the recipe URL:
     1. [Open the recipe](#use-recipe)
     2. Click the <Bot className="inline" size={16} /> button at the bottom of the app 
     3. Click `View recipe`
     4. Scroll down and copy the link
+
+    When someone clicks the URL, it will open Goose Desktop with your recipe configuration. They can also use your recipe URL to [import a recipe](/docs/guides/recipes/storing-recipes#storing-recipes) into their Recipe Library.
 
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
@@ -529,6 +538,101 @@ When scheduling Goose recipes with the CLI, you can use Goose's built-in cron sc
       - Help users understand what the recipe can do
       - Make it easy to get started
 
+## Advanced Features
+
+### Automated Retry Logic
+
+Recipes can include retry logic to automatically attempt task completion multiple times until success criteria are met. This is particularly useful for:
+
+- **Automation workflows** that need to ensure successful completion
+- **Development tasks** like running tests that may need multiple attempts  
+- **System operations** that require validation and cleanup
+
+**Basic retry configuration:**
+```yaml
+retry:
+  max_retries: 3
+  checks:
+    - type: shell
+      command: "test -f output.txt"  # Check if output file exists
+  on_failure: "rm -f temp_files*"   # Cleanup on failure
+```
+
+**How it works:**
+1. Recipe executes normally with provided instructions
+2. After completion, success checks validate the results
+3. If validation fails and retries remain:
+   - Optional cleanup command runs
+   - Agent state resets to initial conditions
+   - Recipe execution starts over
+4. Process continues until either success or max retries reached
+
+See the [Recipe Reference Guide](/docs/guides/recipes/recipe-reference#automated-retry-with-success-validation) for complete retry configuration options and examples.
+
+### Structured Output for Automation
+
+Recipes can enforce [structured JSON output](/docs/guides/recipes/recipe-reference#structured-output-with-response), making them ideal for automation workflows that need to parse and process agent responses reliably. Key benefits include:
+
+- **Reliable parsing**: Consistent JSON format for scripts, automation, and CI/CD pipelines
+- **Built-in validation**: Ensures output matches your requirements  
+- **Easy extraction**: Final output appears as a single line for simple parsing
+
+Structured output is particularly useful for: 
+- **Development workflows**: Code analysis reports, test results with pass/fail counts, and build status with deployment readiness
+- **Data processing**: Results with counts and validation status, content analysis with structured findings  
+- **Documentation generation**: Consistent metadata and structured project reports for further processing
+
+**Example structured output configuration:**
+```yaml
+response:
+  json_schema:
+    type: object
+    properties:
+      build_status:
+        type: string
+        enum: ["success", "failed", "warning"]
+        description: "Overall build result"
+      tests_passed:
+        type: number
+        description: "Number of tests that passed"
+      tests_failed:
+        type: number
+        description: "Number of tests that failed"
+      artifacts:
+        type: array
+        items:
+          type: string
+        description: "Generated build artifacts"
+      deployment_ready:
+        type: boolean
+        description: "Whether the build is ready for deployment"
+    required:
+      - build_status
+      - tests_passed
+      - tests_failed
+      - deployment_ready
+```
+
+**How it works:**
+1. Recipe runs normally with provided instructions
+2. Goose calls a `final_output` tool with JSON matching your schema
+3. Output is validated against the JSON schema
+4. If validation fails, Goose receives error details and must correct the output
+5. Final validated JSON appears as the last line of output for easy extraction
+
+**Example automation usage:**
+```bash
+# Run recipe and extract JSON output
+goose run --recipe analysis.yaml --params project_path=./src > output.log
+RESULT=$(tail -n 1 output.log)
+echo "Analysis Status: $(echo $RESULT | jq -r '.build_status')"
+echo "Issues Found: $(echo $RESULT | jq -r '.tests_failed')"
+```
+
+:::info
+Structured output is supported in recipes run in both the Goose CLI and Goose Desktop. However, creating and editing the `json_schema` configuration must be done manually in the recipe file.
+:::
+
 ## What's Included
 
 A recipe captures:
@@ -539,6 +643,7 @@ A recipe captures:
 - Project folder or file context  
 - Initial setup (but not full conversation history)
 - The model and provider to use when running the recipe (optional)
+- Retry logic and success validation configuration (if configured)
 
 
 To protect your privacy and system integrity, Goose excludes:
@@ -549,6 +654,15 @@ To protect your privacy and system integrity, Goose excludes:
 
 
 This means others may need to supply their own credentials or memory context if the recipe depends on those elements.
+
+## CLI and Desktop Formats
+
+The Goose CLI supports both CLI and Desktop recipe formats:
+
+- **CLI Format**: Recipe fields are at the root level. This format is used when recipes are created via the CLI `/recipe` command and Recipe Generator YAML option.
+- **Desktop Format**: Recipe fields are nested under a `recipe` key. This format is used when recipes are saved in Goose Desktop.
+
+Both formats work seamlessly with `goose run --recipe <file>` and `goose recipe` CLI commands - you don't need to convert between them. For more details, see [CLI and Desktop Formats](/docs/guides/recipes/recipe-reference#cli-and-desktop-formats).
 
 ## Learn More
 Check out the [Goose Recipes](/docs/guides/recipes) guide for more docs, tools, and resources to help you master Goose recipes.

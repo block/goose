@@ -1,24 +1,21 @@
 use std::path::PathBuf;
 
 use anyhow::{anyhow, Result};
-use goose::recipe::{Response, SubRecipe};
+use goose::recipe::SubRecipe;
 
 use crate::recipes::print_recipe::print_recipe_info;
 use crate::recipes::recipe::load_recipe;
 use crate::recipes::search_recipe::retrieve_recipe_file;
-use crate::{cli::InputConfig, session::SessionSettings};
+use crate::{
+    cli::{InputConfig, RecipeInfo},
+    session::SessionSettings,
+};
 
-#[allow(clippy::type_complexity)]
 pub fn extract_recipe_info_from_cli(
     recipe_name: String,
     params: Vec<(String, String)>,
     additional_sub_recipes: Vec<String>,
-) -> Result<(
-    InputConfig,
-    Option<SessionSettings>,
-    Option<Vec<SubRecipe>>,
-    Option<Response>,
-)> {
+) -> Result<(InputConfig, RecipeInfo)> {
     let recipe = load_recipe(&recipe_name, params.clone()).unwrap_or_else(|err| {
         eprintln!("{}: {}", console::style("Error").red().bold(), err);
         std::process::exit(1);
@@ -36,6 +33,7 @@ pub fn extract_recipe_info_from_cli(
                         name,
                         values: None,
                         sequential_when_repeated: true,
+                        description: None,
                     };
                     all_sub_recipes.push(additional_sub_recipe);
                 }
@@ -49,20 +47,24 @@ pub fn extract_recipe_info_from_cli(
             }
         }
     }
-    Ok((
-        InputConfig {
-            contents: recipe.prompt.filter(|s| !s.trim().is_empty()),
-            extensions_override: recipe.extensions,
-            additional_system_prompt: recipe.instructions,
-        },
-        recipe.settings.map(|s| SessionSettings {
+    let input_config = InputConfig {
+        contents: recipe.prompt.filter(|s| !s.trim().is_empty()),
+        extensions_override: recipe.extensions,
+        additional_system_prompt: recipe.instructions,
+    };
+
+    let recipe_info = RecipeInfo {
+        session_settings: recipe.settings.map(|s| SessionSettings {
             goose_provider: s.goose_provider,
             goose_model: s.goose_model,
             temperature: s.temperature,
         }),
-        Some(all_sub_recipes),
-        recipe.response,
-    ))
+        sub_recipes: Some(all_sub_recipes),
+        final_output_response: recipe.response,
+        retry_config: recipe.retry,
+    };
+
+    Ok((input_config, recipe_info))
 }
 
 fn extract_recipe_name(recipe_identifier: &str) -> String {
@@ -93,8 +95,11 @@ mod tests {
         let params = vec![("name".to_string(), "my_value".to_string())];
         let recipe_name = recipe_path.to_str().unwrap().to_string();
 
-        let (input_config, settings, sub_recipes, response) =
+        let (input_config, recipe_info) =
             extract_recipe_info_from_cli(recipe_name, params, Vec::new()).unwrap();
+        let settings = recipe_info.session_settings;
+        let sub_recipes = recipe_info.sub_recipes;
+        let response = recipe_info.final_output_response;
 
         assert_eq!(input_config.contents, Some("test_prompt".to_string()));
         assert_eq!(
@@ -112,7 +117,13 @@ mod tests {
         assert!(sub_recipes.is_some());
         let sub_recipes = sub_recipes.unwrap();
         assert!(sub_recipes.len() == 1);
-        assert_eq!(sub_recipes[0].path, "existing_sub_recipe.yaml".to_string());
+        let full_sub_recipe_path = recipe_path
+            .parent()
+            .unwrap()
+            .join("existing_sub_recipe.yaml")
+            .to_string_lossy()
+            .to_string();
+        assert_eq!(sub_recipes[0].path, full_sub_recipe_path);
         assert_eq!(sub_recipes[0].name, "existing_sub_recipe".to_string());
         assert!(sub_recipes[0].values.is_none());
         assert!(response.is_some());
@@ -130,14 +141,13 @@ mod tests {
 
     #[test]
     fn test_extract_recipe_info_from_cli_with_additional_sub_recipes() {
-        let (_temp_dir, recipe_path) = create_recipe();
+        let (temp_dir, recipe_path) = create_recipe();
 
-        // Create actual sub-recipe files in the temp directory
-        std::fs::create_dir_all(_temp_dir.path().join("path/to")).unwrap();
-        std::fs::create_dir_all(_temp_dir.path().join("another")).unwrap();
+        std::fs::create_dir_all(temp_dir.path().join("path/to")).unwrap();
+        std::fs::create_dir_all(temp_dir.path().join("another")).unwrap();
 
-        let sub_recipe1_path = _temp_dir.path().join("path/to/sub_recipe1.yaml");
-        let sub_recipe2_path = _temp_dir.path().join("another/sub_recipe2.yaml");
+        let sub_recipe1_path = temp_dir.path().join("path/to/sub_recipe1.yaml");
+        let sub_recipe2_path = temp_dir.path().join("another/sub_recipe2.yaml");
 
         std::fs::write(&sub_recipe1_path, "title: Sub Recipe 1").unwrap();
         std::fs::write(&sub_recipe2_path, "title: Sub Recipe 2").unwrap();
@@ -149,8 +159,11 @@ mod tests {
             sub_recipe2_path.to_string_lossy().to_string(),
         ];
 
-        let (input_config, settings, sub_recipes, response) =
+        let (input_config, recipe_info) =
             extract_recipe_info_from_cli(recipe_name, params, additional_sub_recipes).unwrap();
+        let settings = recipe_info.session_settings;
+        let sub_recipes = recipe_info.sub_recipes;
+        let response = recipe_info.final_output_response;
 
         assert_eq!(input_config.contents, Some("test_prompt".to_string()));
         assert_eq!(
@@ -168,7 +181,13 @@ mod tests {
         assert!(sub_recipes.is_some());
         let sub_recipes = sub_recipes.unwrap();
         assert!(sub_recipes.len() == 3);
-        assert_eq!(sub_recipes[0].path, "existing_sub_recipe.yaml".to_string());
+        let full_sub_recipe_path = recipe_path
+            .parent()
+            .unwrap()
+            .join("existing_sub_recipe.yaml")
+            .to_string_lossy()
+            .to_string();
+        assert_eq!(sub_recipes[0].path, full_sub_recipe_path);
         assert_eq!(sub_recipes[0].name, "existing_sub_recipe".to_string());
         assert!(sub_recipes[0].values.is_none());
         assert_eq!(

@@ -1,4 +1,5 @@
 pub mod anthropic;
+mod api_client;
 pub mod azure;
 pub mod azureauth;
 pub mod base;
@@ -22,8 +23,10 @@ pub mod ollama;
 pub mod openai;
 pub mod openrouter;
 pub mod pricing;
+mod retry;
 pub mod sagemaker_tgi;
 pub mod snowflake;
+pub mod testprovider;
 pub mod toolshim;
 pub mod utils;
 pub mod utils_universal_openai_stream;

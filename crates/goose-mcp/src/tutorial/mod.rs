@@ -1,21 +1,17 @@
 use anyhow::Result;
 use include_dir::{include_dir, Dir};
 use indoc::formatdoc;
-use rmcp::model::Content;
-use serde_json::{json, Value};
-use std::{future::Future, pin::Pin};
-use tokio::sync::mpsc;
-
 use mcp_core::{
     handler::{PromptError, ResourceError, ToolError},
-    prompt::Prompt,
-    protocol::{JsonRpcMessage, ServerCapabilities},
-    resource::Resource,
-    role::Role,
-    tool::{Tool, ToolAnnotations},
+    protocol::ServerCapabilities,
 };
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
+use rmcp::model::{Content, JsonRpcMessage, Prompt, Resource, Role, Tool, ToolAnnotations};
+use rmcp::object;
+use serde_json::Value;
+use std::{future::Future, pin::Pin};
+use tokio::sync::mpsc;
 
 static TUTORIALS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/tutorial/tutorials");
 
@@ -35,7 +31,7 @@ impl TutorialRouter {
         let load_tutorial = Tool::new(
             "load_tutorial".to_string(),
             "Load a specific tutorial by name. The tutorial will be returned as markdown content that provides step by step instructions.".to_string(),
-            json!({
+            object!({
                 "type": "object",
                 "required": ["name"],
                 "properties": {
@@ -44,15 +40,14 @@ impl TutorialRouter {
                         "description": "Name of the tutorial to load, e.g. 'getting-started' or 'developer-mcp'"
                     }
                 }
-            }),
-            Some(ToolAnnotations {
-                    title: Some("Load Tutorial".to_string()),
-                    read_only_hint: true,
-                    destructive_hint: false,
-                    idempotent_hint: false,
-                    open_world_hint: false,
-                }),
-        );
+            })
+        ).annotate(ToolAnnotations {
+            title: Some("Load Tutorial".to_string()),
+            read_only_hint: Some(true),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(false),
+            open_world_hint: Some(false),
+        });
 
         // Get base instructions and available tutorials
         let available_tutorials = Self::get_available_tutorials();

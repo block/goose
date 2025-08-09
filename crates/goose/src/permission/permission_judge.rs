@@ -1,16 +1,23 @@
 use crate::agents::platform_tools::PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME;
 use crate::config::permission::PermissionLevel;
 use crate::config::PermissionManager;
-use crate::message::{Message, MessageContent, ToolRequest};
+use crate::conversation::message::{Message, MessageContent, ToolRequest};
+use crate::conversation::Conversation;
+use crate::prompt_template::render_global_file;
 use crate::providers::base::Provider;
 use chrono::Utc;
 use indoc::indoc;
-use mcp_core::tool::Tool;
-use mcp_core::tool::ToolAnnotations;
+use rmcp::model::{Tool, ToolAnnotations};
+use rmcp::object;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::collections::HashSet;
 use std::sync::Arc;
+
+#[derive(Serialize)]
+struct PermissionJudgeContext {
+    // Empty struct for now since the current template doesn't need variables
+}
 
 /// Creates the tool definition for checking read-only permissions.
 fn create_read_only_tool() -> Tool {
@@ -45,7 +52,7 @@ fn create_read_only_tool() -> Tool {
             Use this analysis to generate the list of tools performing read-only operations from the provided tool requests.
         "#}
         .to_string(),
-        json!({
+        object!({
             "type": "object",
             "properties": {
                 "read_only_tools": {
@@ -57,19 +64,18 @@ fn create_read_only_tool() -> Tool {
                 }
             },
             "required": []
-        }),
-        Some(ToolAnnotations {
-                title: Some("Check tool operation".to_string()),
-                read_only_hint: true,
-                destructive_hint: false,
-                idempotent_hint: false,
-                open_world_hint: false,
-            }),
-    )
+        })
+    ).annotate(ToolAnnotations {
+        title: Some("Check tool operation".to_string()),
+        read_only_hint: Some(true),
+        destructive_hint: Some(false),
+        idempotent_hint: Some(false),
+        open_world_hint: Some(false),
+    })
 }
 
 /// Builds the message to be sent to the LLM for detecting read-only operations.
-fn create_check_messages(tool_requests: Vec<&ToolRequest>) -> Vec<Message> {
+fn create_check_messages(tool_requests: Vec<&ToolRequest>) -> Conversation {
     let tool_names: Vec<String> = tool_requests
         .iter()
         .filter_map(|req| {
@@ -94,7 +100,7 @@ fn create_check_messages(tool_requests: Vec<&ToolRequest>) -> Vec<Message> {
                 tool_names.join(", "),
             ))],
     ));
-    check_messages
+    Conversation::new_unvalidated(check_messages)
 }
 
 /// Processes the response to extract the list of tools with read-only operations.
@@ -133,12 +139,12 @@ pub async fn detect_read_only_tools(
     let tool = create_read_only_tool();
     let check_messages = create_check_messages(tool_requests);
 
+    let context = PermissionJudgeContext {};
+    let system_prompt = render_global_file("permission_judge.md", &context)
+        .unwrap_or_else(|_| "You are a good analyst and can detect operations whether they have read-only operations.".to_string());
+
     let res = provider
-        .complete(
-            "You are a good analyst and can detect operations whether they have read-only operations.",
-            &check_messages,
-            &[tool.clone()],
-        )
+        .complete(&system_prompt, check_messages.messages(), &[tool.clone()])
         .await;
 
     // Process the response and return an empty vector if the response is invalid
@@ -261,14 +267,13 @@ pub async fn check_tool_permissions(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::message::{Message, MessageContent, ToolRequest};
+    use crate::conversation::message::{Message, MessageContent, ToolRequest};
     use crate::model::ModelConfig;
     use crate::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
     use crate::providers::errors::ProviderError;
     use chrono::Utc;
-    use mcp_core::ToolCall;
-    use mcp_core::{tool::Tool, ToolResult};
-    use rmcp::model::Role;
+    use mcp_core::{ToolCall, ToolResult};
+    use rmcp::model::{Role, Tool};
     use serde_json::json;
     use tempfile::NamedTempFile;
 
@@ -313,8 +318,8 @@ mod tests {
     }
 
     fn create_mock_provider() -> Arc<dyn Provider> {
-        let mock_model_config =
-            ModelConfig::new("test-model".to_string()).with_context_limit(200_000.into());
+        let config = ModelConfig::new_or_fail("test-model");
+        let mock_model_config = config.with_context_limit(200_000.into());
         Arc::new(MockProvider {
             model_config: mock_model_config,
         })
@@ -324,7 +329,10 @@ mod tests {
     async fn test_create_read_only_tool() {
         let tool = create_read_only_tool();
         assert_eq!(tool.name, "platform__tool_by_tool_permission");
-        assert!(tool.description.contains("read-only operation"));
+        assert!(tool
+            .description
+            .as_ref()
+            .map_or(false, |desc| desc.contains("read-only operation")));
     }
 
     #[test]
@@ -339,7 +347,7 @@ mod tests {
 
         let messages = create_check_messages(vec![&tool_request]);
         assert_eq!(messages.len(), 1);
-        let content = &messages[0].content[0];
+        let content = &messages.first().unwrap().content[0];
         if let MessageContent::Text(text_content) = content {
             assert!(text_content
                 .text

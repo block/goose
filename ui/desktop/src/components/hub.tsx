@@ -22,21 +22,14 @@
 import { useState } from 'react';
 import FlappyGoose from './FlappyGoose';
 import { type View, ViewOptions } from '../App';
-import { Message } from '../types/message';
 import { SessionInsights } from './sessions/SessionsInsights';
 import ChatInput from './ChatInput';
 import { generateSessionId } from '../sessions';
+import { ChatState } from '../types/chatState';
 import { ChatContextManagerProvider } from './context_management/ChatContextManager';
-import { Recipe } from '../recipe';
 import 'react-toastify/dist/ReactToastify.css';
 
-export interface ChatType {
-  id: string;
-  title: string;
-  messageHistoryIndex: number;
-  messages: Message[];
-  recipeConfig?: Recipe | null; // Add recipe configuration to chat state
-}
+import { ChatType } from '../types/chat';
 
 export default function Hub({
   chat: _chat,
@@ -68,6 +61,7 @@ export default function Hub({
         messages: [], // Always start with empty messages
         messageHistoryIndex: 0,
         recipeConfig: null, // Clear recipe for new chats from Hub
+        recipeParameters: null, // Clear parameters for new chats from Hub
       };
 
       // Update the PAIR chat state immediately to prevent flashing
@@ -94,7 +88,7 @@ export default function Hub({
 
         <ChatInput
           handleSubmit={handleSubmit}
-          isLoading={false}
+          chatState={ChatState.Idle}
           onStop={() => {}}
           commandHistory={[]}
           initialValue=""

@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
-use dotenv::dotenv;
+use dotenvy::dotenv;
 use futures::StreamExt;
 use goose::agents::{Agent, AgentEvent, ExtensionConfig};
 use goose::config::{DEFAULT_EXTENSION_DESCRIPTION, DEFAULT_EXTENSION_TIMEOUT};
-use goose::message::Message;
+use goose::conversation::message::Message;
+use goose::conversation::Conversation;
 use goose::providers::databricks::DatabricksProvider;
 
 #[tokio::main]
@@ -32,10 +33,11 @@ async fn main() {
         println!("  {}", extension);
     }
 
-    let messages = vec![Message::user()
-        .with_text("can you summarize the readme.md in this dir using just a haiku?")];
+    let conversation = Conversation::new(vec![Message::user()
+        .with_text("can you summarize the readme.md in this dir using just a haiku?")])
+    .unwrap();
 
-    let mut stream = agent.reply(&messages, None).await.unwrap();
+    let mut stream = agent.reply(conversation, None, None).await.unwrap();
     while let Some(Ok(AgentEvent::Message(message))) = stream.next().await {
         println!("{}", serde_json::to_string_pretty(&message).unwrap());
         println!("\n");

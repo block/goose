@@ -6,9 +6,21 @@ sidebar_label: Using Goosehints
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-
+import { FolderKey } from 'lucide-react';
 
 `.goosehints` is a text file used to provide additional context about your project and improve the communication with Goose. The use of `goosehints` ensures that Goose understands your requirements better and can execute tasks more effectively.
+
+<details>
+  <summary>Goose Hints Video Walkthrough</summary>
+  <iframe
+  class="aspect-ratio"
+  src="https://www.youtube.com/embed/kWXJC5p0608"
+  title="Goose Hints"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+  ></iframe>
+</details>
 
 :::info Developer extension required
 To make use of the hints file, you need to have the `Developer` extension [enabled](/docs/getting-started/using-extensions).
@@ -27,6 +39,10 @@ Goose supports two types of hint files:
 You can use both global and local hints at the same time. When both exist, Goose will consider both your global preferences and project-specific requirements. If the instructions in your local hints file conflict with your global preferences, Goose will prioritize the local hints.
 :::
 
+:::tip
+You can name your context files differently -- e.g. `AGENTS.md` -- and Goose can still pick them up. Configure the `CONTEXT_FILE_NAMES` setting!
+:::
+
 <Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
 
@@ -36,7 +52,7 @@ You can use both global and local hints at the same time. When both exist, Goose
      #### Local hints file
 
     1. Change the directory to where you'd like to set up the file. You can do this by clicking the directory path on the bottom of the Goose window.
-    2. Click the `Configure goosehints` icon on the bottom right of the Goose window.
+    2. Click the <FolderKey size={16} /> icon on the bottom right of the Goose window.
     4. Enter your local tips into the text area.
     5. Click `Save`.
     6. Restart your session so Goose can read the updated `.goosehints`.
@@ -61,6 +77,8 @@ You can use both global and local hints at the same time. When both exist, Goose
 The `.goosehints` file can include any instructions or contextual details relevant to your projects.
 
 A good time to consider adding a `.goosehints` file is when you find yourself repeating prompts, or providing the same kind of instructions multiple times. It's also a great way to provide a lot of context which might be better suited in a file.
+
+Goosehints are loaded at the start of your session and become part of the system prompt sent with every request. This means the content of `.goosehints` contributes to token usage, so keeping it concise can save both cost and processing time.
 
 ## Setting up hints
 
@@ -108,4 +126,4 @@ Like prompts, this is not an extensive list to shape your `.goosehints` file. Yo
 - **Keep file updated**: Regularly update the `.goosehints` file to reflect any changes in project protocols or priorities.
 - **Be concise**: Make sure the content is straightforward and to the point, ensuring Goose can quickly parse and act on the information.
 - **Start small**: Create a small set of clear, specific hints and gradually expand them based on your needs. This makes it easier to understand how Goose interprets and applies your instructions.
-
+**Reference other files**: Point Goose to relevant files like /docs/style.md or /scripts/validation.js to reduce repetition and keep instructions lightweight.

@@ -1,8 +1,14 @@
-import { useState, useCallback, useEffect, useRef, useId, useReducer } from 'react';
+import { useCallback, useEffect, useId, useReducer, useRef, useState } from 'react';
 import useSWR from 'swr';
-import { getSecretKey } from '../config';
-import { Message, createUserMessage, hasCompletedToolCalls } from '../types/message';
+import { createUserMessage, hasCompletedToolCalls, Message } from '../types/message';
 import { getSessionHistory } from '../api';
+import { ChatState } from '../types/chatState';
+
+let messageIdCounter = 0;
+
+function generateMessageId(): string {
+  return `msg-${Date.now()}-${++messageIdCounter}`;
+}
 
 // Ensure TextDecoder is available in the global scope
 const TextDecoder = globalThis.TextDecoder;
@@ -145,8 +151,8 @@ export interface UseMessageStreamHelpers {
   /** Form submission handler to automatically reset input and append a user message */
   handleSubmit: (event?: { preventDefault?: () => void }) => void;
 
-  /** Whether the API request is in progress */
-  isLoading: boolean;
+  /** Current chat state (idle, thinking, streaming, waiting for user input) */
+  chatState: ChatState;
 
   /** Add a tool result to a tool call */
   addToolResult: ({ toolCallId, result }: { toolCallId: string; result: unknown }) => void;
@@ -161,6 +167,9 @@ export interface UseMessageStreamHelpers {
 
   /** Session metadata including token counts */
   sessionMetadata: SessionMetadata | null;
+
+  /** Clear error state */
+  setError: (error: Error | undefined) => void;
 }
 
 /**
@@ -208,9 +217,9 @@ export function useMessageStream({
     messagesRef.current = messages || [];
   }, [messages]);
 
-  // We store loading state in another hook to sync loading states across hook invocations
-  const { data: isLoading = false, mutate: mutateLoading } = useSWR<boolean>(
-    [chatKey, 'loading'],
+  // Track chat state (idle, thinking, streaming, waiting for user input)
+  const { data: chatState = ChatState.Idle, mutate: mutateChatState } = useSWR<ChatState>(
+    [chatKey, 'chatState'],
     null
   );
 
@@ -273,9 +282,14 @@ export function useMessageStream({
 
                 switch (parsedEvent.type) {
                   case 'Message': {
+                    // Transition from waiting to streaming on first message
+                    mutateChatState(ChatState.Streaming);
+
                     // Create a new message object with the properties preserved or defaulted
                     const newMessage = {
                       ...parsedEvent.message,
+                      // Ensure the message has an ID - if not provided, generate one
+                      id: parsedEvent.message.id || generateMessageId(),
                       // Only set to true if it's undefined (preserve false values)
                       display:
                         parsedEvent.message.display === undefined
@@ -299,6 +313,15 @@ export function useMessageStream({
                       forceUpdate();
                     } else {
                       currentMessages = [...currentMessages, newMessage];
+                    }
+
+                    // Check if this message contains tool confirmation requests
+                    const hasToolConfirmation = newMessage.content.some(
+                      (content) => content.type === 'toolConfirmationRequest'
+                    );
+
+                    if (hasToolConfirmation) {
+                      mutateChatState(ChatState.WaitingForUserInput);
                     }
 
                     mutate(currentMessages, false);
@@ -337,7 +360,7 @@ export function useMessageStream({
                     // If this is a token limit error, create a contextLengthExceeded message instead of throwing
                     if (isTokenLimitError) {
                       const contextMessage: Message = {
-                        id: `context-${Date.now()}`,
+                        id: generateMessageId(),
                         role: 'assistant',
                         created: Math.floor(Date.now() / 1000),
                         content: [
@@ -358,9 +381,7 @@ export function useMessageStream({
                       break; // Don't throw error, just add the message
                     }
 
-                    // For non-token-limit errors, still throw the error
-                    const error = new Error(parsedEvent.error);
-                    throw error;
+                    throw new Error(parsedEvent.error);
                   }
 
                   case 'Finish': {
@@ -432,14 +453,14 @@ export function useMessageStream({
 
       return currentMessages;
     },
-    [mutate, onFinish, onError, forceUpdate, setError]
+    [mutate, mutateChatState, onFinish, onError, forceUpdate, setError]
   );
 
   // Send a request to the server
   const sendRequest = useCallback(
     async (requestMessages: Message[]) => {
       try {
-        mutateLoading(true);
+        mutateChatState(ChatState.Thinking); // Start in thinking state
         setError(undefined);
 
         // Create abort controller
@@ -454,7 +475,7 @@ export function useMessageStream({
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Secret-Key': getSecretKey(),
+            'X-Secret-Key': await window.electron.getSecretKey(),
             ...extraMetadataRef.current.headers,
           },
           body: JSON.stringify({
@@ -510,11 +531,22 @@ export function useMessageStream({
 
         setError(err as Error);
       } finally {
-        mutateLoading(false);
+        // Check if the last message has pending tool confirmations
+        const currentMessages = messagesRef.current;
+        const lastMessage = currentMessages[currentMessages.length - 1];
+        const hasPendingToolConfirmation = lastMessage?.content.some(
+          (content) => content.type === 'toolConfirmationRequest'
+        );
+
+        if (hasPendingToolConfirmation) {
+          mutateChatState(ChatState.WaitingForUserInput);
+        } else {
+          mutateChatState(ChatState.Idle);
+        }
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [api, processMessageStream, mutateLoading, setError, onResponse, onError, maxSteps]
+    [api, processMessageStream, mutateChatState, setError, onResponse, onError, maxSteps]
   );
 
   // Append a new message and send request
@@ -523,11 +555,16 @@ export function useMessageStream({
       // If a string is passed, convert it to a Message object
       const messageToAppend = typeof message === 'string' ? createUserMessage(message) : message;
 
+      // If we were waiting for user input and user provides input, transition away from that state
+      if (chatState === ChatState.WaitingForUserInput) {
+        mutateChatState(ChatState.Thinking);
+      }
+
       const currentMessages = [...messagesRef.current, messageToAppend];
       mutate(currentMessages, false);
       await sendRequest(currentMessages);
     },
-    [mutate, sendRequest]
+    [mutate, sendRequest, chatState, mutateChatState]
   );
 
   // Reload the last message
@@ -612,6 +649,7 @@ export function useMessageStream({
 
       // Create a tool response message
       const toolResponseMessage: Message = {
+        id: generateMessageId(),
         role: 'user' as const,
         created: Math.floor(Date.now() / 1000),
         content: [
@@ -657,11 +695,12 @@ export function useMessageStream({
     setInput,
     handleInputChange,
     handleSubmit,
-    isLoading: isLoading || false,
+    chatState,
     addToolResult,
     updateMessageStreamBody,
     notifications,
     currentModelInfo,
     sessionMetadata,
+    setError,
   };
 }

@@ -5,7 +5,8 @@ use std::sync::Arc;
 use anyhow::Result;
 use futures::StreamExt;
 use goose::agents::{Agent, AgentEvent};
-use goose::message::Message;
+use goose::conversation::message::Message;
+use goose::conversation::Conversation;
 use goose::model::ModelConfig;
 use goose::providers::base::Provider;
 use goose::providers::{
@@ -108,7 +109,8 @@ async fn run_truncate_test(
     model: &str,
     context_window: usize,
 ) -> Result<()> {
-    let model_config = ModelConfig::new(model.to_string())
+    let model_config = ModelConfig::new(model)
+        .unwrap()
         .with_context_limit(Some(context_window))
         .with_temperature(Some(0.0));
     let provider = provider_type.create_provider(model_config)?;
@@ -117,7 +119,7 @@ async fn run_truncate_test(
     agent.update_provider(provider).await?;
     let repeat_count = context_window + 10_000;
     let large_message_content = "hello ".repeat(repeat_count);
-    let messages = vec![
+    let messages = Conversation::new(vec![
         Message::user().with_text("hi there. what is 2 + 2?"),
         Message::assistant().with_text("hey! I think it's 4."),
         Message::user().with_text(&large_message_content),
@@ -127,9 +129,10 @@ async fn run_truncate_test(
         Message::user().with_text(
             "did I ask you what's 2+2 in this message history? just respond with 'yes' or 'no'",
         ),
-    ];
+    ])
+    .unwrap();
 
-    let reply_stream = agent.reply(&messages, None).await?;
+    let reply_stream = agent.reply(messages, None, None).await?;
     tokio::pin!(reply_stream);
 
     let mut responses = Vec::new();
@@ -142,7 +145,9 @@ async fn run_truncate_test(
             Ok(AgentEvent::ModelChange { .. }) => {
                 // Model change events are informational, just continue
             }
-
+            Ok(AgentEvent::HistoryReplaced(_)) => {
+                // Handle history replacement events if needed
+            }
             Err(e) => {
                 println!("Error: {:?}", e);
                 return Err(e);
@@ -163,11 +168,11 @@ async fn run_truncate_test(
     assert_eq!(responses[0].content.len(), 1);
 
     match responses[0].content[0] {
-        goose::message::MessageContent::Text(ref text_content) => {
+        goose::conversation::message::MessageContent::Text(ref text_content) => {
             assert!(text_content.text.to_lowercase().contains("no"));
             assert!(!text_content.text.to_lowercase().contains("yes"));
         }
-        goose::message::MessageContent::ContextLengthExceeded(_) => {
+        goose::conversation::message::MessageContent::ContextLengthExceeded(_) => {
             // This is an acceptable outcome for providers that don't truncate themselves
             // and correctly report that the context length was exceeded.
             println!(
@@ -448,6 +453,8 @@ mod schedule_tool_tests {
         let tool = schedule_tool.unwrap();
         assert!(tool
             .description
+            .clone()
+            .unwrap_or_default()
             .contains("Manage scheduled recipe execution"));
     }
 
@@ -478,6 +485,8 @@ mod schedule_tool_tests {
         let tool = schedule_tool.unwrap();
         assert!(tool
             .description
+            .clone()
+            .unwrap_or_default()
             .contains("Manage scheduled recipe execution"));
 
         // Verify the tool has the expected actions in its schema
@@ -539,16 +548,18 @@ mod final_output_tool_tests {
     use goose::agents::final_output_tool::{
         FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME,
     };
+    use goose::conversation::Conversation;
     use goose::providers::base::MessageStream;
     use goose::recipe::Response;
 
     #[tokio::test]
     async fn test_final_output_assistant_message_in_reply() -> Result<()> {
         use async_trait::async_trait;
+        use goose::conversation::message::Message;
         use goose::model::ModelConfig;
         use goose::providers::base::{Provider, ProviderUsage, Usage};
         use goose::providers::errors::ProviderError;
-        use mcp_core::tool::Tool;
+        use rmcp::model::Tool;
 
         #[derive(Clone)]
         struct MockProvider {
@@ -580,7 +591,7 @@ mod final_output_tool_tests {
 
         let agent = Agent::new();
 
-        let model_config = ModelConfig::new("test-model".to_string());
+        let model_config = ModelConfig::new("test-model").unwrap();
         let mock_provider = Arc::new(MockProvider { model_config });
         agent.update_provider(mock_provider).await?;
 
@@ -603,7 +614,7 @@ mod final_output_tool_tests {
             }),
         );
         let (_, result) = agent
-            .dispatch_tool_call(tool_call, "request_id".to_string())
+            .dispatch_tool_call(tool_call, "request_id".to_string(), None)
             .await;
 
         assert!(result.is_ok(), "Tool call should succeed");
@@ -619,7 +630,7 @@ mod final_output_tool_tests {
         );
 
         // Simulate the reply stream continuing after the final output tool call.
-        let reply_stream = agent.reply(&vec![], None).await?;
+        let reply_stream = agent.reply(Conversation::empty(), None, None).await?;
         tokio::pin!(reply_stream);
 
         let mut responses = Vec::new();
@@ -645,10 +656,11 @@ mod final_output_tool_tests {
     #[tokio::test]
     async fn test_when_final_output_not_called_in_reply() -> Result<()> {
         use async_trait::async_trait;
+        use goose::conversation::message::Message;
         use goose::model::ModelConfig;
         use goose::providers::base::{Provider, ProviderUsage};
         use goose::providers::errors::ProviderError;
-        use mcp_core::tool::Tool;
+        use rmcp::model::Tool;
 
         #[derive(Clone)]
         struct MockProvider {
@@ -700,7 +712,7 @@ mod final_output_tool_tests {
 
         let agent = Agent::new();
 
-        let model_config = ModelConfig::new("test-model".to_string());
+        let model_config = ModelConfig::new("test-model").unwrap();
         let mock_provider = Arc::new(MockProvider { model_config });
         agent.update_provider(mock_provider).await?;
 
@@ -716,7 +728,7 @@ mod final_output_tool_tests {
         agent.add_final_output_tool(response).await;
 
         // Simulate the reply stream being called.
-        let reply_stream = agent.reply(&vec![], None).await?;
+        let reply_stream = agent.reply(Conversation::empty(), None, None).await?;
         tokio::pin!(reply_stream);
 
         let mut responses = Vec::new();
@@ -762,15 +774,200 @@ mod final_output_tool_tests {
 }
 
 #[cfg(test)]
+mod retry_tests {
+    use super::*;
+    use async_trait::async_trait;
+    use goose::agents::types::{RetryConfig, SessionConfig, SuccessCheck};
+    use goose::conversation::message::Message;
+    use goose::conversation::Conversation;
+    use goose::model::ModelConfig;
+    use goose::providers::base::{Provider, ProviderUsage, Usage};
+    use goose::providers::errors::ProviderError;
+    use rmcp::model::Tool;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+
+    #[derive(Clone)]
+    struct MockRetryProvider {
+        model_config: ModelConfig,
+        call_count: Arc<AtomicUsize>,
+        fail_until: usize,
+    }
+
+    #[async_trait]
+    impl Provider for MockRetryProvider {
+        fn metadata() -> goose::providers::base::ProviderMetadata {
+            goose::providers::base::ProviderMetadata::empty()
+        }
+
+        fn get_model_config(&self) -> ModelConfig {
+            self.model_config.clone()
+        }
+
+        async fn complete(
+            &self,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
+            let count = self.call_count.fetch_add(1, Ordering::SeqCst);
+
+            if count < self.fail_until {
+                Ok((
+                    Message::assistant().with_text("Task failed - will retry."),
+                    ProviderUsage::new("mock".to_string(), Usage::default()),
+                ))
+            } else {
+                Ok((
+                    Message::assistant().with_text("Task completed successfully."),
+                    ProviderUsage::new("mock".to_string(), Usage::default()),
+                ))
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_retry_config_validation_integration() -> Result<()> {
+        let agent = Agent::new();
+
+        let model_config = ModelConfig::new("test-model").unwrap();
+        let mock_provider = Arc::new(MockRetryProvider {
+            model_config,
+            call_count: Arc::new(AtomicUsize::new(0)),
+            fail_until: 0,
+        });
+        agent.update_provider(mock_provider.clone()).await?;
+
+        let retry_config = RetryConfig {
+            max_retries: 3,
+            checks: vec![SuccessCheck::Shell {
+                command: "echo 'success check'".to_string(),
+            }],
+            on_failure: Some("echo 'cleanup executed'".to_string()),
+            timeout_seconds: Some(30),
+            on_failure_timeout_seconds: Some(60),
+        };
+
+        assert!(
+            retry_config.validate().is_ok(),
+            "Valid config should pass validation"
+        );
+
+        let session_config = SessionConfig {
+            id: goose::session::Identifier::Name("test-retry".to_string()),
+            working_dir: std::env::current_dir()?,
+            schedule_id: None,
+            execution_mode: None,
+            max_turns: None,
+            retry_config: Some(retry_config),
+        };
+
+        let conversation =
+            Conversation::new(vec![Message::user().with_text("Complete this task")]).unwrap();
+
+        let reply_stream = agent
+            .reply(conversation, Some(session_config), None)
+            .await?;
+        tokio::pin!(reply_stream);
+
+        let mut responses = Vec::new();
+        while let Some(response_result) = reply_stream.next().await {
+            match response_result {
+                Ok(AgentEvent::Message(response)) => responses.push(response),
+                Ok(_) => {}
+                Err(e) => return Err(e),
+            }
+        }
+
+        assert!(!responses.is_empty(), "Should have received responses");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_retry_success_check_execution() -> Result<()> {
+        use goose::agents::retry::execute_success_checks;
+
+        let retry_config = RetryConfig {
+            max_retries: 3,
+            checks: vec![],
+            on_failure: None,
+            timeout_seconds: Some(30),
+            on_failure_timeout_seconds: Some(60),
+        };
+
+        let success_checks = vec![SuccessCheck::Shell {
+            command: "echo 'test'".to_string(),
+        }];
+
+        let result = execute_success_checks(&success_checks, &retry_config).await;
+        assert!(result.is_ok(), "Success check should pass");
+        assert!(result.unwrap(), "Command should succeed");
+
+        let fail_checks = vec![SuccessCheck::Shell {
+            command: "false".to_string(),
+        }];
+
+        let result = execute_success_checks(&fail_checks, &retry_config).await;
+        assert!(result.is_ok(), "Success check execution should not error");
+        assert!(!result.unwrap(), "Command should fail");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_retry_logic_with_validation_errors() -> Result<()> {
+        let invalid_retry_config = RetryConfig {
+            max_retries: 0,
+            checks: vec![],
+            on_failure: None,
+            timeout_seconds: Some(0),
+            on_failure_timeout_seconds: None,
+        };
+
+        let validation_result = invalid_retry_config.validate();
+        assert!(
+            validation_result.is_err(),
+            "Should validate max_retries > 0"
+        );
+        assert!(validation_result
+            .unwrap_err()
+            .contains("max_retries must be greater than 0"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_retry_attempts_counter_reset() -> Result<()> {
+        let agent = Agent::new();
+
+        agent.reset_retry_attempts().await;
+        let initial_attempts = agent.get_retry_attempts().await;
+        assert_eq!(initial_attempts, 0);
+
+        let new_attempts = agent.increment_retry_attempts().await;
+        assert_eq!(new_attempts, 1);
+
+        agent.reset_retry_attempts().await;
+        let reset_attempts = agent.get_retry_attempts().await;
+        assert_eq!(reset_attempts, 0);
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
 mod max_turns_tests {
     use super::*;
     use async_trait::async_trait;
-    use goose::message::MessageContent;
+    use goose::conversation::message::{Message, MessageContent};
+    use goose::conversation::Conversation;
     use goose::model::ModelConfig;
     use goose::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
     use goose::providers::errors::ProviderError;
     use goose::session::storage::Identifier;
-    use mcp_core::tool::{Tool, ToolCall};
+    use mcp_core::tool::ToolCall;
+    use rmcp::model::Tool;
     use std::path::PathBuf;
 
     struct MockToolProvider {}
@@ -801,7 +998,7 @@ mod max_turns_tests {
         }
 
         fn get_model_config(&self) -> ModelConfig {
-            ModelConfig::new("mock-model".to_string())
+            ModelConfig::new("mock-model").unwrap()
         }
 
         fn metadata() -> ProviderMetadata {
@@ -831,10 +1028,13 @@ mod max_turns_tests {
             schedule_id: None,
             execution_mode: None,
             max_turns: Some(1),
+            retry_config: None,
         };
-        let messages = vec![Message::user().with_text("Hello")];
+        let conversation = Conversation::new(vec![Message::user().with_text("Hello")]).unwrap();
 
-        let reply_stream = agent.reply(&messages, Some(session_config)).await?;
+        let reply_stream = agent
+            .reply(conversation, Some(session_config), None)
+            .await?;
         tokio::pin!(reply_stream);
 
         let mut responses = Vec::new();
@@ -856,6 +1056,7 @@ mod max_turns_tests {
                 }
                 Ok(AgentEvent::McpNotification(_)) => {}
                 Ok(AgentEvent::ModelChange { .. }) => {}
+                Ok(AgentEvent::HistoryReplaced(_)) => {}
                 Err(e) => {
                     return Err(e);
                 }

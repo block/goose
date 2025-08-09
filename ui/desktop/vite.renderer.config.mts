@@ -9,4 +9,8 @@ export default defineConfig({
   },
 
   plugins: [tailwindcss()],
+
+  build: {
+    target: 'esnext'
+  }
 });

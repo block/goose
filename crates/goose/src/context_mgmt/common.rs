@@ -1,16 +1,16 @@
 use std::sync::Arc;
 
-use mcp_core::Tool;
+use rmcp::model::Tool;
 
+use crate::conversation::message::Message;
 use crate::{
-    message::Message,
     providers::base::Provider,
     token_counter::{AsyncTokenCounter, TokenCounter},
 };
 
 const ESTIMATE_FACTOR: f32 = 0.7;
-const SYSTEM_PROMPT_TOKEN_OVERHEAD: usize = 3_000;
-const TOOLS_TOKEN_OVERHEAD: usize = 5_000;
+pub const SYSTEM_PROMPT_TOKEN_OVERHEAD: usize = 3_000;
+pub const TOOLS_TOKEN_OVERHEAD: usize = 5_000;
 
 pub fn estimate_target_context_limit(provider: Arc<dyn Provider>) -> usize {
     let model_context_limit = provider.get_model_config().context_limit();
@@ -19,8 +19,14 @@ pub fn estimate_target_context_limit(provider: Arc<dyn Provider>) -> usize {
     // Our token count is an estimate since model providers often don't provide the tokenizer (eg. Claude)
     let target_limit = (model_context_limit as f32 * ESTIMATE_FACTOR) as usize;
 
-    // subtract out overhead for system prompt and tools
-    target_limit - (SYSTEM_PROMPT_TOKEN_OVERHEAD + TOOLS_TOKEN_OVERHEAD)
+    // subtract out overhead for system prompt and tools, but ensure we don't go negative
+    let overhead = SYSTEM_PROMPT_TOKEN_OVERHEAD + TOOLS_TOKEN_OVERHEAD;
+    if target_limit > overhead {
+        target_limit - overhead
+    } else {
+        // If overhead is larger than target limit, return a minimal usable limit
+        std::cmp::max(target_limit / 2, 1000)
+    }
 }
 
 pub fn get_messages_token_counts(token_counter: &TokenCounter, messages: &[Message]) -> Vec<usize> {

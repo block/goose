@@ -1,6 +1,6 @@
 use crate::bench_work_dir::BenchmarkWorkDir;
 use anyhow::{Context, Result};
-use goose::message::Message;
+use goose::conversation::message::Message;
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;

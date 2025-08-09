@@ -6,11 +6,13 @@ use anyhow::Result;
 use base64::Engine;
 use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::formatdoc;
-use serde_json::{json, Value};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::{
     collections::HashMap,
+    fs::File,
     future::Future,
-    io::Cursor,
+    io::{Cursor, Read},
     path::{Path, PathBuf},
     pin::Pin,
 };
@@ -19,24 +21,23 @@ use tokio::{
     process::Command,
     sync::mpsc,
 };
+use tokio_stream::{wrappers::SplitStream, StreamExt as _};
 use url::Url;
 
 use include_dir::{include_dir, Dir};
 use mcp_core::{
-    handler::{PromptError, ResourceError, ToolError},
-    protocol::{JsonRpcMessage, JsonRpcNotification, ServerCapabilities},
-    resource::Resource,
-    tool::Tool,
+    handler::{require_str_parameter, PromptError, ResourceError, ToolError},
+    protocol::ServerCapabilities,
 };
-use mcp_core::{
-    prompt::{Prompt, PromptArgument, PromptTemplate},
-    tool::ToolAnnotations,
-};
+
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
-use rmcp::model::Content;
 
-use rmcp::model::Role;
+use rmcp::model::{
+    Content, JsonRpcMessage, JsonRpcNotification, JsonRpcVersion2_0, Notification, Prompt,
+    PromptArgument, Resource, Role, Tool, ToolAnnotations,
+};
+use rmcp::object;
 
 use self::editor_models::{create_editor_model, EditorModel};
 use self::shell::{expand_path, get_shell_config, is_absolute_path, normalize_line_endings};
@@ -47,8 +48,23 @@ use xcap::{Monitor, Window};
 
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PromptTemplate {
+    pub id: String,
+    pub template: String,
+    pub arguments: Vec<PromptArgumentTemplate>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PromptArgumentTemplate {
+    pub name: String,
+    pub description: Option<String>,
+    pub required: Option<bool>,
+}
+
 // Embeds the prompts directory to the build
 static PROMPTS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/developer/prompts");
+const LINE_READ_LIMIT: usize = 2000;
 
 /// Loads prompt files from the embedded PROMPTS_DIR and returns a HashMap of prompts.
 /// Ensures that each prompt name is unique.
@@ -154,108 +170,28 @@ impl DeveloperRouter {
                 If you need to run a long lived command, background it - e.g. `uvicorn main:app &` so that
                 this tool does not run indefinitely.
 
+                **Important**: Use ripgrep - `rg` - exclusively when you need to locate a file or a code reference,
+                other solutions may produce too large output because of hidden files! For example *do not* use `find` or `ls -r`
+                  - List files by name: `rg --files | rg <filename>`
+                  - List files that contain a regex: `rg '<regex>' -l`
+
                 **Important**: Each shell command runs in its own process. Things like directory changes or
                 sourcing files do not persist between tool calls. So you may need to repeat them each time by
                 stringing together commands, e.g. `cd example && ls` or `source env/bin/activate && pip install numpy`
-
-                - Restrictions: Avoid find, grep, cat, head, tail, ls - use dedicated tools instead (Grep, Glob, Read, LS)
-                - Multiple commands: Use ; or && to chain commands, avoid newlines
-                - Pathnames: Use absolute paths and avoid cd unless explicitly requested
+                  - Multiple commands: Use ; or && to chain commands, avoid newlines
+                  - Pathnames: Use absolute paths and avoid cd unless explicitly requested
             "#},
         };
 
         let bash_tool = Tool::new(
             "shell".to_string(),
             shell_tool_desc.to_string(),
-            json!({
+            object!({
                 "type": "object",
                 "required": ["command"],
                 "properties": {
                     "command": {"type": "string"}
                 }
-            }),
-            None,
-        );
-
-        let glob_tool = Tool::new(
-            "glob".to_string(),
-            indoc! {r#"
-                Search for files using glob patterns.
-                
-                This tool provides fast file pattern matching using glob syntax.
-                Returns matching file paths sorted by modification time.
-                Examples:
-                - `*.rs` - Find all Rust files in current directory
-                - `src/**/*.py` - Find all Python files recursively in src directory
-                - `**/test*.js` - Find all JavaScript test files recursively
-                
-                **Important**: Use this tool instead of shell commands like `find` or `ls -r` for file searching,
-                as it properly handles ignored files and is more efficient. This tool respects .gooseignore patterns.
-                
-                Use this tool when you need to locate files by name patterns rather than content.
-            "#}.to_string(),
-            json!({
-                "type": "object",
-                "required": ["pattern"],
-                "properties": {
-                    "pattern": {"type": "string", "description": "The glob pattern to search for"},
-                    "path": {"type": "string", "description": "The directory to search in (defaults to current directory)"}
-                }
-            }),
-            Some(ToolAnnotations {
-                title: Some("Search files by pattern".to_string()),
-                read_only_hint: true,
-                destructive_hint: false,
-                idempotent_hint: true,
-                open_world_hint: false,
-            }),
-        );
-
-        let grep_tool = Tool::new(
-            "grep".to_string(),
-            indoc! {r#"
-                Execute file content search commands using ripgrep, grep, or find.
-                
-                Use this tool to run search commands that look for content within files. The tool
-                executes your command directly and filters results to respect .gooseignore patterns.
-                
-                **Recommended tools and usage:**
-                
-                **ripgrep (rg)** - Fast, recommended for most searches:
-                - List files containing pattern: `rg -l "pattern"`
-                - Case-insensitive search: `rg -i "pattern"`
-                - Search specific file types: `rg "pattern" --glob "*.js"`
-                - Show matches with context: `rg "pattern" -C 3`
-                - List files by name: `rg --files | rg <filename>`
-                - List files that contain a regex: `rg '<regex>' -l`
-                - Sort by modification time: `rg -l "pattern" --sort modified`
-                
-                **grep** - Traditional Unix tool:
-                - Recursive search: `grep -r "pattern" .`
-                - List files only: `grep -rl "pattern" .`
-                - Include specific files: `grep -r "pattern" --include="*.py"`
-                
-                **find + grep** - When you need complex file filtering:
-                - `find . -name "*.py" -exec grep -l "pattern" {} \;`
-                - `find . -type f -newer file.txt -exec grep "pattern" {} \;`
-                
-                **Important**: Use this tool instead of the shell tool for search commands, as it
-                properly filters results to respect ignored files.
-            "#}
-            .to_string(),
-            json!({
-                "type": "object",
-                "required": ["command"],
-                "properties": {
-                    "command": {"type": "string", "description": "The search command to execute (rg, grep, find, etc.)"}
-                }
-            }),
-            Some(ToolAnnotations {
-                title: Some("Search file contents".to_string()),
-                read_only_hint: true,
-                destructive_hint: false,
-                idempotent_hint: true,
-                open_world_hint: false,
             }),
         );
 
@@ -274,11 +210,13 @@ impl DeveloperRouter {
 
                 To use the write command, you must specify `file_text` which will become the new content of the file. Be careful with
                 existing files! This is a full overwrite, so you must include everything - not just sections you are modifying.
-
-                To use the edit_file command, you must specify both `old_str` and `new_str` - {}.
-
+                
                 To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning) 
                 and `new_str` (the text to insert).
+
+                To use the edit_file command, you must specify both `old_str` and `new_str` 
+                {}
+                
             "#, editor.get_str_replace_description()},
                 "edit_file",
             )
@@ -308,7 +246,7 @@ impl DeveloperRouter {
         let text_editor_tool = Tool::new(
             "text_editor".to_string(),
             text_editor_desc.to_string(),
-            json!({
+            object!({
                 "type": "object",
                 "required": ["command", "path"],
                 "properties": {
@@ -337,7 +275,6 @@ impl DeveloperRouter {
                     "file_text": {"type": "string"}
                 }
             }),
-            None,
         );
 
         let list_windows_tool = Tool::new(
@@ -347,19 +284,19 @@ impl DeveloperRouter {
                 Returns a list of window titles that can be used with the window_title parameter
                 of the screen_capture tool.
             "#},
-            json!({
+            object!({
                 "type": "object",
                 "required": [],
                 "properties": {}
             }),
-            Some(ToolAnnotations {
-                title: Some("List available windows".to_string()),
-                read_only_hint: true,
-                destructive_hint: false,
-                idempotent_hint: false,
-                open_world_hint: false,
-            }),
-        );
+        )
+        .annotate(ToolAnnotations {
+            title: Some("List available windows".to_string()),
+            read_only_hint: Some(true),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(false),
+            open_world_hint: Some(false),
+        });
 
         let screen_capture_tool = Tool::new(
             "screen_capture",
@@ -371,7 +308,7 @@ impl DeveloperRouter {
 
                 Only one of display or window_title should be specified.
             "#},
-            json!({
+            object!({
                 "type": "object",
                 "required": [],
                 "properties": {
@@ -386,15 +323,14 @@ impl DeveloperRouter {
                         "description": "Optional: the exact title of the window to capture. use the list_windows tool to find the available windows."
                     }
                 }
-            }),
-            Some(ToolAnnotations {
-                title: Some("Capture a full screen".to_string()),
-                read_only_hint: true,
-                destructive_hint: false,
-                idempotent_hint: false,
-                open_world_hint: false,
-            }),
-        );
+            })
+        ).annotate(ToolAnnotations {
+            title: Some("Capture a full screen".to_string()),
+            read_only_hint: Some(true),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(false),
+            open_world_hint: Some(false),
+        });
 
         let image_processor_tool = Tool::new(
             "image_processor",
@@ -406,7 +342,7 @@ impl DeveloperRouter {
 
                 This allows processing image files for use in the conversation.
             "#},
-            json!({
+            object!({
                 "type": "object",
                 "required": ["path"],
                 "properties": {
@@ -416,14 +352,14 @@ impl DeveloperRouter {
                     }
                 }
             }),
-            Some(ToolAnnotations {
-                title: Some("Process Image".to_string()),
-                read_only_hint: true,
-                destructive_hint: false,
-                idempotent_hint: true,
-                open_world_hint: false,
-            }),
-        );
+        )
+        .annotate(ToolAnnotations {
+            title: Some("Process Image".to_string()),
+            read_only_hint: Some(true),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(true),
+            open_world_hint: Some(false),
+        });
 
         // Get base instructions and working directory
         let cwd = std::env::current_dir().expect("should have a current working dir");
@@ -468,40 +404,57 @@ impl DeveloperRouter {
             },
         };
 
-        // choose_app_strategy().config_dir()
-        // - macOS/Linux: ~/.config/goose/
-        // - Windows:     ~\AppData\Roaming\Block\goose\config\
-        // keep previous behavior of expanding ~/.config in case this fails
-        let global_hints_path = choose_app_strategy(crate::APP_STRATEGY.clone())
-            .map(|strategy| strategy.in_config_dir(".goosehints"))
-            .unwrap_or_else(|_| {
-                PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints").to_string())
-            });
+        let hints_filenames: Vec<String> = std::env::var("CONTEXT_FILE_NAMES")
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_else(|| vec![".goosehints".to_string()]);
 
-        // Create the directory if it doesn't exist
-        let _ = std::fs::create_dir_all(global_hints_path.parent().unwrap());
+        let mut global_hints_contents = Vec::with_capacity(hints_filenames.len());
+        let mut local_hints_contents = Vec::with_capacity(hints_filenames.len());
 
-        // Check for local hints in current directory
-        let local_hints_path = cwd.join(".goosehints");
+        for hints_filename in &hints_filenames {
+            // Global hints
+            // choose_app_strategy().config_dir()
+            // - macOS/Linux: ~/.config/goose/
+            // - Windows:     ~\AppData\Roaming\Block\goose\config\
+            // keep previous behavior of expanding ~/.config in case this fails
+            let global_hints_path = choose_app_strategy(crate::APP_STRATEGY.clone())
+                .map(|strategy| strategy.in_config_dir(hints_filename))
+                .unwrap_or_else(|_| {
+                    let path_str = format!("~/.config/goose/{}", hints_filename);
+                    PathBuf::from(shellexpand::tilde(&path_str).to_string())
+                });
 
-        // Read global hints if they exist
-        let mut hints = String::new();
-        if global_hints_path.is_file() {
-            if let Ok(global_hints) = std::fs::read_to_string(&global_hints_path) {
-                hints.push_str("\n### Global Hints\nThe developer extension includes some global hints that apply to all projects & directories.\n");
-                hints.push_str(&global_hints);
+            if let Some(parent) = global_hints_path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+
+            if global_hints_path.is_file() {
+                if let Ok(content) = std::fs::read_to_string(&global_hints_path) {
+                    global_hints_contents.push(content);
+                }
+            }
+
+            let local_hints_path = cwd.join(hints_filename);
+            if local_hints_path.is_file() {
+                if let Ok(content) = std::fs::read_to_string(&local_hints_path) {
+                    local_hints_contents.push(content);
+                }
             }
         }
 
-        // Read local hints if they exist
-        if local_hints_path.is_file() {
-            if let Ok(local_hints) = std::fs::read_to_string(&local_hints_path) {
-                if !hints.is_empty() {
-                    hints.push_str("\n\n");
-                }
-                hints.push_str("### Project Hints\nThe developer extension includes some hints for working on the project in this directory.\n");
-                hints.push_str(&local_hints);
+        let mut hints = String::new();
+        if !global_hints_contents.is_empty() {
+            hints.push_str("\n### Global Hints\nThe developer extension includes some global hints that apply to all projects & directories.\n");
+            hints.push_str(&global_hints_contents.join("\n"));
+        }
+
+        if !local_hints_contents.is_empty() {
+            if !hints.is_empty() {
+                hints.push_str("\n\n");
             }
+            hints.push_str("### Project Hints\nThe developer extension includes some hints for working on the project in this directory.\n");
+            hints.push_str(&local_hints_contents.join("\n"));
         }
 
         // Return base instructions directly when no hints are found
@@ -564,8 +517,6 @@ impl DeveloperRouter {
         Self {
             tools: vec![
                 bash_tool,
-                glob_tool,
-                grep_tool,
                 text_editor_tool,
                 list_windows_tool,
                 screen_capture_tool,
@@ -582,6 +533,46 @@ impl DeveloperRouter {
     // Helper method to check if a path should be ignored
     fn is_ignored(&self, path: &Path) -> bool {
         self.ignore_patterns.matched(path, false).is_ignore()
+    }
+
+    // shell output can be large, this will help manage that
+    fn process_shell_output(&self, output_str: &str) -> Result<(String, String), ToolError> {
+        let lines: Vec<&str> = output_str.lines().collect();
+        let line_count = lines.len();
+
+        let start = lines.len().saturating_sub(100);
+        let last_100_lines_str = lines[start..].join("\n");
+
+        let final_output = if line_count > 100 {
+            let tmp_file = tempfile::NamedTempFile::new().map_err(|e| {
+                ToolError::ExecutionError(format!("Failed to create temporary file: {}", e))
+            })?;
+
+            std::fs::write(tmp_file.path(), output_str).map_err(|e| {
+                ToolError::ExecutionError(format!("Failed to write to temporary file: {}", e))
+            })?;
+
+            let (_, path) = tmp_file.keep().map_err(|e| {
+                ToolError::ExecutionError(format!("Failed to persist temporary file: {}", e))
+            })?;
+
+            format!(
+                "private note: output was {} lines and we are only showing the most recent lines, remainder of lines in {} do not show tmp file to user, that file can be searched if extra context needed to fulfill request. truncated output: \n{}",
+                line_count,
+                path.display(),
+                last_100_lines_str
+            )
+        } else {
+            output_str.to_string()
+        };
+
+        let user_output = if line_count > 100 {
+            format!("... \n{}", last_100_lines_str)
+        } else {
+            output_str.to_string()
+        };
+
+        Ok((final_output, user_output))
     }
 
     // Helper method to resolve a path relative to cwd with platform-specific handling
@@ -651,75 +642,44 @@ impl DeveloperRouter {
             .spawn()
             .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
 
-        let stdout = child.stdout.take().unwrap();
-        let stderr = child.stderr.take().unwrap();
-
-        let mut stdout_reader = BufReader::new(stdout);
-        let mut stderr_reader = BufReader::new(stderr);
+        let stdout = BufReader::new(child.stdout.take().unwrap());
+        let stderr = BufReader::new(child.stderr.take().unwrap());
 
         let output_task = tokio::spawn(async move {
             let mut combined_output = String::new();
 
-            let mut stdout_buf = Vec::new();
-            let mut stderr_buf = Vec::new();
+            // We have the individual two streams above, now merge them into one unified stream of
+            // an enum. ref https://blog.yoshuawuyts.com/futures-concurrency-3
+            let stdout = SplitStream::new(stdout.split(b'\n')).map(|v| ("stdout", v));
+            let stderr = SplitStream::new(stderr.split(b'\n')).map(|v| ("stderr", v));
+            let mut merged = stdout.merge(stderr);
 
-            let mut stdout_done = false;
-            let mut stderr_done = false;
+            while let Some((key, line)) = merged.next().await {
+                let mut line = line?;
+                // Re-add this as clients expect it
+                line.push(b'\n');
+                // Here we always convert to UTF-8 so agents don't have to deal with corrupted output
+                let line = String::from_utf8_lossy(&line);
 
-            loop {
-                tokio::select! {
-                    n = stdout_reader.read_until(b'\n', &mut stdout_buf), if !stdout_done => {
-                        if n? == 0 {
-                            stdout_done = true;
-                        } else {
-                            let line = String::from_utf8_lossy(&stdout_buf);
+                combined_output.push_str(&line);
 
-                            notifier.try_send(JsonRpcMessage::Notification(JsonRpcNotification {
-                                jsonrpc: "2.0".to_string(),
-                                method: "notifications/message".to_string(),
-                                params: Some(json!({
-                                    "data": {
-                                        "type": "shell",
-                                        "stream": "stdout",
-                                        "output": line.to_string(),
-                                    }
-                                })),
-                            })).ok();
-
-                            combined_output.push_str(&line);
-                            stdout_buf.clear();
-                        }
-                    }
-
-                    n = stderr_reader.read_until(b'\n', &mut stderr_buf), if !stderr_done => {
-                        if n? == 0 {
-                            stderr_done = true;
-                        } else {
-                            let line = String::from_utf8_lossy(&stderr_buf);
-
-                            notifier.try_send(JsonRpcMessage::Notification(JsonRpcNotification {
-                                jsonrpc: "2.0".to_string(),
-                                method: "notifications/message".to_string(),
-                                params: Some(json!({
-                                    "data": {
-                                        "type": "shell",
-                                        "stream": "stderr",
-                                        "output": line.to_string(),
-                                    }
-                                })),
-                            })).ok();
-
-                            combined_output.push_str(&line);
-                            stderr_buf.clear();
-                        }
-                    }
-
-                    else => break,
-                }
-
-                if stdout_done && stderr_done {
-                    break;
-                }
+                notifier
+                    .try_send(JsonRpcMessage::Notification(JsonRpcNotification {
+                        jsonrpc: JsonRpcVersion2_0,
+                        notification: Notification {
+                            method: "notifications/message".to_string(),
+                            params: object!({
+                                "level": "info",
+                                "data": {
+                                    "type": "shell",
+                                    "stream": key,
+                                    "output": line,
+                                }
+                            }),
+                            extensions: Default::default(),
+                        },
+                    }))
+                    .ok();
             }
             Ok::<_, std::io::Error>(combined_output)
         });
@@ -747,72 +707,11 @@ impl DeveloperRouter {
                 )));
         }
 
-        Ok(vec![
-            Content::text(output_str.clone()).with_audience(vec![Role::Assistant]),
-            Content::text(output_str)
-                .with_audience(vec![Role::User])
-                .with_priority(0.0),
-        ])
-    }
-
-    async fn glob(&self, params: Value) -> Result<Vec<Content>, ToolError> {
-        let pattern =
-            params
-                .get("pattern")
-                .and_then(|v| v.as_str())
-                .ok_or(ToolError::InvalidParameters(
-                    "The pattern string is required".to_string(),
-                ))?;
-
-        let search_path = params.get("path").and_then(|v| v.as_str()).unwrap_or(".");
-
-        let full_pattern = if search_path == "." {
-            pattern.to_string()
-        } else {
-            format!("{}/{}", search_path.trim_end_matches('/'), pattern)
-        };
-
-        let glob_result = glob::glob(&full_pattern)
-            .map_err(|e| ToolError::InvalidParameters(format!("Invalid glob pattern: {}", e)))?;
-
-        let mut file_paths_with_metadata = Vec::new();
-
-        for entry in glob_result {
-            match entry {
-                Ok(path) => {
-                    // Check if the path should be ignored
-                    if !self.is_ignored(&path) {
-                        // Get file metadata for sorting by modification time
-                        if let Ok(metadata) = std::fs::metadata(&path) {
-                            if metadata.is_file() {
-                                let modified = metadata
-                                    .modified()
-                                    .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
-                                file_paths_with_metadata.push((path, modified));
-                            }
-                        }
-                    }
-                }
-                Err(e) => {
-                    tracing::warn!("Error reading glob entry: {}", e);
-                }
-            }
-        }
-
-        // Sort by modification time (newest first)
-        file_paths_with_metadata.sort_by(|a, b| b.1.cmp(&a.1));
-
-        // Extract just the file paths
-        let file_paths: Vec<String> = file_paths_with_metadata
-            .into_iter()
-            .map(|(path, _)| path.to_string_lossy().to_string())
-            .collect();
-
-        let result = file_paths.join("\n");
+        let (final_output, user_output) = self.process_shell_output(&output_str)?;
 
         Ok(vec![
-            Content::text(result.clone()).with_audience(vec![Role::Assistant]),
-            Content::text(result)
+            Content::text(final_output).with_audience(vec![Role::Assistant]),
+            Content::text(user_output)
                 .with_audience(vec![Role::User])
                 .with_priority(0.0),
         ])
@@ -858,12 +757,7 @@ impl DeveloperRouter {
                 self.text_editor_view(&path, view_range).await
             }
             "write" => {
-                let file_text = params
-                    .get("file_text")
-                    .and_then(|v| v.as_str())
-                    .ok_or_else(|| {
-                        ToolError::InvalidParameters("Missing 'file_text' parameter".into())
-                    })?;
+                let file_text = require_str_parameter(&params, "file_text")?;
 
                 self.text_editor_write(&path, file_text).await
             }
@@ -907,133 +801,151 @@ impl DeveloperRouter {
         }
     }
 
+    // Helper method to validate and calculate view range indices
+    fn calculate_view_range(
+        &self,
+        view_range: Option<(usize, i64)>,
+        total_lines: usize,
+    ) -> Result<(usize, usize), ToolError> {
+        if let Some((start_line, end_line)) = view_range {
+            // Convert 1-indexed line numbers to 0-indexed
+            let start_idx = if start_line > 0 { start_line - 1 } else { 0 };
+            let end_idx = if end_line == -1 {
+                total_lines
+            } else {
+                std::cmp::min(end_line as usize, total_lines)
+            };
+
+            if start_idx >= total_lines {
+                return Err(ToolError::InvalidParameters(format!(
+                    "Start line {} is beyond the end of the file (total lines: {})",
+                    start_line, total_lines
+                )));
+            }
+
+            if start_idx >= end_idx {
+                return Err(ToolError::InvalidParameters(format!(
+                    "Start line {} must be less than end line {}",
+                    start_line, end_line
+                )));
+            }
+
+            Ok((start_idx, end_idx))
+        } else {
+            Ok((0, total_lines))
+        }
+    }
+
+    // Helper method to format file content with line numbers
+    fn format_file_content(
+        &self,
+        path: &Path,
+        lines: &[&str],
+        start_idx: usize,
+        end_idx: usize,
+        view_range: Option<(usize, i64)>,
+    ) -> String {
+        let display_content = if lines.is_empty() {
+            String::new()
+        } else {
+            let selected_lines: Vec<String> = lines[start_idx..end_idx]
+                .iter()
+                .enumerate()
+                .map(|(i, line)| format!("{}: {}", start_idx + i + 1, line))
+                .collect();
+
+            selected_lines.join("\n")
+        };
+
+        let language = lang::get_language_identifier(path);
+        if view_range.is_some() {
+            formatdoc! {"
+                ### {path} (lines {start}-{end})
+                ```{language}
+                {content}
+                ```
+                ",
+                path=path.display(),
+                start=view_range.unwrap().0,
+                end=if view_range.unwrap().1 == -1 { "end".to_string() } else { view_range.unwrap().1.to_string() },
+                language=language,
+                content=display_content,
+            }
+        } else {
+            formatdoc! {"
+                ### {path}
+                ```{language}
+                {content}
+                ```
+                ",
+                path=path.display(),
+                language=language,
+                content=display_content,
+            }
+        }
+    }
+
     async fn text_editor_view(
         &self,
         path: &PathBuf,
         view_range: Option<(usize, i64)>,
     ) -> Result<Vec<Content>, ToolError> {
-        if path.is_file() {
-            // Check file size first (400KB limit)
-            const MAX_FILE_SIZE: u64 = 400 * 1024; // 400KB in bytes
-            const MAX_CHAR_COUNT: usize = 400_000; // 409600 chars = 400KB
-
-            let file_size = std::fs::metadata(path)
-                .map_err(|e| {
-                    ToolError::ExecutionError(format!("Failed to get file metadata: {}", e))
-                })?
-                .len();
-
-            if file_size > MAX_FILE_SIZE {
-                return Err(ToolError::ExecutionError(format!(
-                    "File '{}' is too large ({:.2}KB). Maximum size is 400KB to prevent memory issues.",
-                    path.display(),
-                    file_size as f64 / 1024.0
-                )));
-            }
-
-            let uri = Url::from_file_path(path)
-                .map_err(|_| ToolError::ExecutionError("Invalid file path".into()))?
-                .to_string();
-
-            let content = std::fs::read_to_string(path)
-                .map_err(|e| ToolError::ExecutionError(format!("Failed to read file: {}", e)))?;
-
-            let char_count = content.chars().count();
-            if char_count > MAX_CHAR_COUNT {
-                return Err(ToolError::ExecutionError(format!(
-                    "File '{}' has too many characters ({}). Maximum character count is {}.",
-                    path.display(),
-                    char_count,
-                    MAX_CHAR_COUNT
-                )));
-            }
-
-            let lines: Vec<&str> = content.lines().collect();
-            let total_lines = lines.len();
-
-            // Handle view_range if provided, otherwise show all lines
-            let (start_idx, end_idx) = if let Some((start_line, end_line)) = view_range {
-                // Convert 1-indexed line numbers to 0-indexed
-                let start_idx = if start_line > 0 { start_line - 1 } else { 0 };
-                let end_idx = if end_line == -1 {
-                    total_lines
-                } else {
-                    std::cmp::min(end_line as usize, total_lines)
-                };
-
-                if start_idx >= total_lines {
-                    return Err(ToolError::InvalidParameters(format!(
-                        "Start line {} is beyond the end of the file (total lines: {})",
-                        start_line, total_lines
-                    )));
-                }
-
-                if start_idx >= end_idx {
-                    return Err(ToolError::InvalidParameters(format!(
-                        "Start line {} must be less than end line {}",
-                        start_line, end_line
-                    )));
-                }
-
-                (start_idx, end_idx)
-            } else {
-                (0, total_lines)
-            };
-
-            // Always format lines with line numbers for better usability
-            let display_content = if total_lines == 0 {
-                String::new()
-            } else {
-                let selected_lines: Vec<String> = lines[start_idx..end_idx]
-                    .iter()
-                    .enumerate()
-                    .map(|(i, line)| format!("{}: {}", start_idx + i + 1, line))
-                    .collect();
-
-                selected_lines.join("\n")
-            };
-
-            let language = lang::get_language_identifier(path);
-            let formatted = if view_range.is_some() {
-                formatdoc! {"
-                    ### {path} (lines {start}-{end})
-                    ```{language}
-                    {content}
-                    ```
-                    ",
-                    path=path.display(),
-                    start=view_range.unwrap().0,
-                    end=if view_range.unwrap().1 == -1 { "end".to_string() } else { view_range.unwrap().1.to_string() },
-                    language=language,
-                    content=display_content,
-                }
-            } else {
-                formatdoc! {"
-                    ### {path}
-                    ```{language}
-                    {content}
-                    ```
-                    ",
-                    path=path.display(),
-                    language=language,
-                    content=display_content,
-                }
-            };
-
-            // The LLM gets just a quick update as we expect the file to view in the status
-            // but we send a low priority message for the human
-            Ok(vec![
-                Content::embedded_text(uri, content).with_audience(vec![Role::Assistant]),
-                Content::text(formatted)
-                    .with_audience(vec![Role::User])
-                    .with_priority(0.0),
-            ])
-        } else {
-            Err(ToolError::ExecutionError(format!(
+        if !path.is_file() {
+            return Err(ToolError::ExecutionError(format!(
                 "The path '{}' does not exist or is not a file.",
                 path.display()
-            )))
+            )));
         }
+
+        const MAX_FILE_SIZE: u64 = 400 * 1024; // 400KB
+
+        let f = File::open(path)
+            .map_err(|e| ToolError::ExecutionError(format!("Failed to open file: {}", e)))?;
+
+        let file_size = f
+            .metadata()
+            .map_err(|e| ToolError::ExecutionError(format!("Failed to get file metadata: {}", e)))?
+            .len();
+
+        if file_size > MAX_FILE_SIZE {
+            return Err(ToolError::ExecutionError(format!(
+                "File '{}' is too large ({:.2}KB). Maximum size is 400KB to prevent memory issues.",
+                path.display(),
+                file_size as f64 / 1024.0
+            )));
+        }
+
+        // Ensure we never read over that limit even if the file is being concurrently mutated
+        let mut f = f.take(MAX_FILE_SIZE);
+
+        let uri = Url::from_file_path(path)
+            .map_err(|_| ToolError::ExecutionError("Invalid file path".into()))?
+            .to_string();
+
+        let mut content = String::new();
+        f.read_to_string(&mut content)
+            .map_err(|e| ToolError::ExecutionError(format!("Failed to read file: {}", e)))?;
+
+        let lines: Vec<&str> = content.lines().collect();
+        let total_lines = lines.len();
+
+        // We will gently encourage the LLM to specify a range for large line count files
+        // it can of course specify exact range to read any size file
+        if view_range.is_none() && total_lines > LINE_READ_LIMIT {
+            return recommend_read_range(path, total_lines);
+        }
+
+        let (start_idx, end_idx) = self.calculate_view_range(view_range, total_lines)?;
+        let formatted = self.format_file_content(path, &lines, start_idx, end_idx, view_range);
+
+        // The LLM gets just a quick update as we expect the file to view in the status
+        // but we send a low priority message for the human
+        Ok(vec![
+            Content::embedded_text(uri, content).with_audience(vec![Role::Assistant]),
+            Content::text(formatted)
+                .with_audience(vec![Role::User])
+                .with_priority(0.0),
+        ])
     }
 
     async fn text_editor_write(
@@ -1553,6 +1465,15 @@ impl DeveloperRouter {
     }
 }
 
+fn recommend_read_range(path: &Path, total_lines: usize) -> Result<Vec<Content>, ToolError> {
+    Err(ToolError::ExecutionError(format!(
+        "File '{}' is {} lines long, recommended to read in with view_range (or searching) to get bite size content. If you do wish to read all the file, please pass in view_range with [1, {}] to read it all at once",
+        path.display(),
+        total_lines,
+        total_lines
+    )))
+}
+
 impl Router for DeveloperRouter {
     fn name(&self) -> String {
         "developer".to_string()
@@ -1584,8 +1505,6 @@ impl Router for DeveloperRouter {
         Box::pin(async move {
             match tool_name.as_str() {
                 "shell" => this.bash(arguments, notifier).await,
-                "glob" => this.glob(arguments).await,
-                "grep" => this.bash(arguments, notifier).await,
                 "text_editor" => this.text_editor(arguments).await,
                 "list_windows" => this.list_windows(arguments).await,
                 "screen_capture" => this.screen_capture(arguments).await,
@@ -1647,7 +1566,7 @@ impl Clone for DeveloperRouter {
             instructions: self.instructions.clone(),
             file_history: Arc::clone(&self.file_history),
             ignore_patterns: Arc::clone(&self.ignore_patterns),
-            editor_model: create_editor_model(), // Recreate the editor model since it's not Clone
+            editor_model: create_editor_model(),
         }
     }
 }
@@ -1655,9 +1574,10 @@ impl Clone for DeveloperRouter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core::panic;
     use serde_json::json;
     use serial_test::serial;
-    use std::fs;
+    use std::fs::{self, read_to_string};
     use tempfile::TempDir;
     use tokio::sync::OnceCell;
 
@@ -1748,6 +1668,39 @@ mod tests {
         temp_dir.close().unwrap();
     }
 
+    #[test]
+    #[serial]
+    fn test_goosehints_multiple_filenames() {
+        let dir = TempDir::new().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+        std::env::set_var("CONTEXT_FILE_NAMES", r#"["CLAUDE.md", ".goosehints"]"#);
+
+        fs::write("CLAUDE.md", "Custom hints file content from CLAUDE.md").unwrap();
+        fs::write(".goosehints", "Custom hints file content from .goosehints").unwrap();
+        let router = DeveloperRouter::new();
+        let instructions = router.instructions();
+
+        assert!(instructions.contains("Custom hints file content from CLAUDE.md"));
+        assert!(instructions.contains("Custom hints file content from .goosehints"));
+        std::env::remove_var("CONTEXT_FILE_NAMES");
+    }
+
+    #[test]
+    #[serial]
+    fn test_goosehints_configurable_filename() {
+        let dir = TempDir::new().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+        std::env::set_var("CONTEXT_FILE_NAMES", r#"["CLAUDE.md"]"#);
+
+        fs::write("CLAUDE.md", "Custom hints file content").unwrap();
+        let router = DeveloperRouter::new();
+        let instructions = router.instructions();
+
+        assert!(instructions.contains("Custom hints file content"));
+        assert!(!instructions.contains(".goosehints")); // Make sure it's not loading the default
+        std::env::remove_var("CONTEXT_FILE_NAMES");
+    }
+
     #[tokio::test]
     #[serial]
     #[cfg(windows)]
@@ -1815,8 +1768,8 @@ mod tests {
             let many_chars_path = temp_dir.path().join("many_chars.txt");
             let many_chars_str = many_chars_path.to_str().unwrap();
 
-            // Create a file with more than 400K characters but less than 400KB
-            let content = "x".repeat(405_000);
+            // This is above MAX_FILE_SIZE
+            let content = "x".repeat(500_000);
             std::fs::write(&many_chars_path, content).unwrap();
 
             let result = router
@@ -1833,7 +1786,7 @@ mod tests {
             assert!(result.is_err());
             let err = result.err().unwrap();
             assert!(matches!(err, ToolError::ExecutionError(_)));
-            assert!(err.to_string().contains("too many characters"));
+            assert!(err.to_string().contains("is too large"));
         }
 
         // Let temp_dir drop naturally at end of scope
@@ -2337,20 +2290,34 @@ mod tests {
         // Should use traditional description with str_replace command
         assert!(text_editor_tool
             .description
-            .contains("Replace a string in a file with a new string"));
+            .as_ref()
+            .map_or(false, |desc| desc
+                .contains("Replace a string in a file with a new string")));
         assert!(text_editor_tool
             .description
-            .contains("the `old_str` needs to exactly match one"));
-        assert!(text_editor_tool.description.contains("str_replace"));
+            .as_ref()
+            .map_or(false, |desc| desc
+                .contains("the `old_str` needs to exactly match one")));
+        assert!(text_editor_tool
+            .description
+            .as_ref()
+            .map_or(false, |desc| desc.contains("str_replace")));
 
         // Should not contain editor API description or edit_file command
         assert!(!text_editor_tool
             .description
-            .contains("Edit the file with the new content"));
-        assert!(!text_editor_tool.description.contains("edit_file"));
+            .as_ref()
+            .map_or(false, |desc| desc
+                .contains("Edit the file with the new content")));
         assert!(!text_editor_tool
             .description
-            .contains("work out how to place old_str with it intelligently"));
+            .as_ref()
+            .map_or(false, |desc| desc.contains("edit_file")));
+        assert!(!text_editor_tool
+            .description
+            .as_ref()
+            .map_or(false, |desc| desc
+                .contains("work out how to place old_str with it intelligently")));
 
         temp_dir.close().unwrap();
     }
@@ -3121,6 +3088,390 @@ mod tests {
         let err = result.err().unwrap();
         assert!(matches!(err, ToolError::InvalidParameters(_)));
         assert!(err.to_string().contains("does not exist"));
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_text_editor_view_large_file_without_range() {
+        let router = get_router().await;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_path = temp_dir.path().join("large_file.txt");
+        let file_path_str = file_path.to_str().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a file with more than LINE_READ_LIMIT lines
+        let mut content = String::new();
+        for i in 1..=LINE_READ_LIMIT + 1 {
+            content.push_str(&format!("Line {}\n", i));
+        }
+
+        router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "write",
+                    "path": file_path_str,
+                    "file_text": content
+                }),
+                dummy_sender(),
+            )
+            .await
+            .unwrap();
+
+        // Test viewing without view_range - should trigger the error
+        let result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "view",
+                    "path": file_path_str
+                }),
+                dummy_sender(),
+            )
+            .await;
+
+        assert!(result.is_err());
+        let err = result.err().unwrap();
+        assert!(matches!(err, ToolError::ExecutionError(_)));
+        assert!(err.to_string().contains("2001 lines long"));
+        assert!(err
+            .to_string()
+            .contains("recommended to read in with view_range"));
+        assert!(err
+            .to_string()
+            .contains("please pass in view_range with [1, 2001]"));
+
+        // Test viewing with view_range - should work
+        let result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "view",
+                    "path": file_path_str,
+                    "view_range": [1, 100]
+                }),
+                dummy_sender(),
+            )
+            .await;
+
+        assert!(result.is_ok());
+        let view_result = result.unwrap();
+        let text = view_result
+            .iter()
+            .find(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::User))
+            })
+            .unwrap()
+            .as_text()
+            .unwrap();
+
+        // Should contain lines 1-100
+        assert!(text.text.contains("1: Line 1"));
+        assert!(text.text.contains("100: Line 100"));
+        assert!(!text.text.contains("101: Line 101"));
+
+        // Test viewing with explicit full range - should work
+        let result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "view",
+                    "path": file_path_str,
+                    "view_range": [1, 2001]
+                }),
+                dummy_sender(),
+            )
+            .await;
+
+        assert!(result.is_ok());
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_text_editor_view_file_with_exactly_2000_lines() {
+        let router = get_router().await;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_path = temp_dir.path().join("file_2000.txt");
+        let file_path_str = file_path.to_str().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a file with exactly 2000 lines (should not trigger the check)
+        let mut content = String::new();
+        for i in 1..=2000 {
+            content.push_str(&format!("Line {}\n", i));
+        }
+
+        router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "write",
+                    "path": file_path_str,
+                    "file_text": content
+                }),
+                dummy_sender(),
+            )
+            .await
+            .unwrap();
+
+        // Test viewing without view_range - should work since it's exactly 2000 lines
+        let result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "view",
+                    "path": file_path_str
+                }),
+                dummy_sender(),
+            )
+            .await;
+
+        assert!(result.is_ok());
+        let view_result = result.unwrap();
+        let text = view_result
+            .iter()
+            .find(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::User))
+            })
+            .unwrap()
+            .as_text()
+            .unwrap();
+
+        // Should contain all lines
+        assert!(text.text.contains("1: Line 1"));
+        assert!(text.text.contains("2000: Line 2000"));
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_text_editor_view_small_file_without_range() {
+        let router = get_router().await;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_path = temp_dir.path().join("small_file.txt");
+        let file_path_str = file_path.to_str().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a file with less than 2000 lines
+        let mut content = String::new();
+        for i in 1..=100 {
+            content.push_str(&format!("Line {}\n", i));
+        }
+
+        router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "write",
+                    "path": file_path_str,
+                    "file_text": content
+                }),
+                dummy_sender(),
+            )
+            .await
+            .unwrap();
+
+        // Test viewing without view_range - should work fine
+        let result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "view",
+                    "path": file_path_str
+                }),
+                dummy_sender(),
+            )
+            .await;
+
+        assert!(result.is_ok());
+        let view_result = result.unwrap();
+        let text = view_result
+            .iter()
+            .find(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::User))
+            })
+            .unwrap()
+            .as_text()
+            .unwrap();
+
+        // Should contain all lines
+        assert!(text.text.contains("1: Line 1"));
+        assert!(text.text.contains("100: Line 100"));
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_bash_output_truncation() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        let router = get_router().await;
+
+        // Create a command that generates > 100 lines of output
+        let command = if cfg!(windows) {
+            "for /L %i in (1,1,150) do @echo Line %i"
+        } else {
+            "for i in {1..150}; do echo \"Line $i\"; done"
+        };
+
+        let result = router
+            .call_tool("shell", json!({ "command": command }), dummy_sender())
+            .await
+            .unwrap();
+
+        // Should have two Content items
+        assert_eq!(result.len(), 2);
+
+        // Find the Assistant and User content
+        let assistant_content = result
+            .iter()
+            .find(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::Assistant))
+            })
+            .unwrap()
+            .as_text()
+            .unwrap();
+
+        let user_content = result
+            .iter()
+            .find(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::User))
+            })
+            .unwrap()
+            .as_text()
+            .unwrap();
+
+        // Assistant should get the full message with temp file info
+        assert!(assistant_content.text.contains("private note: output was"));
+
+        // User should only get the truncated output with prefix
+        assert!(user_content.text.starts_with("..."));
+        assert!(!user_content.text.contains("private note: output was"));
+
+        // User output should contain lines 51-150 (last 100 lines)
+        assert!(user_content.text.contains("Line 51"));
+        assert!(user_content.text.contains("Line 150"));
+        assert!(!user_content.text.contains("Line 50"));
+
+        let start_tag = "remainder of lines in";
+        let end_tag = "do not show tmp file to user";
+
+        if let (Some(start), Some(end)) = (
+            assistant_content.text.find(start_tag),
+            assistant_content.text.find(end_tag),
+        ) {
+            let start_idx = start + start_tag.len();
+            if start_idx < end {
+                let path = assistant_content.text[start_idx..end].trim();
+                println!("Extracted path: {}", path);
+
+                let file_contents =
+                    read_to_string(path).expect("Failed to read extracted temp file");
+
+                let lines: Vec<&str> = file_contents.lines().collect();
+
+                // Ensure we have exactly 150 lines
+                assert_eq!(lines.len(), 150, "Expected 150 lines in temp file");
+
+                // Ensure the first and last lines are correct
+                assert_eq!(lines.first(), Some(&"Line 1"), "First line mismatch");
+                assert_eq!(lines.last(), Some(&"Line 150"), "Last line mismatch");
+            } else {
+                panic!("No path found in bash output truncation output");
+            }
+        } else {
+            panic!("Failed to find start or end tag in bash output truncation output");
+        }
+
+        temp_dir.close().unwrap();
+    }
+
+    #[test]
+    #[serial]
+    fn test_process_shell_output_short() {
+        let dir = TempDir::new().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+
+        let router = DeveloperRouter::new();
+
+        // Test with short output (< 100 lines)
+        let short_output = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5";
+        let result = router.process_shell_output(short_output).unwrap();
+
+        // Both outputs should be the same for short outputs
+        assert_eq!(result.0, short_output);
+        assert_eq!(result.1, short_output);
+    }
+
+    #[test]
+    #[serial]
+    fn test_process_shell_output_empty() {
+        let dir = TempDir::new().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+
+        let router = DeveloperRouter::new();
+
+        // Test with empty output
+        let empty_output = "";
+        let result = router.process_shell_output(empty_output).unwrap();
+
+        // Both outputs should be empty
+        assert_eq!(result.0, "");
+        assert_eq!(result.1, "");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_shell_output_without_trailing_newline() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        let router = get_router().await;
+
+        // Test command that outputs content without a trailing newline
+        let command = if cfg!(windows) {
+            "echo|set /p=\"Content without newline\""
+        } else {
+            "printf 'Content without newline'"
+        };
+
+        let result = router
+            .call_tool("shell", json!({ "command": command }), dummy_sender())
+            .await
+            .unwrap();
+
+        // Find the assistant content (which contains the full output)
+        let assistant_content = result
+            .iter()
+            .find(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::Assistant))
+            })
+            .unwrap()
+            .as_text()
+            .unwrap();
+
+        // The output should contain the content even without a trailing newline
+        assert!(
+            assistant_content.text.contains("Content without newline"),
+            "Output should contain content even without trailing newline, but got: {}",
+            assistant_content.text
+        );
 
         temp_dir.close().unwrap();
     }

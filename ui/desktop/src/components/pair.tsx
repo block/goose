@@ -27,23 +27,14 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { type View, ViewOptions } from '../App';
-import { Message } from '../types/message';
 import BaseChat from './BaseChat';
-import ParameterInputModal from './ParameterInputModal';
 import { useRecipeManager } from '../hooks/useRecipeManager';
 import { useIsMobile } from '../hooks/use-mobile';
 import { useSidebar } from './ui/sidebar';
-import { Recipe } from '../recipe';
 import 'react-toastify/dist/ReactToastify.css';
 import { cn } from '../utils';
 
-export interface ChatType {
-  id: string;
-  title: string;
-  messageHistoryIndex: number;
-  messages: Message[];
-  recipeConfig?: Recipe | null; // Add recipe configuration to chat state
-}
+import { ChatType } from '../types/chat';
 
 export default function Pair({
   chat,
@@ -65,13 +56,7 @@ export default function Pair({
   const [isTransitioningFromHub, setIsTransitioningFromHub] = useState(false);
 
   // Get recipe configuration and parameter handling
-  const {
-    recipeConfig,
-    initialPrompt: recipeInitialPrompt,
-    isParameterModalOpen,
-    setIsParameterModalOpen,
-    handleParameterSubmit,
-  } = useRecipeManager(chat.messages, location.state);
+  const { initialPrompt: recipeInitialPrompt } = useRecipeManager(chat.messages, location.state);
 
   // Handle recipe loading from recipes view - reset chat if needed
   useEffect(() => {
@@ -83,6 +68,7 @@ export default function Pair({
         messages: [], // Clear messages to start fresh
         messageHistoryIndex: 0,
         recipeConfig: location.state.recipeConfig, // Set the recipe config in chat state
+        recipeParameters: null, // Clear parameters for new recipe
       };
       setChat(newChat);
 
@@ -203,15 +189,6 @@ export default function Pair({
         showPopularTopics={!isTransitioningFromHub} // Don't show popular topics while transitioning from Hub
         suppressEmptyState={isTransitioningFromHub} // Suppress all empty state content while transitioning from Hub
       />
-
-      {/* Recipe Parameter Modal */}
-      {isParameterModalOpen && recipeConfig?.parameters && (
-        <ParameterInputModal
-          parameters={recipeConfig.parameters}
-          onSubmit={handleParameterSubmit}
-          onClose={() => setIsParameterModalOpen(false)}
-        />
-      )}
     </>
   );
 }

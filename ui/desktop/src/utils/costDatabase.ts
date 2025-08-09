@@ -1,5 +1,5 @@
 // Import the proper type from ConfigContext
-import { getApiUrl, getSecretKey } from '../config';
+import { getApiUrl } from '../config';
 import { safeJsonParse } from './jsonUtils';
 
 export interface ModelCostInfo {
@@ -31,7 +31,7 @@ async function fetchPricingForModel(
   }
 
   const apiUrl = getApiUrl('/config/pricing');
-  const secretKey = getSecretKey();
+  const secretKey = await window.electron.getSecretKey();
 
   const headers: HeadersInit = { 'Content-Type': 'application/json' };
   if (secretKey) {
@@ -217,7 +217,7 @@ export async function refreshPricing(): Promise<boolean> {
 
     // The actual refresh happens on the backend when we call with configured_only: false
     const apiUrl = getApiUrl('/config/pricing');
-    const secretKey = getSecretKey();
+    const secretKey = await window.electron.getSecretKey();
 
     const headers: HeadersInit = { 'Content-Type': 'application/json' };
     if (secretKey) {

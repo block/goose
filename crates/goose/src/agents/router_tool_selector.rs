@@ -1,9 +1,10 @@
-use mcp_core::tool::Tool;
 use mcp_core::ToolError;
 use rmcp::model::Content;
+use rmcp::model::Tool;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
+use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::collections::VecDeque;
@@ -12,9 +13,16 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::agents::tool_vectordb::ToolVectorDB;
-use crate::message::Message;
+use crate::conversation::message::Message;
 use crate::model::ModelConfig;
+use crate::prompt_template::render_global_file;
 use crate::providers::{self, base::Provider};
+
+#[derive(Serialize)]
+struct ToolSelectorContext {
+    tools: String,
+    query: String,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum RouterToolSelectionStrategy {
@@ -51,7 +59,8 @@ impl VectorToolSelector {
                 env::var("GOOSE_EMBEDDING_MODEL_PROVIDER").unwrap_or_else(|_| "openai".to_string());
 
             // Create the provider using the factory
-            let model_config = ModelConfig::new(embedding_model);
+            let model_config = ModelConfig::new(embedding_model.as_str())
+                .context("Failed to create model config for embedding provider")?;
             providers::create(&embedding_provider_name, model_config).context(format!(
                 "Failed to create {} provider for embeddings. If using OpenAI, make sure OPENAI_API_KEY env var is set or that you have configured the OpenAI provider via Goose before.",
                 embedding_provider_name
@@ -128,7 +137,15 @@ impl RouterToolSelector for VectorToolSelector {
             .map(|tool| {
                 let schema_str = serde_json::to_string_pretty(&tool.input_schema)
                     .unwrap_or_else(|_| "{}".to_string());
-                format!("{} {} {}", tool.name, tool.description, schema_str)
+                format!(
+                    "{} {} {}",
+                    tool.name,
+                    tool.description
+                        .as_ref()
+                        .map(|d| d.as_ref())
+                        .unwrap_or_default(),
+                    schema_str
+                )
             })
             .collect();
 
@@ -154,8 +171,12 @@ impl RouterToolSelector for VectorToolSelector {
                 let schema_str = serde_json::to_string_pretty(&tool.input_schema)
                     .unwrap_or_else(|_| "{}".to_string());
                 crate::agents::tool_vectordb::ToolRecord {
-                    tool_name: tool.name.clone(),
-                    description: tool.description.clone(),
+                    tool_name: tool.name.to_string(),
+                    description: tool
+                        .description
+                        .as_ref()
+                        .map(|d| d.to_string())
+                        .unwrap_or_default(),
                     schema: schema_str,
                     vector,
                     extension_name: extension_name.to_string(),
@@ -269,15 +290,21 @@ impl RouterToolSelector for LLMToolSelector {
         };
 
         if let Some(tools) = relevant_tools {
-            // Use LLM to search through tools
-            let prompt = format!(
-                "Given the following tools:\n{}\n\nFind the most relevant tools for the query: {}\n\nReturn the tools in this exact format for each tool:\nTool: <tool_name>\nDescription: <tool_description>\nSchema: <tool_schema>",
-                tools, query
-            );
-            let system_message = Message::user().with_text("You are a tool selection assistant. Your task is to find the most relevant tools based on the user's query.");
+            // Use template to generate the prompt
+            let context = ToolSelectorContext {
+                tools: tools.clone(),
+                query: query.to_string(),
+            };
+
+            let user_prompt =
+                render_global_file("router_tool_selector.md", &context).map_err(|e| {
+                    ToolError::ExecutionError(format!("Failed to render prompt template: {}", e))
+                })?;
+
+            let user_message = Message::user().with_text(&user_prompt);
             let response = self
                 .llm_provider
-                .complete(&prompt, &[system_message], &[])
+                .complete("", &[user_message], &[])
                 .await
                 .map_err(|e| ToolError::ExecutionError(format!("Failed to search tools: {}", e)))?;
 
@@ -305,7 +332,10 @@ impl RouterToolSelector for LLMToolSelector {
             let tool_string = format!(
                 "Tool: {}\nDescription: {}\nSchema: {}",
                 tool.name,
-                tool.description,
+                tool.description
+                    .as_ref()
+                    .map(|d| d.as_ref())
+                    .unwrap_or_default(),
                 serde_json::to_string_pretty(&tool.input_schema)
                     .unwrap_or_else(|_| "{}".to_string())
             );

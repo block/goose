@@ -1,8 +1,9 @@
 use std::collections::HashSet;
 use std::fs;
+use std::sync::Arc;
 
 use anyhow::Result;
-use mcp_core::tool::{Tool, ToolAnnotations};
+use rmcp::model::{Tool, ToolAnnotations};
 use serde_json::{json, Map, Value};
 
 use crate::agents::subagent_execution_tool::lib::{ExecutionMode, Task};
@@ -15,6 +16,7 @@ pub const SUB_RECIPE_TASK_TOOL_NAME_PREFIX: &str = "subrecipe__create_task";
 
 pub fn create_sub_recipe_task_tool(sub_recipe: &SubRecipe) -> Tool {
     let input_schema = get_input_schema(sub_recipe).unwrap();
+
     Tool::new(
         format!("{}_{}", SUB_RECIPE_TASK_TOOL_NAME_PREFIX, sub_recipe.name),
         format!(
@@ -27,15 +29,17 @@ pub fn create_sub_recipe_task_tool(sub_recipe: &SubRecipe) -> Tool {
             After creating the tasks and execution_mode is provided, pass them to the task executor to run these tasks",
             sub_recipe.name
         ),
-        input_schema,
-        Some(ToolAnnotations {
-            title: Some(format!("create multiple sub recipe tasks for {}", sub_recipe.name)),
-            read_only_hint: false,
-            destructive_hint: true,
-            idempotent_hint: false,
-            open_world_hint: true,
-        }),
-    )
+        Arc::new(input_schema.as_object().unwrap().clone())
+    ).annotate(ToolAnnotations {
+        title: Some(format!(
+            "create multiple sub recipe tasks for {}",
+            sub_recipe.name
+        )),
+        read_only_hint: Some(false),
+        destructive_hint: Some(true),
+        idempotent_hint: Some(false),
+        open_world_hint: Some(true),
+    })
 }
 
 fn extract_task_parameters(params: &Value) -> Vec<Value> {
@@ -73,10 +77,15 @@ fn create_tasks_from_params(
 }
 
 fn create_task_execution_payload(tasks: &[Task], sub_recipe: &SubRecipe) -> Value {
+    let execution_mode = if tasks.len() == 1 || sub_recipe.sequential_when_repeated {
+        ExecutionMode::Sequential
+    } else {
+        ExecutionMode::Parallel
+    };
     let task_ids: Vec<String> = tasks.iter().map(|task| task.id.clone()).collect();
     json!({
         "task_ids": task_ids,
-        "execution_mode": if sub_recipe.sequential_when_repeated { ExecutionMode::Sequential } else { ExecutionMode::Parallel },
+        "execution_mode": execution_mode,
     })
 }
 

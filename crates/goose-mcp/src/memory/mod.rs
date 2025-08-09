@@ -1,7 +1,16 @@
 use async_trait::async_trait;
 use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::formatdoc;
-use serde_json::{json, Value};
+use mcp_core::{
+    handler::{PromptError, ResourceError, ToolError},
+    protocol::ServerCapabilities,
+    tool::ToolCall,
+};
+use mcp_server::router::CapabilitiesBuilder;
+use mcp_server::Router;
+use rmcp::model::{Content, JsonRpcMessage, Prompt, Resource, Tool, ToolAnnotations};
+use rmcp::object;
+use serde_json::Value;
 use std::{
     collections::HashMap,
     fs,
@@ -11,17 +20,6 @@ use std::{
     pin::Pin,
 };
 use tokio::sync::mpsc;
-
-use mcp_core::{
-    handler::{PromptError, ResourceError, ToolError},
-    prompt::Prompt,
-    protocol::{JsonRpcMessage, ServerCapabilities},
-    resource::Resource,
-    tool::{Tool, ToolAnnotations, ToolCall},
-};
-use mcp_server::router::CapabilitiesBuilder;
-use mcp_server::Router;
-use rmcp::model::Content;
 
 // MemoryRouter implementation
 #[derive(Clone)]
@@ -43,7 +41,7 @@ impl MemoryRouter {
         let remember_memory = Tool::new(
             "remember_memory",
             "Stores a memory with optional tags in a specified category",
-            json!({
+            object!({
                 "type": "object",
                 "properties": {
                     "category": {"type": "string"},
@@ -53,19 +51,19 @@ impl MemoryRouter {
                 },
                 "required": ["category", "data", "is_global"]
             }),
-            Some(ToolAnnotations {
-                title: Some("Remember Memory".to_string()),
-                read_only_hint: false,
-                destructive_hint: false,
-                idempotent_hint: true,
-                open_world_hint: false,
-            }),
-        );
+        )
+        .annotate(ToolAnnotations {
+            title: Some("Remember Memory".to_string()),
+            read_only_hint: Some(false),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(true),
+            open_world_hint: Some(false),
+        });
 
         let retrieve_memories = Tool::new(
             "retrieve_memories",
             "Retrieves all memories from a specified category",
-            json!({
+            object!({
                 "type": "object",
                 "properties": {
                     "category": {"type": "string"},
@@ -73,19 +71,19 @@ impl MemoryRouter {
                 },
                 "required": ["category", "is_global"]
             }),
-            Some(ToolAnnotations {
-                title: Some("Retrieve Memory".to_string()),
-                read_only_hint: true,
-                destructive_hint: false,
-                idempotent_hint: false,
-                open_world_hint: false,
-            }),
-        );
+        )
+        .annotate(ToolAnnotations {
+            title: Some("Retrieve Memory".to_string()),
+            read_only_hint: Some(true),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(false),
+            open_world_hint: Some(false),
+        });
 
         let remove_memory_category = Tool::new(
             "remove_memory_category",
             "Removes all memories within a specified category",
-            json!({
+            object!({
                 "type": "object",
                 "properties": {
                     "category": {"type": "string"},
@@ -93,19 +91,19 @@ impl MemoryRouter {
                 },
                 "required": ["category", "is_global"]
             }),
-            Some(ToolAnnotations {
-                title: Some("Remove Memory Category".to_string()),
-                read_only_hint: false,
-                destructive_hint: true,
-                idempotent_hint: false,
-                open_world_hint: false,
-            }),
-        );
+        )
+        .annotate(ToolAnnotations {
+            title: Some("Remove Memory Category".to_string()),
+            read_only_hint: Some(false),
+            destructive_hint: Some(true),
+            idempotent_hint: Some(false),
+            open_world_hint: Some(false),
+        });
 
         let remove_specific_memory = Tool::new(
             "remove_specific_memory",
             "Removes a specific memory within a specified category",
-            json!({
+            object!({
                 "type": "object",
                 "properties": {
                     "category": {"type": "string"},
@@ -114,14 +112,14 @@ impl MemoryRouter {
                 },
                 "required": ["category", "memory_content", "is_global"]
             }),
-            Some(ToolAnnotations {
-                title: Some("Remove Specific Memory".to_string()),
-                read_only_hint: false,
-                destructive_hint: true,
-                idempotent_hint: false,
-                open_world_hint: false,
-            }),
-        );
+        )
+        .annotate(ToolAnnotations {
+            title: Some("Remove Specific Memory".to_string()),
+            read_only_hint: Some(false),
+            destructive_hint: Some(true),
+            idempotent_hint: Some(false),
+            open_world_hint: Some(false),
+        });
 
         let instructions = formatdoc! {r#"
              This extension allows storage and retrieval of categorized information with tagging support. It's designed to help

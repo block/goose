@@ -155,6 +155,20 @@ debug-ui:
 	npm install && \
 	npm run start-gui
 
+# Run UI with main process debugging enabled
+# To debug main process:
+# 1. Run: just debug-ui-main-process
+# 2. Open Chrome → chrome://inspect
+# 3. Click "Open dedicated DevTools for Node"
+# 4. If not auto-detected, click "Configure" and add: localhost:9229
+
+debug-ui-main-process:
+	@echo "🔍 Starting Goose UI with main process debugging enabled"
+	@just release-binary
+	cd ui/desktop && \
+	npm install && \
+	npm run start-gui-debug
+
 # Run UI with alpha changes
 run-ui-alpha temporal="true":
     @just release-binary
@@ -183,6 +197,10 @@ run-docs:
 run-server:
     @echo "Running server..."
     cargo run -p goose-server
+
+# Check if OpenAPI schema is up-to-date
+check-openapi-schema: generate-openapi
+    ./scripts/check-openapi-schema.sh
 
 # Generate OpenAPI specification without starting the UI
 generate-openapi:
@@ -368,16 +386,16 @@ set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
 ### Build the core code
 ### profile = --release or "" for debug
 ### allparam = OR/AND/ANY/NONE --workspace --all-features --all-targets
-win-bld profile allparam: 
+win-bld profile allparam:
   cargo run {{profile}} -p goose-server --bin  generate_schema
   cargo build {{profile}} {{allparam}}
 
 ### Build just debug
-win-bld-dbg: 
+win-bld-dbg:
   just win-bld " " " "
 
 ### Build debug and test, examples,...
-win-bld-dbg-all: 
+win-bld-dbg-all:
   just win-bld " " "--workspace --all-targets --all-features"
 
 ### Build just release
@@ -439,25 +457,4 @@ win-total-dbg *allparam:
 win-total-rls *allparam:
   just win-bld-rls{{allparam}}
   just win-run-rls
-
-### Build and run the Kotlin example with 
-### auto-generated bindings for goose-llm 
-kotlin-example:
-    # Build Rust dylib and generate Kotlin bindings
-    cargo build -p goose-llm
-    cargo run --features=uniffi/cli --bin uniffi-bindgen generate \
-        --library ./target/debug/libgoose_llm.dylib --language kotlin --out-dir bindings/kotlin
-
-    # Compile and run the Kotlin example
-    cd bindings/kotlin/ && kotlinc \
-      example/Usage.kt \
-      uniffi/goose_llm/goose_llm.kt \
-      -classpath "libs/kotlin-stdlib-1.9.0.jar:libs/kotlinx-coroutines-core-jvm-1.7.3.jar:libs/jna-5.13.0.jar" \
-      -include-runtime \
-      -d example.jar
-
-    cd bindings/kotlin/ && java \
-      -Djna.library.path=$HOME/Development/goose/target/debug \
-      -classpath "example.jar:libs/kotlin-stdlib-1.9.0.jar:libs/kotlinx-coroutines-core-jvm-1.7.3.jar:libs/jna-5.13.0.jar" \
-      UsageKt
 

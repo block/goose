@@ -1,4 +1,4 @@
-import { getApiUrl, getSecretKey } from '../config';
+import { getApiUrl } from '../config';
 import { FullExtensionConfig } from '../extensions';
 import { initializeAgent } from '../agent';
 import {
@@ -10,7 +10,13 @@ import { extractExtensionConfig } from '../components/settings/extensions/utils'
 import type { ExtensionConfig, FixedExtensionEntry } from '../components/ConfigContext';
 // TODO: remove when removing migration logic
 import { toastService } from '../toasts';
-import { ExtensionQuery, addExtension as apiAddExtension } from '../api';
+import {
+  ExtensionQuery,
+  RecipeParameter,
+  SubRecipe,
+  addExtension as apiAddExtension,
+} from '../api';
+import { addSubRecipesToAgent } from '../recipe/add_sub_recipe_on_agent';
 
 export interface Provider {
   id: string; // Lowercase key (e.g., "openai")
@@ -70,16 +76,20 @@ const substituteParameters = (text: string, params: Record<string, string>): str
  * This should be called after recipe parameters are collected
  */
 export const updateSystemPromptWithParameters = async (
-  recipeParameters: Record<string, string>
+  recipeParameters: Record<string, string>,
+  recipeConfig?: {
+    instructions?: string | null;
+    sub_recipes?: SubRecipe[] | null;
+    parameters?: RecipeParameter[] | null;
+  }
 ): Promise<void> => {
+  const subRecipes = recipeConfig?.sub_recipes;
   try {
-    const recipeConfig = window.appConfig?.get?.('recipe');
-    const originalInstructions = (recipeConfig as { instructions?: string })?.instructions;
+    const originalInstructions = recipeConfig?.instructions;
 
     if (!originalInstructions) {
       return;
     }
-
     // Substitute parameters in the instructions
     const substitutedInstructions = substituteParameters(originalInstructions, recipeParameters);
 
@@ -88,7 +98,7 @@ export const updateSystemPromptWithParameters = async (
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Secret-Key': getSecretKey(),
+        'X-Secret-Key': await window.electron.getSecretKey(),
       },
       body: JSON.stringify({
         extension: `${desktopPromptBot}\nIMPORTANT instructions for you to operate as agent:\n${substitutedInstructions}`,
@@ -96,10 +106,22 @@ export const updateSystemPromptWithParameters = async (
     });
 
     if (!response.ok) {
-      console.warn(`Failed to update system prompt with parameters: ${response.statusText}`);
+      console.warn(
+        `Failed to update system prompt with parameters: ${response.status} ${response.statusText}`
+      );
     }
   } catch (error) {
     console.error('Error updating system prompt with parameters:', error);
+  }
+  if (subRecipes && subRecipes?.length > 0) {
+    for (const subRecipe of subRecipes) {
+      if (subRecipe.values) {
+        for (const key in subRecipe.values) {
+          subRecipe.values[key] = substituteParameters(subRecipe.values[key], recipeParameters);
+        }
+      }
+    }
+    await addSubRecipesToAgent(subRecipes);
   }
 };
 
@@ -113,8 +135,6 @@ export const updateSystemPromptWithParameters = async (
  * NOTE: This logic can be removed eventually when enough versions have passed
  * We leave the existing user settings in localStorage, in case users downgrade
  * or things need to be reverted.
- *
- * @param addExtension Function to add extension to config.yaml
  */
 export const migrateExtensionsToSettingsV3 = async () => {
   console.log('need to perform extension migration v3');
@@ -131,17 +151,20 @@ export const migrateExtensionsToSettingsV3 = async () => {
     console.error('Failed to parse user settings:', error);
   }
 
+  if (localStorageExtensions.length === 0) {
+    localStorage.setItem('configVersion', '3');
+    console.log('No extensions to migrate. Config version set to 3.');
+    return;
+  }
+
   const migrationErrors: { name: string; error: unknown }[] = [];
 
-  for (const extension of localStorageExtensions) {
-    // NOTE: skip migrating builtin types since there was a format change
-    // instead we rely on initializeBundledExtensions & syncBundledExtensions
-    // to handle updating / creating the new builtins to the config.yaml
-    // For all other extension types we migrate them to config.yaml
-    if (extension.type !== 'builtin') {
+  // Process extensions in parallel for better performance
+  const migrationPromises = localStorageExtensions
+    .filter((extension) => extension.type !== 'builtin') // Skip builtins as before
+    .map(async (extension) => {
       console.log(`Migrating extension ${extension.name} to config.yaml`);
       try {
-        // manually import apiAddExtension to set throwOnError true
         const query: ExtensionQuery = {
           name: extension.name,
           config: extension,
@@ -158,8 +181,9 @@ export const migrateExtensionsToSettingsV3 = async () => {
           error: `failed migration with ${JSON.stringify(err)}`,
         });
       }
-    }
-  }
+    });
+
+  await Promise.allSettled(migrationPromises);
 
   if (migrationErrors.length === 0) {
     localStorage.setItem('configVersion', '3');
@@ -190,39 +214,42 @@ export const initializeSystem = async (
 
     // Get recipeConfig directly here
     const recipeConfig = window.appConfig?.get?.('recipe');
-    const botPrompt = (recipeConfig as { instructions?: string })?.instructions;
+    const recipe_instructions = (recipeConfig as { instructions?: string })?.instructions;
     const responseConfig = (recipeConfig as { response?: { json_schema?: unknown } })?.response;
-
+    const subRecipes = (recipeConfig as { sub_recipes?: SubRecipe[] })?.sub_recipes;
+    const parameters = (recipeConfig as { parameters?: RecipeParameter[] })?.parameters;
+    const hasParameters = parameters && parameters?.length > 0;
+    const hasSubRecipes = subRecipes && subRecipes?.length > 0;
+    let prompt = desktopPrompt;
+    if (!hasParameters && recipe_instructions) {
+      prompt = `${desktopPromptBot}\nIMPORTANT instructions for you to operate as agent:\n${recipe_instructions}`;
+    }
     // Extend the system prompt with desktop-specific information
     const response = await fetch(getApiUrl('/agent/prompt'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Secret-Key': getSecretKey(),
+        'X-Secret-Key': await window.electron.getSecretKey(),
       },
       body: JSON.stringify({
-        extension: botPrompt
-          ? `${desktopPromptBot}\nIMPORTANT instructions for you to operate as agent:\n${botPrompt}`
-          : desktopPrompt,
+        extension: prompt,
       }),
     });
-
     if (!response.ok) {
       console.warn(`Failed to extend system prompt: ${response.statusText}`);
     } else {
       console.log('Extended system prompt with desktop-specific information');
-      if (botPrompt) {
-        console.log('Added custom bot prompt to system prompt');
-      }
     }
-
+    if (!hasParameters && hasSubRecipes) {
+      await addSubRecipesToAgent(subRecipes);
+    }
     // Configure session with response config if present
     if (responseConfig?.json_schema) {
       const sessionConfigResponse = await fetch(getApiUrl('/agent/session_config'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Secret-Key': getSecretKey(),
+          'X-Secret-Key': await window.electron.getSecretKey(),
         },
         body: JSON.stringify({
           response: responseConfig,

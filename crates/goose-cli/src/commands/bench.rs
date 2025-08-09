@@ -2,7 +2,7 @@ use crate::session::build_session;
 use crate::session::SessionBuilderConfig;
 use crate::{logging, session, Session};
 use async_trait::async_trait;
-use goose::message::Message;
+use goose::conversation::Conversation;
 use goose_bench::bench_session::{BenchAgent, BenchBaseSession};
 use goose_bench::eval_suites::ExtensionRequirements;
 use std::path::PathBuf;
@@ -18,7 +18,7 @@ impl BenchBaseSession for Session {
     fn session_file(&self) -> Option<PathBuf> {
         self.session_file()
     }
-    fn message_history(&self) -> Vec<Message> {
+    fn message_history(&self) -> Conversation {
         self.message_history()
     }
     fn get_total_token_usage(&self) -> anyhow::Result<Option<i32>> {
@@ -52,6 +52,7 @@ pub async fn agent_generator(
         quiet: false,
         sub_recipes: None,
         final_output_response: None,
+        retry_config: None,
     })
     .await;
 

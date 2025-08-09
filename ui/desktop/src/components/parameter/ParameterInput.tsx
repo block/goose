@@ -30,8 +30,24 @@ const ParameterInput: React.FC<ParameterInputProps> = ({ parameter, onChange }) 
         <p className="text-sm text-textSubtle mt-1">This is the message the end-user will see.</p>
       </div>
 
-      {/* Controls for requirement and default value */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Controls for requirement, input type, and default value */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label className="block text-md text-textStandard mb-2 font-semibold">Input Type</label>
+          <select
+            className="w-full p-3 border rounded-lg bg-background-default text-textStandard"
+            value={parameter.input_type || 'string'}
+            onChange={(e) =>
+              onChange(key, { input_type: e.target.value as Parameter['input_type'] })
+            }
+          >
+            <option value="string">String</option>
+            <option value="select">Select</option>
+            <option value="number">Number</option>
+            <option value="boolean">Boolean</option>
+          </select>
+        </div>
+
         <div>
           <label className="block text-md text-textStandard mb-2 font-semibold">Requirement</label>
           <select
@@ -62,6 +78,35 @@ const ParameterInput: React.FC<ParameterInputProps> = ({ parameter, onChange }) 
           </div>
         )}
       </div>
+
+      {/* Options field for select input type */}
+      {parameter.input_type === 'select' && (
+        <div className="mt-4">
+          <label className="block text-md text-textStandard mb-2 font-semibold">
+            Options (one per line)
+          </label>
+          <textarea
+            value={(parameter.options || []).join('\n')}
+            onChange={(e) => {
+              // Don't filter out empty lines - preserve them so user can type on new lines
+              const options = e.target.value.split('\n');
+              onChange(key, { options });
+            }}
+            onKeyDown={(e) => {
+              // Allow Enter key to work normally in textarea (prevent form submission or modal close)
+              if (e.key === 'Enter') {
+                e.stopPropagation();
+              }
+            }}
+            className="w-full p-3 border rounded-lg bg-background-default text-textStandard focus:outline-none focus:ring-2 focus:ring-borderProminent"
+            placeholder="Option 1&#10;Option 2&#10;Option 3"
+            rows={4}
+          />
+          <p className="text-sm text-textSubtle mt-1">
+            Enter each option on a new line. These will be shown as dropdown choices.
+          </p>
+        </div>
+      )}
     </div>
   );
 };

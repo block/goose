@@ -19,7 +19,6 @@ function extensionToMCPServer(extension: Extension): MCPServer {
     installation_notes: extension.installation_notes || '',
     endorsed: false,
     environmentVariables: extension.environmentVariables || [],
-    githubStars: 0
   };
 }
 
