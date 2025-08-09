@@ -231,10 +231,12 @@ pub async fn execute_shell_command(
         let mut cmd = if cfg!(target_os = "windows") {
             let mut cmd = Command::new("cmd");
             cmd.args(["/C", command]);
+            cmd.env("GOOSE_TERMINAL", "1");
             cmd
         } else {
             let mut cmd = Command::new("sh");
             cmd.args(["-c", command]);
+            cmd.env("GOOSE_TERMINAL", "1");
             cmd
         };
 
