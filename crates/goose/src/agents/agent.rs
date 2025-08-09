@@ -97,6 +97,7 @@ pub struct Agent {
     pub(super) tool_route_manager: ToolRouteManager,
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
     pub(super) retry_manager: RetryManager,
+    prewarmed_sessions: Mutex<HashSet<String>>,
 }
 
 #[derive(Clone, Debug)]
@@ -173,6 +174,7 @@ impl Agent {
             tool_route_manager: ToolRouteManager::new(),
             scheduler_service: Mutex::new(None),
             retry_manager,
+            prewarmed_sessions: Mutex::new(HashSet::new()),
         }
     }
 
@@ -189,6 +191,57 @@ impl Agent {
     /// Increment the retry attempts counter and return the new value
     pub async fn increment_retry_attempts(&self) -> u32 {
         self.retry_manager.increment_attempts().await
+    }
+
+    /// Pre-warm the LLM/provider by sending a lightweight background request with
+    /// the fully constructed system prompt and tools. This helps prime any
+    /// server-side caches before the user sends their first message.
+    pub async fn prewarm(&self, _session: Option<SessionConfig>) -> Result<()> {
+        // Always prewarm when called; non-blocking behavior is handled by the caller
+        let (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
+        let warmup_message =
+            Message::user().with_text("[warmup] Prepare to respond. Reply with 'ready'.");
+
+        Self::do_prewarm(
+            self.provider().await?,
+            &system_prompt,
+            &[warmup_message],
+            &tools,
+            &toolshim_tools,
+        )
+        .await;
+
+        Ok(())
+    }
+
+    async fn do_prewarm(
+        provider: Arc<dyn Provider>,
+        system_prompt: &str,
+        messages: &[Message],
+        tools: &[rmcp::model::Tool],
+        toolshim_tools: &[rmcp::model::Tool],
+    ) {
+        match Agent::generate_response_from_provider(
+            provider,
+            system_prompt,
+            messages,
+            tools,
+            toolshim_tools,
+        )
+        .await
+        {
+            Ok((_msg, usage)) => {
+                tracing::info!(
+                    model=%usage.model,
+                    input_tokens=?usage.usage.input_tokens,
+                    output_tokens=?usage.usage.output_tokens,
+                    "LLM prewarm completed"
+                );
+            }
+            Err(e) => {
+                tracing::warn!("LLM prewarm failed: {}", e);
+            }
+        }
     }
 
     /// Get the current retry attempts count
@@ -814,6 +867,41 @@ impl Agent {
         session: Option<SessionConfig>,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
+        // Background prewarm when a new session starts (server/desktop). Always on.
+        if let Some(ref s) = session {
+            let session_id = match &s.id {
+                crate::session::storage::Identifier::Name(n) => n.clone(),
+                crate::session::storage::Identifier::Path(p) => p.display().to_string(),
+            };
+            let mut prewarmed = self.prewarmed_sessions.lock().await;
+            if !prewarmed.contains(&session_id) {
+                prewarmed.insert(session_id.clone());
+                // Prepare prompt/tools and spawn background provider warmup
+                let provider_opt = self.provider().await.ok();
+                match (self.prepare_tools_and_prompt().await, provider_opt) {
+                    (Ok((tools, toolshim_tools, system_prompt)), Some(provider)) => {
+                        let warmup_message = Message::user()
+                            .with_text("[warmup] Prepare to respond. Reply with 'ready'.");
+                        tokio::spawn(async move {
+                            let _ = Agent::generate_response_from_provider(
+                                provider,
+                                &system_prompt,
+                                &[warmup_message],
+                                &tools,
+                                &toolshim_tools,
+                            )
+                            .await;
+                        });
+                    }
+                    (Err(e), _) => {
+                        tracing::warn!("Prewarm prepare_tools_and_prompt failed: {}", e);
+                    }
+                    (_, None) => {
+                        tracing::debug!("Prewarm skipped: provider not set yet");
+                    }
+                }
+            }
+        }
         // Handle auto-compaction before processing
         let (messages, compaction_msg) = match self
             .handle_auto_compaction(unfixed_conversation.messages(), &session)

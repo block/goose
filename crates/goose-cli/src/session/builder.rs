@@ -577,6 +577,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             Some(&provider_for_display),
         );
     }
+
     session
 }
 

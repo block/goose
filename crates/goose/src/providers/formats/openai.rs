@@ -14,6 +14,15 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::ops::Deref;
 
+use std::sync::OnceLock;
+use uuid::Uuid;
+
+static PROMPT_CACHE_KEY: OnceLock<String> = OnceLock::new();
+
+fn get_prompt_cache_key() -> &'static str {
+    PROMPT_CACHE_KEY.get_or_init(|| format!("goose-{}", Uuid::new_v4()))
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 struct DeltaToolCallFunction {
     name: Option<String>,
@@ -605,7 +614,8 @@ pub fn create_request(
 
     let mut payload = json!({
         "model": model_name,
-        "messages": messages_array
+        "messages": messages_array,
+        "prompt_cache_key": get_prompt_cache_key(),
     });
 
     if let Some(effort) = reasoning_effort {
