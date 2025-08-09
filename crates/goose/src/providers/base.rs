@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use super::errors::ProviderError;
 use super::retry::RetryConfig;
-use crate::message::Message;
+use crate::conversation::message::Message;
+use crate::conversation::Conversation;
 use crate::model::ModelConfig;
 use crate::utils::safe_truncate;
 use rmcp::model::Tool;
@@ -370,7 +371,7 @@ pub trait Provider: Send + Sync {
     }
 
     /// Returns the first 3 user messages as strings for session naming
-    fn get_initial_user_messages(&self, messages: &[Message]) -> Vec<String> {
+    fn get_initial_user_messages(&self, messages: &Conversation) -> Vec<String> {
         messages
             .iter()
             .filter(|m| m.role == rmcp::model::Role::User)
@@ -381,7 +382,10 @@ pub trait Provider: Send + Sync {
 
     /// Generate a session name/description based on the conversation history
     /// Creates a prompt asking for a concise description in 4 words or less.
-    async fn generate_session_name(&self, messages: &[Message]) -> Result<String, ProviderError> {
+    async fn generate_session_name(
+        &self,
+        messages: &Conversation,
+    ) -> Result<String, ProviderError> {
         let context = self.get_initial_user_messages(messages);
         let prompt = self.create_session_name_prompt(&context);
         let message = Message::user().with_text(&prompt);

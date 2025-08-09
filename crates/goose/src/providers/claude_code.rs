@@ -11,8 +11,8 @@ use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::utils::emit_debug_trace;
 use crate::config::Config;
+use crate::conversation::message::{Message, MessageContent};
 use crate::impl_provider_default;
-use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
 

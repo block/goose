@@ -10,7 +10,7 @@ use axum::{
     routing::{get, put},
     Json, Router,
 };
-use goose::message::Message;
+use goose::conversation::message::Message;
 use goose::session;
 use goose::session::info::{get_valid_sorted_sessions, SessionInfo, SortOrder};
 use goose::session::SessionMetadata;
@@ -137,7 +137,7 @@ async fn get_session_history(
     Ok(Json(SessionHistoryResponse {
         session_id,
         metadata,
-        messages,
+        messages: messages.messages().clone(),
     }))
 }
 

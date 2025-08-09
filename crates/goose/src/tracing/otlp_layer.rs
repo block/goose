@@ -121,9 +121,12 @@ pub fn create_otlp_tracing_layer() -> OtlpResult<OtlpTracingLayer> {
 
     let tracer_provider = trace::TracerProvider::builder()
         .with_batch_exporter(exporter, runtime::Tokio)
+        .with_max_events_per_span(2048)
+        .with_max_attributes_per_span(512)
+        .with_max_links_per_span(512)
         .with_resource(resource)
         .with_id_generator(RandomIdGenerator::default())
-        .with_sampler(Sampler::AlwaysOn)
+        .with_sampler(Sampler::TraceIdRatioBased(0.1))
         .build();
 
     let tracer = tracer_provider.tracer("goose");
@@ -150,7 +153,7 @@ pub fn create_otlp_metrics_layer() -> OtlpResult<OtlpMetricsLayer> {
         .with_resource(resource)
         .with_reader(
             opentelemetry_sdk::metrics::PeriodicReader::builder(exporter, runtime::Tokio)
-                .with_interval(Duration::from_secs(5)) // Reduced from 30s to 5s for faster metrics
+                .with_interval(Duration::from_millis(2000))
                 .build(),
         )
         .build();
@@ -220,12 +223,13 @@ pub fn create_otlp_metrics_filter() -> FilterFn<impl Fn(&Metadata<'_>) -> bool> 
 
 /// Shutdown OTLP providers gracefully
 pub fn shutdown_otlp() {
+    // Shutdown the tracer provider and flush any pending spans
     global::shutdown_tracer_provider();
 
-    // Note: There's currently no clean way to shutdown the global meter provider
-    // in the OpenTelemetry Rust SDK. The meter provider will be cleaned up when
-    // the process exits. Individual meter providers can be shut down if you have
-    // a direct reference to them.
+    // Force flush of metrics by waiting a bit
+    // The meter provider doesn't have a direct shutdown method in the current SDK,
+    // but we can give it time to export any pending metrics
+    std::thread::sleep(std::time::Duration::from_millis(500));
 }
 
 #[cfg(test)]

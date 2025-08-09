@@ -18,8 +18,8 @@ use super::retry::ProviderRetry;
 use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
 
 use crate::config::{Config, ConfigError};
+use crate::conversation::message::Message;
 use crate::impl_provider_default;
-use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::base::ConfigKey;
 use rmcp::model::Tool;
