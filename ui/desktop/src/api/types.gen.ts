@@ -82,6 +82,7 @@ export type CreateCustomProviderRequest = {
     display_name: string;
     models: Array<string>;
     provider_type: string;
+    supports_streaming?: boolean | null;
 };
 
 export type CreateRecipeRequest = {

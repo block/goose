@@ -86,6 +86,7 @@ pub struct CreateCustomProviderRequest {
     pub api_url: String,
     pub api_key: String,
     pub models: Vec<String>,
+    pub supports_streaming: Option<bool>,
 }
 
 #[utoipa::path(
@@ -725,73 +726,21 @@ pub async fn create_custom_provider(
 ) -> Result<Json<String>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    // use display name as name
-    let id = format!(
-        "custom_{}",
-        request.display_name.to_lowercase().replace(' ', "_")
-    );
-
-    // key naming convention
-    let api_key_name = format!(
-        "{}_API_KEY",
-        request
-            .display_name
-            .to_uppercase()
-            .replace(" ", "_")
-            .replace("-", "_")
-    );
-
-    // api-key -> keyring
-    let config = Config::global();
-    config
-        .set_secret(
-            &api_key_name,
-            serde_json::Value::String(request.api_key.clone()),
-        )
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    // models -> ModelInfo fmt
-    let model_infos: Vec<goose::providers::base::ModelInfo> = request
-        .models
-        .iter()
-        .map(|name| goose::providers::base::ModelInfo::new(name.clone(), 128000))
-        .collect();
-
-    let provider_config = goose::config::custom_providers::CustomProviderConfig {
-        name: id.clone(),
-        engine: match request.provider_type.as_str() {
-            "openai_compatible" => goose::config::custom_providers::ProviderEngine::OpenAI,
-            "anthropic_compatible" => goose::config::custom_providers::ProviderEngine::Anthropic,
-            "ollama_compatible" => goose::config::custom_providers::ProviderEngine::Ollama,
-            _ => return Err(StatusCode::BAD_REQUEST),
-        },
-        display_name: request.display_name,
-        description: None,
-        api_key_env: api_key_name,
-        base_url: request.api_url,
-        models: model_infos,
-        headers: None,
-        timeout_seconds: None,
-    };
-
-    // create custom provider
-    let config_dir = etcetera::choose_app_strategy(goose::config::base::APP_STRATEGY.clone())
-        .expect("goose requires a home dir")
-        .config_dir();
-    let custom_providers_dir = config_dir.join("custom_providers");
-    std::fs::create_dir_all(&custom_providers_dir)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    let json_content = serde_json::to_string_pretty(&provider_config)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let file_path = custom_providers_dir.join(format!("{}.json", id));
-    std::fs::write(file_path, json_content).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let config = goose::config::custom_providers::CustomProviderConfig::create_and_save(
+        &request.provider_type,
+        request.display_name,
+        request.api_url,
+        request.api_key,
+        request.models,
+        request.supports_streaming,
+    )
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     if let Err(e) = goose::providers::refresh_custom_providers() {
         tracing::warn!("Failed to refresh custom providers after creation: {}", e);
     }
 
-    Ok(Json(format!("Custom provider added - ID: {}", id)))
+    Ok(Json(format!("Custom provider added - ID: {}", config.id())))
 }
 
 #[utoipa::path(
@@ -810,25 +759,11 @@ pub async fn remove_custom_provider(
 ) -> Result<Json<String>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    let config = Config::global();
-    let api_key_name = format!("{}_API_KEY", id.to_uppercase());
-    let _ = config.delete_secret(&api_key_name);
+    goose::config::custom_providers::CustomProviderConfig::remove(&id)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // remove provider
-    let config_dir = etcetera::choose_app_strategy(goose::config::base::APP_STRATEGY.clone())
-        .expect("goose requires a home dir")
-        .config_dir();
-    let custom_providers_dir = config_dir.join("custom_providers");
-    let file_path = custom_providers_dir.join(format!("{}.json", id));
-
-    if file_path.exists() {
-        std::fs::remove_file(file_path).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-        if let Err(e) = goose::providers::refresh_custom_providers() {
-            tracing::warn!("Failed to refresh custom providers after deletion: {}", e);
-        }
-    } else {
-        return Err(StatusCode::NOT_FOUND);
+    if let Err(e) = goose::providers::refresh_custom_providers() {
+        tracing::warn!("Failed to refresh custom providers after deletion: {}", e);
     }
 
     Ok(Json(format!("Removed custom provider: {}", id)))

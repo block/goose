@@ -12,6 +12,7 @@ interface CustomProviderFormProps {
     api_url: string;
     api_key: string;
     models: string[];
+    supports_streaming: boolean;
   }) => void;
   onCancel: () => void;
 }
@@ -23,6 +24,7 @@ export default function CustomProviderForm({ onSubmit, onCancel }: CustomProvide
   const [apiKey, setApiKey] = useState('');
   const [models, setModels] = useState('');
   const [isLocalModel, setIsLocalModel] = useState(false);
+  const [supportsStreaming, setSupportsStreaming] = useState(true);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
   const handleLocalModels = (checked: boolean) => {
@@ -60,6 +62,7 @@ export default function CustomProviderForm({ onSubmit, onCancel }: CustomProvide
       api_url: apiUrl,
       api_key: apiKey,
       models: modelList,
+      supports_streaming: supportsStreaming,
     });
   };
 
@@ -167,6 +170,20 @@ export default function CustomProviderForm({ onSubmit, onCancel }: CustomProvide
         {validationErrors.models && (
           <p className="text-red-500 text-sm mt-1">{validationErrors.models}</p>
         )}
+      </div>
+
+      <div className="flex items-center space-x-2 mb-10">
+        <Checkbox
+          id="supports-streaming"
+          checked={supportsStreaming}
+          onCheckedChange={(checked) => setSupportsStreaming(checked as boolean)}
+        />
+        <label
+          htmlFor="supports-streaming"
+          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-gray-400"
+        >
+          Provider supports streaming responses
+        </label>
       </div>
 
       <SecureStorageNotice />

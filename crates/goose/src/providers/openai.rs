@@ -52,6 +52,7 @@ pub struct OpenAiProvider {
     project: Option<String>,
     model: ModelConfig,
     custom_headers: Option<HashMap<String, String>>,
+    supports_streaming: bool,
 }
 
 impl_provider_default!(OpenAiProvider);
@@ -104,9 +105,9 @@ impl OpenAiProvider {
             project,
             model,
             custom_headers,
+            supports_streaming: true,
         })
     }
-
 
     pub fn from_custom_config(model: ModelConfig, config: CustomProviderConfig) -> Result<Self> {
         let global_config = crate::config::Config::global();
@@ -127,11 +128,8 @@ impl OpenAiProvider {
 
         let timeout_secs = config.timeout_seconds.unwrap_or(600);
         let auth = AuthMethod::BearerToken(api_key);
-        let mut api_client = ApiClient::with_timeout(
-            host,
-            auth,
-            std::time::Duration::from_secs(timeout_secs),
-        )?;
+        let mut api_client =
+            ApiClient::with_timeout(host, auth, std::time::Duration::from_secs(timeout_secs))?;
 
         // Add custom headers if present
         if let Some(headers) = &config.headers {
@@ -151,6 +149,7 @@ impl OpenAiProvider {
             project: None,
             model,
             custom_headers: config.headers,
+            supports_streaming: config.supports_streaming.unwrap_or(true),
         })
     }
 
@@ -254,7 +253,7 @@ impl Provider for OpenAiProvider {
     }
 
     fn supports_streaming(&self) -> bool {
-        true
+        self.supports_streaming
     }
 
     async fn stream(

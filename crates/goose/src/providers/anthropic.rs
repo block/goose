@@ -43,6 +43,7 @@ pub struct AnthropicProvider {
     #[serde(skip)]
     api_client: ApiClient,
     model: ModelConfig,
+    supports_streaming: bool,
 }
 
 impl_provider_default!(AnthropicProvider);
@@ -63,7 +64,11 @@ impl AnthropicProvider {
         let api_client =
             ApiClient::new(host, auth)?.with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
 
-        Ok(Self { api_client, model })
+        Ok(Self {
+            api_client,
+            model,
+            supports_streaming: true,
+        })
     }
 
     pub fn from_custom_config(model: ModelConfig, config: CustomProviderConfig) -> Result<Self> {
@@ -80,7 +85,11 @@ impl AnthropicProvider {
         let api_client = ApiClient::new(config.base_url, auth)?
             .with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
 
-        Ok(Self { api_client, model })
+        Ok(Self {
+            api_client,
+            model,
+            supports_streaming: config.supports_streaming.unwrap_or(true),
+        })
     }
 
     fn get_conditional_headers(&self) -> Vec<(&str, &str)> {
@@ -278,6 +287,6 @@ impl Provider for AnthropicProvider {
     }
 
     fn supports_streaming(&self) -> bool {
-        true
+        self.supports_streaming
     }
 }

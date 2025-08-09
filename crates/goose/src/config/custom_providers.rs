@@ -24,6 +24,7 @@ pub struct CustomProviderConfig {
     pub models: Vec<ModelInfo>,
     pub headers: Option<HashMap<String, String>>,
     pub timeout_seconds: Option<u64>,
+    pub supports_streaming: Option<bool>,
 }
 
 impl CustomProviderConfig {
@@ -37,6 +38,96 @@ impl CustomProviderConfig {
 
     pub fn models(&self) -> &[ModelInfo] {
         &self.models
+    }
+
+    pub fn generate_id(display_name: &str) -> String {
+        format!("custom_{}", display_name.to_lowercase().replace(' ', "_"))
+    }
+
+    // api-key -> keyring
+    pub fn generate_api_key_name(id: &str) -> String {
+        format!("{}_API_KEY", id.to_uppercase())
+    }
+
+    // create final provider config
+    pub fn create_and_save(
+        provider_type: &str,
+        display_name: String,
+        api_url: String,
+        api_key: String,
+        models: Vec<String>,
+        supports_streaming: Option<bool>,
+    ) -> Result<Self> {
+        use crate::config::Config;
+        use crate::config::APP_STRATEGY;
+        use etcetera::{choose_app_strategy, AppStrategy};
+
+        // generate id and apikey name
+        let id = Self::generate_id(&display_name);
+        let api_key_name = Self::generate_api_key_name(&id);
+
+        let config = Config::global();
+        config.set_secret(&api_key_name, serde_json::Value::String(api_key))?;
+
+        let model_infos: Vec<ModelInfo> = models
+            .into_iter()
+            .map(|name| ModelInfo::new(name, 128000))
+            .collect();
+
+        let provider_config = CustomProviderConfig {
+            name: id.clone(),
+            engine: match provider_type {
+                "openai_compatible" => ProviderEngine::OpenAI,
+                "anthropic_compatible" => ProviderEngine::Anthropic,
+                "ollama_compatible" => ProviderEngine::Ollama,
+                _ => return Err(anyhow::anyhow!("Invalid provider type: {}", provider_type)),
+            },
+            display_name: display_name.clone(),
+            description: Some(format!("Custom {} provider", display_name)),
+            api_key_env: api_key_name,
+            base_url: api_url,
+            models: model_infos,
+            headers: None,
+            timeout_seconds: None,
+            supports_streaming,
+        };
+
+        // save to JSON file
+        let config_dir = choose_app_strategy(APP_STRATEGY.clone())
+            .expect("goose requires a home dir")
+            .config_dir();
+        let custom_providers_dir = config_dir.join("custom_providers");
+        std::fs::create_dir_all(&custom_providers_dir)?;
+
+        let json_content = serde_json::to_string_pretty(&provider_config)?;
+        let file_path = custom_providers_dir.join(format!("{}.json", id));
+        std::fs::write(file_path, json_content)?;
+
+        Ok(provider_config)
+    }
+
+    // remove a custom provider
+    pub fn remove(id: &str) -> Result<()> {
+        use crate::config::Config;
+        use crate::config::APP_STRATEGY;
+        use etcetera::{choose_app_strategy, AppStrategy};
+
+        // remove apikey from keyring
+        let config = Config::global();
+        let api_key_name = Self::generate_api_key_name(id);
+        let _ = config.delete_secret(&api_key_name);
+
+        let config_dir = choose_app_strategy(APP_STRATEGY.clone())
+            .expect("goose requires a home dir")
+            .config_dir();
+        let custom_providers_dir = config_dir.join("custom_providers");
+        let file_path = custom_providers_dir.join(format!("{}.json", id));
+
+        if file_path.exists() {
+            std::fs::remove_file(file_path)?;
+        }
+
+        Ok(())
     }
 }
 

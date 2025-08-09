@@ -9,7 +9,7 @@ use goose::agents::platform_tools::{
 use goose::agents::Agent;
 use goose::agents::{extension::Envs, ExtensionConfig};
 use goose::config::base::APP_STRATEGY;
-use goose::config::custom_providers::{CustomProviderConfig, ProviderEngine};
+use goose::config::custom_providers::CustomProviderConfig;
 use goose::config::extensions::name_to_key;
 use goose::config::permission::PermissionLevel;
 use goose::config::{
@@ -17,7 +17,6 @@ use goose::config::{
     PermissionManager,
 };
 use goose::message::Message;
-use goose::providers::base::ModelInfo;
 use goose::providers::{create, providers};
 use rmcp::model::{Tool, ToolAnnotations};
 use rmcp::object;
@@ -1619,7 +1618,7 @@ pub fn configure_custom_provider_dialog() -> Result<(), Box<dyn Error>> {
         .item(
             "add",
             "Add A Custom Provider",
-            "Add a new OpenAI/Anthropic compatible Provider",
+            "Add a new OpenAI/Anthropic/Ollama compatible Provider",
         )
         .item(
             "remove",
@@ -1689,48 +1688,19 @@ pub fn configure_custom_provider_dialog() -> Result<(), Box<dyn Error>> {
                 .filter(|s| !s.is_empty())
                 .collect();
 
-            // Generate name from display name
-            let id = format!("custom_{}", display_name.to_lowercase().replace(' ', "_"));
+            let supports_streaming =
+                cliclack::confirm("Does this provider support streaming responses?")
+                    .initial_value(true)
+                    .interact()?;
 
-            // api-key -> keyring
-            let config = Config::global();
-            let api_key_name = format!("{}_API_KEY", id.to_uppercase());
-            config.set_secret(&api_key_name, Value::String(api_key))?;
-
-            let display_name_clone = display_name.clone();
-
-            let model_infos: Vec<ModelInfo> = models
-                .iter()
-                .map(|name| ModelInfo::new(name.clone(), 128000))
-                .collect();
-
-            // create final provider config
-            let provider_config = CustomProviderConfig {
-                name: id.clone(),
-                engine: match provider_type {
-                    "openai_compatible" => ProviderEngine::OpenAI,
-                    "anthropic_compatible" => ProviderEngine::Anthropic,
-                    "ollama_compatible" => ProviderEngine::Ollama,
-                    _ => unreachable!(),
-                },
-                display_name: display_name_clone,
-                description: Some(format!("Custom {} provider", display_name)),
-                api_key_env: api_key_name,
-                base_url: api_url,
-                models: model_infos,
-                headers: None,
-                timeout_seconds: None,
-            };
-
-            let config_dir = choose_app_strategy(APP_STRATEGY.clone())
-                .expect("goose requires a home dir")
-                .config_dir();
-            let custom_providers_dir = config_dir.join("custom_providers");
-            std::fs::create_dir_all(&custom_providers_dir)?;
-
-            let json_content = serde_json::to_string_pretty(&provider_config)?;
-            let file_path = custom_providers_dir.join(format!("{}.json", id));
-            std::fs::write(file_path, json_content)?;
+            CustomProviderConfig::create_and_save(
+                provider_type,
+                display_name.clone(),
+                api_url,
+                api_key,
+                models,
+                Some(supports_streaming),
+            )?;
 
             cliclack::outro(format!("Custom provider added: {}", display_name))?;
         }
@@ -1753,24 +1723,14 @@ pub fn configure_custom_provider_dialog() -> Result<(), Box<dyn Error>> {
 
             let provider_items: Vec<_> = custom_providers
                 .iter()
-                .map(|p| (&p.name, &p.display_name, "Custom provider"))
+                .map(|p| (p.name.as_str(), p.display_name.as_str(), "Custom provider"))
                 .collect();
 
             let selected_id = cliclack::select("Which custom provider would you like to remove?")
                 .items(&provider_items)
                 .interact()?;
 
-            // TODO: remove api-key from keyring
-
-            let config = Config::global();
-            let api_key_name = format!("{}_API_KEY", selected_id.to_uppercase());
-            let _ = config.delete_secret(&api_key_name);
-
-            // remove json file
-            let file_path = custom_providers_dir.join(format!("{}.json", selected_id));
-            if file_path.exists() {
-                std::fs::remove_file(file_path)?;
-            }
+            CustomProviderConfig::remove(selected_id)?;
 
             cliclack::outro(format!("Removed custom provider: {}", selected_id))?;
         }
