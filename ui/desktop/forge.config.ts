@@ -69,7 +69,8 @@ module.exports = {
         bin: 'Goose',
         maintainer: 'Block, Inc.',
         homepage: 'https://block.github.io/goose/',
-        categories: ['Development']
+        categories: ['Development'],
+        mimeType: ['x-scheme-handler/goose']
       },
     },
     {
