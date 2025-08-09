@@ -113,6 +113,7 @@ tokio = { version = "1.43", features = ["full"] }
 temp-env = "0.3.6"
 dotenvy = "0.15.7"
 ctor = "0.2.9"
+test-case = "3.3"
 
 [[example]]
 name = "agent"

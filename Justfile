@@ -458,3 +458,9 @@ win-total-rls *allparam:
   just win-bld-rls{{allparam}}
   just win-run-rls
 
+build-test-tools:
+  cargo build -p goose-test
+
+record-mcp-tests: build-test-tools
+  GOOSE_RECORD_MCP=1 cargo test --package goose --test mcp_integration_test
+  git add crates/goose/tests/mcp_replays/

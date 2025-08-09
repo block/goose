@@ -1,0 +1,131 @@
+use std::env;
+use std::fs::OpenOptions;
+use std::io::{self, BufRead, BufReader, Write};
+use std::process::{ChildStdin, Command, Stdio};
+use std::sync::mpsc;
+use std::thread::{self, JoinHandle};
+
+#[derive(Debug, Clone)]
+enum StreamType {
+    Stdin,
+    Stdout,
+    Stderr,
+}
+
+fn handle_output_stream<R: BufRead + Send + 'static>(
+    reader: R,
+    sender: mpsc::Sender<(StreamType, String)>,
+    stream_type: StreamType,
+    mut output_writer: Box<dyn Write + Send>,
+) -> JoinHandle<()> {
+    thread::spawn(move || {
+        for line in reader.lines() {
+            match line {
+                Ok(line) => {
+                    let _ = sender.send((stream_type.clone(), line.clone()));
+
+                    if writeln!(output_writer, "{}", line).is_err() {
+                        break;
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+    })
+}
+
+fn handle_stdin_stream(
+    mut child_stdin: ChildStdin,
+    sender: mpsc::Sender<(StreamType, String)>,
+) -> JoinHandle<()> {
+    thread::spawn(move || {
+        let stdin = io::stdin();
+
+        for line in stdin.lock().lines() {
+            match line {
+                Ok(line) => {
+                    let _ = sender.send((StreamType::Stdin, line.clone()));
+
+                    if writeln!(child_stdin, "{}", line).is_err() {
+                        break;
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+    })
+}
+
+fn main() -> io::Result<()> {
+    let args: Vec<String> = env::args().collect();
+
+    if args.len() < 3 {
+        eprintln!("Usage: {} <log file> <command> [args...]", args[0]);
+        eprintln!("Example: {{}} ls -la");
+        std::process::exit(1);
+    }
+
+    let log_file_path = &args[1];
+    let cmd = &args[2];
+    let cmd_args = &args[3..];
+
+    let (tx, rx) = mpsc::channel();
+
+    let log_file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(log_file_path)?;
+
+    let mut child = Command::new(cmd)
+        .args(cmd_args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| {
+            eprintln!("Failed to execute command '{}': {}", cmd, e);
+            e
+        })?;
+
+    let child_stdin = child.stdin.take().unwrap();
+    let child_stdout = child.stdout.take().unwrap();
+    let child_stderr = child.stderr.take().unwrap();
+
+    let stdin_handle = handle_stdin_stream(child_stdin, tx.clone());
+    let stdout_handle = handle_output_stream(
+        BufReader::new(child_stdout),
+        tx.clone(),
+        StreamType::Stdout,
+        Box::new(io::stdout()),
+    );
+    let stderr_handle = handle_output_stream(
+        BufReader::new(child_stderr),
+        tx.clone(),
+        StreamType::Stderr,
+        Box::new(io::stderr()),
+    );
+
+    thread::spawn(move || {
+        let mut log_file = log_file;
+        for (stream_type, line) in rx {
+            let prefix = match stream_type {
+                StreamType::Stdin => "STDIN",
+                StreamType::Stdout => "STDOUT",
+                StreamType::Stderr => "STDERR",
+            };
+            if let Err(e) = writeln!(log_file, "{}: {}", prefix, line) {
+                eprintln!("Error writing to log file: {}", e);
+            }
+            log_file.flush().ok();
+        }
+    });
+
+    let exit_status = child.wait()?;
+
+    stdin_handle.join().ok();
+    stdout_handle.join().ok();
+    stderr_handle.join().ok();
+
+    std::process::exit(exit_status.code().unwrap_or(1));
+}
