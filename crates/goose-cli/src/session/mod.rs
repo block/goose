@@ -304,6 +304,7 @@ impl Session {
                 timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
                 bundled: None,
                 description: None,
+                working_dir: None,
             };
             self.agent
                 .add_extension(config)

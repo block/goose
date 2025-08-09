@@ -32,6 +32,7 @@ xcap = "0.0.14"
 reqwest = { version = "0.11", features = [
     "json",
     "rustls-tls-native-roots",
+    "multipart",
 ], default-features = false }
 async-trait = "0.1"
 chrono = { version = "0.4.38", features = ["serde"] }
@@ -60,9 +61,13 @@ keyring = { version = "3.6.2", features = [
 oauth2 = { version = "5.0.0", features = ["reqwest"] }
 utoipa = { version = "4.1", optional = true }
 hyper = "1"
+nix = { version = "0.29", default-features = false, features = ["process","signal"] }
+
 serde_with = "3"
 which = "6.0"
 glob = "0.3"
+walkdir = { version = "2" }
+zip = { version = "0.6", default-features = false, features = ["deflate"] }
 
 
 [dev-dependencies]
