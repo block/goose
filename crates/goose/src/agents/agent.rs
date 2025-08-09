@@ -765,7 +765,13 @@ impl Agent {
         &self,
         messages: &[Message],
         session: &Option<SessionConfig>,
-    ) -> Result<Option<(Conversation, String)>> {
+    ) -> Result<
+        Option<(
+            Conversation,
+            String,
+            Option<crate::providers::base::ProviderUsage>,
+        )>,
+    > {
         // Try to get session metadata for more accurate token counts
         let session_metadata = if let Some(session_config) = session {
             match session::storage::get_path(session_config.id.clone()) {
@@ -786,22 +792,13 @@ impl Agent {
 
         if compact_result.compacted {
             let compacted_messages = compact_result.messages;
+            let compaction_msg = "Auto-compacted context to reduce token usage\n\n".to_string();
 
-            // Create compaction notification message
-            let compaction_msg = if let (Some(before), Some(after)) =
-                (compact_result.tokens_before, compact_result.tokens_after)
-            {
-                format!(
-                    "Auto-compacted context: {} → {} tokens ({:.0}% reduction)\n\n",
-                    before,
-                    after,
-                    (1.0 - (after as f64 / before as f64)) * 100.0
-                )
-            } else {
-                "Auto-compacted context to reduce token usage\n\n".to_string()
-            };
-
-            return Ok(Some((compacted_messages, compaction_msg)));
+            return Ok(Some((
+                compacted_messages,
+                compaction_msg,
+                compact_result.summarization_usage,
+            )));
         }
 
         Ok(None)
@@ -815,16 +812,16 @@ impl Agent {
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         // Handle auto-compaction before processing
-        let (messages, compaction_msg) = match self
+        let (messages, compaction_msg, summarization_usage) = match self
             .handle_auto_compaction(unfixed_conversation.messages(), &session)
             .await?
         {
-            Some((compacted_messages, msg)) => (compacted_messages, Some(msg)),
+            Some((compacted_messages, msg, usage)) => (compacted_messages, Some(msg), usage),
             None => {
                 let context = self
                     .prepare_reply_context(unfixed_conversation, &session)
                     .await?;
-                (context.messages, None)
+                (context.messages, None, None)
             }
         };
 
@@ -835,7 +832,7 @@ impl Agent {
                 yield AgentEvent::HistoryReplaced(messages.messages().clone());
 
                 // Continue with normal reply processing using compacted messages
-                let mut reply_stream = self.reply_internal(messages, session, cancel_token).await?;
+                let mut reply_stream = self.reply_internal(messages, session, cancel_token, summarization_usage).await?;
                 while let Some(event) = reply_stream.next().await {
                     yield event?;
                 }
@@ -843,7 +840,8 @@ impl Agent {
         }
 
         // No compaction needed, proceed with normal processing
-        self.reply_internal(messages, session, cancel_token).await
+        self.reply_internal(messages, session, cancel_token, summarization_usage)
+            .await
     }
 
     /// Main reply method that handles the actual agent processing
@@ -852,6 +850,7 @@ impl Agent {
         messages: Conversation,
         session: Option<SessionConfig>,
         cancel_token: Option<CancellationToken>,
+        summarization_usage: Option<crate::providers::base::ProviderUsage>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         let context = self.prepare_reply_context(messages, &session).await?;
         let ReplyContext {
@@ -950,7 +949,25 @@ impl Agent {
                             // Record usage for the session
                             if let Some(ref session_config) = &session {
                                 if let Some(ref usage) = usage {
-                                    Self::update_session_metrics(session_config, usage, messages.len())
+                                    // If we have summarization usage, we need to add only the main response cost
+                                    // to avoid double-counting the conversation content that was summarized
+                                    let final_usage = if let Some(ref sum_usage) = summarization_usage {
+                                        // Create a usage that represents: summarization cost + main response cost
+                                        // But we need to be careful not to double-count input tokens
+                                        let main_output_only = crate::providers::base::Usage::new(
+                                            None, // Don't double-count input tokens
+                                            usage.usage.output_tokens, // Add main response output
+                                            usage.usage.output_tokens, // Total = just the output
+                                        );
+                                        let main_output_usage = crate::providers::base::ProviderUsage::new(
+                                            usage.model.clone(),
+                                            main_output_only,
+                                        );
+                                        sum_usage.combine_with(&main_output_usage)
+                                    } else {
+                                        usage.clone()
+                                    };
+                                    Self::update_session_metrics(session_config, &final_usage, messages.len())
                                         .await?;
                                 }
                             }

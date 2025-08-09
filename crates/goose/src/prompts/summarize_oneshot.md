@@ -2,6 +2,9 @@
 Generate detailed summary of conversation to date.  
 Include user requests, your responses, and all technical content.  
 
+**Conversation History:**
+{{ messages }}
+
 Wrap reasoning in `<analysis>` tags:  
 - Review conversation chronologically  
 - For each part, log:  
