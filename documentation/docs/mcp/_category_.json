@@ -2,7 +2,7 @@
   "label": "MCP Servers",
   "position": 5,
   "link": {
-    "type": "generated-index",
-    "description": "How to integrate and use MCP servers as Goose extensions"
+    "type": "doc",
+    "id": "mcp/index"
   }
 }

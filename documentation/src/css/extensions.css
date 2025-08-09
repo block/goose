@@ -260,25 +260,57 @@
   align-items: center;
   gap: 0.5rem;
   font-size: 0.75rem;
-  color: var(--text-subtle);
+  font-weight: 700;
+  color: #ffffff;
+  background-color: #000000;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.375rem;
+  border: 2px solid #000000;
   transition: all 0.2s ease;
   text-decoration: none !important;
-  padding: 0;
 }
 
 .install-button:hover {
-  color: var(--text-prominent);
+  background-color: #333333;
+  color: #ffffff;
   text-decoration: none !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 }
 
 .install-button svg {
   width: 16px;
   height: 16px;
-  transition: color 0.2s;
+  transition: transform 0.2s;
 }
 
 .install-button:hover svg {
-  color: #fa5204;
+  transform: translateY(-1px);
+}
+
+.docs-button {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.375rem;
+  background-color: var(--background-subtle);
+  color: var(--text-subtle);
+  transition: all 0.2s ease;
+  text-decoration: none !important;
+  border: 1px solid var(--border-subtle);
+}
+
+.docs-button:hover {
+  background-color: var(--background-standard);
+  color: var(--text-standard);
+  text-decoration: none !important;
+}
+
+.docs-button svg {
+  width: 16px;
+  height: 16px;
 }
 
 .built-in-badge {
@@ -324,4 +356,29 @@ html[data-theme="dark"] .command-content {
 
 html[data-theme="dark"] .built-in-badge {
   background-color: rgba(255, 255, 255, 0.1);
+}
+
+html[data-theme="dark"] .install-button {
+  font-weight: 700;
+  color: #000000;
+  background-color: #ffffff;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.375rem;
+  border: 2px solid #ffffff;
+}
+
+html[data-theme="dark"] .install-button:hover {
+  background-color: #f0f0f0;
+  color: #000000;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 255, 255, 0.15);
+}
+
+html[data-theme="dark"] .install-button svg {
+  transition: transform 0.2s;
+}
+
+html[data-theme="dark"] .install-button:hover svg {
+  color: #000000;
+  transform: translateY(-1px);
 }

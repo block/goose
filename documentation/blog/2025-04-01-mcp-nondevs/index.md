@@ -35,7 +35,7 @@ So what can you connect your AI agent to? MCP Servers! MCP servers give your age
 
 This quick list should give you an idea of all the ways you can now use AI agents with your workflow. You can also explore community favorites in [handy MCP directories](https://dev.to/techgirl1908/my-favorite-mcp-directories-573n), and learn [how to check MCP servers are safe](/blog/2025/03/26/mcp-security) before installing.
 
-You can also check out these [Goose tutorials](/docs/category/mcp-servers), showing you exactly how you can use some of these popular MCP servers with Goose, or use [Goose's Tutorial extension](/docs/mcp/tutorial-mcp) to get extra help walking you through using or building extensions.
+You can also check out these [Goose tutorials](/docs/mcp), showing you exactly how you can use some of these popular MCP servers with Goose, or use [Goose's Tutorial extension](/docs/mcp/tutorial-mcp) to get extra help walking you through using or building extensions.
 
 ## Example MCP Prompts
 Now that you've caught a glimpse of some of the MCP servers that out there, how do you make sure you're using MCPs with AI agents the best you can? This is where prompts come in.
