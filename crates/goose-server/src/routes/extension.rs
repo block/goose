@@ -253,6 +253,7 @@ async fn add_extension(
             timeout,
             bundled: None,
             description: None,
+            working_dir: None,
         },
         ExtensionConfigRequest::Frontend {
             name,
@@ -317,11 +318,75 @@ async fn remove_extension(
     }
 }
 
+#[derive(Deserialize)]
+struct SetupPairingRequest {
+    project_dir: String,
+}
+
+/// Handler for setting up a pairing session
+/// This will:
+/// 1. Remove all currently enabled extensions
+/// 2. Enable the build extension running inside project_dir
+async fn setup_pairing(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(request): Json<SetupPairingRequest>,
+) -> Result<Json<ExtensionResponse>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
+    // Get a reference to the agent
+    let agent = state
+        .get_agent()
+        .await
+        .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
+
+    // Get list of current extensions
+    let current_extensions = agent.list_extensions().await;
+
+    // Remove all current extensions
+    for ext_name in current_extensions {
+        if let Err(e) = agent.remove_extension(&ext_name).await {
+            tracing::warn!("Failed to remove extension {}: {:?}", ext_name, e);
+        }
+    }
+
+    // Set the PROJECT_DIR environment variable for the build extension
+    std::env::set_var("PROJECT_DIR", &request.project_dir);
+
+    // Add the build extension with the project directory as working_dir
+    let build_config = ExtensionConfig::Builtin {
+        name: "build".to_string(),
+        display_name: Some("Build".to_string()),
+        timeout: Some(600), // 10 minute timeout for build operations
+        bundled: None,
+        description: None,
+        working_dir: Some(request.project_dir.clone()),
+    };
+
+    match agent.add_extension(build_config).await {
+        Ok(_) => Ok(Json(ExtensionResponse {
+            error: false,
+            message: Some(format!(
+                "Pairing session setup with project directory: {}",
+                request.project_dir
+            )),
+        })),
+        Err(e) => {
+            eprintln!("Failed to add build extension: {:?}", e);
+            Ok(Json(ExtensionResponse {
+                error: true,
+                message: Some(format!("Failed to setup pairing session: {:?}", e)),
+            }))
+        }
+    }
+}
+
 /// Registers the extension management routes with the Axum router.
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/extensions/add", post(add_extension))
         .route("/extensions/remove", post(remove_extension))
+        .route("/extensions/setup-pairing", post(setup_pairing))
         .with_state(state)
 }
 

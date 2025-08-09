@@ -41,5 +41,6 @@
     "noImplicitReturns": true
   },
   "include": ["src"],
+  "exclude": ["src/templates/**/*"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

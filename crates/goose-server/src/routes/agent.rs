@@ -15,9 +15,13 @@ use goose::{
     config::permission::PermissionLevel,
 };
 use goose::{config::Config, recipe::SubRecipe};
+use mcp_core::tool::ToolCall;
+use rmcp::model::Content;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
+use uuid::Uuid;
 
 #[derive(Serialize)]
 struct VersionsResponse {
@@ -81,6 +85,19 @@ struct SessionConfigRequest {
 #[derive(Deserialize)]
 pub struct GetToolsQuery {
     extension_name: Option<String>,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct CallToolRequest {
+    tool_name: String,
+    arguments: Value,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct CallToolResponse {
+    success: bool,
+    result: Option<Vec<Content>>,
+    error: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -223,6 +240,62 @@ async fn get_tools(
 
 #[utoipa::path(
     post,
+    path = "/agent/call_tool",
+    request_body = CallToolRequest,
+    responses(
+        (status = 200, description = "Tool executed successfully", body = CallToolResponse),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 424, description = "Agent not initialized"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+async fn call_tool(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(payload): Json<CallToolRequest>,
+) -> Result<Json<CallToolResponse>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
+    let agent = state
+        .get_agent()
+        .await
+        .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
+
+    // Create a ToolCall from the request
+    let tool_call = ToolCall::new(payload.tool_name.clone(), payload.arguments);
+
+    // Generate a unique request ID
+    let request_id = Uuid::new_v4().to_string();
+
+    // Dispatch the tool call using the agent
+    let (_, result) = agent.dispatch_tool_call(tool_call, request_id, None).await;
+
+    match result {
+        Ok(tool_result) => {
+            // Wait for the actual result from the future
+            match tool_result.result.await {
+                Ok(contents) => Ok(Json(CallToolResponse {
+                    success: true,
+                    result: Some(contents),
+                    error: None,
+                })),
+                Err(e) => Ok(Json(CallToolResponse {
+                    success: false,
+                    result: None,
+                    error: Some(e.to_string()),
+                })),
+            }
+        }
+        Err(e) => Ok(Json(CallToolResponse {
+            success: false,
+            result: None,
+            error: Some(e.to_string()),
+        })),
+    }
+}
+
+#[utoipa::path(
+    post,
     path = "/agent/update_provider",
     responses(
         (status = 200, description = "Update provider completed", body = String),
@@ -348,6 +421,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/agent/providers", get(list_providers))
         .route("/agent/prompt", post(extend_prompt))
         .route("/agent/tools", get(get_tools))
+        .route("/agent/call_tool", post(call_tool))
         .route("/agent/update_provider", post(update_agent_provider))
         .route(
             "/agent/update_router_tool_selector",

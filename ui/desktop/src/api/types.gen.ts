@@ -190,6 +190,10 @@ export type ExtensionConfig = {
     name: string;
     timeout?: number | null;
     type: 'builtin';
+    /**
+     * Working directory to spawn the extension in
+     */
+    working_dir?: string | null;
 } | {
     /**
      * Whether this extension is bundled with Goose

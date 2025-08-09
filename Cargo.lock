@@ -3453,6 +3453,7 @@ dependencies = [
  "lopdf",
  "mcp-core",
  "mcp-server",
+ "nix 0.29.0",
  "oauth2",
  "once_cell",
  "regex",
@@ -3474,9 +3475,11 @@ dependencies = [
  "umya-spreadsheet",
  "url",
  "utoipa",
+ "walkdir",
  "webbrowser 0.8.15",
  "which",
  "xcap",
+ "zip 0.6.6",
 ]
 
 [[package]]
@@ -3514,6 +3517,7 @@ dependencies = [
  "tracing-appender",
  "tracing-subscriber",
  "utoipa",
+ "uuid",
 ]
 
 [[package]]
@@ -6889,6 +6893,7 @@ dependencies = [
  "js-sys",
  "log",
  "mime",
+ "mime_guess",
  "once_cell",
  "percent-encoding",
  "pin-project-lite",
@@ -8971,12 +8976,14 @@ dependencies = [
 
 [[package]]
 name = "uuid"
-version = "1.15.1"
+version = "1.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e0f540e3240398cce6128b64ba83fdbdd86129c16a3aa1a3a252efd66eb3d587"
+checksum = "3cf4199d1e5d15ddd86a694e4d0dffa9c323ce759fea589f00fef9d81cc1931d"
 dependencies = [
  "getrandom 0.3.1",
+ "js-sys",
  "serde",
+ "wasm-bindgen",
 ]
 
 [[package]]

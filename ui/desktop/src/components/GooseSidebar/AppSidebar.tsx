@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { FileText, Clock, Home, Puzzle, History } from 'lucide-react';
+import { FileText, Clock, Home, Puzzle, History, Hammer } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
   SidebarContent,
@@ -53,6 +53,13 @@ const menuItems: NavigationEntry[] = [
     label: 'Chat',
     icon: ChatSmart,
     tooltip: 'Start pairing with Goose',
+  },
+  {
+    type: 'item',
+    path: '/build',
+    label: 'Build',
+    icon: Hammer,
+    tooltip: 'Build new apps',
   },
   {
     type: 'item',
