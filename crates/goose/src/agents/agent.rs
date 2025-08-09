@@ -57,6 +57,7 @@ use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::subagent_task_config::TaskConfig;
 use crate::conversation::message::{Message, ToolRequest};
+use crate::debug_logger::log_debug_event;
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 
@@ -418,6 +419,8 @@ impl Agent {
             };
         }
 
+        log_debug_event(&format!("WAITING_TOOL_START: {}", tool_call.name));
+
         let extension_manager = self.extension_manager.read().await;
         let sub_recipe_manager = self.sub_recipe_manager.lock().await;
         let result: ToolCallResult = if sub_recipe_manager.is_sub_recipe_tool(&tool_call.name) {
@@ -487,6 +490,8 @@ impl Agent {
                 ToolCallResult::from(Err(ToolError::ExecutionError(e.to_string())))
             })
         };
+
+        log_debug_event(&format!("WAITING_TOOL_END: {}", tool_call.name));
 
         (
             request_id,

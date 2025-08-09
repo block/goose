@@ -172,6 +172,9 @@ impl<'a> ApiRequestBuilder<'a> {
     }
 
     pub async fn response_post(self, payload: &Value) -> Result<Response> {
+        // Log the JSON payload being sent to the LLM
+        crate::debug_logger::log_debug_event_with_json("LLM_REQUEST", payload);
+
         let request = self.send_request(|url, client| client.post(url)).await?;
         Ok(request.json(payload).send().await?)
     }
