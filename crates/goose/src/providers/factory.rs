@@ -190,7 +190,7 @@ fn create_lead_worker_from_env(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::message::{Message, MessageContent};
+    use crate::conversation::message::{Message, MessageContent};
     use crate::providers::base::{ProviderMetadata, ProviderUsage, Usage};
     use chrono::Utc;
     use rmcp::model::{AnnotateAble, RawTextContent, Role};

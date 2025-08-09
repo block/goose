@@ -22,7 +22,7 @@ export const ContextHandler: React.FC<ContextHandlerProps> = ({
 }) => {
   const {
     summaryContent,
-    isLoadingSummary,
+    isLoadingCompaction,
     errorLoadingSummary,
     openSummaryModal,
     handleContextLengthExceeded,
@@ -62,13 +62,13 @@ export const ContextHandler: React.FC<ContextHandlerProps> = ({
 
   // Scroll when summarization starts (loading state)
   useEffect(() => {
-    if (isLoadingSummary && shouldAllowSummaryInteraction) {
+    if (isLoadingCompaction && shouldAllowSummaryInteraction) {
       // Delay the scroll slightly to ensure the loading content is rendered
       setTimeout(() => {
         onSummaryComplete?.();
       }, 100);
     }
-  }, [isLoadingSummary, shouldAllowSummaryInteraction, onSummaryComplete]);
+  }, [isLoadingCompaction, shouldAllowSummaryInteraction, onSummaryComplete]);
 
   // Function to trigger the async operation properly
   const triggerContextLengthExceeded = () => {
@@ -234,7 +234,7 @@ export const ContextHandler: React.FC<ContextHandlerProps> = ({
         <div className="flex-grow border-t border-gray-300"></div>
       </div>
 
-      {isLoadingSummary && shouldAllowSummaryInteraction
+      {isLoadingCompaction && shouldAllowSummaryInteraction
         ? renderLoadingState()
         : renderContentState()}
     </div>

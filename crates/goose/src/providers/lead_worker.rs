@@ -6,7 +6,7 @@ use tokio::sync::Mutex;
 
 use super::base::{LeadWorkerProviderTrait, Provider, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
-use crate::message::{Message, MessageContent};
+use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
 use rmcp::model::{Content, RawContent};
@@ -454,7 +454,7 @@ impl Provider for LeadWorkerProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::message::MessageContent;
+    use crate::conversation::message::{Message, MessageContent};
     use crate::providers::base::{ProviderMetadata, ProviderUsage, Usage};
     use chrono::Utc;
     use rmcp::model::{AnnotateAble, RawTextContent, Role};

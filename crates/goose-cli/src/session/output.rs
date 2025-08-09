@@ -2,7 +2,7 @@ use anstream::println;
 use bat::WrappingMode;
 use console::{style, Color};
 use goose::config::Config;
-use goose::message::{Message, MessageContent, ToolRequest, ToolResponse};
+use goose::conversation::message::{Message, MessageContent, ToolRequest, ToolResponse};
 use goose::providers::pricing::get_model_pricing;
 use goose::providers::pricing::parse_model_id;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
@@ -16,6 +16,7 @@ use std::io::{Error, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
+
 // Re-export theme for use in main
 #[derive(Clone, Copy)]
 pub enum Theme {
@@ -536,10 +537,37 @@ fn print_params(value: &Value, depth: usize, debug: bool) {
                         print_params(val, depth + 1, debug);
                     }
                     Value::Array(arr) => {
-                        println!("{}{}:", indent, style(key).dim());
-                        for item in arr.iter() {
-                            println!("{}{}- ", indent, INDENT);
-                            print_params(item, depth + 2, debug);
+                        // Check if all items are simple values (not objects or arrays)
+                        let all_simple = arr.iter().all(|item| {
+                            matches!(
+                                item,
+                                Value::String(_) | Value::Number(_) | Value::Bool(_) | Value::Null
+                            )
+                        });
+
+                        if all_simple {
+                            // Render inline for simple arrays, truncation will be handled by print_value if needed
+                            let values: Vec<String> = arr
+                                .iter()
+                                .map(|item| match item {
+                                    Value::String(s) => s.clone(),
+                                    Value::Number(n) => n.to_string(),
+                                    Value::Bool(b) => b.to_string(),
+                                    Value::Null => "null".to_string(),
+                                    _ => unreachable!(),
+                                })
+                                .collect();
+                            let joined_values = values.join(", ");
+                            print!("{}{}: ", indent, style(key).dim());
+                            // Use print_value to handle truncation consistently
+                            print_value(&Value::String(joined_values), debug);
+                        } else {
+                            // Use the original multi-line format for complex arrays
+                            println!("{}{}:", indent, style(key).dim());
+                            for item in arr.iter() {
+                                println!("{}{}- ", indent, INDENT);
+                                print_params(item, depth + 2, debug);
+                            }
                         }
                     }
                     _ => {
@@ -828,11 +856,11 @@ impl McpSpinners {
         spinner.set_message(message.to_string());
     }
 
-    pub fn update(&mut self, token: &str, value: u32, total: Option<u32>, message: Option<&str>) {
+    pub fn update(&mut self, token: &str, value: f64, total: Option<f64>, message: Option<&str>) {
         let bar = self.bars.entry(token.to_string()).or_insert_with(|| {
             if let Some(total) = total {
                 self.multi_bar.add(
-                    ProgressBar::new((total * 100) as u64).with_style(
+                    ProgressBar::new((total * 100_f64) as u64).with_style(
                         ProgressStyle::with_template("[{elapsed}] {bar:40} {pos:>3}/{len:3} {msg}")
                             .unwrap(),
                     ),
@@ -841,7 +869,7 @@ impl McpSpinners {
                 self.multi_bar.add(ProgressBar::new_spinner())
             }
         });
-        bar.set_position((value * 100) as u64);
+        bar.set_position((value * 100_f64) as u64);
         if let Some(msg) = message {
             bar.set_message(msg.to_string());
         }

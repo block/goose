@@ -10,8 +10,8 @@ use super::formats::snowflake::{create_request, get_usage, response_to_message};
 use super::retry::ProviderRetry;
 use super::utils::{get_model, map_http_error_to_provider_error, ImageFormat};
 use crate::config::ConfigError;
+use crate::conversation::message::Message;
 use crate::impl_provider_default;
-use crate::message::Message;
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
 

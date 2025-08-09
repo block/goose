@@ -1,26 +1,17 @@
-/// Messages which represent the content sent back and forth to LLM provider
-///
-/// We use these messages in the agent code, and interfaces which interact with
-/// the agent. That let's us reuse message histories across different interfaces.
-///
-/// The content of the messages uses MCP types to avoid additional conversions
-/// when interacting with MCP servers.
 use chrono::Utc;
-use mcp_core::handler::ToolResult;
-use mcp_core::tool::ToolCall;
-use rmcp::model::ResourceContents;
-use rmcp::model::Role;
+use mcp_core::{ToolCall, ToolResult};
 use rmcp::model::{
     AnnotateAble, Content, ImageContent, PromptMessage, PromptMessageContent, PromptMessageRole,
-    RawContent, RawImageContent, RawTextContent, TextContent,
+    RawContent, RawImageContent, RawTextContent, ResourceContents, Role, TextContent,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashSet;
 use std::fmt;
+use unicode_normalization::UnicodeNormalization;
 use utoipa::ToSchema;
 
-mod tool_result_serde;
+use crate::conversation::tool_result_serde;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -371,26 +362,6 @@ impl fmt::Debug for Message {
     }
 }
 
-pub fn push_message(messages: &mut Vec<Message>, message: Message) {
-    if let Some(last) = messages
-        .last_mut()
-        .filter(|m| m.id.is_some() && m.id == message.id)
-    {
-        match (last.content.last_mut(), message.content.last()) {
-            (Some(MessageContent::Text(ref mut last)), Some(MessageContent::Text(new)))
-                if message.content.len() == 1 =>
-            {
-                last.text.push_str(&new.text);
-            }
-            (_, _) => {
-                last.content.extend(message.content);
-            }
-        }
-    } else {
-        messages.push(message);
-    }
-}
-
 fn default_created() -> i64 {
     0 // old messages do not have timestamps.
 }
@@ -439,9 +410,27 @@ impl Message {
         self
     }
 
+    fn sanitize_unicode_tags(text: &str) -> String {
+        let normalized: String = text.nfc().collect();
+
+        // Remove Unicode Tags Block characters only
+        normalized
+            .chars()
+            .filter(|&c| !matches!(c, '\u{E0000}'..='\u{E007F}'))
+            .collect()
+    }
+
     /// Add text content to the message
     pub fn with_text<S: Into<String>>(self, text: S) -> Self {
-        self.with_content(MessageContent::text(text))
+        let raw_text = text.into();
+        let sanitized_text = Self::sanitize_unicode_tags(&raw_text);
+
+        self.with_content(MessageContent::Text(
+            RawTextContent {
+                text: sanitized_text,
+            }
+            .no_annotation(),
+        ))
     }
 
     /// Add image content to the message
@@ -585,10 +574,43 @@ impl Message {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::conversation::message::{Message, MessageContent};
+    use crate::conversation::*;
     use mcp_core::handler::ToolError;
-    use rmcp::model::{PromptMessage, PromptMessageContent, RawEmbeddedResource, ResourceContents};
+    use mcp_core::ToolCall;
+    use rmcp::model::{
+        AnnotateAble, PromptMessage, PromptMessageContent, PromptMessageRole, RawEmbeddedResource,
+        RawImageContent, ResourceContents,
+    };
     use serde_json::{json, Value};
+
+    #[test]
+    fn test_sanitize_unicode_tags() {
+        let malicious = "Hello\u{E0041}\u{E0042}\u{E0043}world"; // Invisible "ABC"
+        let cleaned = Message::sanitize_unicode_tags(malicious);
+        assert_eq!(cleaned, "Helloworld");
+    }
+
+    #[test]
+    fn test_no_sanitize_unicode_tags() {
+        let clean_text = "Hello world 世界 🌍";
+        let cleaned = Message::sanitize_unicode_tags(clean_text);
+        assert_eq!(cleaned, clean_text);
+    }
+
+    #[test]
+    fn test_sanitize_with_text() {
+        let malicious = "Hello\u{E0041}\u{E0042}\u{E0043}world"; // Invisible "ABC"
+        let message = Message::user().with_text(malicious);
+        assert_eq!(message.as_concat_text(), "Helloworld");
+    }
+
+    #[test]
+    fn test_no_sanitize_with_text() {
+        let clean_text = "Hello world 世界 🌍";
+        let message = Message::user().with_text(clean_text);
+        assert_eq!(message.as_concat_text(), clean_text);
+    }
 
     #[test]
     fn test_message_serialization() {

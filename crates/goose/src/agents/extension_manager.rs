@@ -27,9 +27,11 @@ use super::extension::{ExtensionConfig, ExtensionError, ExtensionInfo, Extension
 use super::tool_execution::ToolCallResult;
 use crate::agents::extension::{Envs, ProcessExit};
 use crate::config::{Config, ExtensionConfigManager};
+use crate::oauth::oauth_flow;
 use crate::prompt_template;
 use mcp_client::client::{McpClient, McpClientTrait};
 use rmcp::model::{Content, GetPromptResult, Prompt, ResourceContents, Tool};
+use rmcp::transport::auth::AuthClient;
 use serde_json::Value;
 
 type McpClientBox = Arc<Mutex<Box<dyn McpClientTrait>>>;
@@ -205,6 +207,7 @@ impl ExtensionManager {
                 uri,
                 timeout,
                 headers,
+                name,
                 ..
             } => {
                 let mut default_headers = HeaderMap::new();
@@ -231,13 +234,38 @@ impl ExtensionManager {
                         ..Default::default()
                     },
                 );
-                let client = McpClient::connect(
+                let client_res = McpClient::connect(
                     transport,
                     Duration::from_secs(
                         timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
                     ),
                 )
-                .await?;
+                .await;
+                let client = if let Err(e) = client_res {
+                    // make an attempt at oauth, but failing that, return the original error,
+                    // because this might not have been an auth error at all
+                    let am = match oauth_flow(uri, name).await {
+                        Ok(am) => am,
+                        Err(_) => return Err(e.into()),
+                    };
+                    let client = AuthClient::new(reqwest::Client::default(), am);
+                    let transport = StreamableHttpClientTransport::with_client(
+                        client,
+                        StreamableHttpClientTransportConfig {
+                            uri: uri.clone().into(),
+                            ..Default::default()
+                        },
+                    );
+                    McpClient::connect(
+                        transport,
+                        Duration::from_secs(
+                            timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
+                        ),
+                    )
+                    .await?
+                } else {
+                    client_res?
+                };
                 Box::new(client)
             }
             ExtensionConfig::Stdio {
@@ -463,6 +491,7 @@ impl ExtensionManager {
                             description: tool.description,
                             input_schema: tool.input_schema,
                             annotations: tool.annotations,
+                            output_schema: tool.output_schema,
                         });
                     }
 
@@ -719,7 +748,7 @@ impl ExtensionManager {
             client_guard
                 .call_tool(&tool_name, arguments, cancellation_token)
                 .await
-                .map(|call| call.content)
+                .map(|call| call.content.unwrap_or_default())
                 .map_err(|e| ToolError::ExecutionError(e.to_string()))
         };
 
@@ -947,8 +976,9 @@ mod tests {
         ) -> Result<CallToolResult, Error> {
             match name {
                 "tool" | "test__tool" => Ok(CallToolResult {
-                    content: vec![],
+                    content: Some(vec![]),
                     is_error: None,
+                    structured_content: None,
                 }),
                 _ => Err(Error::TransportClosed),
             }

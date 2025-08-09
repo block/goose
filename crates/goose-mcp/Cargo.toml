@@ -16,6 +16,7 @@ mcp-server = { path = "../mcp-server" }
 rmcp = { workspace = true }
 anyhow = "1.0.94"
 tokio = { version = "1", features = ["full"] }
+tokio-stream = { version = "0.1", features = ["io-util"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"

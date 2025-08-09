@@ -14,7 +14,7 @@ use tokio::sync::oneshot;
 use tokio::time::timeout;
 
 /// Default models for openrouter config configuration
-const OPENROUTER_DEFAULT_MODEL: &str = "qwen/qwen3-coder";
+const OPENROUTER_DEFAULT_MODEL: &str = "anthropic/claude-sonnet-4";
 
 const OPENROUTER_AUTH_URL: &str = "https://openrouter.ai/auth";
 const OPENROUTER_TOKEN_URL: &str = "https://openrouter.ai/api/v1/auth/keys";

@@ -16,8 +16,8 @@ use super::formats::anthropic::{
 };
 use super::utils::{emit_debug_trace, get_model, map_http_error_to_provider_error};
 use crate::config::custom_providers::CustomProviderConfig;
+use crate::conversation::message::Message;
 use crate::impl_provider_default;
-use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::retry::ProviderRetry;
 use rmcp::model::Tool;

@@ -79,7 +79,8 @@ function getStreamableHttpConfig(
   remoteUrl: string,
   name: string,
   description: string,
-  timeout: number
+  timeout: number,
+  headers?: { [key: string]: string }
 ) {
   const config: ExtensionConfig = {
     name,
@@ -87,6 +88,7 @@ function getStreamableHttpConfig(
     uri: remoteUrl,
     description,
     timeout: timeout,
+    headers: headers,
   };
 
   return config;
@@ -143,11 +145,24 @@ export async function addExtensionFromDeepLink(
 
   const cmd = parsedUrl.searchParams.get('cmd');
   const remoteUrl = parsedUrl.searchParams.get('url');
-  const transportType = parsedUrl.searchParams.get('transport') || 'sse'; // Default to SSE for backward compatibility
+  // Support both 'transport' and 'type' parameters for consistency
+  const transportType =
+    parsedUrl.searchParams.get('transport') || parsedUrl.searchParams.get('type') || 'sse'; // Default to SSE for backward compatibility
+
+  const headerParams = parsedUrl.searchParams.getAll('header');
+  const headers =
+    headerParams.length > 0
+      ? Object.fromEntries(
+          headerParams.map((header) => {
+            const [key, value] = header.split('=');
+            return [key, decodeURIComponent(value || '')];
+          })
+        )
+      : undefined;
 
   const config = remoteUrl
     ? transportType === 'streamable_http'
-      ? getStreamableHttpConfig(remoteUrl, name, description || '', timeout)
+      ? getStreamableHttpConfig(remoteUrl, name, description || '', timeout, headers)
       : getSseConfig(remoteUrl, name, description || '', timeout)
     : getStdioConfig(cmd!, parsedUrl, name, description || '', timeout);
 
@@ -159,7 +174,6 @@ export async function addExtensionFromDeepLink(
     return;
   }
 
-  // If no env vars are required, proceed with adding the extension
   try {
     console.log('No env vars required, activating extension directly');
     await activateExtension({ extensionConfig: config, addToConfig: addExtensionFn });

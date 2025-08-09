@@ -10,8 +10,8 @@ use super::utils::{
     emit_debug_trace, get_model, handle_response_google_compat, handle_response_openai_compat,
     is_google_model,
 };
+use crate::conversation::message::Message;
 use crate::impl_provider_default;
-use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
 use rmcp::model::Tool;
@@ -201,6 +201,12 @@ fn create_request_based_on_model(
     if provider.supports_cache_control() {
         payload = update_request_for_anthropic(&payload);
     }
+
+    // Always add transforms: ["middle-out"] for OpenRouter to handle prompts > context size
+    payload
+        .as_object_mut()
+        .unwrap()
+        .insert("transforms".to_string(), json!(["middle-out"]));
 
     Ok(payload)
 }

@@ -21,8 +21,8 @@ use super::utils::{
     ImageFormat,
 };
 use crate::config::custom_providers::CustomProviderConfig;
+use crate::conversation::message::Message;
 use crate::impl_provider_default;
-use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::base::MessageStream;
 use crate::providers::formats::openai::response_to_streaming_message;
