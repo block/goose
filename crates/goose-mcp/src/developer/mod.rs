@@ -2291,13 +2291,11 @@ mod tests {
         assert!(text_editor_tool
             .description
             .as_ref()
-            .is_some_and(|desc| desc
-                .contains("Replace a string in a file with a new string")));
+            .is_some_and(|desc| desc.contains("Replace a string in a file with a new string")));
         assert!(text_editor_tool
             .description
             .as_ref()
-            .is_some_and(|desc| desc
-                .contains("the `old_str` needs to exactly match one")));
+            .is_some_and(|desc| desc.contains("the `old_str` needs to exactly match one")));
         assert!(text_editor_tool
             .description
             .as_ref()
@@ -2307,17 +2305,14 @@ mod tests {
         assert!(!text_editor_tool
             .description
             .as_ref()
-            .is_some_and(|desc| desc
-                .contains("Edit the file with the new content")));
+            .is_some_and(|desc| desc.contains("Edit the file with the new content")));
         assert!(!text_editor_tool
             .description
             .as_ref()
             .is_some_and(|desc| desc.contains("edit_file")));
-        assert!(!text_editor_tool
-            .description
-            .as_ref()
-            .is_some_and(|desc| desc
-                .contains("work out how to place old_str with it intelligently")));
+        assert!(!text_editor_tool.description.as_ref().is_some_and(
+            |desc| desc.contains("work out how to place old_str with it intelligently")
+        ));
 
         temp_dir.close().unwrap();
     }
