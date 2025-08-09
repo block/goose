@@ -56,7 +56,7 @@ use super::final_output_tool::FinalOutputTool;
 use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::subagent_task_config::TaskConfig;
-use crate::conversation::message::{Message, ToolRequest};
+use crate::conversation::message::{Message, MessageContent, ToolRequest};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 
@@ -1083,11 +1083,60 @@ impl Agent {
                                 messages_to_add.push(final_message_tool_resp);
                             }
                         }
-                        Err(ProviderError::ContextLengthExceeded(_)) => {
-                            yield AgentEvent::Message(Message::assistant().with_context_length_exceeded(
-                                    "The context length of the model has been exceeded. Please start a new session and try again.",
+                        Err(ProviderError::ContextLengthExceeded(error_msg)) => {
+                            // Check if this was caused by a tool response
+                            let should_rollback = if let Some(last_msg) = messages.last() {
+                                last_msg.role == rmcp::model::Role::User &&
+                                last_msg.content.iter().any(|c| matches!(c, MessageContent::ToolResponse(_)))
+                            } else {
+                                false
+                            };
+
+                            if should_rollback {
+                                // This was caused by a tool response - implement rollback
+
+                                // Get the tool ID from the last message's tool response
+                                if let Some(tool_id) = messages.last().and_then(|msg| {
+                                    msg.content.iter().find_map(|c| match c {
+                                        MessageContent::ToolResponse(resp) => Some(resp.id.clone()),
+                                        _ => None
+                                    })
+                                }) {
+                                    // Remove the tool response message
+                                    messages.pop();
+
+                                    // Find and remove the corresponding tool request from the assistant message
+                                    if let Some(assistant_msg) = messages.last_mut() {
+                                        if assistant_msg.role == rmcp::model::Role::Assistant {
+                                            assistant_msg.content.retain(|c| {
+                                                !matches!(c, MessageContent::ToolRequest(req) if req.id == tool_id)
+                                            });
+                                        }
+                                    }
+
+                                    // Add error response for this tool
+                                    let mut error_msg = Message::user();
+                                    error_msg.content.push(MessageContent::tool_response(
+                                        tool_id,
+                                        Err(ToolError::ExecutionError(
+                                            "Tool result exceeded context limits. Try a different approach or read smaller portions.".to_string()
+                                        ))
+                                    ));
+                                    messages.push(error_msg);
+
+                                    // Emit a history replaced event to notify the client
+                                    yield AgentEvent::HistoryReplaced(messages.messages().clone());
+
+                                    // Continue the stream instead of breaking
+                                    continue;
+                                }
+                            } else {
+                                // Not caused by tool response, show the error to user
+                                yield AgentEvent::Message(Message::assistant().with_context_length_exceeded(
+                                    format!("Context length exceeded: {}", error_msg)
                                 ));
-                            break;
+                                break;
+                            }
                         }
                         Err(e) => {
                             error!("Error: {}", e);
