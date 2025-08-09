@@ -1363,7 +1363,6 @@ mod tests {
     use crate::session::storage::read_metadata;
 
     use crate::conversation::message::{Message, MessageContent};
-    use std::env;
     use std::fs::{self, File};
     use std::io::Write;
     use tempfile::tempdir;
@@ -1423,9 +1422,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_scheduled_session_has_schedule_id() -> Result<(), Box<dyn std::error::Error>> {
-        // Set environment variables for the test
-        env::set_var("GOOSE_PROVIDER", "test_provider");
-        env::set_var("GOOSE_MODEL", "test_model");
+        // Use the new guard-based test configuration
+        let _guard = Config::test()
+            .with_env("GOOSE_PROVIDER", "test_provider")
+            .with_env("GOOSE_MODEL", "test_model")
+            .apply();
 
         let temp_dir = tempdir()?;
         let recipe_dir = temp_dir.path().join("recipes_for_test_scheduler");
@@ -1473,10 +1474,18 @@ mod tests {
             execution_mode: Some("background".to_string()), // Default for test
         };
 
+        // Verify that our test config has the expected values
+        let global_config = Config::global();
+        let provider_from_config: String = global_config.get_param("GOOSE_PROVIDER")?;
+        let model_from_config: String = global_config.get_param("GOOSE_MODEL")?;
+        assert_eq!(provider_from_config, "test_provider");
+        assert_eq!(model_from_config, "test_model");
+
         let mock_model_config = ModelConfig::new_or_fail("test_model");
         let mock_provider_instance = create_scheduler_test_mock_provider(mock_model_config);
 
         // Call run_scheduled_job_internal, passing the mock provider
+        // This bypasses the actual config lookup, but demonstrates the pattern
         let created_session_id =
             run_scheduled_job_internal(dummy_job.clone(), Some(mock_provider_instance), None, None)
                 .await
@@ -1517,10 +1526,7 @@ mod tests {
             expected_session_path.display()
         );
 
-        // Clean up environment variables
-        env::remove_var("GOOSE_PROVIDER");
-        env::remove_var("GOOSE_MODEL");
-
+        // Guard will automatically clean up when it goes out of scope
         Ok(())
     }
 }

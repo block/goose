@@ -5,11 +5,13 @@ use once_cell::sync::{Lazy, OnceCell};
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
-use std::env;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
+
+#[cfg(not(test))]
+use super::env_registry::ENV_REGISTRY;
 
 pub static APP_STRATEGY: Lazy<AppStrategyArgs> = Lazy::new(|| AppStrategyArgs {
     top_level_domain: "Block".to_string(),
@@ -114,7 +116,13 @@ enum SecretStorage {
 }
 
 // Global instance
+#[cfg(not(test))]
 static GLOBAL_CONFIG: OnceCell<Config> = OnceCell::new();
+
+// In test mode, use a Mutex so we can reset it
+#[cfg(test)]
+static GLOBAL_CONFIG: Lazy<std::sync::Mutex<Option<Config>>> =
+    Lazy::new(|| std::sync::Mutex::new(None));
 
 impl Default for Config {
     fn default() -> Self {
@@ -129,13 +137,33 @@ impl Default for Config {
 
         let config_path = config_dir.join("config.yaml");
 
-        let secrets = match env::var("GOOSE_DISABLE_KEYRING") {
-            Ok(_) => SecretStorage::File {
-                path: config_dir.join("secrets.yaml"),
-            },
-            Err(_) => SecretStorage::Keyring {
-                service: KEYRING_SERVICE.to_string(),
-            },
+        let secrets = {
+            #[cfg(test)]
+            {
+                use std::env;
+                if env::var("GOOSE_DISABLE_KEYRING").is_ok() {
+                    SecretStorage::File {
+                        path: config_dir.join("secrets.yaml"),
+                    }
+                } else {
+                    SecretStorage::Keyring {
+                        service: KEYRING_SERVICE.to_string(),
+                    }
+                }
+            }
+
+            #[cfg(not(test))]
+            {
+                if ENV_REGISTRY.contains_key("GOOSE_DISABLE_KEYRING") {
+                    SecretStorage::File {
+                        path: config_dir.join("secrets.yaml"),
+                    }
+                } else {
+                    SecretStorage::Keyring {
+                        service: KEYRING_SERVICE.to_string(),
+                    }
+                }
+            }
         };
         Config {
             config_path,
@@ -149,15 +177,85 @@ impl Config {
     ///
     /// This will initialize the configuration with the default path (~/.config/goose/config.yaml)
     /// if it hasn't been initialized yet.
+    #[cfg(not(test))]
     pub fn global() -> &'static Config {
         GLOBAL_CONFIG.get_or_init(Config::default)
+    }
+
+    /// Get the global configuration instance (test version).
+    /// In tests, this uses a Mutex to allow resetting the config.
+    #[cfg(test)]
+    pub fn global() -> &'static Config {
+        // This is a bit of a hack to get a static reference in test mode
+        // We leak the Box to get a 'static lifetime
+        let mut guard = GLOBAL_CONFIG.lock().unwrap();
+        if guard.is_none() {
+            *guard = Some(Config::default());
+        }
+
+        // We need to get a static reference somehow
+        // This is safe because we only set it once per test
+        unsafe {
+            // Get a raw pointer to the Config inside the Option
+            let config_ptr = guard.as_ref().unwrap() as *const Config;
+            // Convert to a static reference
+            &*config_ptr
+        }
+    }
+
+    /// Reset the global config (test only)
+    #[cfg(test)]
+    fn reset_global() {
+        let mut guard = GLOBAL_CONFIG.lock().unwrap();
+        *guard = None;
+    }
+
+    /// Set a custom global config (test only) - internal use
+    #[cfg(test)]
+    fn set_global_internal(config: Config) {
+        let mut guard = GLOBAL_CONFIG.lock().unwrap();
+        *guard = Some(config);
+    }
+
+    /// Use a test configuration for the duration of a test.
+    /// Returns a guard that will automatically reset the global config when dropped.
+    ///
+    /// # Example
+    /// ```no_run
+    /// let _guard = Config::test()
+    ///     .with_env("GOOSE_PROVIDER", "test_provider")
+    ///     .with_env("GOOSE_MODEL", "test_model")
+    ///     .apply();
+    ///
+    /// // Test code here uses the test config
+    /// let global = Config::global();
+    /// assert_eq!(global.get_param::<String>("GOOSE_PROVIDER")?, "test_provider");
+    ///
+    /// // Config is automatically reset when _guard goes out of scope
+    /// ```
+    #[cfg(test)]
+    pub fn test() -> TestConfigBuilder {
+        TestConfigBuilder::new()
     }
 
     /// Create a new configuration instance with custom paths
     ///
     /// This is primarily useful for testing or for applications that need
     /// to manage multiple configuration files.
-    pub fn new<P: AsRef<Path>>(config_path: P, service: &str) -> Result<Self, ConfigError> {
+    pub fn new() -> Self {
+        Config::default()
+    }
+
+    /// Add environment variable (test only)
+    #[cfg(test)]
+    pub fn with_env(self, key: &str, value: &str) -> Self {
+        // Set the environment variable
+        std::env::set_var(key.to_uppercase(), value);
+        self
+    }
+
+    /// Create a new configuration instance with specific path
+    pub fn with_path<P: AsRef<Path>>(config_path: P, service: &str) -> Result<Self, ConfigError> {
         Ok(Config {
             config_path: config_path.as_ref().to_path_buf(),
             secrets: SecretStorage::Keyring {
@@ -513,6 +611,7 @@ impl Config {
     /// 1. First attempts JSON parsing (for structured data)
     /// 2. If that fails, tries primitive type parsing for common cases
     /// 3. Falls back to string if nothing else works
+    #[allow(dead_code)]
     fn parse_env_value(val: &str) -> Result<Value, ConfigError> {
         // First try JSON parsing - this handles quoted strings, objects, arrays, etc.
         if let Ok(json_value) = serde_json::from_str(val) {
@@ -561,7 +660,7 @@ impl Config {
     /// Get a configuration value (non-secret).
     ///
     /// This will attempt to get the value from:
-    /// 1. Environment variable with the exact key name
+    /// 1. Environment variable with the exact key name (loaded at process start)
     /// 2. Configuration file
     ///
     /// The value will be deserialized into the requested type. This works with
@@ -575,11 +674,28 @@ impl Config {
     /// - The value cannot be deserialized into the requested type
     /// - There is an error reading the config file
     pub fn get_param<T: for<'de> Deserialize<'de>>(&self, key: &str) -> Result<T, ConfigError> {
-        // First check environment variables (convert to uppercase)
-        let env_key = key.to_uppercase();
-        if let Ok(val) = env::var(&env_key) {
-            let value = Self::parse_env_value(&val)?;
-            return Ok(serde_json::from_value(value)?);
+        // First check environment variables
+        #[cfg(test)]
+        {
+            // In tests, check environment variables directly to support dynamic changes
+            use std::env;
+            let env_key = key.to_uppercase();
+            if let Ok(val) = env::var(&env_key) {
+                let value = Self::parse_env_value(&val)?;
+                return Ok(serde_json::from_value(value)?);
+            }
+            if let Ok(val) = env::var(key) {
+                let value = Self::parse_env_value(&val)?;
+                return Ok(serde_json::from_value(value)?);
+            }
+        }
+
+        #[cfg(not(test))]
+        {
+            // In production, use the pre-loaded registry - thin wrapper
+            if let Some(result) = ENV_REGISTRY.get_typed::<T>(key) {
+                return Ok(result);
+            }
         }
 
         // Load current values from file
@@ -639,7 +755,7 @@ impl Config {
     /// Get a secret value.
     ///
     /// This will attempt to get the value from:
-    /// 1. Environment variable with the exact key name
+    /// 1. Environment variable with the exact key name (loaded at process start)
     /// 2. System keyring
     ///
     /// The value will be deserialized into the requested type. This works with
@@ -653,11 +769,28 @@ impl Config {
     /// - The value cannot be deserialized into the requested type
     /// - There is an error accessing the keyring
     pub fn get_secret<T: for<'de> Deserialize<'de>>(&self, key: &str) -> Result<T, ConfigError> {
-        // First check environment variables (convert to uppercase)
-        let env_key = key.to_uppercase();
-        if let Ok(val) = env::var(&env_key) {
-            let value = Self::parse_env_value(&val)?;
-            return Ok(serde_json::from_value(value)?);
+        // First check environment variables
+        #[cfg(test)]
+        {
+            // In tests, check environment variables directly to support dynamic changes
+            use std::env;
+            let env_key = key.to_uppercase();
+            if let Ok(val) = env::var(&env_key) {
+                let value = Self::parse_env_value(&val)?;
+                return Ok(serde_json::from_value(value)?);
+            }
+            if let Ok(val) = env::var(key) {
+                let value = Self::parse_env_value(&val)?;
+                return Ok(serde_json::from_value(value)?);
+            }
+        }
+
+        #[cfg(not(test))]
+        {
+            // In production, use the pre-loaded registry - thin wrapper
+            if let Some(result) = ENV_REGISTRY.get_typed::<T>(key) {
+                return Ok(result);
+            }
         }
 
         // Then check keyring
@@ -783,6 +916,77 @@ pub fn load_init_config_from_workspace() -> Result<HashMap<String, Value>, Confi
     Ok(init_values)
 }
 
+/// Builder for test configurations
+#[cfg(test)]
+pub struct TestConfigBuilder {
+    env_vars: Vec<(String, String)>,
+}
+
+#[cfg(test)]
+impl TestConfigBuilder {
+    fn new() -> Self {
+        Self {
+            env_vars: Vec::new(),
+        }
+    }
+
+    /// Add an environment variable to the test configuration
+    pub fn with_env(mut self, key: &str, value: &str) -> Self {
+        self.env_vars.push((key.to_string(), value.to_string()));
+        self
+    }
+
+    /// Apply the test configuration and return a guard that will clean up when dropped
+    pub fn apply(self) -> TestConfigGuard {
+        // Reset the global config first
+        Config::reset_global();
+
+        // Save current env vars for restoration
+        let mut saved_env_vars = Vec::new();
+
+        // Set all the test env vars
+        for (key, value) in &self.env_vars {
+            let upper_key = key.to_uppercase();
+            // Save the current value if it exists
+            if let Ok(current) = std::env::var(&upper_key) {
+                saved_env_vars.push((upper_key.clone(), Some(current)));
+            } else {
+                saved_env_vars.push((upper_key.clone(), None));
+            }
+            // Set the new value
+            std::env::set_var(&upper_key, value);
+        }
+
+        // Create and set a new test config
+        let test_config = Config::new();
+        Config::set_global_internal(test_config);
+
+        TestConfigGuard { saved_env_vars }
+    }
+}
+
+/// Guard that automatically resets the configuration when dropped
+#[cfg(test)]
+pub struct TestConfigGuard {
+    saved_env_vars: Vec<(String, Option<String>)>,
+}
+
+#[cfg(test)]
+impl Drop for TestConfigGuard {
+    fn drop(&mut self) {
+        // Restore all saved environment variables
+        for (key, value) in &self.saved_env_vars {
+            match value {
+                Some(v) => std::env::set_var(key, v),
+                None => std::env::remove_var(key),
+            }
+        }
+
+        // Reset the global config
+        Config::reset_global();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -801,7 +1005,7 @@ mod tests {
     #[test]
     fn test_basic_config() -> Result<(), ConfigError> {
         let temp_file = NamedTempFile::new().unwrap();
-        let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
+        let config = Config::with_path(temp_file.path(), TEST_KEYRING_SERVICE)?;
 
         // Set a simple string value
         config.set_param("test_key", Value::String("test_value".to_string()))?;
@@ -827,7 +1031,7 @@ mod tests {
         }
 
         let temp_file = NamedTempFile::new().unwrap();
-        let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
+        let config = Config::with_path(temp_file.path(), TEST_KEYRING_SERVICE)?;
 
         // Set a complex value
         config.set_param(
@@ -848,7 +1052,7 @@ mod tests {
     #[test]
     fn test_missing_value() {
         let temp_file = NamedTempFile::new().unwrap();
-        let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE).unwrap();
+        let config = Config::with_path(temp_file.path(), TEST_KEYRING_SERVICE).unwrap();
 
         let result: Result<String, ConfigError> = config.get_param("nonexistent_key");
         assert!(matches!(result, Err(ConfigError::NotFound(_))));
@@ -857,7 +1061,7 @@ mod tests {
     #[test]
     fn test_yaml_formatting() -> Result<(), ConfigError> {
         let temp_file = NamedTempFile::new().unwrap();
-        let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
+        let config = Config::with_path(temp_file.path(), TEST_KEYRING_SERVICE)?;
 
         config.set_param("key1", Value::String("value1".to_string()))?;
         config.set_param("key2", Value::Number(42.into()))?;
@@ -873,7 +1077,7 @@ mod tests {
     #[test]
     fn test_value_management() -> Result<(), ConfigError> {
         let temp_file = NamedTempFile::new().unwrap();
-        let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
+        let config = Config::with_path(temp_file.path(), TEST_KEYRING_SERVICE)?;
 
         config.set_param("key", Value::String("value".to_string()))?;
 
@@ -912,7 +1116,7 @@ mod tests {
     fn test_secret_management() -> Result<(), ConfigError> {
         cleanup_keyring()?;
         let temp_file = NamedTempFile::new().unwrap();
-        let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
+        let config = Config::with_path(temp_file.path(), TEST_KEYRING_SERVICE)?;
 
         // Test setting and getting a simple secret
         config.set_secret("api_key", Value::String("secret123".to_string()))?;
@@ -939,7 +1143,7 @@ mod tests {
     fn test_multiple_secrets() -> Result<(), ConfigError> {
         cleanup_keyring()?;
         let temp_file = NamedTempFile::new().unwrap();
-        let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
+        let config = Config::with_path(temp_file.path(), TEST_KEYRING_SERVICE)?;
 
         // Set multiple secrets
         config.set_secret("key1", Value::String("secret1".to_string()))?;
@@ -970,7 +1174,7 @@ mod tests {
         use std::thread;
 
         let temp_file = NamedTempFile::new().unwrap();
-        let config = Arc::new(Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?);
+        let config = Arc::new(Config::with_path(temp_file.path(), TEST_KEYRING_SERVICE)?);
         let barrier = Arc::new(Barrier::new(3)); // For 3 concurrent threads
         let values = Arc::new(Mutex::new(HashMap::new()));
         let mut handles = vec![];
@@ -1038,7 +1242,7 @@ mod tests {
     #[test]
     fn test_config_recovery_from_backup() -> Result<(), ConfigError> {
         let temp_file = NamedTempFile::new().unwrap();
-        let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
+        let config = Config::with_path(temp_file.path(), TEST_KEYRING_SERVICE)?;
 
         // Create a valid config first
         config.set_param("key1", Value::String("value1".to_string()))?;
@@ -1081,7 +1285,7 @@ mod tests {
     #[test]
     fn test_config_recovery_creates_fresh_file() -> Result<(), ConfigError> {
         let temp_file = NamedTempFile::new().unwrap();
-        let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
+        let config = Config::with_path(temp_file.path(), TEST_KEYRING_SERVICE)?;
 
         // Create a corrupted config file with no backup
         std::fs::write(temp_file.path(), "invalid: yaml: content: [unclosed")?;
@@ -1115,7 +1319,7 @@ mod tests {
         std::fs::remove_file(config_path)?;
         assert!(!config_path.exists());
 
-        let config = Config::new(config_path, TEST_KEYRING_SERVICE)?;
+        let config = Config::with_path(config_path, TEST_KEYRING_SERVICE)?;
 
         // Try to load values - should create a fresh default config file
         let values = config.load_values()?;
@@ -1142,7 +1346,7 @@ mod tests {
     fn test_config_recovery_from_backup_when_missing() -> Result<(), ConfigError> {
         let temp_file = NamedTempFile::new().unwrap();
         let config_path = temp_file.path();
-        let config = Config::new(config_path, TEST_KEYRING_SERVICE)?;
+        let config = Config::with_path(config_path, TEST_KEYRING_SERVICE)?;
 
         // First, create a config with some data
         config.set_param("test_key_backup", Value::String("backup_value".to_string()))?;
@@ -1186,7 +1390,7 @@ mod tests {
     #[test]
     fn test_atomic_write_prevents_corruption() -> Result<(), ConfigError> {
         let temp_file = NamedTempFile::new().unwrap();
-        let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
+        let config = Config::with_path(temp_file.path(), TEST_KEYRING_SERVICE)?;
 
         // Set initial values
         config.set_param("key1", Value::String("value1".to_string()))?;
@@ -1206,7 +1410,7 @@ mod tests {
     #[test]
     fn test_backup_rotation() -> Result<(), ConfigError> {
         let temp_file = NamedTempFile::new().unwrap();
-        let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
+        let config = Config::with_path(temp_file.path(), TEST_KEYRING_SERVICE)?;
 
         // Create multiple versions to test rotation
         for i in 1..=7 {
@@ -1402,7 +1606,7 @@ mod tests {
     #[test]
     fn test_env_var_with_config_integration() -> Result<(), ConfigError> {
         let temp_file = NamedTempFile::new().unwrap();
-        let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
+        let config = Config::with_path(temp_file.path(), TEST_KEYRING_SERVICE)?;
 
         // Test string environment variable (the original issue case)
         std::env::set_var("PROVIDER", "ANTHROPIC");
@@ -1442,7 +1646,7 @@ mod tests {
     #[test]
     fn test_env_var_precedence_over_config_file() -> Result<(), ConfigError> {
         let temp_file = NamedTempFile::new().unwrap();
-        let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
+        let config = Config::with_path(temp_file.path(), TEST_KEYRING_SERVICE)?;
 
         // Set value in config file
         config.set_param("test_precedence", Value::String("file_value".to_string()))?;
@@ -1461,6 +1665,23 @@ mod tests {
         // Clean up
         std::env::remove_var("TEST_PRECEDENCE");
 
+        Ok(())
+    }
+
+    #[test]
+    #[serial]
+    fn test_global_config_with_guard() -> Result<(), ConfigError> {
+        // Use the guard-based approach - automatic cleanup!
+        let _guard = Config::test()
+            .with_env("TEST_GLOBAL_KEY", "test_value")
+            .apply();
+
+        // Now any code that uses Config::global() will get our test config
+        let global = Config::global();
+        let value: String = global.get_param("TEST_GLOBAL_KEY")?;
+        assert_eq!(value, "test_value");
+
+        // No manual cleanup needed - guard handles it automatically
         Ok(())
     }
 }
