@@ -126,6 +126,52 @@ export const updateSystemPromptWithParameters = async (
 };
 
 /**
+ * Updates the system prompt with recipe instructions when a recipe is loaded
+ * This should be called when a recipe is loaded via the onLoadRecipe callback
+ */
+export const updateSystemPromptWithRecipe = async (recipe: {
+  instructions?: string | null;
+  sub_recipes?: SubRecipe[] | null;
+  parameters?: RecipeParameter[] | null;
+}): Promise<void> => {
+  try {
+    const originalInstructions = recipe?.instructions;
+
+    if (!originalInstructions) {
+      return;
+    }
+
+    // Update the system prompt with recipe instructions
+    const response = await fetch(getApiUrl('/agent/prompt'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Secret-Key': await window.electron.getSecretKey(),
+      },
+      body: JSON.stringify({
+        extension: `${desktopPromptBot}\nIMPORTANT instructions for you to operate as agent:\n${originalInstructions}`,
+      }),
+    });
+
+    if (!response.ok) {
+      console.warn(
+        `Failed to update system prompt with recipe: ${response.status} ${response.statusText}`
+      );
+    } else {
+      console.log('Successfully updated system prompt with recipe instructions');
+    }
+
+    // Handle sub-recipes if present
+    const subRecipes = recipe?.sub_recipes;
+    if (subRecipes && subRecipes.length > 0) {
+      await addSubRecipesToAgent(subRecipes);
+    }
+  } catch (error) {
+    console.error('Error updating system prompt with recipe:', error);
+  }
+};
+
+/**
  * Migrates extensions from localStorage to config.yaml (settings v2)
  * This function handles the migration from settings v1 to v2 by:
  * 1. Reading extensions from localStorage

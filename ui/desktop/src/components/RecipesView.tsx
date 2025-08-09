@@ -112,24 +112,20 @@ export default function RecipesView({ _onLoadRecipe }: RecipesViewProps = {}) {
 
   const handleLoadRecipe = async (savedRecipe: SavedRecipe) => {
     try {
-      // onLoadRecipe is not working for loading recipes. It looks correct
-      // but the instructions are not flowing through to the server.
-      // Needs a fix but commenting out to get prod back up and running.
-      //
-      // if (onLoadRecipe) {
-      //   // Use the callback to navigate within the same window
-      //   onLoadRecipe(savedRecipe.recipe);
-      // } else {
-      // Fallback to creating a new window (for backwards compatibility)
-      window.electron.createChatWindow(
-        undefined, // query
-        undefined, // dir
-        undefined, // version
-        undefined, // resumeSessionId
-        savedRecipe.recipe, // recipe config
-        undefined // view type
-      );
-      // }
+      if (_onLoadRecipe) {
+        // Use the callback to navigate within the same window
+        _onLoadRecipe(savedRecipe.recipe);
+      } else {
+        // Fallback to creating a new window (for backwards compatibility)
+        window.electron.createChatWindow(
+          undefined, // query
+          undefined, // dir
+          undefined, // version
+          undefined, // resumeSessionId
+          savedRecipe.recipe, // recipe config
+          undefined // view type
+        );
+      }
     } catch (err) {
       console.error('Failed to load recipe:', err);
       setError(err instanceof Error ? err.message : 'Failed to load recipe');
