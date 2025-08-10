@@ -317,10 +317,7 @@ pub async fn providers(
 
     let mut providers_metadata = get_providers();
 
-    let config_dir = etcetera::choose_app_strategy(goose::config::base::APP_STRATEGY.clone())
-        .expect("goose requires a home dir")
-        .config_dir();
-    let custom_providers_dir = config_dir.join("custom_providers");
+    let custom_providers_dir = goose::config::custom_providers::custom_providers_dir();
 
     if custom_providers_dir.exists() {
         if let Ok(entries) = std::fs::read_dir(&custom_providers_dir) {

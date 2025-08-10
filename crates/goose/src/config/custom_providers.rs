@@ -4,6 +4,16 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
+pub fn custom_providers_dir() -> std::path::PathBuf {
+    use crate::config::APP_STRATEGY;
+    use etcetera::{choose_app_strategy, AppStrategy};
+    
+    choose_app_strategy(APP_STRATEGY.clone())
+        .expect("goose requires a home dir")
+        .config_dir()
+        .join("custom_providers")
+}
+
 /// custom providers
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -93,10 +103,7 @@ impl CustomProviderConfig {
         };
 
         // save to JSON file
-        let config_dir = choose_app_strategy(APP_STRATEGY.clone())
-            .expect("goose requires a home dir")
-            .config_dir();
-        let custom_providers_dir = config_dir.join("custom_providers");
+        let custom_providers_dir = custom_providers_dir();
         std::fs::create_dir_all(&custom_providers_dir)?;
 
         let json_content = serde_json::to_string_pretty(&provider_config)?;
@@ -117,10 +124,7 @@ impl CustomProviderConfig {
         let api_key_name = Self::generate_api_key_name(id);
         let _ = config.delete_secret(&api_key_name);
 
-        let config_dir = choose_app_strategy(APP_STRATEGY.clone())
-            .expect("goose requires a home dir")
-            .config_dir();
-        let custom_providers_dir = config_dir.join("custom_providers");
+        let custom_providers_dir = custom_providers_dir();
         let file_path = custom_providers_dir.join(format!("{}.json", id));
 
         if file_path.exists() {

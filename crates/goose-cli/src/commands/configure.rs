@@ -227,7 +227,7 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
             .item(
                 "custom_providers",
                 "Custom Providers",
-                "Add OpenAI or Anthropic compatible APIs",
+                "Add custom provider with compatible API",
             )
             .item("add", "Add Extension", "Connect to a new extension")
             .item(
@@ -1752,11 +1752,7 @@ pub fn configure_custom_provider_dialog() -> Result<(), Box<dyn Error>> {
             cliclack::outro(format!("Custom provider added: {}", display_name))?;
         }
         "remove" => {
-            // load custom providers from JSON files
-            let config_dir = choose_app_strategy(APP_STRATEGY.clone())
-                .expect("goose requires a home dir")
-                .config_dir();
-            let custom_providers_dir = config_dir.join("custom_providers");
+            let custom_providers_dir = goose::config::custom_providers::custom_providers_dir();
 
             let custom_providers = if custom_providers_dir.exists() {
                 goose::config::custom_providers::load_custom_providers(&custom_providers_dir)?
