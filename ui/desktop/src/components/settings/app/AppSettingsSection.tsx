@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Switch } from '../../ui/switch';
 import { Button } from '../../ui/button';
-import { Settings, RefreshCw, ExternalLink } from 'lucide-react';
+import { Settings, RefreshCw, ExternalLink, AlertCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog';
 import UpdateSection from './UpdateSection';
 import { COST_TRACKING_ENABLED, UPDATES_ENABLED } from '../../../updates';
@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../..
 import ThemeSelector from '../../GooseSidebar/ThemeSelector';
 import BlockLogoBlack from './icons/block-lockup_black.png';
 import BlockLogoWhite from './icons/block-lockup_white.png';
+import ReportFailureModal from '../../ReportFailureModal';
 
 interface AppSettingsSectionProps {
   scrollToSection?: string;
@@ -27,6 +28,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showPricing, setShowPricing] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [showReportFailureModal, setShowReportFailureModal] = useState(false);
   const updateSectionRef = useRef<HTMLDivElement>(null);
 
   // Check if GOOSE_VERSION is set to determine if Updates section should be shown
@@ -402,7 +404,16 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-4 px-4">
-          <div className="flex space-x-4">
+          <div className="flex flex-wrap gap-3">
+            <Button
+              onClick={() => setShowReportFailureModal(true)}
+              variant="default"
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <AlertCircle size={16} />
+              Report a Failure
+            </Button>
             <Button
               onClick={() => {
                 window.open(
@@ -514,6 +525,12 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Report Failure Modal */}
+      <ReportFailureModal
+        isOpen={showReportFailureModal}
+        onClose={() => setShowReportFailureModal(false)}
+      />
     </div>
   );
 }
