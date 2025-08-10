@@ -1,6 +1,6 @@
 ---
 title: How 7 AI Agents Worked Together to Build an App in One Hour
-description: "Learn how to build a full-stack AI app in under an hour using Goose's sub-agent orchestration, from planning to testing."
+description: "Learn how to build a full-stack AI app in under an hour using Goose's subagent orchestration, from planning to testing."
 authors: 
     - angie
 ---
