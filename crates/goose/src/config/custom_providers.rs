@@ -7,7 +7,7 @@ use std::path::Path;
 pub fn custom_providers_dir() -> std::path::PathBuf {
     use crate::config::APP_STRATEGY;
     use etcetera::{choose_app_strategy, AppStrategy};
-    
+
     choose_app_strategy(APP_STRATEGY.clone())
         .expect("goose requires a home dir")
         .config_dir()
