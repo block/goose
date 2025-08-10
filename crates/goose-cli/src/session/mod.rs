@@ -4,6 +4,7 @@ mod export;
 mod input;
 mod output;
 mod prompt;
+mod streaming;
 mod task_execution_display;
 mod thinking;
 
@@ -65,6 +66,7 @@ pub struct Session {
     scheduled_job_id: Option<String>, // ID of the scheduled job that triggered this session
     max_turns: Option<u32>,
     edit_mode: Option<EditMode>,
+    streaming_renderer: streaming::StreamingRenderer,
     retry_config: Option<RetryConfig>,
 }
 
@@ -151,6 +153,7 @@ impl Session {
             scheduled_job_id,
             max_turns,
             edit_mode,
+            streaming_renderer: streaming::StreamingRenderer::new(),
             retry_config,
         }
     }
@@ -1029,51 +1032,70 @@ impl Session {
                             }
                             // otherwise we have a model/tool to render
                             else {
-                                for content in &message.content {
-                                    if let MessageContent::ToolRequest(tool_request) = content {
-                                        if let Ok(tool_call) = &tool_request.tool_call {
-                                            tracing::info!(counter.goose.tool_calls = 1,
-                                                tool_name = %tool_call.name,
-                                                "Tool call started"
-                                            );
+                                // Hide thinking indicator
+                                if interactive { output::hide_thinking(); }
+
+                                // Process streaming - returns completed message if any
+                                if let Some(completed) = self.streaming_renderer.process_message(&message)? {
+                                    // A previous streaming message was completed
+                                    self.messages.push(completed);
+                                }
+
+                                // Check if this message is being accumulated (streaming)
+                                let is_accumulating = self.streaming_renderer.accumulating_message.is_some() 
+                                    && self.streaming_renderer.accumulating_message.as_ref()
+                                        .and_then(|m| m.id.as_ref()) == message.id.as_ref()
+                                    && message.id.is_some();
+
+                                if !is_accumulating {
+                                    // Not streaming - handle normally
+                                    
+                                    // Log tool calls
+                                    for content in &message.content {
+                                        if let MessageContent::ToolRequest(tool_request) = content {
+                                            if let Ok(tool_call) = &tool_request.tool_call {
+                                                tracing::info!(counter.goose.tool_calls = 1,
+                                                    tool_name = %tool_call.name,
+                                                    "Tool call started"
+                                                );
+                                            }
                                         }
-                                    }
-                                    if let MessageContent::ToolResponse(tool_response) = content {
-                                        let tool_name = self.messages
-                                            .iter()
-                                            .rev()
-                                            .find_map(|msg| {
-                                                msg.content.iter().find_map(|c| {
-                                                    if let MessageContent::ToolRequest(req) = c {
-                                                        if req.id == tool_response.id {
-                                                            if let Ok(tool_call) = &req.tool_call {
-                                                                Some(tool_call.name.clone())
+                                        if let MessageContent::ToolResponse(tool_response) = content {
+                                            let tool_name = self.messages
+                                                .iter()
+                                                .rev()
+                                                .find_map(|msg| {
+                                                    msg.content.iter().find_map(|c| {
+                                                        if let MessageContent::ToolRequest(req) = c {
+                                                            if req.id == tool_response.id {
+                                                                if let Ok(tool_call) = &req.tool_call {
+                                                                    Some(tool_call.name.clone())
+                                                                } else {
+                                                                    None
+                                                                }
                                                             } else {
                                                                 None
                                                             }
                                                         } else {
                                                             None
                                                         }
-                                                    } else {
-                                                        None
-                                                    }
+                                                    })
                                                 })
-                                            })
-                                            .unwrap_or_else(|| "unknown".to_string());
+                                                .unwrap_or_else(|| "unknown".to_string());
 
-                                        let success = tool_response.tool_result.is_ok();
-                                        let result_status = if success { "success" } else { "error" };
+                                            let success = tool_response.tool_result.is_ok();
+                                            let result_status = if success { "success" } else { "error" };
 
-                                        tracing::info!(
-                                            counter.goose.tool_completions = 1,
-                                            tool_name = %tool_name,
-                                            result = %result_status,
-                                            "Tool call completed"
-                                        );
+                                            tracing::info!(
+                                                counter.goose.tool_completions = 1,
+                                                tool_name = %tool_name,
+                                                result = %result_status,
+                                                "Tool call completed"
+                                            );
+                                        }
                                     }
-                                }
 
-                                self.messages.push(message.clone());
+                                    self.messages.push(message.clone());
 
                                 // No need to update description on assistant messages
                                 if let Some(session_file) = &self.session_file {
@@ -1088,9 +1110,10 @@ impl Session {
                                     .await?;
                                 }
 
-                                if interactive {output::hide_thinking()};
-                                let _ = progress_bars.hide();
-                                output::render_message(&message, self.debug);
+                                    // Render the message
+                                    let _ = progress_bars.hide();
+                                    output::render_message(&message, self.debug);
+                                }
                             }
                         }
                         Some(Ok(AgentEvent::McpNotification((_id, message)))) => {
@@ -1240,7 +1263,13 @@ impl Session {
                             );
                             break;
                         }
-                        None => break,
+                        None => {
+                            // Stream ended - finalize any pending streaming message
+                            if let Some(final_msg) = self.streaming_renderer.finalize() {
+                                self.messages.push(final_msg);
+                            }
+                            break;
+                        }
                     }
                 }
                 _ = tokio::signal::ctrl_c() => {
