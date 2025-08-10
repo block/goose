@@ -374,7 +374,7 @@ But here's the important part: this wasn't production-ready code. The QA agent w
 
 ## The Human Still Matters
 
-This workshop perfectly illustrates the current state of AI-assisted development. Goose and its sub-agents can absolutely accelerate prototyping and help you build working applications quickly. But the human developer still owns the critical judgment calls:
+This workshop perfectly illustrates the current state of AI-assisted development. Goose and its subagents can absolutely accelerate prototyping and help you build working applications quickly. But the human developer still owns the critical judgment calls:
 
 - **Architecture decisions**: Is this the right approach for the problem?
 - **Security considerations**: What are the risks we need to mitigate?
