@@ -390,7 +390,7 @@ What we demonstrated in this workshop hints at a fascinating future for software
 - **Quality assurance**: How do you validate and test AI-generated code?
 - **Integration**: How do you combine outputs from multiple agents into cohesive solutions?
 
-## Getting Started with Sub-Agents
+## Getting Started with Subagents
 
 Want to try this yourself? Here's what you need:
 
