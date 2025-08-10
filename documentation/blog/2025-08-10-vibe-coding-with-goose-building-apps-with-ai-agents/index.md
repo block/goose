@@ -17,7 +17,7 @@ That's exactly what we accomplished during the Vibe Coding workshop at [Berkeley
 
 Traditional AI coding assistants are great at helping you write individual functions or debug specific issues. But what if you need to build something from scratch? What if you want to simulate an entire software development lifecycle?
 
-That's where Goose's sub-agent feature shines. Instead of doing everything yourself, you can orchestrate a team of specialized AI agents, each with their own expertise:
+That's where Goose's subagent feature shines. Instead of doing everything yourself, you can orchestrate a team of specialized AI agents, each with their own expertise:
 
 - 🧠 **Planner** - Defines the product vision and MVP scope
 - 📋 **Project Manager** - Breaks down tasks and coordinates execution  
