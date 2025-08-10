@@ -43,6 +43,7 @@ interface UpdaterEvent {
 // Define the API types in a single place
 type ElectronAPI = {
   platform: string;
+  arch: string;
   reactReady: () => void;
   getConfig: () => Record<string, unknown>;
   hideWindow: () => void;
@@ -118,6 +119,7 @@ type AppConfigAPI = {
 
 const electronAPI: ElectronAPI = {
   platform: process.platform,
+  arch: process.arch,
   reactReady: () => ipcRenderer.send('react-ready'),
   getConfig: () => {
     // Add fallback to localStorage if config from preload is empty or missing
