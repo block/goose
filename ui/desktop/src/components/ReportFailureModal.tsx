@@ -61,10 +61,14 @@ export default function ReportFailureModal({ isOpen, onClose }: ReportFailureMod
     try {
       const secretKey = getSecretKey();
       const info: SystemInfo = {
-        gooseVersion: String(window.appConfig?.get('GOOSE_VERSION') || 'Unknown'),
+        gooseVersion: String(
+          window.appConfig?.get('GOOSE_VERSION') ||
+            window.appConfig?.get('version') ||
+            'Development'
+        ),
         osVersion: navigator.userAgent,
         platform: window.electron?.platform || 'Unknown',
-        architecture: (window.electron as { arch?: string })?.arch || 'Unknown',
+        architecture: window.electron?.arch || 'Unknown',
         extensionCount: await getExtensionCount(),
       };
 

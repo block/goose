@@ -85,35 +85,34 @@ async fn report_failure(
 
 fn create_github_issue_body(payload: &FailureReportRequest) -> String {
     format!(
-        r#"## Problem Description
+        r#"**Describe the bug**
+
 {}
 
-## System Information
-- **Goose Version:** {}
-- **Platform:** {}
-- **Architecture:** {}
-- **OS:** {}
-{}
+**Please provide following information:**
+- **OS & Arch:** {} {}
+- **Interface:** UI (Desktop App)  
+- **Version:** {}
+- **Provider & Model:** {}
 
-## Recent Errors
+**Recent Errors/Logs:**
 ```
 {}
 ```
 
-## Additional Context
+**Additional context**
 - **Timestamp:** {}
-- **Reporter:** Goose Desktop App (Automated Report)
+- **Reported via:** Goose Desktop App automated failure reporting
 
 ---
 *This issue was automatically created via the "Report a Failure" feature.*"#,
         payload.description,
-        payload.system_info.goose_version,
         payload.system_info.platform,
         payload.system_info.architecture,
-        payload.system_info.os_version,
+        payload.system_info.goose_version,
         match &payload.system_info.provider_type {
-            Some(provider) => format!("- **Provider:** {}", provider),
-            None => String::new(),
+            Some(provider) => provider.clone(),
+            None => "Unknown".to_string(),
         },
         payload.recent_errors.join("\n"),
         payload.timestamp
