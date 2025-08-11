@@ -5,6 +5,8 @@ authors:
     - rarora
 ---
 
+![Automated MCP Testing](mcp_testing_blog_title.png)
+
 # Automated MCP Testing: Using Composable Goose Recipes to Validate Tool Metadata
 
 When building Model Context Protocol (MCP) servers, most development focuses on tool functionality—ensuring tools execute and return expected results. But just as critical is the quality of tool metadata: descriptions, tooltips, and input schemas. These elements form the "interface language" between tools and AI agents like Goose.
@@ -17,6 +19,7 @@ Yet metadata often goes untested. This can break tool discovery and silently deg
 
 All while maintaining the quality that AI agents depend on.
 
+<!-- truncate -->
 
 ## 1. The Challenges of Manual Metadata Testing
 
@@ -224,7 +227,7 @@ This JSON becomes the foundation for all downstream evaluation workflows—it ca
 
 ## 4. Workflow 1: Automated Metadata Regression Detection
 
-![](evaluate_predictions.png)
+![Automated Metadata Regression Detection](evaluate_predictions.png)
 
 Having established the core Goose recipe component in Section 3, we can now leverage its modularity to build more complex workflows. The beauty of this architecture is that the core prediction recipe becomes a reusable building block—we can reference it from other recipes, chain it with comparison logic, and compose end-to-end testing pipelines. This demonstrates the power of treating recipes as separate modules that can be orchestrated together for sophisticated automation workflows.
 
@@ -381,7 +384,7 @@ Here are two common types of mismatches the system detects:
 This feedback loop becomes essential for pull request validation—especially when tool descriptions are updated, new tools are added, or existing schemas are modified. The system ensures that metadata changes don't accidentally break tool discoverability for AI agents.
 
 ## 5. Workflow 2: Safe Metadata Token Reduction and Optimization
-![](reduce_tokens.png)
+![Safe Metadata Token Reduction and Optimization](reduce_tokens.png)
 
 Building on the modular recipe architecture established in previous sections, we can create even more sophisticated workflows that combine multiple automation steps. One powerful example is an iterative token reduction pipeline that safely compresses MCP tool descriptions while ensuring functionality remains intact.
 
