@@ -408,7 +408,7 @@ impl DeveloperRouter {
         let hints_filenames: Vec<String> = std::env::var("CONTEXT_FILE_NAMES")
             .ok()
             .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_else(|| vec![".goosehints".to_string()]);
+            .unwrap_or_else(|| vec![goose_hints::GOOSE_HINTS_FILENAME.to_string()]);
 
         let hints = goose_hints::load_and_format_hints(&cwd, &hints_filenames);
 
