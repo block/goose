@@ -2,6 +2,7 @@ use goose::agents::todo_tools::{TODO_READ_TOOL_NAME, TODO_WRITE_TOOL_NAME};
 use goose::agents::Agent;
 use mcp_core::tool::ToolCall;
 use serde_json::json;
+use serial_test::serial;
 use std::sync::Arc;
 
 #[tokio::test]
@@ -24,6 +25,7 @@ async fn test_todo_tools_in_agent_list() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_todo_write_and_read() {
     // Ensure we have a clean environment for this test
     std::env::remove_var("GOOSE_TODO_MAX_CHARS");
@@ -97,6 +99,7 @@ async fn test_todo_empty_initially() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_todo_overwrite() {
     // Ensure no limit is set for this test
     std::env::remove_var("GOOSE_TODO_MAX_CHARS");
@@ -205,7 +208,11 @@ async fn test_todo_concurrent_access() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_todo_large_content() {
+    // Ensure we have a clean environment for this test
+    std::env::remove_var("GOOSE_TODO_MAX_CHARS");
+
     let agent = Agent::new();
 
     // Create a large todo list that exceeds the 50,000 character limit
@@ -280,6 +287,7 @@ async fn test_todo_large_content() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_todo_unicode_content() {
     // Ensure no limit is set for this test
     std::env::remove_var("GOOSE_TODO_MAX_CHARS");
@@ -321,6 +329,7 @@ async fn test_todo_unicode_content() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_todo_character_limit_enforcement() {
     // Set a small limit for testing
     std::env::set_var("GOOSE_TODO_MAX_CHARS", "100");
@@ -369,6 +378,7 @@ async fn test_todo_character_limit_enforcement() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_todo_character_count_in_write_response() {
     // Ensure no limit is set for this test
     std::env::remove_var("GOOSE_TODO_MAX_CHARS");
@@ -396,6 +406,7 @@ async fn test_todo_character_count_in_write_response() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_todo_read_returns_clean_content() {
     // Ensure no limit is set for this test
     std::env::remove_var("GOOSE_TODO_MAX_CHARS");
@@ -440,6 +451,7 @@ async fn test_todo_read_returns_clean_content() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_todo_unlimited_with_zero_limit() {
     std::env::set_var("GOOSE_TODO_MAX_CHARS", "0");
 
@@ -466,6 +478,7 @@ async fn test_todo_unlimited_with_zero_limit() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_todo_unicode_character_counting() {
     std::env::set_var("GOOSE_TODO_MAX_CHARS", "10");
 
@@ -487,11 +500,28 @@ async fn test_todo_unicode_character_counting() {
         .await;
 
     // Should fail as it's 11 chars
+    assert!(result.is_ok(), "dispatch_tool_call should return Ok");
     if let Ok(result) = result {
         let response = result.result.await;
-        assert!(response.is_err(), "Should fail with error");
-    } else {
-        panic!("Expected Ok(ToolCallResult) with inner error, got Err");
+        assert!(
+            response.is_err(),
+            "Should fail with error - 11 chars exceeds limit of 10"
+        );
+        if let Err(error) = response {
+            let error_str = error.to_string();
+            assert!(
+                error_str.contains("Todo list too large"),
+                "Error should mention 'Todo list too large'"
+            );
+            assert!(
+                error_str.contains("11 chars"),
+                "Error should mention '11 chars'"
+            );
+            assert!(
+                error_str.contains("max: 10"),
+                "Error should mention 'max: 10'"
+            );
+        }
     }
 
     std::env::remove_var("GOOSE_TODO_MAX_CHARS");
