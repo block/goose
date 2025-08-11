@@ -7,7 +7,7 @@ authors:
 
 ![blog cover](mcp-ui-shot.png)
 
-Goose recently merged in changes related to <a href="https://mcpui.dev/">MCP-UI</a>, a proposed extension that allows MCP servers to suggest and contribute user interface elements back to the agent.
+Goose recently merged in changes related to [MCP-UI](https://mcpui.dev/), an extension that allows MCP servers to deliver user interface elements back to the agent.
 
 This sits on top of the protocol, but instead of text/markdown being the result, servers can return content that the client can render richly (including interactive GUI content).
 
