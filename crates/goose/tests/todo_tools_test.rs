@@ -25,6 +25,9 @@ async fn test_todo_tools_in_agent_list() {
 
 #[tokio::test]
 async fn test_todo_write_and_read() {
+    // Ensure we have a clean environment for this test
+    std::env::remove_var("GOOSE_TODO_MAX_CHARS");
+
     let agent = Agent::new();
 
     // Write to the todo list
@@ -340,17 +343,25 @@ async fn test_todo_character_limit_enforcement() {
         .await;
 
     // Should fail with error
+    assert!(result.is_ok(), "dispatch_tool_call should return Ok");
     if let Ok(result) = result {
         let response = result.result.await;
         assert!(response.is_err(), "Should fail with error");
         if let Err(error) = response {
             let error_str = error.to_string();
-            assert!(error_str.contains("Todo list too large"));
-            assert!(error_str.contains("101 chars"));
-            assert!(error_str.contains("max: 100"));
+            assert!(
+                error_str.contains("Todo list too large"),
+                "Error should mention 'Todo list too large'"
+            );
+            assert!(
+                error_str.contains("101 chars"),
+                "Error should mention '101 chars'"
+            );
+            assert!(
+                error_str.contains("max: 100"),
+                "Error should mention 'max: 100'"
+            );
         }
-    } else {
-        panic!("Expected Ok(ToolCallResult) with inner error, got Err");
     }
 
     // Clean up
