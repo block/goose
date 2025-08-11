@@ -1133,7 +1133,7 @@ impl Agent {
                             } else {
                                 // Not caused by tool response, show the error to user
                                 yield AgentEvent::Message(Message::assistant().with_context_length_exceeded(
-                                    format!("Context length exceeded: {}", error_msg)
+                                    format!("Context length exceeded: {}. Please try starting a new session.", error_msg)
                                 ));
                                 break;
                             }
