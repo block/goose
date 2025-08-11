@@ -34,10 +34,10 @@ It is worth taking a minute to watch this MCP server for an airline seat selecto
     controls 
     width="100%" 
     height="400px"
-    poster={require('./mcp-ui-shot.png').default}
+    poster={require('@site/static/img/mcp-ui-shot.png').default}
     playsInline
   >
-    <source src={require('./mcp-ui.mov').default} type="video/mp4" />
+    <source src={require('@site/static/videos/mcp-ui.mov').default} type="video/mp4" />
     Your browser does not support the video tag.
   </video>
 </div>
