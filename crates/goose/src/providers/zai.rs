@@ -16,8 +16,8 @@ use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsag
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
 use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
-use crate::impl_provider_default;
 use crate::conversation::message::Message;
+use crate::impl_provider_default;
 use crate::model::ModelConfig;
 use crate::providers::base::MessageStream;
 use crate::providers::formats::openai::response_to_streaming_message;
@@ -134,7 +134,12 @@ impl Provider for ZaiProvider {
             vec![
                 ConfigKey::new("ZAI_API_KEY", true, true, None),
                 ConfigKey::new("ZAI_HOST", true, false, Some("https://api.z.ai")),
-                ConfigKey::new("ZAI_BASE_PATH", true, false, Some("api/paas/v4/chat/completions")),
+                ConfigKey::new(
+                    "ZAI_BASE_PATH",
+                    true,
+                    false,
+                    Some("api/paas/v4/chat/completions"),
+                ),
                 ConfigKey::new("ZAI_CUSTOM_HEADERS", false, true, None),
                 ConfigKey::new("ZAI_TIMEOUT", false, false, Some("600")),
             ],
