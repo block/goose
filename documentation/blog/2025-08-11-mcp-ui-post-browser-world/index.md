@@ -79,5 +79,5 @@ This is available right now with Goose Desktop.
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="A first look at a UI for agents built on the proposed MCP-UI extension" />
   <meta name="twitter:description" content="A first look at a UI for agents built on the proposed MCP-UI extension" />
-  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/mcp-ui-shot.png" />
+  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/mcp-ui-shot-1b80ebfab25d885a8ead1ca24bb6cf13.png" />
 </head>
