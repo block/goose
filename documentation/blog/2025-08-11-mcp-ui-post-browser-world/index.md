@@ -13,7 +13,7 @@ This sits on top of the protocol, but instead of text/markdown being the result,
 
 <!-- truncate -->
 
-At the heart of this is an interface for a UIResource:
+At the heart of this is an interface for a `UIResource`:
 
 ```
 interface UIResource {
