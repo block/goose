@@ -71,7 +71,7 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
               className="flex items-center gap-1.5 text-[11px] hover:opacity-80 cursor-pointer outline-none mt-1"
             >
               {alert.summarizeIcon}
-              <span>Summarize Now</span>
+              <span>Summarize now</span>
             </button>
           )}
         </div>
