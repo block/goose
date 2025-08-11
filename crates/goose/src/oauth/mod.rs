@@ -11,7 +11,7 @@ use std::sync::Arc;
 use tokio::sync::{oneshot, Mutex};
 use tracing::warn;
 
-use crate::oauth::persist::{load_cached_state, save_credentials};
+use crate::oauth::persist::{clear_credentials, load_cached_state, save_credentials};
 
 mod persist;
 
@@ -34,9 +34,11 @@ pub async fn oauth_flow(
     name: &String,
 ) -> Result<AuthorizationManager, anyhow::Error> {
     if let Ok(oauth_state) = load_cached_state(mcp_server_url, name).await {
-        return oauth_state.into_authorization_manager().ok_or_else(|| {
-            anyhow::anyhow!("Failed to get authorization manager from cached credentials")
-        });
+        if let Some(authorization_manager) = oauth_state.into_authorization_manager() {
+            return Ok(authorization_manager);
+        } else if let Err(e) = clear_credentials(name) {
+            warn!("error clearing bad credentials: {}", e);
+        }
     }
 
     let (code_sender, code_receiver) = oneshot::channel::<String>();

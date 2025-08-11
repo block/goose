@@ -11,6 +11,10 @@ pub struct SerializableCredentials {
     pub token_response: Option<StandardTokenResponse<EmptyExtraTokenFields, BasicTokenType>>,
 }
 
+fn secret_key(name: &str) -> String {
+    format!("oauth_creds_{name}")
+}
+
 pub async fn save_credentials(
     name: &str,
     oauth_state: &OAuthState,
@@ -24,7 +28,7 @@ pub async fn save_credentials(
     };
 
     let value = serde_json::to_value(&credentials)?;
-    let key = format!("oauth_creds_{name}");
+    let key = secret_key(name);
     config.set_secret(&key, value)?;
 
     Ok(())
@@ -34,10 +38,16 @@ async fn load_credentials(
     name: &str,
 ) -> Result<SerializableCredentials, Box<dyn std::error::Error>> {
     let config = Config::global();
-    let key = format!("oauth_creds_{name}");
+    let key = secret_key(name);
     let credentials: SerializableCredentials = config.get_secret(&key)?;
 
     Ok(credentials)
+}
+
+pub fn clear_credentials(name: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let config = Config::global();
+
+    Ok(config.delete_secret(&secret_key(name))?)
 }
 
 pub async fn load_cached_state<U: IntoUrl>(
