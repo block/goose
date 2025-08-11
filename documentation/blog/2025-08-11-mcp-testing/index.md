@@ -50,7 +50,7 @@ By chaining and wrapping recipes, we avoid duplication and unlock scalable, repe
 
 ## 3. The Core Engine: Goose Recipe for Tool Prediction
 
-At the heart of the system is a Goose recipe that systematically transforms natural language queries into structured tool predictions. This recipe follows a clear three-step process: **read queries → analyze tools → generate predictions**.
+At the heart of the system is a [Goose recipe](https://block.github.io/goose/docs/guides/recipes/) that systematically transforms natural language queries into structured tool predictions. This recipe follows a clear three-step process: **read queries → analyze tools → generate predictions**.
 
 ### 🔄 How It Works: Step-by-Step
 
