@@ -29,6 +29,7 @@ struct CallbackParams {
     state: Option<String>,
 }
 
+#[allow(clippy::cognitive_complexity)]
 pub async fn oauth_flow(
     mcp_server_url: &String,
     name: &String,
