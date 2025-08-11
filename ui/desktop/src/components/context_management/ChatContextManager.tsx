@@ -128,7 +128,6 @@ export const ChatContextManagerProvider: React.FC<{ children: React.ReactNode }>
     // add the message to the message thread
     setMessages([...messages, summarizationRequest]);
 
-    // Close dialog and clear pending data
     setIsConfirmationOpen(false);
     setPendingCompactionData(null);
   };

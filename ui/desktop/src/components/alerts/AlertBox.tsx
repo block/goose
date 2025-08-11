@@ -60,7 +60,6 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
                 : alert.progress!.total}
             </span>
           </div>
-          {/* Add summarize button for context window alerts */}
           {alert.showSummarizeButton && alert.onSummarize && (
             <button
               onClick={(e) => {

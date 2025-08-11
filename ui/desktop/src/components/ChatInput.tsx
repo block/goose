@@ -429,7 +429,6 @@ export default function ChatInput({
           },
           showSummarizeButton: true,
           onSummarize: () => {
-            // Trigger manual compaction
             handleManualCompaction(messages, setMessages);
           },
           summarizeIcon: <ScrollText size={12} />,
@@ -448,7 +447,6 @@ export default function ChatInput({
         onSummarize:
           messages.length > 0
             ? () => {
-                // Trigger manual compaction
                 handleManualCompaction(messages, setMessages);
               }
             : undefined,
