@@ -29,14 +29,18 @@ The `mimeType` is where the action happens. It can be HTML content, for example 
 
 It is worth taking a minute to watch this MCP server for an airline seat selector demo to get a taste of the capability:
 
-<video controls width="100%" poster="mcp-ui-shot.png">
-  <source src="./mcp-ui.mov" type="video/quicktime" />
-  <!-- Some browsers may not play .mov; keep a direct link as fallback. -->
-  Your browser does not support the video tag. You can
-  <a href="./mcp-ui.mov">download and watch the video here</a>.
-</video>
-
-<p><a href="./mcp-ui.mov">Download mcp-ui.mov</a></p>
+<div style={{ width: '100%', maxWidth: '800px', margin: '0 auto' }}>
+  <video 
+    controls 
+    width="100%" 
+    height="400px"
+    poster={require('./mcp-ui-shot.png').default}
+    playsInline
+  >
+    <source src={require('./mcp-ui.mov').default} type="video/mp4" />
+    Your browser does not support the video tag.
+  </video>
+</div>
 
 Essentially, MCP servers are suggesting GUI elements for the client (agent) to render as it sees fit.
 
