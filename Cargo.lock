@@ -3282,7 +3282,7 @@ dependencies = [
 
 [[package]]
 name = "goose"
-version = "1.1.0"
+version = "1.3.0"
 dependencies = [
  "ahash",
  "anyhow",
@@ -3343,6 +3343,7 @@ dependencies = [
  "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",
+ "unicode-normalization",
  "url",
  "urlencoding",
  "utoipa",
@@ -3354,7 +3355,7 @@ dependencies = [
 
 [[package]]
 name = "goose-bench"
-version = "1.1.0"
+version = "1.3.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3377,7 +3378,7 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.1.0"
+version = "1.3.0"
 dependencies = [
  "anstream",
  "anyhow",
@@ -3428,7 +3429,7 @@ dependencies = [
 
 [[package]]
 name = "goose-mcp"
-version = "1.1.0"
+version = "1.3.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3466,6 +3467,7 @@ dependencies = [
  "tempfile",
  "thiserror 1.0.69",
  "tokio",
+ "tokio-stream",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
@@ -3479,7 +3481,7 @@ dependencies = [
 
 [[package]]
 name = "goose-server"
-version = "1.1.0"
+version = "1.3.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6988,14 +6990,15 @@ dependencies = [
 
 [[package]]
 name = "rmcp"
-version = "0.3.1"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "824daba0a34f8c5c5392295d381e0800f88fd986ba291699f8785f05fa344c1e"
+checksum = "2faf35b7d3c4b7f8c21c45bb014011b32a0ce6444bf6094da04daab01a8c3c34"
 dependencies = [
  "base64 0.22.1",
  "chrono",
  "futures",
  "http 1.2.0",
+ "oauth2",
  "paste",
  "pin-project-lite",
  "process-wrap",
@@ -7010,13 +7013,14 @@ dependencies = [
  "tokio-stream",
  "tokio-util",
  "tracing",
+ "url",
 ]
 
 [[package]]
 name = "rmcp-macros"
-version = "0.3.1"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ad6543c0572a4dbc125c23e6f54963ea9ba002294fd81dd4012c204219b0dcaa"
+checksum = "ad9720d9d2a943779f1dc3d47fa9072c7eeffaff4e1a82f67eb9f7ea52696091"
 dependencies = [
  "darling 0.21.0",
  "proc-macro2",
@@ -8852,6 +8856,15 @@ name = "unicode-linebreak"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3b09c83c3c29d37506a3e260c08c03743a6bb66a9cd432c6934ab501a190571f"
+
+[[package]]
+name = "unicode-normalization"
+version = "0.1.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5033c97c4262335cded6d6fc3e5c18ab755e1a3dc96376350f3d8e9f009ad956"
+dependencies = [
+ "tinyvec",
+]
 
 [[package]]
 name = "unicode-segmentation"

@@ -958,40 +958,18 @@ export default function App() {
               console.log(
                 'Ignoring recipe config changes to prevent navigation conflicts with new window creation'
               );
-            } else {
-              // Only navigate to chat route if we're not already on a valid route
-              const currentHash = window.location.hash;
-              const validRoutes = [
-                '#/',
-                '#/pair',
-                '#/settings',
-                '#/sessions',
-                '#/schedules',
-                '#/recipes',
-                '#/permission',
-                '#/configure-providers',
-                '#/shared-session',
-                '#/recipe-editor',
-                '#/extensions',
-              ];
-
-              if (!validRoutes.includes(currentHash)) {
-                console.log('No valid route detected, navigating to chat route (hub)');
-                window.location.hash = '#/';
-                window.history.replaceState({}, '', '#/');
-              }
             }
           } catch (error) {
             console.error('Error in system initialization:', error);
             if (error instanceof MalformedConfigError) {
               throw error;
             }
-            window.location.hash = '#/welcome';
-            window.history.replaceState({}, '', '#/welcome');
+            window.location.hash = '#/';
+            window.history.replaceState({}, '', '#/');
           }
         } else {
-          window.location.hash = '#/welcome';
-          window.history.replaceState({}, '', '#/welcome');
+          window.location.hash = '#/';
+          window.history.replaceState({}, '', '#/');
         }
       } catch (error) {
         console.error('Fatal error during initialization:', error);

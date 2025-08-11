@@ -17,6 +17,7 @@ pub enum ConfigError {
 static MODEL_SPECIFIC_LIMITS: Lazy<Vec<(&'static str, usize)>> = Lazy::new(|| {
     vec![
         // openai
+        ("gpt-5", 272_000),
         ("gpt-4-turbo", 128_000),
         ("gpt-4.1", 1_000_000),
         ("gpt-4-1", 1_000_000),

@@ -1,5 +1,6 @@
 import React from 'react';
 import CodeBlock from '@theme/CodeBlock';
+import Admonition from '@theme/Admonition';
 
 interface EnvVar {
   key: string;
@@ -8,11 +9,11 @@ interface EnvVar {
 
 interface CLIExtensionInstructionsProps {
   name: string;
-  type?: 'stdio' | 'http';
+  type?: 'stdio' | 'sse' | 'http';
   command?: string; // Only for stdio
-  url?: string; // Only for http
+  url?: string; // For both sse and http
   timeout?: number;
-  envVars?: EnvVar[];
+  envVars?: EnvVar[]; // For stdio: environment variables, for http: headers
   infoNote?: string;
 }
 
@@ -26,7 +27,9 @@ export default function CLIExtensionInstructions({
   infoNote,
 }: CLIExtensionInstructionsProps) {
   const hasEnvVars = envVars.length > 0;
+  const isSSE = type === 'sse';
   const isHttp = type === 'http';
+  const isRemote = isSSE || isHttp;
 
   // Determine last-step prompt text
   const lastStepText = isHttp
@@ -34,10 +37,10 @@ export default function CLIExtensionInstructions({
     : 'Would you like to add environment variables?';
 
   const lastStepInstruction = hasEnvVars
-    ? `Add environment variable${envVars.length > 1 ? 's' : ''} for ${name}`
+    ? `Add ${isHttp ? 'custom header' : 'environment variable'}${envVars.length > 1 ? 's' : ''} for ${name}`
     : isHttp
-    ? 'Choose No when asked to add custom headers'
-    : 'Choose No when asked to add environment variables';
+    ? 'Choose No when asked to add custom headers.'
+    : 'Choose No when asked to add environment variables.';
 
   return (
     <div>
@@ -49,7 +52,14 @@ export default function CLIExtensionInstructions({
       <ol start={2}>
         <li>
           Choose to add a{' '}
-          <code>{isHttp ? 'Remote Extension (Streaming HTTP)' : 'Command-line Extension'}</code>.
+          <code>
+            {isSSE 
+              ? 'Remote Extension (SSE)' 
+              : isHttp 
+              ? 'Remote Extension (Streaming HTTP)' 
+              : 'Command-line Extension'
+            }
+          </code>.
         </li>
       </ol>
       <CodeBlock language="sh">{`┌   goose-configure 
@@ -58,11 +68,12 @@ export default function CLIExtensionInstructions({
 │  Add Extension 
 │
 ◆  What type of extension would you like to add?
-│  ○ Built-in Extension
 ${
-  isHttp
-    ? '│  ● Remote Extension (Streaming HTTP)\n│  ○ Command-line Extension (Run a local command or script)'
-    : '│  ○ Remote Extension\n│  ● Command-line Extension (Run a local command or script)'
+  isSSE
+    ? '│  ○ Built-in Extension\n│  ○ Command-line Extension\n// highlight-start\n│  ● Remote Extension (SSE) (Connect to a remote extension via Server-Sent Events)\n// highlight-end\n│  ○ Remote Extension (Streaming HTTP)'
+    : isHttp
+    ? '│  ○ Built-in Extension\n│  ○ Command-line Extension\n│  ○ Remote Extension (SSE)\n// highlight-start\n│  ● Remote Extension (Streaming HTTP) (Connect to a remote extension via MCP Streaming HTTP)\n// highlight-end'
+    : '│  ○ Built-in Extension\n// highlight-start\n│  ● Command-line Extension (Run a local command or script)\n// highlight-end\n│  ○ Remote Extension (SSE)\n│  ○ Remote Extension (Streaming HTTP)'
 }
 └`}</CodeBlock>
 
@@ -75,7 +86,7 @@ ${
 │  Add Extension
 │
 ◇  What type of extension would you like to add?
-│  ${isHttp ? 'Remote Extension (Streaming HTTP)' : 'Command-line Extension'}
+│  ${isSSE ? 'Remote Extension (SSE)' : isHttp ? 'Remote Extension (Streaming HTTP)' : 'Command-line Extension'}
 │
 // highlight-start
 ◆  What would you like to call this extension?
@@ -83,10 +94,10 @@ ${
 // highlight-end
 └`}</CodeBlock>
 
-      {isHttp ? (
+      {isRemote ? (
         <>
           <ol start={4}>
-            <li>Enter the Streaming HTTP endpoint URI.</li>
+            <li>Enter the {isSSE ? 'SSE endpoint URI' : 'Streaming HTTP endpoint URI'}.</li>
           </ol>
           <CodeBlock language="sh">{`┌   goose-configure 
 │
@@ -94,13 +105,13 @@ ${
 │  Add Extension 
 │
 ◇  What type of extension would you like to add?
-│  Remote Extension (Streaming HTTP)
+│  ${isSSE ? 'Remote Extension (SSE)' : 'Remote Extension (Streaming HTTP)'}
 │
 ◇  What would you like to call this extension?
 │  ${name}
 │
 // highlight-start
-◆  What is the Streaming HTTP endpoint URI?
+◆  What is the ${isSSE ? 'SSE endpoint URI' : 'Streaming HTTP endpoint URI'}?
 │  ${url}
 // highlight-end
 └`}</CodeBlock>
@@ -141,14 +152,14 @@ ${
 │  Add Extension
 │
 ◇  What type of extension would you like to add?
-│  ${isHttp ? 'Remote Extension (Streaming HTTP)' : 'Command-line Extension'}
+│  ${isSSE ? 'Remote Extension (SSE)' : isHttp ? 'Remote Extension (Streaming HTTP)' : 'Command-line Extension'}
 │
 ◇  What would you like to call this extension?
 │  ${name}
 │
 ${
-  isHttp
-    ? `◇  What is the Streaming HTTP endpoint URI?\n│  ${url}\n│`
+  isRemote
+    ? `◇  What is the ${isSSE ? 'SSE endpoint URI' : 'Streaming HTTP endpoint URI'}?\n│  ${url}\n│`
     : `◇  What command should be run?\n│  ${command}\n│`
 }
 // highlight-start
@@ -166,14 +177,14 @@ ${
 │  Add Extension
 │
 ◇  What type of extension would you like to add?
-│  ${isHttp ? 'Remote Extension (Streaming HTTP)' : 'Command-line Extension'}
+│  ${isSSE ? 'Remote Extension (SSE)' : isHttp ? 'Remote Extension (Streaming HTTP)' : 'Command-line Extension'}
 │
 ◇  What would you like to call this extension?
 │  ${name}
 │
 ${
-  isHttp
-    ? `◇  What is the Streaming HTTP endpoint URI?\n│  ${url}\n│`
+  isRemote
+    ? `◇  What is the ${isSSE ? 'SSE endpoint URI' : 'Streaming HTTP endpoint URI'}?\n│  ${url}\n│`
     : `◇  What command should be run?\n│  ${command}\n│`
 }
 ◇  Please set the timeout for this tool (in secs):
@@ -186,7 +197,16 @@ ${
 └`}</CodeBlock>
 
       <ol start={7}>
-        <li>{lastStepInstruction}</li>
+        <li>
+          {hasEnvVars
+            ? isHttp
+              ? <>Add custom header{envVars.length > 1 ? 's' : ''} for {name}.</>
+              : <>Add environment variable{envVars.length > 1 ? 's' : ''} for {name}.</>
+            : isHttp
+            ? <>Choose <code>No</code> when asked to add custom headers.</>
+            : <>Choose <code>No</code> when asked to add environment variables.</>
+          }
+        </li>
       </ol>
 
       {!hasEnvVars && (
@@ -196,14 +216,14 @@ ${
 │  Add Extension 
 │
 ◇  What type of extension would you like to add?
-│  ${isHttp ? 'Remote Extension (Streaming HTTP)' : 'Command-line Extension'}
+│  ${isSSE ? 'Remote Extension (SSE)' : isHttp ? 'Remote Extension (Streaming HTTP)' : 'Command-line Extension'}
 │
 ◇  What would you like to call this extension?
 │  ${name}
 │
 ${
-  isHttp
-    ? `◇  What is the Streaming HTTP endpoint URI?\n│  ${url}\n│`
+  isRemote
+    ? `◇  What is the ${isSSE ? 'SSE endpoint URI' : 'Streaming HTTP endpoint URI'}?\n│  ${url}\n│`
     : `◇  What command should be run?\n│  ${command}\n│`
 }
 ◇  Please set the timeout for this tool (in secs):
@@ -216,12 +236,20 @@ ${
 ◆  ${lastStepText}
 │  No
 // highlight-end
+│
 └  Added ${name} extension`}</CodeBlock>
       )}
 
       {hasEnvVars && (
         <>
-          {infoNote && <div className="alert alert--info">{infoNote}</div>}
+          {infoNote && (
+            <>
+              <Admonition type="info">
+                {infoNote}
+              </Admonition>
+              <br />
+            </>
+          )}
 
           <CodeBlock language="sh">{`┌   goose-configure 
 │
@@ -229,14 +257,14 @@ ${
 │  Add Extension
 │
 ◇  What type of extension would you like to add?
-│  ${isHttp ? 'Remote Extension (Streaming HTTP)' : 'Command-line Extension'}
+│  ${isSSE ? 'Remote Extension (SSE)' : isHttp ? 'Remote Extension (Streaming HTTP)' : 'Command-line Extension'}
 │
 ◇  What would you like to call this extension?
 │  ${name}
 │
 ${
-  isHttp
-    ? `◇  What is the Streaming HTTP endpoint URI?\n│  ${url}\n│`
+  isRemote
+    ? `◇  What is the ${isSSE ? 'SSE endpoint URI' : 'Streaming HTTP endpoint URI'}?\n│  ${url}\n│`
     : `◇  What command should be run?\n│  ${command}\n│`
 }
 ◇  Please set the timeout for this tool (in secs):
@@ -251,17 +279,18 @@ ${
 ${envVars
   .map(
     ({ key, value }, i) => `│
-◇  Environment variable name:
+◇  ${isHttp ? 'Header name' : 'Environment variable name'}:
 │  ${key}
 │
-◇  Environment variable value:
+◇  ${isHttp ? 'Header value' : 'Environment variable value'}:
 │  ${value}
 │
-◇  Add another environment variable?
+◇  Add another ${isHttp ? 'header' : 'environment variable'}?
 │  ${i === envVars.length - 1 ? 'No' : 'Yes'}`
   )
   .join('\n')}
 // highlight-end
+│
 └  Added ${name} extension`}</CodeBlock>
         </>
       )}

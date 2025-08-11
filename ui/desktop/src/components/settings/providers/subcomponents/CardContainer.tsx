@@ -11,10 +11,10 @@ interface CardContainerProps {
 function GlowingRing() {
   return (
     <div
-      className={`absolute pointer-events-none w-[260px] h-[260px] top-[-50px] left-[-30px] origin-center 
+      className={`absolute pointer-events-none inset-0 rounded-[9px] origin-center 
                             bg-[linear-gradient(45deg,#13BBAF,#FF4F00)] 
                             animate-[rotate_6s_linear_infinite] z-[-1] 
-                            opacity-0 group-hover/card:opacity-100`}
+                            opacity-0 group-hover/card:opacity-40 transition-opacity duration-300`}
     />
   );
 }
@@ -37,7 +37,7 @@ export default function CardContainer({
   return (
     <div
       data-testid={testId}
-      className={`relative h-full p-[1px] overflow-hidden rounded-[9px] group/card 
+      className={`relative h-full p-[2px] overflow-hidden rounded-[9px] group/card 
                  ${
                    grayedOut
                      ? 'bg-borderSubtle hover:bg-gray-700'

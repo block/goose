@@ -10,7 +10,8 @@ use axum::{
 };
 use futures::{sink::SinkExt, stream::StreamExt};
 use goose::agents::{Agent, AgentEvent};
-use goose::message::Message as GooseMessage;
+use goose::conversation::message::Message as GooseMessage;
+use goose::conversation::Conversation;
 use goose::session;
 use serde::{Deserialize, Serialize};
 use std::{net::SocketAddr, sync::Arc};
@@ -18,7 +19,7 @@ use tokio::sync::{Mutex, RwLock};
 use tower_http::cors::{Any, CorsLayer};
 use tracing::error;
 
-type SessionStore = Arc<RwLock<std::collections::HashMap<String, Arc<Mutex<Vec<GooseMessage>>>>>>;
+type SessionStore = Arc<RwLock<std::collections::HashMap<String, Arc<Mutex<Conversation>>>>>;
 type CancellationStore = Arc<RwLock<std::collections::HashMap<String, tokio::task::AbortHandle>>>;
 
 #[derive(Clone)]
@@ -319,8 +320,8 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                     let mut sessions = state.sessions.write().await;
 
                                     // Load existing messages from JSONL file if it exists
-                                    let existing_messages = session::read_messages(&session_file)
-                                        .unwrap_or_else(|_| Vec::new());
+                                    let existing_messages =
+                                        session::read_messages(&session_file).unwrap_or_default();
 
                                     let new_session = Arc::new(Mutex::new(existing_messages));
                                     sessions.insert(session_id.clone(), new_session.clone());
@@ -435,21 +436,21 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
 
 async fn process_message_streaming(
     agent: &Agent,
-    session_messages: Arc<Mutex<Vec<GooseMessage>>>,
+    session_messages: Arc<Mutex<Conversation>>,
     session_file: std::path::PathBuf,
     content: String,
     sender: Arc<Mutex<futures::stream::SplitSink<WebSocket, Message>>>,
 ) -> Result<()> {
     use futures::StreamExt;
     use goose::agents::SessionConfig;
-    use goose::message::MessageContent;
+    use goose::conversation::message::MessageContent;
     use goose::session;
 
     // Create a user message
     let user_message = GooseMessage::user().with_text(content.clone());
 
     // Messages will be auto-compacted in agent.reply() if needed
-    let messages = {
+    let messages: Conversation = {
         let mut session_msgs = session_messages.lock().await;
         session_msgs.push(user_message.clone());
         session_msgs.clone()
@@ -493,7 +494,10 @@ async fn process_message_streaming(
         retry_config: None,
     };
 
-    match agent.reply(&messages, Some(session_config), None).await {
+    match agent
+        .reply(messages.clone(), Some(session_config), None)
+        .await
+    {
         Ok(mut stream) => {
             while let Some(result) = stream.next().await {
                 match result {
@@ -617,7 +621,7 @@ async fn process_message_streaming(
                                     // For now, auto-summarize in web mode
                                     // TODO: Implement proper UI for context handling
                                     let (summarized_messages, _) =
-                                        agent.summarize_context(&messages).await?;
+                                        agent.summarize_context(messages.messages()).await?;
                                     {
                                         let mut session_msgs = session_messages.lock().await;
                                         *session_msgs = summarized_messages;
@@ -633,7 +637,7 @@ async fn process_message_streaming(
                         // Replace the session's message history with the compacted messages
                         {
                             let mut session_msgs = session_messages.lock().await;
-                            *session_msgs = new_messages;
+                            *session_msgs = Conversation::new_unvalidated(new_messages);
                         }
 
                         // Persist the updated messages to the JSONL file

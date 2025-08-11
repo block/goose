@@ -143,7 +143,7 @@ function BaseChatContent({
     chatState,
     error,
     setMessages,
-    input: _input,
+    input,
     setInput: _setInput,
     handleSubmit: engineHandleSubmit,
     onStopGoose,
@@ -231,7 +231,9 @@ function BaseChatContent({
   useEffect(() => {
     const isProcessingResponse =
       chatState !== ChatState.Idle && chatState !== ChatState.WaitingForUserInput;
-    handleAutoExecution(append, isProcessingResponse);
+    handleAutoExecution(append, isProcessingResponse, () => {
+      setHasStartedUsingRecipe(true);
+    });
   }, [handleAutoExecution, append, chatState]);
 
   // Use shared session continuation
@@ -528,7 +530,7 @@ function BaseChatContent({
             chatState={chatState}
             onStop={onStopGoose}
             commandHistory={commandHistory}
-            initialValue={_input || ''}
+            initialValue={input || ''}
             setView={setView}
             numTokens={sessionTokenCount}
             inputTokens={sessionInputTokens || localInputTokens}

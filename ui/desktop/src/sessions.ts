@@ -1,6 +1,7 @@
 import { Message } from './types/message';
 import { getSessionHistory, listSessions, SessionInfo } from './api';
 import { convertApiMessageToFrontendMessage } from './components/context_management';
+import { getApiUrl } from './config';
 
 export interface SessionMetadata {
   description: string;
@@ -123,6 +124,36 @@ export async function fetchSessionDetails(sessionId: string): Promise<SessionDet
     };
   } catch (error) {
     console.error(`Error fetching session details for ${sessionId}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Updates the metadata for a specific session
+ * @param sessionId The ID of the session to update
+ * @param description The new description (name) for the session
+ * @returns Promise that resolves when the update is complete
+ */
+export async function updateSessionMetadata(sessionId: string, description: string): Promise<void> {
+  try {
+    const url = getApiUrl(`/sessions/${sessionId}/metadata`);
+    const secretKey = await window.electron.getSecretKey();
+
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Secret-Key': secretKey,
+      },
+      body: JSON.stringify({ description }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to update session metadata: ${response.statusText} - ${errorText}`);
+    }
+  } catch (error) {
+    console.error(`Error updating session metadata for ${sessionId}:`, error);
     throw error;
   }
 }

@@ -1,4 +1,4 @@
-use crate::message::{Message, MessageContent};
+use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::utils::{
     convert_image, detect_image_path, is_valid_function_name, load_image_file, safely_parse_json,
@@ -10,16 +10,32 @@ use rmcp::model::{AnnotateAble, Content, RawContent, ResourceContents, Role, Too
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
+#[derive(Serialize)]
+struct DatabricksMessage {
+    content: Value,
+    role: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tool_calls: Option<Vec<Value>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tool_call_id: Option<String>,
+}
+
 /// Convert internal Message format to Databricks' API message specification
 ///   Databricks is mostly OpenAI compatible, but has some differences (reasoning type, etc)
 ///   some openai compatible endpoints use the anthropic image spec at the content level
 ///   even though the message structure is otherwise following openai, the enum switches this
-pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Value> {
+fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<DatabricksMessage> {
     let mut result = Vec::new();
     for message in messages {
-        let mut converted = json!({
-            "role": message.role
-        });
+        let mut converted = DatabricksMessage {
+            content: Value::Null,
+            role: match message.role {
+                Role::User => "user".to_string(),
+                Role::Assistant => "assistant".to_string(),
+            },
+            tool_calls: None,
+            tool_call_id: None,
+        };
 
         let mut content_array = Vec::new();
         let mut has_tool_calls = false;
@@ -84,15 +100,8 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                         Ok(tool_call) => {
                             let sanitized_name = sanitize_function_name(&tool_call.name);
 
-                            // Get mutable access to the "tool_calls" field in the converted object
-                            // If "tool_calls" doesn't exist, insert an empty JSON array
-                            let tool_calls = converted
-                                .as_object_mut()
-                                .unwrap()
-                                .entry("tool_calls")
-                                .or_insert(json!([]));
-
-                            tool_calls.as_array_mut().unwrap().push(json!({
+                            let tool_calls = converted.tool_calls.get_or_insert_default();
+                            tool_calls.push(json!({
                                 "id": request.id,
                                 "type": "function",
                                 "function": {
@@ -136,14 +145,17 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                             for content in abridged {
                                 match content {
                                     RawContent::Image(image) => {
-                                        // Add placeholder text in the tool response
                                         tool_content.push(Content::text("This tool result included an image that is uploaded in the next message."));
-
-                                        // Create a separate image message
-                                        image_messages.push(json!({
-                                            "role": "user",
-                                            "content": [convert_image(&image.no_annotation(), image_format)]
-                                        }));
+                                        image_messages.push(DatabricksMessage {
+                                            role: "user".to_string(),
+                                            content: [convert_image(
+                                                &image.no_annotation(),
+                                                image_format,
+                                            )]
+                                            .into(),
+                                            tool_calls: None,
+                                            tool_call_id: None,
+                                        });
                                     }
                                     RawContent::Resource(resource) => {
                                         let text = match &resource.resource {
@@ -165,22 +177,27 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                                 .collect::<Vec<String>>()
                                 .join(" "));
 
-                            // Add tool response as a separate message
-                            result.push(json!({
-                                "role": "tool",
-                                "content": tool_response_content,
-                                "tool_call_id": response.id
-                            }));
+                            result.push(DatabricksMessage {
+                                content: tool_response_content,
+                                role: "tool".to_string(),
+                                tool_call_id: Some(response.id.clone()),
+                                tool_calls: None,
+                            });
                             // Then add any image messages that need to follow
                             result.extend(image_messages);
                         }
                         Err(e) => {
                             // A tool result error is shown as output so the model can interpret the error message
-                            result.push(json!({
-                                "role": "tool",
-                                "content": format!("The tool call returned the following error:\n{}", e),
-                                "tool_call_id": response.id
-                            }));
+                            result.push(DatabricksMessage {
+                                role: "tool".to_string(),
+                                content: format!(
+                                    "The tool call returned the following error:\n{}",
+                                    e
+                                )
+                                .into(),
+                                tool_call_id: Some(response.id.clone()),
+                                tool_calls: None,
+                            });
                         }
                     }
                 }
@@ -227,9 +244,9 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                 && !has_multiple_content
                 && content_array[0]["type"] == "text"
             {
-                converted["content"] = json!(content_array[0]["text"]);
+                converted.content = json!(content_array[0]["text"]);
             } else {
-                converted["content"] = json!(content_array);
+                converted.content = json!(content_array);
             }
         }
 
@@ -455,6 +472,7 @@ fn ensure_valid_json_schema(schema: &mut Value) {
     }
 }
 
+#[allow(clippy::too_many_lines)]
 pub fn create_request(
     model_config: &ModelConfig,
     system: &str,
@@ -494,10 +512,17 @@ pub fn create_request(
         (model_config.model_name.to_string(), None)
     };
 
-    let system_message = json!({
-        "role": if is_o1 || is_o3 { "developer" } else { "system" },
-        "content": system
-    });
+    let system_message = DatabricksMessage {
+        role: if is_o1 || is_o3 {
+            "developer"
+        } else {
+            "system"
+        }
+        .to_string(),
+        content: system.into(),
+        tool_calls: None,
+        tool_call_id: None,
+    };
 
     let messages_spec = format_messages(messages, image_format);
     let mut tools_spec = if !tools.is_empty() {
@@ -592,6 +617,7 @@ pub fn create_request(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::conversation::message::Message;
     use rmcp::object;
     use serde_json::json;
 
@@ -697,8 +723,8 @@ mod tests {
         let spec = format_messages(&[message], &ImageFormat::OpenAi);
 
         assert_eq!(spec.len(), 1);
-        assert_eq!(spec[0]["role"], "user");
-        assert_eq!(spec[0]["content"], "Hello");
+        assert_eq!(spec[0].role, "user");
+        assert_eq!(spec[0].content, "Hello");
         Ok(())
     }
 
@@ -748,7 +774,9 @@ mod tests {
         messages
             .push(Message::user().with_tool_response(tool_id, Ok(vec![Content::text("Result")])));
 
-        let spec = format_messages(&messages, &ImageFormat::OpenAi);
+        let as_value =
+            serde_json::to_value(format_messages(&messages, &ImageFormat::OpenAi)).unwrap();
+        let spec = as_value.as_array().unwrap();
 
         assert_eq!(spec.len(), 4);
         assert_eq!(spec[0]["role"], "assistant");
@@ -781,7 +809,9 @@ mod tests {
         messages
             .push(Message::user().with_tool_response(tool_id, Ok(vec![Content::text("Result")])));
 
-        let spec = format_messages(&messages, &ImageFormat::OpenAi);
+        let as_value =
+            serde_json::to_value(format_messages(&messages, &ImageFormat::OpenAi)).unwrap();
+        let spec = as_value.as_array().unwrap();
 
         assert_eq!(spec.len(), 2);
         assert_eq!(spec[0]["role"], "assistant");
@@ -857,7 +887,9 @@ mod tests {
 
         // Create message with image path
         let message = Message::user().with_text(format!("Here is an image: {}", png_path_str));
-        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+        let as_value =
+            serde_json::to_value(format_messages(&[message], &ImageFormat::OpenAi)).unwrap();
+        let spec = as_value.as_array().unwrap();
 
         assert_eq!(spec.len(), 1);
         assert_eq!(spec[0]["role"], "user");

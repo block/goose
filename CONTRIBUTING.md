@@ -61,7 +61,7 @@ As you make changes to the rust code, you can try it out on the CLI, or also run
 cargo check  # do your changes compile
 cargo test  # do the tests pass with your changes
 cargo fmt   # format your code
-./scripts/clippy-lint # run the linter
+./scripts/clippy-lint.sh # run the linter
 ```
 
 ### Node
@@ -217,6 +217,13 @@ This project follows the [Conventional Commits](https://www.conventionalcommits.
 [nvm]: https://github.com/nvm-sh/nvm
 [just]: https://github.com/casey/just?tab=readme-ov-file#installation
 
+## Developer Certificate of Origin
+
+This project requires a [Developer Certificate of Origin](https://en.wikipedia.org/wiki/Developer_Certificate_of_Origin) sign-offs on all commits. This is a statement indicating that you are allowed to make the contribution and that the project has the right to distribute it under its license. When you are ready to commit, use the `--signoff` flag to attach the sign-off to your commit. 
+
+```
+git commit --signoff ...
+```
 
 ## Other Ways to Contribute
 
