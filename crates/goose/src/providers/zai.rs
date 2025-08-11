@@ -110,7 +110,7 @@ impl Provider for ZaiProvider {
         ProviderMetadata::with_models(
             "zai",
             "Z.AI",
-            "Access GLM-4.5, GLM-4.5 Air using Z.AI official API",
+            "Access GLM-4.5 Serials models using Z.AI official API",
             ZAI_DEFAULT_MODEL,
             vec![
                 ModelInfo {
