@@ -410,7 +410,7 @@ impl DeveloperRouter {
             .and_then(|s| serde_json::from_str(&s).ok())
             .unwrap_or_else(|| vec![goose_hints::GOOSE_HINTS_FILENAME.to_string()]);
 
-        let hints = goose_hints::load_and_format_hints(&cwd, &hints_filenames);
+        let hints = goose_hints::load_hints(&cwd, &hints_filenames);
 
         // Return base instructions directly when no hints are found
         let instructions = if hints.is_empty() {
@@ -1536,9 +1536,6 @@ mod tests {
     use tempfile::TempDir;
     use tokio::sync::OnceCell;
 
-
-
-
     static DEV_ROUTER: OnceCell<DeveloperRouter> = OnceCell::const_new();
 
     async fn get_router() -> &'static DeveloperRouter {
@@ -1566,8 +1563,6 @@ mod tests {
 
         temp_dir.close().unwrap();
     }
-
-
 
     #[tokio::test]
     #[serial]

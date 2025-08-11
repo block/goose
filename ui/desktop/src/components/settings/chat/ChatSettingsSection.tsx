@@ -3,6 +3,7 @@ import { ToolSelectionStrategySection } from '../tool_selection_strategy/ToolSel
 import SchedulerSection from '../scheduler/SchedulerSection';
 import DictationSection from '../dictation/DictationSection';
 import { ResponseStylesSection } from '../response_styles/ResponseStylesSection';
+import { HintsSection } from '../hints/HintsSection';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 
 export default function ChatSettingsSection() {
@@ -47,6 +48,18 @@ export default function ChatSettingsSection() {
         </CardHeader>
         <CardContent className="px-2">
           <SchedulerSection />
+        </CardContent>
+      </Card>
+
+      <Card className="pb-2 rounded-lg">
+        <CardHeader className="pb-0">
+          <CardTitle className="">Goose Hints</CardTitle>
+          <CardDescription>
+            Configure how Goose loads hints files (eg: .goosehints) for providing context
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="px-2">
+          <HintsSection />
         </CardContent>
       </Card>
 
