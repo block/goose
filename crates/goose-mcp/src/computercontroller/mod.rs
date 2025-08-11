@@ -749,6 +749,7 @@ impl ComputerControllerRouter {
                     .arg("-NonInteractive")
                     .arg("-File")
                     .arg(&command)
+                    .env("GOOSE_TERMINAL", "1")
                     .output()
                     .await
                     .map_err(|e| {
@@ -758,6 +759,7 @@ impl ComputerControllerRouter {
             _ => Command::new(shell)
                 .arg(shell_arg)
                 .arg(&command)
+                .env("GOOSE_TERMINAL", "1")
                 .output()
                 .await
                 .map_err(|e| ToolError::ExecutionError(format!("Failed to run script: {}", e)))?,

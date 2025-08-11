@@ -383,6 +383,8 @@ Execute commands from an instruction file or stdin. Check out the [full guide](/
 - **`--explain`**: Show a recipe's title, description, and parameters
 - **`--no-session`**: Run goose commands without creating or storing a session file
 - **`--max-turns <NUMBER>`**: Limit the maximum number of turns the agent can take before asking for user input to continue (default: 1000)
+- **`--provider`**: Specify the provider to use for this session (overrides environment variable).
+- **`--model`**: Specify the model to use for this session (overrides environment variable).
 
 **Usage:**
 
@@ -415,6 +417,9 @@ goose run --max-turns 25 -i plan.md
 
 #Run with limited turns before prompting user
 goose run --recipe recipe.yaml --max-turns 10
+
+#Run with a specified provider and model
+goose run --provider anthropic --model claude-4-sonnet -t "initial prompt"
 ```
 
 ---

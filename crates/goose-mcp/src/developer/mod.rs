@@ -637,6 +637,7 @@ impl DeveloperRouter {
             .stderr(Stdio::piped())
             .stdin(Stdio::null())
             .kill_on_drop(true)
+            .env("GOOSE_TERMINAL", "1")
             .args(&shell_config.args)
             .arg(command)
             .spawn()

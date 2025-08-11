@@ -144,7 +144,14 @@ To configure your chosen provider or see available options, run `goose configure
     │
     ◓  Checking your configuration...                                                                                       
     └  Configuration saved successfully
-```
+    ```
+  Set the model for an individual session using the [`run` command](/docs/guides/goose-cli-commands.md#run-options):
+
+  ```bash
+  goose run --model goose-claude-4-sonnet -t "initial prompt"
+  ```
+
+
   </TabItem>
 </Tabs>
 
