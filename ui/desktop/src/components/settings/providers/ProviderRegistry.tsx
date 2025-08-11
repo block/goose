@@ -258,7 +258,7 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
     details: {
       id: 'zai',
       name: 'Z.AI',
-      description: 'Access GLM-4.5 and other advanced language models from Z.AI',
+      description: 'Access GLM-4.5, GLM-4.5 Air using Z.AI official API',
       parameters: [
         {
           name: 'ZAI_API_KEY',
