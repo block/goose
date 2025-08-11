@@ -47,6 +47,7 @@ impl ExtensionConfigManager {
                             timeout: Some(DEFAULT_EXTENSION_TIMEOUT),
                             bundled: Some(true),
                             description: Some(DEFAULT_EXTENSION_DESCRIPTION.to_string()),
+                            working_dir: None,
                         },
                     },
                 )]);

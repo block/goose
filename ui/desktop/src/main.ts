@@ -1639,7 +1639,7 @@ ipcMain.handle('read-file', (_event, filePath) => {
       resolve({ file: output, filePath: expandedPath, error: null, found: true });
     });
 
-    cat.on('error', (error) => {
+    cat.on('error', (error: unknown) => {
       console.error('Error reading file:', error);
       resolve({ file: '', filePath: expandedPath, error, found: false });
     });
@@ -2252,6 +2252,575 @@ async function getAllowList(): Promise<string[]> {
     return [];
   }
 }
+
+// Apps directory management
+const APPS_DIR = path.join(os.homedir(), 'goose', 'apps');
+
+// Ensure apps directory exists
+async function ensureAppsDir() {
+  try {
+    await fs.access(APPS_DIR);
+  } catch {
+    await fs.mkdir(APPS_DIR, { recursive: true });
+  }
+}
+
+// Create app from template
+ipcMain.handle('create-app', async (event, appName: string, subdomain?: string) => {
+  console.log(`[Main] Creating app "${appName}" with subdomain: "${subdomain || 'none'}"`);
+  await ensureAppsDir();
+
+  const appPath = path.join(APPS_DIR, appName);
+
+  // Check if app already exists
+  try {
+    await fs.access(appPath);
+    throw new Error(`App "${appName}" already exists`);
+  } catch (err) {
+    if (err && typeof err === 'object' && 'code' in err && err.code !== 'ENOENT') throw err;
+  }
+
+  // Helper: emit progress to renderer
+  const emitProgress = (lastLine: string, type: 'stdout' | 'stderr' = 'stdout') => {
+    try {
+      event.sender.send('app-creation-progress', { appName, lastLine, type });
+    } catch (e) {
+      console.warn('[Main] Failed sending progress event:', e);
+    }
+  };
+
+  // Helper: post-scaffold patch to apply Goose coolio styling
+  const applyGooseTemplate = async (targetPath: string) => {
+    emitProgress('Applying Goose template styling…');
+
+    // Resolve template base directory (dev vs packaged)
+    const devTemplates = path.join(process.cwd(), 'src', 'templates');
+    const prodTemplates = path.join(process.resourcesPath, 'templates');
+
+    // Prefer dev path when present, else fallback to prod path, else fallback to __dirname-based
+    let templateBase = devTemplates;
+    try {
+      await fs.access(templateBase);
+    } catch {
+      templateBase = prodTemplates;
+      try {
+        await fs.access(templateBase);
+      } catch {
+        templateBase = path.join(__dirname, 'templates');
+      }
+    }
+
+    const buildTemplateBase = path.join(templateBase, 'build');
+
+    const writeFileSafe = async (rel: string, content: string) => {
+      const dest = path.join(targetPath, rel);
+      await fs.mkdir(path.dirname(dest), { recursive: true });
+      await fs.writeFile(dest, content, 'utf8');
+      console.log(`[Main] Wrote ${rel}`);
+    };
+
+    const copyFromTemplate = async (rel: string, interpolate = false) => {
+      const src = path.join(buildTemplateBase, rel);
+      let content = await fs.readFile(src, 'utf8');
+      if (interpolate) {
+        content = content.replace(/__APP_NAME__/g, appName);
+      }
+      await writeFileSafe(rel, content);
+    };
+
+    const copyDirectory = async (srcDir: string, destDir: string, interpolate = false) => {
+      try {
+        // Create destination directory
+        await fs.mkdir(destDir, { recursive: true });
+        
+        // Read source directory
+        const entries = await fs.readdir(srcDir, { withFileTypes: true });
+        
+        for (const entry of entries) {
+          const srcPath = path.join(srcDir, entry.name);
+          const destPath = path.join(destDir, entry.name);
+          
+          if (entry.isDirectory()) {
+            // Recursively copy subdirectories
+            await copyDirectory(srcPath, destPath, interpolate);
+          } else if (entry.isFile()) {
+            // Copy file
+            let content = await fs.readFile(srcPath, 'utf8');
+            if (interpolate) {
+              content = content.replace(/__APP_NAME__/g, appName);
+            }
+            await fs.writeFile(destPath, content, 'utf8');
+            console.log(`[Main] Copied ${path.relative(targetPath, destPath)}`);
+          }
+        }
+      } catch (error) {
+        console.error(`[Main] Failed to copy directory ${srcDir}:`, error);
+      }
+    };
+
+    // Overwrite specific files
+    await copyFromTemplate(path.join('app', 'app.css'));
+    await copyFromTemplate(path.join('app', 'welcome', 'welcome.tsx'));
+    await copyFromTemplate(path.join('app', 'routes', 'home.tsx'), true);
+    await copyFromTemplate(path.join('app', 'routes.ts'));
+
+    // Copy specs directory
+    const specsSourceDir = path.join(templateBase, 'specs');
+    const specsDestDir = path.join(targetPath, 'specs');
+    try {
+      await fs.access(specsSourceDir);
+      await copyDirectory(specsSourceDir, specsDestDir, true);
+      console.log(`[Main] Copied specs directory`);
+    } catch (error) {
+      console.warn(`[Main] Could not copy specs directory:`, error);
+    }
+
+    // Copy README.md to root
+    const readmeSource = path.join(templateBase, 'README.md');
+    try {
+      await fs.access(readmeSource);
+      let readmeContent = await fs.readFile(readmeSource, 'utf8');
+      readmeContent = readmeContent.replace(/\[Your Project Name\]/g, appName);
+      readmeContent = readmeContent.replace(/\[Date\]/g, new Date().toLocaleDateString());
+      await fs.writeFile(path.join(targetPath, 'README.md'), readmeContent, 'utf8');
+      console.log(`[Main] Copied README.md to root`);
+    } catch (error) {
+      console.warn(`[Main] Could not copy README.md:`, error);
+    }
+
+    // Remove unused logo assets
+    const unusedAssets = [
+      path.join(targetPath, 'app', 'welcome', 'logo-dark.svg'),
+      path.join(targetPath, 'app', 'welcome', 'logo-light.svg'),
+      path.join(targetPath, 'app', 'assets', 'react.svg'),
+    ];
+    for (const p of unusedAssets) {
+      try {
+        await fs.unlink(p);
+        console.log(`[Main] Removed unused asset: ${p}`);
+      } catch (e) {
+        // Ignore if missing
+      }
+    }
+  };
+
+  return new Promise((resolve, reject) => {
+    const command = 'npm';
+    const args = [
+      'create',
+      'cloudflare@latest',
+      '--',
+      appName,
+      '--framework=react-router',
+      '--git',
+      '--no-deploy',
+      '--lang',
+      'ts',
+    ];
+
+    const child = spawn(command, args, {
+      cwd: APPS_DIR,
+      stdio: 'pipe',
+      env: {
+        ...process.env,
+        NODE_ENV: 'production',
+        FORCE_COLOR: '0', // Disable color output for cleaner parsing
+        CI: 'true', // Some tools behave better in CI mode
+      },
+      shell: process.platform === 'win32', // Use shell on Windows
+    });
+
+    let stdout = '';
+    let stderr = '';
+    let lastOutputLine = '';
+
+    child.stdout?.on('data', (data) => {
+      const output = data.toString();
+      stdout += output;
+
+      // Get the last non-empty line for progress display
+      const lines = output
+        .trim()
+        .split('\n')
+        .filter((line: string) => line.trim());
+      if (lines.length > 0) {
+        lastOutputLine = lines[lines.length - 1].trim();
+        emitProgress(lastOutputLine, 'stdout');
+      }
+    });
+
+    child.stderr?.on('data', (data) => {
+      const output = data.toString();
+      stderr += output;
+
+      // Get the last non-empty line for progress display
+      const lines = output
+        .trim()
+        .split('\n')
+        .filter((line: string) => line.trim());
+      if (lines.length > 0) {
+        lastOutputLine = lines[lines.length - 1].trim();
+        emitProgress(lastOutputLine, 'stderr');
+      }
+    });
+
+    child.on('error', (error) => {
+      console.error(`[Main] Command spawn error:`, error);
+      reject(new Error(`Failed to start command: ${error.message}`));
+    });
+
+    child.on('close', async (code) => {
+      if (code === 0) {
+        console.log(`[Main] App "${appName}" created successfully`);
+
+        try {
+          await applyGooseTemplate(appPath);
+        } catch (patchErr) {
+          console.error('[Main] Failed to apply Goose template styling:', patchErr);
+          // Continue even if template application fails to avoid blocking user
+        }
+
+        // Save subdomain metadata if provided
+        if (subdomain) {
+          try {
+            const metadataPath = path.join(appPath, '.goose-metadata.json');
+            const metadata = {
+              subdomain: subdomain,
+              createdAt: new Date().toISOString(),
+              lastUpdated: new Date().toISOString(),
+            };
+            await fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2), 'utf8');
+            console.log(`[Main] Saved subdomain metadata for app "${appName}"`);
+          } catch (metaErr) {
+            console.error(`[Main] Failed to save subdomain metadata:`, metaErr);
+            // Don't fail the whole operation if metadata save fails
+          }
+        }
+
+        resolve({ success: true, path: appPath });
+      } else {
+        console.error(`[Main] Command failed with code ${code}`);
+        console.error(`[Main] Error output: ${stderr}`);
+        reject(new Error(`Command failed with code ${code}: ${stderr || stdout || 'No output'}`));
+      }
+    });
+
+    // Set a timeout to prevent infinite hanging
+    setTimeout(
+      () => {
+        if (!child.killed) {
+          console.log(`[Main] Command timeout reached, killing process`);
+          child.kill('SIGTERM');
+          reject(new Error('Command timed out after 5 minutes'));
+        }
+      },
+      5 * 60 * 1000
+    ); // 5 minute timeout
+  });
+});
+
+// List apps in the apps directory
+ipcMain.handle('list-apps', async () => {
+  await ensureAppsDir();
+
+  try {
+    const entries = await fs.readdir(APPS_DIR, { withFileTypes: true });
+    const apps = [];
+
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const appPath = path.join(APPS_DIR, entry.name);
+        const stats = await fs.stat(appPath);
+
+        // Try to read package.json for more info
+        let packageInfo = null;
+        try {
+          const packagePath = path.join(appPath, 'package.json');
+          const packageContent = await fs.readFile(packagePath, 'utf8');
+          packageInfo = JSON.parse(packageContent);
+        } catch {
+          // Ignore if package.json doesn't exist or is invalid
+        }
+
+        // Try to read .goose-metadata.json for subdomain info
+        let metadata = null;
+        try {
+          const metadataPath = path.join(appPath, '.goose-metadata.json');
+          const metadataContent = await fs.readFile(metadataPath, 'utf8');
+          metadata = JSON.parse(metadataContent);
+        } catch {
+          // Ignore if metadata doesn't exist or is invalid
+        }
+
+        apps.push({
+          id: entry.name,
+          app_name: packageInfo?.name || entry.name,
+          last_edited: Math.floor(stats.mtime.getTime() / 1000),
+          path: appPath,
+          subdomain: metadata?.subdomain,
+        });
+      }
+    }
+
+    return apps.sort((a, b) => b.last_edited - a.last_edited);
+  } catch (err) {
+    console.error('Failed to list apps:', err);
+    return [];
+  }
+});
+
+// Open app in VS Code or default editor
+ipcMain.handle('open-app', async (_event, appPath: string) => {
+  try {
+    // Try VS Code first
+    await shell.openPath(appPath);
+    return { success: true };
+  } catch (err) {
+    throw new Error(`Failed to open app: ${err instanceof Error ? err.message : String(err)}`);
+  }
+});
+
+// // Generate favicon from color combination
+// function generateFavicon(bgColor: string, innerColor: string): Buffer {
+//   // Create a simple 32x32 favicon as SVG, then convert to ICO format
+//   // For now, we'll create a simple PNG and save it as favicon.ico
+//   const svgContent = `
+//     <svg width="32" height="32" xmlns="http://www.w3.org/2000/svg">
+//       <rect width="32" height="32" rx="6" fill="${bgColor}" />
+//       <rect x="8" y="8" width="16" height="16" rx="4" fill="${innerColor}" />
+//     </svg>
+//   `;
+
+//   // For now, return the SVG as a buffer - in a real implementation,
+//   // you'd want to convert this to ICO format using a library like 'sharp'
+//   return Buffer.from(svgContent, 'utf8');
+// }
+
+// Convert Tailwind color classes to hex colors
+function tailwindToHex(colorClass: string): string {
+  const colorMap: Record<string, string> = {
+    'bg-blue-100': '#dbeafe',
+    'bg-blue-200': '#bfdbfe',
+    'bg-green-100': '#dcfce7',
+    'bg-green-200': '#bbf7d0',
+    'bg-red-100': '#fee2e2',
+    'bg-red-200': '#fecaca',
+    'bg-yellow-100': '#fef3c7',
+    'bg-yellow-200': '#fde68a',
+    'bg-purple-100': '#f3e8ff',
+    'bg-purple-200': '#ddd6fe',
+    'bg-pink-100': '#fce7f3',
+    'bg-pink-200': '#fbcfe8',
+    'bg-background-medium': '#f3f4f6',
+    'bg-background-strong': '#e5e7eb',
+  };
+
+  return colorMap[colorClass] || '#f3f4f6'; // Default to medium gray
+}
+
+// Handle subdomain availability check
+ipcMain.handle('check-subdomain', async (_event, subdomain: string) => {
+  try {
+    console.log(`[Main] Checking subdomain availability for: ${subdomain}`);
+
+    const response = await fetch('https://goose-dev-sites.stage.sqprod.co/api/v1/check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ site_name: subdomain }),
+    });
+
+    // Get the response as text first to handle both JSON and plain text responses
+    const responseText = await response.text();
+    console.log(`[Main] Subdomain check response (${response.status}):`, responseText);
+
+    // Try to parse as JSON
+    try {
+      const data = JSON.parse(responseText);
+      return data;
+    } catch (parseError) {
+      // If not JSON, check if it's an error message
+      if (!response.ok || responseText.toLowerCase().includes('error')) {
+        console.error(`[Main] Subdomain check error response: ${responseText}`);
+        // Return a proper error object that can be serialized
+        return {
+          error: true,
+          message: `Server error: ${responseText}`,
+          available: false,
+        };
+      }
+
+      // If successful but not JSON, assume it's available
+      return { available: true };
+    }
+  } catch (error) {
+    console.error('[Main] Failed to check subdomain:', error);
+    // Return a serializable error object instead of throwing
+    return {
+      error: true,
+      message: error instanceof Error ? error.message : 'Unknown error occurred',
+      available: false,
+    };
+  }
+});
+
+// Handle subdomain claiming
+ipcMain.handle('claim-subdomain', async (_event, subdomain: string, appName: string) => {
+  try {
+    // Construct the app path in the main process
+    const appPath = path.join(APPS_DIR, appName);
+    console.log(`[Main] Claiming subdomain: ${subdomain} for app: ${appName} at path: ${appPath}`);
+
+    const response = await fetch('https://goose-dev-sites.stage.sqprod.co/api/v1/claim', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ site_name: subdomain, path: appPath }),
+    });
+
+    // Get the response as text first to handle both JSON and plain text responses
+    const responseText = await response.text();
+    console.log(`[Main] Subdomain claim response (${response.status}):`, responseText);
+
+    if (!response.ok) {
+      // Try to parse as JSON for error details
+      let errorMessage = `Failed to claim subdomain: ${response.statusText}`;
+      try {
+        const errorData = JSON.parse(responseText);
+        errorMessage = errorData.message || errorMessage;
+      } catch {
+        // If not JSON, use the text as error message
+        errorMessage = responseText || errorMessage;
+      }
+      throw new Error(errorMessage);
+    }
+
+    // Save subdomain metadata after successful claim
+    try {
+      const metadataPath = path.join(appPath, '.goose-metadata.json');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let metadata: any = {};
+
+      // Try to read existing metadata
+      try {
+        const existingContent = await fs.readFile(metadataPath, 'utf8');
+        metadata = JSON.parse(existingContent);
+      } catch {
+        // File doesn't exist or is invalid, start fresh
+      }
+
+      // Update metadata with subdomain
+      metadata.subdomain = subdomain;
+      metadata.lastUpdated = new Date().toISOString();
+      if (!metadata.createdAt) {
+        metadata.createdAt = new Date().toISOString();
+      }
+
+      await fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2), 'utf8');
+      console.log(`[Main] Updated subdomain metadata for app "${appName}"`);
+    } catch (metaErr) {
+      console.error(`[Main] Failed to update subdomain metadata:`, metaErr);
+      // Don't fail the whole operation if metadata save fails
+    }
+
+    // Try to parse successful response as JSON
+    try {
+      const data = JSON.parse(responseText);
+      return data;
+    } catch (parseError) {
+      // If successful but not JSON, return success indicator
+      return { success: true, subdomain };
+    }
+  } catch (error) {
+    console.error('[Main] Failed to claim subdomain:', error);
+    throw error;
+  }
+});
+
+// Save app color and generate favicon
+ipcMain.handle(
+  'save-app-color',
+  async (_event, appId: string, colors: { bg: string; inner: string }) => {
+    try {
+      console.log(`[Main] Saving color for app ${appId}:`, colors);
+
+      // Find the app path
+      const appPath = path.join(APPS_DIR, appId);
+
+      // Check if app exists
+      try {
+        await fs.access(appPath);
+      } catch {
+        throw new Error(`App "${appId}" not found`);
+      }
+
+      // Ensure public directory exists
+      const publicPath = path.join(appPath, 'public');
+      await fs.mkdir(publicPath, { recursive: true });
+
+      // Convert Tailwind classes to hex colors
+      const bgHex = tailwindToHex(colors.bg);
+      const innerHex = tailwindToHex(colors.inner);
+
+      // Generate favicon content as SVG (which can be saved as .ico)
+      const faviconSvg = `<svg width="32" height="32" xmlns="http://www.w3.org/2000/svg">
+  <rect width="32" height="32" rx="6" fill="${bgHex}" />
+  <rect x="8" y="8" width="16" height="16" rx="4" fill="${innerHex}" />
+</svg>`;
+
+      // Save as favicon.ico (browsers will accept SVG content in .ico files)
+      const faviconPath = path.join(publicPath, 'favicon.ico');
+      await fs.writeFile(faviconPath, faviconSvg, 'utf8');
+
+      // Also save color info to a metadata file for persistence
+      const colorMetaPath = path.join(publicPath, '.goose-colors.json');
+      await fs.writeFile(colorMetaPath, JSON.stringify(colors, null, 2), 'utf8');
+
+      console.log(`[Main] Saved favicon and colors for app ${appId}`);
+      return true;
+    } catch (err) {
+      console.error(`[Main] Failed to save app color:`, err);
+      return false;
+    }
+  }
+);
+
+// Load app colors from metadata files
+ipcMain.handle('load-app-colors', async () => {
+  try {
+    await ensureAppsDir();
+
+    const entries = await fs.readdir(APPS_DIR, { withFileTypes: true });
+    const colors: Record<string, { bg: string; inner: string }> = {};
+
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const colorMetaPath = path.join(APPS_DIR, entry.name, 'public', '.goose-colors.json');
+
+        try {
+          const colorData = await fs.readFile(colorMetaPath, 'utf8');
+          const parsedColors = JSON.parse(colorData);
+
+          // Validate the color data structure
+          if (
+            parsedColors &&
+            typeof parsedColors.bg === 'string' &&
+            typeof parsedColors.inner === 'string'
+          ) {
+            colors[entry.name] = parsedColors;
+          }
+        } catch {
+          // Ignore if metadata file doesn't exist or is invalid
+          // App will use default colors
+        }
+      }
+    }
+
+    console.log(`[Main] Loaded colors for ${Object.keys(colors).length} apps`);
+    return colors;
+  } catch (err) {
+    console.error('[Main] Failed to load app colors:', err);
+    return {};
+  }
+});
 
 app.on('will-quit', async () => {
   for (const [windowId, blockerId] of windowPowerSaveBlockers.entries()) {

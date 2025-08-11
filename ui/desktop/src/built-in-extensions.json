@@ -1,5 +1,15 @@
 [
   {
+    "id": "build",
+    "name": "Build",
+    "description": "Create and manage apps and projects.",
+    "enabled": false,
+    "type": "builtin",
+    "env_keys": [],
+    "timeout": 300
+  },
+
+  {
     "id": "developer",
     "name": "Developer",
     "description": "General development tools useful for software engineering.",
