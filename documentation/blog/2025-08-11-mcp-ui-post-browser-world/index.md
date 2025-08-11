@@ -9,6 +9,9 @@ authors:
 
 Goose recently merged in changes related to <a href="https://mcpui.dev/">MCP-UI</a>, a proposed extension that allows MCP servers to suggest and contribute user interface elements back to the agent.
 
+> [!WARNING]
+> MCP-ui is not part of the MCP spec at the moment, so may change, or be removed at some point.
+
 This sits on top of the protocol, but instead of text/markdown being the result, servers can return content that the client can render richly (including interactive GUI content).
 
 At the heart of this is an interface for a UIResource:
@@ -46,7 +49,10 @@ A key tech at play here is <a href='https://github.com/Shopify/remote-dom'>Remot
 
 ## Possible futures
 
+It's still early days for MCP-UI, so the details may change, but that is part of what makes experimenting with it exciting right now.
+
 MCP-UI will continue to evolve, and may pick up more declarative ways for MCP-UI servers to specify they need forms or widgets of certain types, but without specifying the exact rendering (how nice would it be to be able to specify that and let the agent render it beautifully—be that in a desktop or mobile client, or even a text UI in a command line!).
+
 
 ## Why have MCP-UI
 
