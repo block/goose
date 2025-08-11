@@ -67,7 +67,7 @@
     },
     "zai": {
         "name": "Z.AI",
-        "description": "Access GLM-4.5 and other advanced language models from Z.AI",
+        "description": "Access GLM-4.5, GLM-4.5 Air using Z.AI official API'",
         "models": ["glm-4.5", "glm-4.5-air"],
         "required_keys": ["ZAI_API_KEY", "ZAI_HOST", "ZAI_BASE_PATH"]
     }
