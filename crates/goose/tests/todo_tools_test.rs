@@ -95,6 +95,9 @@ async fn test_todo_empty_initially() {
 
 #[tokio::test]
 async fn test_todo_overwrite() {
+    // Ensure no limit is set for this test
+    std::env::remove_var("GOOSE_TODO_MAX_CHARS");
+
     let agent = Agent::new();
 
     // Write initial content
@@ -104,9 +107,10 @@ async fn test_todo_overwrite() {
             "content": "Initial todo list"
         }),
     };
-    let _ = agent
+    let (_, write_result1) = agent
         .dispatch_tool_call(write_call1, "test-write-1".to_string(), None)
         .await;
+    assert!(write_result1.is_ok(), "First write should succeed");
 
     // Overwrite with new content
     let write_call2 = ToolCall {
@@ -115,9 +119,10 @@ async fn test_todo_overwrite() {
             "content": "Completely new todo list"
         }),
     };
-    let _ = agent
+    let (_, write_result2) = agent
         .dispatch_tool_call(write_call2, "test-write-2".to_string(), None)
         .await;
+    assert!(write_result2.is_ok(), "Second write should succeed");
 
     // Read and verify it was overwritten
     let read_call = ToolCall {
@@ -200,7 +205,7 @@ async fn test_todo_concurrent_access() {
 async fn test_todo_large_content() {
     let agent = Agent::new();
 
-    // Create a large todo list (100KB)
+    // Create a large todo list that exceeds the 50,000 character limit
     let large_content = "X".repeat(100_000);
 
     let write_call = ToolCall {
@@ -213,7 +218,38 @@ async fn test_todo_large_content() {
     let (_, write_result) = agent
         .dispatch_tool_call(write_call, "large-write".to_string(), None)
         .await;
-    assert!(write_result.is_ok(), "Should handle large content");
+
+    // Should fail because it exceeds the 50,000 character limit
+    if let Ok(result) = write_result {
+        let response = result.result.await;
+        assert!(
+            response.is_err(),
+            "Should fail with error for content exceeding limit"
+        );
+        if let Err(error) = response {
+            let error_str = error.to_string();
+            assert!(error_str.contains("Todo list too large"));
+            assert!(error_str.contains("100000 chars"));
+            assert!(error_str.contains("max: 50000"));
+        }
+    } else {
+        panic!("Expected Ok(ToolCallResult) with inner error, got Err");
+    }
+
+    // Test with content within the limit
+    let valid_content = "X".repeat(50_000);
+
+    let write_call = ToolCall {
+        name: TODO_WRITE_TOOL_NAME.to_string(),
+        arguments: json!({
+            "content": valid_content.clone()
+        }),
+    };
+
+    let (_, write_result) = agent
+        .dispatch_tool_call(write_call, "valid-write".to_string(), None)
+        .await;
+    assert!(write_result.is_ok(), "Should handle content within limit");
 
     // Read it back
     let read_call = ToolCall {
@@ -222,7 +258,7 @@ async fn test_todo_large_content() {
     };
 
     let (_, read_result) = agent
-        .dispatch_tool_call(read_call, "large-read".to_string(), None)
+        .dispatch_tool_call(read_call, "valid-read".to_string(), None)
         .await;
 
     if let Ok(result) = read_result {
@@ -233,8 +269,8 @@ async fn test_todo_large_content() {
             let text = contents[0].as_text().map(|t| t.text.as_str()).unwrap_or("");
             assert_eq!(
                 text.len(),
-                large_content.len(),
-                "Large content should be preserved"
+                valid_content.len(),
+                "Valid content should be preserved"
             );
         }
     }
@@ -242,6 +278,9 @@ async fn test_todo_large_content() {
 
 #[tokio::test]
 async fn test_todo_unicode_content() {
+    // Ensure no limit is set for this test
+    std::env::remove_var("GOOSE_TODO_MAX_CHARS");
+
     let agent = Agent::new();
 
     let unicode_content = "📝 Todo List:\n✅ Task 1\n⭐ Task 2\n🔥 Urgent: Task 3\n日本語のタスク";
@@ -253,9 +292,10 @@ async fn test_todo_unicode_content() {
         }),
     };
 
-    let _ = agent
+    let (_, write_result) = agent
         .dispatch_tool_call(write_call, "unicode-write".to_string(), None)
         .await;
+    assert!(write_result.is_ok(), "Write should succeed");
 
     let read_call = ToolCall {
         name: TODO_READ_TOOL_NAME.to_string(),
@@ -282,6 +322,7 @@ async fn test_todo_character_limit_enforcement() {
     // Set a small limit for testing
     std::env::set_var("GOOSE_TODO_MAX_CHARS", "100");
 
+    // Create agent AFTER setting the environment variable
     let agent = Agent::new();
 
     // Create content that exceeds the limit
@@ -318,6 +359,9 @@ async fn test_todo_character_limit_enforcement() {
 
 #[tokio::test]
 async fn test_todo_character_count_in_write_response() {
+    // Ensure no limit is set for this test
+    std::env::remove_var("GOOSE_TODO_MAX_CHARS");
+
     let agent = Agent::new();
 
     let content = "Test todo content";
@@ -342,6 +386,9 @@ async fn test_todo_character_count_in_write_response() {
 
 #[tokio::test]
 async fn test_todo_read_returns_clean_content() {
+    // Ensure no limit is set for this test
+    std::env::remove_var("GOOSE_TODO_MAX_CHARS");
+
     let agent = Agent::new();
 
     // Write some content
@@ -353,9 +400,10 @@ async fn test_todo_read_returns_clean_content() {
         }),
     };
 
-    agent
+    let (_, write_result) = agent
         .dispatch_tool_call(write_call, "test-write".to_string(), None)
         .await;
+    assert!(write_result.is_ok(), "Write should succeed");
 
     // Read should return exact content, no metadata
     let read_call = ToolCall {
@@ -410,6 +458,7 @@ async fn test_todo_unlimited_with_zero_limit() {
 async fn test_todo_unicode_character_counting() {
     std::env::set_var("GOOSE_TODO_MAX_CHARS", "10");
 
+    // Create agent AFTER setting the environment variable
     let agent = Agent::new();
 
     // Test with emoji - each emoji is 1 character in .chars().count()
