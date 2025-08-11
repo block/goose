@@ -36,9 +36,6 @@ It is worth taking a minute to watch this MCP server for an airline seat selecto
     Your browser does not support the video tag.
   </video>
 
-[Download mcp-ui.mov](./mcp-ui.mov)
-
-
 Essentially, MCP servers are suggesting GUI elements for the client (agent) to render as it sees fit.
 
 ## How do I use this
