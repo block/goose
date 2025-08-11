@@ -980,7 +980,34 @@ mod tests {
             _next_cursor: Option<String>,
             _cancellation_token: CancellationToken,
         ) -> Result<ListToolsResult, Error> {
-            Err(Error::TransportClosed)
+            use serde_json::json;
+            use std::sync::Arc;
+            Ok(ListToolsResult {
+                tools: vec![
+                    Tool {
+                        name: "tool".into(),
+                        description: Some("A basic tool".into()),
+                        input_schema: Arc::new(json!({}).as_object().unwrap().clone()),
+                        annotations: None,
+                        output_schema: None,
+                    },
+                    Tool {
+                        name: "visible_tool".into(),
+                        description: Some("A visible tool".into()),
+                        input_schema: Arc::new(json!({}).as_object().unwrap().clone()),
+                        annotations: None,
+                        output_schema: None,
+                    },
+                    Tool {
+                        name: "hidden_tool".into(),
+                        description: Some("A hidden tool".into()),
+                        input_schema: Arc::new(json!({}).as_object().unwrap().clone()),
+                        annotations: None,
+                        output_schema: None,
+                    },
+                ],
+                next_cursor: None,
+            })
         }
 
         async fn call_tool(
@@ -990,7 +1017,7 @@ mod tests {
             _cancellation_token: CancellationToken,
         ) -> Result<CallToolResult, Error> {
             match name {
-                "tool" | "test__tool" => Ok(CallToolResult {
+                "tool" | "test__tool" | "visible_tool" | "hidden_tool" => Ok(CallToolResult {
                     content: Some(vec![]),
                     is_error: None,
                     structured_content: None,
@@ -1175,5 +1202,42 @@ mod tests {
         } else {
             panic!("Expected ToolError::NotFound");
         }
+    }
+
+    #[tokio::test]
+    async fn test_tool_visibility_filtering() {
+        use crate::agents::extension::ToolConfig;
+        use std::collections::HashMap;
+
+        let mut extension_manager = ExtensionManager::new();
+
+        let mut tools = HashMap::new();
+        tools.insert("visible_tool".to_string(), ToolConfig { visible: true });
+        tools.insert("hidden_tool".to_string(), ToolConfig { visible: false });
+
+        let config = ExtensionConfig::Builtin {
+            name: "test_extension".to_string(),
+            display_name: Some("Test Extension".to_string()),
+            description: Some("Test extension for visibility".to_string()),
+            timeout: Some(300),
+            bundled: Some(true),
+            tools_are_visible_default: true,
+            tools,
+        };
+
+        let sanitized_name = normalize("test_extension".to_string());
+        extension_manager.extension_configs.insert(sanitized_name.clone(), config);
+
+        extension_manager.clients.insert(
+            sanitized_name,
+            Arc::new(Mutex::new(Box::new(MockClient {}))),
+        );
+
+        let tools = extension_manager.get_prefixed_tools(None).await.unwrap();
+        
+        let tool_names: Vec<String> = tools.iter().map(|t| t.name.to_string()).collect();
+        assert!(tool_names.iter().any(|name| name.contains("tool"))); // Default visible
+        assert!(tool_names.iter().any(|name| name.contains("visible_tool")));
+        assert!(!tool_names.iter().any(|name| name.contains("hidden_tool")));
     }
 }

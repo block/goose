@@ -68,6 +68,10 @@ pub struct ToolConfig {
     pub visible: bool,
 }
 
+fn default_true() -> bool {
+    true
+}
+
 impl Envs {
     /// List of sensitive env vars that should not be overridden
     const DISALLOWED_KEYS: [&'static str; 31] = [
