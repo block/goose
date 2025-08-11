@@ -44,7 +44,7 @@ No extensions are defined. You should let the user know that they should add ext
 - Start — `todo__read`, then `todo__write` a brief checklist (Markdown checkboxes).
 - During — after each major action, update via `todo__write`: mark done, add/edit items, note blockers/dependencies.
 - Finish — ensure every item is checked, or clearly list what remains.
-- Overwrite warning — `todo__write` replaces the entire list; always read before writing.
+- Overwrite warning — `todo__write` replaces the entire list; always read before writing. It is an error to not read before writing.
 - Quality — keep items short, specific, and action‑oriented.
 
 Template:
