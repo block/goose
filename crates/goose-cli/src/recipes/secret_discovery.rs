@@ -143,6 +143,8 @@ mod tests {
                     description: None,
                     timeout: None,
                     bundled: None,
+                    tools_are_visible_default: true,
+                    tools: HashMap::new(),
                 },
                 ExtensionConfig::Stdio {
                     name: "slack-mcp".to_string(),
@@ -153,6 +155,8 @@ mod tests {
                     timeout: None,
                     description: None,
                     bundled: None,
+                    tools_are_visible_default: true,
+                    tools: HashMap::new(),
                 },
                 ExtensionConfig::Builtin {
                     name: "builtin-ext".to_string(),
@@ -160,6 +164,8 @@ mod tests {
                     description: None,
                     timeout: None,
                     bundled: None,
+                    tools_are_visible_default: true,
+                    tools: HashMap::new(),
                 },
             ]),
             context: None,
@@ -237,6 +243,8 @@ mod tests {
                     description: None,
                     timeout: None,
                     bundled: None,
+                    tools_are_visible_default: true,
+                    tools: HashMap::new(),
                 },
                 ExtensionConfig::Stdio {
                     name: "service-b".to_string(),
@@ -247,6 +255,8 @@ mod tests {
                     timeout: None,
                     description: None,
                     bundled: None,
+                    tools_are_visible_default: true,
+                    tools: HashMap::new(),
                 },
             ]),
             context: None,
@@ -294,6 +304,8 @@ mod tests {
                 description: None,
                 timeout: None,
                 bundled: None,
+                tools_are_visible_default: true,
+                tools: HashMap::new(),
             }]),
             sub_recipes: Some(vec![SubRecipe {
                 name: "child-recipe".to_string(),

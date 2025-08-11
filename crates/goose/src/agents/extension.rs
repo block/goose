@@ -61,6 +61,13 @@ pub struct Envs {
     map: HashMap<String, String>,
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize, ToSchema)]
+pub struct ToolConfig {
+    /// Whether this tool is visible to the LLM
+    #[serde(default = "default_true")]
+    pub visible: bool,
+}
+
 impl Envs {
     /// List of sensitive env vars that should not be overridden
     const DISALLOWED_KEYS: [&'static str; 31] = [
@@ -163,6 +170,12 @@ pub enum ExtensionConfig {
         /// Whether this extension is bundled with Goose
         #[serde(default)]
         bundled: Option<bool>,
+        /// Default visibility for tools from this extension
+        #[serde(default = "default_true")]
+        tools_are_visible_default: bool,
+        /// Per-tool configuration overrides
+        #[serde(default)]
+        tools: HashMap<String, ToolConfig>,
     },
     /// Standard I/O client with command and arguments
     #[serde(rename = "stdio")]
@@ -180,6 +193,12 @@ pub enum ExtensionConfig {
         /// Whether this extension is bundled with Goose
         #[serde(default)]
         bundled: Option<bool>,
+        /// Default visibility for tools from this extension
+        #[serde(default = "default_true")]
+        tools_are_visible_default: bool,
+        /// Per-tool configuration overrides
+        #[serde(default)]
+        tools: HashMap<String, ToolConfig>,
     },
     /// Built-in extension that is part of the goose binary
     #[serde(rename = "builtin")]
@@ -192,6 +211,12 @@ pub enum ExtensionConfig {
         /// Whether this extension is bundled with Goose
         #[serde(default)]
         bundled: Option<bool>,
+        /// Default visibility for tools from this extension
+        #[serde(default = "default_true")]
+        tools_are_visible_default: bool,
+        /// Per-tool configuration overrides
+        #[serde(default)]
+        tools: HashMap<String, ToolConfig>,
     },
     /// Streamable HTTP client with a URI endpoint using MCP Streamable HTTP specification
     #[serde(rename = "streamable_http")]
@@ -212,6 +237,12 @@ pub enum ExtensionConfig {
         /// Whether this extension is bundled with Goose
         #[serde(default)]
         bundled: Option<bool>,
+        /// Default visibility for tools from this extension
+        #[serde(default = "default_true")]
+        tools_are_visible_default: bool,
+        /// Per-tool configuration overrides
+        #[serde(default)]
+        tools: HashMap<String, ToolConfig>,
     },
     /// Frontend-provided tools that will be called through the frontend
     #[serde(rename = "frontend")]
@@ -225,6 +256,12 @@ pub enum ExtensionConfig {
         /// Whether this extension is bundled with Goose
         #[serde(default)]
         bundled: Option<bool>,
+        /// Default visibility for tools from this extension
+        #[serde(default = "default_true")]
+        tools_are_visible_default: bool,
+        /// Per-tool configuration overrides
+        #[serde(default)]
+        tool_configs: HashMap<String, ToolConfig>,
     },
     /// Inline Python code that will be executed using uvx
     #[serde(rename = "inline_python")]
@@ -240,6 +277,12 @@ pub enum ExtensionConfig {
         /// Python package dependencies required by this extension
         #[serde(default)]
         dependencies: Option<Vec<String>>,
+        /// Default visibility for tools from this extension
+        #[serde(default = "default_true")]
+        tools_are_visible_default: bool,
+        /// Per-tool configuration overrides
+        #[serde(default)]
+        tools: HashMap<String, ToolConfig>,
     },
 }
 
@@ -251,6 +294,8 @@ impl Default for ExtensionConfig {
             description: None,
             timeout: Some(config::DEFAULT_EXTENSION_TIMEOUT),
             bundled: Some(true),
+            tools_are_visible_default: true,
+            tools: HashMap::new(),
         }
     }
 }
@@ -265,6 +310,8 @@ impl ExtensionConfig {
             description: Some(description.into()),
             timeout: Some(timeout.into()),
             bundled: None,
+            tools_are_visible_default: true,
+            tools: HashMap::new(),
         }
     }
 
@@ -283,6 +330,8 @@ impl ExtensionConfig {
             description: Some(description.into()),
             timeout: Some(timeout.into()),
             bundled: None,
+            tools_are_visible_default: true,
+            tools: HashMap::new(),
         }
     }
 
@@ -301,6 +350,8 @@ impl ExtensionConfig {
             description: Some(description.into()),
             timeout: Some(timeout.into()),
             bundled: None,
+            tools_are_visible_default: true,
+            tools: HashMap::new(),
         }
     }
 
@@ -316,6 +367,8 @@ impl ExtensionConfig {
             description: Some(description.into()),
             timeout: Some(timeout.into()),
             dependencies: None,
+            tools_are_visible_default: true,
+            tools: HashMap::new(),
         }
     }
 
@@ -333,6 +386,8 @@ impl ExtensionConfig {
                 timeout,
                 description,
                 bundled,
+                tools_are_visible_default,
+                tools,
                 ..
             } => Self::Stdio {
                 name,
@@ -343,6 +398,8 @@ impl ExtensionConfig {
                 description,
                 timeout,
                 bundled,
+                tools_are_visible_default,
+                tools,
             },
             other => other,
         }
@@ -364,6 +421,26 @@ impl ExtensionConfig {
             Self::InlinePython { name, .. } => name,
         }
         .to_string()
+    }
+
+    /// Check if a tool should be visible to the LLM
+    pub fn is_tool_visible(&self, tool_name: &str) -> bool {
+        match self {
+            Self::Sse { tools_are_visible_default, tools, .. }
+            | Self::StreamableHttp { tools_are_visible_default, tools, .. }
+            | Self::Stdio { tools_are_visible_default, tools, .. }
+            | Self::Builtin { tools_are_visible_default, tools, .. }
+            | Self::InlinePython { tools_are_visible_default, tools, .. } => {
+                tools.get(tool_name)
+                    .map(|config| config.visible)
+                    .unwrap_or(*tools_are_visible_default)
+            }
+            Self::Frontend { tools_are_visible_default, tool_configs, .. } => {
+                tool_configs.get(tool_name)
+                    .map(|config| config.visible)
+                    .unwrap_or(*tools_are_visible_default)
+            }
+        }
     }
 }
 

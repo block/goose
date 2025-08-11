@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::env;
 use std::path::Path;
 use std::sync::Arc;
@@ -194,6 +195,8 @@ async fn add_extension(
             description: None,
             timeout,
             bundled: None,
+            tools_are_visible_default: true,
+            tools: HashMap::new(),
         },
         ExtensionConfigRequest::StreamableHttp {
             name,
@@ -211,6 +214,8 @@ async fn add_extension(
             description: None,
             timeout,
             bundled: None,
+            tools_are_visible_default: true,
+            tools: HashMap::new(),
         },
         ExtensionConfigRequest::Stdio {
             name,
@@ -241,6 +246,8 @@ async fn add_extension(
                 env_keys,
                 timeout,
                 bundled: None,
+                tools_are_visible_default: true,
+                tools: HashMap::new(),
             }
         }
         ExtensionConfigRequest::Builtin {
@@ -253,6 +260,8 @@ async fn add_extension(
             timeout,
             bundled: None,
             description: None,
+            tools_are_visible_default: true,
+            tools: HashMap::new(),
         },
         ExtensionConfigRequest::Frontend {
             name,
@@ -263,6 +272,8 @@ async fn add_extension(
             tools,
             instructions,
             bundled: None,
+            tools_are_visible_default: true,
+            tool_configs: HashMap::new(),
         },
     };
 

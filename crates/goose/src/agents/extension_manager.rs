@@ -42,6 +42,7 @@ pub struct ExtensionManager {
     instructions: HashMap<String, String>,
     resource_capable_extensions: HashSet<String>,
     temp_dirs: HashMap<String, tempfile::TempDir>,
+    extension_configs: HashMap<String, ExtensionConfig>,
 }
 
 /// A flattened representation of a resource used by the agent to prepare inference
@@ -113,6 +114,7 @@ impl ExtensionManager {
             instructions: HashMap::new(),
             resource_capable_extensions: HashSet::new(),
             temp_dirs: HashMap::new(),
+            extension_configs: HashMap::new(),
         }
     }
 
@@ -320,6 +322,8 @@ impl ExtensionManager {
                 description: _,
                 timeout,
                 bundled: _,
+                tools_are_visible_default: _,
+                tools: _,
             } => {
                 let cmd = std::env::current_exe()
                     .expect("should find the current executable")
@@ -390,7 +394,8 @@ impl ExtensionManager {
                 .insert(sanitized_name.clone());
         }
 
-        self.add_client(sanitized_name, client);
+        self.add_client(sanitized_name.clone(), client);
+        self.extension_configs.insert(sanitized_name, config);
         Ok(())
     }
 
@@ -420,6 +425,7 @@ impl ExtensionManager {
         self.instructions.remove(&sanitized_name);
         self.resource_capable_extensions.remove(&sanitized_name);
         self.temp_dirs.remove(&sanitized_name);
+        self.extension_configs.remove(&sanitized_name);
         Ok(())
     }
 
@@ -476,6 +482,7 @@ impl ExtensionManager {
         let client_futures = filtered_clients.map(|(name, client)| {
             let name = name.clone();
             let client = client.clone();
+            let extension_config = self.extension_configs.get(&name).cloned();
 
             task::spawn(async move {
                 let mut tools = Vec::new();
@@ -486,13 +493,21 @@ impl ExtensionManager {
 
                 loop {
                     for tool in client_tools.tools {
-                        tools.push(Tool {
-                            name: format!("{}__{}", name, tool.name).into(),
-                            description: tool.description,
-                            input_schema: tool.input_schema,
-                            annotations: tool.annotations,
-                            output_schema: tool.output_schema,
-                        });
+                        // Check if tool should be visible
+                        let is_visible = extension_config
+                            .as_ref()
+                            .map(|config| config.is_tool_visible(&tool.name))
+                            .unwrap_or(true); // Default to visible if no config
+
+                        if is_visible {
+                            tools.push(Tool {
+                                name: format!("{}__{}", name, tool.name).into(),
+                                description: tool.description,
+                                input_schema: tool.input_schema,
+                                annotations: tool.annotations,
+                                output_schema: tool.output_schema,
+                            });
+                        }
                     }
 
                     // Exit loop when there are no more pages
