@@ -20,6 +20,7 @@ use super::{
     snowflake::SnowflakeProvider,
     venice::VeniceProvider,
     xai::XaiProvider,
+    zai::ZaiProvider,
 };
 use crate::model::ModelConfig;
 use anyhow::Result;
@@ -59,6 +60,7 @@ pub fn providers() -> Vec<ProviderMetadata> {
         VeniceProvider::metadata(),
         SnowflakeProvider::metadata(),
         XaiProvider::metadata(),
+        ZaiProvider::metadata(),
     ]
 }
 
@@ -167,6 +169,7 @@ fn create_provider(name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>> 
         "snowflake" => Ok(Arc::new(SnowflakeProvider::from_env(model)?)),
         "venice" => Ok(Arc::new(VeniceProvider::from_env(model)?)),
         "xai" => Ok(Arc::new(XaiProvider::from_env(model)?)),
+        "zai" => Ok(Arc::new(ZaiProvider::from_env(model)?)),
         _ => Err(anyhow::anyhow!("Unknown provider: {}", name)),
     }
 }
