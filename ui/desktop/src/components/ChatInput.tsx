@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useMemo } from 'react';
+import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import { FolderKey } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
 import { Button } from './ui/button';
@@ -105,6 +105,13 @@ export default function ChatInput({
   const [isFocused, setIsFocused] = useState(false);
   const [pastedImages, setPastedImages] = useState<PastedImage[]>([]);
 
+  // History search state
+  const [isHistorySearchOpen, setIsHistorySearchOpen] = useState(false);
+  const [historySearchQuery, setHistorySearchQuery] = useState('');
+  const [historySearchResults, setHistorySearchResults] = useState<string[]>([]);
+  const [historySearchIndex, setHistorySearchIndex] = useState(0);
+  const historySearchInputRef = useRef<HTMLInputElement>(null);
+
   // Derived state - chatState != Idle means we're in some form of loading state
   const isLoading = chatState !== ChatState.Idle;
   const { alerts, addAlert, clearAlerts } = useAlerts();
@@ -179,6 +186,20 @@ export default function ChatInput({
   // Get dictation settings to check configuration status
   const { settings: dictationSettings } = useDictationSettings();
 
+  // History navigation state
+  const [savedInput, setSavedInput] = useState('');
+
+  // Define closeHistorySearch early so it can be used in useEffect
+  const closeHistorySearch = useCallback(() => {
+    setIsHistorySearchOpen(false);
+    setHistorySearchQuery('');
+    setHistorySearchResults([]);
+    setHistorySearchIndex(0);
+    setDisplayValue(savedInput);
+    setValue(savedInput);
+    textAreaRef.current?.focus();
+  }, [savedInput]);
+
   // Update internal value when initialValue changes
   useEffect(() => {
     setValue(initialValue);
@@ -202,7 +223,12 @@ export default function ChatInput({
     setHistoryIndex(-1);
     setIsInGlobalHistory(false);
     setHasUserTyped(false);
-  }, [initialValue]); // Keep only initialValue as a dependency
+
+    // Close history search if open
+    if (isHistorySearchOpen) {
+      closeHistorySearch();
+    }
+  }, [initialValue, isHistorySearchOpen, closeHistorySearch]); // Keep only necessary dependencies
 
   // Handle recipe prompt updates
   useEffect(() => {
@@ -251,11 +277,30 @@ export default function ChatInput({
   // State to track if the IME is composing (i.e., in the middle of Japanese IME input)
   const [isComposing, setIsComposing] = useState(false);
   const [historyIndex, setHistoryIndex] = useState(-1);
-  const [savedInput, setSavedInput] = useState('');
   const [isInGlobalHistory, setIsInGlobalHistory] = useState(false);
   const [hasUserTyped, setHasUserTyped] = useState(false);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const timeoutRefsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+
+  /**
+   * Detect operating system so we can customise keyboard shortcuts where
+   * necessary.  Ctrl+R triggers a hard refresh on Windows in Electron, which
+   * we cannot reliably intercept.  Instead, we fall back to Ctrl+H (H for
+   * "History") on Windows while keeping Ctrl+R on macOS / Linux.
+   */
+  const isWindows = useMemo(
+    () => typeof navigator !== 'undefined' && navigator.platform.toUpperCase().includes('WIN'),
+    []
+  );
+  const isMac = useMemo(
+    () => typeof navigator !== 'undefined' && navigator.platform.toUpperCase().includes('MAC'),
+    []
+  );
+
+  // Human-friendly hints displayed in the textarea placeholder.
+  const arrowHint = isMac ? '⌘↑/⌘↓' : 'Ctrl↑/Ctrl↓';
+  const searchKeyHint = isWindows ? 'Ctrl+H' : '⌃R';
+  const placeholderText = `${arrowHint} to navigate messages • ${searchKeyHint} to search history`;
 
   // Use shared file drop hook for ChatInput
   const {
@@ -285,6 +330,57 @@ export default function ChatInput({
     }
     setPastedImages((currentImages) => currentImages.filter((img) => img.id !== idToRemove));
   };
+
+  // History search functions
+  const getCombinedHistory = useCallback(() => {
+    // Combine current chat history and global history, removing duplicates while preserving order
+    const globalHistory = LocalMessageStorage.getRecentMessages() || [];
+    const combined = [...commandHistory];
+    for (const item of globalHistory) {
+      if (!combined.includes(item)) {
+        combined.push(item);
+      }
+    }
+    return combined;
+  }, [commandHistory]);
+
+  const openHistorySearch = useCallback(() => {
+    if (isHistorySearchOpen) return;
+    setSavedInput(displayValue);
+    setIsHistorySearchOpen(true);
+    setHistorySearchQuery('');
+    const combined = getCombinedHistory();
+    setHistorySearchResults(combined);
+    setHistorySearchIndex(0);
+    // Focus search input on next tick
+    setTimeout(() => {
+      historySearchInputRef.current?.focus();
+    }, 0);
+  }, [displayValue, getCombinedHistory, isHistorySearchOpen]);
+
+  const updateHistorySearchResults = useCallback(
+    (query: string) => {
+      const all = getCombinedHistory();
+      let filtered: string[];
+      if (!query) {
+        filtered = all;
+      } else {
+        const lower = query.toLowerCase();
+        filtered = all.filter((m) => m.toLowerCase().includes(lower));
+      }
+      setHistorySearchResults(filtered);
+      const idx = 0;
+      setHistorySearchIndex(idx);
+      if (filtered.length > 0) {
+        setDisplayValue(filtered[idx]);
+        setValue(filtered[idx]);
+      } else {
+        setDisplayValue(savedInput);
+        setValue(savedInput);
+      }
+    },
+    [getCombinedHistory, savedInput]
+  );
 
   const handleRetryImageSave = async (imageId: string) => {
     const imageToRetry = pastedImages.find((img) => img.id === imageId);
@@ -827,7 +923,74 @@ export default function ChatInput({
     }
   };
 
+  const handleHistorySearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const query = e.target.value;
+    setHistorySearchQuery(query);
+    updateHistorySearchResults(query);
+  };
+
+  const handleHistorySearchInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      closeHistorySearch();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      closeHistorySearch();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (historySearchResults.length > 0) {
+        const newIndex =
+          (historySearchIndex - 1 + historySearchResults.length) % historySearchResults.length;
+        setHistorySearchIndex(newIndex);
+        setDisplayValue(historySearchResults[newIndex]);
+        setValue(historySearchResults[newIndex]);
+      }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (historySearchResults.length > 0) {
+        const newIndex = (historySearchIndex + 1) % historySearchResults.length;
+        setHistorySearchIndex(newIndex);
+        setDisplayValue(historySearchResults[newIndex]);
+        setValue(historySearchResults[newIndex]);
+      }
+    }
+  };
+
+  // Keep displayValue in sync when search index changes via other means
+  useEffect(() => {
+    if (isHistorySearchOpen && historySearchResults.length > 0) {
+      const current = historySearchResults[historySearchIndex] ?? '';
+      setDisplayValue(current);
+      setValue(current);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [historySearchIndex]);
+
   const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Open history search. Use Ctrl+R everywhere except Windows where we
+    // switch to Ctrl+H to avoid triggering a full refresh.
+    const searchShortcutKey = isWindows ? 'h' : 'r';
+
+    if (
+      !evt.shiftKey &&
+      !evt.metaKey &&
+      evt.ctrlKey &&
+      evt.key.toLowerCase() === searchShortcutKey
+    ) {
+      evt.preventDefault();
+      openHistorySearch();
+      return;
+    }
+
+    // If search is open, ignore other navigation key handling
+    if (isHistorySearchOpen) {
+      if (evt.key === 'Escape') {
+        evt.preventDefault();
+        closeHistorySearch();
+      }
+      return;
+    }
+
     // If mention popover is open, handle arrow keys and enter
     if (mentionPopover.isOpen && mentionPopoverRef.current) {
       if (evt.key === 'ArrowDown') {
@@ -955,6 +1118,34 @@ export default function ChatInput({
       onDrop={handleLocalDrop}
       onDragOver={handleLocalDragOver}
     >
+      {/* History search overlay */}
+      {isHistorySearchOpen && (
+        <div className="absolute -top-10 left-0 right-0 flex justify-center pointer-events-none z-20">
+          <div className="flex items-center gap-2 bg-background-default text-textStandard rounded-lg px-3 py-1.5 shadow-lg border border-borderStandard pointer-events-auto">
+            <span className="text-xs text-textSubtle">search history:</span>
+            <input
+              ref={historySearchInputRef}
+              value={historySearchQuery}
+              onChange={handleHistorySearchInputChange}
+              onKeyDown={handleHistorySearchInputKeyDown}
+              className="bg-transparent outline-none text-sm w-64 placeholder:text-textPlaceholder"
+              placeholder="type to filter..."
+            />
+            {historySearchResults.length > 0 && (
+              <span className="text-xs text-textSubtle">
+                {historySearchIndex + 1}/{historySearchResults.length}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={closeHistorySearch}
+              className="ml-1 p-1 hover:bg-bgSubtle rounded transition-colors"
+            >
+              <Close className="h-3 w-3 text-textSubtle hover:text-textStandard" />
+            </button>
+          </div>
+        </div>
+      )}
       {/* Input row with inline action buttons wrapped in form */}
       <form onSubmit={onFormSubmit} className="relative flex items-end">
         <div className="relative flex-1">
@@ -962,7 +1153,7 @@ export default function ChatInput({
             data-testid="chat-input"
             autoFocus
             id="dynamic-textarea"
-            placeholder={isRecording ? '' : '⌘↑/⌘↓ to navigate messages'}
+            placeholder={isRecording ? '' : placeholderText}
             value={displayValue}
             onChange={handleChange}
             onCompositionStart={handleCompositionStart}
