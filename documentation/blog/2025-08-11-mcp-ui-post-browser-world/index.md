@@ -11,6 +11,8 @@ Goose recently merged in changes related to <a href="https://mcpui.dev/">MCP-UI<
 
 This sits on top of the protocol, but instead of text/markdown being the result, servers can return content that the client can render richly (including interactive GUI content).
 
+<!-- truncate -->
+
 At the heart of this is an interface for a UIResource:
 
 ```
