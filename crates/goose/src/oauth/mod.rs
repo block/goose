@@ -9,7 +9,7 @@ use serde::Deserialize;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::{oneshot, Mutex};
-use tracing::{info, warn};
+use tracing::warn;
 
 use crate::oauth::persist::{load_cached_state, save_credentials};
 
@@ -33,26 +33,12 @@ pub async fn oauth_flow(
     mcp_server_url: &String,
     name: &String,
 ) -> Result<AuthorizationManager, anyhow::Error> {
-    // First, try to load existing credentials from file
-    match load_cached_state(mcp_server_url, name).await {
-        Ok(oauth_state) => {
-            info!("Successfully loaded cached credentials for {}", name);
-            return oauth_state
-                .into_authorization_manager()
-                .ok_or_else(|| {
-                    anyhow::anyhow!("Failed to get authorization manager from cached credentials")
-                })
-                .map_err(Into::into);
-        }
-        Err(e) => {
-            info!(
-                "No valid cached credentials found for {} ({}), starting OAuth flow",
-                name, e
-            );
-        }
+    if let Ok(oauth_state) = load_cached_state(mcp_server_url, name).await {
+        return oauth_state.into_authorization_manager().ok_or_else(|| {
+            anyhow::anyhow!("Failed to get authorization manager from cached credentials")
+        });
     }
 
-    // Proceed with fresh OAuth flow
     let (code_sender, code_receiver) = oneshot::channel::<String>();
     let app_state = AppState {
         code_receiver: Arc::new(Mutex::new(Some(code_sender))),
@@ -97,12 +83,8 @@ pub async fn oauth_flow(
     let auth_code = code_receiver.await?;
     oauth_state.handle_callback(&auth_code).await?;
 
-    // Save credentials before converting to AuthorizationManager
     if let Err(e) = save_credentials(name, &oauth_state).await {
-        warn!("Failed to save credentials to file: {}", e);
-        // Don't fail the entire flow if we can't save credentials
-    } else {
-        info!("Successfully saved credentials for {}", name);
+        warn!("Failed to save credentials: {}", e);
     }
 
     let auth_manager = oauth_state
