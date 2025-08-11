@@ -1,3 +1,10 @@
+---
+title: "Automated MCP Testing: Using Composable Goose Recipes to Validate Tool Metadata"
+description: "Automate MCP tool metadata validation using composable Goose recipes to catch regressions, optimize token usage, and ensure AI agents can reliably discover and use your tools."
+authors: 
+    - rarora
+---
+
 # Automated MCP Testing: Using Composable Goose Recipes to Validate Tool Metadata
 
 When building Model Context Protocol (MCP) servers, most development focuses on tool functionality—ensuring tools execute and return expected results. But just as critical is the quality of tool metadata: descriptions, tooltips, and input schemas. These elements form the "interface language" between tools and AI agents like Goose.
