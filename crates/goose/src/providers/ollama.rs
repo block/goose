@@ -57,11 +57,10 @@ impl OllamaProvider {
         // Set the default port if missing
         // Don't add default port if:
         // 1. URL explicitly ends with standard ports (:80 or :443)
-        // 2. URL uses HTTPS (which implicitly uses port 443)
+        // 2. URL uses HTTP/S (which implicitly uses port 80 or 443)
         let explicit_default_port = host.ends_with(":80") || host.ends_with(":443");
-        let is_https = base_url.scheme() == "https";
 
-        if base_url.port().is_none() && !explicit_default_port && !is_https {
+        if base_url.port().is_none() && !explicit_default_port && !host.starts_with("http") {
             base_url
                 .set_port(Some(OLLAMA_DEFAULT_PORT))
                 .map_err(|_| anyhow::anyhow!("Failed to set default port"))?;
