@@ -27,7 +27,7 @@ use rmcp::model::Tool;
 pub const ZAI_DEFAULT_MODEL: &str = "glm-4.5";
 pub const ZAI_KNOWN_MODELS: &[&str] = &["glm-4.5", "glm-4.5-air"];
 
-pub const ZAI_DOC_URL: &str = "https://z.ai/docs";
+pub const ZAI_DOC_URL: &str = "https://docs.z.ai";
 
 #[derive(Debug, serde::Serialize)]
 pub struct ZaiProvider {
