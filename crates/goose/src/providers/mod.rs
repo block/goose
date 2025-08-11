@@ -1,3 +1,4 @@
+pub mod aimlapi;
 pub mod anthropic;
 mod api_client;
 pub mod azure;

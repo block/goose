@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use super::{
+    aimlapi::AimlApiProvider,
     anthropic::AnthropicProvider,
     azure::AzureProvider,
     base::{Provider, ProviderMetadata},
@@ -41,6 +42,7 @@ fn default_fallback_turns() -> usize {
 
 pub fn providers() -> Vec<ProviderMetadata> {
     vec![
+        AimlApiProvider::metadata(),
         AnthropicProvider::metadata(),
         AzureProvider::metadata(),
         BedrockProvider::metadata(),
@@ -149,6 +151,7 @@ fn create_lead_worker_from_env(
 fn create_provider(name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>> {
     // We use Arc instead of Box to be able to clone for multiple async tasks
     match name {
+        "aimlapi" => Ok(Arc::new(AimlApiProvider::from_env(model)?)),
         "anthropic" => Ok(Arc::new(AnthropicProvider::from_env(model)?)),
         "aws_bedrock" => Ok(Arc::new(BedrockProvider::from_env(model)?)),
         "azure_openai" => Ok(Arc::new(AzureProvider::from_env(model)?)),

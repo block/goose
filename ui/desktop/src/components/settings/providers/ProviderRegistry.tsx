@@ -253,4 +253,34 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
       ],
     },
   },
+  {
+    name: 'AIML API',
+    details: {
+      id: 'aimlapi',
+      name: 'AIML API',
+      description:
+        'Access 300+ AI models through a single unified API including GPT, Claude, Gemini, DeepSeek, Llama, and more',
+      parameters: [
+        {
+          name: 'AIMLAPI_API_KEY',
+          is_secret: true,
+        },
+        {
+          name: 'AIMLAPI_HOST',
+          is_secret: false,
+          default: 'https://api.aimlapi.com',
+        },
+        {
+          name: 'AIMLAPI_BASE_PATH',
+          is_secret: false,
+          default: 'v1/chat/completions',
+        },
+        {
+          name: 'AIMLAPI_TIMEOUT',
+          is_secret: false,
+          default: '600',
+        },
+      ],
+    },
+  },
 ];

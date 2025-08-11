@@ -65,4 +65,10 @@
         "models": ["grok-3"],
         "required_keys": ["XAI_API_KEY"]
     },
+    "aimlapi": {
+        "name": "AIML API",
+        "description": "Access 300+ AI models through a single unified API including GPT, Claude, Gemini, DeepSeek, Llama, and more",
+        "models": ["gpt-4o", "gpt-4o-mini", "claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022", "gemini-2.0-flash-exp", "deepseek/deepseek-r1", "deepseek/deepseek-chat", "meta-llama/Meta-Llama-3.1-405B-Instruct", "Qwen/Qwen2.5-72B-Instruct", "mistral-large-latest"],
+        "required_keys": ["AIMLAPI_API_KEY"]
+    },
 }

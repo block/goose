@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="32" cy="32" r="30" fill="#2563EB" stroke="#1D4ED8" stroke-width="2"/>
+  
+  <!-- AI/ML text styling -->
+  <g transform="translate(32, 32)">
+    <!-- AI text -->
+    <text x="-14" y="-4" fill="white" font-family="Arial, sans-serif" font-size="14" font-weight="bold">AI</text>
+    
+    <!-- ML text -->
+    <text x="-14" y="12" fill="white" font-family="Arial, sans-serif" font-size="14" font-weight="bold">ML</text>
+    
+    <!-- Neural network nodes -->
+    <circle cx="8" cy="-8" r="2.5" fill="white" opacity="0.9"/>
+    <circle cx="8" cy="0" r="2.5" fill="white" opacity="0.9"/>
+    <circle cx="8" cy="8" r="2.5" fill="white" opacity="0.9"/>
+    
+    <!-- Connection lines -->
+    <line x1="2" y1="-8" x2="5.5" y2="-8" stroke="white" stroke-width="1.5" opacity="0.7"/>
+    <line x1="2" y1="0" x2="5.5" y2="0" stroke="white" stroke-width="1.5" opacity="0.7"/>
+    <line x1="2" y1="8" x2="5.5" y2="8" stroke="white" stroke-width="1.5" opacity="0.7"/>
+    
+    <line x1="2" y1="-4" x2="5.5" y2="-6" stroke="white" stroke-width="1" opacity="0.5"/>
+    <line x1="2" y1="4" x2="5.5" y2="2" stroke="white" stroke-width="1" opacity="0.5"/>
+  </g>
+  
+  <!-- API indicator -->
+  <rect x="46" y="46" width="16" height="8" rx="4" fill="white" opacity="0.9"/>
+  <text x="54" y="51" fill="#2563EB" font-family="Arial, sans-serif" font-size="6" font-weight="bold" text-anchor="middle">API</text>
+</svg>
