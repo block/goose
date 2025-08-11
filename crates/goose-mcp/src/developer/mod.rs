@@ -6,6 +6,7 @@ use anyhow::Result;
 use base64::Engine;
 use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::formatdoc;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
     collections::HashMap,
@@ -21,6 +22,7 @@ use tokio::{
     process::Command,
     sync::mpsc,
 };
+use tokio_stream::{wrappers::SplitStream, StreamExt as _};
 use url::Url;
 use uuid::Uuid;
 
@@ -35,7 +37,7 @@ use mcp_server::Router;
 
 use rmcp::model::{
     Content, JsonRpcMessage, JsonRpcNotification, JsonRpcVersion2_0, Notification, Prompt,
-    PromptArgument, PromptTemplate, Resource, Role, Tool, ToolAnnotations,
+    PromptArgument, Resource, Role, Tool, ToolAnnotations,
 };
 use rmcp::object;
 
@@ -47,6 +49,20 @@ use indoc::indoc;
 use std::process::Stdio;
 use xcap::{Monitor, Window};
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PromptTemplate {
+    pub id: String,
+    pub template: String,
+    pub arguments: Vec<PromptArgumentTemplate>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PromptArgumentTemplate {
+    pub name: String,
+    pub description: Option<String>,
+    pub required: Option<bool>,
+}
 
 // Embeds the prompts directory to the build
 static PROMPTS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/developer/prompts");
@@ -3482,5 +3498,46 @@ mod tests {
         // Both outputs should be empty
         assert_eq!(result.0, "");
         assert_eq!(result.1, "");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_shell_output_without_trailing_newline() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        let router = get_router().await;
+
+        // Test command that outputs content without a trailing newline
+        let command = if cfg!(windows) {
+            "echo|set /p=\"Content without newline\""
+        } else {
+            "printf 'Content without newline'"
+        };
+
+        let result = router
+            .call_tool("shell", json!({ "command": command }), dummy_sender())
+            .await
+            .unwrap();
+
+        // Find the assistant content (which contains the full output)
+        let assistant_content = result
+            .iter()
+            .find(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::Assistant))
+            })
+            .unwrap()
+            .as_text()
+            .unwrap();
+
+        // The output should contain the content even without a trailing newline
+        assert!(
+            assistant_content.text.contains("Content without newline"),
+            "Output should contain content even without trailing newline, but got: {}",
+            assistant_content.text
+        );
+
+        temp_dir.close().unwrap();
     }
 }

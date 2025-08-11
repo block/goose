@@ -34,7 +34,7 @@ use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, ToolResultReceiver};
 use crate::config::{Config, ExtensionConfigManager, PermissionManager};
 use crate::context_mgmt::auto_compact;
-use crate::message::{push_message, Message, ToolRequest};
+use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::permission::permission_judge::{check_tool_permissions, PermissionCheckResult};
 use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
@@ -56,13 +56,13 @@ use super::final_output_tool::FinalOutputTool;
 use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::subagent_task_config::TaskConfig;
-use crate::conversation_fixer::{debug_conversation_fix, ConversationFixer};
+use crate::conversation::message::{Message, ToolRequest};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 
 /// Context needed for the reply function
 pub struct ReplyContext {
-    pub messages: Vec<Message>,
+    pub messages: Conversation,
     pub tools: Vec<Tool>,
     pub toolshim_tools: Vec<Tool>,
     pub system_prompt: String,
@@ -199,7 +199,7 @@ impl Agent {
     /// Handle retry logic for the agent reply loop
     async fn handle_retry_logic(
         &self,
-        messages: &mut Vec<Message>,
+        messages: &mut Conversation,
         session: &Option<SessionConfig>,
         initial_messages: &[Message],
     ) -> Result<bool> {
@@ -218,24 +218,29 @@ impl Agent {
 
     async fn prepare_reply_context(
         &self,
-        unfixed_messages: &[Message],
+        unfixed_conversation: Conversation,
         session: &Option<SessionConfig>,
     ) -> Result<ReplyContext> {
-        let (messages, issues) = ConversationFixer::fix_conversation(Vec::from(unfixed_messages));
+        let unfixed_messages = unfixed_conversation.messages().clone();
+        let (conversation, issues) = fix_conversation(unfixed_conversation.clone());
         if !issues.is_empty() {
             tracing::warn!(
                 "Conversation issue fixed: {}",
-                debug_conversation_fix(unfixed_messages, &messages, &issues)
+                debug_conversation_fix(
+                    unfixed_messages.as_slice(),
+                    conversation.messages(),
+                    &issues
+                )
             );
         }
-        let initial_messages = messages.clone();
+        let initial_messages = conversation.messages().clone();
         let config = Config::global();
 
         let (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
         let goose_mode = Self::determine_goose_mode(session.as_ref(), config);
 
         Ok(ReplyContext {
-            messages,
+            messages: conversation,
             tools,
             toolshim_tools,
             system_prompt,
@@ -760,7 +765,7 @@ impl Agent {
         &self,
         messages: &[Message],
         session: &Option<SessionConfig>,
-    ) -> Result<Option<(Vec<Message>, String)>> {
+    ) -> Result<Option<(Conversation, String)>> {
         // Try to get session metadata for more accurate token counts
         let session_metadata = if let Some(session_config) = session {
             match session::storage::get_path(session_config.id.clone()) {
@@ -802,22 +807,22 @@ impl Agent {
         Ok(None)
     }
 
-    #[instrument(skip(self, unfixed_messages, session), fields(user_message))]
+    #[instrument(skip(self, unfixed_conversation, session), fields(user_message))]
     pub async fn reply(
         &self,
-        unfixed_messages: &[Message],
+        unfixed_conversation: Conversation,
         session: Option<SessionConfig>,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         // Handle auto-compaction before processing
         let (messages, compaction_msg) = match self
-            .handle_auto_compaction(unfixed_messages, &session)
+            .handle_auto_compaction(unfixed_conversation.messages(), &session)
             .await?
         {
             Some((compacted_messages, msg)) => (compacted_messages, Some(msg)),
             None => {
                 let context = self
-                    .prepare_reply_context(unfixed_messages, &session)
+                    .prepare_reply_context(unfixed_conversation, &session)
                     .await?;
                 (context.messages, None)
             }
@@ -827,10 +832,10 @@ impl Agent {
         if let Some(compaction_msg) = compaction_msg {
             return Ok(Box::pin(async_stream::try_stream! {
                 yield AgentEvent::Message(Message::assistant().with_text(compaction_msg));
-                yield AgentEvent::HistoryReplaced(messages.clone());
+                yield AgentEvent::HistoryReplaced(messages.messages().clone());
 
                 // Continue with normal reply processing using compacted messages
-                let mut reply_stream = self.reply_internal(&messages, session, cancel_token).await?;
+                let mut reply_stream = self.reply_internal(messages, session, cancel_token).await?;
                 while let Some(event) = reply_stream.next().await {
                     yield event?;
                 }
@@ -838,13 +843,13 @@ impl Agent {
         }
 
         // No compaction needed, proceed with normal processing
-        self.reply_internal(&messages, session, cancel_token).await
+        self.reply_internal(messages, session, cancel_token).await
     }
 
     /// Main reply method that handles the actual agent processing
     async fn reply_internal(
         &self,
-        messages: &[Message],
+        messages: Conversation,
         session: Option<SessionConfig>,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
@@ -905,7 +910,7 @@ impl Agent {
                 let mut stream = Self::stream_response_from_provider(
                     self.provider().await?,
                     &system_prompt,
-                    &messages,
+                    messages.messages(),
                     &tools,
                     &toolshim_tools,
                 ).await?;
@@ -1074,8 +1079,8 @@ impl Agent {
                                 yield AgentEvent::Message(final_message_tool_resp.clone());
 
                                 added_message = true;
-                                push_message(&mut messages_to_add, response);
-                                push_message(&mut messages_to_add, final_message_tool_resp);
+                                messages_to_add.push(response);
+                                messages_to_add.push(final_message_tool_resp);
                             }
                         }
                         Err(ProviderError::ContextLengthExceeded(_)) => {
@@ -1139,8 +1144,8 @@ impl Agent {
         let mode = session.and_then(|s| s.execution_mode.as_deref());
 
         match mode {
-            Some("foreground") => "auto".to_string(),
-            Some("background") => "chat".to_string(),
+            Some("foreground") => "chat".to_string(),
+            Some("background") => "auto".to_string(),
             _ => config
                 .get_param("GOOSE_MODE")
                 .unwrap_or_else(|_| "auto".to_string()),
@@ -1244,7 +1249,7 @@ impl Agent {
         }
     }
 
-    pub async fn create_recipe(&self, mut messages: Vec<Message>) -> Result<Recipe> {
+    pub async fn create_recipe(&self, mut messages: Conversation) -> Result<Recipe> {
         let extension_manager = self.extension_manager.read().await;
         let extensions_info = extension_manager.get_extensions_info().await;
 
@@ -1273,7 +1278,7 @@ impl Agent {
             .await
             .as_ref()
             .unwrap()
-            .complete(&system_prompt, &messages, &tools)
+            .complete(&system_prompt, messages.messages(), &tools)
             .await?;
 
         let content = result.as_concat_text();

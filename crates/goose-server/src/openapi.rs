@@ -3,10 +3,6 @@ use goose::agents::extension::ToolInfo;
 use goose::agents::ExtensionConfig;
 use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
-use goose::message::{
-    ContextLengthExceeded, FrontendToolRequest, Message, MessageContent, RedactedThinkingContent,
-    SummarizationRequested, ThinkingContent, ToolConfirmationRequest, ToolRequest, ToolResponse,
-};
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata};
 use goose::session::info::SessionInfo;
@@ -17,6 +13,10 @@ use rmcp::model::{
 };
 use utoipa::{OpenApi, ToSchema};
 
+use goose::conversation::message::{
+    ContextLengthExceeded, FrontendToolRequest, Message, MessageContent, RedactedThinkingContent,
+    SummarizationRequested, ThinkingContent, ToolConfirmationRequest, ToolRequest, ToolResponse,
+};
 use utoipa::openapi::schema::{
     AdditionalProperties, AnyOfBuilder, ArrayBuilder, ObjectBuilder, OneOfBuilder, Schema,
     SchemaFormat, SchemaType,

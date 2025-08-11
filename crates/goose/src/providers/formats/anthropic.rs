@@ -1,4 +1,4 @@
-use crate::message::{Message, MessageContent};
+use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
@@ -676,6 +676,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::conversation::message::Message;
     use rmcp::object;
     use serde_json::json;
 
@@ -983,6 +984,7 @@ mod tests {
 
     #[test]
     fn test_tool_error_handling_maintains_pairing() {
+        use crate::conversation::message::Message;
         use mcp_core::handler::ToolError;
 
         let messages = vec![

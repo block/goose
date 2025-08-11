@@ -1,3 +1,5 @@
+use crate::conversation::message::Message;
+use crate::conversation::Conversation;
 use crate::{
     agents::Agent,
     config::Config,
@@ -5,7 +7,6 @@ use crate::{
         common::{SYSTEM_PROMPT_TOKEN_OVERHEAD, TOOLS_TOKEN_OVERHEAD},
         get_messages_token_counts_async,
     },
-    message::Message,
     token_counter::create_async_token_counter,
 };
 use anyhow::Result;
@@ -17,7 +18,7 @@ pub struct AutoCompactResult {
     /// Whether compaction was performed
     pub compacted: bool,
     /// The messages after potential compaction
-    pub messages: Vec<Message>,
+    pub messages: Conversation,
     /// Token count before compaction (if compaction occurred)
     pub tokens_before: Option<usize>,
     /// Token count after compaction (if compaction occurred)
@@ -67,7 +68,7 @@ pub async fn check_compaction_needed(
     let threshold = threshold_override.unwrap_or_else(|| {
         config
             .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
-            .unwrap_or(0.3) // Default to 30%
+            .unwrap_or(0.8) // Default to 80%
     });
 
     let provider = agent.provider().await?;
@@ -140,7 +141,7 @@ pub async fn check_compaction_needed(
 pub async fn perform_compaction(
     agent: &Agent,
     messages: &[Message],
-) -> Result<(Vec<Message>, usize, usize)> {
+) -> Result<(Conversation, usize, usize)> {
     // Get token counter to measure before/after
     let token_counter = create_async_token_counter()
         .await
@@ -199,7 +200,7 @@ pub async fn check_and_compact_messages(
         );
         return Ok(AutoCompactResult {
             compacted: false,
-            messages: messages.to_vec(),
+            messages: Conversation::new_unvalidated(messages.to_vec()),
             tokens_before: None,
             tokens_after: None,
         });
@@ -243,9 +244,9 @@ pub async fn check_and_compact_messages(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::conversation::message::{Message, MessageContent};
     use crate::{
         agents::Agent,
-        message::{Message, MessageContent},
         model::ModelConfig,
         providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage},
         providers::errors::ProviderError,

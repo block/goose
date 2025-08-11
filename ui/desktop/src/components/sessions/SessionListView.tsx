@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo, startTransition } from 'react';
-import { MessageSquareText, Target, AlertCircle, Calendar, Folder } from 'lucide-react';
-import { fetchSessions, type Session } from '../../sessions';
+import { MessageSquareText, Target, AlertCircle, Calendar, Folder, Edit2 } from 'lucide-react';
+import { fetchSessions, updateSessionMetadata, type Session } from '../../sessions';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
@@ -11,6 +11,125 @@ import { SearchHighlighter } from '../../utils/searchHighlighter';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { groupSessionsByDate, type DateGroup } from '../../utils/dateUtils';
 import { Skeleton } from '../ui/skeleton';
+import { toast } from 'react-toastify';
+
+interface EditSessionModalProps {
+  session: Session | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (sessionId: string, newDescription: string) => Promise<void>;
+  disabled?: boolean;
+}
+
+const EditSessionModal = React.memo<EditSessionModalProps>(
+  ({ session, isOpen, onClose, onSave, disabled = false }) => {
+    const [description, setDescription] = useState('');
+    const [isUpdating, setIsUpdating] = useState(false);
+
+    useEffect(() => {
+      if (session && isOpen) {
+        setDescription(session.metadata.description || session.id);
+      } else if (!isOpen) {
+        // Reset state when modal closes
+        setDescription('');
+        setIsUpdating(false);
+      }
+    }, [session, isOpen]);
+
+    const handleSave = useCallback(async () => {
+      if (!session || disabled) return;
+
+      const trimmedDescription = description.trim();
+      if (trimmedDescription === session.metadata.description) {
+        onClose();
+        return;
+      }
+
+      setIsUpdating(true);
+      try {
+        await updateSessionMetadata(session.id, trimmedDescription);
+        await onSave(session.id, trimmedDescription);
+
+        // Close modal, then show success toast on a timeout to let the UI update complete.
+        onClose();
+        setTimeout(() => {
+          toast.success('Session description updated successfully');
+        }, 300);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        console.error('Failed to update session description:', errorMessage);
+        toast.error(`Failed to update session description: ${errorMessage}`);
+        // Reset to original description on error
+        setDescription(session.metadata.description || session.id);
+      } finally {
+        setIsUpdating(false);
+      }
+    }, [session, description, onSave, onClose, disabled]);
+
+    const handleCancel = useCallback(() => {
+      if (!isUpdating) {
+        onClose();
+      }
+    }, [onClose, isUpdating]);
+
+    const handleKeyDown = useCallback(
+      (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter' && !isUpdating) {
+          handleSave();
+        } else if (e.key === 'Escape' && !isUpdating) {
+          handleCancel();
+        }
+      },
+      [handleSave, handleCancel, isUpdating]
+    );
+
+    const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+      setDescription(e.target.value);
+    }, []);
+
+    if (!isOpen || !session) return null;
+
+    return (
+      <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50">
+        <div className="bg-background-default border border-border-subtle rounded-lg p-6 w-[500px] max-w-[90vw]">
+          <h3 className="text-lg font-medium text-text-standard mb-4">Edit Session Description</h3>
+
+          <div className="space-y-4">
+            <div>
+              <input
+                id="session-description"
+                type="text"
+                value={description}
+                onChange={handleInputChange}
+                className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter session description"
+                autoFocus
+                maxLength={200}
+                onKeyDown={handleKeyDown}
+                disabled={isUpdating || disabled}
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-3 mt-6">
+            <Button onClick={handleCancel} variant="ghost" disabled={isUpdating || disabled}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={!description.trim() || isUpdating || disabled}
+              variant="default"
+            >
+              {isUpdating ? 'Saving...' : 'Save'}
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+);
+
+EditSessionModal.displayName = 'EditSessionModal';
 
 // Debounce hook for search
 function useDebounce<T>(value: T, delay: number): T {
@@ -51,6 +170,10 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
     count: number;
     currentIndex: number;
   } | null>(null);
+
+  // Edit modal state
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingSession, setEditingSession] = useState<Session | null>(null);
 
   // Search state for debouncing
   const [searchTerm, setSearchTerm] = useState('');
@@ -184,15 +307,63 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
     }
   };
 
-  // Render a session item
-  const SessionItem = React.memo(function SessionItem({ session }: { session: Session }) {
+  // Handle modal close
+  const handleModalClose = useCallback(() => {
+    setShowEditModal(false);
+    setEditingSession(null);
+  }, []);
+
+  const handleModalSave = useCallback(async (sessionId: string, newDescription: string) => {
+    // Update state immediately for optimistic UI
+    setSessions((prevSessions) =>
+      prevSessions.map((s) =>
+        s.id === sessionId ? { ...s, metadata: { ...s.metadata, description: newDescription } } : s
+      )
+    );
+  }, []);
+
+  const handleEditSession = useCallback((session: Session) => {
+    setEditingSession(session);
+    setShowEditModal(true);
+  }, []);
+
+  const SessionItem = React.memo(function SessionItem({
+    session,
+    onEditClick,
+  }: {
+    session: Session;
+    onEditClick: (session: Session) => void;
+  }) {
+    const handleEditClick = useCallback(
+      (e: React.MouseEvent) => {
+        e.stopPropagation(); // Prevent card click
+        onEditClick(session);
+      },
+      [onEditClick, session]
+    );
+
+    const handleCardClick = useCallback(() => {
+      onSelectSession(session.id);
+    }, [session.id]);
+
     return (
       <Card
-        onClick={() => onSelectSession(session.id)}
-        className="session-item h-full py-3 px-4 hover:shadow-default cursor-pointer transition-all duration-150 flex flex-col justify-between"
+        onClick={handleCardClick}
+        className="session-item h-full py-3 px-4 hover:shadow-default cursor-pointer transition-all duration-150 flex flex-col justify-between relative group"
       >
+        <button
+          onClick={handleEditClick}
+          className="absolute top-3 right-4 p-2 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+          title="Edit session name"
+        >
+          <Edit2 className="w-3 h-3 text-textSubtle hover:text-textStandard" />
+        </button>
+
         <div className="flex-1">
-          <h3 className="text-base truncate mb-1">{session.metadata.description || session.id}</h3>
+          <h3 className="text-base mb-1 pr-6 break-words">
+            {session.metadata.description || session.id}
+          </h3>
+
           <div className="flex items-center text-text-muted text-xs mb-1">
             <Calendar className="w-3 h-3 mr-1 flex-shrink-0" />
             <span>{formatMessageTimestamp(Date.parse(session.modified) / 1000)}</span>
@@ -303,7 +474,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
               {group.sessions.map((session) => (
-                <SessionItem key={session.id} session={session} />
+                <SessionItem key={session.id} session={session} onEditClick={handleEditSession} />
               ))}
             </div>
           </div>
@@ -313,88 +484,97 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
   };
 
   return (
-    <MainPanelLayout>
-      <div className="flex-1 flex flex-col min-h-0">
-        <div className="bg-background-default px-8 pb-8 pt-16">
-          <div className="flex flex-col page-transition">
-            <div className="flex justify-between items-center mb-1">
-              <h1 className="text-4xl font-light">Chat history</h1>
+    <>
+      <MainPanelLayout>
+        <div className="flex-1 flex flex-col min-h-0">
+          <div className="bg-background-default px-8 pb-8 pt-16">
+            <div className="flex flex-col page-transition">
+              <div className="flex justify-between items-center mb-1">
+                <h1 className="text-4xl font-light">Chat history</h1>
+              </div>
+              <p className="text-sm text-text-muted mb-4">
+                View and search your past conversations with Goose.
+              </p>
             </div>
-            <p className="text-sm text-text-muted mb-4">
-              View and search your past conversations with Goose.
-            </p>
           </div>
-        </div>
 
-        <div className="flex-1 min-h-0 relative px-8">
-          <ScrollArea className="h-full" data-search-scroll-area>
-            <div ref={containerRef} className="h-full relative">
-              <SearchView
-                onSearch={handleSearch}
-                onNavigate={handleSearchNavigation}
-                searchResults={searchResults}
-                className="relative"
-              >
-                {/* Skeleton layer - always rendered but conditionally visible */}
-                <div
-                  className={`absolute inset-0 transition-opacity duration-300 ${
-                    isLoading || showSkeleton
-                      ? 'opacity-100 z-10'
-                      : 'opacity-0 z-0 pointer-events-none'
-                  }`}
+          <div className="flex-1 min-h-0 relative px-8">
+            <ScrollArea className="h-full" data-search-scroll-area>
+              <div ref={containerRef} className="h-full relative">
+                <SearchView
+                  onSearch={handleSearch}
+                  onNavigate={handleSearchNavigation}
+                  searchResults={searchResults}
+                  className="relative"
                 >
-                  <div className="space-y-8">
-                    {/* Today section */}
-                    <div className="space-y-4">
-                      <Skeleton className="h-6 w-16" />
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-                        <SessionSkeleton variant={0} />
-                        <SessionSkeleton variant={1} />
-                        <SessionSkeleton variant={2} />
-                        <SessionSkeleton variant={3} />
-                        <SessionSkeleton variant={0} />
+                  {/* Skeleton layer - always rendered but conditionally visible */}
+                  <div
+                    className={`absolute inset-0 transition-opacity duration-300 ${
+                      isLoading || showSkeleton
+                        ? 'opacity-100 z-10'
+                        : 'opacity-0 z-0 pointer-events-none'
+                    }`}
+                  >
+                    <div className="space-y-8">
+                      {/* Today section */}
+                      <div className="space-y-4">
+                        <Skeleton className="h-6 w-16" />
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+                          <SessionSkeleton variant={0} />
+                          <SessionSkeleton variant={1} />
+                          <SessionSkeleton variant={2} />
+                          <SessionSkeleton variant={3} />
+                          <SessionSkeleton variant={0} />
+                        </div>
                       </div>
-                    </div>
 
-                    {/* Yesterday section */}
-                    <div className="space-y-4">
-                      <Skeleton className="h-6 w-20" />
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-                        <SessionSkeleton variant={1} />
-                        <SessionSkeleton variant={2} />
-                        <SessionSkeleton variant={3} />
-                        <SessionSkeleton variant={0} />
-                        <SessionSkeleton variant={1} />
-                        <SessionSkeleton variant={2} />
+                      {/* Yesterday section */}
+                      <div className="space-y-4">
+                        <Skeleton className="h-6 w-20" />
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+                          <SessionSkeleton variant={1} />
+                          <SessionSkeleton variant={2} />
+                          <SessionSkeleton variant={3} />
+                          <SessionSkeleton variant={0} />
+                          <SessionSkeleton variant={1} />
+                          <SessionSkeleton variant={2} />
+                        </div>
                       </div>
-                    </div>
 
-                    {/* Additional section */}
-                    <div className="space-y-4">
-                      <Skeleton className="h-6 w-24" />
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-                        <SessionSkeleton variant={3} />
-                        <SessionSkeleton variant={0} />
-                        <SessionSkeleton variant={1} />
+                      {/* Additional section */}
+                      <div className="space-y-4">
+                        <Skeleton className="h-6 w-24" />
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+                          <SessionSkeleton variant={3} />
+                          <SessionSkeleton variant={0} />
+                          <SessionSkeleton variant={1} />
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Content layer - always rendered but conditionally visible */}
-                <div
-                  className={`relative transition-opacity duration-300 ${
-                    showContent ? 'opacity-100 z-10' : 'opacity-0 z-0'
-                  }`}
-                >
-                  {renderActualContent()}
-                </div>
-              </SearchView>
-            </div>
-          </ScrollArea>
+                  {/* Content layer - always rendered but conditionally visible */}
+                  <div
+                    className={`relative transition-opacity duration-300 ${
+                      showContent ? 'opacity-100 z-10' : 'opacity-0 z-0'
+                    }`}
+                  >
+                    {renderActualContent()}
+                  </div>
+                </SearchView>
+              </div>
+            </ScrollArea>
+          </div>
         </div>
-      </div>
-    </MainPanelLayout>
+      </MainPanelLayout>
+
+      <EditSessionModal
+        session={editingSession}
+        isOpen={showEditModal}
+        onClose={handleModalClose}
+        onSave={handleModalSave}
+      />
+    </>
   );
 });
 

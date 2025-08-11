@@ -33,17 +33,6 @@
     "environmentVariables": []
   },
   {
-    "id": "jetbrains",
-    "name": "JetBrains",
-    "description": "Built-in JetBrains IDE integration for development workflows",
-    "command": "",
-    "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/jetbrains",
-    "installation_notes": "This is a built-in extension that comes with Goose and can be enabled on the Extensions page.",
-    "is_builtin": true,
-    "endorsed": true,
-    "environmentVariables": []
-  },
-  {
     "id": "knowledge_graph_memory",
     "name": "Knowledge Graph Memory",
     "description": "Graph-based memory system for persistent knowledge storage",
@@ -398,6 +387,17 @@
     ]
   },
   {
+    "id": "jetbrains",
+    "name": "JetBrains",
+    "description": "Integrate Goose with any JetBrains IDE",
+    "command": "npx -y @jetbrains/mcp-proxy",
+    "link": "https://github.com/JetBrains/mcp-jetbrains",
+    "installation_notes": "Install using npx package manager. Requires the MCP Server plugin to be installed in your JetBrains IDE.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": []
+  },
+  {
     "id": "mbot-mcp",
     "name": "MBot",
     "description": "Chatbot and conversational AI integration",
@@ -592,6 +592,17 @@
     "link": "https://github.com/idosal/git-mcp",
     "is_builtin": false,
     "endorsed": false,
+    "environmentVariables": []
+  },
+  {
+    "id": "container-use",
+    "name": "Container Use",
+    "description": "Integrate container workflows with Goose using the Container-Use MCP",
+    "command": "npx -y mcp-remote https://container-use.com/mcp",
+    "link": "https://container-use.com",
+    "installation_notes": "Requires Node.js and Docker.",
+    "is_builtin": false,
+    "endorsed": true,
     "environmentVariables": []
   }
 ]

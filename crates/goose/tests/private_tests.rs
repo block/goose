@@ -782,10 +782,10 @@ async fn test_schedule_tool_session_content_action_with_real_session() {
 
     // Create test metadata and messages
     let metadata = create_test_session_metadata(2, "/tmp");
-    let messages = vec![
-        goose::message::Message::user().with_text("Hello"),
-        goose::message::Message::assistant().with_text("Hi there!"),
-    ];
+    let messages = goose::conversation::Conversation::new_unvalidated(vec![
+        goose::conversation::message::Message::user().with_text("Hello"),
+        goose::conversation::message::Message::assistant().with_text("Hi there!"),
+    ]);
 
     // Save the session file
     goose::session::storage::save_messages_with_metadata(&session_path, &metadata, &messages)

@@ -4,6 +4,7 @@ use rmcp::model::Tool;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
+use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::collections::VecDeque;
@@ -12,9 +13,16 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::agents::tool_vectordb::ToolVectorDB;
-use crate::message::Message;
+use crate::conversation::message::Message;
 use crate::model::ModelConfig;
+use crate::prompt_template::render_global_file;
 use crate::providers::{self, base::Provider};
+
+#[derive(Serialize)]
+struct ToolSelectorContext {
+    tools: String,
+    query: String,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum RouterToolSelectionStrategy {
@@ -282,15 +290,21 @@ impl RouterToolSelector for LLMToolSelector {
         };
 
         if let Some(tools) = relevant_tools {
-            // Use LLM to search through tools
-            let prompt = format!(
-                "Given the following tools:\n{}\n\nFind the most relevant tools for the query: {}\n\nReturn the tools in this exact format for each tool:\nTool: <tool_name>\nDescription: <tool_description>\nSchema: <tool_schema>",
-                tools, query
-            );
-            let system_message = Message::user().with_text("You are a tool selection assistant. Your task is to find the most relevant tools based on the user's query.");
+            // Use template to generate the prompt
+            let context = ToolSelectorContext {
+                tools: tools.clone(),
+                query: query.to_string(),
+            };
+
+            let user_prompt =
+                render_global_file("router_tool_selector.md", &context).map_err(|e| {
+                    ToolError::ExecutionError(format!("Failed to render prompt template: {}", e))
+                })?;
+
+            let user_message = Message::user().with_text(&user_prompt);
             let response = self
                 .llm_provider
-                .complete(&prompt, &[system_message], &[])
+                .complete("", &[user_message], &[])
                 .await
                 .map_err(|e| ToolError::ExecutionError(format!("Failed to search tools: {}", e)))?;
 

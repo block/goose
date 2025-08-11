@@ -20,7 +20,7 @@ The **[Container Use MCP](https://github.com/dagger/container-use)** server prov
 
 ## Prerequisites
 
-- Docker installed and running on your system
+- Docker ([Podman](https://docs.dagger.io/ci/integrations/podman), [NerdCtl](https://docs.dagger.io/ci/integrations/nerdctl/) or [Container](https://docs.dagger.io/ci/integrations/apple-container/)) installed and running on your system
 - Git installed and configured
 - Goose installed and configured
 

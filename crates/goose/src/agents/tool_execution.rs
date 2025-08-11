@@ -9,7 +9,6 @@ use tokio_util::sync::CancellationToken;
 
 use crate::config::permission::PermissionLevel;
 use crate::config::PermissionManager;
-use crate::message::{Message, ToolRequest};
 use crate::permission::Permission;
 use mcp_core::ToolResult;
 use rmcp::model::{Content, ServerNotification};
@@ -32,6 +31,7 @@ impl From<ToolResult<Vec<Content>>> for ToolCallResult {
 
 use super::agent::{tool_stream, ToolStream};
 use crate::agents::Agent;
+use crate::conversation::message::{Message, ToolRequest};
 
 pub const DECLINED_RESPONSE: &str = "The user has declined to run this tool. \
     DO NOT attempt to call this tool again. \
