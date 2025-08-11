@@ -12,7 +12,6 @@ import { Message } from '../types/message';
 import { DirSwitcher } from './bottom_menu/DirSwitcher';
 import ModelsBottomBar from './settings/models/bottom_bar/ModelsBottomBar';
 import { BottomMenuModeSelection } from './bottom_menu/BottomMenuModeSelection';
-import { ManualCompactButton } from './context_management/ManualCompactButton';
 import { AlertType, useAlerts } from './alerts';
 import { useToolCount } from './alerts/useToolCount';
 import { useConfig } from './ConfigContext';
@@ -1301,13 +1300,6 @@ export default function ChatInput({
           </Tooltip>
           <div className="w-px h-4 bg-border-default mx-2" />
           <BottomMenuModeSelection />
-          {messages.length > 0 && (
-            <ManualCompactButton
-              messages={messages}
-              isLoading={isLoading}
-              setMessages={setMessages}
-            />
-          )}
           <div className="w-px h-4 bg-border-default mx-2" />
           <div className="flex items-center h-full">
             <Tooltip>
