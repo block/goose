@@ -3943,6 +3943,9 @@ Additional instructions here.
         assert!(expanded.contains("@../../../etc/passwd"));
         assert!(expanded.contains("@/absolute/path/file.txt"));
 
+        temp_dir.close().unwrap();
+    }
+
     #[tokio::test]
     #[serial]
     async fn test_shell_output_without_trailing_newline() {
