@@ -1587,6 +1587,11 @@
                 "enum": [
                   "builtin"
                 ]
+              },
+              "working_dir": {
+                "type": "string",
+                "description": "Working directory to spawn the extension in",
+                "nullable": true
               }
             }
           },

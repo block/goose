@@ -48,6 +48,7 @@ import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/E
 import { Recipe } from './recipe';
 import RecipesView from './components/RecipesView';
 import RecipeEditor from './components/RecipeEditor';
+import BuildView from './components/build/BuildView';
 
 export type View =
   | 'welcome'
@@ -66,7 +67,8 @@ export type View =
   | 'loading'
   | 'recipeEditor'
   | 'recipes'
-  | 'permission';
+  | 'permission'
+  | 'build';
 // | 'projects';
 
 export type ViewOptions = {
@@ -137,6 +139,9 @@ const HubRouteWrapper = ({
             break;
           case 'recipes':
             navigate('/recipes');
+            break;
+          case 'build':
+            navigate('/build');
             break;
           case 'permission':
             navigate('/permission', { state: options });
@@ -280,6 +285,9 @@ const PairRouteWrapper = ({
             break;
           case 'recipes':
             navigate('/recipes');
+            break;
+          case 'build':
+            navigate('/build');
             break;
           case 'permission':
             navigate('/permission', { state: options });
@@ -1457,6 +1465,14 @@ export default function App() {
                   element={
                     <ProviderGuard>
                       <RecipesRoute />
+                    </ProviderGuard>
+                  }
+                />
+                <Route
+                  path="build"
+                  element={
+                    <ProviderGuard>
+                      <BuildView />
                     </ProviderGuard>
                   }
                 />

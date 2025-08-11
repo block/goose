@@ -1,5 +1,17 @@
 [
   {
+    "id": "build",
+    "name": "build",
+    "display_name": "Build",
+    "description": "Create and manage apps and projects.",
+    "enabled": false,
+    "type": "builtin",
+    "env_keys": [],
+    "timeout": 300,
+    "bundled": true
+  },
+
+  {
     "id": "developer",
     "name": "developer",
     "display_name": "Developer",

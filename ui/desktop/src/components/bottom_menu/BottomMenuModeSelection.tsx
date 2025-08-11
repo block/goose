@@ -9,7 +9,11 @@ import {
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
 
-export const BottomMenuModeSelection = () => {
+interface BottomMenuModeSelectionProps {
+  isNarrowContainer?: boolean;
+}
+
+export const BottomMenuModeSelection = ({ isNarrowContainer = false }: BottomMenuModeSelectionProps) => {
   const [gooseMode, setGooseMode] = useState('auto');
   const { read, upsert } = useConfig();
 
@@ -58,7 +62,7 @@ export const BottomMenuModeSelection = () => {
         <DropdownMenuTrigger asChild>
           <span className="flex items-center cursor-pointer [&_svg]:size-4 text-text-default/70 hover:text-text-default hover:scale-100 hover:bg-transparent text-xs">
             <Tornado className="mr-1 h-4 w-4" />
-            {getValueByKey(gooseMode).toLowerCase()}
+            <span className={`${isNarrowContainer ? 'hidden' : 'inline'}`}>{getValueByKey(gooseMode).toLowerCase()}</span>
           </span>
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-64" side="top" align="center">

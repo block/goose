@@ -35,6 +35,7 @@ fn get_display_name(extension_id: &str) -> String {
         "memory" => "Memory".to_string(),
         "tutorial" => "Tutorial".to_string(),
         "jetbrains" => "JetBrains".to_string(),
+        "build" => "Build".to_string(),
         // Add other extensions as needed
         _ => {
             extension_id
@@ -113,6 +114,7 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
                                 timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
                                 bundled: Some(true),
                                 description: None,
+                                working_dir: None,
                             },
                         })?;
                     }
@@ -604,6 +606,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     "Developer Tools",
                     "Code editing and shell access",
                 )
+                .item("build", "Build", "Build web apps with goose")
                 .item(
                     "googledrive",
                     "Google Drive",
@@ -641,6 +644,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     timeout: Some(timeout),
                     bundled: Some(true),
                     description: None,
+                    working_dir: None,
                 },
             })?;
 
@@ -1619,6 +1623,7 @@ pub async fn handle_openrouter_auth() -> Result<(), Box<dyn Error>> {
                                         timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
                                         bundled: Some(true),
                                         description: None,
+                                        working_dir: None,
                                     },
                                 }) {
                                     Ok(_) => println!("✓ Developer extension enabled"),

@@ -160,6 +160,7 @@ mod tests {
                     description: None,
                     timeout: None,
                     bundled: None,
+                    working_dir: None,
                 },
             ]),
             context: None,

@@ -192,6 +192,9 @@ pub enum ExtensionConfig {
         /// Whether this extension is bundled with Goose
         #[serde(default)]
         bundled: Option<bool>,
+        /// Working directory to spawn the extension in
+        #[serde(default)]
+        working_dir: Option<String>,
     },
     /// Streamable HTTP client with a URI endpoint using MCP Streamable HTTP specification
     #[serde(rename = "streamable_http")]
@@ -251,6 +254,7 @@ impl Default for ExtensionConfig {
             description: None,
             timeout: Some(config::DEFAULT_EXTENSION_TIMEOUT),
             bundled: Some(true),
+            working_dir: None,
         }
     }
 }

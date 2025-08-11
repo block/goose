@@ -320,6 +320,7 @@ impl ExtensionManager {
                 description: _,
                 timeout,
                 bundled: _,
+                working_dir,
             } => {
                 let cmd = std::env::current_exe()
                     .expect("should find the current executable")
@@ -329,6 +330,11 @@ impl ExtensionManager {
 
                 let transport = TokioChildProcess::new(Command::new(cmd).configure(|command| {
                     command.arg("mcp").arg(name);
+
+                    // Set the working directory if specified
+                    if let Some(ref dir) = working_dir {
+                        command.current_dir(dir);
+                    }
                 }))?;
                 Box::new(
                     McpClient::connect(

@@ -27,6 +27,7 @@ interface ModelsBottomBarProps {
   alerts: Alert[];
   recipeConfig?: Recipe | null;
   hasMessages?: boolean; // Add prop to know if there are messages to create a recipe from
+  isNarrowContainer?: boolean;
 }
 export default function ModelsBottomBar({
   dropdownRef,
@@ -34,6 +35,7 @@ export default function ModelsBottomBar({
   alerts,
   recipeConfig,
   hasMessages = false,
+  isNarrowContainer = false,
 }: ModelsBottomBarProps) {
   const {
     currentModel,
@@ -228,7 +230,7 @@ export default function ModelsBottomBar({
         <DropdownMenuTrigger className="flex items-center hover:cursor-pointer max-w-[180px] md:max-w-[200px] lg:max-w-[380px] min-w-0 text-text-default/70 hover:text-text-default transition-colors">
           <div className="flex items-center truncate max-w-[130px] md:max-w-[200px] lg:max-w-[360px] min-w-0">
             <Bot className="mr-1 h-4 w-4 flex-shrink-0" />
-            <span className="truncate text-xs">
+            <span className={`truncate text-xs ${isNarrowContainer ? 'hidden' : 'inline'}`}>
               {displayModel}
               {isLeadWorkerActive && modelMode && (
                 <span className="ml-1 text-[10px] opacity-60">({modelMode})</span>
