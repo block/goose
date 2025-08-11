@@ -1,60 +1,61 @@
 import { UIResourceRenderer, UIActionResult } from '@mcp-ui/client';
 import { ResourceContent } from '../types/message';
-import { useState, useCallback } from 'react';
-
-// Extend UIActionResult to include size-change type
-type ExtendedUIActionResult =
-  | UIActionResult
-  | {
-      type: 'size-change';
-      payload: {
-        height: string;
-      };
-    };
+import { useCallback } from 'react';
+import { toast } from 'react-toastify';
 
 interface MCPUIResourceRendererProps {
   content: ResourceContent;
 }
 
 export default function MCPUIResourceRenderer({ content }: MCPUIResourceRendererProps) {
-  console.log('MCPUIResourceRenderer', content);
-  const [iframeHeight, setIframeHeight] = useState('200px');
+  const handleAction = (action: UIActionResult) => {
+    console.log(
+      `MCP UI message received (but only handled with a toast notification for now):`,
+      action
+    );
+    toast.info(`${action.type} message sent from MCP UI, refer to console for more info`, {
+      data: action,
+    });
+    return { status: 'handled', message: `${action.type} action logged` };
+  };
 
-  const handleUIAction = useCallback(async (result: ExtendedUIActionResult) => {
-    console.log('Handle action from MCP UI Action:', result);
-
-    // Handle UI actions here
+  const handleUIAction = useCallback(async (result: UIActionResult) => {
     switch (result.type) {
-      case 'intent':
+      case 'intent': {
         // TODO: Implement intent handling
+        handleAction(result);
         break;
+      }
 
-      case 'link':
+      case 'link': {
         // TODO: Implement link handling
+        handleAction(result);
         break;
+      }
 
-      case 'notify':
-        // TODO: Implement notification handling
+      case 'notify': {
+        // TODO: Implement notify handling
+        handleAction(result);
         break;
+      }
 
-      case 'prompt':
+      case 'prompt': {
         // TODO: Implement prompt handling
+        handleAction(result);
         break;
+      }
 
-      case 'tool':
-        // TODO: Implement tool handling
+      case 'tool': {
+        // TODO: Implement tool call handling
+        handleAction(result);
         break;
+      }
 
-      // Currently, `size-change` is non-standard
-      case 'size-change': {
-        // We expect the height to be a string with a unit
-        console.log('Setting iframe height to:', result.payload.height);
-        setIframeHeight(result.payload.height);
+      default: {
+        console.warn('unsupported message sent from MCP-UI:', result);
         break;
       }
     }
-
-    return { status: 'handled' };
   }, []);
 
   return (
@@ -64,7 +65,10 @@ export default function MCPUIResourceRenderer({ content }: MCPUIResourceRenderer
           resource={content.resource}
           onUIAction={handleUIAction}
           htmlProps={{
-            style: { minHeight: iframeHeight },
+            autoResizeIframe: {
+              height: true,
+              width: false, // set to false to allow for responsive design
+            },
           }}
         />
       </div>
