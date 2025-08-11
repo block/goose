@@ -36,7 +36,7 @@ This tutorial covers how to add the [Git MCP Server](https://github.com/idosal/g
     <GooseDesktopInstaller
         extensionId="Git-mcp"
         extensionName="Git mcp"
-        extensionDescription="Git MCP server for up-to-date docs and project insights"
+        description="Git MCP server for up-to-date docs and project insights"
         command="npx"
         args={["-y", "mcp-remote" , "https://gitmcp.io/docs"]}
         cliCommand="npx -y mcp-remote https://gitmcp.io/docs"

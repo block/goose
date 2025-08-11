@@ -6,7 +6,7 @@ description: Add GitHub MCP Server as a Goose Extension
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
-import CLIStreamExtensionInstructions from '@site/src/components/CLIStreamExtensionInstructions';
+import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 import { PanelLeft } from 'lucide-react';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/TbmQDv3SQOE" />
@@ -55,11 +55,12 @@ These steps configure the Remote MCP Server. For other deployment options, see t
 
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
-    <CLIStreamExtensionInstructions
+    <CLIExtensionInstructions
       name="github"
-      endpointUri="https://api.githubcopilot.com/mcp/"
+      type="http"
+      url="https://api.githubcopilot.com/mcp/"
       timeout={300}
-      headers={[
+      envVars={[
         { key: "Authorization", value: "Bearer ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
       ]}
       infoNote={

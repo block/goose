@@ -1,161 +1,5 @@
 [
   {
-    "id": "developer",
-    "name": "Developer",
-    "description": "Built-in developer tools for file editing and shell command execution",
-    "command": "",
-    "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/developer",
-    "installation_notes": "This is a built-in extension that comes with Goose by default. No installation required.",
-    "is_builtin": true,
-    "endorsed": true,
-    "environmentVariables": []
-  },
-  {
-    "id": "computercontroller",
-    "name": "Computer Controller",
-    "description": "Built-in computer controls for webscraping, file caching, and automations",
-    "command": "",
-    "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/computercontroller",
-    "installation_notes": "This is a built-in extension that comes with Goose and can be enabled on the Extensions page.",
-    "is_builtin": true,
-    "endorsed": true,
-    "environmentVariables": []
-  },
-  {
-    "id": "memory",
-    "name": "Memory",
-    "description": "Built-in memory system for persistent context and information storage",
-    "command": "",
-    "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/memory",
-    "installation_notes": "This is a built-in extension that comes with Goose and can be enabled on the Extensions page.",
-    "is_builtin": true,
-    "endorsed": true,
-    "environmentVariables": []
-  },
-  {
-    "id": "jetbrains",
-    "name": "JetBrains",
-    "description": "Built-in JetBrains IDE integration for development workflows",
-    "command": "",
-    "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/jetbrains",
-    "installation_notes": "This is a built-in extension that comes with Goose and can be enabled on the Extensions page.",
-    "is_builtin": true,
-    "endorsed": true,
-    "environmentVariables": []
-  },
-  {
-    "id": "knowledge_graph_memory",
-    "name": "Knowledge Graph Memory",
-    "description": "Graph-based memory system for persistent knowledge storage",
-    "command": "npx -y @modelcontextprotocol/server-memory",
-    "link": "https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
-    "installation_notes": "Install using npx package manager. Note: Default memory graph location may be hard to find where npx installs the module.",
-    "is_builtin": false,
-    "endorsed": true,
-    "environmentVariables": []
-  },
-  {
-    "id": "fetch",
-    "name": "Fetch",
-    "description": "Web content fetching and processing capabilities",
-    "command": "uvx mcp-server-fetch",
-    "link": "https://github.com/modelcontextprotocol/servers/tree/main/src/fetch",
-    "installation_notes": "Install using uvx package manager. Note: Some sites may block access via robots.txt.",
-    "is_builtin": false,
-    "endorsed": true,
-    "environmentVariables": []
-  },
-  {
-    "id": "tavily",
-    "name": "Tavily Web Search",
-    "description": "Web search capabilities powered by Tavily",
-    "command": "npx -y tavily-mcp",
-    "link": "https://github.com/tavily-ai/tavily-mcp",
-    "installation_notes": "Install using uvx package manager. Requires Tavily API key.",
-    "is_builtin": false,
-    "endorsed": true,
-    "environmentVariables": [
-      {
-        "name": "TAVILY_API_KEY",
-        "description": "API key for Tavily web search service",
-        "required": true
-      }
-    ]
-  },
-  {
-    "id": "figma",
-    "name": "Figma",
-    "description": "Figma design tool integration",
-    "command": "npx -y @hapins/figma-mcp",
-    "link": "https://github.com/hapins/figma-mcp",
-    "installation_notes": "Install using npx package manager. Requires Figma access token from user settings.",
-    "is_builtin": false,
-    "endorsed": false,
-    "environmentVariables": [
-      {
-        "name": "FIGMA_ACCESS_TOKEN",
-        "description": "Access token from Figma user settings",
-        "required": true
-      }
-    ]
-  },
-  {
-    "id": "pdf_read",
-    "name": "PDF Reader",
-    "description": "Read large and complex PDF documents",
-    "command": "uvx mcp-read-pdf",
-    "link": "https://github.com/michaelneale/mcp-read-pdf",
-    "installation_notes": "Install using uvx package manager.",
-    "is_builtin": false,
-    "endorsed": true,
-    "environmentVariables": []
-  },
-  {
-    "id": "vscode",
-    "name": "VSCode",
-    "description": "Provides a VSCode IDE integration for development workflows",
-    "command": "npx vscode-mcp-server",
-    "link": "https://github.com/block/vscode-mcp",
-    "installation_notes": "Install using npx package manager.",
-    "is_builtin": false,
-    "endorsed": true,
-    "environmentVariables": []
-  },
-  {
-    "id": "speech_mcp",
-    "name": "Speech Interface",
-    "description": "Voice interaction with audio visualization for Goose - enables real-time voice interaction, audio/video transcription, text-to-speech conversion, and multi-speaker audio generation",
-    "command": "uvx -p 3.10.14 speech-mcp@latest",
-    "link": "https://github.com/Kvadratni/speech-mcp",
-    "installation_notes": "Install using uvx package manager. Requires PortAudio to be installed on your system for PyAudio to capture audio from your microphone.",
-    "is_builtin": false,
-    "endorsed": true,
-    "environmentVariables": []
-  },
-  {
-    "id": "pieces",
-    "name": "Pieces",
-    "description": "Provides access to your Pieces long-term memory. You need to have Pieces installed to use this.",
-    "url": "http://localhost:39300/model_context_protocol/2024-11-05/sse",
-    "link": "https://pieces.app?utm_source=goose&utm_medium=collab&utm_campaign=mcp",
-    "installation_notes": "You need to install Pieces first, and have this running.",
-    "is_builtin": false,
-    "endorsed": true,
-    "environmentVariables": [],
-    "type": "remote"
-  },
-  {
-    "id": "playwright",
-    "name": "Playwright",
-    "description": "Interact with web pages through structured accessibility snapshots using Playwright",
-    "command": "npx @playwright/mcp@latest",
-    "link": "https://github.com/microsoft/playwright-mcp",
-    "installation_notes": "Install using npx package manager.",
-    "is_builtin": false,
-    "endorsed": true,
-    "environmentVariables": []
-  },
-  {
     "id": "agentql-mcp",
     "name": "AgentQL",
     "description": "Transform unstructured web content into structured data",
@@ -307,6 +151,28 @@
     "environmentVariables": []
   },
   {
+    "id": "computercontroller",
+    "name": "Computer Controller",
+    "description": "Built-in computer controls for webscraping, file caching, and automations",
+    "command": "",
+    "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/computercontroller",
+    "installation_notes": "This is a built-in extension that comes with Goose and can be enabled on the Extensions page.",
+    "is_builtin": true,
+    "endorsed": true,
+    "environmentVariables": []
+  },
+  {
+    "id": "container-use",
+    "name": "Container Use",
+    "description": "Integrate container workflows with Goose using the Container-Use MCP",
+    "command": "npx -y mcp-remote https://container-use.com/mcp",
+    "link": "https://container-use.com",
+    "installation_notes": "Requires Node.js and Docker.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": []
+  },
+  {
     "id": "context7",
     "name": "Context7",
     "description": "Use up-to-date code and docs",
@@ -314,6 +180,17 @@
     "link": "https://github.com/upstash/context7",
     "installation_notes": "Install using npx package manager.",
     "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": []
+  },
+  {
+    "id": "developer",
+    "name": "Developer",
+    "description": "Built-in developer tools for file editing and shell command execution",
+    "command": "",
+    "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/developer",
+    "installation_notes": "This is a built-in extension that comes with Goose by default. No installation required.",
+    "is_builtin": true,
     "endorsed": true,
     "environmentVariables": []
   },
@@ -330,6 +207,34 @@
       {
         "name": "ELEVENLABS_API_KEY",
         "description": "Required environment variable",
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": "fetch",
+    "name": "Fetch",
+    "description": "Web content fetching and processing capabilities",
+    "command": "uvx mcp-server-fetch",
+    "link": "https://github.com/modelcontextprotocol/servers/tree/main/src/fetch",
+    "installation_notes": "Install using uvx package manager. Note: Some sites may block access via robots.txt.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": []
+  },
+  {
+    "id": "figma",
+    "name": "Figma",
+    "description": "Figma design tool integration",
+    "command": "npx -y @hapins/figma-mcp",
+    "link": "https://github.com/hapins/figma-mcp",
+    "installation_notes": "Install using npx package manager. Requires Figma access token from user settings.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [
+      {
+        "name": "FIGMA_ACCESS_TOKEN",
+        "description": "Access token from Figma user settings",
         "required": true
       }
     ]
@@ -362,6 +267,16 @@
       }
     ],
     "type": "streamable-http"
+  },
+  {
+    "id": "gitmcp",
+    "name": "GitMCP",
+    "description": "Gets latest documentation for any GitHub project",
+    "command": "npx -y mcp-remote https://gitmcp.io/docs",
+    "link": "https://github.com/idosal/git-mcp",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
   },
   {
     "id": "google-drive-mcp",
@@ -398,6 +313,50 @@
     ]
   },
   {
+    "id": "goose-docs",
+    "name": "Goose Docs",
+    "description": "GitMCP for Goose documentation",
+    "command": "npx mcp-remote https://block.gitmcp.io/goose/",
+    "link": "https://github.com/idosal/git-mcp",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
+    "id": "jetbrains",
+    "name": "JetBrains",
+    "description": "Integrate Goose with any JetBrains IDE",
+    "command": "npx -y @jetbrains/mcp-proxy",
+    "link": "https://github.com/JetBrains/mcp-jetbrains",
+    "installation_notes": "Install using npx package manager. Requires the MCP Server plugin to be installed in your JetBrains IDE.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": []
+  },
+  {
+    "id": "kiwi-flight-search",
+    "name": "Kiwi Flight Search",
+    "description": "Search for flights",
+    "url": "https://mcp.kiwi.com",
+    "link": "https://mcp-install-instructions.alpic.cloud/servers/kiwi-com-flight-search",
+    "installation_notes": "This is a remote extension. Configure using the endpoint URL in Goose settings.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": [],
+    "type": "streamable-http"
+  },
+  {
+    "id": "knowledge_graph_memory",
+    "name": "Knowledge Graph Memory",
+    "description": "Graph-based memory system for persistent knowledge storage",
+    "command": "npx -y @modelcontextprotocol/server-memory",
+    "link": "https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
+    "installation_notes": "Install using npx package manager. Note: Default memory graph location may be hard to find where npx installs the module.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": []
+  },
+  {
     "id": "mbot-mcp",
     "name": "MBot",
     "description": "Chatbot and conversational AI integration",
@@ -406,6 +365,17 @@
     "installation_notes": "Install using npx package manager.",
     "is_builtin": false,
     "endorsed": false,
+    "environmentVariables": []
+  },
+  {
+    "id": "memory",
+    "name": "Memory",
+    "description": "Built-in memory system for persistent context and information storage",
+    "command": "",
+    "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/memory",
+    "installation_notes": "This is a built-in extension that comes with Goose and can be enabled on the Extensions page.",
+    "is_builtin": true,
+    "endorsed": true,
     "environmentVariables": []
   },
   {
@@ -456,6 +426,40 @@
     "installation_notes": "Install using npx package manager.",
     "is_builtin": false,
     "endorsed": false,
+    "environmentVariables": []
+  },
+  {
+    "id": "pdf_read",
+    "name": "PDF Reader",
+    "description": "Read large and complex PDF documents",
+    "command": "uvx mcp-read-pdf",
+    "link": "https://github.com/michaelneale/mcp-read-pdf",
+    "installation_notes": "Install using uvx package manager.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": []
+  },
+  {
+    "id": "pieces",
+    "name": "Pieces",
+    "description": "Provides access to your Pieces long-term memory. You need to have Pieces installed to use this.",
+    "url": "http://localhost:39300/model_context_protocol/2024-11-05/sse",
+    "link": "https://pieces.app?utm_source=goose&utm_medium=collab&utm_campaign=mcp",
+    "installation_notes": "You need to install Pieces first, and have this running.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": [],
+    "type": "remote"
+  },
+  {
+    "id": "playwright",
+    "name": "Playwright",
+    "description": "Interact with web pages through structured accessibility snapshots using Playwright",
+    "command": "npx @playwright/mcp@latest",
+    "link": "https://github.com/microsoft/playwright-mcp",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": true,
     "environmentVariables": []
   },
   {
@@ -531,6 +535,17 @@
     "environmentVariables": []
   },
   {
+    "id": "speech_mcp",
+    "name": "Speech Interface",
+    "description": "Voice interaction with audio visualization for Goose - enables real-time voice interaction, audio/video transcription, text-to-speech conversion, and multi-speaker audio generation",
+    "command": "uvx -p 3.10.14 speech-mcp@latest",
+    "link": "https://github.com/Kvadratni/speech-mcp",
+    "installation_notes": "Install using uvx package manager. Requires PortAudio to be installed on your system for PyAudio to capture audio from your microphone.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": []
+  },
+  {
     "id": "square-mcp",
     "name": "Square",
     "description": "Square API for payments and business management",
@@ -553,6 +568,23 @@
     ]
   },
   {
+    "id": "tavily",
+    "name": "Tavily Web Search",
+    "description": "Web search capabilities powered by Tavily",
+    "command": "npx -y tavily-mcp",
+    "link": "https://github.com/tavily-ai/tavily-mcp",
+    "installation_notes": "Install using uvx package manager. Requires Tavily API key.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": [
+      {
+        "name": "TAVILY_API_KEY",
+        "description": "API key for Tavily web search service",
+        "required": true
+      }
+    ]
+  },
+  {
     "id": "tutorial-mcp",
     "name": "Tutorial",
     "description": "Built-in tutorial and learning management system",
@@ -564,32 +596,23 @@
     "environmentVariables": []
   },
   {
+    "id": "vscode",
+    "name": "VSCode",
+    "description": "Provides a VSCode IDE integration for development workflows",
+    "command": "npx vscode-mcp-server",
+    "link": "https://github.com/block/vscode-mcp",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": []
+  },
+  {
     "id": "youtube-transcript-mcp",
     "name": "YouTube Transcript",
     "description": "YouTube video transcript extraction",
     "command": "uvx --from git+https://github.com/jkawamoto/mcp-youtube-transcript mcp-youtube-transcript",
     "link": "https://github.com/jkawamoto/mcp-youtube-transcript",
     "installation_notes": "Install using uv package manager.",
-    "is_builtin": false,
-    "endorsed": false,
-    "environmentVariables": []
-  },
-  {
-    "id": "goose-docs",
-    "name": "Goose Docs",
-    "description": "GitMCP for Goose documentation",
-    "command": "npx mcp-remote https://block.gitmcp.io/goose/",
-    "link": "https://github.com/idosal/git-mcp",
-    "is_builtin": false,
-    "endorsed": false,
-    "environmentVariables": []
-  },
-  {
-    "id": "gitmcp",
-    "name": "GitMCP",
-    "description": "Gets latest documentation for any GitHub project",
-    "command": "npx -y mcp-remote https://gitmcp.io/docs",
-    "link": "https://github.com/idosal/git-mcp",
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": []

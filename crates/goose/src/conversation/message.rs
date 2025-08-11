@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashSet;
 use std::fmt;
+use unicode_normalization::UnicodeNormalization;
 use utoipa::ToSchema;
 
 use crate::conversation::tool_result_serde;
@@ -409,9 +410,27 @@ impl Message {
         self
     }
 
+    fn sanitize_unicode_tags(text: &str) -> String {
+        let normalized: String = text.nfc().collect();
+
+        // Remove Unicode Tags Block characters only
+        normalized
+            .chars()
+            .filter(|&c| !matches!(c, '\u{E0000}'..='\u{E007F}'))
+            .collect()
+    }
+
     /// Add text content to the message
     pub fn with_text<S: Into<String>>(self, text: S) -> Self {
-        self.with_content(MessageContent::text(text))
+        let raw_text = text.into();
+        let sanitized_text = Self::sanitize_unicode_tags(&raw_text);
+
+        self.with_content(MessageContent::Text(
+            RawTextContent {
+                text: sanitized_text,
+            }
+            .no_annotation(),
+        ))
     }
 
     /// Add image content to the message
@@ -564,6 +583,34 @@ mod tests {
         RawImageContent, ResourceContents,
     };
     use serde_json::{json, Value};
+
+    #[test]
+    fn test_sanitize_unicode_tags() {
+        let malicious = "Hello\u{E0041}\u{E0042}\u{E0043}world"; // Invisible "ABC"
+        let cleaned = Message::sanitize_unicode_tags(malicious);
+        assert_eq!(cleaned, "Helloworld");
+    }
+
+    #[test]
+    fn test_no_sanitize_unicode_tags() {
+        let clean_text = "Hello world 世界 🌍";
+        let cleaned = Message::sanitize_unicode_tags(clean_text);
+        assert_eq!(cleaned, clean_text);
+    }
+
+    #[test]
+    fn test_sanitize_with_text() {
+        let malicious = "Hello\u{E0041}\u{E0042}\u{E0043}world"; // Invisible "ABC"
+        let message = Message::user().with_text(malicious);
+        assert_eq!(message.as_concat_text(), "Helloworld");
+    }
+
+    #[test]
+    fn test_no_sanitize_with_text() {
+        let clean_text = "Hello world 世界 🌍";
+        let message = Message::user().with_text(clean_text);
+        assert_eq!(message.as_concat_text(), clean_text);
+    }
 
     #[test]
     fn test_message_serialization() {

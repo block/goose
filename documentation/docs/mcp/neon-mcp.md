@@ -6,7 +6,6 @@ description: Add Neon MCP Server as a Goose Extension
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
-import CLIStreamExtensionInstructions from '@site/src/components/CLIStreamExtensionInstructions';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 import { PanelLeft } from 'lucide-react';
 
@@ -58,9 +57,10 @@ The Neon MCP Server grants powerful database management capabilities and is inte
     6. Navigate to the chat
     </TabItem>
     <TabItem value="cli" label="Goose CLI">
-      <CLIStreamExtensionInstructions
+      <CLIExtensionInstructions
         name="neon-mcp-remote"
-        endpointUri="https://mcp.neon.tech/mcp"
+        type="http"
+        url="https://mcp.neon.tech/mcp"
         timeout={300}
       />
       </TabItem>

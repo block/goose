@@ -6,117 +6,61 @@ description: Use JetBrains MCP Server as a Goose Extension
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
-import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
+import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/1fP5elf9qQM" />
 
 The JetBrains extension is designed to work within your IDE. Goose can accomplish a lot of the developer-centric tasks with the Developer extension that is enabled on install, however, the JetBrains extension provides a more integrated and project-aware way to work with code.
 
-This tutorial covers how to enable and use the JetBrains MCP Server as a built-in Goose extension to integrate with any JetBrains IDE.
+This tutorial covers how to add the [JetBrains MCP Proxy Server](https://github.com/JetBrains/mcp-jetbrains) as a Goose extension to integrate with any JetBrains IDE.
+
+:::tip TLDR
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40jetbrains%2Fmcp-proxy&id=jetbrains&name=JetBrains&description=Integrate%20Goose%20with%20any%20JetBrains%20IDE)
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+  **Command**
+  ```sh
+  npx -y @jetbrains/mcp-proxy
+  ```
+  </TabItem>
+</Tabs>
+
+**Required Setup**
+
+Add the [MCP Server plugin](https://plugins.jetbrains.com/plugin/26071-mcp-server) to your IDE.
+:::
 
 ## Configuration
 
+:::info
+Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`.
+:::
+
 1. Add the [MCP Server plugin](https://plugins.jetbrains.com/plugin/26071-mcp-server) to your IDE.
 
-2. Enable built-in Goose extension:
+2. Add the JetBrains extension to Goose:
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  <GooseBuiltinInstaller
-    extensionName="Jetbrains"
-    description="Integrate Goose with any JetBrains IDE"
-  />
+    <GooseDesktopInstaller
+      extensionId="jetbrains"
+      extensionName="JetBrains"
+      description="Integrate Goose with any JetBrains IDE"
+      command="npx"
+      args={["-y", "@jetbrains/mcp-proxy"]}
+      timeout={300}
+    />
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
+      <CLIExtensionInstructions
+        name="jetbrains"
+        command="npx -y @jetbrains/mcp-proxy"
+        timeout={300}
+      />
 
-  1. Run the `configure` command:
-  ```sh
-  goose configure
-  ```
-
-  2. Choose to add a `Built-in Extension`
-  ```sh
-  ┌   goose-configure 
-  │
-  ◇  What would you like to configure?
-  │  Add Extension (Connect to a new extension) 
-  │
-  ◆  What type of extension would you like to add?
-  // highlight-start    
-  │  ● Built-in Extension (Use an extension that comes with Goose)
-  // highlight-end  
-  │  ○ Command-line Extension 
-  │  ○ Remote Extension (SSE) 
-  │  ○ Remote Extension (Streaming HTTP) 
-  └  
-  ```
-
-  3. Arrow down to the `JetBrains` extension and press Enter
-  ```sh
-  ┌   goose-configure 
-  │
-  ◇  What would you like to configure?
-  │  Add Extension (Connect to a new extension) 
-  │
-  ◇  What type of extension would you like to add?
-  │  Built-in Extension 
-  │
-  ◆  Which built-in extension would you like to enable?
-  │  ○ Developer Tools 
-  │  ○ Computer Controller 
-  │  ○ Google Drive 
-  │  ○ Memory 
-  // highlight-start
-  │  ● JetBrains (Connect to jetbrains IDEs)
-  // highlight-end
-  └
-  ```
-
-  4. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
-
-  ```sh
-  ┌   goose-configure 
-  │
-  ◇  What would you like to configure?
-  │  Add Extension (Connect to a new extension) 
-  │
-  ◇  What type of extension would you like to add?
-  │  Built-in Extension 
-  │
-  ◇  Which built-in extension would you like to enable?
-  │  JetBrains
-  │
-  // highlight-start
-  ◆  Please set the timeout for this tool (in secs):
-  │  300
-  // highlight-end
-  │
-  └  Enabled jetbrains extension
-  ```
-
-  5. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
-  ```sh
-  ┌   goose-configure 
-  │
-  ◇  What would you like to configure?
-  │  Add Extension (Connect to a new extension) 
-  │
-  ◇  What type of extension would you like to add?
-  │  Built-in Extension 
-  │
-  ◇  Which built-in extension would you like to enable?
-  │  JetBrains
-  │
-  ◇  Please set the timeout for this tool (in secs):
-  │  300
-  │
-  // highlight-start
-  ◆  Would you like to add a description?
-  │  No
-  // highlight-end
-  │
-  └
-  ```
   </TabItem>
 </Tabs>
 
