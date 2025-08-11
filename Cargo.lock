@@ -3317,6 +3317,7 @@ dependencies = [
  "minijinja",
  "mockall",
  "nanoid",
+ "oauth2",
  "once_cell",
  "opentelemetry",
  "opentelemetry-otlp",

@@ -9,6 +9,11 @@ use serde::Deserialize;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::{oneshot, Mutex};
+use tracing::{info, warn};
+
+use crate::oauth::persist::{load_cached_state, save_credentials};
+
+mod persist;
 
 const CALLBACK_TEMPLATE: &str = include_str!("oauth_callback.html");
 
@@ -28,6 +33,26 @@ pub async fn oauth_flow(
     mcp_server_url: &String,
     name: &String,
 ) -> Result<AuthorizationManager, anyhow::Error> {
+    // First, try to load existing credentials from file
+    match load_cached_state(mcp_server_url, name).await {
+        Ok(oauth_state) => {
+            info!("Successfully loaded cached credentials for {}", name);
+            return oauth_state
+                .into_authorization_manager()
+                .ok_or_else(|| {
+                    anyhow::anyhow!("Failed to get authorization manager from cached credentials")
+                })
+                .map_err(Into::into);
+        }
+        Err(e) => {
+            info!(
+                "No valid cached credentials found for {} ({}), starting OAuth flow",
+                name, e
+            );
+        }
+    }
+
+    // Proceed with fresh OAuth flow
     let (code_sender, code_receiver) = oneshot::channel::<String>();
     let app_state = AppState {
         code_receiver: Arc::new(Mutex::new(Some(code_sender))),
@@ -52,7 +77,6 @@ pub async fn oauth_flow(
     let used_addr = listener.local_addr()?;
     tokio::spawn(async move {
         let result = axum::serve(listener, app).await;
-
         if let Err(e) = result {
             eprintln!("Callback server error: {}", e);
         }
@@ -73,9 +97,17 @@ pub async fn oauth_flow(
     let auth_code = code_receiver.await?;
     oauth_state.handle_callback(&auth_code).await?;
 
-    let am = oauth_state
+    // Save credentials before converting to AuthorizationManager
+    if let Err(e) = save_credentials(name, &oauth_state).await {
+        warn!("Failed to save credentials to file: {}", e);
+        // Don't fail the entire flow if we can't save credentials
+    } else {
+        info!("Successfully saved credentials for {}", name);
+    }
+
+    let auth_manager = oauth_state
         .into_authorization_manager()
         .ok_or_else(|| anyhow::anyhow!("Failed to get authorization manager"))?;
 
-    Ok(am)
+    Ok(auth_manager)
 }
