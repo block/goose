@@ -2,8 +2,8 @@
 title: "LLM Tag Team: Who Plans, Who Executes?"
 description: Dive into Goose's Lead/Worker model where one LLM plans while another executes - a game-changing approach to AI collaboration that can save costs and boost efficiency.
 authors: 
-    - rizel
     - ebony
+    - rizel
     - tania
 ---
 
