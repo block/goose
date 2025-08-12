@@ -38,7 +38,7 @@ To keep pace with growing MCP complexity, **automated metadata validation become
 
 ## 2. System Overview: Modular and Composable Goose Recipes
 
-The foundation of this framework is Goose’s recipe engine. Recipes define reusable, declarative workflows for AI-assisted tasks. Each one encapsulates a step—like generating predictions or comparing results—and can be composed into larger pipelines.
+The foundation of this framework is [Goose’s recipe engine](https://block.github.io/goose/docs/guides/recipes/). Recipes define reusable, declarative workflows for AI-assisted tasks. Each one encapsulates a step—like generating predictions or comparing results—and can be composed into larger pipelines.
 
 We start with a core recipe that maps natural language queries to tool calls. It reads queries, analyzes the toolset, and produces structured JSON mappings. This recipe becomes the building block for workflows like:
 
@@ -50,7 +50,7 @@ By chaining and wrapping recipes, we avoid duplication and unlock scalable, repe
 
 ## 3. The Core Engine: Goose Recipe for Tool Prediction
 
-At the heart of the system is a [Goose recipe](https://block.github.io/goose/docs/guides/recipes/) that systematically transforms natural language queries into structured tool predictions. This recipe follows a clear three-step process: **read queries → analyze tools → generate predictions**.
+At the heart of the system is a Goose recipe that systematically transforms natural language queries into structured tool predictions. This recipe follows a clear three-step process: **read queries → analyze tools → generate predictions**.
 
 ### 🔄 How It Works: Step-by-Step
 
