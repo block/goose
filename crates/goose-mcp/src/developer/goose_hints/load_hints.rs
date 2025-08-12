@@ -1,185 +1,11 @@
 use etcetera::{choose_app_strategy, AppStrategy};
 use ignore::gitignore::Gitignore;
-use once_cell::sync::Lazy;
 use std::{collections::HashSet, path::{Path, PathBuf}};
+
+use crate::developer::goose_hints::import_files::read_referenced_files;
 
 pub const GOOSE_HINTS_FILENAME: &str = ".goosehints";
 
-static FILE_REFERENCE_REGEX: Lazy<regex::Regex> = Lazy::new(|| {
-    regex::Regex::new(r"(?:^|\s)@([a-zA-Z0-9_\-./]+(?:\.[a-zA-Z0-9]+)+|[A-Z][a-zA-Z0-9_\-]*|[a-zA-Z0-9_\-./]*[./][a-zA-Z0-9_\-./]*)")
-        .expect("Invalid file reference regex pattern")
-});
-
-/// Sanitize and resolve a file reference path safely
-///
-/// This function prevents path traversal attacks by:
-/// 1. Rejecting absolute paths
-/// 2. Resolving the path canonically
-/// 3. Ensuring the resolved path stays within the allowed base directory
-fn sanitize_reference_path(reference: &Path, base_path: &Path) -> Result<PathBuf, std::io::Error> {
-    if reference.is_absolute() {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::PermissionDenied,
-            "Absolute paths not allowed in file references",
-        ));
-    }
-
-    let resolved = base_path.join(reference);
-    let base_canonical = base_path.canonicalize().map_err(|_| {
-        std::io::Error::new(std::io::ErrorKind::NotFound, "Base directory not found")
-    })?;
-
-    if let Ok(canonical) = resolved.canonicalize() {
-        if !canonical.starts_with(&base_canonical) {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::PermissionDenied,
-                "Path traversal attempt detected",
-            ));
-        }
-        Ok(canonical)
-    } else {
-        Ok(resolved) // File doesn't exist, but path structure is safe
-    }
-}
-
-/// Parse file references (@-mentions) from content
-fn parse_file_references(content: &str) -> Vec<PathBuf> {
-    // Keep size limits for ReDoS protection - .goosehints should be reasonably sized
-    const MAX_CONTENT_LENGTH: usize = 131_072; // 128KB limit
-
-    if content.len() > MAX_CONTENT_LENGTH {
-        tracing::warn!(
-            "Content too large for file reference parsing: {} bytes (limit: {} bytes)",
-            content.len(),
-            MAX_CONTENT_LENGTH
-        );
-        return Vec::new();
-    }
-
-    FILE_REFERENCE_REGEX
-        .captures_iter(content)
-        .map(|cap| PathBuf::from(&cap[1]))
-        .collect()
-}
-
-/// Read referenced files and expand their content
-/// Check if a file reference should be processed
-fn should_process_reference_v2(
-    reference: &Path,
-    visited: &HashSet<PathBuf>,
-    base_path: &Path,
-    ignore_patterns: &Gitignore,
-) -> Option<PathBuf> {
-    // Check if we've already visited this file (circular reference protection)
-    if visited.contains(reference) {
-        return None;
-    }
-
-    // Sanitize the path
-    let safe_path = match sanitize_reference_path(reference, base_path) {
-        Ok(path) => path,
-        Err(_) => {
-            tracing::warn!("Skipping unsafe file reference: {:?}", reference);
-            return None;
-        }
-    };
-
-    // Check if the file should be ignored
-    if ignore_patterns.matched(&safe_path, false).is_ignore() {
-        tracing::debug!("Skipping ignored file reference: {:?}", safe_path);
-        return None;
-    }
-
-    // Check if file exists
-    if !safe_path.is_file() {
-        return None;
-    }
-
-    Some(safe_path)
-}
-
-/// Process a single file reference and return the replacement content
-fn process_file_reference_v2(
-    reference: &Path,
-    safe_path: &Path,
-    visited: &mut HashSet<PathBuf>,
-    base_path: &Path,
-    depth: usize,
-    ignore_patterns: &Gitignore,
-) -> Option<(String, String)> {
-    match std::fs::read_to_string(safe_path) {
-        Ok(file_content) => {
-            // Mark this file as visited
-            visited.insert(reference.to_path_buf());
-
-            // Recursively expand any references in the included file
-            let expanded_content = read_referenced_files(
-                &file_content,
-                base_path,
-                visited,
-                depth + 1,
-                ignore_patterns,
-            );
-
-            // Create the replacement content
-            let reference_pattern = format!("@{}", reference.to_string_lossy());
-            let replacement = format!(
-                "--- Content from {} ---\n{}\n--- End of {} ---",
-                reference.display(),
-                expanded_content,
-                reference.display()
-            );
-
-            // Remove from visited so it can be referenced again in different contexts
-            visited.remove(reference);
-
-            Some((reference_pattern, replacement))
-        }
-        Err(e) => {
-            tracing::warn!("Could not read referenced file {:?}: {}", safe_path, e);
-            None
-        }
-    }
-}
-
-fn read_referenced_files(
-    content: &str,
-    base_path: &Path,
-    visited: &mut HashSet<PathBuf>,
-    depth: usize,
-    ignore_patterns: &Gitignore,
-) -> String {
-    const MAX_DEPTH: usize = 3;
-
-    if depth >= MAX_DEPTH {
-        tracing::warn!("Maximum reference depth {} exceeded", MAX_DEPTH);
-        return content.to_string();
-    }
-
-    let references = parse_file_references(content);
-    let mut result = content.to_string();
-
-    for reference in references {
-        let safe_path =
-            match should_process_reference_v2(&reference, visited, base_path, ignore_patterns) {
-                Some(path) => path,
-                None => continue,
-            };
-
-        if let Some((pattern, replacement)) = process_file_reference_v2(
-            &reference,
-            &safe_path,
-            visited,
-            base_path,
-            depth,
-            ignore_patterns,
-        ) {
-            result = result.replace(&pattern, &replacement);
-        }
-    }
-
-    result
-}
 
 fn traverse_directories_upward(start_dir: &Path) -> Vec<PathBuf> {
     let mut directories = Vec::new();
@@ -207,7 +33,8 @@ fn is_nested_enabled() -> bool {
         .unwrap_or(false)
 }
 
-pub fn load_hints(cwd: &Path, hints_filenames: &[String]) -> String {
+
+pub fn load_hint_files(cwd: &Path, hints_filenames: &[String], ignore_patterns: &Gitignore) -> String {
     let mut global_hints_contents = Vec::with_capacity(hints_filenames.len());
     let mut local_hints_contents = Vec::with_capacity(hints_filenames.len());
 
@@ -229,8 +56,17 @@ pub fn load_hints(cwd: &Path, hints_filenames: &[String]) -> String {
         }
 
         if global_hints_path.is_file() {
-            if let Ok(content) = std::fs::read_to_string(&global_hints_path) {
-                global_hints_contents.push(content);
+            let mut visited = HashSet::new();
+            let hints_dir = global_hints_path.parent().unwrap();
+            let expanded_content = read_referenced_files(
+                &global_hints_path,
+                hints_dir,
+                &mut visited,
+                0,
+                &ignore_patterns,
+            );
+            if !expanded_content.is_empty() {
+                global_hints_contents.push(expanded_content);
             }
         }
     }
@@ -245,8 +81,16 @@ pub fn load_hints(cwd: &Path, hints_filenames: &[String]) -> String {
         for hints_filename in hints_filenames {
             let hints_path = directory.join(hints_filename);
             if hints_path.is_file() {
-                if let Ok(content) = std::fs::read_to_string(&hints_path) {
-                    local_hints_contents.push(content);
+                let mut visited = HashSet::new();
+                let expanded_content = read_referenced_files(
+                    &hints_path,
+                    cwd,
+                    &mut visited,
+                    0,
+                    &ignore_patterns,
+                );
+                if !expanded_content.is_empty() {
+                    local_hints_contents.push(expanded_content);
                 }
             }
         }
@@ -272,9 +116,16 @@ pub fn load_hints(cwd: &Path, hints_filenames: &[String]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ignore::gitignore::GitignoreBuilder;
     use serial_test::serial;
-    use std::fs;
+    use std::fs::{self};
     use tempfile::TempDir;
+
+    fn create_dummy_gitignore() -> Gitignore {
+        let temp_dir = tempfile::tempdir().expect("failed to create tempdir");
+        let builder = GitignoreBuilder::new(temp_dir.path());
+        builder.build().expect("failed to build gitignore")
+    }
 
     #[test]
     #[serial]
@@ -301,7 +152,8 @@ mod tests {
         let dir = TempDir::new().unwrap();
         std::env::set_current_dir(dir.path()).unwrap();
 
-        let hints = load_hints(dir.path(), &[GOOSE_HINTS_FILENAME.to_string()]);
+        let gitignore = create_dummy_gitignore();
+        let hints = load_hint_files(dir.path(), &[GOOSE_HINTS_FILENAME.to_string()], &gitignore);
 
         assert!(hints.contains("### Global Hints"));
         assert!(hints.contains("my global goose hints."));
@@ -323,7 +175,8 @@ mod tests {
         std::env::set_current_dir(dir.path()).unwrap();
 
         fs::write(dir.path().join(GOOSE_HINTS_FILENAME), "Test hint content").unwrap();
-        let hints = load_hints(dir.path(), &[GOOSE_HINTS_FILENAME.to_string()]);
+        let gitignore = create_dummy_gitignore();
+        let hints = load_hint_files(dir.path(), &[GOOSE_HINTS_FILENAME.to_string()], &gitignore);
 
         assert!(hints.contains("Test hint content"));
     }
@@ -334,7 +187,8 @@ mod tests {
         let dir = TempDir::new().unwrap();
         std::env::set_current_dir(dir.path()).unwrap();
 
-        let hints = load_hints(dir.path(), &[GOOSE_HINTS_FILENAME.to_string()]);
+        let gitignore = create_dummy_gitignore();
+        let hints = load_hint_files(dir.path(), &[GOOSE_HINTS_FILENAME.to_string()], &gitignore);
 
         assert!(!hints.contains("Project Hints"));
     }
@@ -356,9 +210,11 @@ mod tests {
         )
         .unwrap();
 
-        let hints = load_hints(
+        let gitignore = create_dummy_gitignore();
+        let hints = load_hint_files(
             dir.path(),
             &["CLAUDE.md".to_string(), GOOSE_HINTS_FILENAME.to_string()],
+            &gitignore,
         );
 
         assert!(hints.contains("Custom hints file content from CLAUDE.md"));
@@ -372,7 +228,8 @@ mod tests {
         std::env::set_current_dir(dir.path()).unwrap();
 
         fs::write(dir.path().join("CLAUDE.md"), "Custom hints file content").unwrap();
-        let hints = load_hints(dir.path(), &["CLAUDE.md".to_string()]);
+        let gitignore = create_dummy_gitignore();
+        let hints = load_hint_files(dir.path(), &["CLAUDE.md".to_string()], &gitignore);
 
         assert!(hints.contains("Custom hints file content"));
         assert!(!hints.contains(".goosehints")); // Make sure it's not loading the default
@@ -404,7 +261,8 @@ mod tests {
         )
         .unwrap();
 
-        let hints = load_hints(&current_dir, &[GOOSE_HINTS_FILENAME.to_string()]);
+        let gitignore = create_dummy_gitignore();
+        let hints = load_hint_files(&current_dir, &[GOOSE_HINTS_FILENAME.to_string()], &gitignore);
 
         assert!(
             hints.contains("Root hints content\nSubdir hints content\ncurrent_dir hints content")
@@ -430,7 +288,8 @@ mod tests {
         let current_dir = subdir.join("current_dir");
         fs::create_dir(&current_dir).unwrap();
 
-        let hints = load_hints(&current_dir, &[GOOSE_HINTS_FILENAME.to_string()]);
+        let gitignore = create_dummy_gitignore();
+        let hints = load_hint_files(&current_dir, &[GOOSE_HINTS_FILENAME.to_string()], &gitignore);
 
         assert!(hints.contains("Base hints content"));
         assert!(hints.contains("Subdir hints content"));
@@ -460,9 +319,11 @@ mod tests {
         let current_dir = subdir.join("current_dir");
         fs::create_dir(&current_dir).unwrap();
 
-        let hints = load_hints(
+        let gitignore = create_dummy_gitignore();
+        let hints = load_hint_files(
             &current_dir,
             &["CLAUDE.md".to_string(), GOOSE_HINTS_FILENAME.to_string()],
+            &gitignore,
         );
 
         assert!(hints.contains("Root CLAUDE.md content"));
