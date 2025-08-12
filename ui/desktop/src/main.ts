@@ -735,6 +735,11 @@ const createChat = async (
       : `?view=${encodeURIComponent(viewType)}`;
   }
 
+  // For recipe deeplinks, navigate directly to pair view
+  if (recipe || recipeDeeplink) {
+    queryParams = queryParams ? `${queryParams}&view=pair` : `?view=pair`;
+  }
+
   // Increment window counter to track number of windows
   const windowId = ++windowCounter;
 

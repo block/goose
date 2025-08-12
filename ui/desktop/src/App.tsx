@@ -184,7 +184,23 @@ const PairRouteWrapper = ({
 
   // Check if we have a resumed session or recipe config from navigation state
   useEffect(() => {
-    // Only process if we actually have navigation state
+    const appConfig = window.appConfig?.get('recipe');
+    if (appConfig && !chatRef.current.recipeConfig) {
+      const recipe = appConfig as Recipe;
+
+      const updatedChat: ChatType = {
+        ...chatRef.current,
+        recipeConfig: recipe,
+        title: recipe.title || chatRef.current.title,
+        messages: [], // Start fresh for recipe from deeplink
+        messageHistoryIndex: 0,
+      };
+      setChat(updatedChat);
+      setPairChat(updatedChat);
+      return;
+    }
+
+    // Only process navigation state if we actually have it
     if (!location.state) {
       console.log('No navigation state, preserving existing chat state');
       return;
@@ -232,8 +248,6 @@ const PairRouteWrapper = ({
       // Clear the navigation state to prevent reloading on navigation
       window.history.replaceState({}, document.title);
     } else if (recipeConfig && !chatRef.current.recipeConfig) {
-      // Only set recipe config if we don't already have one (e.g., from deeplinks)
-
       const updatedChat: ChatType = {
         ...chatRef.current,
         recipeConfig: recipeConfig,
@@ -940,7 +954,7 @@ export default function App() {
               setPairChat((prevChat) => ({
                 ...prevChat,
                 recipeConfig: recipeConfig as Recipe,
-                title: (recipeConfig as Recipe).title || 'Recipe Chat',
+                title: (recipeConfig as Recipe)?.title || 'Recipe Chat',
                 messages: [], // Start fresh for recipe
                 messageHistoryIndex: 0,
               }));
@@ -1051,9 +1065,25 @@ export default function App() {
 
   // Handle recipe decode events from main process
   useEffect(() => {
+    const handleLoadRecipeDeeplink = (_event: IpcRendererEvent, ...args: unknown[]) => {
+      const recipeDeeplink = args[0] as string;
+      const scheduledJobId = args[1] as string | undefined;
+
+      // Store the deeplink info in app config for processing
+      const config = window.electron.getConfig();
+      config.recipeDeeplink = recipeDeeplink;
+      if (scheduledJobId) {
+        config.scheduledJobId = scheduledJobId;
+      }
+
+      // Navigate to pair view to handle the recipe loading
+      if (window.location.hash !== '#/pair') {
+        window.location.hash = '#/pair';
+      }
+    };
+
     const handleRecipeDecoded = (_event: IpcRendererEvent, ...args: unknown[]) => {
       const decodedRecipe = args[0] as Recipe;
-      console.log('[App] Recipe decoded successfully:', decodedRecipe);
 
       // Update the pair chat with the decoded recipe
       setPairChat((prevChat) => ({
@@ -1079,14 +1109,16 @@ export default function App() {
       window.location.hash = '#/recipes';
     };
 
+    window.electron.on('load-recipe-deeplink', handleLoadRecipeDeeplink);
     window.electron.on('recipe-decoded', handleRecipeDecoded);
     window.electron.on('recipe-decode-error', handleRecipeDecodeError);
 
     return () => {
+      window.electron.off('load-recipe-deeplink', handleLoadRecipeDeeplink);
       window.electron.off('recipe-decoded', handleRecipeDecoded);
       window.electron.off('recipe-decode-error', handleRecipeDecodeError);
     };
-  }, [setPairChat]);
+  }, [setPairChat, pairChat.id]);
 
   useEffect(() => {
     console.log('Setting up keyboard shortcuts');
