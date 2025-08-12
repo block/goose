@@ -99,7 +99,12 @@ enum SessionCommand {
     },
     #[command(about = "Remove sessions. Runs interactively if no ID or regex is provided.")]
     Remove {
-        #[arg(short, long, help = "Session ID to be removed (optional)")]
+        #[arg(
+            short,
+            long,
+            alias = "name",
+            help = "Session ID to be removed (optional)"
+        )]
         id: Option<String>,
         #[arg(short, long, help = "Regex for removing matched sessions (optional)")]
         regex: Option<String>,

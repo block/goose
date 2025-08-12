@@ -64,7 +64,6 @@ fn check_context_length_exceeded(text: &str) -> bool {
         .any(|phrase| text_lower.contains(phrase))
 }
 
-#[allow(clippy::cognitive_complexity)]
 pub fn map_http_error_to_provider_error(
     status: StatusCode,
     payload: Option<Value>,

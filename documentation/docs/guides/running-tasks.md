@@ -97,6 +97,12 @@ You can also run commands without creating or storing a session file by using th
 # Run a command without creating a session file
 goose run --no-session -t "your command here"
 ```
+### Set Provider and Model
+You can run Goose sessions with a specific provider and model, which overrides the provider and model settings in your [environment variables](/docs/guides/environment-variables.md).
+
+```bash
+goose run --provider anthropic --model claude-4-sonnet -t "initial prompt"
+```
 
 ### Working with Extensions
 
