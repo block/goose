@@ -3,13 +3,11 @@ title: "LLM Tag Team: Who Plans, Who Executes?"
 description: Dive into Goose's Lead/Worker model where one LLM plans while another executes - a game-changing approach to AI collaboration that can save costs and boost efficiency.
 authors: 
     - ebony
-    - rizel
-    - tania
 ---
 
 ![blog cover](header-image.png)
 
-Ever wondered what happens when you let two AI models work together like a perfectly coordinated team? That's exactly what we explored in our latest live coding session, where we put Goose's [Lead/Worker model](/docs/tutorials/lead-worker) to the test. Spoiler alert: it's pretty amazing.
+Ever wondered what happens when you let two AI models work together like a tag team? That’s exactly what we tested in our latest livestream—putting Goose’s Lead/Worker model to work on a real project. Spoiler: it’s actually pretty great.
 
 The Lead/Worker model is one of those features that sounds simple on paper but delivers some amazing benefits in practice. Think of it like having a project manager and a developer working in perfect harmony - one does the strategic thinking, the other gets their hands dirty with the actual implementation.
 
@@ -17,9 +15,13 @@ The Lead/Worker model is one of those features that sounds simple on paper but d
 
 ## What's This Lead/Worker Thing All About?
 
-Here's the deal: instead of using a single LLM for everything, the Lead/Worker model lets you assign different roles to different models. Your "lead" model handles the planning, decision-making, and overall strategy, while your "worker" model focuses on execution - writing code, running commands, and getting stuff done.
+Instead of asking one LLM to do everything, Lead/Worker lets you split the load. Your lead model takes care of the thinking, decision-making, and big-picture planning, while your worker model focuses on execution—writing code, running commands, and making the plan happen. The magic is in the balance: you can put a more powerful (and sometimes more expensive) model in the lead and let a faster, more cost-effective one handle the heavy lifting.
 
-It's like having the best of both worlds. You can use a more powerful (and potentially more expensive) model for the thinking parts, while letting a faster, more cost-effective model handle the grunt work.
+Popular model pairings people are loving:
+
+  - GPT-4 + Claude Sonnet – Balanced intelligence and efficiency.
+  - Claude Opus + GPT-3.5 – Creative planning with quick execution.
+  - GPT-4o + Local models – Privacy-focused builds where data stays in-house.
 
 ## Why You'll Love This Setup
 
@@ -35,7 +37,7 @@ This is where it gets really cool - you can use Claude for reasoning and OpenAI 
 - 🏃‍♂️ Handle Long Dev Sessions
 Perfect for those marathon coding sessions where you need sustained performance without breaking the bank.
 
-## Setting It Up
+## [Setting It Up](/docs/tutorials/lead-worker#configuration)
 
 Getting started with the Lead/Worker model is surprisingly straightforward. In the Goose desktop app, you just need to:
 
@@ -94,15 +96,6 @@ By the end of our session, we had:
 - ✅ Organized content into logical sections (community vs. built-in servers)
 
 The best part? The models made smart decisions we hadn't even thought of, like automatically categorizing the servers and improving the overall page layout.
-
-## What's Next?
-
-The Lead/Worker model is just getting started. We're already seeing people use it for everything from code reviews to complex refactoring projects. The key is finding the right balance between your lead and worker models based on your specific needs.
-
-Some combinations people are loving:
-- **GPT-4 + Claude Sonnet** for balanced performance and cost
-- **Claude Opus + GPT-3.5** for creative planning with efficient execution  
-- **GPT-4o + Local models** for privacy-conscious workflows
 
 ## Ready to Try It Yourself?
 
