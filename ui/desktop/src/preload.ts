@@ -113,6 +113,7 @@ type ElectronAPI = {
   hasAcceptedRecipeBefore: (recipeConfig: Recipe) => Promise<boolean>;
   recordRecipeHash: (recipeConfig: Recipe) => Promise<boolean>;
   openDirectoryInExplorer: (directoryPath: string) => Promise<boolean>;
+  getQuitInitiator: () => Promise<{ initiator: 'user' | 'system' | 'app'; isSystemShutdown: boolean }>;
 };
 
 type AppConfigAPI = {
@@ -243,6 +244,8 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke('record-recipe-hash', recipeConfig),
   openDirectoryInExplorer: (directoryPath: string) =>
     ipcRenderer.invoke('open-directory-in-explorer', directoryPath),
+  getQuitInitiator: () =>
+    ipcRenderer.invoke('get-quit-initiator'),
 };
 
 const appConfigAPI: AppConfigAPI = {

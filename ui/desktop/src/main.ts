@@ -10,6 +10,7 @@ import {
   Menu,
   MenuItem,
   Notification,
+  powerMonitor,
   powerSaveBlocker,
   session,
   shell,
@@ -161,7 +162,7 @@ async function ensureTempDirExists(): Promise<string> {
   return gooseTempDir;
 }
 
-if (started) app.quit();
+if (started) quitApp('electron-squirrel-startup detected', 'system');
 
 // In development mode, force registration as the default protocol client
 // In production, register normally
@@ -192,7 +193,7 @@ if (process.platform === 'win32') {
   gotTheLock = app.requestSingleInstanceLock();
 
   if (!gotTheLock) {
-    app.quit();
+    quitApp('single instance lock not acquired', 'system');
   } else {
     app.on('second-instance', (_event, commandLine) => {
       const protocolUrl = commandLine.find((arg) => arg.startsWith('goose://'));
@@ -505,6 +506,19 @@ const windowMap = new Map<number, BrowserWindow>();
 
 // Track power save blockers per window
 const windowPowerSaveBlockers = new Map<number, number>(); // windowId -> blockerId
+
+// Track system shutdown state and quit reasons
+let isSystemShutdown = false;
+let quitInitiator: 'user' | 'system' | 'app' = 'app';
+
+// Wrapper function to track app.quit() calls
+function quitApp(reason?: string, initiator: 'user' | 'system' | 'app' = 'app') {
+  const stack = new Error().stack;
+  console.log(`[Main] app.quit() called${reason ? ` - Reason: ${reason}` : ''} - Initiator: ${initiator}`);
+  console.log('[Main] Call stack:', stack);
+  quitInitiator = initiator;
+  app.quit();
+}
 
 const createChat = async (
   app: App,
@@ -1750,6 +1764,21 @@ app.whenReady().then(async () => {
   // Register update IPC handlers once (but don't setup auto-updater yet)
   registerUpdateIpcHandlers();
 
+  // Listen for system shutdown events
+  powerMonitor.on('shutdown', () => {
+    console.log('[Main] System shutdown/reboot detected');
+    isSystemShutdown = true;
+    // Perform any necessary cleanup here
+    quitApp('system shutdown/reboot detected', 'system');
+  });
+
+  // Listen for user session events (logout, user switching)
+  powerMonitor.on('user-did-resign-active', () => {
+    console.log('[Main] User session becoming inactive (logout/user switching)');
+    isSystemShutdown = true;
+    // Note: We don't call app.quit() here as the system will handle it
+  });
+
   // Handle microphone permission requests
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
     console.log('Permission requested:', permission);
@@ -2221,6 +2250,14 @@ app.whenReady().then(async () => {
       return false;
     }
   });
+
+  // Handle getting quit initiator information
+  ipcMain.handle('get-quit-initiator', () => {
+    return {
+      initiator: quitInitiator,
+      isSystemShutdown: isSystemShutdown,
+    };
+  });
 });
 
 async function getAllowList(): Promise<string[]> {
@@ -2333,6 +2370,12 @@ app.on('before-quit', async (event) => {
     return; // Allow normal quit behavior if confirmation is disabled
   }
 
+  // Skip confirmation dialog if this is a system-initiated shutdown
+  if (isSystemShutdown) {
+    console.log('[Main] Skipping quit confirmation due to system shutdown');
+    return; // Allow normal quit behavior for system shutdowns
+  }
+
   // Prevent the default quit behavior
   event.preventDefault();
 
@@ -2364,6 +2407,6 @@ app.on('before-quit', async (event) => {
 app.on('window-all-closed', () => {
   // Only quit if we're not on macOS or don't have a tray icon
   if (process.platform !== 'darwin' || !tray) {
-    app.quit();
+    quitApp('all windows closed');
   }
 });
