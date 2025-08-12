@@ -238,7 +238,7 @@ impl Agent {
         let unfixed_messages = unfixed_conversation.messages().clone();
         let (conversation, issues) = fix_conversation(unfixed_conversation.clone());
         if !issues.is_empty() {
-            tracing::warn!(
+            debug!(
                 "Conversation issue fixed: {}",
                 debug_conversation_fix(
                     unfixed_messages.as_slice(),
