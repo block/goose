@@ -1,10 +1,20 @@
 import React, { createContext, useContext, useState } from 'react';
+import { ScrollText } from 'lucide-react';
 import { Message } from '../../types/message';
 import {
   manageContextFromBackend,
   convertApiMessageToFrontendMessage,
   createSummarizationRequestMessage,
 } from './index';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../ui/dialog';
+import { Button } from '../ui/button';
 
 // Define the context management interface
 interface ChatContextManagerState {
@@ -14,6 +24,8 @@ interface ChatContextManagerState {
   isLoadingCompaction: boolean;
   errorLoadingSummary: boolean;
   preparingManualSummary: boolean;
+  isConfirmationOpen: boolean;
+  pendingCompactionData: { messages: Message[]; setMessages: (messages: Message[]) => void } | null;
 }
 
 interface ChatContextManagerActions {
@@ -50,6 +62,11 @@ export const ChatContextManagerProvider: React.FC<{ children: React.ReactNode }>
   const [isLoadingCompaction, setIsLoadingCompaction] = useState<boolean>(false);
   const [errorLoadingSummary, setErrorLoadingSummary] = useState<boolean>(false);
   const [preparingManualSummary, setPreparingManualSummary] = useState<boolean>(false);
+  const [isConfirmationOpen, setIsConfirmationOpen] = useState<boolean>(false);
+  const [pendingCompactionData, setPendingCompactionData] = useState<{
+    messages: Message[];
+    setMessages: (messages: Message[]) => void;
+  } | null>(null);
 
   const handleContextLengthExceeded = async (messages: Message[]): Promise<void> => {
     setIsLoadingCompaction(true);
@@ -90,6 +107,16 @@ export const ChatContextManagerProvider: React.FC<{ children: React.ReactNode }>
     messages: Message[],
     setMessages: (messages: Message[]) => void
   ): void => {
+    // Store the pending compaction data and open confirmation dialog
+    setPendingCompactionData({ messages, setMessages });
+    setIsConfirmationOpen(true);
+  };
+
+  const handleCompactionConfirm = () => {
+    if (!pendingCompactionData) return;
+
+    const { messages, setMessages } = pendingCompactionData;
+
     // add some messages to the message thread
     // these messages will be filtered out in chat view
     // but they will also be what allows us to render some text in the chatview itself, similar to CLE events
@@ -100,6 +127,14 @@ export const ChatContextManagerProvider: React.FC<{ children: React.ReactNode }>
 
     // add the message to the message thread
     setMessages([...messages, summarizationRequest]);
+
+    setIsConfirmationOpen(false);
+    setPendingCompactionData(null);
+  };
+
+  const handleCompactionCancel = () => {
+    setIsConfirmationOpen(false);
+    setPendingCompactionData(null);
   };
 
   const updateSummary = (newSummaryContent: string) => {
@@ -242,6 +277,8 @@ export const ChatContextManagerProvider: React.FC<{ children: React.ReactNode }>
     isLoadingCompaction,
     errorLoadingSummary,
     preparingManualSummary,
+    isConfirmationOpen,
+    pendingCompactionData,
 
     // Actions
     updateSummary,
@@ -259,6 +296,39 @@ export const ChatContextManagerProvider: React.FC<{ children: React.ReactNode }>
   return (
     <ChatContextManagerContext.Provider value={value}>
       {children}
+
+      {/* Confirmation Modal */}
+      <Dialog open={isConfirmationOpen} onOpenChange={handleCompactionCancel}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ScrollText className="text-iconStandard" size={24} />
+              Compact Conversation
+            </DialogTitle>
+            <DialogDescription>
+              This will compact your conversation by summarizing the context into a single message
+              and will help you save context space for future interactions.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4">
+            <p className="text-textStandard">
+              Previous messages will remain visible but only the summary will be included in the
+              active context for Goose. This is useful for long conversations that are approaching
+              the context limit.
+            </p>
+          </div>
+
+          <DialogFooter className="pt-2">
+            <Button type="button" variant="outline" onClick={handleCompactionCancel}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={handleCompactionConfirm}>
+              Compact Conversation
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </ChatContextManagerContext.Provider>
   );
 };
