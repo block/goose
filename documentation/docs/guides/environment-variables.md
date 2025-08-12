@@ -111,6 +111,7 @@ These variables control how Goose manages conversation sessions and context.
 | `GOOSE_SCHEDULER_TYPE` | Controls which scheduler Goose uses for [scheduled recipes](/docs/guides/recipes/session-recipes.md#schedule-recipe) | "legacy" or "temporal" | "legacy" (Goose's built-in cron scheduler) | 
 | `GOOSE_TEMPORAL_BIN` | Optional custom path to your Temporal binary | /path/to/temporal-service | None |
 | `GOOSE_RANDOM_THINKING_MESSAGES` | Controls whether to show amusing random messages during processing | "true", "false" | "true" |
+| `GOOSE_CLI_SHOW_COST` | Toggles display of model cost estimates in CLI output | "true", "1" (case insensitive) to enable | false |
 
 **Examples**
 
@@ -141,6 +142,9 @@ export GOOSE_TEMPORAL_BIN=/path/to/temporal-service
 
 # Disable random thinking messages for less distraction
 export GOOSE_RANDOM_THINKING_MESSAGES=false
+
+# Enable model cost display in CLI
+export GOOSE_CLI_SHOW_COST=true
 ```
 
 ### Model Context Limit Overrides
@@ -181,7 +185,6 @@ These variables control how Goose handles [tool permissions](/docs/guides/managi
 | `GOOSE_TOOLSHIM_OLLAMA_MODEL` | Specifies the model for [tool call interpretation](/docs/experimental/ollama) | Model name (e.g. llama3.2, qwen2.5) | System default |
 | `GOOSE_CLI_MIN_PRIORITY` | Controls verbosity of [tool output](/docs/guides/managing-tools/adjust-tool-output) | Float between 0.0 and 1.0 | 0.0 |
 | `GOOSE_CLI_TOOL_PARAMS_TRUNCATION_MAX_LENGTH` | Maximum length for tool parameter values before truncation in CLI output (not in debug mode) | Integer | 40 |
-| `GOOSE_CLI_SHOW_COST` | Toggles display of model cost estimates in CLI output | "true", "1" (case insensitive) to enable | false |
 
 **Examples**
 
@@ -192,9 +195,6 @@ export GOOSE_TOOLSHIM_OLLAMA_MODEL=llama3.2
 export GOOSE_MODE="auto"
 export GOOSE_CLI_MIN_PRIORITY=0.2  # Show only medium and high importance output
 export GOOSE_CLI_TOOL_PARAMS_MAX_LENGTH=100  # Show up to 100 characters for tool parameters in CLI output
-
-# Enable model cost display in CLI
-export GOOSE_CLI_SHOW_COST=true
 ```
 
 ### Enhanced Code Editing
