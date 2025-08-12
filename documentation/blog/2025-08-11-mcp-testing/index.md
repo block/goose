@@ -5,7 +5,7 @@ authors:
     - rarora
 ---
 
-![Automated MCP Testing](mcp_testing_blog_title.png)
+![Automated MCP Testing](automated_mcp_testing.jpg)
 
 # Automated MCP Testing: Using Composable Goose Recipes to Validate Tool Metadata
 
@@ -555,3 +555,15 @@ This composable approach offers three big wins:
 
 With these building blocks in place, teams can confidently expand their automation toolkit—knowing every new optimization or enhancement will be backed by the same rigorous, repeatable validation process.
 
+<head>
+  <meta property="og:title" content="Automated MCP Testing: Using Composable Goose Recipes to Validate Tool Metadata" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://block.github.io/goose/blog/2025/08/11/mcp-testing" />
+  <meta property="og:description" content="Automate MCP tool metadata validation using composable Goose recipes to catch regressions, optimize token usage, and ensure AI agents can reliably discover and use your tools" />
+  <meta property="og:image" content="https://block.github.io/goose/assets/images/automated_mcp_testing.jpg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta property="twitter:domain" content="block.github.io/goose" />
+  <meta name="twitter:title" content="Automated MCP Testing: Using Composable Goose Recipes to Validate Tool Metadata" />
+  <meta name="twitter:description" content="Automate MCP tool metadata validation using composable Goose recipes to catch regressions, optimize token usage, and ensure AI agents can reliably discover and use your tools" />
+  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/automated_mcp_testing.jpg" />
+</head>
