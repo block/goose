@@ -83,6 +83,9 @@ If this is your first session, Goose will prompt you for an API key to access an
         4. Click the <Edit2 className="inline" size={16} /> button that appears on the session card
         5. Enter the new session name
         6. Click `Save`
+
+        Session names can also help you manage multiple Goose windows. When you're in the Goose chat interface, session names appear in the `Window` menu and in the Dock (macOS) or taskbar (Windows) menu, making it easy to identify and switch between different Goose sessions.
+
     </TabItem>
     <TabItem value="cli" label="Goose CLI">
         By default, Goose names your session using the current timestamp in the format `YYYYMMDD_HHMMSS`. If you'd like to provide a specific name, this is where you'd do so. For example to name your session `react-migration`, you would run:
