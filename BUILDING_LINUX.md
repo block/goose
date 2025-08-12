@@ -9,7 +9,7 @@ This guide covers building the Goose Desktop application from source on various 
 **Debian/Ubuntu:**
 ```bash
 sudo apt update
-sudo apt install -y dpkg fakeroot build-essential
+sudo apt install -y dpkg fakeroot build-essential libxcb1-dev libxcb-util-dev protobuf-compiler
 ```
 
 **Arch/Manjaro:**

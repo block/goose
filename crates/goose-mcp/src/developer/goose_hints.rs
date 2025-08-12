@@ -1,7 +1,185 @@
 use etcetera::{choose_app_strategy, AppStrategy};
-use std::path::{Path, PathBuf};
+use ignore::gitignore::Gitignore;
+use once_cell::sync::Lazy;
+use std::{collections::HashSet, path::{Path, PathBuf}};
 
 pub const GOOSE_HINTS_FILENAME: &str = ".goosehints";
+
+static FILE_REFERENCE_REGEX: Lazy<regex::Regex> = Lazy::new(|| {
+    regex::Regex::new(r"(?:^|\s)@([a-zA-Z0-9_\-./]+(?:\.[a-zA-Z0-9]+)+|[A-Z][a-zA-Z0-9_\-]*|[a-zA-Z0-9_\-./]*[./][a-zA-Z0-9_\-./]*)")
+        .expect("Invalid file reference regex pattern")
+});
+
+/// Sanitize and resolve a file reference path safely
+///
+/// This function prevents path traversal attacks by:
+/// 1. Rejecting absolute paths
+/// 2. Resolving the path canonically
+/// 3. Ensuring the resolved path stays within the allowed base directory
+fn sanitize_reference_path(reference: &Path, base_path: &Path) -> Result<PathBuf, std::io::Error> {
+    if reference.is_absolute() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "Absolute paths not allowed in file references",
+        ));
+    }
+
+    let resolved = base_path.join(reference);
+    let base_canonical = base_path.canonicalize().map_err(|_| {
+        std::io::Error::new(std::io::ErrorKind::NotFound, "Base directory not found")
+    })?;
+
+    if let Ok(canonical) = resolved.canonicalize() {
+        if !canonical.starts_with(&base_canonical) {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "Path traversal attempt detected",
+            ));
+        }
+        Ok(canonical)
+    } else {
+        Ok(resolved) // File doesn't exist, but path structure is safe
+    }
+}
+
+/// Parse file references (@-mentions) from content
+fn parse_file_references(content: &str) -> Vec<PathBuf> {
+    // Keep size limits for ReDoS protection - .goosehints should be reasonably sized
+    const MAX_CONTENT_LENGTH: usize = 131_072; // 128KB limit
+
+    if content.len() > MAX_CONTENT_LENGTH {
+        tracing::warn!(
+            "Content too large for file reference parsing: {} bytes (limit: {} bytes)",
+            content.len(),
+            MAX_CONTENT_LENGTH
+        );
+        return Vec::new();
+    }
+
+    FILE_REFERENCE_REGEX
+        .captures_iter(content)
+        .map(|cap| PathBuf::from(&cap[1]))
+        .collect()
+}
+
+/// Read referenced files and expand their content
+/// Check if a file reference should be processed
+fn should_process_reference_v2(
+    reference: &Path,
+    visited: &HashSet<PathBuf>,
+    base_path: &Path,
+    ignore_patterns: &Gitignore,
+) -> Option<PathBuf> {
+    // Check if we've already visited this file (circular reference protection)
+    if visited.contains(reference) {
+        return None;
+    }
+
+    // Sanitize the path
+    let safe_path = match sanitize_reference_path(reference, base_path) {
+        Ok(path) => path,
+        Err(_) => {
+            tracing::warn!("Skipping unsafe file reference: {:?}", reference);
+            return None;
+        }
+    };
+
+    // Check if the file should be ignored
+    if ignore_patterns.matched(&safe_path, false).is_ignore() {
+        tracing::debug!("Skipping ignored file reference: {:?}", safe_path);
+        return None;
+    }
+
+    // Check if file exists
+    if !safe_path.is_file() {
+        return None;
+    }
+
+    Some(safe_path)
+}
+
+/// Process a single file reference and return the replacement content
+fn process_file_reference_v2(
+    reference: &Path,
+    safe_path: &Path,
+    visited: &mut HashSet<PathBuf>,
+    base_path: &Path,
+    depth: usize,
+    ignore_patterns: &Gitignore,
+) -> Option<(String, String)> {
+    match std::fs::read_to_string(safe_path) {
+        Ok(file_content) => {
+            // Mark this file as visited
+            visited.insert(reference.to_path_buf());
+
+            // Recursively expand any references in the included file
+            let expanded_content = read_referenced_files(
+                &file_content,
+                base_path,
+                visited,
+                depth + 1,
+                ignore_patterns,
+            );
+
+            // Create the replacement content
+            let reference_pattern = format!("@{}", reference.to_string_lossy());
+            let replacement = format!(
+                "--- Content from {} ---\n{}\n--- End of {} ---",
+                reference.display(),
+                expanded_content,
+                reference.display()
+            );
+
+            // Remove from visited so it can be referenced again in different contexts
+            visited.remove(reference);
+
+            Some((reference_pattern, replacement))
+        }
+        Err(e) => {
+            tracing::warn!("Could not read referenced file {:?}: {}", safe_path, e);
+            None
+        }
+    }
+}
+
+fn read_referenced_files(
+    content: &str,
+    base_path: &Path,
+    visited: &mut HashSet<PathBuf>,
+    depth: usize,
+    ignore_patterns: &Gitignore,
+) -> String {
+    const MAX_DEPTH: usize = 3;
+
+    if depth >= MAX_DEPTH {
+        tracing::warn!("Maximum reference depth {} exceeded", MAX_DEPTH);
+        return content.to_string();
+    }
+
+    let references = parse_file_references(content);
+    let mut result = content.to_string();
+
+    for reference in references {
+        let safe_path =
+            match should_process_reference_v2(&reference, visited, base_path, ignore_patterns) {
+                Some(path) => path,
+                None => continue,
+            };
+
+        if let Some((pattern, replacement)) = process_file_reference_v2(
+            &reference,
+            &safe_path,
+            visited,
+            base_path,
+            depth,
+            ignore_patterns,
+        ) {
+            result = result.replace(&pattern, &replacement);
+        }
+    }
+
+    result
+}
 
 fn traverse_directories_upward(start_dir: &Path) -> Vec<PathBuf> {
     let mut directories = Vec::new();
