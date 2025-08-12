@@ -9,7 +9,7 @@ authors:
 
 # Automated MCP Testing: Using Composable Goose Recipes to Validate Tool Metadata
 
-When building Model Context Protocol (MCP) servers, most development focuses on tool functionality—ensuring tools execute and return expected results. But just as critical is the quality of tool metadata: descriptions, tooltips, and input schemas. These elements form the "interface language" between tools and AI agents like Goose.
+When building Model Context Protocol (MCP) servers, most development focuses on tool functionality, ensuring tools execute and return expected results. But just as critical is the quality of tool metadata: descriptions, tooltips, and input schemas. These elements form the "interface language" between tools and AI agents like Goose.
 
 Yet metadata often goes untested. This can break tool discovery and silently degrade agent behavior. In this post, we’ll show how to automate metadata validation using **composable Goose recipes**, turning manual QA into modular, repeatable workflows that:
 
@@ -25,7 +25,7 @@ All while maintaining the quality that AI agents depend on.
 
 Manually validating MCP metadata—by running queries and inspecting agent behavior—breaks down quickly as your toolset grows. It’s inefficient, inconsistent, and prone to silent regressions.
 
-### Key Limitations:
+#### Key Limitations:
 
 - **Slow & Unscalable**: Requires spinning up the agent, entering queries, and reviewing outputs by hand.
 - **Inconsistent Results**: Varies across environments and models, making issues hard to reproduce.
@@ -50,9 +50,11 @@ By chaining and wrapping recipes, we avoid duplication and unlock scalable, repe
 
 ## 3. The Core Engine: Goose Recipe for Tool Prediction
 
-At the heart of the system is a Goose recipe that systematically transforms natural language queries into structured tool predictions. This recipe follows a clear three-step process: **read queries → analyze tools → generate predictions**.
+At the heart of the system is a Goose recipe that systematically transforms natural language queries into structured tool predictions. This recipe follows a clear three-step process: 
 
-### 🔄 How It Works: Step-by-Step
+> **read queries → analyze tools → generate predictions**
+
+#### 🔄 How It Works: Step-by-Step
 
 **Step 1: Read Queries**
 The recipe starts by reading a plain text file containing natural language queries, one per line:
@@ -70,7 +72,7 @@ Using the developer extension, Goose analyzes the MCP server source code and doc
 **Step 3: Write Predictions to JSON**
 The output is a structured JSON file with each query mapped to its expected tool and parameters.
 
-### 🔧 Complete Recipe Specification
+#### 🔧 Complete Recipe Specification
 
 <details>
 <summary>Click to expand full recipe YAML</summary>
@@ -167,13 +169,13 @@ author:
 
 </details>
 
-### 🚀 Running the Recipe
+#### 🚀 Running the Recipe
 
 ```bash
 goose run --recipe generate_predictions_recipe.yaml --params output_file=my_predictions.json
 ```
 
-### 🧪 Example Output JSON
+#### 🧪 Example Output JSON
 
 The recipe generates a comprehensive JSON file mapping each query to its predicted tool call:
 
@@ -231,9 +233,11 @@ This JSON becomes the foundation for all downstream evaluation workflows—it ca
 
 Having established the core Goose recipe component in Section 3, we can now leverage its modularity to build more complex workflows. The beauty of this architecture is that the core prediction recipe becomes a reusable building block—we can reference it from other recipes, chain it with comparison logic, and compose end-to-end testing pipelines. This demonstrates the power of treating recipes as separate modules that can be orchestrated together for sophisticated automation workflows.
 
-Once predictions are generated via the core recipe, the next step is to detect regressions by comparing them against a curated "gold standard" dataset. This automated evaluation follows a clear three-step process: **generate predictions → compare with gold set → interpret results**.
+Once predictions are generated via the core recipe, the next step is to detect regressions by comparing them against a curated "gold standard" dataset. This automated evaluation follows a clear three-step process: 
 
-### 🔄 How It Works: Step-by-Step
+> **generate predictions → compare with gold set → interpret results**
+
+#### 🔄 How It Works: Step-by-Step
 
 **Step 1: Generate Predictions Using the Core Recipe**
 First, we run the core recipe from Section 3 to generate fresh predictions based on the current tool metadata:
@@ -256,7 +260,7 @@ The script performs a structured diff, flagging mismatches in tool names, parame
 **Step 3: Ask Goose to Interpret Results**
 Finally, Goose analyzes the comparison output and highlights what's not matching, providing human-readable explanations of the differences.
 
-### 🧪 Complete Evaluation Recipe
+#### 🧪 Complete Evaluation Recipe
 
 <details>
 <summary>Click to expand full evaluation recipe YAML</summary>
@@ -308,13 +312,13 @@ author:
 
 </details>
 
-### 🚀 Running the Complete Evaluation
+#### 🚀 Running the Complete Evaluation
 
 ```bash
 goose run --recipe evaluate_predictions.yaml --params output_file=new_evaluation.json gold_file=mcp_github_query_tool_truth.json
 ```
 
-### 📉 Example Comparison Results
+#### 📉 Example Comparison Results
 
 Here are two common types of mismatches the system detects:
 
@@ -368,7 +372,7 @@ Here are two common types of mismatches the system detects:
   ```
 - **Issue:** Missing `repo_owner` and `repo_name` parameters, suggesting the tool description may not clearly indicate these are required when searching within a specific repository
 
-### 🔍 What Gets Flagged vs. Ignored
+#### 🔍 What Gets Flagged vs. Ignored
 
 **Critical Issues (Flagged):**
 - Tool name mismatches
@@ -390,9 +394,11 @@ Building on the modular recipe architecture established in previous sections, we
 
 This workflow demonstrates the true power of composable Goose recipes—we can orchestrate the core prediction recipe from Section 3 and the evaluation workflow from Section 4 into a continuous optimization loop that reduces token usage without breaking tool discoverability.
 
-### 🔄 The Optimization Loop: Step-by-Step
+#### 🔄 The Optimization Loop: Step-by-Step
 
-The token reduction workflow follows an iterative process: **reduce tokens → run evaluation → fix issues → run evaluation → repeat**.
+The token reduction workflow follows an iterative process: 
+
+> **reduce tokens → run evaluation → fix issues → run evaluation → repeat**
 
 **Step 1: Compress Tool Descriptions**
 Using natural language processing, Goose identifies verbose tooltips, redundant documentation, and unnecessary examples, then compresses them while preserving essential information.
@@ -406,7 +412,7 @@ If evaluation tests fail, Goose analyzes the specific mismatches and iteratively
 **Step 4: Repeat Until Success**
 The loop continues until all evaluation tests pass, ensuring no regressions in tool discoverability.
 
-### 🧪 Complete Token Reduction Recipe
+#### 🧪 Complete Token Reduction Recipe
 
 <details>
 <summary>Click to expand full token reduction recipe YAML</summary>
@@ -472,13 +478,13 @@ author:
 
 </details>
 
-### 🚀 Running the Token Reduction Loop
+#### 🚀 Running the Token Reduction Loop
 
 ```bash
 goose run --recipe compress_evaluate_mcp.yaml --params target_reduction=10
 ```
 
-### 📉 Real Example: Iterative Fixing Process
+#### 📉 Real Example: Iterative Fixing Process
 
 Here's an actual example from running this workflow, showing how the system identifies and fixes issues:
 
@@ -494,7 +500,7 @@ Let me fix the time format issue by updating the tooltips to be more specific ab
 
 The system then automatically updates the tool descriptions and re-runs the evaluation until all tests pass.
 
-### 🎯 Real Results Summary
+#### 🎯 Real Results Summary
 
 Here's an actual summary from a successful token reduction run:
 
@@ -558,12 +564,12 @@ With these building blocks in place, teams can confidently expand their automati
 <head>
   <meta property="og:title" content="Automated MCP Testing: Using Composable Goose Recipes to Validate Tool Metadata" />
   <meta property="og:type" content="article" />
-  <meta property="og:url" content="https://block.github.io/goose/blog/2025/08/11/mcp-testing" />
+  <meta property="og:url" content="https://block.github.io/goose/blog/2025/08/12/mcp-testing" />
   <meta property="og:description" content="Automate MCP tool metadata validation using composable Goose recipes to catch regressions, optimize token usage, and ensure AI agents can reliably discover and use your tools" />
-  <meta property="og:image" content="https://block.github.io/goose/assets/images/automated_mcp_testing.jpg" />
+  <meta property="og:image" content="https://block.github.io/goose/assets/images/automated_mcp_testing-296dac2cd2b1b327e58854f4bfb0c89a.jpg" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="Automated MCP Testing: Using Composable Goose Recipes to Validate Tool Metadata" />
   <meta name="twitter:description" content="Automate MCP tool metadata validation using composable Goose recipes to catch regressions, optimize token usage, and ensure AI agents can reliably discover and use your tools" />
-  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/automated_mcp_testing.jpg" />
+  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/automated_mcp_testing-296dac2cd2b1b327e58854f4bfb0c89a.jpg" />
 </head>
