@@ -634,7 +634,11 @@ impl DeveloperRouter {
         let shell_config = get_shell_config();
 
         // Execute the command using shell with better process cleanup
-        let wrapped_command = format!("setsid {}", command);
+        let wrapped_command = if cfg!(windows) {
+            command.to_string()
+        } else {
+            format!("setsid bash -c '{}'", command)
+        };
 
         let mut child = Command::new(&shell_config.executable)
             .stdout(Stdio::piped())
