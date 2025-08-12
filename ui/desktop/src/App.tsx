@@ -838,6 +838,59 @@ export default function App() {
       return;
     }
 
+    // Check for recipe config - this also needs provider initialization
+    if (recipeConfig && typeof recipeConfig === 'object') {
+      console.log('Recipe deeplink detected, initializing system for recipe');
+
+      const initializeForRecipe = async () => {
+        try {
+          await initConfig();
+          await readAllConfig({ throwOnError: true });
+
+          const config = window.electron.getConfig();
+          const provider = (await read('GOOSE_PROVIDER', false)) ?? config.GOOSE_DEFAULT_PROVIDER;
+          const model = (await read('GOOSE_MODEL', false)) ?? config.GOOSE_DEFAULT_MODEL;
+
+          if (provider && model) {
+            await initializeSystem(provider as string, model as string, {
+              getExtensions,
+              addExtension,
+            });
+
+            // Set up the recipe in pair chat after system is initialized
+            setPairChat((prevChat) => ({
+              ...prevChat,
+              recipeConfig: recipeConfig as Recipe,
+              title: (recipeConfig as Recipe)?.title || 'Recipe Chat',
+              messages: [], // Start fresh for recipe
+              messageHistoryIndex: 0,
+            }));
+
+            // Navigate to pair view
+            window.location.hash = '#/pair';
+            window.history.replaceState(
+              {
+                recipeConfig: recipeConfig,
+                resetChat: true,
+              },
+              '',
+              '#/pair'
+            );
+          } else {
+            throw new Error('No provider/model configured for recipe');
+          }
+        } catch (error) {
+          console.error('Failed to initialize system for recipe:', error);
+          setFatalError(
+            `Failed to initialize system for recipe: ${error instanceof Error ? error.message : 'Unknown error'}`
+          );
+        }
+      };
+
+      initializeForRecipe();
+      return;
+    }
+
     if (viewType) {
       if (viewType === 'recipeEditor' && recipeConfig) {
         // Handle recipe editor deep link - use hash routing
@@ -939,40 +992,6 @@ export default function App() {
             }
 
             await Promise.all(initPromises);
-
-            const recipeConfig = window.appConfig.get('recipe');
-            if (
-              recipeConfig &&
-              typeof recipeConfig === 'object' &&
-              !window.sessionStorage.getItem('ignoreRecipeConfigChanges')
-            ) {
-              console.log(
-                'Recipe deeplink detected, navigating to pair view with config:',
-                recipeConfig
-              );
-              // Set the recipe config in the pair chat state
-              setPairChat((prevChat) => ({
-                ...prevChat,
-                recipeConfig: recipeConfig as Recipe,
-                title: (recipeConfig as Recipe)?.title || 'Recipe Chat',
-                messages: [], // Start fresh for recipe
-                messageHistoryIndex: 0,
-              }));
-              // Navigate to pair view with recipe config using hash routing
-              window.location.hash = '#/pair';
-              window.history.replaceState(
-                {
-                  recipeConfig: recipeConfig,
-                  resetChat: true,
-                },
-                '',
-                '#/pair'
-              );
-            } else if (window.sessionStorage.getItem('ignoreRecipeConfigChanges')) {
-              console.log(
-                'Ignoring recipe config changes to prevent navigation conflicts with new window creation'
-              );
-            }
           } catch (error) {
             console.error('Error in system initialization:', error);
             if (error instanceof MalformedConfigError) {
