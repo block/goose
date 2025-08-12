@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Treemap Visualization</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #2c3e50, #3498db);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            margin: 0 0 10px 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        
+        .header p {
+            margin: 0;
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+        
+        .controls {
+            padding: 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            font-size: 14px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+        
+        .btn-secondary {
+            background: linear-gradient(135deg, #f093fb, #f5576c);
+            color: white;
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #4facfe, #00f2fe);
+            color: white;
+        }
+        
+        .btn-warning {
+            background: linear-gradient(135deg, #43e97b, #38f9d7);
+            color: white;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .chart-container {
+            padding: 20px;
+            background: white;
+        }
+        
+        .treemap-container {
+            width: 100%;
+            height: 600px;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .treemap-rect {
+            stroke: white;
+            stroke-width: 2px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .treemap-rect:hover {
+            stroke-width: 3px;
+            stroke: #333;
+            filter: brightness(1.1);
+        }
+        
+        .treemap-text {
+            font-size: 12px;
+            font-weight: 500;
+            fill: white;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+            pointer-events: none;
+            text-anchor: middle;
+            dominant-baseline: middle;
+        }
+        
+        .treemap-value {
+            font-size: 10px;
+            fill: rgba(255,255,255,0.8);
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+            pointer-events: none;
+            text-anchor: middle;
+            dominant-baseline: middle;
+        }
+        
+        .stats {
+            padding: 20px;
+            background: #f8f9fa;
+            border-top: 1px solid #e9ecef;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+        
+        .tooltip {
+            position: absolute;
+            background: rgba(0,0,0,0.9);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .breadcrumb {
+            padding: 10px 20px;
+            background: #e9ecef;
+            font-size: 14px;
+            color: #495057;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .breadcrumb-item {
+            cursor: pointer;
+            color: #007bff;
+            text-decoration: underline;
+        }
+        
+        .breadcrumb-item:hover {
+            color: #0056b3;
+        }
+        
+        @media (max-width: 768px) {
+            .controls {
+                flex-direction: column;
+            }
+            
+            .treemap-container {
+                height: 400px;
+            }
+            
+            .stats {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🗂️ Interactive Treemap Visualization</h1>
+            <p>Explore hierarchical data with nested rectangles - size shows values, colors show categories</p>
+        </div>
+        
+        <div class="controls">
+            <button class="btn btn-primary" onclick="loadSampleData('tech')">📱 Tech Companies</button>
+            <button class="btn btn-primary" onclick="loadSampleData('sales')">💰 Sales Data</button>
+            <button class="btn btn-primary" onclick="loadSampleData('portfolio')">📊 Portfolio</button>
+            <button class="btn btn-primary" onclick="loadSampleData('world')">🌍 World Population</button>
+            <button class="btn btn-secondary" onclick="generateRandomData()">🎲 Random Data</button>
+            <button class="btn btn-success" onclick="resetZoom()">🔍 Reset View</button>
+            <button class="btn btn-warning" onclick="exportSVG()">💾 Export SVG</button>
+        </div>
+        
+        <div class="breadcrumb" id="breadcrumb">
+            <span class="breadcrumb-item" onclick="navigateToRoot()">🏠 Root</span>
+        </div>
+        
+        <div class="chart-container">
+            <div class="treemap-container" id="treemap"></div>
+        </div>
+        
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-value" id="totalNodes">0</div>
+                <div class="stat-label">Total Items</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="totalValue">0</div>
+                <div class="stat-label">Total Value</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="currentLevel">Root</div>
+                <div class="stat-label">Current Level</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="categories">0</div>
+                <div class="stat-label">Categories</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+        let currentData = null;
+        let currentRoot = null;
+        let svg, treemap, root;
+        
+        const width = 1000;
+        const height = 600;
+        
+        // Color schemes for different categories
+        const colorSchemes = {
+            tech: d3.scaleOrdinal(d3.schemeSet3),
+            sales: d3.scaleOrdinal(d3.schemeCategory10),
+            portfolio: d3.scaleOrdinal(d3.schemePastel1),
+            world: d3.scaleOrdinal(d3.schemeTableau10),
+            random: d3.scaleOrdinal(d3.schemeSet2)
+        };
+        
+        let currentColorScheme = colorSchemes.tech;
+        
+        // Sample datasets
+        const sampleData = {
+            tech: {
+                name: "Tech Companies",
+                children: [
+                    {
+                        name: "FAANG",
+                        children: [
+                            { name: "Apple", value: 2800, category: "Hardware" },
+                            { name: "Microsoft", value: 2500, category: "Software" },
+                            { name: "Alphabet", value: 1800, category: "Internet" },
+                            { name: "Amazon", value: 1600, category: "E-commerce" },
+                            { name: "Meta", value: 900, category: "Social" }
+                        ]
+                    },
+                    {
+                        name: "Other Tech",
+                        children: [
+                            { name: "Tesla", value: 800, category: "Automotive" },
+                            { name: "Netflix", value: 200, category: "Streaming" },
+                            { name: "Nvidia", value: 600, category: "Hardware" },
+                            { name: "Adobe", value: 250, category: "Software" },
+                            { name: "Salesforce", value: 220, category: "Software" }
+                        ]
+                    }
+                ]
+            },
+            sales: {
+                name: "Sales Performance",
+                children: [
+                    {
+                        name: "Q1 2024",
+                        children: [
+                            { name: "North America", value: 450, category: "Region" },
+                            { name: "Europe", value: 320, category: "Region" },
+                            { name: "Asia", value: 280, category: "Region" }
+                        ]
+                    },
+                    {
+                        name: "Q2 2024",
+                        children: [
+                            { name: "North America", value: 520, category: "Region" },
+                            { name: "Europe", value: 380, category: "Region" },
+                            { name: "Asia", value: 340, category: "Region" }
+                        ]
+                    },
+                    {
+                        name: "Q3 2024",
+                        children: [
+                            { name: "North America", value: 480, category: "Region" },
+                            { name: "Europe", value: 420, category: "Region" },
+                            { name: "Asia", value: 390, category: "Region" }
+                        ]
+                    }
+                ]
+            },
+            portfolio: {
+                name: "Investment Portfolio",
+                children: [
+                    {
+                        name: "Stocks",
+                        children: [
+                            { name: "Technology", value: 350, category: "Sector" },
+                            { name: "Healthcare", value: 280, category: "Sector" },
+                            { name: "Finance", value: 220, category: "Sector" },
+                            { name: "Energy", value: 150, category: "Sector" }
+                        ]
+                    },
+                    {
+                        name: "Bonds",
+                        children: [
+                            { name: "Government", value: 200, category: "Type" },
+                            { name: "Corporate", value: 150, category: "Type" },
+                            { name: "Municipal", value: 100, category: "Type" }
+                        ]
+                    },
+                    {
+                        name: "Real Estate",
+                        children: [
+                            { name: "Residential", value: 180, category: "Type" },
+                            { name: "Commercial", value: 120, category: "Type" }
+                        ]
+                    }
+                ]
+            },
+            world: {
+                name: "World Population",
+                children: [
+                    {
+                        name: "Asia",
+                        children: [
+                            { name: "China", value: 1439, category: "Country" },
+                            { name: "India", value: 1380, category: "Country" },
+                            { name: "Indonesia", value: 273, category: "Country" },
+                            { name: "Pakistan", value: 220, category: "Country" },
+                            { name: "Bangladesh", value: 164, category: "Country" }
+                        ]
+                    },
+                    {
+                        name: "Africa",
+                        children: [
+                            { name: "Nigeria", value: 206, category: "Country" },
+                            { name: "Ethiopia", value: 115, category: "Country" },
+                            { name: "Egypt", value: 102, category: "Country" },
+                            { name: "DR Congo", value: 90, category: "Country" }
+                        ]
+                    },
+                    {
+                        name: "Europe",
+                        children: [
+                            { name: "Russia", value: 146, category: "Country" },
+                            { name: "Germany", value: 83, category: "Country" },
+                            { name: "UK", value: 67, category: "Country" },
+                            { name: "France", value: 65, category: "Country" }
+                        ]
+                    },
+                    {
+                        name: "Americas",
+                        children: [
+                            { name: "USA", value: 331, category: "Country" },
+                            { name: "Brazil", value: 213, category: "Country" },
+                            { name: "Mexico", value: 128, category: "Country" },
+                            { name: "Canada", value: 38, category: "Country" }
+                        ]
+                    }
+                ]
+            }
+        };
+        
+        function initializeTreemap() {
+            const container = d3.select("#treemap");
+            container.selectAll("*").remove();
+            
+            svg = container.append("svg")
+                .attr("width", "100%")
+                .attr("height", "100%")
+                .attr("viewBox", `0 0 ${width} ${height}`)
+                .style("font", "10px sans-serif");
+            
+            treemap = d3.treemap()
+                .size([width, height])
+                .padding(2)
+                .round(true);
+        }
+        
+        function updateTreemap(data, isRoot = true) {
+            currentData = data;
+            if (isRoot) {
+                currentRoot = data;
+            }
+            
+            root = d3.hierarchy(data)
+                .sum(d => d.value || 0)
+                .sort((a, b) => b.value - a.value);
+            
+            treemap(root);
+            
+            svg.selectAll("*").remove();
+            
+            const leaf = svg.selectAll("g")
+                .data(root.leaves())
+                .join("g")
+                .attr("transform", d => `translate(${d.x0},${d.y0})`);
+            
+            leaf.append("rect")
+                .attr("class", "treemap-rect")
+                .attr("fill", d => currentColorScheme(d.data.category || d.parent.data.name))
+                .attr("width", d => d.x1 - d.x0)
+                .attr("height", d => d.y1 - d.y0)
+                .on("mouseover", function(event, d) {
+                    showTooltip(event, d);
+                })
+                .on("mousemove", function(event, d) {
+                    moveTooltip(event);
+                })
+                .on("mouseout", function() {
+                    hideTooltip();
+                })
+                .on("click", function(event, d) {
+                    if (d.parent && d.parent.data.children) {
+                        navigateToParent(d.parent.data);
+                    }
+                });
+            
+            leaf.append("text")
+                .attr("class", "treemap-text")
+                .attr("x", d => (d.x1 - d.x0) / 2)
+                .attr("y", d => (d.y1 - d.y0) / 2 - 5)
+                .text(d => d.data.name)
+                .style("font-size", d => Math.min((d.x1 - d.x0) / 8, (d.y1 - d.y0) / 4, 14) + "px")
+                .each(function(d) {
+                    const textLength = this.getComputedTextLength();
+                    const availableWidth = d.x1 - d.x0 - 4;
+                    if (textLength > availableWidth) {
+                        const text = d.data.name;
+                        const ratio = availableWidth / textLength;
+                        const maxLength = Math.floor(text.length * ratio) - 3;
+                        d3.select(this).text(text.substring(0, maxLength) + "...");
+                    }
+                });
+            
+            leaf.append("text")
+                .attr("class", "treemap-value")
+                .attr("x", d => (d.x1 - d.x0) / 2)
+                .attr("y", d => (d.y1 - d.y0) / 2 + 10)
+                .text(d => formatValue(d.data.value))
+                .style("font-size", d => Math.min((d.x1 - d.x0) / 10, (d.y1 - d.y0) / 6, 12) + "px");
+            
+            // Add parent group rectangles for navigation
+            if (data.children) {
+                const groups = svg.selectAll(".group-rect")
+                    .data(root.children || [])
+                    .join("rect")
+                    .attr("class", "group-rect")
+                    .attr("x", d => d.x0)
+                    .attr("y", d => d.y0)
+                    .attr("width", d => d.x1 - d.x0)
+                    .attr("height", d => d.y1 - d.y0)
+                    .attr("fill", "none")
+                    .attr("stroke", "#333")
+                    .attr("stroke-width", 3)
+                    .attr("stroke-dasharray", "5,5")
+                    .style("cursor", "pointer")
+                    .on("click", function(event, d) {
+                        if (d.data.children) {
+                            navigateToChild(d.data);
+                        }
+                    });
+                
+                // Add group labels
+                svg.selectAll(".group-label")
+                    .data(root.children || [])
+                    .join("text")
+                    .attr("class", "group-label")
+                    .attr("x", d => d.x0 + 5)
+                    .attr("y", d => d.y0 + 15)
+                    .text(d => d.data.name)
+                    .style("font-size", "14px")
+                    .style("font-weight", "bold")
+                    .style("fill", "#333")
+                    .style("pointer-events", "none");
+            }
+            
+            updateStats();
+            updateBreadcrumb();
+        }
+        
+        function navigateToChild(childData) {
+            updateTreemap(childData, false);
+        }
+        
+        function navigateToParent(parentData) {
+            updateTreemap(parentData, false);
+        }
+        
+        function navigateToRoot() {
+            if (currentRoot) {
+                updateTreemap(currentRoot, true);
+            }
+        }
+        
+        function updateBreadcrumb() {
+            const breadcrumb = document.getElementById('breadcrumb');
+            if (currentData === currentRoot) {
+                breadcrumb.innerHTML = '<span class="breadcrumb-item" onclick="navigateToRoot()">🏠 Root</span>';
+            } else {
+                breadcrumb.innerHTML = `
+                    <span class="breadcrumb-item" onclick="navigateToRoot()">🏠 Root</span>
+                    <span> / </span>
+                    <span>${currentData.name}</span>
+                `;
+            }
+        }
+        
+        function loadSampleData(type) {
+            currentColorScheme = colorSchemes[type];
+            updateTreemap(sampleData[type]);
+        }
+        
+        function generateRandomData() {
+            const categories = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon'];
+            const data = {
+                name: "Random Data",
+                children: []
+            };
+            
+            for (let i = 0; i < 3; i++) {
+                const group = {
+                    name: `Group ${i + 1}`,
+                    children: []
+                };
+                
+                for (let j = 0; j < Math.floor(Math.random() * 5) + 3; j++) {
+                    group.children.push({
+                        name: `Item ${i}-${j}`,
+                        value: Math.floor(Math.random() * 500) + 50,
+                        category: categories[Math.floor(Math.random() * categories.length)]
+                    });
+                }
+                
+                data.children.push(group);
+            }
+            
+            currentColorScheme = colorSchemes.random;
+            updateTreemap(data);
+        }
+        
+        function resetZoom() {
+            navigateToRoot();
+        }
+        
+        function exportSVG() {
+            const svgElement = document.querySelector("#treemap svg");
+            const serializer = new XMLSerializer();
+            const svgString = serializer.serializeToString(svgElement);
+            
+            const blob = new Blob([svgString], { type: "image/svg+xml" });
+            const url = URL.createObjectURL(blob);
+            
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = "treemap.svg";
+            link.click();
+            
+            URL.revokeObjectURL(url);
+        }
+        
+        function showTooltip(event, d) {
+            const tooltip = document.getElementById('tooltip');
+            tooltip.innerHTML = `
+                <strong>${d.data.name}</strong><br>
+                Value: ${formatValue(d.data.value)}<br>
+                Category: ${d.data.category || 'N/A'}<br>
+                Percentage: ${((d.data.value / root.value) * 100).toFixed(1)}%
+            `;
+            tooltip.style.opacity = 1;
+            moveTooltip(event);
+        }
+        
+        function moveTooltip(event) {
+            const tooltip = document.getElementById('tooltip');
+            tooltip.style.left = (event.pageX + 10) + 'px';
+            tooltip.style.top = (event.pageY - 10) + 'px';
+        }
+        
+        function hideTooltip() {
+            const tooltip = document.getElementById('tooltip');
+            tooltip.style.opacity = 0;
+        }
+        
+        function formatValue(value) {
+            if (value >= 1000000) {
+                return (value / 1000000).toFixed(1) + 'M';
+            } else if (value >= 1000) {
+                return (value / 1000).toFixed(1) + 'K';
+            }
+            return value.toString();
+        }
+        
+        function updateStats() {
+            const totalNodes = root.leaves().length;
+            const totalValue = root.value;
+            const currentLevel = currentData.name;
+            const categories = new Set(root.leaves().map(d => d.data.category || 'N/A')).size;
+            
+            document.getElementById('totalNodes').textContent = totalNodes;
+            document.getElementById('totalValue').textContent = formatValue(totalValue);
+            document.getElementById('currentLevel').textContent = currentLevel;
+            document.getElementById('categories').textContent = categories;
+        }
+        
+        // Initialize the treemap
+        initializeTreemap();
+        loadSampleData('tech');
+    </script>
+</body>
+</html>
