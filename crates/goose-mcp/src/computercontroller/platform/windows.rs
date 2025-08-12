@@ -11,6 +11,7 @@ impl SystemAutomation for WindowsAutomation {
             .arg("-NonInteractive")
             .arg("-Command")
             .arg(script)
+            .env("GOOSE_TERMINAL", "1")
             .output()?;
 
         Ok(String::from_utf8_lossy(&output.stdout).into_owned())

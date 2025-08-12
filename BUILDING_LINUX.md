@@ -9,7 +9,7 @@ This guide covers building the Goose Desktop application from source on various 
 **Debian/Ubuntu:**
 ```bash
 sudo apt update
-sudo apt install -y dpkg fakeroot build-essential
+sudo apt install -y dpkg fakeroot build-essential libxcb1-dev libxcb-util-dev protobuf-compiler
 ```
 
 **Arch/Manjaro:**
@@ -145,12 +145,13 @@ Create `~/.local/share/applications/goose.desktop`:
 [Desktop Entry]
 Name=Goose AI Agent
 Comment=Local AI agent for development tasks
-Exec=/path/to/goose/ui/desktop/out/Goose-linux-x64/Goose
+Exec=/path/to/goose/ui/desktop/out/Goose-linux-x64/Goose %U
 Icon=/path/to/goose/ui/desktop/out/Goose-linux-x64/resources/app.asar.unpacked/src/images/icon.png
 Terminal=false
 Type=Application
 Categories=Development;Utility;
 StartupNotify=true
+MimeType=x-scheme-handler/goose
 ```
 
 ### System-wide Installation
