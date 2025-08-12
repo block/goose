@@ -118,6 +118,7 @@ mod tests {
     use super::*;
     use ignore::gitignore::GitignoreBuilder;
     use serial_test::serial;
+    use temp_env::with_var;
     use std::fs::{self};
     use tempfile::TempDir;
 
@@ -238,7 +239,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_nested_goosehints_with_git_root() {
-        std::env::set_var("NESTED_GOOSE_HINTS", "true");
+        with_var("NESTED_GOOSE_HINTS", Some("true"), || {
 
         let temp_dir = TempDir::new().unwrap();
         let project_root = temp_dir.path();
@@ -266,69 +267,68 @@ mod tests {
 
         assert!(
             hints.contains("Root hints content\nSubdir hints content\ncurrent_dir hints content")
-        );
+            );
 
-        std::env::remove_var("NESTED_GOOSE_HINTS");
+        });
     }
 
     #[test]
     #[serial]
     fn test_nested_goosehints_without_git_root() {
-        std::env::set_var("NESTED_GOOSE_HINTS", "true");
+        with_var("NESTED_GOOSE_HINTS", Some("true"), || {
 
-        let temp_dir = TempDir::new().unwrap();
-        let base_dir = temp_dir.path();
+            let temp_dir = TempDir::new().unwrap();
+            let base_dir = temp_dir.path();
 
-        fs::write(base_dir.join(GOOSE_HINTS_FILENAME), "Base hints content").unwrap();
+            fs::write(base_dir.join(GOOSE_HINTS_FILENAME), "Base hints content").unwrap();
 
-        let subdir = base_dir.join("subdir");
-        fs::create_dir(&subdir).unwrap();
-        fs::write(subdir.join(GOOSE_HINTS_FILENAME), "Subdir hints content").unwrap();
+            let subdir = base_dir.join("subdir");
+            fs::create_dir(&subdir).unwrap();
+            fs::write(subdir.join(GOOSE_HINTS_FILENAME), "Subdir hints content").unwrap();
 
-        let current_dir = subdir.join("current_dir");
-        fs::create_dir(&current_dir).unwrap();
+            let current_dir = subdir.join("current_dir");
+            fs::create_dir(&current_dir).unwrap();
 
-        let gitignore = create_dummy_gitignore();
-        let hints = load_hint_files(&current_dir, &[GOOSE_HINTS_FILENAME.to_string()], &gitignore);
+            let gitignore = create_dummy_gitignore();
+            let hints = load_hint_files(&current_dir, &[GOOSE_HINTS_FILENAME.to_string()], &gitignore);
 
-        assert!(hints.contains("Base hints content"));
-        assert!(hints.contains("Subdir hints content"));
+            assert!(hints.contains("Base hints content"));
+            assert!(hints.contains("Subdir hints content"));
 
-        std::env::remove_var("NESTED_GOOSE_HINTS");
+        });
     }
 
     #[test]
     #[serial]
     fn test_nested_goosehints_mixed_filenames() {
-        std::env::set_var("NESTED_GOOSE_HINTS", "true");
+        with_var("NESTED_GOOSE_HINTS", Some("true"), || {
+            let temp_dir = TempDir::new().unwrap();
+            let project_root = temp_dir.path();
 
-        let temp_dir = TempDir::new().unwrap();
-        let project_root = temp_dir.path();
+            fs::create_dir(project_root.join(".git")).unwrap();
+            fs::write(project_root.join("CLAUDE.md"), "Root CLAUDE.md content").unwrap();
 
-        fs::create_dir(project_root.join(".git")).unwrap();
-        fs::write(project_root.join("CLAUDE.md"), "Root CLAUDE.md content").unwrap();
+            let subdir = project_root.join("subdir");
+            fs::create_dir(&subdir).unwrap();
+            fs::write(
+                subdir.join(GOOSE_HINTS_FILENAME),
+                "Subdir .goosehints content",
+            )
+            .unwrap();
 
-        let subdir = project_root.join("subdir");
-        fs::create_dir(&subdir).unwrap();
-        fs::write(
-            subdir.join(GOOSE_HINTS_FILENAME),
-            "Subdir .goosehints content",
-        )
-        .unwrap();
+            let current_dir = subdir.join("current_dir");
+            fs::create_dir(&current_dir).unwrap();
 
-        let current_dir = subdir.join("current_dir");
-        fs::create_dir(&current_dir).unwrap();
+            let gitignore = create_dummy_gitignore();
+            let hints = load_hint_files(
+                &current_dir,
+                &["CLAUDE.md".to_string(), GOOSE_HINTS_FILENAME.to_string()],
+                &gitignore,
+            );
 
-        let gitignore = create_dummy_gitignore();
-        let hints = load_hint_files(
-            &current_dir,
-            &["CLAUDE.md".to_string(), GOOSE_HINTS_FILENAME.to_string()],
-            &gitignore,
-        );
+            assert!(hints.contains("Root CLAUDE.md content"));
+            assert!(hints.contains("Subdir .goosehints content"));
 
-        assert!(hints.contains("Root CLAUDE.md content"));
-        assert!(hints.contains("Subdir .goosehints content"));
-
-        std::env::remove_var("NESTED_GOOSE_HINTS");
+        });
     }
 }
