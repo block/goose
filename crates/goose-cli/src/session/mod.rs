@@ -33,6 +33,7 @@ use goose::agents::{Agent, SessionConfig};
 use goose::config::Config;
 use goose::providers::pricing::initialize_pricing_cache;
 use goose::session;
+use goose_mcp::FilePidTracker;
 use input::InputResult;
 use mcp_core::handler::ToolError;
 use rmcp::model::PromptMessage;
@@ -1316,6 +1317,14 @@ impl Session {
                 "The existing call to {} was interrupted. How would you like to proceed?",
                 last_tool_name
             );
+
+            // If this was a shell command that might have left processes running, clean them up
+            if last_tool_name == "developer__shell" {
+                tokio::spawn(async {
+                    cleanup_shell_processes().await;
+                });
+            }
+
             self.push_message(Message::assistant().with_text(&prompt));
 
             // No need for description update here
@@ -1621,6 +1630,33 @@ impl Session {
 
     fn push_message(&mut self, message: Message) {
         self.messages.push(message);
+    }
+}
+
+/// Cleanup function to kill tracked subprocess PIDs when shell commands are interrupted.
+async fn cleanup_shell_processes() {
+    let file_tracker = FilePidTracker::new();
+    let tracked_pids = file_tracker.get_all_pids();
+
+    if tracked_pids.is_empty() {
+        return;
+    }
+    if cfg!(windows) {
+        // On Windows, we can use taskkill to terminate processes by PID
+        for pid in tracked_pids {
+            let _ = tokio::process::Command::new("taskkill")
+                .args(&["/F", "/PID", &pid.to_string()])
+                .output()
+                .await;
+        }
+    } else {
+        // On Unix-like systems, we can use kill to terminate processes by PID
+        for pid in tracked_pids {
+            let _ = tokio::process::Command::new("kill")
+                .args(&["-TERM", &pid.to_string()])
+                .output()
+                .await;
+        }
     }
 }
 

@@ -63,6 +63,7 @@ hyper = "1"
 serde_with = "3"
 which = "6.0"
 glob = "0.3"
+uuid = { version = "1.0", features = ["v4"] }
 
 
 [dev-dependencies]

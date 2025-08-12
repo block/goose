@@ -15,6 +15,7 @@ use std::{
     io::{Cursor, Read},
     path::{Path, PathBuf},
     pin::Pin,
+    sync::{Arc, Mutex},
 };
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
@@ -23,6 +24,7 @@ use tokio::{
 };
 use tokio_stream::{wrappers::SplitStream, StreamExt as _};
 use url::Url;
+use uuid::Uuid;
 
 use include_dir::{include_dir, Dir};
 use mcp_core::{
@@ -42,12 +44,12 @@ use rmcp::object;
 
 use self::editor_models::{create_editor_model, EditorModel};
 use self::shell::{expand_path, get_shell_config, is_absolute_path, normalize_line_endings};
-use indoc::indoc;
-use std::process::Stdio;
-use std::sync::{Arc, Mutex};
-use xcap::{Monitor, Window};
+use crate::file_pid_tracker::FilePidTracker;
 
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
+use indoc::indoc;
+use std::process::Stdio;
+use xcap::{Monitor, Window};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PromptTemplate {
@@ -832,7 +834,13 @@ impl DeveloperRouter {
         // Get platform-specific shell configuration
         let shell_config = get_shell_config();
 
-        // Execute the command using platform-specific shell
+        // Execute the command using shell with better process cleanup
+        let wrapped_command = if cfg!(windows) {
+            command.to_string()
+        } else {
+            format!("setsid bash -c '{}'", command)
+        };
+
         let mut child = Command::new(&shell_config.executable)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -840,57 +848,117 @@ impl DeveloperRouter {
             .kill_on_drop(true)
             .env("GOOSE_TERMINAL", "1")
             .args(&shell_config.args)
-            .arg(command)
+            .arg(&wrapped_command)
             .spawn()
             .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
 
-        let stdout = BufReader::new(child.stdout.take().unwrap());
-        let stderr = BufReader::new(child.stderr.take().unwrap());
+        // Store the child PID for cleanup - generate a unique execution ID
+        let execution_id = format!("exec_{}", Uuid::new_v4().simple());
+
+        let child_pid = child.id();
+
+        // Store the PID globally for cleanup if cancellation occurs
+        if let Some(pid) = child_pid {
+            let file_tracker = FilePidTracker::new();
+            file_tracker.register_process(execution_id.clone(), pid, command.to_string());
+        }
+
+        let stdout = child.stdout.take().unwrap();
+        let stderr = child.stderr.take().unwrap();
+
+        let mut stdout_reader = BufReader::new(stdout);
+        let mut stderr_reader = BufReader::new(stderr);
 
         let output_task = tokio::spawn(async move {
             let mut combined_output = String::new();
 
-            // We have the individual two streams above, now merge them into one unified stream of
-            // an enum. ref https://blog.yoshuawuyts.com/futures-concurrency-3
-            let stdout = SplitStream::new(stdout.split(b'\n')).map(|v| ("stdout", v));
-            let stderr = SplitStream::new(stderr.split(b'\n')).map(|v| ("stderr", v));
-            let mut merged = stdout.merge(stderr);
+            let mut stdout_buf = Vec::new();
+            let mut stderr_buf = Vec::new();
 
-            while let Some((key, line)) = merged.next().await {
-                let mut line = line?;
-                // Re-add this as clients expect it
-                line.push(b'\n');
-                // Here we always convert to UTF-8 so agents don't have to deal with corrupted output
-                let line = String::from_utf8_lossy(&line);
+            let mut stdout_done = false;
+            let mut stderr_done = false;
 
-                combined_output.push_str(&line);
+            loop {
+                tokio::select! {
+                    n = stdout_reader.read_until(b'\n', &mut stdout_buf), if !stdout_done => {
+                        if n? == 0 {
+                            stdout_done = true;
+                        } else {
+                            let line = String::from_utf8_lossy(&stdout_buf);
 
-                notifier
-                    .try_send(JsonRpcMessage::Notification(JsonRpcNotification {
-                        jsonrpc: JsonRpcVersion2_0,
-                        notification: Notification {
-                            method: "notifications/message".to_string(),
-                            params: object!({
-                                "level": "info",
-                                "data": {
-                                    "type": "shell",
-                                    "stream": key,
-                                    "output": line,
+                            notifier.try_send(JsonRpcMessage::Notification(JsonRpcNotification {
+                                jsonrpc: JsonRpcVersion2_0,
+                                notification: Notification {
+                                    method: "notifications/message".to_string(),
+                                    params: object!({
+                                        "level": "info",
+                                        "data": {
+                                            "type": "shell",
+                                            "stream": "stdout",
+                                            "output": line.to_string(),
+                                        }
+                                    }),
+                                    extensions: Default::default(),
                                 }
-                            }),
-                            extensions: Default::default(),
-                        },
-                    }))
-                    .ok();
+                            })).ok();
+
+                            combined_output.push_str(&line);
+                            stdout_buf.clear();
+                        }
+                    }
+
+                    n = stderr_reader.read_until(b'\n', &mut stderr_buf), if !stderr_done => {
+                        if n? == 0 {
+                            stderr_done = true;
+                        } else {
+                            let line = String::from_utf8_lossy(&stderr_buf);
+
+                            notifier.try_send(JsonRpcMessage::Notification(JsonRpcNotification {
+                                jsonrpc: JsonRpcVersion2_0,
+                                notification: Notification {
+                                    method: "notifications/message".to_string(),
+                                    params: object!({
+                                        "level": "info",
+                                        "data": {
+                                            "type": "shell",
+                                            "stream": "stderr",
+                                            "output": line.to_string(),
+                                        }
+                                    }),
+                                    extensions: Default::default(),
+                                }
+                            })).ok();
+
+                            combined_output.push_str(&line);
+                            stderr_buf.clear();
+                        }
+                    }
+
+                    else => break,
+                }
+
+                if stdout_done && stderr_done {
+                    break;
+                }
             }
             Ok::<_, std::io::Error>(combined_output)
         });
 
         // Wait for the command to complete and get output
-        child
-            .wait()
-            .await
-            .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
+        let exit_status_result = child.wait().await;
+
+        match exit_status_result {
+            Ok(exit_status) => {
+                if exit_status.success() {
+                    // Always use file-based tracking for consistency
+                    let file_tracker = FilePidTracker::new();
+                    file_tracker.unregister_process(&execution_id);
+                }
+            }
+            Err(e) => {
+                return Err(ToolError::ExecutionError(e.to_string()));
+            }
+        }
 
         let output_str = match output_task.await {
             Ok(result) => result.map_err(|e| ToolError::ExecutionError(e.to_string()))?,
@@ -1916,6 +1984,7 @@ mod tests {
                 json!({
                     "command": "Get-ChildItem"
                 }),
+                dummy_sender(),
             )
             .await;
         assert!(result.is_ok());
