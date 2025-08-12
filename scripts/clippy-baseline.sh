@@ -17,7 +17,6 @@
 # 2. Generate baseline: ./scripts/clippy-baseline.sh generate clippy::your_rule
 
 BASELINE_RULES=(
-    "clippy::cognitive_complexity|function_name"
     "clippy::too_many_lines|function_name"
 )
 
