@@ -170,3 +170,107 @@ impl AutoPilot {
         self.switch_active
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::conversation::message::Message;
+    use crate::conversation::Conversation;
+
+    fn create_test_autopilot() -> AutoPilot {
+        AutoPilot {
+            original_provider: None,
+            oracle_config: Some(ModelConfig {
+                provider: "openai".to_string(),
+                model: "o1-preview".to_string(),
+                role: "oracle".to_string(),
+            }),
+            second_opinion_config: Some(ModelConfig {
+                provider: "anthropic".to_string(),
+                model: "claude-3-5-sonnet-20241022".to_string(),
+                role: "second-opinion".to_string(),
+            }),
+            switch_active: false,
+        }
+    }
+
+    fn create_conversation_with_text(text: &str) -> Conversation {
+        let message = Message::user().with_text(text);
+        Conversation::new(vec![message]).expect("Failed to create conversation")
+    }
+
+    #[test]
+    fn test_should_switch_to_oracle_with_trigger() {
+        let autopilot = create_test_autopilot();
+        let conversation = create_conversation_with_text("I need to think about this problem");
+        
+        assert!(autopilot.should_switch_to_oracle(&conversation));
+    }
+
+    #[test]
+    fn test_should_switch_to_oracle_without_trigger() {
+        let autopilot = create_test_autopilot();
+        let conversation = create_conversation_with_text("Just a normal message");
+        
+        assert!(!autopilot.should_switch_to_oracle(&conversation));
+    }
+
+    #[test]
+    fn test_should_switch_to_second_opinion_with_trigger() {
+        let autopilot = create_test_autopilot();
+        let conversation = create_conversation_with_text("I need help with this");
+        
+        assert!(autopilot.should_switch_to_second_opinion(&conversation));
+    }
+
+    #[test]
+    fn test_should_switch_to_second_opinion_without_trigger() {
+        let autopilot = create_test_autopilot();
+        let conversation = create_conversation_with_text("Just a normal message");
+        
+        assert!(!autopilot.should_switch_to_second_opinion(&conversation));
+    }
+
+    #[test]
+    fn test_no_switch_when_config_missing() {
+        let mut autopilot = create_test_autopilot();
+        autopilot.oracle_config = None;
+        autopilot.second_opinion_config = None;
+        
+        let conversation = create_conversation_with_text("I need to think and need help");
+        
+        assert!(!autopilot.should_switch_to_oracle(&conversation));
+        assert!(!autopilot.should_switch_to_second_opinion(&conversation));
+    }
+
+    #[test]
+    fn test_is_switched_state() {
+        let mut autopilot = create_test_autopilot();
+        assert!(!autopilot.is_switched());
+        
+        autopilot.switch_active = true;
+        assert!(autopilot.is_switched());
+    }
+
+    #[test]
+    fn test_empty_conversation() {
+        let autopilot = create_test_autopilot();
+        let conversation = Conversation::empty();
+        
+        // Should not switch on empty conversation
+        assert!(!autopilot.should_switch_to_oracle(&conversation));
+        assert!(!autopilot.should_switch_to_second_opinion(&conversation));
+    }
+
+    #[test]
+    fn test_case_insensitive_triggers() {
+        let autopilot = create_test_autopilot();
+        
+        // Test uppercase trigger words
+        let conversation = create_conversation_with_text("I need to THINK about this");
+        assert!(autopilot.should_switch_to_oracle(&conversation));
+        
+        let conversation = create_conversation_with_text("I need HELP with this");
+        assert!(autopilot.should_switch_to_second_opinion(&conversation));
+    }
+}
