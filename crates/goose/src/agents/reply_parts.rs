@@ -340,3 +340,110 @@ impl Agent {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::providers::base::{ProviderUsage, Usage};
+    use crate::session;
+    use tempfile::tempdir;
+
+    #[tokio::test]
+    async fn test_non_streaming_token_usage_compatibility() {
+        let temp_dir = tempdir().unwrap();
+        let session_file = temp_dir.path().join("test_session.jsonl");
+        let session_config = crate::agents::types::SessionConfig {
+            id: session::Identifier::Path(session_file.clone()),
+            working_dir: temp_dir.path().to_path_buf(),
+            schedule_id: None,
+            execution_mode: None,
+            max_turns: None,
+            retry_config: None,
+        };
+
+        let usage1 = ProviderUsage::new(
+            "test-model".to_string(),
+            Usage::new(Some(50), Some(50), Some(100)),
+        );
+
+        Agent::update_session_metrics(&session_config, &usage1, 1)
+            .await
+            .unwrap();
+
+        let metadata1 = session::storage::read_metadata(&session_file).unwrap();
+        assert_eq!(metadata1.total_tokens, Some(100));
+        assert_eq!(metadata1.input_tokens, Some(50));
+        assert_eq!(metadata1.output_tokens, Some(50));
+        assert_eq!(metadata1.accumulated_total_tokens, Some(100));
+        assert_eq!(metadata1.accumulated_input_tokens, Some(50));
+        assert_eq!(metadata1.accumulated_output_tokens, Some(50));
+        assert_eq!(metadata1.message_count, 2);
+
+        let usage2 = ProviderUsage::new(
+            "test-model".to_string(),
+            Usage::new(Some(75), Some(75), Some(150)),
+        );
+
+        Agent::update_session_metrics(&session_config, &usage2, 2)
+            .await
+            .unwrap();
+
+        let metadata2 = session::storage::read_metadata(&session_file).unwrap();
+        assert_eq!(metadata2.total_tokens, Some(150));
+        assert_eq!(metadata2.input_tokens, Some(75));
+        assert_eq!(metadata2.output_tokens, Some(75));
+        assert_eq!(metadata2.accumulated_total_tokens, Some(150));
+        assert_eq!(metadata2.accumulated_input_tokens, Some(75));
+        assert_eq!(metadata2.accumulated_output_tokens, Some(75));
+        assert_eq!(metadata2.message_count, 3); // 2 + 1
+    }
+
+    #[tokio::test]
+    async fn test_streaming_token_usage_fix() {
+        let temp_dir = tempdir().unwrap();
+        let session_file = temp_dir.path().join("test_streaming_session.jsonl");
+
+        let session_config = crate::agents::types::SessionConfig {
+            id: session::Identifier::Path(session_file.clone()),
+            working_dir: temp_dir.path().to_path_buf(),
+            schedule_id: None,
+            execution_mode: None,
+            max_turns: None,
+            retry_config: None,
+        };
+
+        let usage1 = ProviderUsage::new(
+            "test-model".to_string(),
+            Usage::new(Some(5), Some(5), Some(10)),
+        );
+        Agent::update_session_metrics(&session_config, &usage1, 1)
+            .await
+            .unwrap();
+
+        let metadata1 = session::storage::read_metadata(&session_file).unwrap();
+        assert_eq!(metadata1.total_tokens, Some(10));
+
+        let usage2 = ProviderUsage::new(
+            "test-model".to_string(),
+            Usage::new(Some(10), Some(10), Some(20)),
+        );
+        Agent::update_session_metrics(&session_config, &usage2, 1)
+            .await
+            .unwrap();
+
+        let metadata2 = session::storage::read_metadata(&session_file).unwrap();
+        assert_eq!(metadata2.total_tokens, Some(20));
+        assert_eq!(metadata2.accumulated_total_tokens, Some(20));
+
+        // In streaming mode, some providers returns None for usage.
+        // Ensure that the accumulated tokens are not reset to 0.
+        let usage3 = ProviderUsage::new("test-model".to_string(), Usage::new(None, None, None));
+        Agent::update_session_metrics(&session_config, &usage3, 1)
+            .await
+            .unwrap();
+
+        let metadata3 = session::storage::read_metadata(&session_file).unwrap();
+        assert_eq!(metadata3.total_tokens, Some(20));
+        assert_eq!(metadata3.accumulated_total_tokens, Some(20));
+    }
+}
