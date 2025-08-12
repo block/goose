@@ -1,8 +1,8 @@
+use etcetera::{choose_app_strategy, AppStrategy};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
-use serde::{Deserialize, Serialize};
-use etcetera::{choose_app_strategy, AppStrategy};
 
 /// Process information stored in the PID tracking file
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -25,7 +25,9 @@ impl FilePidTracker {
         let file_path = choose_app_strategy(crate::APP_STRATEGY.clone())
             .map(|strategy| strategy.in_data_dir("tracked_pids.json"))
             .unwrap_or_else(|_| {
-                PathBuf::from(shellexpand::tilde("~/.local/share/goose/tracked_pids.json").to_string())
+                PathBuf::from(
+                    shellexpand::tilde("~/.local/share/goose/tracked_pids.json").to_string(),
+                )
             });
 
         // Create the directory if it doesn't exist
@@ -43,12 +45,10 @@ impl FilePidTracker {
         }
 
         match fs::read_to_string(&self.file_path) {
-            Ok(content) => {
-                match serde_json::from_str::<HashMap<String, ProcessInfo>>(&content) {
-                    Ok(pids) => pids,
-                    Err(_) => HashMap::new(),
-                }
-            }
+            Ok(content) => match serde_json::from_str::<HashMap<String, ProcessInfo>>(&content) {
+                Ok(pids) => pids,
+                Err(_) => HashMap::new(),
+            },
             Err(_) => HashMap::new(),
         }
     }
@@ -109,12 +109,12 @@ impl FilePidTracker {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_secs();
-        
+
         let one_hour = 3600; // 1 hour in seconds
         let initial_count = pids.len();
-        
+
         pids.retain(|_, info| current_time - info.timestamp < one_hour);
-        
+
         if pids.len() != initial_count {
             self.write_pids(&pids);
         }

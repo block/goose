@@ -45,10 +45,10 @@ use self::editor_models::{create_editor_model, EditorModel};
 use self::shell::{expand_path, get_shell_config, is_absolute_path, normalize_line_endings};
 use crate::file_pid_tracker::FilePidTracker;
 
+use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use indoc::indoc;
 use std::process::Stdio;
 use xcap::{Monitor, Window};
-use ignore::gitignore::{Gitignore, GitignoreBuilder};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PromptTemplate {
@@ -740,7 +740,7 @@ impl DeveloperRouter {
 
         // Wait for the command to complete and get output
         let exit_status_result = child.wait().await;
-        
+
         match exit_status_result {
             Ok(exit_status) => {
                 if exit_status.success() {
