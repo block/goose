@@ -1186,6 +1186,7 @@ impl GoogleDriveRouter {
     // It decodes the base64 data, resizes the image if its width exceeds `max_width`,
     // and then returns a new image tag (always output as PNG).
     // logic copied from developer/mod.rs
+    #[cfg(feature = "screen_capture")]
     fn process_image(&self, caps: &regex::Captures, max_width: u32) -> Result<Content, Error> {
         let base64_data = &caps["data"];
 
@@ -1224,6 +1225,7 @@ impl GoogleDriveRouter {
 
     /// Resizes all base64-encoded images found in the input string.
     /// If any image fails to process, an error is returned.
+    #[cfg(feature = "screen_capture")]
     fn resize_images(&self, input: &str) -> Result<Vec<Content>, Error> {
         // Regex to match and capture the MIME type and Base64 data.
         let image_regex =
@@ -1280,17 +1282,22 @@ impl GoogleDriveRouter {
                             let content = self.strip_image_body(&response);
                             Ok(vec![Content::text(content).with_priority(0.1)])
                         } else {
-                            let images = self.resize_images(&response).map_err(|e| {
-                                ToolError::ExecutionError(format!(
-                                    "Failed to resize image(s): {}",
-                                    e
-                                ))
-                            })?;
-
                             let content = self.strip_image_body(&response);
-                            Ok(std::iter::once(Content::text(content).with_priority(0.1))
-                                .chain(images.iter().cloned())
-                                .collect::<Vec<Content>>())
+                            let contents = vec![Content::text(content).with_priority(0.1)];
+
+                            #[cfg(feature = "screen_capture")]
+                            {
+                                match self.resize_images(&response) {
+                                    Ok(images) => contents.extend(images),
+                                    Err(e) => {
+                                        return Err(ToolError::ExecutionError(format!(
+                                            "Failed to resize image(s): {}",
+                                            e
+                                        )))
+                                    }
+                                }
+                            }
+                            Ok(contents)
                         }
                     } else {
                         Err(ToolError::ExecutionError(format!(
@@ -1338,17 +1345,21 @@ impl GoogleDriveRouter {
                                 let content = self.strip_image_body(&response);
                                 Ok(vec![Content::text(content).with_priority(0.1)])
                             } else {
-                                let images = self.resize_images(&response).map_err(|e| {
-                                    ToolError::ExecutionError(format!(
-                                        "Failed to resize image(s): {}",
-                                        e
-                                    ))
-                                })?;
-
                                 let content = self.strip_image_body(&response);
-                                Ok(std::iter::once(Content::text(content).with_priority(0.1))
-                                    .chain(images.iter().cloned())
-                                    .collect::<Vec<Content>>())
+                                let contents = vec![Content::text(content).with_priority(0.1)];
+                                #[cfg(feature = "screen_capture")]
+                                {
+                                    match self.resize_images(&response) {
+                                        Ok(images) => contents.extend(images),
+                                        Err(e) => {
+                                            return Err(ToolError::ExecutionError(format!(
+                                                "Failed to resize image(s): {}",
+                                                e
+                                            )))
+                                        }
+                                    }
+                                }
+                                Ok(contents)
                             }
                         } else {
                             Err(ToolError::ExecutionError(format!(
