@@ -493,11 +493,10 @@ impl ExtensionManager {
 
                 loop {
                     for tool in client_tools.tools {
-                        // Check if tool should be visible
                         let is_visible = extension_config
                             .as_ref()
                             .map(|config| config.is_tool_visible(&tool.name))
-                            .unwrap_or(true); // Default to visible if no config
+                            .unwrap_or(true);
 
                         if is_visible {
                             tools.push(Tool {
@@ -1226,7 +1225,9 @@ mod tests {
         };
 
         let sanitized_name = normalize("test_extension".to_string());
-        extension_manager.extension_configs.insert(sanitized_name.clone(), config);
+        extension_manager
+            .extension_configs
+            .insert(sanitized_name.clone(), config);
 
         extension_manager.clients.insert(
             sanitized_name,
@@ -1234,7 +1235,7 @@ mod tests {
         );
 
         let tools = extension_manager.get_prefixed_tools(None).await.unwrap();
-        
+
         let tool_names: Vec<String> = tools.iter().map(|t| t.name.to_string()).collect();
         assert!(tool_names.iter().any(|name| name.contains("tool"))); // Default visible
         assert!(tool_names.iter().any(|name| name.contains("visible_tool")));
