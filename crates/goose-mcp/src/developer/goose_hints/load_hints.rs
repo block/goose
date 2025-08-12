@@ -105,7 +105,7 @@ pub fn load_hint_files(
                 hints_dir,
                 &mut visited,
                 0,
-                &ignore_patterns,
+                ignore_patterns,
             );
             if !expanded_content.is_empty() {
                 global_hints_contents.push(expanded_content);
@@ -125,7 +125,7 @@ pub fn load_hint_files(
                     import_boundary,
                     &mut visited,
                     0,
-                    &ignore_patterns,
+                    ignore_patterns,
                 );
                 if !expanded_content.is_empty() {
                     local_hints_contents.push(expanded_content);
