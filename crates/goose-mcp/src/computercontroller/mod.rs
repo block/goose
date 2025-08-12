@@ -421,6 +421,18 @@ impl ComputerControllerRouter {
             }),
         );
 
+        let mcp_ui_hello_tool = Tool::new(
+            "mcp_ui_hello",
+            indoc! {r#"
+                Returns a simple HTML hello message using the MCP UI resource format.
+                This is a demonstration tool that shows how to return HTML content through the MCP UI resource protocol.
+            "#},
+            object!({
+                "type": "object",
+                "properties": {}
+            }),
+        );
+
         // choose_app_strategy().cache_dir()
         // - macOS/Linux: ~/.cache/goose/computer_controller/
         // - Windows:     ~\AppData\Local\Block\goose\cache\computer_controller\
@@ -548,6 +560,7 @@ impl ComputerControllerRouter {
                 pdf_tool,
                 docx_tool,
                 xlsx_tool,
+                mcp_ui_hello_tool,
             ],
             cache_dir,
             active_resources: Arc::new(Mutex::new(HashMap::new())),
@@ -1009,6 +1022,26 @@ impl ComputerControllerRouter {
         crate::computercontroller::pdf_tool::pdf_tool(path, operation, &self.cache_dir).await
     }
 
+    async fn mcp_ui_hello(&self, _params: Value) -> Result<Vec<Content>, ToolError> {
+        // Create an MCP UI resource with HTML content
+        let html_content = "<html><body><h1>Hello from MCP UI!</h1></body></html>";
+        
+        // Return the content with the MCP UI resource format
+        let resource_content = serde_json::json!({
+            "type": "resource",
+            "resource": {
+                "uri": "ui://hello/greeting",
+                "mimeType": "text/html",
+                "text": html_content
+            }
+        });
+        
+        Ok(vec![Content::text(format!(
+            "MCP UI Hello tool executed successfully. Resource: {}",
+            resource_content
+        ))])
+    }
+
     async fn cache(&self, params: Value) -> Result<Vec<Content>, ToolError> {
         let command = params
             .get("command")
@@ -1123,6 +1156,7 @@ impl Router for ComputerControllerRouter {
                 "pdf_tool" => this.pdf_tool(arguments).await,
                 "docx_tool" => this.docx_tool(arguments).await,
                 "xlsx_tool" => this.xlsx_tool(arguments).await,
+                "mcp_ui_hello" => this.mcp_ui_hello(arguments).await,
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
         })
