@@ -68,10 +68,10 @@ export default function Hub({
       setPairChat(newPairChat);
 
       // Navigate to pair page with the message to be submitted immediately
-      // No delay needed since we're updating state synchronously
       setView('pair', {
         disableAnimation: true,
         initialMessage: combinedTextFromInput,
+        resetChat: true,
       });
     }
 
