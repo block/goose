@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Flowchart Visualization</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .controls {
+            padding: 30px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .control-section {
+            margin-bottom: 20px;
+        }
+
+        .control-section h3 {
+            color: #495057;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+        }
+
+        .button-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(240, 147, 251, 0.3);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+        }
+
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(79, 172, 254, 0.3);
+        }
+
+        .content {
+            display: flex;
+            min-height: 600px;
+        }
+
+        .chart-container {
+            flex: 1;
+            padding: 30px;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .mermaid {
+            width: 100%;
+            height: auto;
+            min-height: 400px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .info-panel {
+            width: 300px;
+            background: #f8f9fa;
+            padding: 30px;
+            border-left: 1px solid #e9ecef;
+        }
+
+        .info-section {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        .info-section h4 {
+            color: #495057;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 8px;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid #f1f3f4;
+        }
+
+        .stat-label {
+            color: #6c757d;
+            font-weight: 500;
+        }
+
+        .stat-value {
+            color: #495057;
+            font-weight: 600;
+        }
+
+        .description {
+            color: #6c757d;
+            line-height: 1.6;
+            font-size: 14px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            margin-right: 10px;
+        }
+
+        .legend-label {
+            color: #495057;
+            font-size: 14px;
+        }
+
+        @media (max-width: 768px) {
+            .content {
+                flex-direction: column;
+            }
+            
+            .info-panel {
+                width: 100%;
+            }
+            
+            .button-group {
+                justify-content: center;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 400px;
+            font-size: 18px;
+            color: #6c757d;
+        }
+
+        .error {
+            color: #dc3545;
+            text-align: center;
+            padding: 20px;
+            background: #f8d7da;
+            border-radius: 8px;
+            margin: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Interactive Flowchart Visualization</h1>
+            <p>Explore various flowchart types with dynamic data and interactive controls</p>
+        </div>
+
+        <div class="controls">
+            <div class="control-section">
+                <h3>📊 Sample Flowcharts</h3>
+                <div class="button-group">
+                    <button class="btn btn-primary" onclick="loadSampleData('process')">Business Process</button>
+                    <button class="btn btn-primary" onclick="loadSampleData('decision')">Decision Tree</button>
+                    <button class="btn btn-primary" onclick="loadSampleData('workflow')">Software Workflow</button>
+                    <button class="btn btn-primary" onclick="loadSampleData('organization')">Organization Chart</button>
+                    <button class="btn btn-primary" onclick="loadSampleData('system')">System Architecture</button>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <h3>🎨 Chart Controls</h3>
+                <div class="button-group">
+                    <button class="btn btn-secondary" onclick="changeTheme('default')">Default Theme</button>
+                    <button class="btn btn-secondary" onclick="changeTheme('dark')">Dark Theme</button>
+                    <button class="btn btn-secondary" onclick="changeTheme('forest')">Forest Theme</button>
+                    <button class="btn btn-secondary" onclick="changeTheme('neutral')">Neutral Theme</button>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <h3>⚡ Actions</h3>
+                <div class="button-group">
+                    <button class="btn btn-success" onclick="randomizeData()">Randomize Data</button>
+                    <button class="btn btn-success" onclick="exportChart()">Export SVG</button>
+                    <button class="btn btn-success" onclick="toggleDirection()">Toggle Direction</button>
+                    <button class="btn btn-success" onclick="addRandomNode()">Add Node</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="chart-container">
+                <div id="flowchart" class="mermaid"></div>
+            </div>
+
+            <div class="info-panel">
+                <div class="info-section">
+                    <h4>📈 Chart Statistics</h4>
+                    <div class="stat-item">
+                        <span class="stat-label">Nodes:</span>
+                        <span class="stat-value" id="nodeCount">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Connections:</span>
+                        <span class="stat-value" id="connectionCount">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Chart Type:</span>
+                        <span class="stat-value" id="chartType">Flowchart</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Direction:</span>
+                        <span class="stat-value" id="direction">Top-Down</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Theme:</span>
+                        <span class="stat-value" id="currentTheme">Default</span>
+                    </div>
+                </div>
+
+                <div class="info-section">
+                    <h4>🎯 Current Dataset</h4>
+                    <p class="description" id="datasetDescription">
+                        Select a sample flowchart to see detailed information about the current visualization.
+                    </p>
+                </div>
+
+                <div class="info-section">
+                    <h4>🔧 Node Types</h4>
+                    <div id="nodeLegend">
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: #4facfe;"></div>
+                            <span class="legend-label">Process</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: #f093fb;"></div>
+                            <span class="legend-label">Decision</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: #43e97b;"></div>
+                            <span class="legend-label">Start/End</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: #fa709a;"></div>
+                            <span class="legend-label">Data</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-section">
+                    <h4>💡 Features</h4>
+                    <ul style="color: #6c757d; font-size: 14px; line-height: 1.6;">
+                        <li>Interactive flowchart rendering</li>
+                        <li>Multiple chart types and themes</li>
+                        <li>Dynamic node and connection management</li>
+                        <li>Export functionality</li>
+                        <li>Responsive design</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Mermaid
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            }
+        });
+
+        // Global variables
+        let currentData = '';
+        let currentTheme = 'default';
+        let currentDirection = 'TD';
+        let nodeCounter = 0;
+
+        // Sample data sets
+        const sampleData = {
+            process: {
+                name: 'Business Process Flow',
+                description: 'A typical business process workflow showing approval stages, decision points, and outcomes. Demonstrates standard business logic flow.',
+                mermaid: `flowchart TD
+                    A[Start Process] --> B{Check Requirements}
+                    B -->|Complete| C[Review Application]
+                    B -->|Incomplete| D[Request More Info]
+                    D --> B
+                    C --> E{Manager Approval}
+                    E -->|Approved| F[Process Payment]
+                    E -->|Rejected| G[Send Rejection Notice]
+                    F --> H[Send Confirmation]
+                    G --> I[End Process]
+                    H --> I
+                    
+                    style A fill:#43e97b
+                    style I fill:#43e97b
+                    style B fill:#f093fb
+                    style E fill:#f093fb
+                    style C fill:#4facfe
+                    style F fill:#4facfe
+                    style D fill:#fa709a
+                    style G fill:#fa709a
+                    style H fill:#fa709a`
+            },
+            decision: {
+                name: 'Decision Tree Analysis',
+                description: 'A comprehensive decision tree for customer service scenarios with multiple branching paths and escalation procedures.',
+                mermaid: `flowchart TD
+                    A[Customer Inquiry] --> B{Issue Type}
+                    B -->|Technical| C[Technical Support]
+                    B -->|Billing| D[Billing Department]
+                    B -->|General| E[General Support]
+                    
+                    C --> F{Complexity Level}
+                    F -->|Simple| G[Provide Solution]
+                    F -->|Complex| H[Escalate to L2]
+                    
+                    D --> I{Account Status}
+                    I -->|Active| J[Process Request]
+                    I -->|Suspended| K[Account Recovery]
+                    
+                    E --> L[Provide Information]
+                    
+                    G --> M[Close Ticket]
+                    H --> N[L2 Investigation]
+                    J --> M
+                    K --> O[Follow-up Required]
+                    L --> M
+                    N --> P{Resolution Found}
+                    P -->|Yes| M
+                    P -->|No| Q[Escalate to L3]
+                    O --> M
+                    Q --> R[Expert Review]
+                    R --> M
+                    
+                    style A fill:#43e97b
+                    style M fill:#43e97b
+                    style B fill:#f093fb
+                    style F fill:#f093fb
+                    style I fill:#f093fb
+                    style P fill:#f093fb`
+            },
+            workflow: {
+                name: 'Software Development Workflow',
+                description: 'A complete software development lifecycle workflow including development, testing, deployment, and monitoring phases.',
+                mermaid: `flowchart LR
+                    A[Requirements] --> B[Design]
+                    B --> C[Development]
+                    C --> D[Code Review]
+                    D --> E{Review Passed}
+                    E -->|No| C
+                    E -->|Yes| F[Testing]
+                    F --> G{Tests Passed}
+                    G -->|No| C
+                    G -->|Yes| H[Staging Deploy]
+                    H --> I[UAT Testing]
+                    I --> J{UAT Approved}
+                    J -->|No| C
+                    J -->|Yes| K[Production Deploy]
+                    K --> L[Monitoring]
+                    L --> M{Issues Detected}
+                    M -->|Yes| N[Hotfix]
+                    M -->|No| O[Success]
+                    N --> C
+                    
+                    style A fill:#43e97b
+                    style O fill:#43e97b
+                    style E fill:#f093fb
+                    style G fill:#f093fb
+                    style J fill:#f093fb
+                    style M fill:#f093fb
+                    style C fill:#4facfe
+                    style F fill:#4facfe
+                    style H fill:#4facfe
+                    style K fill:#4facfe`
+            },
+            organization: {
+                name: 'Organization Structure',
+                description: 'A hierarchical organization chart showing reporting relationships and departmental structure within a company.',
+                mermaid: `flowchart TD
+                    CEO[Chief Executive Officer]
+                    CEO --> CTO[Chief Technology Officer]
+                    CEO --> CFO[Chief Financial Officer]
+                    CEO --> CMO[Chief Marketing Officer]
+                    CEO --> COO[Chief Operations Officer]
+                    
+                    CTO --> DevMgr[Development Manager]
+                    CTO --> QAMgr[QA Manager]
+                    CTO --> DevOpsMgr[DevOps Manager]
+                    
+                    CFO --> AcctMgr[Accounting Manager]
+                    CFO --> FinMgr[Finance Manager]
+                    
+                    CMO --> DigMgr[Digital Marketing Manager]
+                    CMO --> ProdMgr[Product Marketing Manager]
+                    
+                    COO --> HRMgr[HR Manager]
+                    COO --> OpsMgr[Operations Manager]
+                    
+                    DevMgr --> Dev1[Senior Developer]
+                    DevMgr --> Dev2[Junior Developer]
+                    QAMgr --> QA1[QA Engineer]
+                    QAMgr --> QA2[Test Automation]
+                    
+                    style CEO fill:#43e97b
+                    style CTO fill:#4facfe
+                    style CFO fill:#4facfe
+                    style CMO fill:#4facfe
+                    style COO fill:#4facfe
+                    style DevMgr fill:#f093fb
+                    style QAMgr fill:#f093fb
+                    style AcctMgr fill:#f093fb
+                    style HRMgr fill:#f093fb`
+            },
+            system: {
+                name: 'System Architecture',
+                description: 'A system architecture diagram showing data flow between different components, databases, and external services.',
+                mermaid: `flowchart TB
+                    User[User Interface] --> LB[Load Balancer]
+                    LB --> App1[App Server 1]
+                    LB --> App2[App Server 2]
+                    LB --> App3[App Server 3]
+                    
+                    App1 --> Cache[Redis Cache]
+                    App2 --> Cache
+                    App3 --> Cache
+                    
+                    App1 --> DB[(Primary Database)]
+                    App2 --> DB
+                    App3 --> DB
+                    
+                    DB --> Replica[(Read Replica)]
+                    
+                    App1 --> Queue[Message Queue]
+                    App2 --> Queue
+                    App3 --> Queue
+                    
+                    Queue --> Worker1[Background Worker 1]
+                    Queue --> Worker2[Background Worker 2]
+                    
+                    Worker1 --> Storage[File Storage]
+                    Worker2 --> Storage
+                    
+                    App1 --> API[External API]
+                    App2 --> API
+                    App3 --> API
+                    
+                    Storage --> CDN[Content Delivery Network]
+                    CDN --> User
+                    
+                    style User fill:#43e97b
+                    style LB fill:#f093fb
+                    style Cache fill:#fa709a
+                    style DB fill:#4facfe
+                    style Queue fill:#fa709a
+                    style Storage fill:#4facfe
+                    style API fill:#f093fb`
+            }
+        };
+
+        // Load sample data
+        function loadSampleData(type) {
+            const data = sampleData[type];
+            if (data) {
+                currentData = data.mermaid;
+                document.getElementById('chartType').textContent = data.name;
+                document.getElementById('datasetDescription').textContent = data.description;
+                renderChart();
+                updateStatistics();
+            }
+        }
+
+        // Change theme
+        function changeTheme(theme) {
+            currentTheme = theme;
+            document.getElementById('currentTheme').textContent = theme.charAt(0).toUpperCase() + theme.slice(1);
+            mermaid.initialize({
+                startOnLoad: true,
+                theme: theme,
+                flowchart: {
+                    useMaxWidth: true,
+                    htmlLabels: true,
+                    curve: 'basis'
+                }
+            });
+            renderChart();
+        }
+
+        // Toggle direction
+        function toggleDirection() {
+            const directions = ['TD', 'LR', 'BT', 'RL'];
+            const currentIndex = directions.indexOf(currentDirection);
+            const nextIndex = (currentIndex + 1) % directions.length;
+            currentDirection = directions[nextIndex];
+            
+            const directionNames = {
+                'TD': 'Top-Down',
+                'LR': 'Left-Right',
+                'BT': 'Bottom-Top',
+                'RL': 'Right-Left'
+            };
+            
+            document.getElementById('direction').textContent = directionNames[currentDirection];
+            
+            if (currentData) {
+                // Replace the direction in the current data
+                currentData = currentData.replace(/flowchart\s+(TD|LR|BT|RL)/, `flowchart ${currentDirection}`);
+                renderChart();
+            }
+        }
+
+        // Add random node
+        function addRandomNode() {
+            if (!currentData) {
+                loadSampleData('process');
+                return;
+            }
+
+            nodeCounter++;
+            const nodeId = `N${nodeCounter}`;
+            const nodeLabel = `New Node ${nodeCounter}`;
+            const randomColor = ['#4facfe', '#f093fb', '#43e97b', '#fa709a'][Math.floor(Math.random() * 4)];
+            
+            // Find existing nodes to connect to
+            const nodeMatches = currentData.match(/[A-Z][A-Z0-9]*(?=\[|\{|\()/g);
+            if (nodeMatches && nodeMatches.length > 0) {
+                const randomExistingNode = nodeMatches[Math.floor(Math.random() * nodeMatches.length)];
+                
+                // Add the new node and connection
+                const newConnection = `\n    ${randomExistingNode} --> ${nodeId}[${nodeLabel}]`;
+                const newStyle = `\n    style ${nodeId} fill:${randomColor}`;
+                
+                currentData += newConnection + newStyle;
+                renderChart();
+                updateStatistics();
+            }
+        }
+
+        // Randomize data
+        function randomizeData() {
+            const types = Object.keys(sampleData);
+            const randomType = types[Math.floor(Math.random() * types.length)];
+            loadSampleData(randomType);
+        }
+
+        // Export chart
+        function exportChart() {
+            const svg = document.querySelector('#flowchart svg');
+            if (svg) {
+                const svgData = new XMLSerializer().serializeToString(svg);
+                const svgBlob = new Blob([svgData], {type: 'image/svg+xml;charset=utf-8'});
+                const svgUrl = URL.createObjectURL(svgBlob);
+                const downloadLink = document.createElement('a');
+                downloadLink.href = svgUrl;
+                downloadLink.download = 'flowchart.svg';
+                document.body.appendChild(downloadLink);
+                downloadLink.click();
+                document.body.removeChild(downloadLink);
+                URL.revokeObjectURL(svgUrl);
+            }
+        }
+
+        // Render chart
+        function renderChart() {
+            if (!currentData) return;
+            
+            const element = document.getElementById('flowchart');
+            element.innerHTML = currentData;
+            
+            mermaid.init(undefined, element);
+        }
+
+        // Update statistics
+        function updateStatistics() {
+            if (!currentData) return;
+            
+            // Count nodes (looking for node definitions)
+            const nodeMatches = currentData.match(/[A-Z][A-Z0-9]*\[.*?\]|[A-Z][A-Z0-9]*\{.*?\}|[A-Z][A-Z0-9]*\(.*?\)/g);
+            const nodeCount = nodeMatches ? nodeMatches.length : 0;
+            
+            // Count connections (looking for arrows)
+            const connectionMatches = currentData.match(/-->/g);
+            const connectionCount = connectionMatches ? connectionMatches.length : 0;
+            
+            document.getElementById('nodeCount').textContent = nodeCount;
+            document.getElementById('connectionCount').textContent = connectionCount;
+        }
+
+        // Initialize with sample data
+        document.addEventListener('DOMContentLoaded', function() {
+            loadSampleData('process');
+        });
+    </script>
+</body>
+</html>

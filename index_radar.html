@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Radar Chart Visualization</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            margin: 0 0 10px 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        
+        .header p {
+            margin: 0;
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .controls {
+            padding: 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .control-group label {
+            font-weight: 600;
+            color: #495057;
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .btn-primary {
+            background: #007bff;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #0056b3;
+            transform: translateY(-1px);
+        }
+        
+        .btn-primary.active {
+            background: #0056b3;
+            box-shadow: 0 2px 4px rgba(0, 123, 255, 0.3);
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #545b62;
+            transform: translateY(-1px);
+        }
+        
+        .chart-container {
+            padding: 30px;
+            position: relative;
+            height: 600px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .stats-panel {
+            background: #f8f9fa;
+            padding: 20px;
+            border-top: 1px solid #e9ecef;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        
+        .stat-item {
+            text-align: center;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        
+        .stat-value {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #007bff;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            font-size: 0.9em;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .data-info {
+            background: #e3f2fd;
+            border: 1px solid #bbdefb;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px;
+            font-size: 0.9em;
+            color: #1565c0;
+        }
+        
+        .data-info strong {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 1em;
+        }
+        
+        .legend-panel {
+            background: #f8f9fa;
+            padding: 20px;
+            border-top: 1px solid #e9ecef;
+        }
+        
+        .legend-title {
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #495057;
+            text-align: center;
+        }
+        
+        .legend-items {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: white;
+            border-radius: 6px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+        }
+        
+        .legend-label {
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+        
+        @media (max-width: 768px) {
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .control-group {
+                justify-content: center;
+            }
+            
+            .chart-container {
+                padding: 15px;
+                height: 500px;
+            }
+            
+            .legend-items {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🕸️ Interactive Radar Charts</h1>
+            <p>Multi-dimensional data visualization with spider/radar charts</p>
+        </div>
+        
+        <div class="controls">
+            <div class="control-group">
+                <label>Sample Data:</label>
+                <button class="btn btn-secondary" onclick="loadSampleData('skills')">Employee Skills</button>
+                <button class="btn btn-secondary" onclick="loadSampleData('products')">Product Comparison</button>
+                <button class="btn btn-secondary" onclick="loadSampleData('performance')">Team Performance</button>
+                <button class="btn btn-secondary" onclick="loadSampleData('sports')">Sports Stats</button>
+                <button class="btn btn-secondary" onclick="loadSampleData('financial')">Financial Metrics</button>
+            </div>
+            
+            <div class="control-group">
+                <label>Options:</label>
+                <button class="btn btn-primary" onclick="toggleFill()">Toggle Fill</button>
+                <button class="btn btn-primary" onclick="togglePoints()">Toggle Points</button>
+                <button class="btn btn-primary" onclick="randomizeData()">Randomize</button>
+            </div>
+        </div>
+        
+        <div class="data-info" id="dataInfo">
+            <strong>Current Dataset:</strong>
+            <span id="dataDescription">Employee skills comparison showing proficiency levels across different technical and soft skills.</span>
+        </div>
+        
+        <div class="chart-container">
+            <canvas id="radarChart"></canvas>
+        </div>
+        
+        <div class="legend-panel">
+            <div class="legend-title">Dataset Legend</div>
+            <div class="legend-items" id="legendItems">
+                <!-- Legend items will be populated by JavaScript -->
+            </div>
+        </div>
+        
+        <div class="stats-panel" id="statsPanel">
+            <div class="stat-item">
+                <div class="stat-value" id="dimensions">0</div>
+                <div class="stat-label">Dimensions</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="datasets">0</div>
+                <div class="stat-label">Datasets</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="maxScore">0</div>
+                <div class="stat-label">Max Score</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="avgScore">0</div>
+                <div class="stat-label">Average Score</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let chart;
+        let currentDataset = 'skills';
+        let fillEnabled = true;
+        let pointsEnabled = true;
+        
+        // Sample data sets for radar charts
+        const sampleData = {
+            skills: {
+                description: "Employee skills comparison showing proficiency levels across different technical and soft skills.",
+                labels: ['JavaScript', 'Python', 'Communication', 'Leadership', 'Problem Solving', 'Teamwork', 'Creativity', 'Analytics'],
+                datasets: [{
+                    label: 'Alice Johnson',
+                    data: [85, 70, 90, 75, 88, 92, 80, 85],
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                    borderWidth: 2,
+                    pointBackgroundColor: 'rgba(255, 99, 132, 1)',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: 'rgba(255, 99, 132, 1)'
+                }, {
+                    label: 'Bob Smith',
+                    data: [90, 85, 70, 80, 75, 85, 70, 90],
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    borderWidth: 2,
+                    pointBackgroundColor: 'rgba(54, 162, 235, 1)',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: 'rgba(54, 162, 235, 1)'
+                }, {
+                    label: 'Carol Davis',
+                    data: [75, 95, 85, 90, 80, 88, 95, 82],
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    borderWidth: 2,
+                    pointBackgroundColor: 'rgba(75, 192, 192, 1)',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: 'rgba(75, 192, 192, 1)'
+                }]
+            },
+            products: {
+                description: "Product comparison across key features including price, quality, performance, and user satisfaction.",
+                labels: ['Price', 'Quality', 'Performance', 'Design', 'Support', 'Features', 'Reliability', 'User Experience'],
+                datasets: [{
+                    label: 'Product A',
+                    data: [80, 85, 90, 75, 70, 85, 88, 82],
+                    borderColor: 'rgba(255, 159, 64, 1)',
+                    backgroundColor: 'rgba(255, 159, 64, 0.2)',
+                    borderWidth: 2,
+                    pointBackgroundColor: 'rgba(255, 159, 64, 1)',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: 'rgba(255, 159, 64, 1)'
+                }, {
+                    label: 'Product B',
+                    data: [70, 90, 85, 90, 85, 80, 82, 88],
+                    borderColor: 'rgba(153, 102, 255, 1)',
+                    backgroundColor: 'rgba(153, 102, 255, 0.2)',
+                    borderWidth: 2,
+                    pointBackgroundColor: 'rgba(153, 102, 255, 1)',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: 'rgba(153, 102, 255, 1)'
+                }]
+            },
+            performance: {
+                description: "Team performance metrics across different project phases and skill areas.",
+                labels: ['Planning', 'Development', 'Testing', 'Deployment', 'Communication', 'Innovation', 'Efficiency', 'Quality'],
+                datasets: [{
+                    label: 'Frontend Team',
+                    data: [85, 95, 80, 85, 90, 88, 85, 90],
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                    borderWidth: 2,
+                    pointBackgroundColor: 'rgba(255, 99, 132, 1)',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: 'rgba(255, 99, 132, 1)'
+                }, {
+                    label: 'Backend Team',
+                    data: [90, 88, 95, 90, 75, 80, 92, 95],
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    borderWidth: 2,
+                    pointBackgroundColor: 'rgba(54, 162, 235, 1)',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: 'rgba(54, 162, 235, 1)'
+                }, {
+                    label: 'DevOps Team',
+                    data: [95, 80, 85, 95, 85, 75, 90, 88],
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    borderWidth: 2,
+                    pointBackgroundColor: 'rgba(75, 192, 192, 1)',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: 'rgba(75, 192, 192, 1)'
+                }]
+            },
+            sports: {
+                description: "Athletic performance comparison across different sports skills and physical attributes.",
+                labels: ['Speed', 'Strength', 'Endurance', 'Agility', 'Coordination', 'Flexibility', 'Power', 'Balance'],
+                datasets: [{
+                    label: 'Athlete 1',
+                    data: [90, 85, 80, 88, 75, 70, 85, 82],
+                    borderColor: 'rgba(255, 206, 86, 1)',
+                    backgroundColor: 'rgba(255, 206, 86, 0.2)',
+                    borderWidth: 2,
+                    pointBackgroundColor: 'rgba(255, 206, 86, 1)',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: 'rgba(255, 206, 86, 1)'
+                }, {
+                    label: 'Athlete 2',
+                    data: [75, 90, 95, 80, 85, 88, 80, 85],
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                    borderWidth: 2,
+                    pointBackgroundColor: 'rgba(255, 99, 132, 1)',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: 'rgba(255, 99, 132, 1)'
+                }]
+            },
+            financial: {
+                description: "Financial performance metrics comparing different investment portfolios and risk factors.",
+                labels: ['ROI', 'Liquidity', 'Risk Level', 'Growth Rate', 'Stability', 'Diversification', 'Market Cap', 'Dividend Yield'],
+                datasets: [{
+                    label: 'Conservative Portfolio',
+                    data: [65, 90, 30, 45, 95, 85, 80, 75],
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    borderWidth: 2,
+                    pointBackgroundColor: 'rgba(54, 162, 235, 1)',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: 'rgba(54, 162, 235, 1)'
+                }, {
+                    label: 'Aggressive Portfolio',
+                    data: [85, 60, 90, 80, 50, 70, 75, 40],
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                    borderWidth: 2,
+                    pointBackgroundColor: 'rgba(255, 99, 132, 1)',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: 'rgba(255, 99, 132, 1)'
+                }, {
+                    label: 'Balanced Portfolio',
+                    data: [75, 75, 60, 65, 75, 80, 78, 60],
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    borderWidth: 2,
+                    pointBackgroundColor: 'rgba(75, 192, 192, 1)',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: 'rgba(75, 192, 192, 1)'
+                }]
+            }
+        };
+        
+        function initChart() {
+            const ctx = document.getElementById('radarChart').getContext('2d');
+            
+            const data = JSON.parse(JSON.stringify(sampleData[currentDataset])); // Deep copy
+            
+            // Apply fill and points settings
+            data.datasets.forEach(dataset => {
+                dataset.fill = fillEnabled;
+                dataset.pointRadius = pointsEnabled ? 4 : 0;
+                dataset.pointHoverRadius = pointsEnabled ? 6 : 0;
+            });
+            
+            chart = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: data.labels,
+                    datasets: data.datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                usePointStyle: true,
+                                padding: 20,
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleColor: 'white',
+                            bodyColor: 'white',
+                            borderColor: 'rgba(255, 255, 255, 0.1)',
+                            borderWidth: 1,
+                            cornerRadius: 8,
+                            displayColors: true,
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + context.parsed.r + '/100';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        r: {
+                            beginAtZero: true,
+                            max: 100,
+                            min: 0,
+                            ticks: {
+                                stepSize: 20,
+                                font: {
+                                    size: 10
+                                },
+                                color: '#666'
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            },
+                            angleLines: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            },
+                            pointLabels: {
+                                font: {
+                                    size: 11,
+                                    weight: 'bold'
+                                },
+                                color: '#333'
+                            }
+                        }
+                    },
+                    animation: {
+                        duration: 1000,
+                        easing: 'easeInOutQuart'
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'point'
+                    }
+                }
+            });
+            
+            updateStats();
+            updateDataInfo();
+            updateLegend();
+        }
+        
+        function loadSampleData(dataset) {
+            currentDataset = dataset;
+            
+            if (chart) {
+                chart.destroy();
+            }
+            initChart();
+        }
+        
+        function toggleFill() {
+            fillEnabled = !fillEnabled;
+            
+            if (chart) {
+                chart.destroy();
+            }
+            initChart();
+        }
+        
+        function togglePoints() {
+            pointsEnabled = !pointsEnabled;
+            
+            if (chart) {
+                chart.destroy();
+            }
+            initChart();
+        }
+        
+        function randomizeData() {
+            const data = sampleData[currentDataset];
+            
+            // Randomize the data values
+            data.datasets.forEach(dataset => {
+                dataset.data = dataset.data.map(() => Math.floor(Math.random() * 100));
+            });
+            
+            if (chart) {
+                chart.destroy();
+            }
+            initChart();
+        }
+        
+        function updateStats() {
+            const data = sampleData[currentDataset];
+            const dimensions = data.labels.length;
+            const datasets = data.datasets.length;
+            
+            let allValues = [];
+            data.datasets.forEach(dataset => {
+                allValues = allValues.concat(dataset.data);
+            });
+            
+            const maxScore = Math.max(...allValues);
+            const avgScore = allValues.reduce((a, b) => a + b, 0) / allValues.length;
+            
+            document.getElementById('dimensions').textContent = dimensions;
+            document.getElementById('datasets').textContent = datasets;
+            document.getElementById('maxScore').textContent = maxScore;
+            document.getElementById('avgScore').textContent = avgScore.toFixed(1);
+        }
+        
+        function updateDataInfo() {
+            document.getElementById('dataDescription').textContent = sampleData[currentDataset].description;
+        }
+        
+        function updateLegend() {
+            const legendContainer = document.getElementById('legendItems');
+            const data = sampleData[currentDataset];
+            
+            legendContainer.innerHTML = '';
+            
+            data.datasets.forEach(dataset => {
+                const legendItem = document.createElement('div');
+                legendItem.className = 'legend-item';
+                
+                const colorBox = document.createElement('div');
+                colorBox.className = 'legend-color';
+                colorBox.style.backgroundColor = dataset.borderColor;
+                
+                const label = document.createElement('span');
+                label.className = 'legend-label';
+                label.textContent = dataset.label;
+                
+                legendItem.appendChild(colorBox);
+                legendItem.appendChild(label);
+                legendContainer.appendChild(legendItem);
+            });
+        }
+        
+        // Initialize the chart when the page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            initChart();
+        });
+    </script>
+</body>
+</html>

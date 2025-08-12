@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Chart Visualization</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            margin: 0 0 10px 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        
+        .header p {
+            margin: 0;
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .controls {
+            padding: 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .control-group label {
+            font-weight: 600;
+            color: #495057;
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .btn-primary {
+            background: #007bff;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #0056b3;
+            transform: translateY(-1px);
+        }
+        
+        .btn-primary.active {
+            background: #0056b3;
+            box-shadow: 0 2px 4px rgba(0, 123, 255, 0.3);
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #545b62;
+            transform: translateY(-1px);
+        }
+        
+        .chart-container {
+            padding: 30px;
+            position: relative;
+            height: 500px;
+        }
+        
+        .stats-panel {
+            background: #f8f9fa;
+            padding: 20px;
+            border-top: 1px solid #e9ecef;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        
+        .stat-item {
+            text-align: center;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        
+        .stat-value {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #007bff;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            font-size: 0.9em;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .data-info {
+            background: #e3f2fd;
+            border: 1px solid #bbdefb;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px;
+            font-size: 0.9em;
+            color: #1565c0;
+        }
+        
+        .data-info strong {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 1em;
+        }
+        
+        @media (max-width: 768px) {
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .control-group {
+                justify-content: center;
+            }
+            
+            .chart-container {
+                padding: 15px;
+                height: 400px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Interactive Charts</h1>
+            <p>Scatter plots, line charts, and bar charts with sample data</p>
+        </div>
+        
+        <div class="controls">
+            <div class="control-group">
+                <label>Chart Type:</label>
+                <button class="btn btn-primary active" onclick="setChartType('scatter')">Scatter Plot</button>
+                <button class="btn btn-primary" onclick="setChartType('line')">Line Chart</button>
+                <button class="btn btn-primary" onclick="setChartType('bar')">Bar Chart</button>
+            </div>
+            
+            <div class="control-group">
+                <label>Sample Data:</label>
+                <button class="btn btn-secondary" onclick="loadSampleData('sales')">Sales Data</button>
+                <button class="btn btn-secondary" onclick="loadSampleData('temperature')">Temperature</button>
+                <button class="btn btn-secondary" onclick="loadSampleData('performance')">Performance</button>
+                <button class="btn btn-secondary" onclick="loadSampleData('random')">Random Data</button>
+            </div>
+        </div>
+        
+        <div class="data-info" id="dataInfo">
+            <strong>Current Dataset:</strong>
+            <span id="dataDescription">Sales data showing revenue trends across different months and product categories.</span>
+        </div>
+        
+        <div class="chart-container">
+            <canvas id="mainChart"></canvas>
+        </div>
+        
+        <div class="stats-panel" id="statsPanel">
+            <div class="stat-item">
+                <div class="stat-value" id="dataPoints">0</div>
+                <div class="stat-label">Data Points</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="minValue">0</div>
+                <div class="stat-label">Min Value</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="maxValue">0</div>
+                <div class="stat-label">Max Value</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="avgValue">0</div>
+                <div class="stat-label">Average</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let chart;
+        let currentChartType = 'scatter';
+        let currentDataset = 'sales';
+        
+        // Sample data sets
+        const sampleData = {
+            sales: {
+                description: "Sales data showing revenue trends across different months and product categories.",
+                scatter: {
+                    datasets: [{
+                        label: 'Product A Sales',
+                        data: [
+                            {x: 10, y: 20}, {x: 15, y: 25}, {x: 20, y: 30}, {x: 25, y: 35},
+                            {x: 30, y: 40}, {x: 35, y: 42}, {x: 40, y: 45}, {x: 45, y: 48},
+                            {x: 50, y: 52}, {x: 55, y: 55}, {x: 60, y: 58}, {x: 65, y: 62}
+                        ],
+                        backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 2
+                    }, {
+                        label: 'Product B Sales',
+                        data: [
+                            {x: 12, y: 18}, {x: 18, y: 22}, {x: 22, y: 28}, {x: 28, y: 32},
+                            {x: 32, y: 38}, {x: 38, y: 40}, {x: 42, y: 43}, {x: 48, y: 46},
+                            {x: 52, y: 50}, {x: 58, y: 53}, {x: 62, y: 56}, {x: 68, y: 60}
+                        ],
+                        backgroundColor: 'rgba(255, 99, 132, 0.6)',
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        borderWidth: 2
+                    }]
+                },
+                line: {
+                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+                    datasets: [{
+                        label: 'Product A Revenue',
+                        data: [65, 59, 80, 81, 56, 55, 40, 65, 75, 85, 90, 95],
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }, {
+                        label: 'Product B Revenue',
+                        data: [28, 48, 40, 19, 86, 27, 90, 75, 65, 70, 80, 88],
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }, {
+                        label: 'Product C Revenue',
+                        data: [45, 25, 35, 55, 65, 75, 85, 60, 70, 80, 75, 85],
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                bar: {
+                    labels: ['Q1', 'Q2', 'Q3', 'Q4'],
+                    datasets: [{
+                        label: 'Product A',
+                        data: [65, 75, 85, 95],
+                        backgroundColor: 'rgba(54, 162, 235, 0.8)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }, {
+                        label: 'Product B',
+                        data: [45, 65, 75, 88],
+                        backgroundColor: 'rgba(255, 99, 132, 0.8)',
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        borderWidth: 1
+                    }, {
+                        label: 'Product C',
+                        data: [55, 70, 80, 85],
+                        backgroundColor: 'rgba(75, 192, 192, 0.8)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1
+                    }]
+                }
+            },
+            temperature: {
+                description: "Temperature data showing daily highs and lows throughout the year.",
+                scatter: {
+                    datasets: [{
+                        label: 'Daily High Temperature',
+                        data: Array.from({length: 30}, (_, i) => ({
+                            x: i + 1,
+                            y: Math.round(20 + Math.sin(i * 0.2) * 10 + Math.random() * 5)
+                        })),
+                        backgroundColor: 'rgba(255, 159, 64, 0.6)',
+                        borderColor: 'rgba(255, 159, 64, 1)',
+                        borderWidth: 2
+                    }]
+                },
+                line: {
+                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+                    datasets: [{
+                        label: 'Average High (°C)',
+                        data: [5, 7, 12, 18, 23, 28, 31, 30, 25, 19, 12, 6],
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }, {
+                        label: 'Average Low (°C)',
+                        data: [-2, 0, 4, 8, 13, 18, 21, 20, 16, 10, 5, 0],
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                bar: {
+                    labels: ['Spring', 'Summer', 'Fall', 'Winter'],
+                    datasets: [{
+                        label: 'Average Temperature (°C)',
+                        data: [15, 25, 12, 3],
+                        backgroundColor: [
+                            'rgba(75, 192, 192, 0.8)',
+                            'rgba(255, 99, 132, 0.8)',
+                            'rgba(255, 159, 64, 0.8)',
+                            'rgba(54, 162, 235, 0.8)'
+                        ],
+                        borderColor: [
+                            'rgba(75, 192, 192, 1)',
+                            'rgba(255, 99, 132, 1)',
+                            'rgba(255, 159, 64, 1)',
+                            'rgba(54, 162, 235, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                }
+            },
+            performance: {
+                description: "Performance metrics showing system response times and throughput over time.",
+                scatter: {
+                    datasets: [{
+                        label: 'Response Time vs Load',
+                        data: Array.from({length: 25}, (_, i) => ({
+                            x: i * 10 + Math.random() * 5,
+                            y: Math.pow(i * 0.1, 2) * 100 + Math.random() * 20
+                        })),
+                        backgroundColor: 'rgba(153, 102, 255, 0.6)',
+                        borderColor: 'rgba(153, 102, 255, 1)',
+                        borderWidth: 2
+                    }]
+                },
+                line: {
+                    labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'],
+                    datasets: [{
+                        label: 'CPU Usage (%)',
+                        data: [20, 15, 45, 80, 75, 35],
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }, {
+                        label: 'Memory Usage (%)',
+                        data: [30, 25, 55, 70, 65, 40],
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }, {
+                        label: 'Network I/O (MB/s)',
+                        data: [10, 8, 25, 45, 40, 20],
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                bar: {
+                    labels: ['Server A', 'Server B', 'Server C', 'Server D'],
+                    datasets: [{
+                        label: 'Requests/sec',
+                        data: [1200, 1900, 800, 1500],
+                        backgroundColor: 'rgba(153, 102, 255, 0.8)',
+                        borderColor: 'rgba(153, 102, 255, 1)',
+                        borderWidth: 1
+                    }]
+                }
+            },
+            random: {
+                description: "Randomly generated data for testing chart functionality.",
+                scatter: {
+                    datasets: [{
+                        label: 'Random Dataset A',
+                        data: Array.from({length: 20}, () => ({
+                            x: Math.random() * 100,
+                            y: Math.random() * 100
+                        })),
+                        backgroundColor: 'rgba(255, 206, 86, 0.6)',
+                        borderColor: 'rgba(255, 206, 86, 1)',
+                        borderWidth: 2
+                    }, {
+                        label: 'Random Dataset B',
+                        data: Array.from({length: 15}, () => ({
+                            x: Math.random() * 100,
+                            y: Math.random() * 100
+                        })),
+                        backgroundColor: 'rgba(75, 192, 192, 0.6)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 2
+                    }]
+                },
+                line: {
+                    labels: Array.from({length: 10}, (_, i) => `Point ${i + 1}`),
+                    datasets: [{
+                        label: 'Series 1',
+                        data: Array.from({length: 10}, () => Math.random() * 100),
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }, {
+                        label: 'Series 2',
+                        data: Array.from({length: 10}, () => Math.random() * 100),
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                bar: {
+                    labels: ['A', 'B', 'C', 'D', 'E'],
+                    datasets: [{
+                        label: 'Random Values',
+                        data: Array.from({length: 5}, () => Math.random() * 100),
+                        backgroundColor: [
+                            'rgba(255, 99, 132, 0.8)',
+                            'rgba(54, 162, 235, 0.8)',
+                            'rgba(255, 206, 86, 0.8)',
+                            'rgba(75, 192, 192, 0.8)',
+                            'rgba(153, 102, 255, 0.8)'
+                        ],
+                        borderColor: [
+                            'rgba(255, 99, 132, 1)',
+                            'rgba(54, 162, 235, 1)',
+                            'rgba(255, 206, 86, 1)',
+                            'rgba(75, 192, 192, 1)',
+                            'rgba(153, 102, 255, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                }
+            }
+        };
+        
+        function initChart() {
+            const ctx = document.getElementById('mainChart').getContext('2d');
+            
+            chart = new Chart(ctx, {
+                type: currentChartType,
+                data: sampleData[currentDataset][currentChartType],
+                options: getChartOptions()
+            });
+            
+            updateStats();
+            updateDataInfo();
+        }
+        
+        function getChartOptions() {
+            const baseOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            usePointStyle: true,
+                            padding: 20
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        titleColor: 'white',
+                        bodyColor: 'white',
+                        borderColor: 'rgba(255, 255, 255, 0.1)',
+                        borderWidth: 1,
+                        cornerRadius: 8,
+                        displayColors: true
+                    }
+                },
+                animation: {
+                    duration: 750,
+                    easing: 'easeInOutQuart'
+                }
+            };
+            
+            if (currentChartType === 'scatter') {
+                baseOptions.scales = {
+                    x: {
+                        type: 'linear',
+                        position: 'bottom',
+                        title: {
+                            display: true,
+                            text: 'X Values'
+                        },
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.1)'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Y Values'
+                        },
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.1)'
+                        }
+                    }
+                };
+            } else {
+                baseOptions.scales = {
+                    x: {
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.1)'
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.1)'
+                        }
+                    }
+                };
+            }
+            
+            return baseOptions;
+        }
+        
+        function setChartType(type) {
+            currentChartType = type;
+            
+            // Update button states
+            document.querySelectorAll('.controls .btn-primary').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // Destroy existing chart and create new one
+            if (chart) {
+                chart.destroy();
+            }
+            initChart();
+        }
+        
+        function loadSampleData(dataset) {
+            currentDataset = dataset;
+            
+            // Destroy existing chart and create new one
+            if (chart) {
+                chart.destroy();
+            }
+            initChart();
+        }
+        
+        function updateStats() {
+            const data = sampleData[currentDataset][currentChartType];
+            let allValues = [];
+            
+            if (currentChartType === 'scatter') {
+                data.datasets.forEach(dataset => {
+                    dataset.data.forEach(point => {
+                        allValues.push(point.y);
+                    });
+                });
+            } else {
+                data.datasets.forEach(dataset => {
+                    allValues = allValues.concat(dataset.data);
+                });
+            }
+            
+            const dataPoints = allValues.length;
+            const minValue = Math.min(...allValues);
+            const maxValue = Math.max(...allValues);
+            const avgValue = allValues.reduce((a, b) => a + b, 0) / allValues.length;
+            
+            document.getElementById('dataPoints').textContent = dataPoints;
+            document.getElementById('minValue').textContent = minValue.toFixed(1);
+            document.getElementById('maxValue').textContent = maxValue.toFixed(1);
+            document.getElementById('avgValue').textContent = avgValue.toFixed(1);
+        }
+        
+        function updateDataInfo() {
+            document.getElementById('dataDescription').textContent = sampleData[currentDataset].description;
+        }
+        
+        // Initialize the chart when the page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            initChart();
+        });
+    </script>
+</body>
+</html>
