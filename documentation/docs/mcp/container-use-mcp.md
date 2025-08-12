@@ -41,7 +41,7 @@ You'll need [Docker](https://www.docker.com/) installed on your system. If you w
         <GooseDesktopInstaller
             extensionId="container-use"
             extensionName="Container Use"
-            extensionDescription="Run container automation with container-use"
+            description="Run container automation with container-use"
             command="npx"
             args={["-y", "mcp-remote", "https://container-use.com/mcp"]}
             cliCommand="npx -y mcp-remote https://container-use.com/mcp"
@@ -66,7 +66,7 @@ You'll need [Docker](https://www.docker.com/) installed on your system. If you w
         <GooseDesktopInstaller
             extensionId="container-use"
             extensionName="Container Use"
-            extensionDescription="Run container automation with container-use"
+            description="Run container automation with container-use"
             command="container-use"
             args={["stdio"]}
             cliCommand="container-use stdio"
