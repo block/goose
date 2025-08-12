@@ -159,6 +159,10 @@ export type ExtensionConfig = {
      */
     name: string;
     timeout?: number | null;
+    tools?: {
+        [key: string]: ToolConfig;
+    };
+    tools_are_visible_default?: boolean;
     type: 'sse';
     uri: string;
 } | {
@@ -176,6 +180,10 @@ export type ExtensionConfig = {
      */
     name: string;
     timeout?: number | null;
+    tools?: {
+        [key: string]: ToolConfig;
+    };
+    tools_are_visible_default?: boolean;
     type: 'stdio';
 } | {
     /**
@@ -189,6 +197,10 @@ export type ExtensionConfig = {
      */
     name: string;
     timeout?: number | null;
+    tools?: {
+        [key: string]: ToolConfig;
+    };
+    tools_are_visible_default?: boolean;
     type: 'builtin';
 } | {
     /**
@@ -206,6 +218,10 @@ export type ExtensionConfig = {
      */
     name: string;
     timeout?: number | null;
+    tools?: {
+        [key: string]: ToolConfig;
+    };
+    tools_are_visible_default?: boolean;
     type: 'streamable_http';
     uri: string;
 } | {
@@ -221,10 +237,14 @@ export type ExtensionConfig = {
      * The name used to identify this extension
      */
     name: string;
+    tool_configs?: {
+        [key: string]: ToolConfig;
+    };
     /**
      * The tools provided by the frontend
      */
     tools: Array<Tool>;
+    tools_are_visible_default?: boolean;
     type: 'frontend';
 } | {
     /**
@@ -247,6 +267,10 @@ export type ExtensionConfig = {
      * Timeout in seconds
      */
     timeout?: number | null;
+    tools?: {
+        [key: string]: ToolConfig;
+    };
+    tools_are_visible_default?: boolean;
     type: 'inline_python';
 };
 
@@ -734,6 +758,13 @@ export type ToolAnnotations = {
     openWorldHint?: boolean;
     readOnlyHint?: boolean;
     title?: string;
+};
+
+export type ToolConfig = {
+    /**
+     * Whether this tool is visible to the LLM
+     */
+    visible?: boolean;
 };
 
 export type ToolConfirmationRequest = {

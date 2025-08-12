@@ -1,4 +1,5 @@
 use goose::agents::extension::Envs;
+use goose::agents::extension::ToolConfig;
 use goose::agents::extension::ToolInfo;
 use goose::agents::ExtensionConfig;
 use goose::config::permission::PermissionLevel;
@@ -428,6 +429,7 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         ExtensionConfig,
         ConfigKey,
         Envs,
+        ToolConfig,
         ToolSchema,
         ToolAnnotationsSchema,
         ToolInfo,

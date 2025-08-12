@@ -1485,6 +1485,15 @@
                 "nullable": true,
                 "minimum": 0
               },
+              "tools": {
+                "type": "object",
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/ToolConfig"
+                }
+              },
+              "tools_are_visible_default": {
+                "type": "boolean"
+              },
               "type": {
                 "type": "string",
                 "enum": [
@@ -1543,6 +1552,15 @@
                 "nullable": true,
                 "minimum": 0
               },
+              "tools": {
+                "type": "object",
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/ToolConfig"
+                }
+              },
+              "tools_are_visible_default": {
+                "type": "boolean"
+              },
               "type": {
                 "type": "string",
                 "enum": [
@@ -1581,6 +1599,15 @@
                 "format": "int64",
                 "nullable": true,
                 "minimum": 0
+              },
+              "tools": {
+                "type": "object",
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/ToolConfig"
+                }
+              },
+              "tools_are_visible_default": {
+                "type": "boolean"
               },
               "type": {
                 "type": "string",
@@ -1633,6 +1660,15 @@
                 "nullable": true,
                 "minimum": 0
               },
+              "tools": {
+                "type": "object",
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/ToolConfig"
+                }
+              },
+              "tools_are_visible_default": {
+                "type": "boolean"
+              },
               "type": {
                 "type": "string",
                 "enum": [
@@ -1667,12 +1703,21 @@
                 "type": "string",
                 "description": "The name used to identify this extension"
               },
+              "tool_configs": {
+                "type": "object",
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/ToolConfig"
+                }
+              },
               "tools": {
                 "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/Tool"
                 },
                 "description": "The tools provided by the frontend"
+              },
+              "tools_are_visible_default": {
+                "type": "boolean"
               },
               "type": {
                 "type": "string",
@@ -1718,6 +1763,15 @@
                 "description": "Timeout in seconds",
                 "nullable": true,
                 "minimum": 0
+              },
+              "tools": {
+                "type": "object",
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/ToolConfig"
+                }
+              },
+              "tools_are_visible_default": {
+                "type": "boolean"
               },
               "type": {
                 "type": "string",
@@ -2995,6 +3049,15 @@
           },
           "title": {
             "type": "string"
+          }
+        }
+      },
+      "ToolConfig": {
+        "type": "object",
+        "properties": {
+          "visible": {
+            "type": "boolean",
+            "description": "Whether this tool is visible to the LLM"
           }
         }
       },
