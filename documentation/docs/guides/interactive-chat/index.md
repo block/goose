@@ -14,7 +14,6 @@ import styles from '@site/src/components/Card/styles.module.css';
 
  <div className="video-container margin-bottom--lg">
   <iframe 
-    height="400"
     src="https://www.youtube.com/embed/QJHGvsVXhjw"
     title="Turn Any AI Chat Into an Interactive Experience | MCP-UI"
     frameBorder="0"
