@@ -740,6 +740,12 @@ pub async fn cli() -> Result<()> {
         Some(Command::Info { .. }) => "info",
         Some(Command::Mcp { .. }) => "mcp",
         Some(Command::Session { .. }) => "session",
+<<<<<<< HEAD
+=======
+    Some(Command::Repo { .. }) => "repo",
+        Some(Command::Project {}) => "project",
+        Some(Command::Projects) => "projects",
+>>>>>>> CLI: resolve merge leftovers; wire Repo command into cli; fix lockfile markers
         Some(Command::Run { .. }) => "run",
         Some(Command::Schedule { .. }) => "schedule",
         Some(Command::Update { .. }) => "update",
@@ -756,6 +762,19 @@ pub async fn cli() -> Result<()> {
     );
 
     match cli.command {
+        Some(Command::Repo { command }) => {
+            match command {
+                Some(RepoCommand::Index { path, output }) => {
+                    crate::commands::repo::index_repository_with_args(&path, &output)?;
+                    return Ok(());
+                }
+                _ => {
+                    // Default to help or list in future
+                    println!("Usage: goose repo index --path <dir> --output <file>");
+                    return Ok(());
+                }
+            }
+        }
         Some(Command::Configure {}) => {
             let _ = handle_configure().await;
             return Ok(());

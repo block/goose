@@ -61,11 +61,6 @@ base64 = "0.22.1"
 regex = "1.11.1"
 nix = { version = "0.30.1", features = ["process", "signal"] }
 tar = "0.4"
-<<<<<<< HEAD
-=======
-dirs = "5.0"
-
->>>>>>> Fixed cargo.toml
 # Web server dependencies
 axum = { version = "0.8.1", features = ["ws", "macros"] }
 tower-http = { version = "0.5", features = ["cors", "fs"] }

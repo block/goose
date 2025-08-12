@@ -3410,6 +3410,7 @@ dependencies = [
  "once_cell",
  "rand 0.8.5",
  "regex",
+ "reqwest 0.12.12",
  "rmcp",
  "rustyline",
  "serde",
@@ -3426,8 +3427,6 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
-<<<<<<< HEAD
-=======
  "tree-sitter",
  "tree-sitter-c-sharp",
  "tree-sitter-cpp",
@@ -3438,9 +3437,7 @@ dependencies = [
  "tree-sitter-rust",
  "tree-sitter-swift",
  "tree-sitter-typescript",
- "urlencoding",
  "walkdir",
->>>>>>> WIP - initial working version of treesitter creating a repo index
  "webbrowser 1.0.4",
  "winapi",
 ]
