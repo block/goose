@@ -15,11 +15,8 @@ use test_case::test_case;
 
 enum TestMode {
     Record,
-    Replay,
+    Playback,
 }
-
-const LOGGER_BINARY: &str = "stdio_logger";
-const REPLAY_BINARY: &str = "stdio_replayer";
 
 #[test_case(
     vec!["npx", "-y", "@modelcontextprotocol/server-everything"],
@@ -73,18 +70,28 @@ async fn test_replayed_session(
         TestMode::Record
     } else {
         assert!(replay_file_path.exists(), "replay file doesn't exist");
-        TestMode::Replay
+        TestMode::Playback
     };
 
-    let bin = match mode {
-        TestMode::Record => LOGGER_BINARY,
-        TestMode::Replay => REPLAY_BINARY,
+    let mode_arg = match mode {
+        TestMode::Record => "record",
+        TestMode::Playback => "playback",
     };
     let cmd = "cargo".to_string();
-    let mut args = vec!["run", "--quiet", "-p", "goose-test", "--bin", bin, "--"]
-        .into_iter()
-        .map(str::to_string)
-        .collect::<Vec<String>>();
+    let mut args = vec![
+        "run",
+        "--quiet",
+        "-p",
+        "goose-test",
+        "--bin",
+        "capture",
+        "--",
+        "stdio",
+        mode_arg,
+    ]
+    .into_iter()
+    .map(str::to_string)
+    .collect::<Vec<String>>();
 
     args.push(replay_file_path.to_string_lossy().to_string());
 
@@ -143,7 +150,7 @@ async fn test_replayed_session(
             TestMode::Record => {
                 serde_json::to_writer_pretty(File::create(results_path)?, &results)?
             }
-            TestMode::Replay => assert_eq!(
+            TestMode::Playback => assert_eq!(
                 serde_json::from_reader::<_, Vec<Vec<Content>>>(File::open(results_path)?)?,
                 results
             ),

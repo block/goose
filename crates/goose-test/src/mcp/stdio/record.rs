@@ -1,4 +1,3 @@
-use std::env;
 use std::fs::OpenOptions;
 use std::io::{self, BufRead, BufReader, Write};
 use std::process::{ChildStdin, Command, Stdio};
@@ -56,19 +55,7 @@ fn handle_stdin_stream(
     })
 }
 
-fn main() -> io::Result<()> {
-    let args: Vec<String> = env::args().collect();
-
-    if args.len() < 3 {
-        eprintln!("Usage: {} <log file> <command> [args...]", args[0]);
-        eprintln!("Example: {{}} ls -la");
-        std::process::exit(1);
-    }
-
-    let log_file_path = &args[1];
-    let cmd = &args[2];
-    let cmd_args = &args[3..];
-
+pub fn record(log_file_path: &String, cmd: &String, cmd_args: &[String]) -> io::Result<()> {
     let (tx, rx) = mpsc::channel();
 
     let log_file = OpenOptions::new()
@@ -78,15 +65,12 @@ fn main() -> io::Result<()> {
         .open(log_file_path)?;
 
     let mut child = Command::new(cmd)
-        .args(cmd_args)
+        .args(cmd_args.iter())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| {
-            eprintln!("Failed to execute command '{}': {}", cmd, e);
-            e
-        })?;
+        .inspect_err(|e| eprintln!("Failed to execute command '{}': {}", &cmd, e))?;
 
     let child_stdin = child.stdin.take().unwrap();
     let child_stdout = child.stdout.take().unwrap();
@@ -121,11 +105,11 @@ fn main() -> io::Result<()> {
         }
     });
 
-    let exit_status = child.wait()?;
+    child.wait()?;
 
     stdin_handle.join().ok();
     stdout_handle.join().ok();
     stderr_handle.join().ok();
 
-    std::process::exit(exit_status.code().unwrap_or(1));
+    Ok(())
 }

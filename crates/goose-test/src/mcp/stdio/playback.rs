@@ -1,4 +1,3 @@
-use std::env;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Write};
 use std::process;
@@ -52,15 +51,7 @@ fn load_log_file(file_path: &str) -> io::Result<Vec<LogEntry>> {
     Ok(entries)
 }
 
-fn main() -> io::Result<()> {
-    let args: Vec<String> = env::args().collect();
-
-    if args.len() != 2 {
-        eprintln!("Usage: {} <log_file>", args[0]);
-        process::exit(1);
-    }
-
-    let log_file_path = &args[1];
+pub fn playback(log_file_path: &String) -> io::Result<()> {
     let entries = load_log_file(log_file_path)?;
     let errors_file = File::create(format!("{}.errors.txt", log_file_path))?;
 
