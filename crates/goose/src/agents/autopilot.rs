@@ -54,6 +54,56 @@ impl AutoPilot {
         }
     }
 
+    /// Check if the conversation indicates we should switch to oracle model
+    /// Has access to full conversation context and self state
+    fn should_switch_to_oracle(&self, conversation: &Conversation) -> bool {
+        // Can access self state (e.g., self.switch_active, self.oracle_config, etc.)
+        if self.oracle_config.is_none() {
+            return false;
+        }
+
+        // Get the last user message from the conversation
+        let last_user_message = conversation
+            .messages()
+            .iter()
+            .rev()
+            .find(|msg| msg.role == rmcp::model::Role::User)
+            .and_then(|msg| msg.content.first())
+            .and_then(|content| content.as_text());
+
+        // Check for "think" trigger word
+        if let Some(text) = last_user_message {
+            return text.to_lowercase().contains("think");
+        }
+
+        false
+    }
+
+    /// Check if the conversation indicates we should switch to second-opinion model
+    /// Has access to full conversation context and self state
+    fn should_switch_to_second_opinion(&self, conversation: &Conversation) -> bool {
+        // Can access self state (e.g., self.switch_active, self.second_opinion_config, etc.)
+        if self.second_opinion_config.is_none() {
+            return false;
+        }
+
+        // Get the last user message from the conversation
+        let last_user_message = conversation
+            .messages()
+            .iter()
+            .rev()
+            .find(|msg| msg.role == rmcp::model::Role::User)
+            .and_then(|msg| msg.content.first())
+            .and_then(|content| content.as_text());
+
+        // Check for "help" trigger word
+        if let Some(text) = last_user_message {
+            return text.to_lowercase().contains("help");
+        }
+
+        false
+    }
+
     /// Check if a model switch should occur based on the conversation
     /// Returns Some((provider, model)) if a switch should happen, None otherwise
     pub async fn check_for_switch(
@@ -71,35 +121,22 @@ impl AutoPilot {
             return Ok(None);
         }
 
-        // Get the last user message
-        let last_user_message = conversation
-            .messages()
-            .iter()
-            .rev()
-            .find(|msg| msg.role == rmcp::model::Role::User)
-            .and_then(|msg| msg.content.first())
-            .and_then(|content| content.as_text());
+        // Check for "think" -> oracle
+        if self.should_switch_to_oracle(conversation) {
+            let oracle = self.oracle_config.as_ref().unwrap().clone();
+            info!("AutoPilot: Detected 'think' - switching to oracle model");
+            return self
+                .create_and_switch_provider(&oracle, current_provider)
+                .await;
+        }
 
-        if let Some(text) = last_user_message {
-            let text_lower = text.to_lowercase();
-
-            // Check for "think" -> oracle
-            if text_lower.contains("think") && self.oracle_config.is_some() {
-                let oracle = self.oracle_config.as_ref().unwrap().clone();
-                info!("AutoPilot: Detected 'think' - switching to oracle model");
-                return self
-                    .create_and_switch_provider(&oracle, current_provider)
-                    .await;
-            }
-            
-            // Check for "help" -> second-opinion
-            if text_lower.contains("help") && self.second_opinion_config.is_some() {
-                let second_opinion = self.second_opinion_config.as_ref().unwrap().clone();
-                info!("AutoPilot: Detected 'help' - switching to second-opinion model");
-                return self
-                    .create_and_switch_provider(&second_opinion, current_provider)
-                    .await;
-            }
+        // Check for "help" -> second-opinion
+        if self.should_switch_to_second_opinion(conversation) {
+            let second_opinion = self.second_opinion_config.as_ref().unwrap().clone();
+            info!("AutoPilot: Detected 'help' - switching to second-opinion model");
+            return self
+                .create_and_switch_provider(&second_opinion, current_provider)
+                .await;
         }
 
         Ok(None)
