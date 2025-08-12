@@ -37,7 +37,7 @@ export function HintsSection() {
           </Label>
           <p className="text-xs text-textSubtle mr-2">
             When enabled, loads hint files from current directory upwards to project root (.git) or
-            filesystem root. <br />
+            current directory if no .git directory found. <br />
             When disabled, only loads from current directory.
           </p>
         </div>

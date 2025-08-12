@@ -10,7 +10,7 @@ use indoc::formatdoc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
-    collections::{HashMap},
+    collections::HashMap,
     fs::File,
     future::Future,
     io::{Cursor, Read},

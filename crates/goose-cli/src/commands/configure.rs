@@ -1085,7 +1085,7 @@ pub async fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
         .item(
             "nested_hints",
             "Nested Goose Hints",
-            "Enable loading .goosehints files from current directory up to project root",
+            "Enable loading hints files (eg: .goosehints) from current directory up to project root (.git) or current directory if no .git directory found",
         )
         .interact()?;
 

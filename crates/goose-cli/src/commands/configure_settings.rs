@@ -30,7 +30,7 @@ pub fn configure_nested_hints_dialog() -> Result<(), Box<dyn Error>> {
     config.set_param("NESTED_GOOSE_HINTS", Value::Bool(enable))?;
 
     if enable {
-        cliclack::outro("✓ Nested hints enabled - Goose will load hint files from current directory upwards to project root (.git) or filesystem root.")?;
+        cliclack::outro("✓ Nested hints enabled - Goose will load hint files from current directory upwards to project root (.git) or current directory if no .git directory found")?;
     } else {
         cliclack::outro("✓ Nested hints disabled - Goose will only load hint files from the current working directory")?;
     }

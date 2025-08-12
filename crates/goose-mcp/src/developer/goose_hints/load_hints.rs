@@ -1,29 +1,29 @@
 use etcetera::{choose_app_strategy, AppStrategy};
 use ignore::gitignore::Gitignore;
-use std::{collections::HashSet, path::{Path, PathBuf}};
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+};
 
 use crate::developer::goose_hints::import_files::read_referenced_files;
 
 pub const GOOSE_HINTS_FILENAME: &str = ".goosehints";
 
-
-fn traverse_directories_upward(start_dir: &Path) -> Vec<PathBuf> {
-    let mut directories = Vec::new();
-    let mut current_dir = start_dir;
+fn find_git_root(start_dir: &Path) -> Option<&Path> {
+    let mut check_dir = start_dir;
 
     loop {
-        directories.push(current_dir.to_path_buf());
-        if current_dir.join(".git").exists() {
-            break;
+        if check_dir.join(".git").exists() {
+            return Some(check_dir);
         }
-        if let Some(parent) = current_dir.parent() {
-            current_dir = parent;
+        if let Some(parent) = check_dir.parent() {
+            check_dir = parent;
         } else {
             break;
         }
     }
-    directories.reverse();
-    directories
+
+    None
 }
 
 fn is_nested_enabled() -> bool {
@@ -33,8 +33,50 @@ fn is_nested_enabled() -> bool {
         .unwrap_or(false)
 }
 
+fn determine_hints_context(cwd: &Path) -> (Vec<PathBuf>, &Path) {
+    let nested_enabled = is_nested_enabled();
+    let git_root = find_git_root(cwd);
 
-pub fn load_hint_files(cwd: &Path, hints_filenames: &[String], ignore_patterns: &Gitignore) -> String {
+    let local_directories = if nested_enabled {
+        match git_root {
+            Some(git_root) => {
+                let mut directories = Vec::new();
+                let mut current_dir = cwd;
+
+                loop {
+                    directories.push(current_dir.to_path_buf());
+                    if current_dir == git_root {
+                        break;
+                    }
+                    if let Some(parent) = current_dir.parent() {
+                        current_dir = parent;
+                    } else {
+                        break;
+                    }
+                }
+                directories.reverse();
+                directories
+            }
+            None => vec![cwd.to_path_buf()],
+        }
+    } else {
+        vec![cwd.to_path_buf()]
+    };
+
+    let import_boundary = if nested_enabled {
+        git_root.unwrap_or(cwd)
+    } else {
+        cwd
+    };
+
+    (local_directories, import_boundary)
+}
+
+pub fn load_hint_files(
+    cwd: &Path,
+    hints_filenames: &[String],
+    ignore_patterns: &Gitignore,
+) -> String {
     let mut global_hints_contents = Vec::with_capacity(hints_filenames.len());
     let mut local_hints_contents = Vec::with_capacity(hints_filenames.len());
 
@@ -71,11 +113,7 @@ pub fn load_hint_files(cwd: &Path, hints_filenames: &[String], ignore_patterns: 
         }
     }
 
-    let local_directories = if is_nested_enabled() {
-        traverse_directories_upward(cwd)
-    } else {
-        vec![cwd.to_path_buf()]
-    };
+    let (local_directories, import_boundary) = determine_hints_context(cwd);
 
     for directory in &local_directories {
         for hints_filename in hints_filenames {
@@ -84,7 +122,7 @@ pub fn load_hint_files(cwd: &Path, hints_filenames: &[String], ignore_patterns: 
                 let mut visited = HashSet::new();
                 let expanded_content = read_referenced_files(
                     &hints_path,
-                    cwd,
+                    import_boundary,
                     &mut visited,
                     0,
                     &ignore_patterns,
@@ -118,8 +156,8 @@ mod tests {
     use super::*;
     use ignore::gitignore::GitignoreBuilder;
     use serial_test::serial;
-    use temp_env::with_var;
     use std::fs::{self};
+    use temp_env::with_var;
     use tempfile::TempDir;
 
     fn create_dummy_gitignore() -> Gitignore {
@@ -237,46 +275,44 @@ mod tests {
     }
 
     #[test]
-    #[serial]
     fn test_nested_goosehints_with_git_root() {
         with_var("NESTED_GOOSE_HINTS", Some("true"), || {
+            let temp_dir = TempDir::new().unwrap();
+            let project_root = temp_dir.path();
 
-        let temp_dir = TempDir::new().unwrap();
-        let project_root = temp_dir.path();
+            fs::create_dir(project_root.join(".git")).unwrap();
+            fs::write(
+                project_root.join(GOOSE_HINTS_FILENAME),
+                "Root hints content",
+            )
+            .unwrap();
 
-        fs::create_dir(project_root.join(".git")).unwrap();
-        fs::write(
-            project_root.join(GOOSE_HINTS_FILENAME),
-            "Root hints content",
-        )
-        .unwrap();
+            let subdir = project_root.join("subdir");
+            fs::create_dir(&subdir).unwrap();
+            fs::write(subdir.join(GOOSE_HINTS_FILENAME), "Subdir hints content").unwrap();
+            let current_dir = subdir.join("current_dir");
+            fs::create_dir(&current_dir).unwrap();
+            fs::write(
+                current_dir.join(GOOSE_HINTS_FILENAME),
+                "current_dir hints content",
+            )
+            .unwrap();
 
-        let subdir = project_root.join("subdir");
-        fs::create_dir(&subdir).unwrap();
-        fs::write(subdir.join(GOOSE_HINTS_FILENAME), "Subdir hints content").unwrap();
-        let current_dir = subdir.join("current_dir");
-        fs::create_dir(&current_dir).unwrap();
-        fs::write(
-            current_dir.join(GOOSE_HINTS_FILENAME),
-            "current_dir hints content",
-        )
-        .unwrap();
-
-        let gitignore = create_dummy_gitignore();
-        let hints = load_hint_files(&current_dir, &[GOOSE_HINTS_FILENAME.to_string()], &gitignore);
-
-        assert!(
-            hints.contains("Root hints content\nSubdir hints content\ncurrent_dir hints content")
+            let gitignore = create_dummy_gitignore();
+            let hints = load_hint_files(
+                &current_dir,
+                &[GOOSE_HINTS_FILENAME.to_string()],
+                &gitignore,
             );
 
+            assert!(hints
+                .contains("Root hints content\nSubdir hints content\ncurrent_dir hints content"));
         });
     }
 
     #[test]
-    #[serial]
     fn test_nested_goosehints_without_git_root() {
         with_var("NESTED_GOOSE_HINTS", Some("true"), || {
-
             let temp_dir = TempDir::new().unwrap();
             let base_dir = temp_dir.path();
 
@@ -288,18 +324,27 @@ mod tests {
 
             let current_dir = subdir.join("current_dir");
             fs::create_dir(&current_dir).unwrap();
+            fs::write(
+                current_dir.join(GOOSE_HINTS_FILENAME),
+                "Current dir hints content",
+            )
+            .unwrap();
 
             let gitignore = create_dummy_gitignore();
-            let hints = load_hint_files(&current_dir, &[GOOSE_HINTS_FILENAME.to_string()], &gitignore);
+            let hints = load_hint_files(
+                &current_dir,
+                &[GOOSE_HINTS_FILENAME.to_string()],
+                &gitignore,
+            );
 
-            assert!(hints.contains("Base hints content"));
-            assert!(hints.contains("Subdir hints content"));
-
+            // Without .git, should only find hints in current directory
+            assert!(hints.contains("Current dir hints content"));
+            assert!(!hints.contains("Base hints content"));
+            assert!(!hints.contains("Subdir hints content"));
         });
     }
 
     #[test]
-    #[serial]
     fn test_nested_goosehints_mixed_filenames() {
         with_var("NESTED_GOOSE_HINTS", Some("true"), || {
             let temp_dir = TempDir::new().unwrap();
@@ -328,7 +373,204 @@ mod tests {
 
             assert!(hints.contains("Root CLAUDE.md content"));
             assert!(hints.contains("Subdir .goosehints content"));
+        });
+    }
 
+    #[test]
+    fn test_hints_with_basic_imports() {
+        let temp_dir = TempDir::new().unwrap();
+        let project_root = temp_dir.path();
+
+        fs::create_dir(project_root.join(".git")).unwrap();
+
+        fs::write(
+            project_root.join("README.md"),
+            "# Project README\nProject overview content",
+        )
+        .unwrap();
+        fs::write(project_root.join("config.md"), "Configuration details").unwrap();
+
+        let hints_content = r#"Project hints content
+@README.md
+@config.md
+Additional instructions here."#;
+        fs::write(project_root.join(GOOSE_HINTS_FILENAME), hints_content).unwrap();
+
+        let gitignore = create_dummy_gitignore();
+        let hints = load_hint_files(
+            project_root,
+            &[GOOSE_HINTS_FILENAME.to_string()],
+            &gitignore,
+        );
+
+        assert!(hints.contains("Project hints content"));
+        assert!(hints.contains("Additional instructions here"));
+
+        assert!(hints.contains("--- Content from README.md ---"));
+        assert!(hints.contains("# Project README"));
+        assert!(hints.contains("Project overview content"));
+        assert!(hints.contains("--- End of README.md ---"));
+
+        assert!(hints.contains("--- Content from config.md ---"));
+        assert!(hints.contains("Configuration details"));
+        assert!(hints.contains("--- End of config.md ---"));
+    }
+
+    #[test]
+    fn test_hints_with_git_import_boundary() {
+        with_var("NESTED_GOOSE_HINTS", Some("true"), || {
+            let temp_dir = TempDir::new().unwrap();
+            let project_root = temp_dir.path();
+
+            fs::create_dir(project_root.join(".git")).unwrap();
+
+            fs::write(project_root.join("root_file.md"), "Root file content").unwrap();
+            fs::write(
+                project_root.join("shared_docs.md"),
+                "Shared documentation content",
+            )
+            .unwrap();
+
+            let docs_dir = project_root.join("docs");
+            fs::create_dir_all(&docs_dir).unwrap();
+            fs::write(docs_dir.join("api.md"), "API documentation content").unwrap();
+
+            let utils_dir = project_root.join("src").join("utils");
+            fs::create_dir_all(&utils_dir).unwrap();
+            fs::write(
+                utils_dir.join("helpers.md"),
+                "Helper utilities content @../../shared_docs.md",
+            )
+            .unwrap();
+
+            let components_dir = project_root.join("src").join("components");
+            fs::create_dir_all(&components_dir).unwrap();
+            fs::write(components_dir.join("local_file.md"), "Local file content").unwrap();
+
+            let outside_dir = temp_dir.path().parent().unwrap();
+            fs::write(outside_dir.join("forbidden.md"), "Forbidden content").unwrap();
+
+            let root_hints_content = r#"Project root hints
+@docs/api.md
+Root level instructions"#;
+            fs::write(project_root.join(GOOSE_HINTS_FILENAME), root_hints_content).unwrap();
+
+            let nested_hints_content = r#"Nested directory hints
+@local_file.md
+@../utils/helpers.md
+@../../docs/api.md
+@../../root_file.md
+@../../../forbidden.md
+End of nested hints"#;
+            fs::write(
+                components_dir.join(GOOSE_HINTS_FILENAME),
+                nested_hints_content,
+            )
+            .unwrap();
+
+            let gitignore = create_dummy_gitignore();
+            let hints = load_hint_files(
+                &components_dir,
+                &[GOOSE_HINTS_FILENAME.to_string()],
+                &gitignore,
+            );
+            println!("======{}", hints);
+            assert!(hints.contains("Project root hints"));
+            assert!(hints.contains("Root level instructions"));
+
+            assert!(hints.contains("API documentation content"));
+            assert!(hints.contains("--- Content from docs/api.md ---"));
+
+            assert!(hints.contains("Nested directory hints"));
+            assert!(hints.contains("End of nested hints"));
+
+            assert!(hints.contains("Local file content"));
+            assert!(hints.contains("--- Content from local_file.md ---"));
+
+            assert!(hints.contains("Helper utilities content"));
+            assert!(hints.contains("--- Content from ../utils/helpers.md ---"));
+            assert!(hints.contains("Shared documentation content"));
+            assert!(hints.contains("--- Content from ../../shared_docs.md ---"));
+
+            let api_content_count = hints.matches("API documentation content").count();
+            assert_eq!(
+                api_content_count, 2,
+                "API content should appear twice - from root and nested hints"
+            );
+
+            assert!(hints.contains("Root file content"));
+            assert!(hints.contains("--- Content from ../../root_file.md ---"));
+
+            assert!(!hints.contains("Forbidden content"));
+            assert!(hints.contains("@../../../forbidden.md"));
+        });
+    }
+
+    #[test]
+    fn test_hints_without_git_import_boundary() {
+        let temp_dir = TempDir::new().unwrap();
+        let base_dir = temp_dir.path();
+
+        let current_dir = base_dir.join("current");
+        fs::create_dir(&current_dir).unwrap();
+        fs::write(current_dir.join("local.md"), "Local content").unwrap();
+
+        fs::write(base_dir.join("parent.md"), "Parent content").unwrap();
+
+        let hints_content = r#"Current directory hints
+@local.md
+@../parent.md
+End of hints"#;
+        fs::write(current_dir.join(GOOSE_HINTS_FILENAME), hints_content).unwrap();
+
+        let gitignore = create_dummy_gitignore();
+        let hints = load_hint_files(
+            &current_dir,
+            &[GOOSE_HINTS_FILENAME.to_string()],
+            &gitignore,
+        );
+
+        assert!(hints.contains("Local content"));
+        assert!(hints.contains("--- Content from local.md ---"));
+
+        assert!(!hints.contains("Parent content"));
+        assert!(hints.contains("@../parent.md"));
+    }
+
+    #[test]
+    fn test_import_boundary_respects_nested_setting() {
+        let temp_dir = TempDir::new().unwrap();
+        let project_root = temp_dir.path();
+        fs::create_dir(project_root.join(".git")).unwrap();
+        fs::write(project_root.join("root_file.md"), "Root file content").unwrap();
+        let subdir = project_root.join("subdir");
+        fs::create_dir(&subdir).unwrap();
+        fs::write(subdir.join("local_file.md"), "Local file content").unwrap();
+        let hints_content = r#"Subdir hints
+@local_file.md
+@../root_file.md
+End of hints"#;
+        fs::write(subdir.join(GOOSE_HINTS_FILENAME), hints_content).unwrap();
+        let gitignore = create_dummy_gitignore();
+
+        with_var("NESTED_GOOSE_HINTS", Some("false"), || {
+            let hints = load_hint_files(&subdir, &[GOOSE_HINTS_FILENAME.to_string()], &gitignore);
+
+            assert!(hints.contains("Local file content"));
+            assert!(hints.contains("--- Content from local_file.md ---"));
+
+            assert!(!hints.contains("Root file content"));
+            assert!(hints.contains("@../root_file.md"));
+        });
+
+        with_var("NESTED_GOOSE_HINTS", Some("true"), || {
+            let hints = load_hint_files(&subdir, &[GOOSE_HINTS_FILENAME.to_string()], &gitignore);
+
+            assert!(hints.contains("Local file content"));
+            assert!(hints.contains("--- Content from local_file.md ---"));
+
+            assert!(hints.contains("Root file content"));
+            assert!(hints.contains("--- Content from ../root_file.md ---"));
         });
     }
 }

@@ -1,6 +1,9 @@
 use ignore::gitignore::Gitignore;
 use once_cell::sync::Lazy;
-use std::{collections::HashSet, path::{Path, PathBuf}};
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+};
 
 static FILE_REFERENCE_REGEX: Lazy<regex::Regex> = Lazy::new(|| {
     regex::Regex::new(r"(?:^|\s)@([a-zA-Z0-9_\-./]+(?:\.[a-zA-Z0-9]+)+|[A-Z][a-zA-Z0-9_\-]*|[a-zA-Z0-9_\-./]*[./][a-zA-Z0-9_\-./]*)")
@@ -9,7 +12,11 @@ static FILE_REFERENCE_REGEX: Lazy<regex::Regex> = Lazy::new(|| {
 
 const MAX_DEPTH: usize = 3;
 
-fn sanitize_reference_path(reference: &Path, including_file_path: &Path, base_path: &Path) -> Result<PathBuf, std::io::Error> {
+fn sanitize_reference_path(
+    reference: &Path,
+    including_file_path: &Path,
+    import_boundary: &Path,
+) -> Result<PathBuf, std::io::Error> {
     if reference.is_absolute() {
         return Err(std::io::Error::new(
             std::io::ErrorKind::PermissionDenied,
@@ -17,18 +24,21 @@ fn sanitize_reference_path(reference: &Path, including_file_path: &Path, base_pa
         ));
     }
     let resolved = including_file_path.join(reference);
-    let base_canonical = base_path.canonicalize().map_err(|_| {
-        std::io::Error::new(std::io::ErrorKind::NotFound, "Base directory not found")
+    let boundary_canonical = import_boundary.canonicalize().map_err(|_| {
+        std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "Import boundary directory not found",
+        )
     })?;
 
     if let Ok(canonical) = resolved.canonicalize() {
-        if !canonical.starts_with(&base_canonical) {
+        if !canonical.starts_with(&boundary_canonical) {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::PermissionDenied,
                 format!(
-                    "Include: '{}' is outside the project root '{}'",
+                    "Include: '{}' is outside the import boundary '{}'",
                     resolved.display(),
-                    base_path.display()
+                    import_boundary.display()
                 ),
             ));
         }
@@ -60,14 +70,14 @@ fn parse_file_references(content: &str) -> Vec<PathBuf> {
 fn should_process_reference(
     reference: &Path,
     including_file_path: &Path,
-    base_path: &Path,
+    import_boundary: &Path,
     visited: &HashSet<PathBuf>,
     ignore_patterns: &Gitignore,
 ) -> Option<PathBuf> {
     if visited.contains(reference) {
         return None;
     }
-    let safe_path = match sanitize_reference_path(reference, including_file_path, base_path) {
+    let safe_path = match sanitize_reference_path(reference, including_file_path, import_boundary) {
         Ok(path) => path,
         Err(_) => {
             tracing::warn!("Skipping unsafe file reference: {:?}", reference);
@@ -91,7 +101,7 @@ fn process_file_reference(
     reference: &Path,
     safe_path: &Path,
     visited: &mut HashSet<PathBuf>,
-    base_path: &Path,
+    import_boundary: &Path,
     depth: usize,
     ignore_patterns: &Gitignore,
 ) -> Option<(String, String)> {
@@ -104,7 +114,7 @@ fn process_file_reference(
 
     let expanded_content = read_referenced_files(
         safe_path,
-        base_path,
+        import_boundary,
         visited,
         depth + 1,
         ignore_patterns,
@@ -125,7 +135,7 @@ fn process_file_reference(
 
 pub fn read_referenced_files(
     file_path: &Path,
-    base_path: &Path,
+    import_boundary: &Path,
     visited: &mut HashSet<PathBuf>,
     depth: usize,
     ignore_patterns: &Gitignore,
@@ -144,17 +154,22 @@ pub fn read_referenced_files(
     let mut result = content.to_string();
 
     for reference in references {
-        let safe_path =
-            match should_process_reference(&reference, including_file_path, base_path, visited, ignore_patterns) {
-                Some(path) => path,
-                None => continue,
-            };
+        let safe_path = match should_process_reference(
+            &reference,
+            including_file_path,
+            import_boundary,
+            visited,
+            ignore_patterns,
+        ) {
+            Some(path) => path,
+            None => continue,
+        };
 
         if let Some((pattern, replacement)) = process_file_reference(
             &reference,
             &safe_path,
             visited,
-            base_path,
+            import_boundary,
             depth,
             ignore_patterns,
         ) {
@@ -208,8 +223,11 @@ mod tests {
         ];
 
         for expected in expected_files {
-            assert!(references.contains(&PathBuf::from(expected)), 
-                    "Expected to find reference: {}", expected);
+            assert!(
+                references.contains(&PathBuf::from(expected)),
+                "Expected to find reference: {}",
+                expected
+            );
         }
 
         // Should not match email addresses or social handles
@@ -226,13 +244,13 @@ mod tests {
     mod read_referenced_files {
         use super::*;
 
-        fn create_ignore_patterns(base_path: &Path) -> Gitignore {
-            let builder = GitignoreBuilder::new(base_path);
+        fn create_ignore_patterns(import_boundary: &Path) -> Gitignore {
+            let builder = GitignoreBuilder::new(import_boundary);
             builder.build().unwrap()
         }
 
-        fn create_file(base_path: &Path, file_name: &str, content: &str) -> PathBuf {
-            let file_path = base_path.join(file_name);
+        fn create_file(import_boundary: &Path, file_name: &str, content: &str) -> PathBuf {
+            let file_path = import_boundary.join(file_name);
             std::fs::write(&file_path, content).unwrap();
             file_path
         }
@@ -240,17 +258,30 @@ mod tests {
         #[test]
         fn test_direct_reference() {
             let temp_dir = tempfile::tempdir().unwrap();
-            let base_path = temp_dir.path();
+            let import_boundary = temp_dir.path();
 
-            create_file(base_path, "basic_included_file.md", "This is basic content");
+            create_file(
+                import_boundary,
+                "basic_included_file.md",
+                "This is basic content",
+            );
 
-            let ignore_patterns = create_ignore_patterns(base_path);
+            let ignore_patterns = create_ignore_patterns(import_boundary);
 
             let mut visited = HashSet::new();
-            let main_file = create_file(base_path, "main.md", "Main content\n@basic_included_file.md\nMore content");
-            
-            let expanded =
-                read_referenced_files(&main_file, base_path, &mut visited, 0, &ignore_patterns);
+            let main_file = create_file(
+                import_boundary,
+                "main.md",
+                "Main content\n@basic_included_file.md\nMore content",
+            );
+
+            let expanded = read_referenced_files(
+                &main_file,
+                import_boundary,
+                &mut visited,
+                0,
+                &ignore_patterns,
+            );
 
             assert!(expanded.contains("Main content"));
             assert!(expanded.contains("--- Content from"));
@@ -262,17 +293,22 @@ mod tests {
         #[test]
         fn test_nested_reference() {
             let temp_dir = tempfile::tempdir().unwrap();
-            let base_path = temp_dir.path();
+            let import_boundary = temp_dir.path();
 
-            create_file(base_path, "level1.md", "Level 1 content\n@level2.md");
-            create_file(base_path, "level2.md", "Level 2 content");
+            create_file(import_boundary, "level1.md", "Level 1 content\n@level2.md");
+            create_file(import_boundary, "level2.md", "Level 2 content");
 
             let mut visited = HashSet::new();
-            let main_file = create_file(base_path, "main.md", "Main content\n@level1.md");
+            let main_file = create_file(import_boundary, "main.md", "Main content\n@level1.md");
 
-            let ignore_patterns = create_ignore_patterns(base_path);
-            let expanded =
-                read_referenced_files(&main_file, base_path, &mut visited, 0, &ignore_patterns);
+            let ignore_patterns = create_ignore_patterns(import_boundary);
+            let expanded = read_referenced_files(
+                &main_file,
+                import_boundary,
+                &mut visited,
+                0,
+                &ignore_patterns,
+            );
 
             assert!(expanded.contains("Main content"));
             assert!(expanded.contains("Level 1 content"));
@@ -282,17 +318,17 @@ mod tests {
         #[test]
         fn test_circular_reference() {
             let temp_dir = tempfile::tempdir().unwrap();
-            let base_path = temp_dir.path();
+            let import_boundary = temp_dir.path();
 
-            let ignore_patterns = create_ignore_patterns(base_path);
-            create_file(base_path, "file1.md", "File 1\n@file2.md");
-            create_file(base_path, "file2.md", "File 2\n@file1.md");
-            let main_file = create_file(base_path, "main.md", "Main\n@file1.md");
+            let ignore_patterns = create_ignore_patterns(import_boundary);
+            create_file(import_boundary, "file1.md", "File 1\n@file2.md");
+            create_file(import_boundary, "file2.md", "File 2\n@file1.md");
+            let main_file = create_file(import_boundary, "main.md", "Main\n@file1.md");
 
             let mut visited = HashSet::new();
             let expanded = read_referenced_files(
                 &main_file,
-                base_path,
+                import_boundary,
                 &mut visited,
                 0,
                 &ignore_patterns,
@@ -308,8 +344,8 @@ mod tests {
         #[test]
         fn test_max_depth_limit() {
             let temp_dir = tempfile::tempdir().unwrap();
-            let base_path = temp_dir.path();
-            let ignore_patterns = create_ignore_patterns(base_path);
+            let import_boundary = temp_dir.path();
+            let ignore_patterns = create_ignore_patterns(import_boundary);
             let mut visited = HashSet::new();
             for i in 1..=5 {
                 let content = if i < 5 {
@@ -317,11 +353,16 @@ mod tests {
                 } else {
                     format!("Level {} content", i)
                 };
-                create_file(base_path, &format!("level{}.md", i), &content);
+                create_file(import_boundary, &format!("level{}.md", i), &content);
             }
-            let main_file = create_file(base_path, "main.md", "Main\n@level1.md");
-            let expanded =
-                read_referenced_files(&main_file, base_path, &mut visited, 0, &ignore_patterns);
+            let main_file = create_file(import_boundary, "main.md", "Main\n@level1.md");
+            let expanded = read_referenced_files(
+                &main_file,
+                import_boundary,
+                &mut visited,
+                0,
+                &ignore_patterns,
+            );
             // Should contain up to level 3 (MAX_DEPTH = 3)
             assert!(expanded.contains("Level 1 content"));
             assert!(expanded.contains("Level 2 content"));
@@ -334,12 +375,22 @@ mod tests {
         #[test]
         fn test_missing_file() {
             let temp_dir = tempfile::tempdir().unwrap();
-            let base_path = temp_dir.path();
-            let ignore_patterns = create_ignore_patterns(base_path);
+            let import_boundary = temp_dir.path();
+            let ignore_patterns = create_ignore_patterns(import_boundary);
             let mut visited = HashSet::new();
-            let main_file = create_file(base_path, "main.md", "Main\n@missing.md\nMore content");
-            
-            let expanded = read_referenced_files(&main_file, base_path, &mut visited, 0, &ignore_patterns);
+            let main_file = create_file(
+                import_boundary,
+                "main.md",
+                "Main\n@missing.md\nMore content",
+            );
+
+            let expanded = read_referenced_files(
+                &main_file,
+                import_boundary,
+                &mut visited,
+                0,
+                &ignore_patterns,
+            );
 
             assert!(expanded.contains("@missing.md"));
             assert!(!expanded.contains("--- Content from"));
@@ -348,22 +399,26 @@ mod tests {
         #[test]
         fn test_read_referenced_files_respects_ignore() {
             let temp_dir = tempfile::tempdir().unwrap();
-            let base_path = temp_dir.path();
+            let import_boundary = temp_dir.path();
 
-            create_file(base_path, "allowed.md", "Allowed content");
-            create_file(base_path, "secret.md", "Secret content");
+            create_file(import_boundary, "allowed.md", "Allowed content");
+            create_file(import_boundary, "secret.md", "Secret content");
 
-            
-
-            let mut builder = GitignoreBuilder::new(base_path);
+            let mut builder = GitignoreBuilder::new(import_boundary);
             builder.add_line(None, "secret.md").unwrap();
             let ignore_patterns = builder.build().unwrap();
 
             let mut visited = HashSet::new();
             // Create main content with references
             let content = "Main\n@allowed.md\n@secret.md";
-            let main_file = create_file(base_path, "main.md", content);
-            let expanded = read_referenced_files(&main_file, base_path, &mut visited, 0, &ignore_patterns);
+            let main_file = create_file(import_boundary, "main.md", content);
+            let expanded = read_referenced_files(
+                &main_file,
+                import_boundary,
+                &mut visited,
+                0,
+                &ignore_patterns,
+            );
 
             // Should contain allowed content but not ignored content
             assert!(expanded.contains("Allowed content"));
@@ -378,14 +433,26 @@ mod tests {
         #[test]
         fn test_security_integration_with_file_expansion() {
             let temp_dir = tempfile::tempdir().unwrap();
-            let base_path = temp_dir.path();
-            let ignore_patterns = create_ignore_patterns(base_path);
+            let import_boundary = temp_dir.path();
+            let ignore_patterns = create_ignore_patterns(import_boundary);
 
             // Create a legitimate file
-            create_file(base_path, "legitimate_file.md", "This is safe content");
+            create_file(
+                import_boundary,
+                "legitimate_file.md",
+                "This is safe content",
+            );
 
-            let absolute_path_file = create_file(base_path, "used_with_absolute_path.md", "Absolute path content");
-            let absolute_path_file_path = absolute_path_file.canonicalize().unwrap().to_string_lossy().into_owned();
+            let absolute_path_file = create_file(
+                import_boundary,
+                "used_with_absolute_path.md",
+                "Absolute path content",
+            );
+            let absolute_path_file_path = absolute_path_file
+                .canonicalize()
+                .unwrap()
+                .to_string_lossy()
+                .into_owned();
 
             // Create a config file attempting path traversal
             let malicious_content = format!(
@@ -397,13 +464,12 @@ mod tests {
             "#,
                 absolute_path_file_path
             );
-            create_file(base_path, "main.md", &malicious_content);
-            
+            create_file(import_boundary, "main.md", &malicious_content);
 
             let mut visited = HashSet::new();
             let expanded = read_referenced_files(
-                &base_path.join("main.md"),
-                base_path,
+                &import_boundary.join("main.md"),
+                import_boundary,
                 &mut visited,
                 0,
                 &ignore_patterns,
@@ -417,60 +483,6 @@ mod tests {
             // The malicious references should still be present (not expanded)
             assert!(expanded.contains("@../etc/passwd"));
             assert!(expanded.contains(absolute_path_file_path.as_str()));
-
         }
     }
-
-//     #[test]
-//     #[serial]
-//     fn test_goosehints_with_file_references() {
-//         let temp_dir = tempfile::tempdir().unwrap();
-//         std::env::set_current_dir(&temp_dir).unwrap();
-
-//         // Create referenced files
-//         let readme_path = temp_dir.path().join("README.md");
-//         std::fs::write(
-//             &readme_path,
-//             "# Project README\n\nThis is the project documentation.",
-//         )
-//         .unwrap();
-
-//         let guide_path = temp_dir.path().join("guide.md");
-//         std::fs::write(&guide_path, "# Development Guide\n\nFollow these steps...").unwrap();
-
-//         // Create .goosehints with references
-//         let hints_content = r#"# Project Information
-
-// Please refer to:
-// @README.md
-// @guide.md
-
-// Additional instructions here.
-// "#;
-//         let hints_path = temp_dir.path().join(".goosehints");
-//         std::fs::write(&hints_path, hints_content).unwrap();
-
-//         // Create router and check instructions
-//         let router = DeveloperRouter::new();
-//         let instructions = router.instructions();
-
-//         // Should contain the .goosehints content
-//         assert!(instructions.contains("Project Information"));
-//         assert!(instructions.contains("Additional instructions here"));
-
-//         // Should contain the referenced files' content
-//         assert!(instructions.contains("# Project README"));
-//         assert!(instructions.contains("This is the project documentation"));
-//         assert!(instructions.contains("# Development Guide"));
-//         assert!(instructions.contains("Follow these steps"));
-
-//         // Should have attribution markers
-//         assert!(instructions.contains("--- Content from"));
-//         assert!(instructions.contains("--- End of"));
-
-//         temp_dir.close().unwrap();
-//     }
-
-
-    
 }
