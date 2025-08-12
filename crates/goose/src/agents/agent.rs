@@ -52,6 +52,7 @@ use tokio::sync::{mpsc, Mutex, RwLock};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument};
 
+use super::autopilot::AutoPilot;
 use super::final_output_tool::FinalOutputTool;
 use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
@@ -101,6 +102,7 @@ pub struct Agent {
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
     pub(super) retry_manager: RetryManager,
     pub(super) todo_list: Arc<Mutex<String>>,
+    pub(super) autopilot: Mutex<AutoPilot>,
 }
 
 #[derive(Clone, Debug)]
@@ -187,6 +189,7 @@ impl Agent {
             scheduler_service: Mutex::new(None),
             retry_manager,
             todo_list: Arc::new(Mutex::new(String::new())),
+            autopilot: Mutex::new(AutoPilot::new()),
         }
     }
 
@@ -962,6 +965,14 @@ impl Agent {
                     ));
                     break;
                 }
+
+                // Check if autopilot should switch models
+                let mut autopilot = self.autopilot.lock().await;
+                if let Some(new_provider) = autopilot.check_for_switch(&messages, self.provider().await?).await? {
+                    debug!("AutoPilot switching provider");
+                    self.update_provider(new_provider).await?;
+                }
+                drop(autopilot); // Release the lock
 
                 let mut stream = Self::stream_response_from_provider(
                     self.provider().await?,
