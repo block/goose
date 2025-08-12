@@ -22,7 +22,7 @@ import path from 'node:path';
 import { spawn } from 'child_process';
 import 'dotenv/config';
 import { startGoosed } from './goosed';
-import { getBinaryPath } from './utils/binaryPath';
+import { getBinaryPath } from './utils/pathUtils';
 import { loadShellEnv } from './utils/loadEnv';
 import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
@@ -524,7 +524,12 @@ const createChat = async (
     const envVars = {
       GOOSE_SCHEDULER_TYPE: process.env.GOOSE_SCHEDULER_TYPE,
     };
-    const [newPort, newWorkingDir, newGoosedProcess] = await startGoosed(app, dir, envVars);
+    const [newPort, newWorkingDir, newGoosedProcess] = await startGoosed(
+      app,
+      appConfig.secretKey,
+      dir ?? null,
+      envVars
+    );
     port = newPort;
     working_dir = newWorkingDir;
     goosedProcess = newGoosedProcess;
@@ -1034,15 +1039,46 @@ ipcMain.handle('get-quit-confirmation-state', () => {
 });
 
 // Add file/directory selection handler
-ipcMain.handle('select-file-or-directory', async () => {
+ipcMain.handle('select-file-or-directory', async (_event, defaultPath?: string) => {
   const result = (await dialog.showOpenDialog({
     properties: process.platform === 'darwin' ? ['openFile', 'openDirectory'] : ['openFile'],
+    // If provided, use the defaultPath as a hint for the dialog
+    defaultPath:
+      typeof defaultPath === 'string' && defaultPath.length > 0 ? defaultPath : undefined,
   })) as unknown as OpenDialogReturnValue;
 
   if (!result.canceled && result.filePaths.length > 0) {
     return result.filePaths[0];
   }
   return null;
+});
+
+// Secret key for authenticating local requests
+ipcMain.handle('get-secret-key', async () => {
+  try {
+    return appConfig.secretKey;
+  } catch (e) {
+    console.error('Error retrieving secret key:', e);
+    return '';
+  }
+});
+
+// Open a directory in the native file explorer
+ipcMain.handle('open-directory-in-explorer', async (_event, dirPath: string) => {
+  try {
+    if (!dirPath || typeof dirPath !== 'string') return false;
+    if (process.platform === 'darwin') {
+      spawn('open', [dirPath]);
+    } else if (process.platform === 'win32') {
+      spawn('explorer.exe', [dirPath]);
+    } else {
+      spawn('xdg-open', [dirPath]);
+    }
+    return true;
+  } catch (e) {
+    console.error('Failed to open directory in explorer:', e);
+    return false;
+  }
 });
 
 // IPC handler to save data URL to a temporary file
@@ -1872,6 +1908,41 @@ app.whenReady().then(async () => {
     return false;
   });
 
+  // Get current wakelock state
+  ipcMain.handle('get-wakelock-state', () => {
+    try {
+      return powerSaveBlockerId !== null;
+    } catch (e) {
+      console.error('Error getting wakelock state:', e);
+      return false;
+    }
+  });
+
+  // Enable/disable wakelock and persist in settings
+  ipcMain.handle('set-wakelock', async (_event, enable: boolean) => {
+    try {
+      const settings = loadSettings();
+      if (enable) {
+        if (powerSaveBlockerId === null) {
+          powerSaveBlockerId = powerSaveBlocker.start('prevent-display-sleep');
+          log.info('Enabled wakelock');
+        }
+      } else {
+        if (powerSaveBlockerId !== null) {
+          powerSaveBlocker.stop(powerSaveBlockerId);
+          powerSaveBlockerId = null;
+          log.info('Disabled wakelock');
+        }
+      }
+      settings.enableWakelock = enable;
+      saveSettings(settings);
+      return true;
+    } catch (e) {
+      console.error('Error setting wakelock:', e);
+      return false;
+    }
+  });
+
   // Handle metadata fetching from main process
   ipcMain.handle('fetch-metadata', async (_event, url) => {
     try {
@@ -1942,6 +2013,16 @@ app.whenReady().then(async () => {
   ipcMain.on('restart-app', () => {
     app.relaunch();
     app.exit(0);
+  });
+
+  // Close the current window from renderer
+  ipcMain.on('close-window', (event) => {
+    try {
+      const win = BrowserWindow.fromWebContents(event.sender);
+      win?.close();
+    } catch (e) {
+      console.error('Error closing window:', e);
+    }
   });
 
   // Handler for getting app version

@@ -71,9 +71,9 @@ type ElectronAPI = {
   fetchMetadata: (url: string) => Promise<string>;
   reloadApp: () => void;
   checkForOllama: () => Promise<boolean>;
-  selectFileOrDirectory: () => Promise<string | null>;
-  startPowerSaveBlocker: () => Promise<number>;
-  stopPowerSaveBlocker: () => Promise<void>;
+  selectFileOrDirectory: (defaultPath?: string) => Promise<string | null>;
+  startPowerSaveBlocker: () => Promise<boolean>;
+  stopPowerSaveBlocker: () => Promise<boolean>;
   getBinaryPath: (binaryName: string) => Promise<string>;
   readFile: (directory: string) => Promise<FileResponse>;
   writeFile: (directory: string, content: string) => Promise<boolean>;
@@ -81,6 +81,13 @@ type ElectronAPI = {
   listFiles: (dirPath: string, extension?: string) => Promise<string[]>;
   getAllowedExtensions: () => Promise<string[]>;
   getPathForFile: (file: File) => string;
+  // Security/identity helpers
+  getSecretKey: () => Promise<string>;
+  // OS helpers
+  openDirectoryInExplorer: (dirPath: string) => Promise<boolean>;
+  // Wakelock helpers
+  getWakelockState: () => Promise<boolean>;
+  setWakelock: (enable: boolean) => Promise<boolean>;
   setMenuBarIcon: (show: boolean) => Promise<boolean>;
   getMenuBarIconState: () => Promise<boolean>;
   setDockIcon: (show: boolean) => Promise<boolean>;
@@ -90,6 +97,10 @@ type ElectronAPI = {
   setQuitConfirmation: (show: boolean) => Promise<boolean>;
   getQuitConfirmationState: () => Promise<boolean>;
   openNotificationsSettings: () => Promise<boolean>;
+  // Recipe acceptance helpers
+  hasAcceptedRecipeBefore: (recipeConfig: RecipeConfig) => Promise<boolean>;
+  recordRecipeHash: (recipeConfig: RecipeConfig) => Promise<void>;
+  closeWindow: () => void;
   on: (
     channel: string,
     callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void
@@ -154,10 +165,16 @@ const electronAPI: ElectronAPI = {
   fetchMetadata: (url: string) => ipcRenderer.invoke('fetch-metadata', url),
   reloadApp: () => ipcRenderer.send('reload-app'),
   checkForOllama: () => ipcRenderer.invoke('check-ollama'),
-  selectFileOrDirectory: () => ipcRenderer.invoke('select-file-or-directory'),
+  selectFileOrDirectory: (defaultPath?: string) =>
+    ipcRenderer.invoke('select-file-or-directory', defaultPath),
   startPowerSaveBlocker: () => ipcRenderer.invoke('start-power-save-blocker'),
   stopPowerSaveBlocker: () => ipcRenderer.invoke('stop-power-save-blocker'),
   getBinaryPath: (binaryName: string) => ipcRenderer.invoke('get-binary-path', binaryName),
+  getSecretKey: () => ipcRenderer.invoke('get-secret-key'),
+  openDirectoryInExplorer: (dirPath: string) =>
+    ipcRenderer.invoke('open-directory-in-explorer', dirPath),
+  getWakelockState: () => ipcRenderer.invoke('get-wakelock-state'),
+  setWakelock: (enable: boolean) => ipcRenderer.invoke('set-wakelock', enable),
   readFile: (filePath: string) => ipcRenderer.invoke('read-file', filePath),
   writeFile: (filePath: string, content: string) =>
     ipcRenderer.invoke('write-file', filePath, content),
@@ -213,6 +230,15 @@ const electronAPI: ElectronAPI = {
   },
   restartApp: (): void => {
     ipcRenderer.send('restart-app');
+  },
+  hasAcceptedRecipeBefore: (recipeConfig: RecipeConfig): Promise<boolean> => {
+    return ipcRenderer.invoke('has-accepted-recipe-before', recipeConfig);
+  },
+  recordRecipeHash: (recipeConfig: RecipeConfig): Promise<void> => {
+    return ipcRenderer.invoke('record-recipe-hash', recipeConfig);
+  },
+  closeWindow: (): void => {
+    ipcRenderer.send('close-window');
   },
   onUpdaterEvent: (callback: (event: UpdaterEvent) => void): void => {
     ipcRenderer.on('updater-event', (_event, data) => callback(data));
