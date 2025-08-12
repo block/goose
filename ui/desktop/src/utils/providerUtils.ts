@@ -291,13 +291,21 @@ export const initializeSystem = async (
       await syncBundledExtensions(refreshedExtensions, options.addExtension);
     }
 
-    // Add enabled extensions to agent
-    for (const extensionEntry of refreshedExtensions) {
-      if (extensionEntry.enabled) {
-        const extensionConfig = extractExtensionConfig(extensionEntry);
-        await addToAgentOnStartup({ addToConfig: options.addExtension, extensionConfig });
+    // Add enabled extensions to agent in parallel
+    const enabledExtensions = refreshedExtensions.filter((ext) => ext.enabled);
+
+    const extensionLoadingPromises = enabledExtensions.map(async (extensionEntry) => {
+      const extensionConfig = extractExtensionConfig(extensionEntry);
+      const extensionName = extensionConfig.name;
+
+      try {
+        await addToAgentOnStartup({ addToConfig: options.addExtension!, extensionConfig });
+      } catch (error) {
+        console.error(`Failed to load extension ${extensionName}:`, error);
       }
-    }
+    });
+
+    await Promise.allSettled(extensionLoadingPromises);
   } catch (error) {
     console.error('Failed to initialize agent:', error);
     throw error;
