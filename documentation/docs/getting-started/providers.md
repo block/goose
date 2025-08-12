@@ -351,9 +351,6 @@ Here are some local providers we support:
 
 <Tabs groupId="local-llms">
   <TabItem value="ollama" label="Ollama" default>
-
-    Ollama models with tool support can be used in [chat only mode](/docs/guides/goose-permissions) for analysis, writing, and reasoning tasks. Chat only mode is optimized for Ollama with streamlined processing and reduced overhead.
-    
     <Tabs groupId="ollama-models">
       <TabItem value="ramalala" label="Ramalala">
         1. [Download Ramalama](https://github.com/containers/ramalama?tab=readme-ov-file#install).
