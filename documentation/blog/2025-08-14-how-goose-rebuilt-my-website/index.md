@@ -9,7 +9,7 @@ authors:
 
 # How Goose Helped Me Rebuild My Website
 
-A website to me is a corner of the internet where I can be who I am, share the my work, and ultimately a place I can do whatever I want with. For it to be anything but my personality personified, especially as an ex-nerdy blog designer (in my middle school and high school days), felt so sad! Until suddenly, what started out as a harmless 404 day challenge quickly turned into making that website in basically no time.
+A website to me is a corner of the internet where I can be who I am, share my work, and ultimately a place I can do whatever I want with. For it to be anything but my personality personified, especially as an ex-nerdy blog designer (in my middle school and high school days), felt so sad! Until suddenly, what started out as a harmless 404 day challenge quickly turned into making that website in basically no time.
 
 ## Going Back to My Roots
 
