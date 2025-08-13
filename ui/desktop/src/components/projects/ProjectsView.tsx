@@ -39,7 +39,6 @@ const ProjectsView: React.FC<ProjectsViewProps> = ({ onSelectProject, refreshTri
         }, 50);
       }, 300); // Show skeleton for at least 300ms
 
-      // eslint-disable-next-line no-undef
       return () => clearTimeout(timer);
     }
     return () => void 0;

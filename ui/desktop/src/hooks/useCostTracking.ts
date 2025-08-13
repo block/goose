@@ -27,8 +27,8 @@ export const useCostTracking = ({
   }>({});
 
   const { currentModel, currentProvider } = useModelAndProvider();
-  const prevModelRef = useRef<string | undefined>();
-  const prevProviderRef = useRef<string | undefined>();
+  const prevModelRef = useRef<string | undefined>(undefined);
+  const prevProviderRef = useRef<string | undefined>(undefined);
 
   // Handle model changes and accumulate costs
   useEffect(() => {

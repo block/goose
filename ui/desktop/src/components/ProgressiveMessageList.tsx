@@ -75,7 +75,7 @@ export default function ProgressiveMessageList({
     const contextManager = useChatContextManager();
     hasContextHandlerContent = contextManager.hasContextHandlerContent;
     getContextHandlerType = contextManager.getContextHandlerType;
-  } catch (error) {
+  } catch {
     // Context manager not available (e.g., in session history view)
     // This is fine, we'll just skip context handler functionality
     hasContextHandlerContent = undefined;

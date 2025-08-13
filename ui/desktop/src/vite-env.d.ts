@@ -46,7 +46,7 @@ declare module '*.md?raw' {
 }
 
 // Extend CSS properties to include Electron-specific properties
-declare namespace React {
+declare namespace _React {
   interface CSSProperties {
     WebkitAppRegion?: 'drag' | 'no-drag';
   }

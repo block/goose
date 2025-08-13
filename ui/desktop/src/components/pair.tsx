@@ -136,7 +136,6 @@ export default function Pair({
         }
       }, 500); // Give more time for the component to fully mount
 
-      // eslint-disable-next-line no-undef
       return () => clearTimeout(timer);
     }
 

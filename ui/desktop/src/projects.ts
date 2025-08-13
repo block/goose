@@ -77,8 +77,8 @@ export async function fetchProjects(): Promise<ProjectMetadata[]> {
       url: '/projects',
     });
 
-    if (response && response.data && response.data.projects) {
-      return response.data.projects;
+    if (response && response.data && Array.isArray(response.data)) {
+      return response.data;
     } else {
       throw new Error('Unexpected response format from list_projects');
     }
@@ -103,7 +103,7 @@ export async function createProject(request: CreateProjectRequest): Promise<Proj
   });
   console.log('Raw createProject response:', response);
   return ensureDefaultDirectory(
-    (response as { project?: Project }).project ?? (response as unknown as Project)
+    (response as { data?: Project }).data ?? (response as unknown as Project)
   );
 }
 
@@ -118,11 +118,11 @@ export async function getProject(projectId: string): Promise<Project> {
       url: `/projects/${projectId}`,
     });
 
-    if (!response?.data?.project) {
+    if (!response?.data) {
       throw new Error(`Unexpected response format from get_project_details for ID: ${projectId}`);
     }
 
-    return ensureDefaultDirectory(response.data.project);
+    return ensureDefaultDirectory(response.data as Project);
   } catch (error) {
     console.error(`Error fetching project ${projectId}:`, error);
     throw error;
@@ -148,11 +148,11 @@ export async function updateProject(
       },
     });
 
-    if (!response?.data?.project) {
+    if (!response?.data) {
       throw new Error(`Unexpected response format from update_project for ID: ${projectId}`);
     }
 
-    return ensureDefaultDirectory(response.data.project);
+    return ensureDefaultDirectory(response.data as Project);
   } catch (error) {
     console.error(`Error updating project ${projectId}:`, error);
     throw error;

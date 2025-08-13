@@ -4,7 +4,7 @@ import { cn } from '../../utils';
 import { Alert, AlertType } from '../alerts';
 import { AlertBox } from '../alerts';
 
-const { clearTimeout } = window;
+// Remove this line as clearTimeout is a global function
 
 interface AlertPopoverProps {
   alerts: Alert[];
@@ -17,7 +17,7 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
   const [popoverPosition, setPopoverPosition] = useState({ top: 0, left: 0 });
   const [shouldShowIndicator, setShouldShowIndicator] = useState(false); // Stable indicator state
   const previousAlertsRef = useRef<Alert[]>([]);
-  const hideTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 

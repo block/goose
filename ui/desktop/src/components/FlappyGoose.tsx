@@ -14,7 +14,6 @@ interface FlappyGooseProps {
 }
 
 const FlappyGoose: React.FC<FlappyGooseProps> = ({ onClose }) => {
-  // eslint-disable-next-line no-undef
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [gameOver, setGameOver] = useState(false);
   const [displayScore, setDisplayScore] = useState(0);

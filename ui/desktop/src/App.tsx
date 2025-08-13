@@ -894,12 +894,12 @@ export default function App() {
             await validateConfig({ throwOnError: true });
             // If validation passes, try reading again
             await readAllConfig({ throwOnError: true });
-          } catch (validateError) {
+          } catch {
             console.log('Config validation failed, attempting recovery...');
             try {
               await recoverConfig({ throwOnError: true });
               await readAllConfig({ throwOnError: true });
-            } catch (recoverError) {
+            } catch {
               console.warn('Config recovery failed, reinitializing...');
               await initConfig();
             }
