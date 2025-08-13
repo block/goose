@@ -3,9 +3,10 @@ use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
 use crate::providers::utils::{is_valid_function_name, sanitize_function_name};
 use anyhow::Result;
-use mcp_core::tool::ToolCall;
+use mcp_core::ToolCall;
 use rand::{distributions::Alphanumeric, Rng};
-use rmcp::model::{AnnotateAble, RawContent, Role, Tool};
+use rmcp::model::{AnnotateAble, ErrorCode, ErrorData, RawContent, Role, Tool};
+use std::borrow::Cow;
 
 use crate::conversation::message::{Message, MessageContent};
 use serde_json::{json, Map, Value};
@@ -254,10 +255,14 @@ pub fn response_to_message(response: Value) -> Result<Message> {
                 .unwrap_or_default()
                 .to_string();
             if !is_valid_function_name(&name) {
-                let error = mcp_core::ToolError::NotFound(format!(
-                    "The provided function name '{}' had invalid characters, it must match this regex [a-zA-Z0-9_-]+",
-                    name
-                ));
+                let error = ErrorData {
+                    code: ErrorCode::INVALID_REQUEST,
+                    message: Cow::from(format!(
+                        "The provided function name '{}' had invalid characters, it must match this regex [a-zA-Z0-9_-]+",
+                        name
+                    )),
+                    data: None,
+                };
                 content.push(MessageContent::tool_request(id, Err(error)));
             } else {
                 let parameters = function_call.get("args");
@@ -741,7 +746,14 @@ mod tests {
         assert_eq!(message.role, Role::Assistant);
         assert_eq!(message.content.len(), 1);
         if let Err(error) = &message.content[0].as_tool_request().unwrap().tool_call {
-            assert!(matches!(error, mcp_core::ToolError::NotFound(_)));
+            assert!(matches!(
+                error,
+                ErrorData {
+                    code: ErrorCode::INVALID_REQUEST,
+                    message: _,
+                    data: None,
+                }
+            ));
         } else {
             panic!("Expected tool request error");
         }

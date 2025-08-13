@@ -8,8 +8,8 @@ use crate::{
 };
 use anyhow::anyhow;
 use chrono::{DateTime, Utc};
-use mcp_core::handler::ToolError;
 use rmcp::model::Tool;
+use rmcp::model::{ErrorCode, ErrorData};
 use serde::{Deserialize, Serialize};
 // use serde_json::{self};
 use crate::conversation::message::{Message, MessageContent, ToolRequest};
@@ -206,7 +206,11 @@ impl SubAgent {
                                 .await
                             {
                                 Ok(result) => result.result.await,
-                                Err(e) => Err(ToolError::ExecutionError(e.to_string())),
+                                Err(e) => Err(ErrorData::new(
+                                    ErrorCode::INTERNAL_ERROR,
+                                    e.to_string(),
+                                    None,
+                                )),
                             };
 
                             match tool_result {
@@ -220,7 +224,11 @@ impl SubAgent {
                                     // Create a user message with the tool error
                                     let tool_error_message = Message::user().with_tool_response(
                                         request.id.clone(),
-                                        Err(ToolError::ExecutionError(e.to_string())),
+                                        Err(ErrorData::new(
+                                            ErrorCode::INTERNAL_ERROR,
+                                            e.to_string(),
+                                            None,
+                                        )),
                                     );
                                     messages.push(tool_error_message);
                                 }

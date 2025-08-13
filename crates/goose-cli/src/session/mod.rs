@@ -34,9 +34,9 @@ use goose::config::Config;
 use goose::providers::pricing::initialize_pricing_cache;
 use goose::session;
 use input::InputResult;
-use mcp_core::handler::ToolError;
 use rmcp::model::PromptMessage;
 use rmcp::model::ServerNotification;
+use rmcp::model::{ErrorCode, ErrorData};
 
 use goose::conversation::message::{Message, MessageContent};
 use rand::{distributions::Alphanumeric, Rng};
@@ -927,7 +927,7 @@ impl Session {
                                     let mut response_message = Message::user();
                                     response_message.content.push(MessageContent::tool_response(
                                         confirmation.id.clone(),
-                                        Err(ToolError::ExecutionError("Tool call cancelled by user".to_string()))
+                                        Err(ErrorData { code: ErrorCode::INVALID_REQUEST, message: std::borrow::Cow::from("Tool call cancelled by user".to_string()), data: None })
                                     ));
                                     self.messages.push(response_message);
                                     if let Some(session_file) = &self.session_file {
@@ -1294,7 +1294,11 @@ impl Session {
             for (req_id, _) in &tool_requests {
                 response_message.content.push(MessageContent::tool_response(
                     req_id.clone(),
-                    Err(ToolError::ExecutionError(notification.clone())),
+                    Err(ErrorData {
+                        code: ErrorCode::INTERNAL_ERROR,
+                        message: std::borrow::Cow::from(notification.clone()),
+                        data: None,
+                    }),
                 ));
             }
             self.push_message(response_message);

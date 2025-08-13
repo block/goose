@@ -156,14 +156,19 @@ async fn run_truncate_test(
     }
 
     println!("Responses: {responses:?}\n");
-    assert_eq!(responses.len(), 1);
 
     // Ollama and OpenRouter truncate by default even when the context window is exceeded
-    // We don't have control over the truncation behavior in these providers
+    // We don't have control over the truncation behavior in these providers.
+    // Skip the strict assertions for these providers.
     if provider_type == ProviderType::Ollama || provider_type == ProviderType::OpenRouter {
-        println!("WARNING: Skipping test for {:?} because it truncates by default when the context window is exceeded", provider_type);
+        println!(
+            "WARNING: Skipping test for {:?} because it truncates by default when the context window is exceeded",
+            provider_type
+        );
         return Ok(());
     }
+
+    assert_eq!(responses.len(), 1);
 
     assert_eq!(responses[0].content.len(), 1);
 
