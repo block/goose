@@ -5,7 +5,7 @@ authors:
     - tania
 ---
 
-![goose Website Banner](goose_website_banner.jpg)
+![goose Website Banner](goose_website_banner.png)
 
 # How Goose Helped Me Rebuild My Website
 
