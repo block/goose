@@ -258,6 +258,16 @@ The default embedding provider is OpenAI. If using a different provider:
 - Specify an appropriate embedding model for that provider
 - Ensure the provider is properly configured with necessary credentials
 
+## Desktop in Airgapped Environments with MCP servers
+
+When running in airgapped environments, you will not want hermit to pull down the runtime environments for MCP servers, set: 
+
+`GOOSE_NOSHIM=true`
+
+And it will then use whatever you have on the path/system for uvx and npx, as specified in the mcp configuration.
+
+There may be other challenges with parts of Goose in airgapped environemnts, it is recommended that you consider packaging your own Desktop distribution for your users in that case, which can be tailored (eg for proxies and pre-made configurations).
+
 ## Security Configuration
 
 These variables control security related features.
