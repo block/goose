@@ -762,7 +762,6 @@ pub fn display_context_usage(total_tokens: usize, context_limit: usize) {
     );
 }
 
-/// Display a timestamp indicating when the response was completed
 pub fn display_timestamp() {
     use console::style;
 
