@@ -762,6 +762,21 @@ pub fn display_context_usage(total_tokens: usize, context_limit: usize) {
     );
 }
 
+/// Display a timestamp indicating when the response was completed
+pub fn display_timestamp() {
+    use console::style;
+
+    let timestamp = format_current_timestamp();
+    println!("{}", style(format!("\n\nCompleted at {}", timestamp)).dim());
+}
+
+fn format_current_timestamp() -> String {
+    use chrono::Local;
+
+    let now = Local::now();
+    now.format("%I:%M %p").to_string()
+}
+
 fn normalize_model_name(model: &str) -> String {
     let mut result = model.to_string();
 
