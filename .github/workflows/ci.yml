@@ -29,11 +29,11 @@ jobs:
           filters: |
             docs-only:
               - 'documentation/**'
-              - '*.md'
+              - '**/*.md'
             code:
               - '**'
               - '!documentation/**'
-              - '!*.md'
+              - '!**/*.md'
 
   rust-format:
     name: Check Rust Code Format
