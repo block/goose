@@ -24,19 +24,16 @@ const CodeBlock = ({ language, children }: { language: string; children: string 
       await navigator.clipboard.writeText(children);
       setCopied(true);
 
-      // Clear existing timeout if any
       if (timeoutRef.current) {
         window.clearTimeout(timeoutRef.current);
       }
 
-      // Set new timeout
       timeoutRef.current = window.setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error('Failed to copy text: ', err);
     }
   };
 
-  // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
       if (timeoutRef.current) {
