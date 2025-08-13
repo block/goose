@@ -21,6 +21,8 @@ import { groupSessionsByDate, type DateGroup } from '../../utils/dateUtils';
 import { Skeleton } from '../ui/skeleton';
 import { toast } from 'react-toastify';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
+import { Switch } from '../ui/switch';
+import { Label } from '../ui/label';
 
 interface EditSessionModalProps {
   session: Session | null;
@@ -161,6 +163,30 @@ interface SearchContainerElement extends HTMLDivElement {
   _searchHighlighter: SearchHighlighter | null;
 }
 
+// Helper function to determine if a session was created by the scheduler
+const isSchedulerSession = (session: Session): boolean => {
+  // Check if the session has a schedule_id (any schedule_id indicates it's a scheduler session)
+  const scheduleId = session.metadata.schedule_id;
+  
+  // Primary check: if schedule_id is present and not null/empty
+  if (scheduleId !== null && scheduleId !== undefined && scheduleId !== '') {
+    return true;
+  }
+  
+  // Secondary check: timestamp-only descriptions (scheduler often generates these)
+  // This catches scheduler sessions that have null schedule_id due to bugs
+  const description = session.metadata.description || '';
+  
+  // Check if session ID matches description exactly and both follow timestamp format
+  // This is a reliable pattern for scheduler-generated sessions
+  if (description === session.id && /^\d{8}_\d{6}$/.test(session.id)) {
+    console.log(`Identified scheduler session by timestamp pattern: "${session.id}"`);
+    return true;
+  }
+  
+  return false;
+};
+
 interface SessionListViewProps {
   setView: (view: View, viewOptions?: ViewOptions) => void;
   onSelectSession: (sessionId: string) => void;
@@ -194,6 +220,17 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     const [searchTerm, setSearchTerm] = useState('');
     const [caseSensitive, setCaseSensitive] = useState(false);
     const debouncedSearchTerm = useDebounce(searchTerm, 300); // 300ms debounce
+
+    // Scheduler filtering state with localStorage persistence
+    const [hideSchedulerChats, setHideSchedulerChats] = useState(() => {
+      try {
+        const saved = localStorage.getItem('hide_scheduler_chats');
+        return saved !== null ? JSON.parse(saved) : false;
+      } catch {
+        return false;
+      }
+    });
+    const [isFiltering, setIsFiltering] = useState(false);
 
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -277,43 +314,69 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       }
     }, [selectedSessionId, sessions]);
 
-    // Debounced search effect - performs actual filtering
+    // Effect to persist scheduler filter state to localStorage
     useEffect(() => {
-      if (!debouncedSearchTerm) {
-        startTransition(() => {
-          setFilteredSessions(sessions);
-          setSearchResults(null);
-        });
-        return;
+      try {
+        localStorage.setItem('hide_scheduler_chats', JSON.stringify(hideSchedulerChats));
+      } catch (error) {
+        console.warn('Failed to save hide_scheduler_chats to localStorage:', error);
       }
+    }, [hideSchedulerChats]);
 
-      // Use startTransition to make search non-blocking
+    // Effect to handle scheduler toggle animation
+    useEffect(() => {
+      // Only show animation when scheduler filter changes
+      // Skip if: no sessions, initial load, or content not yet shown
+      if (sessions.length > 0 && showContent && !isLoading) {
+        setIsFiltering(true);
+        setTimeout(() => {
+          setIsFiltering(false);
+        }, 300);
+      }
+    }, [hideSchedulerChats]);
+
+    // Combined filtering effect - handles both search and scheduler filtering
+    useEffect(() => {
       startTransition(() => {
-        const searchTerm = caseSensitive ? debouncedSearchTerm : debouncedSearchTerm.toLowerCase();
-        const filtered = sessions.filter((session) => {
-          const description = session.metadata.description || session.id;
-          const path = session.path;
-          const workingDir = session.metadata.working_dir;
+        let filtered = sessions;
 
-          if (caseSensitive) {
-            return (
-              description.includes(searchTerm) ||
-              path.includes(searchTerm) ||
-              workingDir.includes(searchTerm)
-            );
-          } else {
-            return (
-              description.toLowerCase().includes(searchTerm) ||
-              path.toLowerCase().includes(searchTerm) ||
-              workingDir.toLowerCase().includes(searchTerm)
-            );
-          }
-        });
+        // First apply scheduler filtering if enabled
+        if (hideSchedulerChats) {
+          filtered = filtered.filter((session) => !isSchedulerSession(session));
+        }
+
+        // Then apply search filtering if there's a search term
+        if (debouncedSearchTerm) {
+          const searchTerm = caseSensitive ? debouncedSearchTerm : debouncedSearchTerm.toLowerCase();
+          filtered = filtered.filter((session) => {
+            const description = session.metadata.description || session.id;
+            const path = session.path;
+            const workingDir = session.metadata.working_dir;
+
+            if (caseSensitive) {
+              return (
+                description.includes(searchTerm) ||
+                path.includes(searchTerm) ||
+                workingDir.includes(searchTerm)
+              );
+            } else {
+              return (
+                description.toLowerCase().includes(searchTerm) ||
+                path.toLowerCase().includes(searchTerm) ||
+                workingDir.toLowerCase().includes(searchTerm)
+              );
+            }
+          });
+        }
 
         setFilteredSessions(filtered);
-        setSearchResults(filtered.length > 0 ? { count: filtered.length, currentIndex: 1 } : null);
+        setSearchResults(
+          debouncedSearchTerm && filtered.length > 0 
+            ? { count: filtered.length, currentIndex: 1 } 
+            : null
+        );
       });
-    }, [debouncedSearchTerm, caseSensitive, sessions]);
+    }, [debouncedSearchTerm, caseSensitive, sessions, hideSchedulerChats]);
 
     // Handle immediate search input (updates search term for debouncing)
     const handleSearch = useCallback((term: string, caseSensitive: boolean) => {
@@ -588,6 +651,18 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
               <div className="flex flex-col page-transition">
                 <div className="flex justify-between items-center mb-1">
                   <h1 className="text-4xl font-light">Chat history</h1>
+                  {/* Scheduler filtering toggle */}
+                  <div className="flex items-center space-x-2 px-3 py-2 border border-border-default rounded-md hover:bg-background-muted/50 transition-colors">
+                    <Switch
+                      id="hide-scheduler-chats"
+                      checked={hideSchedulerChats}
+                      onCheckedChange={setHideSchedulerChats}
+                      variant="mono"
+                    />
+                    <Label htmlFor="hide-scheduler-chats" className="text-sm text-text-muted cursor-pointer">
+                      Hide Scheduler chats
+                    </Label>
+                  </div>
                 </div>
                 <p className="text-sm text-text-muted mb-4">
                   View and search your past conversations with Goose.
@@ -607,7 +682,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                     {/* Skeleton layer - always rendered but conditionally visible */}
                     <div
                       className={`absolute inset-0 transition-opacity duration-300 ${
-                        isLoading || showSkeleton
+                        isLoading || showSkeleton || isFiltering
                           ? 'opacity-100 z-10'
                           : 'opacity-0 z-0 pointer-events-none'
                       }`}
@@ -653,7 +728,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                     {/* Content layer - always rendered but conditionally visible */}
                     <div
                       className={`relative transition-opacity duration-300 ${
-                        showContent ? 'opacity-100 z-10' : 'opacity-0 z-0'
+                        showContent && !isFiltering ? 'opacity-100 z-10' : 'opacity-0 z-0'
                       }`}
                     >
                       {renderActualContent()}
