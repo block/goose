@@ -2790,11 +2790,6 @@
             "description": "The number of output tokens used in the session. Retrieved from the provider's last usage.",
             "nullable": true
           },
-          "project_id": {
-            "type": "string",
-            "description": "ID of the project this session belongs to, if any",
-            "nullable": true
-          },
           "schedule_id": {
             "type": "string",
             "description": "ID of the schedule that triggered this session, if any",
