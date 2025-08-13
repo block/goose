@@ -68,12 +68,12 @@ pub fn map_http_error_to_provider_error(
     status: StatusCode,
     payload: Option<Value>,
 ) -> ProviderError {
-    match status {
+    let error = match status {
         StatusCode::OK => unreachable!("Should not call this function with OK status"),
         StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
             ProviderError::Authentication(format!(
                 "Authentication failed. Please ensure your API keys are valid and have the required permissions. \
-                Status: {}. Response: {:?}", status, payload
+               Status: {}. Response: {:?}", status, payload
             ))
         }
         StatusCode::BAD_REQUEST => {
@@ -81,20 +81,19 @@ pub fn map_http_error_to_provider_error(
             if let Some(payload) = &payload {
                 let payload_str = payload.to_string();
                 if check_context_length_exceeded(&payload_str) {
-                    return ProviderError::ContextLengthExceeded(payload_str);
+                    ProviderError::ContextLengthExceeded(payload_str)
+                } else {
+                    if let Some(error) = payload.get("error") {
+                        error_msg = error.get("message")
+                            .and_then(|m| m.as_str())
+                            .unwrap_or("Unknown error")
+                            .to_string();
+                    }
+                    ProviderError::RequestFailed(format!("Request failed with status: {}. Message: {}", status, error_msg))
                 }
-
-                if let Some(error) = payload.get("error") {
-                    error_msg = error.get("message")
-                        .and_then(|m| m.as_str())
-                        .unwrap_or("Unknown error")
-                        .to_string();
-                }
+            } else {
+                ProviderError::RequestFailed(format!("Request failed with status: {}. Message: {}", status, error_msg))
             }
-            tracing::debug!(
-                "Provider request failed with status: {}. Payload: {:?}", status, payload
-            );
-            ProviderError::RequestFailed(format!("Request failed with status: {}. Message: {}", status, error_msg))
         }
         StatusCode::TOO_MANY_REQUESTS => {
             ProviderError::RateLimitExceeded(format!("{:?}", payload))
@@ -103,12 +102,20 @@ pub fn map_http_error_to_provider_error(
             ProviderError::ServerError(format!("{:?}", payload))
         }
         _ => {
-            tracing::debug!(
-                "Provider request failed with status: {}. Payload: {:?}", status, payload
-            );
             ProviderError::RequestFailed(format!("Request failed with status: {}", status))
         }
+    };
+
+    if !status.is_success() {
+        tracing::warn!(
+            "Provider request failed with status: {}. Payload: {:?}. Returning error: {:?}",
+            status,
+            payload,
+            error
+        );
     }
+
+    error
 }
 
 /// Handle response from OpenAI compatible endpoints

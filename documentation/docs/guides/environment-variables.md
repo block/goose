@@ -176,7 +176,7 @@ For more details and examples, see [Model Context Limit Overrides](/docs/guides/
 
 ## Tool Configuration
 
-These variables control how Goose handles [tool permissions](/docs/guides/managing-tools/tool-permissions) and their execution.
+These variables control how Goose handles [tool execution](/docs/guides/goose-permissions) and [tool management](/docs/guides/managing-tools/).
 
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
