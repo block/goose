@@ -588,6 +588,14 @@ export type RunNowResponse = {
     session_id: string;
 };
 
+export type ScanRecipeRequest = {
+    recipe: Recipe;
+};
+
+export type ScanRecipeResponse = {
+    has_security_warnings: boolean;
+};
+
 export type ScheduledJob = {
     cron: string;
     current_session_id?: string | null;
@@ -1433,6 +1441,29 @@ export type EncodeRecipeResponses = {
 };
 
 export type EncodeRecipeResponse2 = EncodeRecipeResponses[keyof EncodeRecipeResponses];
+
+export type ScanRecipeData = {
+    body: ScanRecipeRequest;
+    path?: never;
+    query?: never;
+    url: '/recipes/scan';
+};
+
+export type ScanRecipeErrors = {
+    /**
+     * Bad request
+     */
+    400: unknown;
+};
+
+export type ScanRecipeResponses = {
+    /**
+     * Recipe scanned successfully
+     */
+    200: ScanRecipeResponse;
+};
+
+export type ScanRecipeResponse2 = ScanRecipeResponses[keyof ScanRecipeResponses];
 
 export type CreateScheduleData = {
     body: CreateScheduleRequest;

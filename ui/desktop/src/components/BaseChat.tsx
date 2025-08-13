@@ -200,6 +200,7 @@ function BaseChatContent({
     recipeAccepted,
     handleRecipeAccept,
     handleRecipeCancel,
+    hasSecurityWarnings,
   } = useRecipeManager(messages, location.state);
 
   // Reset recipe usage tracking when recipe changes
@@ -573,6 +574,7 @@ function BaseChatContent({
           description: recipeConfig?.description,
           instructions: recipeConfig?.instructions || undefined,
         }}
+        hasSecurityWarnings={hasSecurityWarnings}
       />
 
       {/* Recipe Parameter Modal */}

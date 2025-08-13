@@ -780,6 +780,39 @@
         }
       }
     },
+    "/recipes/scan": {
+      "post": {
+        "tags": [
+          "Recipe Management"
+        ],
+        "operationId": "scan_recipe",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScanRecipeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Recipe scanned successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanRecipeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request"
+          }
+        }
+      }
+    },
     "/schedule/create": {
       "post": {
         "tags": [
@@ -2792,6 +2825,28 @@
         "properties": {
           "session_id": {
             "type": "string"
+          }
+        }
+      },
+      "ScanRecipeRequest": {
+        "type": "object",
+        "required": [
+          "recipe"
+        ],
+        "properties": {
+          "recipe": {
+            "$ref": "#/components/schemas/Recipe"
+          }
+        }
+      },
+      "ScanRecipeResponse": {
+        "type": "object",
+        "required": [
+          "has_security_warnings"
+        ],
+        "properties": {
+          "has_security_warnings": {
+            "type": "boolean"
           }
         }
       },
