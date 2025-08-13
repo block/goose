@@ -412,8 +412,6 @@ enum Command {
         builtins: Vec<String>,
     },
 
-<<<<<<< HEAD
-=======
     /// Open the last project directory
     #[command(about = "Open the last project directory", visible_alias = "p")]
     Project {},
@@ -429,7 +427,6 @@ enum Command {
         command: Option<RepoCommand>,
     },
 
->>>>>>> WIP - initial working version of treesitter creating a repo index
     /// Execute commands from an instruction file
     #[command(about = "Execute commands from an instruction file or stdin")]
     Run {
@@ -740,12 +737,9 @@ pub async fn cli() -> Result<()> {
         Some(Command::Info { .. }) => "info",
         Some(Command::Mcp { .. }) => "mcp",
         Some(Command::Session { .. }) => "session",
-<<<<<<< HEAD
-=======
-    Some(Command::Repo { .. }) => "repo",
+        Some(Command::Repo { .. }) => "repo",
         Some(Command::Project {}) => "project",
         Some(Command::Projects) => "projects",
->>>>>>> CLI: resolve merge leftovers; wire Repo command into cli; fix lockfile markers
         Some(Command::Run { .. }) => "run",
         Some(Command::Schedule { .. }) => "schedule",
         Some(Command::Update { .. }) => "update",

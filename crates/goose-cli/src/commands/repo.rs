@@ -1,22 +1,22 @@
-use std::time::Instant;
 use ignore::WalkBuilder;
 use serde_json::json;
 use std::fs;
+use std::io;
 use std::io::Write;
 use std::path::Path;
-use std::io;
+use std::time::Instant;
 use tree_sitter::{Language, Parser};
 // Import the language crates
-use tree_sitter_rust as ts_rust;
-use tree_sitter_python as ts_python;
-use tree_sitter_javascript as ts_javascript;
-use tree_sitter_cpp as ts_cpp;
-use tree_sitter_java as ts_java;
-use tree_sitter_typescript as ts_typescript;
-use tree_sitter_c_sharp as ts_c_sharp;
-use tree_sitter_swift as ts_swift;
-use tree_sitter_go as ts_go;
 use anyhow::Result;
+use tree_sitter_c_sharp as ts_c_sharp;
+use tree_sitter_cpp as ts_cpp;
+use tree_sitter_go as ts_go;
+use tree_sitter_java as ts_java;
+use tree_sitter_javascript as ts_javascript;
+use tree_sitter_python as ts_python;
+use tree_sitter_rust as ts_rust;
+use tree_sitter_swift as ts_swift;
+use tree_sitter_typescript as ts_typescript;
 
 /// Recursively extract function call names from a node (for any language)
 fn extract_function_calls(node: &tree_sitter::Node, source: &str) -> Vec<String> {
@@ -27,7 +27,8 @@ fn extract_function_calls(node: &tree_sitter::Node, source: &str) -> Vec<String>
         // Heuristics for function call nodes in various languages
         if kind == "call_expression" || kind == "function_call" || kind == "invocation_expression" {
             // Try to get the function name
-            let name = n.child_by_field_name("function")
+            let name = n
+                .child_by_field_name("function")
                 .or_else(|| n.child_by_field_name("function_name"))
                 .or_else(|| n.child_by_field_name("name"))
                 .or_else(|| n.child(0));
@@ -233,7 +234,16 @@ fn extract_go_entities<W: Write>(tree: &tree_sitter::Tree, source: &str, file: &
             let ending_line = node.end_position().row + 1;
             let signature = source[node.byte_range()].lines().next().unwrap_or("");
             let info = make_entity_json(
-                file, "go", "import", name, signature, starting_line, ending_line, None, None, None,
+                file,
+                "go",
+                "import",
+                name,
+                signature,
+                starting_line,
+                ending_line,
+                None,
+                None,
+                None,
             );
             let _ = writeln!(out, "{}", info.to_string());
         } else if kind == "type_spec" {
@@ -342,7 +352,16 @@ fn extract_go_entities<W: Write>(tree: &tree_sitter::Tree, source: &str, file: &
             let signature = source[node.byte_range()].lines().next().unwrap_or("");
             let parent = parent.as_deref();
             let info = make_entity_json(
-                file, "go", "variable", name, signature, starting_line, ending_line, parent, None, None,
+                file,
+                "go",
+                "variable",
+                name,
+                signature,
+                starting_line,
+                ending_line,
+                parent,
+                None,
+                None,
             );
             let _ = writeln!(out, "{}", info.to_string());
         } else {
@@ -694,7 +713,16 @@ fn extract_cpp_entities<W: Write>(tree: &tree_sitter::Tree, source: &str, file: 
                 let ending_line = node.end_position().row + 1;
                 let signature = source[node.byte_range()].lines().next().unwrap_or("");
                 let info = make_entity_json(
-                    file, "cpp", "class", name, signature, starting_line, ending_line, None, None, None,
+                    file,
+                    "cpp",
+                    "class",
+                    name,
+                    signature,
+                    starting_line,
+                    ending_line,
+                    None,
+                    None,
+                    None,
                 );
                 let _ = writeln!(out, "{}", info.to_string());
                 for child in node.children(&mut node.walk()) {
@@ -714,7 +742,16 @@ fn extract_cpp_entities<W: Write>(tree: &tree_sitter::Tree, source: &str, file: 
                 let parent_ref = parent.as_deref();
                 let calls = extract_function_calls(&node, source);
                 let info = make_entity_json(
-                    file, "cpp", "function", name, signature, starting_line, ending_line, parent_ref, None, Some(&calls),
+                    file,
+                    "cpp",
+                    "function",
+                    name,
+                    signature,
+                    starting_line,
+                    ending_line,
+                    parent_ref,
+                    None,
+                    Some(&calls),
                 );
                 let _ = writeln!(out, "{}", info.to_string());
                 for child in node.children(&mut node.walk()) {
@@ -756,7 +793,16 @@ fn extract_entities_generic<W: Write>(
             let ending_line = node.end_position().row + 1;
             let signature = source[node.byte_range()].lines().next().unwrap_or("");
             let info = make_entity_json(
-                file, language, "class", name, signature, starting_line, ending_line, None, None, None,
+                file,
+                language,
+                "class",
+                name,
+                signature,
+                starting_line,
+                ending_line,
+                None,
+                None,
+                None,
             );
             let _ = writeln!(out, "{}", info.to_string());
             for child in node.children(&mut node.walk()) {
@@ -838,8 +884,9 @@ fn extract_js_ts_entities<W: Write>(
 pub fn index_repository_with_args(root_path: &str, output_file: &str) -> Result<()> {
     println!("Indexing repository with Tree-sitter at '{root_path}'...");
     let start_time = Instant::now();
-    let mut out = fs::File::create(output_file)
-        .map_err(|e| anyhow::anyhow!("[goose repo] Failed to create index file '{output_file}': {e}"))?;
+    let mut out = fs::File::create(output_file).map_err(|e| {
+        anyhow::anyhow!("[goose repo] Failed to create index file '{output_file}': {e}")
+    })?;
 
     let mut files_indexed = 0usize;
     let mut entities_indexed = 0usize;
@@ -947,13 +994,19 @@ pub fn index_repository_with_args(root_path: &str, output_file: &str) -> Result<
         files_indexed += 1;
     }
     let elapsed = start_time.elapsed();
-    println!("Indexing complete. Indexed {files_indexed} files, {entities_indexed} entities in {:.2?}.", elapsed);
+    println!(
+        "Indexing complete. Indexed {files_indexed} files, {entities_indexed} entities in {:.2?}.",
+        elapsed
+    );
     if !errors.is_empty() {
         eprintln!("Encountered {} errors during indexing:", errors.len());
         for err in &errors {
             eprintln!("  {err}");
         }
-        return Err(anyhow::anyhow!("Encountered {} errors during indexing.", errors.len()));
+        return Err(anyhow::anyhow!(
+            "Encountered {} errors during indexing.",
+            errors.len()
+        ));
     }
     Ok(())
 }
