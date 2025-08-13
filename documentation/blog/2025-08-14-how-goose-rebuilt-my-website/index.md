@@ -49,7 +49,7 @@ It honestly felt like playing a video game, because I could see changes happen l
 
 Something that would've taken me anywhere from a week to a month to build was done instantly. Instead of worrying about learning or relearning a skill in order to build something you need right now, you can learn as you go along with goose. This entire experience reminded me why I fell in love with styling websites for others in the first place, you really create something out of nothing!
 
-So if you're sitting there with a naked website that needs help, or if you've been putting off a project because the technical aspects feel like an overwhelming nightmare, maybe it's time you start a conversation with a useful tool like goose. And who knows? Maybe you will end up with your own digital aquarium of a website with shrimp jokes about debugging lurk in your website footer. 🦐
+So if you're sitting there with a naked website that needs help, or if you've been putting off a project because the technical aspects feel like an overwhelming nightmare, maybe it's time you start a conversation with a useful tool like goose. And who knows? Maybe you will end up with your own digital aquarium of a website with shrimp jokes about debugging lurking in your website footer. 🦐
 
 ---
 
