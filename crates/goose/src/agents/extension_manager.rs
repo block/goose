@@ -113,9 +113,9 @@ async fn child_process_client(
     let (transport, mut stderr) = TokioChildProcess::builder(command)
         .stderr(Stdio::piped())
         .spawn()?;
-    let mut stderr = stderr
-        .take()
-        .expect("should have a stderr handle because it was requested");
+    let mut stderr = stderr.take().ok_or_else(|| {
+        ExtensionError::SetupError("failed to attach child process stderr".to_owned())
+    })?;
 
     let stderr_task = tokio::spawn(async move {
         let mut all_stderr = Vec::new();
