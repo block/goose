@@ -83,7 +83,18 @@ impl PromptManager {
             ));
         }
 
-        context.insert("extensions", serde_json::to_value(extensions_info).unwrap());
+        let sanitized_extensions_info: Vec<ExtensionInfo> = extensions_info
+            .into_iter()
+            .map(|mut ext_info| {
+                ext_info.instructions = sanitize_unicode_tags(&ext_info.instructions);
+                ext_info
+            })
+            .collect();
+
+        context.insert(
+            "extensions",
+            serde_json::to_value(sanitized_extensions_info).unwrap(),
+        );
 
         match tool_selection_strategy {
             Some(RouterToolSelectionStrategy::Vector) => {
@@ -291,5 +302,29 @@ mod tests {
         assert!(result.contains("🌍"));
         assert!(result.contains("Instruction with"));
         assert!(result.contains("emojis"));
+    }
+
+    #[test]
+    fn test_build_system_prompt_sanitizes_extension_instructions() {
+        let manager = PromptManager::new();
+        let malicious_extension_info = ExtensionInfo::new(
+            "test_extension",
+            "Extension help\u{E0041}\u{E0042}\u{E0043}hidden instructions",
+            false,
+        );
+
+        let result = manager.build_system_prompt(
+            vec![malicious_extension_info],
+            None,
+            Value::String("".to_string()),
+            None,
+            None,
+        );
+
+        assert!(!result.contains('\u{E0041}'));
+        assert!(!result.contains('\u{E0042}'));
+        assert!(!result.contains('\u{E0043}'));
+        assert!(result.contains("Extension help"));
+        assert!(result.contains("hidden instructions"));
     }
 }
