@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
-import { createRecipe, Recipe } from '../recipe';
+import { createRecipe, Recipe, scanRecipe } from '../recipe';
 import { Message, createUserMessage } from '../types/message';
 import { updateSystemPromptWithParameters } from '../utils/providerUtils';
 import { useChatContext } from '../contexts/ChatContext';
@@ -17,6 +17,7 @@ export const useRecipeManager = (messages: Message[], locationState?: LocationSt
   const [recipeError, setRecipeError] = useState<string | null>(null);
   const [isRecipeWarningModalOpen, setIsRecipeWarningModalOpen] = useState(false);
   const [recipeAccepted, setRecipeAccepted] = useState(false);
+  const [hasSecurityWarnings, setHasSecurityWarnings] = useState(false);
 
   // Get chat context to access persisted recipe and parameters
   const chatContext = useChatContext();
@@ -78,11 +79,14 @@ export const useRecipeManager = (messages: Message[], locationState?: LocationSt
     }
   }, [chatContext, locationState]);
 
-  // Check if recipe has been accepted before
+  // Check if recipe has been accepted before and scan for security warnings
   useEffect(() => {
     const checkRecipeAcceptance = async () => {
       if (recipeConfig) {
         try {
+          const scanResult = await scanRecipe(recipeConfig);
+          setHasSecurityWarnings(scanResult.has_security_warnings);
+
           const hasAccepted = await window.electron.hasAcceptedRecipeBefore(recipeConfig);
           if (!hasAccepted) {
             setIsRecipeWarningModalOpen(true);
@@ -90,8 +94,7 @@ export const useRecipeManager = (messages: Message[], locationState?: LocationSt
             setRecipeAccepted(true);
           }
         } catch (error) {
-          console.error('Error checking recipe acceptance:', error);
-          // If there's an error, assume the recipe hasn't been accepted
+          setHasSecurityWarnings(false);
           setIsRecipeWarningModalOpen(true);
         }
       }
@@ -311,5 +314,6 @@ export const useRecipeManager = (messages: Message[], locationState?: LocationSt
     recipeAccepted,
     handleRecipeAccept,
     handleRecipeCancel,
+    hasSecurityWarnings,
   };
 };
