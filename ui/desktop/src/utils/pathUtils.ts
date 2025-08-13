@@ -73,7 +73,6 @@ export const getBinaryPath = (app: Electron.App, binaryName: string): string => 
         // Additional security check: ensure it's a regular file
         const stats = fs.statSync(resolvedPath);
         if (stats.isFile()) {
-          console.log('resolved path:', resolvedPath);
           return resolvedPath;
         } else {
           log.error(`Path exists but is not a regular file: ${resolvedPath}`);
