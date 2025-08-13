@@ -31,7 +31,6 @@ jobs:
               - 'documentation/**'
               - '**/*.md'
             code:
-              - '**'
               - '!documentation/**'
               - '!**/*.md'
 
