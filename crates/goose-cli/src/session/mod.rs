@@ -1254,7 +1254,6 @@ impl Session {
             }
         }
 
-        // Display timestamp to indicate when the response was completed
         output::display_timestamp();
         println!();
 
