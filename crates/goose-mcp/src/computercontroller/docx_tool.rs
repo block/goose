@@ -1,7 +1,7 @@
 use docx_rs::*;
 use image::{self, ImageFormat};
-use mcp_core::ToolError;
-use rmcp::model::Content;
+use rmcp::model::{Content, ErrorCode, ErrorData};
+use std::borrow::Cow;
 use std::{fs, io::Cursor};
 
 #[derive(Debug)]
@@ -90,15 +90,19 @@ pub async fn docx_tool(
     operation: &str,
     content: Option<&str>,
     params: Option<&serde_json::Value>,
-) -> Result<Vec<Content>, ToolError> {
+) -> Result<Vec<Content>, ErrorData> {
     match operation {
         "extract_text" => {
-            let file = fs::read(path).map_err(|e| {
-                ToolError::ExecutionError(format!("Failed to read DOCX file: {}", e))
+            let file = fs::read(path).map_err(|e| ErrorData {
+                code: ErrorCode::INTERNAL_ERROR,
+                message: Cow::from(format!("Failed to read DOCX file: {}", e)),
+                data: None,
             })?;
 
-            let docx = read_docx(&file).map_err(|e| {
-                ToolError::ExecutionError(format!("Failed to parse DOCX file: {}", e))
+            let docx = read_docx(&file).map_err(|e| ErrorData {
+                code: ErrorCode::INTERNAL_ERROR,
+                message: Cow::from(format!("Failed to parse DOCX file: {}", e)),
+                data: None,
             })?;
 
             let mut text = String::new();
@@ -169,10 +173,10 @@ pub async fn docx_tool(
         }
 
         "update_doc" => {
-            let content = content.ok_or_else(|| {
-                ToolError::InvalidParameters(
-                    "Content parameter required for update_doc".to_string(),
-                )
+            let content = content.ok_or_else(|| ErrorData {
+                code: ErrorCode::INVALID_PARAMS,
+                message: Cow::from("Content parameter required for update_doc"),
+                data: None,
             })?;
 
             // Parse update mode and style from params
@@ -186,15 +190,14 @@ pub async fn docx_tool(
                 let mode = match mode {
                     "append" => UpdateMode::Append,
                     "replace" => {
-                        let old_text =
-                            params
-                                .get("old_text")
-                                .and_then(|v| v.as_str())
-                                .ok_or_else(|| {
-                                    ToolError::InvalidParameters(
-                                        "old_text parameter required for replace mode".to_string(),
-                                    )
-                                })?;
+                        let old_text = params
+                            .get("old_text")
+                            .and_then(|v| v.as_str())
+                            .ok_or_else(|| ErrorData {
+                                code: ErrorCode::INVALID_PARAMS,
+                                message: Cow::from("old_text parameter required for replace mode"),
+                                data: None,
+                            })?;
                         UpdateMode::Replace {
                             old_text: old_text.to_string(),
                         }
@@ -213,10 +216,10 @@ pub async fn docx_tool(
                         let image_path = params
                             .get("image_path")
                             .and_then(|v| v.as_str())
-                            .ok_or_else(|| {
-                                ToolError::InvalidParameters(
-                                    "image_path parameter required for add_image mode".to_string(),
-                                )
+                            .ok_or_else(|| ErrorData {
+                                code: ErrorCode::INVALID_PARAMS,
+                                message: Cow::from("image_path parameter required for add_image mode"),
+                                data: None,
                             })?
                             .to_string();
 
@@ -236,10 +239,11 @@ pub async fn docx_tool(
                             height,
                         }
                     }
-                    _ => return Err(ToolError::InvalidParameters(
-                        "Invalid mode. Must be 'append', 'replace', 'structured', or 'add_image'"
-                            .to_string(),
-                    )),
+                    _ => return Err(ErrorData {
+                    code: ErrorCode::INVALID_PARAMS,
+                    message: Cow::from("Invalid mode. Must be 'append', 'replace', 'structured', or 'add_image'"),
+                    data: None,
+                }),
                 };
                 (mode, style)
             } else {
@@ -250,11 +254,15 @@ pub async fn docx_tool(
                 UpdateMode::Append => {
                     // Read existing document if it exists, or create new one
                     let mut doc = if std::path::Path::new(path).exists() {
-                        let file = fs::read(path).map_err(|e| {
-                            ToolError::ExecutionError(format!("Failed to read DOCX file: {}", e))
+                        let file = fs::read(path).map_err(|e| ErrorData {
+                            code: ErrorCode::INTERNAL_ERROR,
+                            message: Cow::from(format!("Failed to read DOCX file: {}", e)),
+                            data: None,
                         })?;
-                        read_docx(&file).map_err(|e| {
-                            ToolError::ExecutionError(format!("Failed to parse DOCX file: {}", e))
+                        read_docx(&file).map_err(|e| ErrorData {
+                            code: ErrorCode::INTERNAL_ERROR,
+                            message: Cow::from(format!("Failed to parse DOCX file: {}", e)),
+                            data: None,
                         })?
                     } else {
                         Docx::new()
@@ -278,13 +286,17 @@ pub async fn docx_tool(
                     let mut buf = Vec::new();
                     {
                         let mut cursor = Cursor::new(&mut buf);
-                        doc.build().pack(&mut cursor).map_err(|e| {
-                            ToolError::ExecutionError(format!("Failed to build DOCX: {}", e))
+                        doc.build().pack(&mut cursor).map_err(|e| ErrorData {
+                            code: ErrorCode::INTERNAL_ERROR,
+                            message: Cow::from(format!("Failed to build DOCX: {}", e)),
+                            data: None,
                         })?;
                     }
 
-                    fs::write(path, &buf).map_err(|e| {
-                        ToolError::ExecutionError(format!("Failed to write DOCX file: {}", e))
+                    fs::write(path, &buf).map_err(|e| ErrorData {
+                        code: ErrorCode::INTERNAL_ERROR,
+                        message: Cow::from(format!("Failed to write DOCX file: {}", e)),
+                        data: None,
                     })?;
 
                     Ok(vec![Content::text(format!(
@@ -295,12 +307,16 @@ pub async fn docx_tool(
 
                 UpdateMode::Replace { old_text } => {
                     // Read existing document
-                    let file = fs::read(path).map_err(|e| {
-                        ToolError::ExecutionError(format!("Failed to read DOCX file: {}", e))
+                    let file = fs::read(path).map_err(|e| ErrorData {
+                        code: ErrorCode::INTERNAL_ERROR,
+                        message: Cow::from(format!("Failed to read DOCX file: {}", e)),
+                        data: None,
                     })?;
 
-                    let docx = read_docx(&file).map_err(|e| {
-                        ToolError::ExecutionError(format!("Failed to parse DOCX file: {}", e))
+                    let docx = read_docx(&file).map_err(|e| ErrorData {
+                        code: ErrorCode::INTERNAL_ERROR,
+                        message: Cow::from(format!("Failed to parse DOCX file: {}", e)),
+                        data: None,
                     })?;
 
                     let mut new_doc = Docx::new();
@@ -371,22 +387,30 @@ pub async fn docx_tool(
                     }
 
                     if !found_text {
-                        return Err(ToolError::ExecutionError(format!(
-                            "Could not find text to replace: {}",
-                            old_text
-                        )));
+                        return Err(ErrorData {
+                            code: ErrorCode::INTERNAL_ERROR,
+                            message: Cow::from(format!(
+                                "Could not find text to replace: {}",
+                                old_text
+                            )),
+                            data: None,
+                        });
                     }
 
                     let mut buf = Vec::new();
                     {
                         let mut cursor = Cursor::new(&mut buf);
-                        new_doc.build().pack(&mut cursor).map_err(|e| {
-                            ToolError::ExecutionError(format!("Failed to build DOCX: {}", e))
+                        new_doc.build().pack(&mut cursor).map_err(|e| ErrorData {
+                            code: ErrorCode::INTERNAL_ERROR,
+                            message: Cow::from(format!("Failed to build DOCX: {}", e)),
+                            data: None,
                         })?;
                     }
 
-                    fs::write(path, &buf).map_err(|e| {
-                        ToolError::ExecutionError(format!("Failed to write DOCX file: {}", e))
+                    fs::write(path, &buf).map_err(|e| ErrorData {
+                        code: ErrorCode::INTERNAL_ERROR,
+                        message: Cow::from(format!("Failed to write DOCX file: {}", e)),
+                        data: None,
                     })?;
 
                     Ok(vec![Content::text(format!(
@@ -397,11 +421,15 @@ pub async fn docx_tool(
 
                 UpdateMode::InsertStructured { level, style } => {
                     let mut doc = if std::path::Path::new(path).exists() {
-                        let file = fs::read(path).map_err(|e| {
-                            ToolError::ExecutionError(format!("Failed to read DOCX file: {}", e))
+                        let file = fs::read(path).map_err(|e| ErrorData {
+                            code: ErrorCode::INTERNAL_ERROR,
+                            message: Cow::from(format!("Failed to read DOCX file: {}", e)),
+                            data: None,
                         })?;
-                        read_docx(&file).map_err(|e| {
-                            ToolError::ExecutionError(format!("Failed to parse DOCX file: {}", e))
+                        read_docx(&file).map_err(|e| ErrorData {
+                            code: ErrorCode::INTERNAL_ERROR,
+                            message: Cow::from(format!("Failed to parse DOCX file: {}", e)),
+                            data: None,
                         })?
                     } else {
                         Docx::new()
@@ -431,13 +459,17 @@ pub async fn docx_tool(
                     let mut buf = Vec::new();
                     {
                         let mut cursor = Cursor::new(&mut buf);
-                        doc.build().pack(&mut cursor).map_err(|e| {
-                            ToolError::ExecutionError(format!("Failed to build DOCX: {}", e))
+                        doc.build().pack(&mut cursor).map_err(|e| ErrorData {
+                            code: ErrorCode::INTERNAL_ERROR,
+                            message: Cow::from(format!("Failed to build DOCX: {}", e)),
+                            data: None,
                         })?;
                     }
 
-                    fs::write(path, &buf).map_err(|e| {
-                        ToolError::ExecutionError(format!("Failed to write DOCX file: {}", e))
+                    fs::write(path, &buf).map_err(|e| ErrorData {
+                        code: ErrorCode::INTERNAL_ERROR,
+                        message: Cow::from(format!("Failed to write DOCX file: {}", e)),
+                        data: None,
                     })?;
 
                     Ok(vec![Content::text(format!(
@@ -452,43 +484,55 @@ pub async fn docx_tool(
                     height,
                 } => {
                     let mut doc = if std::path::Path::new(path).exists() {
-                        let file = fs::read(path).map_err(|e| {
-                            ToolError::ExecutionError(format!("Failed to read DOCX file: {}", e))
+                        let file = fs::read(path).map_err(|e| ErrorData {
+                            code: ErrorCode::INTERNAL_ERROR,
+                            message: Cow::from(format!("Failed to read DOCX file: {}", e)),
+                            data: None,
                         })?;
-                        read_docx(&file).map_err(|e| {
-                            ToolError::ExecutionError(format!("Failed to parse DOCX file: {}", e))
+                        read_docx(&file).map_err(|e| ErrorData {
+                            code: ErrorCode::INTERNAL_ERROR,
+                            message: Cow::from(format!("Failed to parse DOCX file: {}", e)),
+                            data: None,
                         })?
                     } else {
                         Docx::new()
                     };
 
                     // Read the image file
-                    let image_data = fs::read(&image_path).map_err(|e| {
-                        ToolError::ExecutionError(format!("Failed to read image file: {}", e))
+                    let image_data = fs::read(&image_path).map_err(|e| ErrorData {
+                        code: ErrorCode::INTERNAL_ERROR,
+                        message: Cow::from(format!("Failed to read image file: {}", e)),
+                        data: None,
                     })?;
 
                     // Get image format and extension
                     let extension = std::path::Path::new(&image_path)
                         .extension()
                         .and_then(|e| e.to_str())
-                        .ok_or_else(|| {
-                            ToolError::ExecutionError("Invalid image file extension".to_string())
+                        .ok_or_else(|| ErrorData {
+                            code: ErrorCode::INTERNAL_ERROR,
+                            message: Cow::from("Invalid image file extension".to_string()),
+                            data: None,
                         })?
                         .to_lowercase();
 
                     // Convert to PNG if not already PNG
                     let image_data = if extension != "png" {
                         // Try to convert to PNG using the image crate
-                        let img = image::load_from_memory(&image_data).map_err(|e| {
-                            ToolError::ExecutionError(format!("Failed to load image: {}", e))
+                        let img = image::load_from_memory(&image_data).map_err(|e| ErrorData {
+                            code: ErrorCode::INTERNAL_ERROR,
+                            message: Cow::from(format!("Failed to load image: {}", e)),
+                            data: None,
                         })?;
                         let mut png_data = Vec::new();
                         img.write_to(&mut Cursor::new(&mut png_data), ImageFormat::Png)
-                            .map_err(|e| {
-                                ToolError::ExecutionError(format!(
+                            .map_err(|e| ErrorData {
+                                code: ErrorCode::INTERNAL_ERROR,
+                                message: Cow::from(format!(
                                     "Failed to convert image to PNG: {}",
                                     e
-                                ))
+                                )),
+                                data: None,
                             })?;
                         png_data
                     } else {
@@ -526,13 +570,17 @@ pub async fn docx_tool(
                     let mut buf = Vec::new();
                     {
                         let mut cursor = Cursor::new(&mut buf);
-                        doc.build().pack(&mut cursor).map_err(|e| {
-                            ToolError::ExecutionError(format!("Failed to build DOCX: {}", e))
+                        doc.build().pack(&mut cursor).map_err(|e| ErrorData {
+                            code: ErrorCode::INTERNAL_ERROR,
+                            message: Cow::from(format!("Failed to build DOCX: {}", e)),
+                            data: None,
                         })?;
                     }
 
-                    fs::write(path, &buf).map_err(|e| {
-                        ToolError::ExecutionError(format!("Failed to write DOCX file: {}", e))
+                    fs::write(path, &buf).map_err(|e| ErrorData {
+                        code: ErrorCode::INTERNAL_ERROR,
+                        message: Cow::from(format!("Failed to write DOCX file: {}", e)),
+                        data: None,
                     })?;
 
                     Ok(vec![Content::text(format!(
@@ -543,10 +591,14 @@ pub async fn docx_tool(
             }
         }
 
-        _ => Err(ToolError::InvalidParameters(format!(
-            "Invalid operation: {}. Valid operations are: 'extract_text', 'update_doc'",
-            operation
-        ))),
+        _ => Err(ErrorData {
+            code: ErrorCode::INVALID_PARAMS,
+            message: Cow::from(format!(
+                "Invalid operation: {}. Valid operations are: 'extract_text', 'update_doc'",
+                operation
+            )),
+            data: None,
+        }),
     }
 }
 
