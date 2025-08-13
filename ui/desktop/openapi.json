@@ -31,7 +31,7 @@
         },
         "responses": {
           "200": {
-            "description": "added sub recipes to agent successfully",
+            "description": "Added sub recipes to agent successfully",
             "content": {
               "application/json": {
                 "schema": {
@@ -42,6 +42,84 @@
           },
           "401": {
             "description": "Unauthorized - invalid secret key"
+          },
+          "424": {
+            "description": "Agent not initialized"
+          }
+        }
+      }
+    },
+    "/agent/prompt": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "extend_prompt",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExtendPromptRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Extended system prompt successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendPromptResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "424": {
+            "description": "Agent not initialized"
+          }
+        }
+      }
+    },
+    "/agent/session_config": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "update_session_config",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionConfigRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Session config updated successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "424": {
+            "description": "Agent not initialized"
+          },
+          "500": {
+            "description": "Internal server error"
           }
         }
       }
@@ -74,6 +152,70 @@
                   "items": {
                     "$ref": "#/components/schemas/ToolInfo"
                   }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "424": {
+            "description": "Agent not initialized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/agent/update_provider": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "update_agent_provider",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProviderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Provider updated successfully"
+          },
+          "400": {
+            "description": "Bad request - missing or invalid parameters"
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "424": {
+            "description": "Agent not initialized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/agent/update_router_tool_selector": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "update_router_tool_selector",
+        "responses": {
+          "200": {
+            "description": "Tool selection strategy updated successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -1446,6 +1588,39 @@
           "description": "A map of environment variables to set, e.g. API_KEY -> some_secret, HOST -> host"
         }
       },
+      "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        }
+      },
+      "ExtendPromptRequest": {
+        "type": "object",
+        "required": [
+          "extension"
+        ],
+        "properties": {
+          "extension": {
+            "type": "string"
+          }
+        }
+      },
+      "ExtendPromptResponse": {
+        "type": "object",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          }
+        }
+      },
       "ExtensionConfig": {
         "oneOf": [
           {
@@ -1796,6 +1971,15 @@
           },
           "toolCall": {
             "type": "object"
+          }
+        }
+      },
+      "GetToolsQuery": {
+        "type": "object",
+        "properties": {
+          "extension_name": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -2618,6 +2802,19 @@
           }
         }
       },
+      "SessionConfigRequest": {
+        "type": "object",
+        "properties": {
+          "response": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Response"
+              }
+            ],
+            "nullable": true
+          }
+        }
+      },
       "SessionDisplayInfo": {
         "type": "object",
         "required": [
@@ -3092,6 +3289,21 @@
           },
           "toolResult": {
             "type": "object"
+          }
+        }
+      },
+      "UpdateProviderRequest": {
+        "type": "object",
+        "required": [
+          "provider"
+        ],
+        "properties": {
+          "model": {
+            "type": "string",
+            "nullable": true
+          },
+          "provider": {
+            "type": "string"
           }
         }
       },

@@ -15,6 +15,8 @@ import {
   RecipeParameter,
   SubRecipe,
   addExtension as apiAddExtension,
+  updateSessionConfig,
+  extendPrompt,
 } from '../api';
 import { addSubRecipesToAgent } from '../recipe/add_sub_recipe_on_agent';
 
@@ -94,21 +96,13 @@ export const updateSystemPromptWithParameters = async (
     const substitutedInstructions = substituteParameters(originalInstructions, recipeParameters);
 
     // Update the system prompt with substituted instructions
-    const response = await fetch(getApiUrl('/agent/prompt'), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Secret-Key': await window.electron.getSecretKey(),
-      },
-      body: JSON.stringify({
+    const response = await extendPrompt({
+      body: {
         extension: `${desktopPromptBot}\nIMPORTANT instructions for you to operate as agent:\n${substitutedInstructions}`,
-      }),
+      },
     });
-
-    if (!response.ok) {
-      console.warn(
-        `Failed to update system prompt with parameters: ${response.status} ${response.statusText}`
-      );
+    if (response.error) {
+      console.warn(`Failed to update system prompt with parameters: ${response.error}`);
     }
   } catch (error) {
     console.error('Error updating system prompt with parameters:', error);
@@ -245,18 +239,13 @@ export const initializeSystem = async (
     }
     // Configure session with response config if present
     if (responseConfig?.json_schema) {
-      const sessionConfigResponse = await fetch(getApiUrl('/agent/session_config'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Secret-Key': await window.electron.getSecretKey(),
-        },
-        body: JSON.stringify({
+      const sessionConfigResponse = await updateSessionConfig({
+        body: {
           response: responseConfig,
-        }),
+        },
       });
-      if (!sessionConfigResponse.ok) {
-        console.warn(`Failed to configure session: ${sessionConfigResponse.statusText}`);
+      if (sessionConfigResponse.error) {
+        console.warn(`Failed to configure session: ${sessionConfigResponse.error}`);
       }
     }
 
