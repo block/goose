@@ -62,10 +62,10 @@ So if you're sitting there with a naked website that needs help, or if you've be
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/08/14/how-goose-rebuilt-my-website" />
   <meta property="og:description" content="How a simple prompt transformed a blank website into a personal portfolio" />
-  <meta property="og:image" content="https://block.github.io/goose/assets/images/goose_website_banner.jpg" />
+  <meta property="og:image" content="https://block.github.io/goose/assets/images/goose_website_banner-656bd5e1014edfbcd313a9f799f9e9a5.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="How Goose Helped Me Rebuild My Website" />
   <meta name="twitter:description" content="How a simple prompt transformed a blank website into a personal portfolio" />
-  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/goose_website_banner.jpg" />
+  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/goose_website_banner-656bd5e1014edfbcd313a9f799f9e9a5.png" />
 </head>
