@@ -306,7 +306,7 @@ describe('Extension Manager', () => {
         removeFromConfig: mockRemoveFromConfig,
       });
 
-      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension');
+      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension', { isDelete: true });
       expect(mockRemoveFromConfig).toHaveBeenCalledWith('test-extension');
     });
 
@@ -322,7 +322,7 @@ describe('Extension Manager', () => {
         })
       ).rejects.toThrow('Agent removal failed');
 
-      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension');
+      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension', { isDelete: true });
       expect(mockRemoveFromConfig).toHaveBeenCalledWith('test-extension');
     });
 
@@ -339,7 +339,7 @@ describe('Extension Manager', () => {
         })
       ).rejects.toThrow('Config removal failed');
 
-      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension');
+      expect(mockRemoveFromAgent).toHaveBeenCalledWith('test-extension', { isDelete: true });
       expect(mockRemoveFromConfig).toHaveBeenCalledWith('test-extension');
     });
   });

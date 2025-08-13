@@ -79,7 +79,7 @@ describe('Agent API', () => {
 
       expect(mockToastService.success).toHaveBeenCalledWith({
         title: 'test-extension',
-        msg: 'Successfully activated extension!',
+        msg: 'Successfully activated extension',
       });
 
       expect(response).toBe(mockResponse);
@@ -106,7 +106,7 @@ describe('Agent API', () => {
       expect(mockToastService.loading).not.toHaveBeenCalled(); // No loading toast for removal
       expect(mockToastService.success).toHaveBeenCalledWith({
         title: 'test-extension',
-        msg: 'Successfully removed extension!',
+        msg: 'Successfully deactivated extension',
       });
 
       expect(response).toBe(mockResponse);
@@ -158,13 +158,13 @@ describe('Agent API', () => {
       mockFetch.mockResolvedValue(mockResponse);
 
       await expect(extensionApiCall('/extensions/remove', 'test-extension')).rejects.toThrow(
-        'Error removing extension: Extension not found'
+        'Error deactivating extension: Extension not found'
       );
 
       expect(mockToastService.error).toHaveBeenCalledWith({
         title: 'test-extension',
-        msg: 'Error removing extension: Extension not found',
-        traceback: 'Error removing extension: Extension not found',
+        msg: 'Error deactivating extension: Extension not found',
+        traceback: 'Error deactivating extension: Extension not found',
       });
     });
 
@@ -179,7 +179,7 @@ describe('Agent API', () => {
 
       expect(mockToastService.success).toHaveBeenCalledWith({
         title: 'test-extension',
-        msg: 'Successfully activated extension!',
+        msg: 'Successfully activated extension',
       });
 
       expect(response).toBe(mockResponse);
