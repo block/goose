@@ -109,6 +109,7 @@ async fn child_process_client(
     mut command: Command,
     timeout: &Option<u64>,
 ) -> ExtensionResult<McpClient> {
+    #[cfg(unix)]
     command.process_group(0);
     let (transport, mut stderr) = TokioChildProcess::builder(command)
         .stderr(Stdio::piped())
