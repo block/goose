@@ -1,7 +1,9 @@
 use crate::agents::platform_tools::PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME;
 use crate::config::permission::PermissionLevel;
 use crate::config::PermissionManager;
-use crate::message::{Message, MessageContent, ToolRequest};
+use crate::conversation::message::{Message, MessageContent, ToolRequest};
+use crate::conversation::Conversation;
+use crate::prompt_template::render_global_file;
 use crate::providers::base::Provider;
 use chrono::Utc;
 use indoc::indoc;
@@ -11,6 +13,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashSet;
 use std::sync::Arc;
+
+#[derive(Serialize)]
+struct PermissionJudgeContext {
+    // Empty struct for now since the current template doesn't need variables
+}
 
 /// Creates the tool definition for checking read-only permissions.
 fn create_read_only_tool() -> Tool {
@@ -68,7 +75,7 @@ fn create_read_only_tool() -> Tool {
 }
 
 /// Builds the message to be sent to the LLM for detecting read-only operations.
-fn create_check_messages(tool_requests: Vec<&ToolRequest>) -> Vec<Message> {
+fn create_check_messages(tool_requests: Vec<&ToolRequest>) -> Conversation {
     let tool_names: Vec<String> = tool_requests
         .iter()
         .filter_map(|req| {
@@ -93,7 +100,7 @@ fn create_check_messages(tool_requests: Vec<&ToolRequest>) -> Vec<Message> {
                 tool_names.join(", "),
             ))],
     ));
-    check_messages
+    Conversation::new_unvalidated(check_messages)
 }
 
 /// Processes the response to extract the list of tools with read-only operations.
@@ -132,12 +139,12 @@ pub async fn detect_read_only_tools(
     let tool = create_read_only_tool();
     let check_messages = create_check_messages(tool_requests);
 
+    let context = PermissionJudgeContext {};
+    let system_prompt = render_global_file("permission_judge.md", &context)
+        .unwrap_or_else(|_| "You are a good analyst and can detect operations whether they have read-only operations.".to_string());
+
     let res = provider
-        .complete(
-            "You are a good analyst and can detect operations whether they have read-only operations.",
-            &check_messages,
-            &[tool.clone()],
-        )
+        .complete(&system_prompt, check_messages.messages(), &[tool.clone()])
         .await;
 
     // Process the response and return an empty vector if the response is invalid
@@ -260,7 +267,7 @@ pub async fn check_tool_permissions(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::message::{Message, MessageContent, ToolRequest};
+    use crate::conversation::message::{Message, MessageContent, ToolRequest};
     use crate::model::ModelConfig;
     use crate::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
     use crate::providers::errors::ProviderError;
@@ -340,7 +347,7 @@ mod tests {
 
         let messages = create_check_messages(vec![&tool_request]);
         assert_eq!(messages.len(), 1);
-        let content = &messages[0].content[0];
+        let content = &messages.first().unwrap().content[0];
         if let MessageContent::Text(text_content) = content {
             assert!(text_content
                 .text

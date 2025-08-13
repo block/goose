@@ -5,7 +5,7 @@ sidebar_label: Managing Sessions
 ---
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import { AppWindow, PanelLeft, FolderDot, Paperclip, Copy } from 'lucide-react';
+import { AppWindow, PanelLeft, FolderDot, Paperclip, Copy, Edit2 } from 'lucide-react';
 
 
 A session is a single, continuous interaction between you and Goose, providing a space to ask questions and prompt action. In this guide, we'll cover how to start, exit, and resume a session. 
@@ -74,6 +74,18 @@ If this is your first session, Goose will prompt you for an API key to access an
 <Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
         Within the Desktop app, sessions are automatically named based on the context of your initial prompt.
+
+        You can rename sessions after they're created:
+
+        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+        2. Click `History` in the sidebar
+        3. Hover over the session you'd like to rename
+        4. Click the <Edit2 className="inline" size={16} /> button that appears on the session card
+        5. Enter the new session name
+        6. Click `Save`
+
+        Session names can also help you manage multiple Goose windows. When you're in the Goose chat interface, session names appear in the `Window` menu and in the Dock (macOS) or taskbar (Windows) menu, making it easy to identify and switch between different Goose sessions.
+
     </TabItem>
     <TabItem value="cli" label="Goose CLI">
         By default, Goose names your session using the current timestamp in the format `YYYYMMDD_HHMMSS`. If you'd like to provide a specific name, this is where you'd do so. For example to name your session `react-migration`, you would run:
@@ -142,7 +154,11 @@ Search allows you to find specific content within sessions or find specific sess
     4. Enter your search term
     5. Use keyboard shortcuts and search bar buttons to navigate the results (`Cmd+E` not supported)
 
-     This is a metadata-only search. It doesn't search conversation content. Note that searching by file name is supported (e.g. `20250727_130002.jsonl`), but this property isn't displayed in the UI.
+    This is a metadata-only search. It doesn't search conversation content. Note that searching by file name is supported (e.g. `20250727_130002.jsonl`), but this property isn't displayed in the UI.
+
+    :::tip
+    You can [rename sessions](#name-session) to give them descriptive names that you'll remember later.
+    :::
 
     #### Search Within Historical Session
     

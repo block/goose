@@ -16,7 +16,6 @@ use crate::commands::schedule::{
     handle_schedule_sessions,
 };
 use crate::commands::session::{handle_session_list, handle_session_remove};
-use crate::logging::setup_logging;
 use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
 use crate::recipes::recipe::{explain_recipe, render_recipe_as_yaml};
 use crate::session;
@@ -100,7 +99,12 @@ enum SessionCommand {
     },
     #[command(about = "Remove sessions. Runs interactively if no ID or regex is provided.")]
     Remove {
-        #[arg(short, long, help = "Session ID to be removed (optional)")]
+        #[arg(
+            short,
+            long,
+            alias = "name",
+            help = "Session ID to be removed (optional)"
+        )]
         id: Option<String>,
         #[arg(short, long, help = "Regex for removing matched sessions (optional)")]
         regex: Option<String>,
@@ -718,7 +722,7 @@ pub async fn cli() -> Result<()> {
     };
 
     tracing::info!(
-        monotonic_counter.goose.cli_commands = 1,
+        counter.goose.cli_commands = 1,
         command = command_name,
         "CLI command executed"
     );
@@ -779,6 +783,16 @@ pub async fn cli() -> Result<()> {
                     Ok(())
                 }
                 None => {
+                    let session_start = std::time::Instant::now();
+                    let session_type = if resume { "resumed" } else { "new" };
+
+                    tracing::info!(
+                        counter.goose.session_starts = 1,
+                        session_type,
+                        interactive = true,
+                        "Session started"
+                    );
+
                     // Run session command by default
                     let mut session: crate::Session = build_session(SessionBuilderConfig {
                         identifier: identifier.map(extract_identifier),
@@ -804,21 +818,46 @@ pub async fn cli() -> Result<()> {
                         retry_config: None,
                     })
                     .await;
-                    setup_logging(
-                        session
-                            .session_file()
-                            .as_ref()
-                            .and_then(|p| p.file_stem())
-                            .and_then(|s| s.to_str()),
-                        None,
-                    )?;
 
                     // Render previous messages if resuming a session and history flag is set
                     if resume && history {
                         session.render_message_history();
                     }
 
-                    let _ = session.interactive(None).await;
+                    let result = session.interactive(None).await;
+
+                    let session_duration = session_start.elapsed();
+                    let exit_type = if result.is_ok() { "normal" } else { "error" };
+
+                    let (total_tokens, message_count) = session
+                        .get_metadata()
+                        .map(|m| (m.total_tokens.unwrap_or(0), m.message_count))
+                        .unwrap_or((0, 0));
+
+                    tracing::info!(
+                        counter.goose.session_completions = 1,
+                        session_type,
+                        exit_type,
+                        duration_ms = session_duration.as_millis() as u64,
+                        total_tokens,
+                        message_count,
+                        "Session completed"
+                    );
+
+                    tracing::info!(
+                        counter.goose.session_duration_ms = session_duration.as_millis() as u64,
+                        session_type,
+                        "Session duration"
+                    );
+
+                    if total_tokens > 0 {
+                        tracing::info!(
+                            counter.goose.session_tokens = total_tokens,
+                            session_type,
+                            "Session tokens"
+                        );
+                    }
+
                     Ok(())
                 }
             };
@@ -897,8 +936,13 @@ pub async fn cli() -> Result<()> {
                     (input_config, None)
                 }
                 (_, _, Some(recipe_name)) => {
-                    tracing::info!(monotonic_counter.goose.recipe_runs = 1,
-                        recipe_name = %recipe_name,
+                    let recipe_display_name = std::path::Path::new(&recipe_name)
+                        .file_name()
+                        .and_then(|name| name.to_str())
+                        .unwrap_or(&recipe_name);
+
+                    tracing::info!(counter.goose.recipe_runs = 1,
+                        recipe_name = %recipe_display_name,
                         "Recipe execution started"
                     );
 
@@ -952,19 +996,59 @@ pub async fn cli() -> Result<()> {
             })
             .await;
 
-            setup_logging(
-                session
-                    .session_file()
-                    .as_ref()
-                    .and_then(|p| p.file_stem())
-                    .and_then(|s| s.to_str()),
-                None,
-            )?;
-
             if interactive {
                 let _ = session.interactive(input_config.contents).await;
             } else if let Some(contents) = input_config.contents {
-                let _ = session.headless(contents).await;
+                let session_start = std::time::Instant::now();
+                let session_type = if recipe_info.is_some() {
+                    "recipe"
+                } else {
+                    "run"
+                };
+
+                tracing::info!(
+                    counter.goose.session_starts = 1,
+                    session_type,
+                    interactive = false,
+                    "Headless session started"
+                );
+
+                let result = session.headless(contents).await;
+
+                let session_duration = session_start.elapsed();
+                let exit_type = if result.is_ok() { "normal" } else { "error" };
+
+                let (total_tokens, message_count) = session
+                    .get_metadata()
+                    .map(|m| (m.total_tokens.unwrap_or(0), m.message_count))
+                    .unwrap_or((0, 0));
+
+                tracing::info!(
+                    counter.goose.session_completions = 1,
+                    session_type,
+                    exit_type,
+                    duration_ms = session_duration.as_millis() as u64,
+                    total_tokens,
+                    message_count,
+                    interactive = false,
+                    "Headless session completed"
+                );
+
+                tracing::info!(
+                    counter.goose.session_duration_ms = session_duration.as_millis() as u64,
+                    session_type,
+                    "Headless session duration"
+                );
+
+                if total_tokens > 0 {
+                    tracing::info!(
+                        counter.goose.session_tokens = total_tokens,
+                        session_type,
+                        "Headless session tokens"
+                    );
+                }
+
+                result?;
             } else {
                 eprintln!("Error: no text provided for prompt in headless mode");
                 std::process::exit(1);
@@ -1083,14 +1167,6 @@ pub async fn cli() -> Result<()> {
                     retry_config: None,
                 })
                 .await;
-                setup_logging(
-                    session
-                        .session_file()
-                        .as_ref()
-                        .and_then(|p| p.file_stem())
-                        .and_then(|s| s.to_str()),
-                    None,
-                )?;
                 if let Err(e) = session.interactive(None).await {
                     eprintln!("Session ended with error: {}", e);
                 }

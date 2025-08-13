@@ -1,0 +1,5 @@
+STDIN: {"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"goose","version":"0.1.0"}}}
+STDOUT: {"jsonrpc":"2.0","id":0,"result":{"protocolVersion":"2025-03-26","capabilities":{"experimental":{},"prompts":{"listChanged":false},"tools":{"listChanged":false}},"serverInfo":{"name":"mcp-fetch","version":"1.12.4"}}}
+STDIN: {"jsonrpc":"2.0","method":"notifications/initialized"}
+STDIN: {"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"_meta":{"progressToken":0},"name":"fetch","arguments":{"url":"https://example.com"}}}
+STDOUT: {"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Contents of https://example.com/:\nThis domain is for use in illustrative examples in documents. You may use this\ndomain in literature without prior coordination or asking for permission.\n\n[More information...](https://www.iana.org/domains/example)"}],"isError":false}}

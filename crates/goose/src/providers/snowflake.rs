@@ -1,20 +1,19 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::time::Duration;
 
+use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
 use super::formats::snowflake::{create_request, get_usage, response_to_message};
-use super::utils::{get_model, ImageFormat};
+use super::retry::ProviderRetry;
+use super::utils::{get_model, map_http_error_to_provider_error, ImageFormat};
 use crate::config::ConfigError;
+use crate::conversation::message::Message;
 use crate::impl_provider_default;
-use crate::message::Message;
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
-use url::Url;
 
 pub const SNOWFLAKE_DEFAULT_MODEL: &str = "claude-3-7-sonnet";
 pub const SNOWFLAKE_KNOWN_MODELS: &[&str] = &["claude-3-7-sonnet", "claude-3-5-sonnet"];
@@ -36,9 +35,7 @@ impl SnowflakeAuth {
 #[derive(Debug, serde::Serialize)]
 pub struct SnowflakeProvider {
     #[serde(skip)]
-    client: Client,
-    host: String,
-    auth: SnowflakeAuth,
+    api_client: ApiClient,
     model: ModelConfig,
     image_format: ImageFormat,
 }
@@ -82,57 +79,33 @@ impl SnowflakeProvider {
             .into());
         }
 
-        let client = Client::builder()
-            .timeout(Duration::from_secs(600))
-            .build()?;
+        // Ensure host has https:// prefix
+        let base_url = if !host.starts_with("https://") && !host.starts_with("http://") {
+            format!("https://{}", host)
+        } else {
+            host
+        };
 
-        // Use token-based authentication
-        let api_key = token?;
+        let auth = AuthMethod::BearerToken(token?);
+        let api_client = ApiClient::new(base_url, auth)?.with_header("User-Agent", "Goose")?;
+
         Ok(Self {
-            client,
-            host,
-            auth: SnowflakeAuth::token(api_key),
+            api_client,
             model,
             image_format: ImageFormat::OpenAi,
         })
     }
 
-    async fn ensure_auth_header(&self) -> Result<String> {
-        match &self.auth {
-            // https://docs.snowflake.com/en/developer-guide/snowflake-rest-api/authentication#using-a-programmatic-access-token-pat
-            SnowflakeAuth::Token(token) => Ok(format!("Bearer {}", token)),
-        }
-    }
-
     async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
-        let base_url_str =
-            if !self.host.starts_with("https://") && !self.host.starts_with("http://") {
-                format!("https://{}", self.host)
-            } else {
-                self.host.clone()
-            };
-        let base_url = Url::parse(&base_url_str)
-            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
-        let path = "api/v2/cortex/inference:complete";
-        let url = base_url.join(path).map_err(|e| {
-            ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
-        })?;
-
-        let auth_header = self.ensure_auth_header().await?;
         let response = self
-            .client
-            .post(url)
-            .header("Authorization", auth_header)
-            .header("User-Agent", "Goose")
-            .json(&payload)
-            .send()
+            .api_client
+            .response_post("api/v2/cortex/inference:complete", payload)
             .await?;
 
         let status = response.status();
-
         let payload_text: String = response.text().await.ok().unwrap_or_default();
 
-        if status == StatusCode::OK {
+        if status.is_success() {
             if let Ok(payload) = serde_json::from_str::<Value>(&payload_text) {
                 if payload.get("code").is_some() {
                     let code = payload
@@ -295,96 +268,11 @@ impl SnowflakeProvider {
             "content_list": content_list
         });
 
-        match status {
-            StatusCode::OK => Ok(answer_payload),
-            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
-                // Extract a clean error message from the response if available
-                let error_msg = payload_text
-                    .lines()
-                    .find(|line| line.contains("\"message\""))
-                    .and_then(|line| {
-                        let json_str = line.strip_prefix("data: ").unwrap_or(line);
-                        serde_json::from_str::<Value>(json_str).ok()
-                    })
-                    .and_then(|json| {
-                        json.get("message")
-                            .and_then(|m| m.as_str())
-                            .map(|s| s.to_string())
-                    })
-                    .unwrap_or_else(|| "Invalid credentials".to_string());
-
-                Err(ProviderError::Authentication(format!(
-                    "Authentication failed. Please check your SNOWFLAKE_TOKEN and SNOWFLAKE_HOST configuration. Error: {}",
-                    error_msg
-                )))
-            }
-            StatusCode::BAD_REQUEST => {
-                // Snowflake provides a generic 'error' but also includes 'external_model_message' which is provider specific
-                // We try to extract the error message from the payload and check for phrases that indicate context length exceeded
-                let payload_str = payload_text.to_lowercase();
-                let check_phrases = [
-                    "too long",
-                    "context length",
-                    "context_length_exceeded",
-                    "reduce the length",
-                    "token count",
-                    "exceeds",
-                    "exceed context limit",
-                    "input length",
-                    "max_tokens",
-                    "decrease input length",
-                    "context limit",
-                ];
-                if check_phrases.iter().any(|c| payload_str.contains(c)) {
-                    return Err(ProviderError::ContextLengthExceeded("Request exceeds maximum context length. Please reduce the number of messages or content size.".to_string()));
-                }
-
-                // Try to parse a clean error message from the response
-                let error_msg = if let Ok(json) = serde_json::from_str::<Value>(&payload_text) {
-                    json.get("message")
-                        .and_then(|m| m.as_str())
-                        .map(|s| s.to_string())
-                        .or_else(|| {
-                            json.get("external_model_message")
-                                .and_then(|ext| ext.get("message"))
-                                .and_then(|m| m.as_str())
-                                .map(|s| s.to_string())
-                        })
-                        .unwrap_or_else(|| "Bad request".to_string())
-                } else {
-                    "Bad request".to_string()
-                };
-
-                tracing::debug!(
-                    "Provider request failed with status: {}. Response: {}",
-                    status,
-                    payload_text
-                );
-                Err(ProviderError::RequestFailed(format!(
-                    "Request failed: {}",
-                    error_msg
-                )))
-            }
-            StatusCode::TOO_MANY_REQUESTS => Err(ProviderError::RateLimitExceeded(
-                "Rate limit exceeded. Please try again later.".to_string(),
-            )),
-            StatusCode::INTERNAL_SERVER_ERROR | StatusCode::SERVICE_UNAVAILABLE => {
-                Err(ProviderError::ServerError(
-                    "Snowflake service is temporarily unavailable. Please try again later."
-                        .to_string(),
-                ))
-            }
-            _ => {
-                tracing::debug!(
-                    "Provider request failed with status: {}. Response: {}",
-                    status,
-                    payload_text
-                );
-                Err(ProviderError::RequestFailed(format!(
-                    "Request failed with status: {}",
-                    status
-                )))
-            }
+        if status.is_success() {
+            Ok(answer_payload)
+        } else {
+            let error_json = serde_json::from_str::<Value>(&payload_text).ok();
+            Err(map_http_error_to_provider_error(status, error_json))
         }
     }
 }
@@ -422,7 +310,12 @@ impl Provider for SnowflakeProvider {
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let payload = create_request(&self.model, system, messages, tools)?;
 
-        let response = self.post(&payload).await?;
+        let response = self
+            .with_retry(|| async {
+                let payload_clone = payload.clone();
+                self.post(&payload_clone).await
+            })
+            .await?;
 
         // Parse response
         let message = response_to_message(&response)?;

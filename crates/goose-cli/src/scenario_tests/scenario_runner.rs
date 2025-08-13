@@ -1,4 +1,5 @@
 use dotenvy::dotenv;
+use goose::conversation::Conversation;
 
 use crate::scenario_tests::message_generator::MessageGenerator;
 use crate::scenario_tests::mock_client::weather_client;
@@ -6,18 +7,18 @@ use crate::scenario_tests::provider_configs::{get_provider_configs, ProviderConf
 use crate::session::Session;
 use anyhow::Result;
 use goose::agents::Agent;
-use goose::message::Message;
 use goose::model::ModelConfig;
 use goose::providers::{create, testprovider::TestProvider};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
 
 pub const SCENARIO_TESTS_DIR: &str = "src/scenario_tests";
 
 #[derive(Debug, Clone)]
 pub struct ScenarioResult {
-    pub messages: Vec<Message>,
+    pub messages: Conversation,
     pub error: Option<String>,
 }
 
@@ -205,12 +206,15 @@ where
 
     let mut error = None;
     for message in &messages {
-        if let Err(e) = session.process_message(message.clone()).await {
+        if let Err(e) = session
+            .process_message(message.clone(), CancellationToken::default())
+            .await
+        {
             error = Some(e.to_string());
             break;
         }
     }
-    let updated_messages = session.message_history().to_vec();
+    let updated_messages = session.message_history();
 
     if let Some(ref err_msg) = error {
         if err_msg.contains("No recorded response found") {

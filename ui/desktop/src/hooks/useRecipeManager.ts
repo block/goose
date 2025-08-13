@@ -129,7 +129,7 @@ export const useRecipeManager = (messages: Message[], locationState?: LocationSt
 
   // Get the recipe's initial prompt (always return the actual prompt, don't modify based on conversation state)
   const initialPrompt = useMemo(() => {
-    if (!recipeConfig?.prompt || !recipeAccepted) {
+    if (!recipeConfig?.prompt || !recipeAccepted || recipeConfig?.isScheduledExecution) {
       return '';
     }
 
@@ -184,7 +184,11 @@ export const useRecipeManager = (messages: Message[], locationState?: LocationSt
   };
 
   // Auto-execution handler for scheduled recipes
-  const handleAutoExecution = (append: (message: Message) => void, isLoading: boolean) => {
+  const handleAutoExecution = (
+    append: (message: Message) => void,
+    isLoading: boolean,
+    onAutoExecute?: () => void
+  ) => {
     const hasRequiredParams = recipeConfig?.parameters && recipeConfig.parameters.length > 0;
 
     if (
@@ -205,6 +209,7 @@ export const useRecipeManager = (messages: Message[], locationState?: LocationSt
 
       const userMessage = createUserMessage(finalPrompt);
       append(userMessage);
+      onAutoExecute?.();
     }
   };
 

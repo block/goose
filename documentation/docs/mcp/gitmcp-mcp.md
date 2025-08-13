@@ -10,8 +10,7 @@ import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructi
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 
-<!-- <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/LNmPi6YCocI" />  -->
-
+<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/6aV8pinnUS8" /> 
 
 This tutorial covers how to add the [Git MCP Server](https://github.com/idosal/git-mcp) as a Goose extension to give LLMs live access to GitHub repos, enabling smart documentation search, code exploration, and accurate project insights.
 
@@ -37,7 +36,7 @@ This tutorial covers how to add the [Git MCP Server](https://github.com/idosal/g
     <GooseDesktopInstaller
         extensionId="Git-mcp"
         extensionName="Git mcp"
-        extensionDescription="Git MCP server for up-to-date docs and project insights"
+        description="Git MCP server for up-to-date docs and project insights"
         command="npx"
         args={["-y", "mcp-remote" , "https://gitmcp.io/docs"]}
         cliCommand="npx -y mcp-remote https://gitmcp.io/docs"

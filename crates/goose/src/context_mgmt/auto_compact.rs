@@ -1,8 +1,12 @@
+use crate::conversation::message::Message;
+use crate::conversation::Conversation;
 use crate::{
     agents::Agent,
     config::Config,
-    context_mgmt::{estimate_target_context_limit, get_messages_token_counts_async},
-    message::Message,
+    context_mgmt::{
+        common::{SYSTEM_PROMPT_TOKEN_OVERHEAD, TOOLS_TOKEN_OVERHEAD},
+        get_messages_token_counts_async,
+    },
     token_counter::create_async_token_counter,
 };
 use anyhow::Result;
@@ -14,7 +18,7 @@ pub struct AutoCompactResult {
     /// Whether compaction was performed
     pub compacted: bool,
     /// The messages after potential compaction
-    pub messages: Vec<Message>,
+    pub messages: Conversation,
     /// Token count before compaction (if compaction occurred)
     pub tokens_before: Option<usize>,
     /// Token count after compaction (if compaction occurred)
@@ -42,11 +46,14 @@ pub struct CompactionCheckResult {
 ///
 /// This function analyzes the current token usage and returns detailed information
 /// about whether compaction is needed and how close we are to the threshold.
+/// It prioritizes actual token counts from session metadata when available,
+/// falling back to estimated counts if needed.
 ///
 /// # Arguments
 /// * `agent` - The agent to use for context management
 /// * `messages` - The current message history
 /// * `threshold_override` - Optional threshold override (defaults to GOOSE_AUTO_COMPACT_THRESHOLD config)
+/// * `session_metadata` - Optional session metadata containing actual token counts
 ///
 /// # Returns
 /// * `CompactionCheckResult` containing detailed information about compaction needs
@@ -54,25 +61,29 @@ pub async fn check_compaction_needed(
     agent: &Agent,
     messages: &[Message],
     threshold_override: Option<f64>,
+    session_metadata: Option<&crate::session::storage::SessionMetadata>,
 ) -> Result<CompactionCheckResult> {
     // Get threshold from config or use override
     let config = Config::global();
     let threshold = threshold_override.unwrap_or_else(|| {
         config
             .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
-            .unwrap_or(0.3) // Default to 30%
+            .unwrap_or(0.8) // Default to 80%
     });
 
-    // Get provider and token counter
     let provider = agent.provider().await?;
-    let token_counter = create_async_token_counter()
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to create token counter: {}", e))?;
+    let context_limit = provider.get_model_config().context_limit();
 
-    // Calculate current token usage
-    let token_counts = get_messages_token_counts_async(&token_counter, messages);
-    let current_tokens: usize = token_counts.iter().sum();
-    let context_limit = estimate_target_context_limit(provider);
+    let (current_tokens, token_source) = match session_metadata.and_then(|m| m.total_tokens) {
+        Some(tokens) => (tokens as usize, "session metadata"),
+        None => {
+            let token_counter = create_async_token_counter()
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to create token counter: {}", e))?;
+            let token_counts = get_messages_token_counts_async(&token_counter, messages);
+            (token_counts.iter().sum(), "estimated")
+        }
+    };
 
     // Calculate usage ratio
     let usage_ratio = current_tokens as f64 / context_limit as f64;
@@ -96,12 +107,13 @@ pub async fn check_compaction_needed(
     };
 
     debug!(
-        "Compaction check: {} / {} tokens ({:.1}%), threshold: {:.1}%, needs compaction: {}",
+        "Compaction check: {} / {} tokens ({:.1}%), threshold: {:.1}%, needs compaction: {}, source: {}",
         current_tokens,
         context_limit,
         usage_ratio * 100.0,
         threshold * 100.0,
-        needs_compaction
+        needs_compaction,
+        token_source
     );
 
     Ok(CompactionCheckResult {
@@ -129,7 +141,7 @@ pub async fn check_compaction_needed(
 pub async fn perform_compaction(
     agent: &Agent,
     messages: &[Message],
-) -> Result<(Vec<Message>, usize, usize)> {
+) -> Result<(Conversation, usize, usize)> {
     // Get token counter to measure before/after
     let token_counter = create_async_token_counter()
         .await
@@ -165,6 +177,7 @@ pub async fn perform_compaction(
 /// * `agent` - The agent to use for context management
 /// * `messages` - The current message history
 /// * `threshold_override` - Optional threshold override (defaults to GOOSE_AUTO_COMPACT_THRESHOLD config)
+/// * `session_metadata` - Optional session metadata containing actual token counts
 ///
 /// # Returns
 /// * `AutoCompactResult` containing the potentially compacted messages and metadata
@@ -172,9 +185,11 @@ pub async fn check_and_compact_messages(
     agent: &Agent,
     messages: &[Message],
     threshold_override: Option<f64>,
+    session_metadata: Option<&crate::session::storage::SessionMetadata>,
 ) -> Result<AutoCompactResult> {
     // First check if compaction is needed
-    let check_result = check_compaction_needed(agent, messages, threshold_override).await?;
+    let check_result =
+        check_compaction_needed(agent, messages, threshold_override, session_metadata).await?;
 
     // If no compaction is needed, return early
     if !check_result.needs_compaction {
@@ -185,7 +200,7 @@ pub async fn check_and_compact_messages(
         );
         return Ok(AutoCompactResult {
             compacted: false,
-            messages: messages.to_vec(),
+            messages: Conversation::new_unvalidated(messages.to_vec()),
             tokens_before: None,
             tokens_after: None,
         });
@@ -221,17 +236,17 @@ pub async fn check_and_compact_messages(
     Ok(AutoCompactResult {
         compacted: true,
         messages: compacted_messages,
-        tokens_before: Some(tokens_before),
-        tokens_after: Some(tokens_after),
+        tokens_before: Some(tokens_before + SYSTEM_PROMPT_TOKEN_OVERHEAD + TOOLS_TOKEN_OVERHEAD),
+        tokens_after: Some(tokens_after + SYSTEM_PROMPT_TOKEN_OVERHEAD + TOOLS_TOKEN_OVERHEAD),
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::conversation::message::{Message, MessageContent};
     use crate::{
         agents::Agent,
-        message::{Message, MessageContent},
         model::ModelConfig,
         providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage},
         providers::errors::ProviderError,
@@ -286,6 +301,26 @@ mod tests {
         )
     }
 
+    fn create_test_session_metadata(
+        message_count: usize,
+        working_dir: &str,
+    ) -> crate::session::storage::SessionMetadata {
+        use std::path::PathBuf;
+        crate::session::storage::SessionMetadata {
+            message_count,
+            working_dir: PathBuf::from(working_dir),
+            description: "Test session".to_string(),
+            schedule_id: Some("test_job".to_string()),
+            project_id: None,
+            total_tokens: Some(100),
+            input_tokens: Some(50),
+            output_tokens: Some(50),
+            accumulated_total_tokens: Some(100),
+            accumulated_input_tokens: Some(50),
+            accumulated_output_tokens: Some(50),
+        }
+    }
+
     #[tokio::test]
     async fn test_check_compaction_needed() {
         let mock_provider = Arc::new(MockProvider {
@@ -300,7 +335,7 @@ mod tests {
         // Create small messages that won't trigger compaction
         let messages = vec![create_test_message("Hello"), create_test_message("World")];
 
-        let result = check_compaction_needed(&agent, &messages, Some(0.3))
+        let result = check_compaction_needed(&agent, &messages, Some(0.3), None)
             .await
             .unwrap();
 
@@ -326,14 +361,14 @@ mod tests {
         let messages = vec![create_test_message("Hello")];
 
         // Test with threshold 0 (disabled)
-        let result = check_compaction_needed(&agent, &messages, Some(0.0))
+        let result = check_compaction_needed(&agent, &messages, Some(0.0), None)
             .await
             .unwrap();
 
         assert!(!result.needs_compaction);
 
         // Test with threshold 1.0 (disabled)
-        let result = check_compaction_needed(&agent, &messages, Some(1.0))
+        let result = check_compaction_needed(&agent, &messages, Some(1.0), None)
             .await
             .unwrap();
 
@@ -382,7 +417,7 @@ mod tests {
         let messages = vec![create_test_message("Hello"), create_test_message("World")];
 
         // Test with threshold 0 (disabled)
-        let result = check_and_compact_messages(&agent, &messages, Some(0.0))
+        let result = check_and_compact_messages(&agent, &messages, Some(0.0), None)
             .await
             .unwrap();
 
@@ -392,7 +427,7 @@ mod tests {
         assert!(result.tokens_after.is_none());
 
         // Test with threshold 1.0 (disabled)
-        let result = check_and_compact_messages(&agent, &messages, Some(1.0))
+        let result = check_and_compact_messages(&agent, &messages, Some(1.0), None)
             .await
             .unwrap();
 
@@ -413,7 +448,7 @@ mod tests {
         // Create small messages that won't trigger compaction
         let messages = vec![create_test_message("Hello"), create_test_message("World")];
 
-        let result = check_and_compact_messages(&agent, &messages, Some(0.3))
+        let result = check_and_compact_messages(&agent, &messages, Some(0.3), None)
             .await
             .unwrap();
 
@@ -426,31 +461,42 @@ mod tests {
         let mock_provider = Arc::new(MockProvider {
             model_config: ModelConfig::new("test-model")
                 .unwrap()
-                .with_context_limit(50_000.into()), // Realistic context limit that won't underflow
+                .with_context_limit(30_000.into()), // Smaller context limit to make threshold easier to hit
         });
 
         let agent = Agent::new();
         let _ = agent.update_provider(mock_provider).await;
 
         // Create messages that will exceed 30% of the context limit
-        // With 50k context limit, after overhead we have ~27k usable tokens
-        // 30% of that is ~8.1k tokens, so we need messages that exceed that
+        // With 30k context limit, 30% is 9k tokens
         let mut messages = Vec::new();
 
-        // Create longer messages with more content to reach the threshold
-        for i in 0..200 {
+        // Create much longer messages with more content to reach the threshold
+        for i in 0..300 {
             messages.push(create_test_message(&format!(
-                "This is message number {} with significantly more content to increase token count. \
+                "This is message number {} with significantly more content to increase token count substantially. \
                  We need to ensure that our total token usage exceeds 30% of the available context \
                  limit after accounting for system prompt and tools overhead. This message contains \
-                 multiple sentences to increase the token count substantially.",
+                 multiple sentences to increase the token count substantially. Adding even more text here \
+                 to make sure we have enough tokens. Lorem ipsum dolor sit amet, consectetur adipiscing elit, \
+                 sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, \
+                 quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute \
+                 irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. \
+                 Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit \
+                 anim id est laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium \
+                 doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi \
+                 architecto beatae vitae dicta sunt explicabo.",
                 i
             )));
         }
 
-        let result = check_and_compact_messages(&agent, &messages, Some(0.3))
+        let result = check_and_compact_messages(&agent, &messages, Some(0.3), None)
             .await
             .unwrap();
+
+        if !result.compacted {
+            eprintln!("Test failed - compaction not triggered");
+        }
 
         assert!(result.compacted);
         assert!(result.tokens_before.is_some());
@@ -501,7 +547,7 @@ mod tests {
             .unwrap();
 
         // Should use config value when no override provided
-        let result = check_and_compact_messages(&agent, &messages, None)
+        let result = check_and_compact_messages(&agent, &messages, None, None)
             .await
             .unwrap();
 
@@ -511,7 +557,7 @@ mod tests {
             let token_counter = create_async_token_counter().await.unwrap();
             let token_counts = get_messages_token_counts_async(&token_counter, &messages);
             let total_tokens: usize = token_counts.iter().sum();
-            let context_limit = estimate_target_context_limit(provider);
+            let context_limit = provider.get_model_config().context_limit();
             let usage_ratio = total_tokens as f64 / context_limit as f64;
 
             eprintln!(
@@ -529,5 +575,229 @@ mod tests {
         config
             .set_param("GOOSE_AUTO_COMPACT_THRESHOLD", serde_json::Value::from(0.3))
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_auto_compact_uses_session_metadata() {
+        use crate::session::storage::SessionMetadata;
+
+        let mock_provider = Arc::new(MockProvider {
+            model_config: ModelConfig::new("test-model")
+                .unwrap()
+                .with_context_limit(10_000.into()),
+        });
+
+        let agent = Agent::new();
+        let _ = agent.update_provider(mock_provider).await;
+
+        // Create some test messages
+        let messages = vec![
+            create_test_message("First message"),
+            create_test_message("Second message"),
+        ];
+
+        // Create session metadata with specific token counts
+        let mut session_metadata = SessionMetadata::default();
+        session_metadata.total_tokens = Some(8000); // High token count to trigger compaction
+        session_metadata.accumulated_total_tokens = Some(15000); // Even higher accumulated count
+        session_metadata.input_tokens = Some(5000);
+        session_metadata.output_tokens = Some(3000);
+
+        // Test with session metadata - should use total_tokens for compaction (not accumulated)
+        let result_with_metadata = check_compaction_needed(
+            &agent,
+            &messages,
+            Some(0.3), // 30% threshold
+            Some(&session_metadata),
+        )
+        .await
+        .unwrap();
+
+        // With 8000 tokens and context limit around 10000, should trigger compaction
+        assert!(result_with_metadata.needs_compaction);
+        assert_eq!(result_with_metadata.current_tokens, 8000);
+
+        // Test without session metadata - should use estimated tokens
+        let result_without_metadata = check_compaction_needed(
+            &agent,
+            &messages,
+            Some(0.3), // 30% threshold
+            None,
+        )
+        .await
+        .unwrap();
+
+        // Without metadata, should use much lower estimated token count
+        assert!(!result_without_metadata.needs_compaction);
+        assert!(result_without_metadata.current_tokens < 8000);
+
+        // Test with metadata that has only accumulated tokens (no total_tokens)
+        let mut session_metadata_no_total = SessionMetadata::default();
+        session_metadata_no_total.accumulated_total_tokens = Some(7500);
+
+        let result_with_no_total = check_compaction_needed(
+            &agent,
+            &messages,
+            Some(0.3), // 30% threshold
+            Some(&session_metadata_no_total),
+        )
+        .await
+        .unwrap();
+
+        // Should fall back to estimation since total_tokens is None
+        assert!(!result_with_no_total.needs_compaction);
+        assert!(result_with_no_total.current_tokens < 7500);
+
+        // Test with metadata that has no token counts - should fall back to estimation
+        let empty_metadata = SessionMetadata::default();
+
+        let result_with_empty_metadata = check_compaction_needed(
+            &agent,
+            &messages,
+            Some(0.3), // 30% threshold
+            Some(&empty_metadata),
+        )
+        .await
+        .unwrap();
+
+        // Should fall back to estimation
+        assert!(!result_with_empty_metadata.needs_compaction);
+        assert!(result_with_empty_metadata.current_tokens < 7500);
+    }
+
+    #[tokio::test]
+    async fn test_auto_compact_end_to_end_with_metadata() {
+        use crate::session::storage::SessionMetadata;
+
+        let mock_provider = Arc::new(MockProvider {
+            model_config: ModelConfig::new("test-model")
+                .unwrap()
+                .with_context_limit(10_000.into()),
+        });
+
+        let agent = Agent::new();
+        let _ = agent.update_provider(mock_provider).await;
+
+        // Create some test messages
+        let messages = vec![
+            create_test_message("First message"),
+            create_test_message("Second message"),
+            create_test_message("Third message"),
+        ];
+
+        // Create session metadata with high token count to trigger compaction
+        let mut session_metadata = SessionMetadata::default();
+        session_metadata.total_tokens = Some(9000); // High enough to trigger compaction
+
+        // Test full compaction flow with session metadata
+        let result = check_and_compact_messages(
+            &agent,
+            &messages,
+            Some(0.3), // 30% threshold
+            Some(&session_metadata),
+        )
+        .await
+        .unwrap();
+
+        // Should have triggered compaction
+        assert!(result.compacted);
+        assert!(result.tokens_before.is_some());
+        assert!(result.tokens_after.is_some());
+
+        // Verify the compacted messages are returned
+        assert!(!result.messages.is_empty());
+        // Should have fewer messages after compaction
+        assert!(result.messages.len() <= messages.len());
+    }
+
+    #[tokio::test]
+    async fn test_auto_compact_with_comprehensive_session_metadata() {
+        let mock_provider = Arc::new(MockProvider {
+            model_config: ModelConfig::new("test-model")
+                .unwrap()
+                .with_context_limit(8_000.into()),
+        });
+
+        let agent = Agent::new();
+        let _ = agent.update_provider(mock_provider).await;
+
+        let messages = vec![
+            create_test_message("Test message 1"),
+            create_test_message("Test message 2"),
+            create_test_message("Test message 3"),
+        ];
+
+        // Use the helper function to create comprehensive non-null session metadata
+        let comprehensive_metadata = create_test_session_metadata(3, "/test/working/dir");
+
+        // Verify the helper created non-null metadata
+        assert_eq!(comprehensive_metadata.message_count, 3);
+        assert_eq!(
+            comprehensive_metadata.working_dir.to_str().unwrap(),
+            "/test/working/dir"
+        );
+        assert_eq!(comprehensive_metadata.description, "Test session");
+        assert_eq!(
+            comprehensive_metadata.schedule_id,
+            Some("test_job".to_string())
+        );
+        assert!(comprehensive_metadata.project_id.is_none());
+        assert_eq!(comprehensive_metadata.total_tokens, Some(100));
+        assert_eq!(comprehensive_metadata.input_tokens, Some(50));
+        assert_eq!(comprehensive_metadata.output_tokens, Some(50));
+        assert_eq!(comprehensive_metadata.accumulated_total_tokens, Some(100));
+        assert_eq!(comprehensive_metadata.accumulated_input_tokens, Some(50));
+        assert_eq!(comprehensive_metadata.accumulated_output_tokens, Some(50));
+
+        // Test compaction with the comprehensive metadata (low token count, shouldn't compact)
+        let result_low_tokens = check_compaction_needed(
+            &agent,
+            &messages,
+            Some(0.7), // 70% threshold
+            Some(&comprehensive_metadata),
+        )
+        .await
+        .unwrap();
+
+        assert!(!result_low_tokens.needs_compaction);
+        assert_eq!(result_low_tokens.current_tokens, 100); // Should use total_tokens from metadata
+
+        // Create a modified version with high token count to trigger compaction
+        let mut high_token_metadata = create_test_session_metadata(5, "/test/working/dir");
+        high_token_metadata.total_tokens = Some(6_000); // High enough to trigger compaction
+        high_token_metadata.input_tokens = Some(4_000);
+        high_token_metadata.output_tokens = Some(2_000);
+        high_token_metadata.accumulated_total_tokens = Some(12_000);
+
+        let result_high_tokens = check_compaction_needed(
+            &agent,
+            &messages,
+            Some(0.7), // 70% threshold
+            Some(&high_token_metadata),
+        )
+        .await
+        .unwrap();
+
+        assert!(result_high_tokens.needs_compaction);
+        assert_eq!(result_high_tokens.current_tokens, 6_000); // Should use total_tokens, not accumulated
+
+        // Test that metadata fields are preserved correctly in edge cases
+        let mut edge_case_metadata = create_test_session_metadata(10, "/edge/case/dir");
+        edge_case_metadata.total_tokens = None; // No total tokens
+        edge_case_metadata.accumulated_total_tokens = Some(7_000); // Has accumulated
+
+        let result_edge_case = check_compaction_needed(
+            &agent,
+            &messages,
+            Some(0.5), // 50% threshold
+            Some(&edge_case_metadata),
+        )
+        .await
+        .unwrap();
+
+        // Should fall back to estimation since total_tokens is None
+        assert!(result_edge_case.current_tokens < 7_000);
+        // With estimation, likely won't trigger compaction
+        assert!(!result_edge_case.needs_compaction);
     }
 }

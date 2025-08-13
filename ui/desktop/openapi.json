@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.1.0"
+    "version": "1.3.0"
   },
   "paths": {
     "/agent/add_sub_recipes": {
@@ -1150,24 +1150,34 @@
       },
       "ConfigKey": {
         "type": "object",
+        "description": "Configuration key metadata for provider setup",
         "required": [
           "name",
           "required",
-          "secret"
+          "secret",
+          "oauth_flow"
         ],
         "properties": {
           "default": {
             "type": "string",
+            "description": "Optional default value for the key",
             "nullable": true
           },
           "name": {
-            "type": "string"
+            "type": "string",
+            "description": "The name of the configuration key (e.g., \"API_KEY\")"
+          },
+          "oauth_flow": {
+            "type": "boolean",
+            "description": "Whether this key should be configured using OAuth device code flow\nWhen true, the provider's configure_oauth() method will be called instead of prompting for manual input"
           },
           "required": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Whether this key is required for the provider to function"
           },
           "secret": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Whether this key should be stored securely (e.g., in keychain)"
           }
         }
       },
@@ -2961,6 +2971,10 @@
           },
           "name": {
             "type": "string"
+          },
+          "outputSchema": {
+            "type": "object",
+            "additionalProperties": true
           }
         }
       },
