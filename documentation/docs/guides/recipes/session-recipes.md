@@ -339,7 +339,7 @@ You can turn your current Goose session into a reusable recipe that includes the
 
        **Basic Usage** - Run once and exit (see [run options](/docs/guides/goose-cli-commands#run-options) and [recipe commands](/docs/guides/goose-cli-commands#recipe) for more):
        ```sh
-       # Using recipe file in current directory
+       # Using recipe file in current directory or GOOSE_RECIPE_PATH directories
        goose run --recipe recipe.yaml
 
        # Using full path

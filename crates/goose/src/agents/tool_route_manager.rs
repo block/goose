@@ -10,8 +10,7 @@ use crate::config::Config;
 use crate::conversation::message::ToolRequest;
 use crate::providers::base::Provider;
 use anyhow::{anyhow, Result};
-use mcp_core::ToolError;
-use rmcp::model::Tool;
+use rmcp::model::{ErrorCode, ErrorData, Tool};
 use serde_json::Value;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -52,18 +51,21 @@ impl ToolRouteManager {
     pub async fn dispatch_route_search_tool(
         &self,
         arguments: Value,
-    ) -> Result<ToolCallResult, ToolError> {
+    ) -> Result<ToolCallResult, ErrorData> {
         let selector = self.router_tool_selector.lock().await.clone();
         match selector.as_ref() {
             Some(selector) => match selector.select_tools(arguments).await {
                 Ok(tools) => Ok(ToolCallResult::from(Ok(tools))),
-                Err(e) => Err(ToolError::ExecutionError(format!(
-                    "Failed to select tools: {}",
-                    e
-                ))),
+                Err(e) => Err(ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Failed to select tools: {}", e),
+                    None,
+                )),
             },
-            None => Err(ToolError::ExecutionError(
+            None => Err(ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
                 "No tool selector available".to_string(),
+                None,
             )),
         }
     }

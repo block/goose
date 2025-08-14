@@ -14,6 +14,7 @@ import {
 import { ChatSmart, Gear } from '../icons';
 import { ViewOptions, View } from '../../App';
 import { useChatContext } from '../../contexts/ChatContext';
+import { DEFAULT_CHAT_TITLE } from '../../contexts/ChatContext';
 
 interface SidebarProps {
   onSelectSession: (sessionId: string) => void;
@@ -115,7 +116,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     if (
       currentPath === '/pair' &&
       chatContext?.chat?.title &&
-      chatContext.chat.title !== 'New Chat'
+      chatContext.chat.title !== DEFAULT_CHAT_TITLE
     ) {
       titleBits.push(chatContext.chat.title);
     } else if (currentPath !== '/' && currentItem) {

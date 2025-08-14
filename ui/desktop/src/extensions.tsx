@@ -213,61 +213,6 @@ export async function removeExtension(name: string, silent: boolean = false): Pr
   }
 }
 
-// Store extension config in user_settings
-function storeExtensionConfig(config: FullExtensionConfig) {
-  try {
-    const userSettingsStr = localStorage.getItem('user_settings');
-    const userSettings = userSettingsStr
-      ? JSON.parse(userSettingsStr)
-      : { models: [], extensions: [] };
-
-    // Check if config already exists (based on cmd for stdio, uri for sse, name for builtin)
-    const extensionExists = userSettings.extensions.some(
-      (extension: { id: string }) => extension.id === config.id
-    );
-
-    if (!extensionExists) {
-      userSettings.extensions.push(config);
-      localStorage.setItem('user_settings', JSON.stringify(userSettings));
-      console.log('Extension config stored successfully in user_settings');
-      // Notify settings update through electron IPC
-      window.electron.emit('settings-updated');
-    } else {
-      console.log('Extension config already exists in user_settings');
-    }
-  } catch (error) {
-    console.error('Error storing extension config:', error);
-  }
-}
-
-export async function loadAndAddStoredExtensions() {
-  try {
-    const userSettingsStr = localStorage.getItem('user_settings');
-
-    if (userSettingsStr) {
-      const userSettings = JSON.parse(userSettingsStr);
-      const enabledExtensions = userSettings.extensions.filter(
-        (ext: FullExtensionConfig) => ext.enabled
-      );
-      console.log('Adding extensions from localStorage: ', enabledExtensions);
-      for (const ext of enabledExtensions) {
-        await addExtension(ext, true);
-      }
-    } else {
-      console.log('Saving default builtin extensions to localStorage');
-      // TODO - Revisit
-      BUILT_IN_EXTENSIONS.forEach(async (extension: FullExtensionConfig) => {
-        storeExtensionConfig(extension);
-        if (extension.enabled) {
-          await addExtension(extension, true);
-        }
-      });
-    }
-  } catch (error) {
-    console.error('Error loading and activating extensions from localStorage: ', error);
-  }
-}
-
 // Update the path to the binary based on the command
 export async function replaceWithShims(cmd: string) {
   const binaryPathMap: Record<string, string> = {

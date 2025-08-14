@@ -10,12 +10,13 @@ interface GooseDesktopInstallerProps {
   extensionId: string;
   extensionName: string;
   description: string;
+  type?: 'stdio' | 'sse' | 'http'; // Extension type (http maps to streamable_http)
   // Command-line extension props (optional when using url)
   command?: string;
   args?: string[];
-  // SSE extension prop (optional when using command+args)
+  // SSE/HTTP extension prop (optional when using command+args)
   url?: string;
-  envVars?: EnvVar[];
+  envVars?: EnvVar[]; // For stdio: environment variables, for http: headers
   apiKeyLink?: string;
   apiKeyLinkText?: string;
   customStep3?: string;
@@ -27,6 +28,7 @@ export default function GooseDesktopInstaller({
   extensionId,
   extensionName,
   description,
+  type,
   command,
   args,
   url,
@@ -38,11 +40,20 @@ export default function GooseDesktopInstaller({
   appendToStep3
 }: GooseDesktopInstallerProps) {
   
+  // Determine extension type with backward compatibility
+  const extensionType = type || (command ? 'stdio' : url ? 'sse' : 'stdio');
+  
   // Build the goose:// URL
   const buildGooseUrl = () => {
     let urlParts = [];
     
-    // Add SSE extension URL or command-line extension command+args first
+    // Only add type parameter for http extensions (mapped to streamable_http)
+    // to avoid regressions with existing sse/stdio extensions
+    if (extensionType === 'http') {
+      urlParts.push(`type=streamable_http`);
+    }
+    
+    // Add SSE/HTTP extension URL or command-line extension command+args
     if (url) {
       urlParts.push(`url=${encodeURIComponent(url)}`);
     } else if (command && args) {
@@ -57,9 +68,11 @@ export default function GooseDesktopInstaller({
       `description=${encodeURIComponent(description)}`
     );
     
-    // Add environment variables (matching TLDR sections encoding)
+    // Add environment variables/headers
+    const isHttp = extensionType === 'http';
+    const paramName = isHttp ? 'header' : 'env';
     urlParts.push(...envVars.map(envVar => 
-      `env=${encodeURIComponent(`${envVar.name}=${envVar.label}`)}`
+      `${paramName}=${encodeURIComponent(`${envVar.name}=${envVar.label}`)}`
     ));
     
     return `goose://extension?${urlParts.join('&')}`;
@@ -81,7 +94,11 @@ export default function GooseDesktopInstaller({
     
     if (envVars.length > 0) {
       const envVarNames = envVars.map(env => env.name).join(', ');
-      return `Obtain your ${envVarNames} and paste it in`;
+      const isHttp = extensionType === 'http';
+      const variableType = isHttp ? 'header' : 'environment variable';
+      const variableTypes = isHttp ? 'headers' : 'environment variables';
+      
+      return `Obtain your ${envVarNames} and paste ${envVars.length > 1 ? `them as ${variableTypes}` : `it as a ${variableType}`}`;
     }
     
     return null; // No configuration needed
