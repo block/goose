@@ -61,17 +61,6 @@ pub struct Envs {
     map: HashMap<String, String>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, ToSchema)]
-pub struct ToolConfig {
-    /// Whether this tool is visible to the LLM
-    #[serde(default = "default_true")]
-    pub visible: bool,
-}
-
-fn default_true() -> bool {
-    true
-}
-
 impl Envs {
     /// List of sensitive env vars that should not be overridden
     const DISALLOWED_KEYS: [&'static str; 31] = [
@@ -174,10 +163,8 @@ pub enum ExtensionConfig {
         /// Whether this extension is bundled with Goose
         #[serde(default)]
         bundled: Option<bool>,
-        #[serde(default = "default_true")]
-        tools_are_visible_default: bool,
         #[serde(default)]
-        tools: HashMap<String, ToolConfig>,
+        available_tools: Vec<String>,
     },
     /// Standard I/O client with command and arguments
     #[serde(rename = "stdio")]
@@ -195,10 +182,8 @@ pub enum ExtensionConfig {
         /// Whether this extension is bundled with Goose
         #[serde(default)]
         bundled: Option<bool>,
-        #[serde(default = "default_true")]
-        tools_are_visible_default: bool,
         #[serde(default)]
-        tools: HashMap<String, ToolConfig>,
+        available_tools: Vec<String>,
     },
     /// Built-in extension that is part of the goose binary
     #[serde(rename = "builtin")]
@@ -211,10 +196,8 @@ pub enum ExtensionConfig {
         /// Whether this extension is bundled with Goose
         #[serde(default)]
         bundled: Option<bool>,
-        #[serde(default = "default_true")]
-        tools_are_visible_default: bool,
         #[serde(default)]
-        tools: HashMap<String, ToolConfig>,
+        available_tools: Vec<String>,
     },
     /// Streamable HTTP client with a URI endpoint using MCP Streamable HTTP specification
     #[serde(rename = "streamable_http")]
@@ -235,10 +218,8 @@ pub enum ExtensionConfig {
         /// Whether this extension is bundled with Goose
         #[serde(default)]
         bundled: Option<bool>,
-        #[serde(default = "default_true")]
-        tools_are_visible_default: bool,
         #[serde(default)]
-        tools: HashMap<String, ToolConfig>,
+        available_tools: Vec<String>,
     },
     /// Frontend-provided tools that will be called through the frontend
     #[serde(rename = "frontend")]
@@ -252,10 +233,8 @@ pub enum ExtensionConfig {
         /// Whether this extension is bundled with Goose
         #[serde(default)]
         bundled: Option<bool>,
-        #[serde(default = "default_true")]
-        tools_are_visible_default: bool,
         #[serde(default)]
-        tool_configs: HashMap<String, ToolConfig>,
+        available_tools: Vec<String>,
     },
     /// Inline Python code that will be executed using uvx
     #[serde(rename = "inline_python")]
@@ -271,10 +250,8 @@ pub enum ExtensionConfig {
         /// Python package dependencies required by this extension
         #[serde(default)]
         dependencies: Option<Vec<String>>,
-        #[serde(default = "default_true")]
-        tools_are_visible_default: bool,
         #[serde(default)]
-        tools: HashMap<String, ToolConfig>,
+        available_tools: Vec<String>,
     },
 }
 
@@ -286,8 +263,7 @@ impl Default for ExtensionConfig {
             description: None,
             timeout: Some(config::DEFAULT_EXTENSION_TIMEOUT),
             bundled: Some(true),
-            tools_are_visible_default: true,
-            tools: HashMap::new(),
+            available_tools: Vec::new(),
         }
     }
 }
@@ -302,8 +278,7 @@ impl ExtensionConfig {
             description: Some(description.into()),
             timeout: Some(timeout.into()),
             bundled: None,
-            tools_are_visible_default: true,
-            tools: HashMap::new(),
+            available_tools: Vec::new(),
         }
     }
 
@@ -322,8 +297,7 @@ impl ExtensionConfig {
             description: Some(description.into()),
             timeout: Some(timeout.into()),
             bundled: None,
-            tools_are_visible_default: true,
-            tools: HashMap::new(),
+            available_tools: Vec::new(),
         }
     }
 
@@ -342,8 +316,7 @@ impl ExtensionConfig {
             description: Some(description.into()),
             timeout: Some(timeout.into()),
             bundled: None,
-            tools_are_visible_default: true,
-            tools: HashMap::new(),
+            available_tools: Vec::new(),
         }
     }
 
@@ -359,8 +332,7 @@ impl ExtensionConfig {
             description: Some(description.into()),
             timeout: Some(timeout.into()),
             dependencies: None,
-            tools_are_visible_default: true,
-            tools: HashMap::new(),
+            available_tools: Vec::new(),
         }
     }
 
@@ -378,8 +350,7 @@ impl ExtensionConfig {
                 timeout,
                 description,
                 bundled,
-                tools_are_visible_default,
-                tools,
+                available_tools,
                 ..
             } => Self::Stdio {
                 name,
@@ -390,8 +361,7 @@ impl ExtensionConfig {
                 description,
                 timeout,
                 bundled,
-                tools_are_visible_default,
-                tools,
+                available_tools,
             },
             other => other,
         }
@@ -415,46 +385,32 @@ impl ExtensionConfig {
         .to_string()
     }
 
-    /// Check if a tool should be visible to the LLM
-    pub fn is_tool_visible(&self, tool_name: &str) -> bool {
-        match self {
+    /// Check if a tool should be available to the LLM
+    pub fn is_tool_available(&self, tool_name: &str) -> bool {
+        let available_tools = match self {
             Self::Sse {
-                tools_are_visible_default,
-                tools,
-                ..
+                available_tools, ..
             }
             | Self::StreamableHttp {
-                tools_are_visible_default,
-                tools,
-                ..
+                available_tools, ..
             }
             | Self::Stdio {
-                tools_are_visible_default,
-                tools,
-                ..
+                available_tools, ..
             }
             | Self::Builtin {
-                tools_are_visible_default,
-                tools,
-                ..
+                available_tools, ..
             }
             | Self::InlinePython {
-                tools_are_visible_default,
-                tools,
-                ..
-            } => tools
-                .get(tool_name)
-                .map(|config| config.visible)
-                .unwrap_or(*tools_are_visible_default),
-            Self::Frontend {
-                tools_are_visible_default,
-                tool_configs,
-                ..
-            } => tool_configs
-                .get(tool_name)
-                .map(|config| config.visible)
-                .unwrap_or(*tools_are_visible_default),
-        }
+                available_tools, ..
+            }
+            | Self::Frontend {
+                available_tools, ..
+            } => available_tools,
+        };
+
+        // If no tools are specified, all tools are available
+        // If tools are specified, only those tools are available
+        available_tools.is_empty() || available_tools.contains(&tool_name.to_string())
     }
 }
 

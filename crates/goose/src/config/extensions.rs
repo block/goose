@@ -47,8 +47,7 @@ impl ExtensionConfigManager {
                             timeout: Some(DEFAULT_EXTENSION_TIMEOUT),
                             bundled: Some(true),
                             description: Some(DEFAULT_EXTENSION_DESCRIPTION.to_string()),
-                            tools_are_visible_default: true,
-                            tools: HashMap::new(),
+                            available_tools: Vec::new(),
                         },
                     },
                 )]);

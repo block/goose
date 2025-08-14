@@ -147,6 +147,7 @@ export type Envs = {
  * Represents the different types of MCP extensions that can be added to the manager
  */
 export type ExtensionConfig = {
+    available_tools?: Array<string>;
     /**
      * Whether this extension is bundled with Goose
      */
@@ -159,14 +160,11 @@ export type ExtensionConfig = {
      */
     name: string;
     timeout?: number | null;
-    tools?: {
-        [key: string]: ToolConfig;
-    };
-    tools_are_visible_default?: boolean;
     type: 'sse';
     uri: string;
 } | {
     args: Array<string>;
+    available_tools?: Array<string>;
     /**
      * Whether this extension is bundled with Goose
      */
@@ -180,12 +178,9 @@ export type ExtensionConfig = {
      */
     name: string;
     timeout?: number | null;
-    tools?: {
-        [key: string]: ToolConfig;
-    };
-    tools_are_visible_default?: boolean;
     type: 'stdio';
 } | {
+    available_tools?: Array<string>;
     /**
      * Whether this extension is bundled with Goose
      */
@@ -197,12 +192,9 @@ export type ExtensionConfig = {
      */
     name: string;
     timeout?: number | null;
-    tools?: {
-        [key: string]: ToolConfig;
-    };
-    tools_are_visible_default?: boolean;
     type: 'builtin';
 } | {
+    available_tools?: Array<string>;
     /**
      * Whether this extension is bundled with Goose
      */
@@ -218,13 +210,10 @@ export type ExtensionConfig = {
      */
     name: string;
     timeout?: number | null;
-    tools?: {
-        [key: string]: ToolConfig;
-    };
-    tools_are_visible_default?: boolean;
     type: 'streamable_http';
     uri: string;
 } | {
+    available_tools?: Array<string>;
     /**
      * Whether this extension is bundled with Goose
      */
@@ -237,16 +226,13 @@ export type ExtensionConfig = {
      * The name used to identify this extension
      */
     name: string;
-    tool_configs?: {
-        [key: string]: ToolConfig;
-    };
     /**
      * The tools provided by the frontend
      */
     tools: Array<Tool>;
-    tools_are_visible_default?: boolean;
     type: 'frontend';
 } | {
+    available_tools?: Array<string>;
     /**
      * The Python code to execute
      */
@@ -267,10 +253,6 @@ export type ExtensionConfig = {
      * Timeout in seconds
      */
     timeout?: number | null;
-    tools?: {
-        [key: string]: ToolConfig;
-    };
-    tools_are_visible_default?: boolean;
     type: 'inline_python';
 };
 
@@ -758,13 +740,6 @@ export type ToolAnnotations = {
     openWorldHint?: boolean;
     readOnlyHint?: boolean;
     title?: string;
-};
-
-export type ToolConfig = {
-    /**
-     * Whether this tool is visible to the LLM
-     */
-    visible?: boolean;
 };
 
 export type ToolConfirmationRequest = {

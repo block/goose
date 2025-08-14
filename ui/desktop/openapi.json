@@ -1457,6 +1457,12 @@
               "type"
             ],
             "properties": {
+              "available_tools": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "bundled": {
                 "type": "boolean",
                 "description": "Whether this extension is bundled with Goose",
@@ -1485,15 +1491,6 @@
                 "nullable": true,
                 "minimum": 0
               },
-              "tools": {
-                "type": "object",
-                "additionalProperties": {
-                  "$ref": "#/components/schemas/ToolConfig"
-                }
-              },
-              "tools_are_visible_default": {
-                "type": "boolean"
-              },
               "type": {
                 "type": "string",
                 "enum": [
@@ -1516,6 +1513,12 @@
             ],
             "properties": {
               "args": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "available_tools": {
                 "type": "array",
                 "items": {
                   "type": "string"
@@ -1552,15 +1555,6 @@
                 "nullable": true,
                 "minimum": 0
               },
-              "tools": {
-                "type": "object",
-                "additionalProperties": {
-                  "$ref": "#/components/schemas/ToolConfig"
-                }
-              },
-              "tools_are_visible_default": {
-                "type": "boolean"
-              },
               "type": {
                 "type": "string",
                 "enum": [
@@ -1577,6 +1571,12 @@
               "type"
             ],
             "properties": {
+              "available_tools": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "bundled": {
                 "type": "boolean",
                 "description": "Whether this extension is bundled with Goose",
@@ -1600,15 +1600,6 @@
                 "nullable": true,
                 "minimum": 0
               },
-              "tools": {
-                "type": "object",
-                "additionalProperties": {
-                  "$ref": "#/components/schemas/ToolConfig"
-                }
-              },
-              "tools_are_visible_default": {
-                "type": "boolean"
-              },
               "type": {
                 "type": "string",
                 "enum": [
@@ -1626,6 +1617,12 @@
               "type"
             ],
             "properties": {
+              "available_tools": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "bundled": {
                 "type": "boolean",
                 "description": "Whether this extension is bundled with Goose",
@@ -1660,15 +1657,6 @@
                 "nullable": true,
                 "minimum": 0
               },
-              "tools": {
-                "type": "object",
-                "additionalProperties": {
-                  "$ref": "#/components/schemas/ToolConfig"
-                }
-              },
-              "tools_are_visible_default": {
-                "type": "boolean"
-              },
               "type": {
                 "type": "string",
                 "enum": [
@@ -1689,6 +1677,12 @@
               "type"
             ],
             "properties": {
+              "available_tools": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "bundled": {
                 "type": "boolean",
                 "description": "Whether this extension is bundled with Goose",
@@ -1703,21 +1697,12 @@
                 "type": "string",
                 "description": "The name used to identify this extension"
               },
-              "tool_configs": {
-                "type": "object",
-                "additionalProperties": {
-                  "$ref": "#/components/schemas/ToolConfig"
-                }
-              },
               "tools": {
                 "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/Tool"
                 },
                 "description": "The tools provided by the frontend"
-              },
-              "tools_are_visible_default": {
-                "type": "boolean"
               },
               "type": {
                 "type": "string",
@@ -1736,6 +1721,12 @@
               "type"
             ],
             "properties": {
+              "available_tools": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "code": {
                 "type": "string",
                 "description": "The Python code to execute"
@@ -1763,15 +1754,6 @@
                 "description": "Timeout in seconds",
                 "nullable": true,
                 "minimum": 0
-              },
-              "tools": {
-                "type": "object",
-                "additionalProperties": {
-                  "$ref": "#/components/schemas/ToolConfig"
-                }
-              },
-              "tools_are_visible_default": {
-                "type": "boolean"
               },
               "type": {
                 "type": "string",
@@ -3049,15 +3031,6 @@
           },
           "title": {
             "type": "string"
-          }
-        }
-      },
-      "ToolConfig": {
-        "type": "object",
-        "properties": {
-          "visible": {
-            "type": "boolean",
-            "description": "Whether this tool is visible to the LLM"
           }
         }
       },

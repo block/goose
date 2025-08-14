@@ -211,8 +211,7 @@ impl Session {
             // TODO: should set timeout
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
             bundled: None,
-            tools_are_visible_default: true,
-            tools: HashMap::new(),
+            available_tools: Vec::new(),
         };
 
         self.agent
@@ -246,8 +245,7 @@ impl Session {
             // TODO: should set timeout
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
             bundled: None,
-            tools_are_visible_default: true,
-            tools: HashMap::new(),
+            available_tools: Vec::new(),
         };
 
         self.agent
@@ -282,8 +280,7 @@ impl Session {
             // TODO: should set timeout
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
             bundled: None,
-            tools_are_visible_default: true,
-            tools: HashMap::new(),
+            available_tools: Vec::new(),
         };
 
         self.agent
@@ -310,8 +307,7 @@ impl Session {
                 timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
                 bundled: None,
                 description: None,
-                tools_are_visible_default: true,
-                tools: HashMap::new(),
+                available_tools: Vec::new(),
             };
             self.agent
                 .add_extension(config)
