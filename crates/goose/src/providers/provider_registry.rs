@@ -11,6 +11,7 @@ struct ProviderEntry {
     constructor: ProviderConstructor,
 }
 
+#[derive(Default)]
 pub struct ProviderRegistry {
     entries: HashMap<String, ProviderEntry>,
 }
@@ -88,9 +89,7 @@ impl ProviderRegistry {
             .get(name)
             .ok_or_else(|| anyhow::anyhow!("Unknown provider: {}", name))?;
 
-        let result = (entry.constructor)(model);
-
-        result
+        (entry.constructor)(model)
     }
 
     pub fn all_metadata(&self) -> Vec<ProviderMetadata> {

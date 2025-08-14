@@ -1,6 +1,6 @@
+use crate::recipes::github_recipe::GOOSE_RECIPE_GITHUB_REPO_CONFIG_KEY;
 use cliclack::spinner;
 use console::style;
-use etcetera::{choose_app_strategy, AppStrategy};
 use goose::agents::extension::ToolInfo;
 use goose::agents::extension_manager::get_parameter_names;
 use goose::agents::platform_tools::{
@@ -8,7 +8,6 @@ use goose::agents::platform_tools::{
 };
 use goose::agents::Agent;
 use goose::agents::{extension::Envs, ExtensionConfig};
-use goose::config::base::APP_STRATEGY;
 use goose::config::custom_providers::CustomProviderConfig;
 use goose::config::extensions::name_to_key;
 use goose::config::permission::PermissionLevel;
@@ -17,14 +16,13 @@ use goose::config::{
     PermissionManager,
 };
 use goose::conversation::message::Message;
+use goose::model::ModelConfig;
 use goose::providers::{create, providers};
 use rmcp::model::{Tool, ToolAnnotations};
 use rmcp::object;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::error::Error;
-
-use crate::recipes::github_recipe::GOOSE_RECIPE_GITHUB_REPO_CONFIG_KEY;
 
 // useful for light themes where there is no dicernible colour contrast between
 // cursor-selected and cursor-unselected items.
@@ -259,10 +257,7 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
 async fn handle_oauth_configuration(
     provider_name: &str,
     key_name: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    use goose::model::ModelConfig;
-    use goose::providers::create;
-
+) -> Result<(), Box<dyn Error>> {
     let _ = cliclack::log::info(format!(
         "Configuring {} using OAuth device code flow...",
         key_name
@@ -423,7 +418,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
     let spin = spinner();
     spin.start("Attempting to fetch supported models...");
     let models_res = {
-        let temp_model_config = goose::model::ModelConfig::new(&provider_meta.default_model)?;
+        let temp_model_config = ModelConfig::new(&provider_meta.default_model)?;
         let temp_provider = create(provider_name, temp_model_config)?;
         temp_provider.fetch_supported_models().await
     };
@@ -464,7 +459,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
         .map(|val| val == "1" || val.to_lowercase() == "true")
         .unwrap_or(false);
 
-    let model_config = goose::model::ModelConfig::new(&model)?
+    let model_config = ModelConfig::new(&model)?
         .with_max_tokens(Some(50))
         .with_toolshim(toolshim_enabled)
         .with_toolshim_model(std::env::var("GOOSE_TOOLSHIM_OLLAMA_MODEL").ok());
@@ -1322,7 +1317,7 @@ pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
     let model: String = config
         .get_param("GOOSE_MODEL")
         .expect("No model configured. Please set model first");
-    let model_config = goose::model::ModelConfig::new(&model)?;
+    let model_config = ModelConfig::new(&model)?;
 
     // Create the agent
     let agent = Agent::new();
@@ -1462,7 +1457,6 @@ fn configure_recipe_dialog() -> Result<(), Box<dyn Error>> {
         recipe_repo_input = recipe_repo_input.default_input(&recipe_repo);
     }
     let input_value: String = recipe_repo_input.interact()?;
-    // if input is blank, it clears the recipe github repo settings in the config file
     if input_value.clone().trim().is_empty() {
         config.delete(key_name)?;
     } else {
@@ -1709,7 +1703,7 @@ pub fn configure_custom_provider_dialog() -> Result<(), Box<dyn Error>> {
                 .placeholder("https://api.example.com/v1/messages")
                 .validate(|input: &String| {
                     if !input.starts_with("http://") && !input.starts_with("https://") {
-                        Err("Inputed URL must start with either http:// or https://")
+                        Err("URL must start with either http:// or https://")
                     } else {
                         Ok(())
                     }

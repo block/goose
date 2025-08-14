@@ -1,20 +1,22 @@
+use crate::config::{Config, APP_STRATEGY};
+use crate::model::ModelConfig;
+use crate::providers::anthropic::AnthropicProvider;
 use crate::providers::base::ModelInfo;
+use crate::providers::ollama::OllamaProvider;
+use crate::providers::openai::OpenAiProvider;
 use anyhow::Result;
+use etcetera::{choose_app_strategy, AppStrategy};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
 pub fn custom_providers_dir() -> std::path::PathBuf {
-    use crate::config::APP_STRATEGY;
-    use etcetera::{choose_app_strategy, AppStrategy};
-
     choose_app_strategy(APP_STRATEGY.clone())
         .expect("goose requires a home dir")
         .config_dir()
         .join("custom_providers")
 }
 
-/// custom providers
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ProviderEngine {
@@ -54,12 +56,10 @@ impl CustomProviderConfig {
         format!("custom_{}", display_name.to_lowercase().replace(' ', "_"))
     }
 
-    // api-key -> keyring
     pub fn generate_api_key_name(id: &str) -> String {
         format!("{}_API_KEY", id.to_uppercase())
     }
 
-    // create final provider config
     pub fn create_and_save(
         provider_type: &str,
         display_name: String,
@@ -68,11 +68,6 @@ impl CustomProviderConfig {
         models: Vec<String>,
         supports_streaming: Option<bool>,
     ) -> Result<Self> {
-        use crate::config::Config;
-        use crate::config::APP_STRATEGY;
-        use etcetera::{choose_app_strategy, AppStrategy};
-
-        // generate id and apikey name
         let id = Self::generate_id(&display_name);
         let api_key_name = Self::generate_api_key_name(&id);
 
@@ -113,13 +108,7 @@ impl CustomProviderConfig {
         Ok(provider_config)
     }
 
-    // remove a custom provider
     pub fn remove(id: &str) -> Result<()> {
-        use crate::config::Config;
-        use crate::config::APP_STRATEGY;
-        use etcetera::{choose_app_strategy, AppStrategy};
-
-        // remove apikey from keyring
         let config = Config::global();
         let api_key_name = Self::generate_api_key_name(id);
         let _ = config.delete_secret(&api_key_name);
@@ -135,70 +124,56 @@ impl CustomProviderConfig {
     }
 }
 
-/// load custom providers
 pub fn load_custom_providers(dir: &Path) -> Result<Vec<CustomProviderConfig>> {
-    let mut configs = Vec::new();
-
     if !dir.exists() {
-        return Ok(configs);
+        return Ok(Vec::new());
     }
 
-    for entry in std::fs::read_dir(dir)? {
-        let entry = entry?;
-        let path = entry.path();
-
-        if path.extension().and_then(|s| s.to_str()) == Some("json") {
+    std::fs::read_dir(dir)?
+        .filter_map(|entry| {
+            let path = entry.ok()?.path();
+            (path.extension()? == "json").then_some(path)
+        })
+        .map(|path| {
             let content = std::fs::read_to_string(&path)?;
-            let config: CustomProviderConfig = serde_json::from_str(&content)
-                .map_err(|e| anyhow::anyhow!("Failed to parse {}: {}", path.display(), e))?;
-
-            configs.push(config);
-        } else {
-        }
-    }
-
-    Ok(configs)
+            serde_json::from_str(&content)
+                .map_err(|e| anyhow::anyhow!("Failed to parse {}: {}", path.display(), e))
+        })
+        .collect()
 }
 
-/// register custom providers
 pub fn register_custom_providers(
     registry: &mut crate::providers::provider_registry::ProviderRegistry,
     dir: &Path,
 ) -> Result<()> {
-    use crate::model::ModelConfig;
-    use crate::providers::{
-        anthropic::AnthropicProvider, ollama::OllamaProvider, openai::OpenAiProvider,
-    };
-
     let configs = load_custom_providers(dir)?;
 
     for config in configs {
         let config_clone = config.clone();
+        let description = config
+            .description
+            .clone()
+            .unwrap_or_else(|| format!("Custom {} provider", config.display_name));
+        let default_model = config
+            .models
+            .first()
+            .map(|m| m.name.clone())
+            .unwrap_or_default();
+        let known_models: Vec<ModelInfo> = config
+            .models
+            .iter()
+            .map(|m| ModelInfo {
+                name: m.name.clone(),
+                context_limit: m.context_limit,
+                input_token_cost: m.input_token_cost,
+                output_token_cost: m.output_token_cost,
+                currency: m.currency.clone(),
+                supports_cache_control: Some(m.supports_cache_control.unwrap_or(false)),
+            })
+            .collect();
 
         match config.engine {
             ProviderEngine::OpenAI => {
-                let description = config
-                    .description
-                    .clone()
-                    .unwrap_or_else(|| format!("Custom {} provider", config.display_name));
-                let default_model = config
-                    .models
-                    .first()
-                    .map(|m| m.name.clone())
-                    .unwrap_or_default();
-                let known_models: Vec<crate::providers::base::ModelInfo> = config
-                    .models
-                    .iter()
-                    .map(|m| crate::providers::base::ModelInfo {
-                        name: m.name.clone(),
-                        context_limit: m.context_limit as usize,
-                        input_token_cost: m.input_token_cost,
-                        output_token_cost: m.output_token_cost,
-                        currency: m.currency.clone(),
-                        supports_cache_control: Some(m.supports_cache_control.unwrap_or(false)),
-                    })
-                    .collect();
-
                 registry.register_with_name::<OpenAiProvider, _>(
                     config.name.clone(),
                     config.display_name.clone(),
@@ -211,28 +186,6 @@ pub fn register_custom_providers(
                 );
             }
             ProviderEngine::Ollama => {
-                let description = config
-                    .description
-                    .clone()
-                    .unwrap_or_else(|| format!("Custom {} provider", config.display_name));
-                let default_model = config
-                    .models
-                    .first()
-                    .map(|m| m.name.clone())
-                    .unwrap_or_default();
-                let known_models: Vec<crate::providers::base::ModelInfo> = config
-                    .models
-                    .iter()
-                    .map(|m| crate::providers::base::ModelInfo {
-                        name: m.name.clone(),
-                        context_limit: m.context_limit as usize,
-                        input_token_cost: m.input_token_cost,
-                        output_token_cost: m.output_token_cost,
-                        currency: m.currency.clone(),
-                        supports_cache_control: Some(m.supports_cache_control.unwrap_or(false)),
-                    })
-                    .collect();
-
                 registry.register_with_name::<OllamaProvider, _>(
                     config.name.clone(),
                     config.display_name.clone(),
@@ -245,28 +198,6 @@ pub fn register_custom_providers(
                 );
             }
             ProviderEngine::Anthropic => {
-                let description = config
-                    .description
-                    .clone()
-                    .unwrap_or_else(|| format!("Custom {} provider", config.display_name));
-                let default_model = config
-                    .models
-                    .first()
-                    .map(|m| m.name.clone())
-                    .unwrap_or_default();
-                let known_models: Vec<crate::providers::base::ModelInfo> = config
-                    .models
-                    .iter()
-                    .map(|m| crate::providers::base::ModelInfo {
-                        name: m.name.clone(),
-                        context_limit: m.context_limit as usize,
-                        input_token_cost: m.input_token_cost,
-                        output_token_cost: m.output_token_cost,
-                        currency: m.currency.clone(),
-                        supports_cache_control: Some(m.supports_cache_control.unwrap_or(false)),
-                    })
-                    .collect();
-
                 registry.register_with_name::<AnthropicProvider, _>(
                     config.name.clone(),
                     config.display_name.clone(),

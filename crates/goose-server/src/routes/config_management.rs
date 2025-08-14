@@ -343,10 +343,7 @@ pub async fn providers(
                                         .description
                                         .clone()
                                         .unwrap_or_else(|| {
-                                            format!(
-                                                "Custom {} provider",
-                                                custom_provider.display_name
-                                            )
+                                            format!("{} (custom)", custom_provider.display_name)
                                         }),
                                     default_model,
                                     known_models: custom_provider.models.clone(),
