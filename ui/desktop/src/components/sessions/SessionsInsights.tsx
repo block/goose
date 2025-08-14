@@ -95,7 +95,6 @@ export function SessionInsights() {
 
     loadInsights();
     loadRecentSessions();
-    // loadRecentProjects();
 
     // Cleanup timeout on unmount
     return () => {

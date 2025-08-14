@@ -44,7 +44,6 @@ import { COST_TRACKING_ENABLED } from './updates';
 
 import { type SessionDetails } from './sessions';
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
-// import ProjectsContainer from './components/projects/ProjectsContainer';
 import { Recipe } from './recipe';
 import RecipesView from './components/RecipesView';
 import RecipeEditor from './components/RecipeEditor';
@@ -67,7 +66,6 @@ export type View =
   | 'recipeEditor'
   | 'recipes'
   | 'permission';
-// | 'projects';
 
 export type ViewOptions = {
   // Settings view options
