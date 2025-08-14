@@ -150,7 +150,7 @@ impl AutoPilot {
     ) -> Result<Option<Arc<dyn crate::providers::base::Provider>>> {
         // If we already switched, check if we should switch back
         if self.switch_active {
-            debug!("AutoPilot: Switching back to original provider");
+            println!("AutoPilot: Switching back to original provider");
             self.switch_active = false;
             if let Some(original) = self.original_provider.take() {
                 return Ok(Some(original));
@@ -161,7 +161,7 @@ impl AutoPilot {
         // Check for "think" -> oracle
         if self.should_switch_to_oracle(conversation) {
             let oracle = self.oracle_config.as_ref().unwrap().clone();
-            info!("AutoPilot: Detected 'think' - switching to oracle model");
+            println!("AutoPilot: Detected 'think' - switching to oracle model");
             return self
                 .create_and_switch_provider(&oracle, current_provider)
                 .await;
@@ -170,7 +170,7 @@ impl AutoPilot {
         // Check for "help" -> second-opinion
         if self.should_switch_to_second_opinion(conversation) {
             let second_opinion = self.second_opinion_config.as_ref().unwrap().clone();
-            info!("AutoPilot: Detected 'help' - switching to second-opinion model");
+            println!("AutoPilot: Detected 'help' - switching to second-opinion model");
 
             // Update the last turn counter for second-opinion
             let current_turn = conversation
