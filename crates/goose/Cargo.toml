@@ -122,11 +122,3 @@ path = "examples/agent.rs"
 [[example]]
 name = "databricks_oauth"
 path = "examples/databricks_oauth.rs"
-
-[[example]]
-name = "async_token_counter_demo"
-path = "examples/async_token_counter_demo.rs"
-
-[[bench]]
-name = "tokenization_benchmark"
-harness = false

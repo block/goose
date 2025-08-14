@@ -15,6 +15,7 @@ use crate::providers::toolshim::{
     augment_message_with_tool_calls, convert_tool_messages_to_text,
     modify_system_prompt_for_tool_json, OllamaInterpreter,
 };
+
 use crate::session;
 use rmcp::model::Tool;
 
@@ -131,8 +132,18 @@ impl Agent {
         };
 
         // Call the provider to get a response
-        let (mut response, usage) = provider
+        let (mut response, mut usage) = provider
             .complete(system_prompt, messages_for_provider.messages(), tools)
+            .await?;
+
+        // Ensure we have token counts, estimating if necessary
+        usage
+            .ensure_tokens(
+                system_prompt,
+                messages_for_provider.messages(),
+                &response,
+                tools,
+            )
             .await?;
 
         crate::providers::base::set_current_model(&usage.model);
@@ -177,13 +188,24 @@ impl Agent {
                 )
                 .await?
         } else {
-            let (message, usage) = provider
+            let (message, mut usage) = provider
                 .complete(
                     system_prompt.as_str(),
                     messages_for_provider.messages(),
                     &tools,
                 )
                 .await?;
+
+            // Ensure we have token counts for non-streaming case
+            usage
+                .ensure_tokens(
+                    system_prompt.as_str(),
+                    messages_for_provider.messages(),
+                    &message,
+                    &tools,
+                )
+                .await?;
+
             stream_from_single_message(message, usage)
         };
 

@@ -843,7 +843,13 @@ impl Agent {
         &self,
         messages: &[Message],
         session: &Option<SessionConfig>,
-    ) -> Result<Option<(Conversation, String)>> {
+    ) -> Result<
+        Option<(
+            Conversation,
+            String,
+            Option<crate::providers::base::ProviderUsage>,
+        )>,
+    > {
         // Try to get session metadata for more accurate token counts
         let session_metadata = if let Some(session_config) = session {
             match session::storage::get_path(session_config.id.clone()) {
@@ -865,21 +871,23 @@ impl Agent {
         if compact_result.compacted {
             let compacted_messages = compact_result.messages;
 
-            // Create compaction notification message
-            let compaction_msg = if let (Some(before), Some(after)) =
-                (compact_result.tokens_before, compact_result.tokens_after)
-            {
-                format!(
-                    "Auto-compacted context: {} → {} tokens ({:.0}% reduction)\n\n",
-                    before,
-                    after,
-                    (1.0 - (after as f64 / before as f64)) * 100.0
-                )
-            } else {
-                "Auto-compacted context to reduce token usage\n\n".to_string()
-            };
+            // Get threshold from config to include in message
+            let config = crate::config::Config::global();
+            let threshold = config
+                .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
+                .unwrap_or(0.8); // Default to 80%
+            let threshold_percentage = (threshold * 100.0) as u32;
 
-            return Ok(Some((compacted_messages, compaction_msg)));
+            let compaction_msg = format!(
+                "Exceeded auto-compact threshold of {}%. Context has been summarized and reduced.\n\n",
+                threshold_percentage
+            );
+
+            return Ok(Some((
+                compacted_messages,
+                compaction_msg,
+                compact_result.summarization_usage,
+            )));
         }
 
         Ok(None)
@@ -893,16 +901,16 @@ impl Agent {
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         // Handle auto-compaction before processing
-        let (messages, compaction_msg) = match self
+        let (messages, compaction_msg, _summarization_usage) = match self
             .handle_auto_compaction(unfixed_conversation.messages(), &session)
             .await?
         {
-            Some((compacted_messages, msg)) => (compacted_messages, Some(msg)),
+            Some((compacted_messages, msg, usage)) => (compacted_messages, Some(msg), usage),
             None => {
                 let context = self
                     .prepare_reply_context(unfixed_conversation, &session)
                     .await?;
-                (context.messages, None)
+                (context.messages, None, None)
             }
         };
 

@@ -57,9 +57,7 @@ pub struct ConfigResponse {
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ProviderDetails {
     pub name: String,
-
     pub metadata: ProviderMetadata,
-
     pub is_configured: bool,
 }
 
