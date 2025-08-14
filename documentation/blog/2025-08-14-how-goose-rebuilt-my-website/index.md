@@ -5,11 +5,11 @@ authors:
     - tania
 ---
 
-![goose Website Banner](goose_website_banner.png)
+![blog banner](blog_banner.png)
 
-# How Goose Helped Me Rebuild My Website
+A website to me is a corner of the internet where I can be who I am, share my work, and ultimately a place I can do whatever I want with. For it to be anything but my personality personified, especially as an ex-nerdy blog designer (in my middle school and high school days), felt so sad! Until suddenly, what started out as a harmless "404 Day" challenge quickly turned into making that website in basically no time.
 
-A website to me is a corner of the internet where I can be who I am, share my work, and ultimately a place I can do whatever I want with. For it to be anything but my personality personified, especially as an ex-nerdy blog designer (in my middle school and high school days), felt so sad! Until suddenly, what started out as a harmless 404 day challenge quickly turned into making that website in basically no time.
+<!-- truncate -->
 
 ## Going Back to My Roots
 
@@ -62,10 +62,10 @@ So if you're sitting there with a naked website that needs help, or if you've be
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/08/14/how-goose-rebuilt-my-website" />
   <meta property="og:description" content="How a simple prompt transformed a blank website into a personal portfolio" />
-  <meta property="og:image" content="https://block.github.io/goose/assets/images/goose_website_banner-656bd5e1014edfbcd313a9f799f9e9a5.png" />
+  <meta property="og:image" content="https://block.github.io/goose/assets/images/blog_banner-656bd5e1014edfbcd313a9f799f9e9a5.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="How Goose Helped Me Rebuild My Website" />
   <meta name="twitter:description" content="How a simple prompt transformed a blank website into a personal portfolio" />
-  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/goose_website_banner-656bd5e1014edfbcd313a9f799f9e9a5.png" />
+  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/blog_banner-656bd5e1014edfbcd313a9f799f9e9a5.png" />
 </head>
