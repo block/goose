@@ -68,7 +68,6 @@ Here's how to configure:
         * Smart Approve: `/mode smart_approve`
         * Approve: `/mode approve`
         * Chat: `/mode chat`     
-        * Smart Approve: `/mode smart_approve`
       </TabItem>
       <TabItem value="settings" label="From Settings">
         1. Run the following command:
