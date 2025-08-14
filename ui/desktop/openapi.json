@@ -46,6 +46,45 @@
         }
       }
     },
+    "/agent/execute_tool": {
+      "post": {
+        "tags": [
+          "Agent Tools"
+        ],
+        "operationId": "execute_tool",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecuteToolRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Tool executed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecuteToolResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "424": {
+            "description": "Agent not initialized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/agent/tools": {
       "get": {
         "tags": [
@@ -1444,6 +1483,41 @@
         "additionalProperties": {
           "type": "string",
           "description": "A map of environment variables to set, e.g. API_KEY -> some_secret, HOST -> host"
+        }
+      },
+      "ExecuteToolRequest": {
+        "type": "object",
+        "required": [
+          "tool_name",
+          "arguments"
+        ],
+        "properties": {
+          "arguments": {},
+          "session_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "tool_name": {
+            "type": "string"
+          }
+        }
+      },
+      "ExecuteToolResponse": {
+        "type": "object",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "nullable": true
+          },
+          "success": {
+            "type": "boolean"
+          }
         }
       },
       "ExtensionConfig": {

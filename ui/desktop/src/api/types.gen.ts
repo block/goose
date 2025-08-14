@@ -143,6 +143,18 @@ export type Envs = {
     [key: string]: string;
 };
 
+export type ExecuteToolRequest = {
+    arguments: unknown;
+    session_id?: string | null;
+    tool_name: string;
+};
+
+export type ExecuteToolResponse = {
+    error?: string | null;
+    result?: unknown;
+    success: boolean;
+};
+
 /**
  * Represents the different types of MCP extensions that can be added to the manager
  */
@@ -808,6 +820,37 @@ export type AddSubRecipesResponses = {
 };
 
 export type AddSubRecipesResponse2 = AddSubRecipesResponses[keyof AddSubRecipesResponses];
+
+export type ExecuteToolData = {
+    body: ExecuteToolRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/execute_tool';
+};
+
+export type ExecuteToolErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ExecuteToolResponses = {
+    /**
+     * Tool executed successfully
+     */
+    200: ExecuteToolResponse;
+};
+
+export type ExecuteToolResponse2 = ExecuteToolResponses[keyof ExecuteToolResponses];
 
 export type GetToolsData = {
     body?: never;

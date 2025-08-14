@@ -6,6 +6,8 @@ import { LocalMessageStorage } from '../utils/localMessageStorage';
 import {
   Message,
   createUserMessage,
+  createToolRequestMessage,
+  createToolResponseMessage,
   ToolCall,
   ToolCallResult,
   ToolRequestMessageContent,
@@ -13,8 +15,22 @@ import {
   ToolConfirmationRequestMessageContent,
   getTextContent,
   TextContent,
+  Content,
 } from '../types/message';
 import { ChatType } from '../types/chat';
+
+// Detail payload for external MCP UI tool executions
+type ExternalToolDetail = {
+  toolName: string;
+  toolArguments: Record<string, unknown>;
+  result: Content[];
+};
+
+declare global {
+  interface WindowEventMap {
+    'external-tool-executed': CustomEvent<ExternalToolDetail>;
+  }
+}
 
 // Helper function to determine if a message is a user message
 const isUserMessage = (message: Message): boolean => {
@@ -407,6 +423,33 @@ export const useChatEngine = ({
       return map;
     }, new Map());
   }, [notifications]);
+
+  // Listen for external tool executions (from MCP UI direct tool calls)
+  useEffect(() => {
+    const handler = (ev: CustomEvent<ExternalToolDetail>) => {
+      try {
+        const detail = ev.detail;
+        if (!detail || !detail.toolName) return;
+
+        // Create a synthetic tool request (assistant) and tool response (user)
+        const reqId = Math.random().toString(36).slice(2, 10);
+        const toolReq = createToolRequestMessage(reqId, detail.toolName, detail.toolArguments);
+        const toolRes = createToolResponseMessage(
+          reqId,
+          Array.isArray(detail.result) ? detail.result : []
+        );
+
+        // Insert both into the chat so the user sees them
+        setMessages((msgs) => [...msgs, toolReq, toolRes]);
+      } catch (e) {
+        console.error('Failed to inject external tool execution into chat:', e);
+      }
+    };
+
+    const listener = (e: unknown) => handler(e as CustomEvent<ExternalToolDetail>);
+    window.addEventListener('external-tool-executed', listener);
+    return () => window.removeEventListener('external-tool-executed', listener);
+  }, [setMessages]);
 
   return {
     // Core message data

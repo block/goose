@@ -330,6 +330,20 @@ function BaseChatContent({
     }
   }, []);
 
+  // Listen for a global scroll-to-bottom request (e.g., from MCP UI tool executions)
+  useEffect(() => {
+    const handleGlobalScrollRequest = () => {
+      setTimeout(() => {
+        if (scrollRef.current?.scrollToBottom) {
+          scrollRef.current.scrollToBottom();
+        }
+      }, 200);
+    };
+
+    window.addEventListener('scroll-chat-to-bottom', handleGlobalScrollRequest);
+    return () => window.removeEventListener('scroll-chat-to-bottom', handleGlobalScrollRequest);
+  }, []);
+
   return (
     <div className="h-full flex flex-col min-h-0">
       <MainPanelLayout

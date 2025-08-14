@@ -275,10 +275,16 @@ function ToolCallView({
     return hasHighPriorityResults || shouldExpandBasedOnStyle;
   })();
 
+  // Helper to safely extract short tool name with or without prefix
+  const getShortToolName = (fullName: string): string => {
+    const idx = fullName.lastIndexOf('__');
+    return idx >= 0 ? fullName.substring(idx + 2) : fullName;
+  };
+
   // Function to create a descriptive representation of what the tool is doing
   const getToolDescription = (): string | null => {
     const args = toolCall.arguments as Record<string, ToolCallArgumentValue>;
-    const toolName = toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2);
+    const toolName = getShortToolName(toolCall.name);
 
     // Helper function to get string value safely
     const getStringValue = (value: ToolCallArgumentValue): string => {
@@ -437,7 +443,7 @@ function ToolCallView({
       return description;
     }
     // Fallback tool name formatting
-    return snakeToTitleCase(toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2));
+    return snakeToTitleCase(getShortToolName(toolCall.name));
   };
 
   const toolLabel = (
