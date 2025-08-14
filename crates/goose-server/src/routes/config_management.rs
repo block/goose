@@ -2,7 +2,7 @@ use super::utils::verify_secret_key;
 use crate::routes::utils::check_provider_configured;
 use crate::state::AppState;
 use axum::{
-    extract::State,
+    extract::{Path, State},
     routing::{delete, get, post},
     Json, Router,
 };
@@ -322,6 +322,45 @@ pub async fn providers(
         .collect();
 
     Ok(Json(providers_response))
+}
+
+#[utoipa::path(
+    get,
+    path = "/config/providers/{name}/models",
+    params(
+        ("name" = String, Path, description = "Provider name (e.g., openai)")
+    ),
+    responses(
+        (status = 200, description = "Models fetched successfully", body = [String]),
+        (status = 400, description = "Unknown provider or provider not configured"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn get_provider_models(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(name): Path<String>,
+) -> Result<Json<Vec<String>>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
+    let all = get_providers();
+    let Some(metadata) = all.into_iter().find(|m| m.name == name) else {
+        return Err(StatusCode::BAD_REQUEST);
+    };
+    if !check_provider_configured(&metadata) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let model_config = ModelConfig::new(&metadata.default_model)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let provider = goose::providers::create(&name, model_config)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    match provider.fetch_supported_models().await {
+        Ok(Some(models)) => Ok(Json(models)),
+        Ok(None) => Ok(Json(Vec::new())),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
 }
 
 #[derive(Serialize, ToSchema)]
@@ -649,6 +688,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/extensions", post(add_extension))
         .route("/config/extensions/{name}", delete(remove_extension))
         .route("/config/providers", get(providers))
+        .route("/config/providers/{name}/models", get(get_provider_models))
         .route("/config/pricing", post(get_pricing))
         .route("/config/init", post(init_config))
         .route("/config/backup", post(backup_config))

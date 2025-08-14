@@ -24,12 +24,11 @@ type AddModelModalProps = {
   setView: (view: View) => void;
 };
 export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
-  const { getProviders, read } = useConfig();
+  const { getProviders, getProviderModels, read } = useConfig();
   const { changeModel } = useModelAndProvider();
   const [providerOptions, setProviderOptions] = useState<{ value: string; label: string }[]>([]);
-  const [modelOptions, setModelOptions] = useState<
-    { options: { value: string; label: string; provider: string }[] }[]
-  >([]);
+  type ModelOption = { value: string; label: string; provider: string; isDisabled?: boolean };
+  const [modelOptions, setModelOptions] = useState<{ options: ModelOption[] }[]>([]);
   const [provider, setProvider] = useState<string | null>(null);
   const [model, setModel] = useState<string>('');
   const [isCustomModel, setIsCustomModel] = useState(false);
@@ -42,6 +41,8 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
   const [usePredefinedModels] = useState(shouldShowPredefinedModels());
   const [selectedPredefinedModel, setSelectedPredefinedModel] = useState<Model | null>(null);
   const [predefinedModels, setPredefinedModels] = useState<Model[]>([]);
+  const [loadingModels, setLoadingModels] = useState<boolean>(false);
+  const [modelsError, setModelsError] = useState<string | null>(null);
 
   // Validate form data
   const validateForm = useCallback(() => {
@@ -141,24 +142,44 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
           },
         ]);
 
-        // Format model options by provider
-        const formattedModelOptions: {
-          options: { value: string; label: string; provider: string }[];
-        }[] = [];
-        activeProviders.forEach(({ metadata, name }) => {
-          if (metadata.known_models && metadata.known_models.length > 0) {
-            formattedModelOptions.push({
-              options: metadata.known_models.map(({ name: modelName }) => ({
-                value: modelName,
-                label: modelName,
-                provider: name,
-              })),
-            });
+        // Dynamically fetch models per provider via server
+        setLoadingModels(true);
+        setModelsError(null);
+        const groupedOptions: { options: { value: string; label: string; provider: string }[] }[] =
+          [];
+        for (const p of activeProviders) {
+          const providerName = p.name;
+          try {
+            let models = await getProviderModels(providerName);
+            // Fallback to known_models if server returned none
+            if ((!models || models.length === 0) && p.metadata.known_models?.length) {
+              models = p.metadata.known_models.map((m) => m.name);
+            }
+            if (models && models.length > 0) {
+              groupedOptions.push({
+                options: models.map((m) => ({ value: m, label: m, provider: providerName })),
+              });
+            }
+          } catch (e: unknown) {
+            // Fallback to metadata known_models on error
+            setModelsError(
+              `Failed to fetch models for ${providerName}${e instanceof Error ? `: ${e.message}` : ''}`
+            );
+
+            if (p.metadata.known_models && p.metadata.known_models.length > 0) {
+              groupedOptions.push({
+                options: p.metadata.known_models.map(({ name }) => ({
+                  value: name,
+                  label: name,
+                  provider: providerName,
+                })),
+              });
+            }
           }
-        });
+        }
 
         // Add the "Custom model" option to each provider group
-        formattedModelOptions.forEach((group) => {
+        groupedOptions.forEach((group) => {
           group.options.push({
             value: 'custom',
             label: 'Use custom model',
@@ -166,13 +187,18 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
           });
         });
 
-        setModelOptions(formattedModelOptions);
-        setOriginalModelOptions(formattedModelOptions);
-      } catch (error) {
+        setModelOptions(groupedOptions);
+        setOriginalModelOptions(groupedOptions);
+      } catch (error: unknown) {
         console.error('Failed to load providers:', error);
+        setModelsError(
+          `Failed to load providers, showing default models${error instanceof Error ? `: ${error.message}` : ''}`
+        );
+      } finally {
+        setLoadingModels(false);
       }
     })();
-  }, [getProviders, usePredefinedModels, read]);
+  }, [getProviders, getProviderModels, usePredefinedModels, read]);
 
   // Filter model options based on selected provider
   const filteredModelOptions = provider
@@ -357,12 +383,45 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
                   {!isCustomModel ? (
                     <div>
                       <Select
-                        options={filteredModelOptions}
+                        options={
+                          loadingModels
+                            ? [
+                                {
+                                  options: [
+                                    {
+                                      value: '__loading__',
+                                      label: 'Loading models…',
+                                      provider: provider || '',
+                                      isDisabled: true,
+                                    },
+                                  ],
+                                },
+                              ]
+                            : filteredModelOptions.length > 0
+                              ? filteredModelOptions
+                              : modelsError
+                                ? [
+                                    {
+                                      options: [
+                                        {
+                                          value: '__error__',
+                                          label: 'Error loading models',
+                                          provider: provider || '',
+                                          isDisabled: true,
+                                        },
+                                      ],
+                                    },
+                                  ]
+                                : []
+                        }
                         onChange={handleModelChange}
                         onInputChange={handleInputChange} // Added for input handling
                         value={model ? { value: model, label: model } : null}
-                        placeholder="Select a model"
+                        placeholder="Select a model, type to search"
                       />
+                      {modelsError && (
+                        <div className="text-red-500 text-sm mt-1">{modelsError}</div>
+                      )}
                       {attemptedSubmit && validationErrors.model && (
                         <div className="text-red-500 text-sm mt-1">{validationErrors.model}</div>
                       )}
