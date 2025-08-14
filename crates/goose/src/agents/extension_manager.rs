@@ -77,6 +77,9 @@ impl ResourceItem {
     }
 }
 
+#[cfg(windows)]
+const CREATE_NO_WINDOW_FLAG: u32 = 0x08000000;
+
 /// Sanitizes a string by replacing invalid characters with underscores.
 /// Valid characters match [a-zA-Z0-9_-]
 fn normalize(input: String) -> String {
@@ -111,6 +114,8 @@ async fn child_process_client(
 ) -> ExtensionResult<McpClient> {
     #[cfg(unix)]
     command.process_group(0);
+    #[cfg(windows)]
+    command.creation_flags(CREATE_NO_WINDOW_FLAG);
     let (transport, mut stderr) = TokioChildProcess::builder(command)
         .stderr(Stdio::piped())
         .spawn()?;

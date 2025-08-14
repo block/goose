@@ -141,11 +141,16 @@ export default function ProgressiveMessageList({
 
   // Force complete rendering when search is active
   useEffect(() => {
+    // Only add listener if we're actually loading
+    if (!isLoading) {
+      return;
+    }
+
     const handleKeyDown = (e: KeyboardEvent) => {
       const isMac = window.electron.platform === 'darwin';
       const isSearchShortcut = (isMac ? e.metaKey : e.ctrlKey) && e.key === 'f';
 
-      if (isSearchShortcut && isLoading) {
+      if (isSearchShortcut) {
         // Immediately render all messages when search is triggered
         setRenderedCount(messages.length);
         setIsLoading(false);
@@ -248,14 +253,14 @@ export default function ProgressiveMessageList({
     renderedCount,
     renderMessage,
     isUserMessage,
-    hasContextHandlerContent,
-    getContextHandlerType,
     chat,
     append,
     appendMessage,
     toolCallNotifications,
-    onScrollToBottom,
     isStreamingMessage,
+    hasContextHandlerContent,
+    getContextHandlerType,
+    onScrollToBottom,
   ]);
 
   return (

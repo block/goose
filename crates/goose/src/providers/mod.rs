@@ -28,6 +28,7 @@ pub mod sagemaker_tgi;
 pub mod snowflake;
 pub mod testprovider;
 pub mod toolshim;
+pub mod usage_estimator;
 pub mod utils;
 pub mod utils_universal_openai_stream;
 pub mod venice;

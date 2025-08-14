@@ -1006,7 +1006,7 @@ export default function ChatInput({
         {/* Inline action buttons on the right */}
         <div className="flex items-center gap-1 px-2 relative">
           {/* Microphone button - show if dictation is enabled, disable if not configured */}
-          {dictationSettings?.enabled && (
+          {(dictationSettings?.enabled || dictationSettings?.provider === null) && (
             <>
               {!canUseDictation ? (
                 <Tooltip>
@@ -1026,11 +1026,24 @@ export default function ChatInput({
                     </span>
                   </TooltipTrigger>
                   <TooltipContent>
-                    {dictationSettings.provider === 'openai'
-                      ? 'OpenAI API key is not configured. Set it up in Settings > Models.'
-                      : dictationSettings.provider === 'elevenlabs'
-                        ? 'ElevenLabs API key is not configured. Set it up in Settings > Chat > Voice Dictation.'
-                        : 'Dictation provider is not properly configured.'}
+                    {dictationSettings.provider === 'openai' ? (
+                      <p>
+                        OpenAI API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
+                        <b>Models.</b>
+                      </p>
+                    ) : dictationSettings.provider === 'elevenlabs' ? (
+                      <p>
+                        ElevenLabs API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
+                        <b>Chat</b> {'>'} <b>Voice Dictation.</b>
+                      </p>
+                    ) : dictationSettings.provider === null ? (
+                      <p>
+                        Dictation is not configured. Configure it in <b>Settings</b> {'>'}{' '}
+                        <b>Chat</b> {'>'} <b>Voice Dictation.</b>
+                      </p>
+                    ) : (
+                      <p>Dictation provider is not properly configured.</p>
+                    )}
                   </TooltipContent>
                 </Tooltip>
               ) : (

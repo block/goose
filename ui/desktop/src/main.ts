@@ -722,6 +722,11 @@ const createChat = async (
       : `?view=${encodeURIComponent(viewType)}`;
   }
 
+  // For recipe deeplinks, navigate directly to pair view
+  if (recipe || recipeDeeplink) {
+    queryParams = queryParams ? `${queryParams}&view=pair` : `?view=pair`;
+  }
+
   // Increment window counter to track number of windows
   const windowId = ++windowCounter;
 
@@ -1781,15 +1786,6 @@ app.whenReady().then(async () => {
     details.requestHeaders['Origin'] = 'http://localhost:5173';
     callback({ cancel: false, requestHeaders: details.requestHeaders });
   });
-
-  // Test error feature - only enabled with GOOSE_TEST_ERROR=true
-  if (process.env.GOOSE_TEST_ERROR === 'true') {
-    console.log('Test error feature enabled, will throw error in 5 seconds');
-    setTimeout(() => {
-      console.log('Throwing test error now...');
-      throw new Error('Test error: This is a simulated fatal error after 5 seconds');
-    }, 5000);
-  }
 
   // Create tray if enabled in settings
   const settings = loadSettings();

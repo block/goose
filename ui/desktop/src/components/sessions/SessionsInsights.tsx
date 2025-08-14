@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription } from '../ui/card';
-// import { Folder } from 'lucide-react';
 import { getApiUrl } from '../../config';
 import { Greeting } from '../common/Greeting';
 import { fetchSessions, fetchSessionDetails, type Session } from '../../sessions';
-// import { fetchProjects, type ProjectMetadata } from '../../projects';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/button';
 import { ChatSmart } from '../icons/';
@@ -24,7 +22,6 @@ export function SessionInsights() {
   const [recentSessions, setRecentSessions] = useState<Session[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingSessions, setIsLoadingSessions] = useState(true);
-  // const [recentProjects, setRecentProjects] = useState<ProjectMetadata[]>([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -75,15 +72,6 @@ export function SessionInsights() {
       }
     };
 
-    // const loadRecentProjects = async () => {
-    //   try {
-    //     const projects = await fetchProjects();
-    //     setRecentProjects(projects.slice(0, 3));
-    //   } catch (error) {
-    //     console.error('Failed to load recent projects:', error);
-    //   }
-    // };
-
     // Set a maximum loading time to prevent infinite skeleton
     loadingTimeout = setTimeout(() => {
       // Only apply fallback if we still don't have insights data
@@ -107,7 +95,6 @@ export function SessionInsights() {
 
     loadInsights();
     loadRecentSessions();
-    // loadRecentProjects();
 
     // Cleanup timeout on unmount
     return () => {
@@ -140,17 +127,6 @@ export function SessionInsights() {
   const navigateToSessionHistory = () => {
     navigate('/sessions');
   };
-
-  // const navigateToProjects = () => {
-  //   navigate('/projects');
-  // };
-  //
-  // const handleProjectClick = (projectId: string) => {
-  //   navigate('/projects', {
-  //     state: { selectedProjectId: projectId },
-  //     replace: true,
-  //   });
-  // };
 
   // Format date to show only the date part (without time)
   const formatDateOnly = (dateStr: string) => {
@@ -335,60 +311,6 @@ export function SessionInsights() {
 
         {/* Recent Chats Card */}
         <div className="grid grid-cols-1 gap-0.5">
-          {/* Recent Projects Card */}
-          {/*<Card className="w-full py-6 px-4 border-none rounded-tl-none rounded-bl-none">*/}
-          {/*  <CardContent className="animate-in fade-in duration-500 px-4">*/}
-          {/*    <div className="flex justify-between items-center mb-2 px-2">*/}
-          {/*      <CardDescription className="mb-0">*/}
-          {/*        <span className="text-lg text-text-default">Recent projects</span>*/}
-          {/*      </CardDescription>*/}
-          {/*      <Button*/}
-          {/*        variant="ghost"*/}
-          {/*        size="sm"*/}
-          {/*        className="text-xs text-text-muted flex items-center gap-1 !px-0 hover:bg-transparent hover:underline hover:text-text-default"*/}
-          {/*        onClick={navigateToProjects}*/}
-          {/*      >*/}
-          {/*        See all*/}
-          {/*      </Button>*/}
-          {/*    </div>*/}
-          {/*    <div className="space-y-1 min-h-[96px] transition-all duration-300 ease-in-out">*/}
-          {/*      <AnimatePresence>*/}
-          {/*        {recentProjects.length > 0 ? (*/}
-          {/*          recentProjects.map((project, index) => (*/}
-          {/*            <motion.div*/}
-          {/*              key={project.id}*/}
-          {/*              className="flex items-center justify-between text-sm py-1 px-2 rounded-md hover:bg-background-muted cursor-pointer transition-colors"*/}
-          {/*              onClick={() => handleProjectClick(project.id)}*/}
-          {/*              role="button"*/}
-          {/*              tabIndex={0}*/}
-          {/*              initial={{ opacity: 0, y: 5 }}*/}
-          {/*              animate={{ opacity: 1, y: 0 }}*/}
-          {/*              transition={{ duration: 0.3, delay: index * 0.1 }}*/}
-          {/*              onKeyDown={(e) => {*/}
-          {/*                if (e.key === 'Enter' || e.key === ' ') {*/}
-          {/*                  handleProjectClick(project.id);*/}
-          {/*                }*/}
-          {/*              }}*/}
-          {/*            >*/}
-          {/*              <div className="flex items-center space-x-2">*/}
-          {/*                <Folder className="h-4 w-4 text-text-muted" />*/}
-          {/*                <span className="truncate max-w-[200px]">{project.name}</span>*/}
-          {/*              </div>*/}
-          {/*              <span className="text-text-muted font-mono font-light">*/}
-          {/*                {formatDateOnly(project.updatedAt)}*/}
-          {/*              </span>*/}
-          {/*            </motion.div>*/}
-          {/*          ))*/}
-          {/*        ) : (*/}
-          {/*          <div className="text-text-muted text-sm py-2 px-2">*/}
-          {/*            No recent projects found.*/}
-          {/*          </div>*/}
-          {/*        )}*/}
-          {/*      </AnimatePresence>*/}
-          {/*    </div>*/}
-          {/*  </CardContent>*/}
-          {/*</Card>*/}
-
           {/* Recent Chats Card */}
           <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-default">
             <CardContent className="page-transition p-0">
