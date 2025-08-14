@@ -253,4 +253,28 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
       ],
     },
   },
+  {
+    name: 'Z.AI',
+    details: {
+      id: 'zai',
+      name: 'Z.AI',
+      description: 'Access GLM Serials models using Z.AI official API',
+      parameters: [
+        {
+          name: 'ZAI_API_KEY',
+          is_secret: true,
+        },
+        {
+          name: 'ZAI_HOST',
+          is_secret: false,
+          default: 'https://api.z.ai',
+        },
+        {
+          name: 'ZAI_BASE_PATH',
+          is_secret: false,
+          default: 'api/paas/v4/chat/completions',
+        },
+      ],
+    },
+  },
 ];

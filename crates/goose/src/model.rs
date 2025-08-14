@@ -61,6 +61,9 @@ static MODEL_SPECIFIC_LIMITS: Lazy<Vec<(&'static str, usize)>> = Lazy::new(|| {
         ("kimi-k2", 131_072),
         ("grok-4", 256_000),
         ("grok", 131_072),
+        // zai
+        ("glm-4.5", 131_072),
+        ("glm-4.5-air", 131_072),
     ]
 });
 
