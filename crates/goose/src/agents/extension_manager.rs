@@ -760,9 +760,13 @@ impl ExtensionManager {
             if !extension_config.is_tool_available(&tool_name) {
                 return Err(ErrorData::new(
                     ErrorCode::RESOURCE_NOT_FOUND,
-                    format!("Tool '{}' is not available for extension '{}'", tool_name, client_name),
+                    format!(
+                        "Tool '{}' is not available for extension '{}'",
+                        tool_name, client_name
+                    ),
                     None,
-                ).into());
+                )
+                .into());
             }
         }
 
