@@ -34,6 +34,9 @@ use rmcp::model::{Content, ErrorCode, ErrorData, GetPromptResult, Prompt, Resour
 use rmcp::transport::auth::AuthClient;
 use serde_json::Value;
 
+#[cfg(test)]
+mod extension_manager_test;
+
 type McpClientBox = Arc<Mutex<Box<dyn McpClientTrait>>>;
 
 /// Manages Goose extensions / MCP clients and their interactions
@@ -111,9 +114,21 @@ async fn child_process_client(
 ) -> ExtensionResult<McpClient> {
     #[cfg(unix)]
     command.process_group(0);
+
+    let cmd_name = command.as_std().get_program().to_string_lossy().to_string();
     let (transport, mut stderr) = TokioChildProcess::builder(command)
         .stderr(Stdio::piped())
-        .spawn()?;
+        .spawn()
+        .map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                ExtensionError::SetupError(format!(
+                    "Command '{}' not found. Please ensure it is installed and available in PATH.",
+                    cmd_name
+                ))
+            } else {
+                ExtensionError::IoError(e)
+            }
+        })?;
     let mut stderr = stderr.take().ok_or_else(|| {
         ExtensionError::SetupError("failed to attach child process stderr".to_owned())
     })?;
@@ -359,7 +374,17 @@ impl ExtensionManager {
                     command.arg("python").arg(file_path.to_str().unwrap());
                 });
 
-                let client = child_process_client(command, timeout).await?;
+                let client = child_process_client(command, timeout).await.map_err(|e| {
+                    // Add a helpful hint for uvx specifically
+                    if e.to_string().contains("'uvx' not found") {
+                        ExtensionError::SetupError(format!(
+                            "{}. To install uvx, run: pipx install uv",
+                            e
+                        ))
+                    } else {
+                        e
+                    }
+                })?;
                 self.temp_dirs.insert(sanitized_name.clone(), temp_dir);
 
                 Box::new(client)
@@ -926,251 +951,5 @@ impl ExtensionManager {
         }
 
         Ok(vec![Content::text(output_parts.join("\n"))])
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use mcp_client::client::Error;
-    use mcp_client::client::McpClientTrait;
-    use rmcp::model::CallToolResult;
-    use rmcp::model::InitializeResult;
-
-    use rmcp::model::ListPromptsResult;
-    use rmcp::model::ListResourcesResult;
-    use rmcp::model::ListToolsResult;
-    use rmcp::model::ReadResourceResult;
-    use rmcp::model::ServerNotification;
-    use serde_json::json;
-    use tokio::sync::mpsc;
-
-    struct MockClient {}
-
-    #[async_trait::async_trait]
-    impl McpClientTrait for MockClient {
-        fn get_info(&self) -> Option<&InitializeResult> {
-            None
-        }
-
-        async fn list_resources(
-            &self,
-            _next_cursor: Option<String>,
-            _cancellation_token: CancellationToken,
-        ) -> Result<ListResourcesResult, Error> {
-            Err(Error::TransportClosed)
-        }
-
-        async fn read_resource(
-            &self,
-            _uri: &str,
-            _cancellation_token: CancellationToken,
-        ) -> Result<ReadResourceResult, Error> {
-            Err(Error::TransportClosed)
-        }
-
-        async fn list_tools(
-            &self,
-            _next_cursor: Option<String>,
-            _cancellation_token: CancellationToken,
-        ) -> Result<ListToolsResult, Error> {
-            Err(Error::TransportClosed)
-        }
-
-        async fn call_tool(
-            &self,
-            name: &str,
-            _arguments: Value,
-            _cancellation_token: CancellationToken,
-        ) -> Result<CallToolResult, Error> {
-            match name {
-                "tool" | "test__tool" => Ok(CallToolResult {
-                    content: Some(vec![]),
-                    is_error: None,
-                    structured_content: None,
-                }),
-                _ => Err(Error::TransportClosed),
-            }
-        }
-
-        async fn list_prompts(
-            &self,
-            _next_cursor: Option<String>,
-            _cancellation_token: CancellationToken,
-        ) -> Result<ListPromptsResult, Error> {
-            Err(Error::TransportClosed)
-        }
-
-        async fn get_prompt(
-            &self,
-            _name: &str,
-            _arguments: Value,
-            _cancellation_token: CancellationToken,
-        ) -> Result<GetPromptResult, Error> {
-            Err(Error::TransportClosed)
-        }
-
-        async fn subscribe(&self) -> mpsc::Receiver<ServerNotification> {
-            mpsc::channel(1).1
-        }
-    }
-
-    #[test]
-    fn test_get_client_for_tool() {
-        let mut extension_manager = ExtensionManager::new();
-
-        // Add some mock clients
-        extension_manager.clients.insert(
-            normalize("test_client".to_string()),
-            Arc::new(Mutex::new(Box::new(MockClient {}))),
-        );
-
-        extension_manager.clients.insert(
-            normalize("__client".to_string()),
-            Arc::new(Mutex::new(Box::new(MockClient {}))),
-        );
-
-        extension_manager.clients.insert(
-            normalize("__cli__ent__".to_string()),
-            Arc::new(Mutex::new(Box::new(MockClient {}))),
-        );
-
-        extension_manager.clients.insert(
-            normalize("client 🚀".to_string()),
-            Arc::new(Mutex::new(Box::new(MockClient {}))),
-        );
-
-        // Test basic case
-        assert!(extension_manager
-            .get_client_for_tool("test_client__tool")
-            .is_some());
-
-        // Test leading underscores
-        assert!(extension_manager
-            .get_client_for_tool("__client__tool")
-            .is_some());
-
-        // Test multiple underscores in client name, and ending with __
-        assert!(extension_manager
-            .get_client_for_tool("__cli__ent____tool")
-            .is_some());
-
-        // Test unicode in tool name, "client 🚀" should become "client_"
-        assert!(extension_manager
-            .get_client_for_tool("client___tool")
-            .is_some());
-    }
-
-    #[tokio::test]
-    async fn test_dispatch_tool_call() {
-        // test that dispatch_tool_call parses out the sanitized name correctly, and extracts
-        // tool_names
-        let mut extension_manager = ExtensionManager::new();
-
-        // Add some mock clients
-        extension_manager.clients.insert(
-            normalize("test_client".to_string()),
-            Arc::new(Mutex::new(Box::new(MockClient {}))),
-        );
-
-        extension_manager.clients.insert(
-            normalize("__cli__ent__".to_string()),
-            Arc::new(Mutex::new(Box::new(MockClient {}))),
-        );
-
-        extension_manager.clients.insert(
-            normalize("client 🚀".to_string()),
-            Arc::new(Mutex::new(Box::new(MockClient {}))),
-        );
-
-        // verify a normal tool call
-        let tool_call = ToolCall {
-            name: "test_client__tool".to_string(),
-            arguments: json!({}),
-        };
-
-        let result = extension_manager
-            .dispatch_tool_call(tool_call, CancellationToken::default())
-            .await;
-        assert!(result.is_ok());
-
-        let tool_call = ToolCall {
-            name: "test_client__test__tool".to_string(),
-            arguments: json!({}),
-        };
-
-        let result = extension_manager
-            .dispatch_tool_call(tool_call, CancellationToken::default())
-            .await;
-        assert!(result.is_ok());
-
-        // verify a multiple underscores dispatch
-        let tool_call = ToolCall {
-            name: "__cli__ent____tool".to_string(),
-            arguments: json!({}),
-        };
-
-        let result = extension_manager
-            .dispatch_tool_call(tool_call, CancellationToken::default())
-            .await;
-        assert!(result.is_ok());
-
-        // Test unicode in tool name, "client 🚀" should become "client_"
-        let tool_call = ToolCall {
-            name: "client___tool".to_string(),
-            arguments: json!({}),
-        };
-
-        let result = extension_manager
-            .dispatch_tool_call(tool_call, CancellationToken::default())
-            .await;
-        assert!(result.is_ok());
-
-        let tool_call = ToolCall {
-            name: "client___test__tool".to_string(),
-            arguments: json!({}),
-        };
-
-        let result = extension_manager
-            .dispatch_tool_call(tool_call, CancellationToken::default())
-            .await;
-        assert!(result.is_ok());
-
-        // this should error out, specifically for an ToolError::ExecutionError
-        let invalid_tool_call = ToolCall {
-            name: "client___tools".to_string(),
-            arguments: json!({}),
-        };
-
-        let result = extension_manager
-            .dispatch_tool_call(invalid_tool_call, CancellationToken::default())
-            .await
-            .unwrap()
-            .result
-            .await;
-        assert!(matches!(
-            result,
-            Err(ErrorData {
-                code: ErrorCode::INTERNAL_ERROR,
-                ..
-            })
-        ));
-
-        // this should error out, specifically with an ToolError::NotFound
-        // this client doesn't exist
-        let invalid_tool_call = ToolCall {
-            name: "_client__tools".to_string(),
-            arguments: json!({}),
-        };
-
-        let result = extension_manager
-            .dispatch_tool_call(invalid_tool_call, CancellationToken::default())
-            .await;
-        if let Err(err) = result {
-            let tool_err = err.downcast_ref::<ErrorData>().expect("Expected ErrorData");
-            assert_eq!(tool_err.code, ErrorCode::RESOURCE_NOT_FOUND);
-        } else {
-            panic!("Expected ErrorData with ErrorCode::RESOURCE_NOT_FOUND");
-        }
     }
 }
