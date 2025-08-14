@@ -93,14 +93,6 @@ async function selectProvider(mainWindow: any, provider: Provider) {
     
     // Wait for the reset to complete
     await mainWindow.waitForTimeout(1000);
-    
-    // // Navigate to home to trigger provider selection
-    // console.log('Navigating to home after reset...');
-    // const homeButton = await mainWindow.waitForSelector('[data-testid="sidebar-home-button"]', {
-    //   timeout: 5000,
-    //   state: 'visible'
-    // });
-    // await homeButton.click();
   }
 
   // Wait for React app to be ready and animations to complete
