@@ -9,7 +9,7 @@ authors:
 
 What if I told you that you could build a complete, working web application in under an hour using nothing but AI agents? Not just a simple "Hello World" app, but a full-stack application with a backend API, responsive frontend, unit tests, and documentation?
 
-That's exactly what we accomplished during the Vibe Coding workshop at [Berkeley's Agentic AI Summit](https://www.youtube.com/embed/_w5m3h9jY-w?start=7146), where I demonstrated how to use Goose's subagent orchestration to spin up an entire development team of AI agents. Each agent took on a specific role - from product planning to QA testing - and worked together to build "AI BriefMe", a web app that generates executive style briefings on any topic.
+That's exactly what we accomplished during the Vibe Coding workshop at [Berkeley's Agentic AI Summit](https://www.youtube.com/live/_w5m3h9jY-w?t=5310), where I demonstrated how to use Goose's subagent orchestration to spin up an entire development team of AI agents. Each agent took on a specific role - from product planning to QA testing - and worked together to build "AI BriefMe", a web app that generates executive style briefings on any topic.
 
 <!-- truncate -->
 
@@ -408,7 +408,7 @@ Remember, this is about prototyping and exploration, not production deployment. 
 
 *Want to see this in action? Check out the full workshop video where we build AI BriefMe live:*
 
-<iframe class="aspect-ratio" width="560" height="315" src="https://www.youtube.com/embed/_w5m3h9jY-w?start=7146" title="Vibe Coding with Goose Workshop" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+<iframe class="aspect-ratio" src="https://www.youtube.com/embed/_w5m3h9jY-w?start=5310" title="Vibe Coding with Goose Workshop" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 <head>
   <meta property="og:title" content="How 7 AI Agents Worked Together to Build an App in One Hour" />
