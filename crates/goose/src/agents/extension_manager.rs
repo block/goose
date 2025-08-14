@@ -756,6 +756,16 @@ impl ExtensionManager {
             })?
             .to_string();
 
+        if let Some(extension_config) = self.extension_configs.get(client_name) {
+            if !extension_config.is_tool_available(&tool_name) {
+                return Err(ErrorData::new(
+                    ErrorCode::RESOURCE_NOT_FOUND,
+                    format!("Tool '{}' is not available for extension '{}'", tool_name, client_name),
+                    None,
+                ).into());
+            }
+        }
+
         let arguments = tool_call.arguments.clone();
         let client = client.clone();
         let notifications_receiver = client.lock().await.subscribe().await;
@@ -1287,5 +1297,62 @@ mod tests {
             .iter()
             .any(|name| name == "test_extension__hidden_tool"));
         assert!(tool_names.len() == 3);
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_unavailable_tool_returns_error() {
+        let mut extension_manager = ExtensionManager::new();
+
+        let available_tools = vec!["available_tool".to_string()];
+
+        let config = ExtensionConfig::Builtin {
+            name: "test_extension".to_string(),
+            display_name: Some("Test Extension".to_string()),
+            description: Some("Test extension for tool dispatch".to_string()),
+            timeout: Some(300),
+            bundled: Some(true),
+            available_tools,
+        };
+
+        let sanitized_name = normalize("test_extension".to_string());
+        extension_manager
+            .extension_configs
+            .insert(sanitized_name.clone(), config);
+
+        extension_manager.clients.insert(
+            sanitized_name,
+            Arc::new(Mutex::new(Box::new(MockClient {}))),
+        );
+
+        // Try to call an unavailable tool
+        let unavailable_tool_call = ToolCall {
+            name: "test_extension__tool".to_string(),
+            arguments: json!({}),
+        };
+
+        let result = extension_manager
+            .dispatch_tool_call(unavailable_tool_call, CancellationToken::default())
+            .await;
+
+        // Should return RESOURCE_NOT_FOUND error
+        if let Err(err) = result {
+            let tool_err = err.downcast_ref::<ErrorData>().expect("Expected ErrorData");
+            assert_eq!(tool_err.code, ErrorCode::RESOURCE_NOT_FOUND);
+            assert!(tool_err.message.contains("is not available"));
+        } else {
+            panic!("Expected ErrorData with ErrorCode::RESOURCE_NOT_FOUND");
+        }
+
+        // Try to call an available tool - should succeed
+        let available_tool_call = ToolCall {
+            name: "test_extension__available_tool".to_string(),
+            arguments: json!({}),
+        };
+
+        let result = extension_manager
+            .dispatch_tool_call(available_tool_call, CancellationToken::default())
+            .await;
+
+        assert!(result.is_ok());
     }
 }
