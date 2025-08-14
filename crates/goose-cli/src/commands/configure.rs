@@ -283,8 +283,7 @@ async fn handle_oauth_configuration(
     }
 }
 
-/// Interactive model search that truncates the list to improve UX
-fn interactive_model_search(models: &[String]) -> Result<String, Box<dyn std::error::Error>> {
+fn interactive_model_search(models: &[String]) -> Result<String, Box<dyn Error>> {
     const MAX_VISIBLE: usize = 30;
     let mut query = String::new();
 
@@ -1784,6 +1783,110 @@ pub async fn handle_openrouter_auth() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+fn add_provider() -> Result<(), Box<dyn Error>> {
+    let provider_type = cliclack::select("What type of API is this?")
+        .item(
+            "openai_compatible",
+            "OpenAI Compatible",
+            "Uses OpenAI API format",
+        )
+        .item(
+            "anthropic_compatible",
+            "Anthropic Compatible",
+            "Uses Anthropic API format",
+        )
+        .item(
+            "ollama_compatible",
+            "Ollama Compatible",
+            "Uses Ollama API format",
+        )
+        .interact()?;
+
+    let display_name: String = cliclack::input("What should we call this provider?")
+        .placeholder("Your Provider Name")
+        .validate(|input: &String| {
+            if input.is_empty() {
+                Err("Please enter a name")
+            } else {
+                Ok(())
+            }
+        })
+        .interact()?;
+
+    let api_url: String = cliclack::input("Provider API URL:")
+        .placeholder("https://api.example.com/v1/messages")
+        .validate(|input: &String| {
+            if !input.starts_with("http://") && !input.starts_with("https://") {
+                Err("URL must start with either http:// or https://")
+            } else {
+                Ok(())
+            }
+        })
+        .interact()?;
+
+    let api_key: String = cliclack::password("API key:").mask('▪').interact()?;
+
+    let models_input: String = cliclack::input("Available models (seperate with commas):")
+        .placeholder("model-a, model-b, model-c")
+        .validate(|input: &String| {
+            if input.trim().is_empty() {
+                Err("Please enter at least one model name")
+            } else {
+                Ok(())
+            }
+        })
+        .interact()?;
+
+    let models: Vec<String> = models_input
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    let supports_streaming = cliclack::confirm("Does this provider support streaming responses?")
+        .initial_value(true)
+        .interact()?;
+
+    CustomProviderConfig::create_and_save(
+        provider_type,
+        display_name.clone(),
+        api_url,
+        api_key,
+        models,
+        Some(supports_streaming),
+    )?;
+
+    cliclack::outro(format!("Custom provider added: {}", display_name))?;
+    Ok(())
+}
+
+fn remove_provider() -> Result<(), Box<dyn Error>> {
+    let custom_providers_dir = goose::config::custom_providers::custom_providers_dir();
+    let custom_providers = if custom_providers_dir.exists() {
+        goose::config::custom_providers::load_custom_providers(&custom_providers_dir)?
+    } else {
+        Vec::new()
+    };
+
+    if custom_providers.is_empty() {
+        cliclack::outro("No custom providers added just yet.")?;
+        return Ok(());
+    }
+
+    let provider_items: Vec<_> = custom_providers
+        .iter()
+        .map(|p| (p.name.as_str(), p.display_name.as_str(), "Custom provider"))
+        .collect();
+
+    let selected_id = cliclack::select("Which custom provider would you like to remove?")
+        .items(&provider_items)
+        .interact()?;
+
+    CustomProviderConfig::remove(selected_id)?;
+    cliclack::outro(format!("Removed custom provider: {}", selected_id))?;
+    Ok(())
+}
+
 pub fn configure_custom_provider_dialog() -> Result<(), Box<dyn Error>> {
     let action = cliclack::select("What would you like to do?")
         .item(
@@ -1799,110 +1902,8 @@ pub fn configure_custom_provider_dialog() -> Result<(), Box<dyn Error>> {
         .interact()?;
 
     match action {
-        "add" => {
-            let provider_type = cliclack::select("What type of API is this?")
-                .item(
-                    "openai_compatible",
-                    "OpenAI Compatible",
-                    "Uses OpenAI API format",
-                )
-                .item(
-                    "anthropic_compatible",
-                    "Anthropic Compatible",
-                    "Uses Anthropic API format",
-                )
-                .item(
-                    "ollama_compatible",
-                    "Ollama Compatible",
-                    "Uses Ollama API format",
-                )
-                .interact()?;
-
-            let display_name: String = cliclack::input("What should we call this provider?")
-                .placeholder("Your Provider Name")
-                .validate(|input: &String| {
-                    if input.is_empty() {
-                        Err("Please enter a name")
-                    } else {
-                        Ok(())
-                    }
-                })
-                .interact()?;
-
-            let api_url: String = cliclack::input("Provider API URL:")
-                .placeholder("https://api.example.com/v1/messages")
-                .validate(|input: &String| {
-                    if !input.starts_with("http://") && !input.starts_with("https://") {
-                        Err("URL must start with either http:// or https://")
-                    } else {
-                        Ok(())
-                    }
-                })
-                .interact()?;
-
-            let api_key: String = cliclack::password("API key:").mask('▪').interact()?;
-
-            let models_input: String = cliclack::input("Available models (seperate with commas):")
-                .placeholder("model-a, model-b, model-c")
-                .validate(|input: &String| {
-                    if input.trim().is_empty() {
-                        Err("Please enter at least one model name")
-                    } else {
-                        Ok(())
-                    }
-                })
-                .interact()?;
-
-            let models: Vec<String> = models_input
-                .split(',')
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect();
-
-            let supports_streaming =
-                cliclack::confirm("Does this provider support streaming responses?")
-                    .initial_value(true)
-                    .interact()?;
-
-            CustomProviderConfig::create_and_save(
-                provider_type,
-                display_name.clone(),
-                api_url,
-                api_key,
-                models,
-                Some(supports_streaming),
-            )?;
-
-            cliclack::outro(format!("Custom provider added: {}", display_name))?;
-        }
-        "remove" => {
-            let custom_providers_dir = goose::config::custom_providers::custom_providers_dir();
-
-            let custom_providers = if custom_providers_dir.exists() {
-                goose::config::custom_providers::load_custom_providers(&custom_providers_dir)?
-            } else {
-                Vec::new()
-            };
-            if custom_providers.is_empty() {
-                cliclack::outro("No custom providers added just yet.")?;
-                return Ok(());
-            }
-
-            let provider_items: Vec<_> = custom_providers
-                .iter()
-                .map(|p| (p.name.as_str(), p.display_name.as_str(), "Custom provider"))
-                .collect();
-
-            let selected_id = cliclack::select("Which custom provider would you like to remove?")
-                .items(&provider_items)
-                .interact()?;
-
-            CustomProviderConfig::remove(selected_id)?;
-
-            cliclack::outro(format!("Removed custom provider: {}", selected_id))?;
-        }
+        "add" => add_provider(),
+        "remove" => remove_provider(),
         _ => unreachable!(),
     }
-
-    Ok(())
 }
