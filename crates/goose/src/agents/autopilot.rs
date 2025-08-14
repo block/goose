@@ -148,6 +148,7 @@ impl AutoPilot {
         conversation: &Conversation,
         current_provider: Arc<dyn crate::providers::base::Provider>,
     ) -> Result<Option<Arc<dyn crate::providers::base::Provider>>> {
+        println!("AutoPilot: Checking conversation for model switch");
         // If we already switched, check if we should switch back
         if self.switch_active {
             println!("AutoPilot: Switching back to original provider");
