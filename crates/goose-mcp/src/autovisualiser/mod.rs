@@ -43,6 +43,64 @@ impl AutoVisualiserRouter {
             }),
         );
 
+        let render_sankey_tool = Tool::new(
+            "render_sankey",
+            indoc! {r#"
+                Renders a Sankey diagram visualization from flow data.
+                Returns an interactive HTML visualization using D3.js.
+                
+                The data should contain:
+                - nodes: Array of objects with 'name' and optional 'category' properties
+                - links: Array of objects with 'source', 'target', and 'value' properties
+                
+                Example:
+                {
+                  "nodes": [
+                    {"name": "Source A", "category": "source"},
+                    {"name": "Target B", "category": "target"}
+                  ],
+                  "links": [
+                    {"source": "Source A", "target": "Target B", "value": 100}
+                  ]
+                }
+            "#},
+            object!({
+                "type": "object",
+                "required": ["data"],
+                "properties": {
+                    "data": {
+                        "type": "object",
+                        "required": ["nodes", "links"],
+                        "properties": {
+                            "nodes": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "required": ["name"],
+                                    "properties": {
+                                        "name": {"type": "string"},
+                                        "category": {"type": "string"}
+                                    }
+                                }
+                            },
+                            "links": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "required": ["source", "target", "value"],
+                                    "properties": {
+                                        "source": {"type": "string"},
+                                        "target": {"type": "string"},
+                                        "value": {"type": "number"}
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }),
+        );
+
         // choose_app_strategy().cache_dir()
         // - macOS/Linux: ~/.cache/goose/autovisualiser/
         // - Windows:     ~\AppData\Local\Block\goose\cache\autovisualiser\
@@ -60,6 +118,7 @@ impl AutoVisualiserRouter {
 
             ## Available Tools:
             - **mcp_ui_hello**: A simple demonstration tool that returns HTML content
+            - **render_sankey**: Creates interactive Sankey diagrams from flow data
 
             ## Purpose:
             This extension is designed to help generate dynamic visualizations and UI
@@ -70,7 +129,7 @@ impl AutoVisualiserRouter {
         "#, cache_dir.display()};
 
         Self {
-            tools: vec![mcp_ui_hello_tool],
+            tools: vec![mcp_ui_hello_tool, render_sankey_tool],
             cache_dir,
             active_resources: Arc::new(Mutex::new(HashMap::new())),
             instructions,
@@ -86,6 +145,46 @@ impl AutoVisualiserRouter {
             uri: "ui://hello/greeting".to_string(),
             mime_type: Some("text/html".to_string()),
             text: html_content.to_string(),
+        };
+
+        Ok(vec![Content::resource(resource_contents)])
+    }
+
+    async fn render_sankey(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        // Extract the data from parameters
+        let data = params
+            .get("data")
+            .ok_or_else(|| ToolError::InvalidParameters("Missing 'data' parameter".to_string()))?;
+
+        // Load the Sankey template
+        let template_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src")
+            .join("autovisualiser")
+            .join("sankey_template.html");
+
+        let template = std::fs::read_to_string(&template_path)
+            .map_err(|e| ToolError::ExecutionError(format!("Failed to read template: {}", e)))?;
+
+        // Convert the data to JSON string
+        let data_json = serde_json::to_string(&data)
+            .map_err(|e| ToolError::InvalidParameters(format!("Invalid JSON data: {}", e)))?;
+
+        // Replace the placeholder with actual data
+        let html_content = template.replace("{{SANKEY_DATA}}", &data_json);
+
+        // Save to /tmp/vis.html for debugging
+        let debug_path = std::path::Path::new("/tmp/vis.html");
+        if let Err(e) = std::fs::write(debug_path, &html_content) {
+            tracing::warn!("Failed to write debug HTML to /tmp/vis.html: {}", e);
+        } else {
+            tracing::info!("Debug HTML saved to /tmp/vis.html");
+        }
+
+        // Create a proper ResourceContents::TextResourceContents
+        let resource_contents = ResourceContents::TextResourceContents {
+            uri: "ui://sankey/diagram".to_string(),
+            mime_type: Some("text/html".to_string()),
+            text: html_content,
         };
 
         Ok(vec![Content::resource(resource_contents)])
@@ -123,6 +222,7 @@ impl Router for AutoVisualiserRouter {
         Box::pin(async move {
             match tool_name.as_str() {
                 "mcp_ui_hello" => this.mcp_ui_hello(arguments).await,
+                "render_sankey" => this.render_sankey(arguments).await,
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
         })
