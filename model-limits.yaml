@@ -1,0 +1,83 @@
+# Centralized model context limits for Goose
+# Extend or modify this list. Pattern is matched by substring on the model name.
+# Example: if model name contains "gpt-4o", the limit below is used.
+
+models:
+  - pattern: "GPT-5"
+  - context_limit: 272000
+  - pattern: "gpt-4-turbo"
+    context_limit: 128000
+  - pattern: "gpt-4.1"
+    context_limit: 1000000
+  - pattern: "gpt-4-1"
+    context_limit: 1000000
+  - pattern: "gpt-4o"
+    context_limit: 128000
+  - pattern: "o4-mini"
+    context_limit: 200000
+  - pattern: "o3-mini"
+    context_limit: 200000
+  - pattern: "o3"
+    context_limit: 200000
+  - pattern: "claude"
+    context_limit: 200000
+  - pattern: "gemini-1"
+    context_limit: 128000
+  - pattern: "gemini-2"
+    context_limit: 1000000
+  - pattern: "gemma-3-27b"
+    context_limit: 128000
+  - pattern: "gemma-3-12b"
+    context_limit: 128000
+  - pattern: "gemma-3-4b"
+    context_limit: 128000
+  - pattern: "gemma-3-1b"
+    context_limit: 32000
+  - pattern: "gemma3-27b"
+    context_limit: 128000
+  - pattern: "gemma3-12b"
+    context_limit: 128000
+  - pattern: "gemma3-4b"
+    context_limit: 128000
+  - pattern: "gemma3-1b"
+    context_limit: 32000
+  - pattern: "gemma-2-27b"
+    context_limit: 8192
+  - pattern: "gemma-2-9b"
+    context_limit: 8192
+  - pattern: "gemma-2-2b"
+    context_limit: 8192
+  - pattern: "gemma2-"
+    context_limit: 8192
+  - pattern: "gemma-7b"
+    context_limit: 8192
+  - pattern: "gemma-2b"
+    context_limit: 8192
+  - pattern: "gemma1"
+    context_limit: 8192
+  - pattern: "gemma"
+    context_limit: 8192
+  - pattern: "llama-2-1b"
+    context_limit: 32000
+  - pattern: "llama"
+    context_limit: 128000
+  - pattern: "qwen3-coder"
+    context_limit: 262144
+  - pattern: "qwen2-7b"
+    context_limit: 128000
+  - pattern: "qwen2-14b"
+    context_limit: 128000
+  - pattern: "qwen2-32b"
+    context_limit: 131072
+  - pattern: "qwen2-70b"
+    context_limit: 262144
+  - pattern: "qwen2"
+    context_limit: 128000
+  - pattern: "qwen3-32b"
+    context_limit: 131072
+  - pattern: "kimi-k2"
+    context_limit: 131072
+  - pattern: "grok-4"
+    context_limit: 256000
+  - pattern: "grok"
+    context_limit: 131072
