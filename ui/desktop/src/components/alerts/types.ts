@@ -19,4 +19,5 @@ export interface Alert {
   showSummarizeButton?: boolean;
   onSummarize?: () => void;
   summarizeIcon?: React.ReactNode;
+  autoCompactThreshold?: number; // Add this for showing the auto-compact threshold
 }

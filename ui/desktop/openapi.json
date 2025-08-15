@@ -252,6 +252,27 @@
         }
       }
     },
+    "/config/auto-compact-threshold": {
+      "get": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "get_auto_compact_threshold",
+        "responses": {
+          "200": {
+            "description": "Auto-compact threshold retrieved successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "number",
+                  "format": "double"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/config/backup": {
       "post": {
         "tags": [
@@ -271,6 +292,26 @@
           },
           "500": {
             "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/config/current-model": {
+      "get": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "get_current_model",
+        "responses": {
+          "200": {
+            "description": "Current model retrieved successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       }

@@ -26,22 +26,54 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
       {alert.progress ? (
         <div className="flex flex-col gap-2">
           <span className="text-[11px]">{alert.message}</span>
+
+          {/* Auto-compact threshold indicator */}
+          {alert.autoCompactThreshold !== undefined &&
+            alert.autoCompactThreshold > 0 &&
+            alert.autoCompactThreshold < 1 && (
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-[10px] opacity-70">
+                  Auto summarize at {Math.round(alert.autoCompactThreshold * 100)}%
+                </span>
+              </div>
+            )}
+
           <div className="flex justify-between w-full">
-            {[...Array(30)].map((_, i) => (
-              <div
-                key={i}
-                className={cn(
-                  'h-[2px] w-[2px] rounded-full',
-                  alert.type === AlertType.Info
-                    ? i < Math.round((alert.progress!.current / alert.progress!.total) * 30)
-                      ? 'dark:bg-black bg-white'
-                      : 'dark:bg-black/20 bg-white/20'
-                    : i < Math.round((alert.progress!.current / alert.progress!.total) * 30)
-                      ? 'bg-white'
-                      : 'bg-white/20'
-                )}
-              />
-            ))}
+            {[...Array(30)].map((_, i) => {
+              const progress = alert.progress!.current / alert.progress!.total;
+              const dotPosition = i / 30;
+              const isActive = dotPosition < progress;
+              const isThresholdDot =
+                alert.autoCompactThreshold !== undefined &&
+                alert.autoCompactThreshold > 0 &&
+                alert.autoCompactThreshold < 1 &&
+                Math.abs(dotPosition - alert.autoCompactThreshold) < 0.017; // ~1/30 tolerance
+
+              return (
+                <div
+                  key={i}
+                  className={cn(
+                    'rounded-full transition-all',
+                    isThresholdDot ? 'h-[3px] w-[3px] font-bold' : 'h-[2px] w-[2px]',
+                    alert.type === AlertType.Info
+                      ? isActive
+                        ? isThresholdDot
+                          ? 'dark:bg-black bg-white'
+                          : 'dark:bg-black bg-white'
+                        : isThresholdDot
+                          ? 'dark:bg-black/40 bg-white/40'
+                          : 'dark:bg-black/20 bg-white/20'
+                      : isActive
+                        ? isThresholdDot
+                          ? 'bg-white'
+                          : 'bg-white'
+                        : isThresholdDot
+                          ? 'bg-white/40'
+                          : 'bg-white/20'
+                  )}
+                />
+              );
+            })}
           </div>
           <div className="flex justify-between items-baseline text-[11px]">
             <div className="flex gap-1 items-baseline">

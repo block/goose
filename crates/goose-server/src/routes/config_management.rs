@@ -637,6 +637,29 @@ pub async fn get_current_model(
     })))
 }
 
+#[utoipa::path(
+    get,
+    path = "/config/auto-compact-threshold",
+    responses(
+        (status = 200, description = "Auto-compact threshold retrieved successfully", body = f64),
+    )
+)]
+pub async fn get_auto_compact_threshold(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Result<Json<Value>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
+    let config = Config::global();
+    let threshold = config
+        .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
+        .unwrap_or(0.8); // Default to 80%
+
+    Ok(Json(serde_json::json!({
+        "threshold": threshold
+    })))
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/config", get(read_all_config))
@@ -654,6 +677,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/validate", get(validate_config))
         .route("/config/permissions", post(upsert_permissions))
         .route("/config/current-model", get(get_current_model))
+        .route("/config/auto-compact-threshold", get(get_auto_compact_threshold))
         .with_state(state)
 }
 
