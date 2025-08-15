@@ -29,7 +29,7 @@ Goose automatically compacts (summarizes) older parts of your conversation when 
 Auto-compaction is triggered by default when you reach 80% of the token limit in Goose Desktop and the Goose CLI.
 
 Control the auto-compaction behavior with the `GOOSE_AUTO_COMPACT_THRESHOLD` [environment variable](/docs/guides/environment-variables.md#session-management). 
-Disable this feature by setting the value to `0.0` or `1.0`.
+Disable this feature by setting the value to `0.0`.
 
 ```
 # Automatically compact sessions when 60% of available tokens are used
