@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useMemo } from 'react';
+import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import { FolderKey, ScrollText } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
 import { Button } from './ui/button';
@@ -400,27 +400,41 @@ export default function ChatInput({
   }, [currentModel, currentProvider]);
 
   // Load auto-compact threshold
-  useEffect(() => {
-    const loadAutoCompactThreshold = async () => {
-      try {
-        const secretKey = await window.electron.getSecretKey();
-        const response = await fetch('/api/config/auto-compact-threshold', {
-          headers: {
-            'X-Secret-Key': secretKey,
-          },
-        });
-        if (response.ok) {
-          const data = await response.json();
-          if (data.threshold !== undefined) {
-            setAutoCompactThreshold(data.threshold);
-          }
+  const loadAutoCompactThreshold = useCallback(async () => {
+    try {
+      const secretKey = await window.electron.getSecretKey();
+      const response = await fetch('/api/config/auto-compact-threshold', {
+        headers: {
+          'X-Secret-Key': secretKey,
+        },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.threshold !== undefined) {
+          setAutoCompactThreshold(data.threshold);
         }
-      } catch (err) {
-        console.error('Error fetching auto-compact threshold:', err);
       }
+    } catch (err) {
+      console.error('Error fetching auto-compact threshold:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAutoCompactThreshold();
+  }, [loadAutoCompactThreshold]);
+
+  // Listen for threshold change events from AlertBox
+  useEffect(() => {
+    const handleThresholdChange = (event: any) => {
+      const customEvent = event as CustomEvent<{ threshold: number }>;
+      setAutoCompactThreshold(customEvent.detail.threshold);
     };
 
-    loadAutoCompactThreshold();
+    window.addEventListener('autoCompactThresholdChanged', handleThresholdChange);
+    
+    return () => {
+      window.removeEventListener('autoCompactThresholdChanged', handleThresholdChange);
+    };
   }, []);
 
   // Handle tool count alerts and token usage

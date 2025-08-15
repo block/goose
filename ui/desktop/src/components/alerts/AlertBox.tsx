@@ -54,9 +54,12 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
       }
 
       setIsEditingThreshold(false);
-
-      // Reload the page to reflect the new threshold
-      window.location.reload();
+      
+      // Dispatch a custom event to notify other components that the threshold has changed
+      // This allows ChatInput to reload the threshold without a page reload
+      window.dispatchEvent(new CustomEvent('autoCompactThresholdChanged', { 
+        detail: { threshold: thresholdValue / 100 } 
+      }));
     } catch (error) {
       console.error('Error saving threshold:', error);
       window.alert(
