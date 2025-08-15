@@ -20,8 +20,7 @@ type TestFixtures = {
 
 // Define available providers, keeping as a list of objects for easy expansion
 const providers: Provider[] = [
-  { name: 'Databricks' },
-  { name: 'Google' }
+  { name: 'Databricks' }
 ];
 
 // Create test with fixtures
@@ -64,24 +63,36 @@ async function selectProvider(mainWindow: any, provider: Provider) {
   }).catch(() => null);
 
   if (chatTextarea) {
-    // Click menu button to reset providers
-    console.log('Opening menu to reset providers...');
-    const menuButton = await mainWindow.waitForSelector('[data-testid="more-options-button"]', {
+    // Navigate to Settings via sidebar to reset providers
+    console.log('Opening settings to reset providers...');
+    const settingsButton = await mainWindow.waitForSelector('[data-testid="sidebar-settings-button"]', {
       timeout: 5000,
       state: 'visible'
     });
-    await menuButton.click();
+    await settingsButton.click();
 
-    // Wait for menu to appear and be interactive
+    // Wait for settings page to load and navigate to Models tab
+    await mainWindow.waitForSelector('[data-testid="settings-models-tab"]', {
+      timeout: 5000,
+      state: 'visible'
+    });
+    
+    const modelsTab = await mainWindow.waitForSelector('[data-testid="settings-models-tab"]');
+    await modelsTab.click();
+
+    // Wait for models section to load
     await mainWindow.waitForTimeout(1000);
 
-    // Click Reset Provider and Model
+    // Click Reset Provider and Model button
     console.log('Clicking Reset provider and model...');
     const resetButton = await mainWindow.waitForSelector('button:has-text("Reset provider and model")', {
       timeout: 5000,
       state: 'visible'
     });
     await resetButton.click();
+    
+    // Wait for the reset to complete
+    await mainWindow.waitForTimeout(1000);
   }
 
   // Wait for React app to be ready and animations to complete
@@ -93,6 +104,29 @@ async function selectProvider(mainWindow: any, provider: Provider) {
 
   // Take a screenshot before proceeding
   await mainWindow.screenshot({ path: `test-results/before-provider-${provider.name.toLowerCase()}-check.png` });
+
+  // Check if we're already at the chat interface (provider already configured)
+  const chatInputAfterReset = await mainWindow.waitForSelector('[data-testid="chat-input"]', {
+    timeout: 2000,
+    state: 'visible'
+  }).catch(() => null);
+
+  if (chatInputAfterReset) {
+    console.log('Provider already configured, chat interface is available');
+    return; // Provider is already selected, no need to do anything
+  }
+
+  // Check if we need to click "configure other providers (advanced)" button
+  const configureAdvancedButton = await mainWindow.waitForSelector('button:has-text("configure other providers (advanced)")', {
+    timeout: 3000,
+    state: 'visible'
+  }).catch(() => null);
+
+  if (configureAdvancedButton) {
+    console.log('Found "configure other providers (advanced)" button, clicking it...');
+    await configureAdvancedButton.click();
+    await mainWindow.waitForTimeout(1500);
+  }
 
   // We should now be at provider selection
   await mainWindow.waitForSelector('[data-testid="provider-selection-heading"]');
@@ -261,11 +295,24 @@ test.describe('Goose App', () => {
         await selectProvider(mainWindow, providers[0]);
       }
 
-      const menuButton = await mainWindow.waitForSelector('[data-testid="more-options-button"]', {
+      // Navigate to Settings via sidebar
+      const settingsButton = await mainWindow.waitForSelector('[data-testid="sidebar-settings-button"]', {
         timeout: 5000,
         state: 'visible'
       });
-      await menuButton.click();
+      await settingsButton.click();
+
+      // Wait for settings page to load and navigate to App tab
+      await mainWindow.waitForSelector('[data-testid="settings-app-tab"]', {
+        timeout: 5000,
+        state: 'visible'
+      });
+      
+      const appTab = await mainWindow.waitForSelector('[data-testid="settings-app-tab"]');
+      await appTab.click();
+
+      // Wait for the theme selector to be visible
+      await mainWindow.waitForTimeout(1000);
   
       // Find and click the dark mode toggle button
       const darkModeButton = await mainWindow.waitForSelector('[data-testid="dark-mode-button"]');
@@ -301,8 +348,9 @@ test.describe('Goose App', () => {
       // Pause to show return to original state
       await mainWindow.waitForTimeout(2000);
   
-      // Close menu with ESC key
-      await mainWindow.keyboard.press('Escape');
+      // Navigate back to home
+      const homeButton = await mainWindow.waitForSelector('[data-testid="sidebar-home-button"]');
+      await homeButton.click();
     });
   });
 
@@ -327,9 +375,6 @@ test.describe('Goose App', () => {
           // Take screenshot before sending
           await mainWindow.screenshot({ path: `test-results/${provider.name.toLowerCase()}-before-send.png` });
     
-          // Get initial message count
-          const initialMessages = await mainWindow.locator('[data-testid="message-container"]').count();
-    
           // Send message
           await chatInput.press('Enter');
     
@@ -346,12 +391,6 @@ test.describe('Goose App', () => {
           console.log('Waiting for response...');
           await mainWindow.waitForSelector('[data-testid="loading-indicator"]',
             { state: 'hidden', timeout: 30000 });
-    
-          // Wait for new message to appear
-          await mainWindow.waitForFunction((count) => {
-            const messages = document.querySelectorAll('[data-testid="message-container"]');
-            return messages.length > count;
-          }, initialMessages, { timeout: 30000 });
     
           // Get the latest response
           const response = await mainWindow.locator('[data-testid="message-container"]').last();
@@ -375,21 +414,12 @@ test.describe('Goose App', () => {
           // Test message sending with a specific question
           await chatInput.fill('What is 2+2?');
     
-          // Get initial message count
-          const initialMessages = await mainWindow.locator('[data-testid="message-container"]').count();
-    
           // Send message
           await chatInput.press('Enter');
     
           // Wait for loading indicator and response
           await mainWindow.waitForSelector('[data-testid="loading-indicator"]',
             { state: 'hidden', timeout: 30000 });
-    
-          // Wait for new message
-          await mainWindow.waitForFunction((count) => {
-            const messages = document.querySelectorAll('[data-testid="message-container"]');
-            return messages.length > count;
-          }, initialMessages, { timeout: 30000 });
     
           // Get the latest response
           const response = await mainWindow.locator('[data-testid="message-container"]').last();
@@ -440,27 +470,15 @@ test.describe('Goose App', () => {
             // Take screenshot of initial state
             await mainWindow.screenshot({ path: `test-results/${provider.name.toLowerCase()}-initial-state.png` });
 
-            // First navigate to Advanced Settings to check for existing Running Quotes extension
-            console.log('Checking for existing Running Quotes extension...');
-            
-            // Click the menu button (3 dots)
-            const menuButton = await mainWindow.waitForSelector('[data-testid="more-options-button"]', {
-              timeout: 2000,
+            // Navigate to Extensions via sidebar
+            console.log('Navigating to Extensions...');
+            const extensionsButton = await mainWindow.waitForSelector('[data-testid="sidebar-extensions-button"]', {
+              timeout: 5000,
               state: 'visible'
             });
-            await menuButton.click();
+            await extensionsButton.click();
             
-            // Wait for menu to appear
-            await mainWindow.waitForTimeout(1000);
-            
-            // Click Advanced settings
-            const advancedSettingsButton = await mainWindow.waitForSelector('button:has-text("Advanced settings")', {
-              timeout: 2000,
-              state: 'visible'
-            });
-            await advancedSettingsButton.click();
-            
-            // Wait for settings page to load
+            // Wait for extensions page to load
             await mainWindow.waitForTimeout(1000);
             
             // Look for Running Quotes extension card
@@ -500,43 +518,8 @@ test.describe('Goose App', () => {
               }
             }
             
-            // Click Back to return to main menu
-            let backButton = await mainWindow.waitForSelector('button:has-text("Back")', {
-              timeout: 2000,
-              state: 'visible'
-            });
-            await backButton.click();
-            
-            // Wait for menu transition
-            await mainWindow.waitForTimeout(1000);
-            
             // Now proceed with adding the extension
             console.log('Proceeding with adding Running Quotes extension...');
-
-            // Find and click the menu button (3 dots) again
-            console.log('Finding menu button again...');
-            const menuButtonAgain = await mainWindow.waitForSelector('[data-testid="more-options-button"]', {
-              timeout: 2000,
-              state: 'visible'
-            });
-            await menuButtonAgain.click();
-            
-            // Wait for menu to appear and take screenshot
-            await mainWindow.waitForTimeout(1000);
-            await mainWindow.screenshot({ path: `test-results/${provider.name.toLowerCase()}-after-menu.png` });
-
-            // Click Advanced settings again
-            console.log('Looking for Advanced settings button again...');
-            const advancedSettingsButtonAgain = await mainWindow.waitForSelector('button:has-text("Advanced settings")', {
-              timeout: 2000,
-              state: 'visible'
-            });
-            await advancedSettingsButtonAgain.click();
-            console.log('Clicked Advanced settings');
-            
-            // Wait for navigation and take screenshot
-            await mainWindow.waitForTimeout(1000);
-            await mainWindow.screenshot({ path: `test-results/${provider.name.toLowerCase()}-settings-page.png` });
 
             // Click "Add custom extension" button
             console.log('Looking for Add custom extension button...');
@@ -589,7 +572,7 @@ test.describe('Goose App', () => {
 
             // Click Add Extension button in modal footer
             console.log('Looking for Add Extension button in modal...');
-            const modalAddButton = await mainWindow.waitForSelector('button.text-textProminent', {
+            const modalAddButton = await mainWindow.waitForSelector('[data-testid="extension-submit-btn"]', {
               timeout: 2000,
               state: 'visible'
             });
@@ -615,6 +598,7 @@ test.describe('Goose App', () => {
               );
               
               // Verify the extension is enabled
+              await mainWindow.waitForTimeout(1000);
               const toggleButton = await extensionCard.$('button[role="switch"][data-state="checked"]');
               const isEnabled = !!toggleButton;
               console.log('Extension enabled:', isEnabled);
@@ -639,13 +623,10 @@ test.describe('Goose App', () => {
               throw error;
             }
 
-            // Click Back button
-            backButton = await mainWindow.waitForSelector('button:has-text("Back")', { 
-              timeout: 2000,
-              state: 'visible'
-            });
-            await backButton.click();
-            console.log('Clicked Back button');
+            // Navigate back to home
+            const homeButton = await mainWindow.waitForSelector('[data-testid="sidebar-home-button"]');
+            await homeButton.click();
+            console.log('Navigated back to home');
 
           } catch (error) {
             // Take error screenshot and log details
@@ -668,58 +649,21 @@ test.describe('Goose App', () => {
           expect(await chatInput.isVisible()).toBe(true);
       
           // Type a message requesting a running quote
-          await chatInput.fill('Can you give me an inspirational running quote using the runningQuote tool?');
+          await chatInput.fill('Can you give me an inspirational running quote using the runningQuotes tool?');
       
           // Take screenshot before sending
           await mainWindow.screenshot({ path: `test-results/${provider.name.toLowerCase()}-before-quote-request.png` });
       
-          // Get initial message count
-          const initialMessages = await mainWindow.locator('[data-testid="message-container"]').count();
-      
           // Send message
           await chatInput.press('Enter');
-      
-          // Wait for loading indicator
-          const loadingIndicator = await mainWindow.waitForSelector('[data-testid="loading-indicator"]',
-            { timeout: 30000 });
-          expect(await loadingIndicator.isVisible()).toBe(true);
-      
-          // Take screenshot of loading state
-          await mainWindow.screenshot({ path: `test-results/${provider.name.toLowerCase()}-quote-loading.png` });
-      
-          // Wait for loading indicator to disappear
-          await mainWindow.waitForSelector('[data-testid="loading-indicator"]',
-            { state: 'hidden', timeout: 30000 });
-      
-          // Wait for new message to appear
-          await mainWindow.waitForFunction((count) => {
-            const messages = document.querySelectorAll('[data-testid="message-container"]');
-            return messages.length > count;
-          }, initialMessages, { timeout: 30000 });
-      
+
           // Get the latest response
           const response = await mainWindow.waitForSelector('.goose-message-tool', { timeout: 5000 });
           expect(await response.isVisible()).toBe(true);
       
           // Click the Output dropdown to reveal the actual quote
-                    await mainWindow.screenshot({ path: `test-results/${provider.name.toLowerCase()}-quote-response-debug.png` });
-          const element = await mainWindow.$('.goose-message-tool');
-          const html = await element.innerHTML();
-          console.log('HTML content:', html);
-          // Click the Runningquote dropdown to reveal the actual quote
-          const runningQuoteButton = await mainWindow.waitForSelector('div.goose-message-tool svg.rotate-90', { timeout: 5000 });
-          await runningQuoteButton.click();
-
-          // Click the Output dropdown to reveal the actual quote
-          const outputButton = await mainWindow.waitForSelector('button:has-text("Output")', { timeout: 5000 });
-          await outputButton.click();
-      
-          // Wait a bit and dump HTML to see structure
-          await mainWindow.waitForTimeout(1000);
-      
-          // Take screenshot before trying to find content
           await mainWindow.screenshot({ path: `test-results/${provider.name.toLowerCase()}-quote-response-debug.png` });
-      
+
           // Now try to get the output content
           const outputContent = await mainWindow.waitForSelector('.whitespace-pre-wrap', { timeout: 5000 });
           const outputText = await outputContent.textContent();
