@@ -4,8 +4,6 @@ import { cn } from '../../utils';
 import { Alert, AlertType } from '../alerts';
 import { AlertBox } from '../alerts';
 
-// Remove this line as clearTimeout is a global function
-
 interface AlertPopoverProps {
   alerts: Alert[];
 }
