@@ -55,7 +55,7 @@ export default function ChatSettingsSection() {
           <CardTitle className="">Tool Selection Strategy (preview)</CardTitle>
           <CardDescription>
             Configure how Goose selects tools for your requests. Recommended when many extensions
-            are enabled. Available only with Claude models served on Databricks for now.
+            are enabled. Only tested with Claude models currently.
           </CardDescription>
         </CardHeader>
         <CardContent className="px-2">

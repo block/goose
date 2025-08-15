@@ -3,8 +3,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::agents::extension::ExtensionInfo;
-use crate::agents::router_tool_selector::RouterToolSelectionStrategy;
-use crate::agents::router_tools::{llm_search_tool_prompt, vector_search_tool_prompt};
+use crate::agents::router_tools::llm_search_tool_prompt;
 use crate::providers::base::get_current_model;
 use crate::{config::Config, prompt_template};
 
@@ -69,7 +68,7 @@ impl PromptManager {
         frontend_instructions: Option<String>,
         suggest_disable_extensions_prompt: Value,
         model_name: Option<&str>,
-        tool_selection_strategy: Option<RouterToolSelectionStrategy>,
+        router_enabled: bool,
     ) -> String {
         let mut context: HashMap<&str, Value> = HashMap::new();
         let mut extensions_info = extensions_info.clone();
@@ -85,20 +84,11 @@ impl PromptManager {
 
         context.insert("extensions", serde_json::to_value(extensions_info).unwrap());
 
-        match tool_selection_strategy {
-            Some(RouterToolSelectionStrategy::Vector) => {
-                context.insert(
-                    "tool_selection_strategy",
-                    Value::String(vector_search_tool_prompt()),
-                );
-            }
-            Some(RouterToolSelectionStrategy::Llm) => {
-                context.insert(
-                    "tool_selection_strategy",
-                    Value::String(llm_search_tool_prompt()),
-                );
-            }
-            None => {}
+        if router_enabled {
+            context.insert(
+                "tool_selection_strategy",
+                Value::String(llm_search_tool_prompt()),
+            );
         }
 
         context.insert(

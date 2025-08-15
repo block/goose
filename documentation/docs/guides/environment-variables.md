@@ -232,36 +232,6 @@ export GOOSE_EDITOR_HOST="http://localhost:8000/v1"
 export GOOSE_EDITOR_MODEL="your-model"
 ```
 
-
-## Tool Selection Strategy
-
-These variables configure the [tool selection strategy](/docs/guides/managing-tools/tool-router).
-
-| Variable | Purpose | Values | Default |
-|----------|---------|---------|--------|
-| `GOOSE_ROUTER_TOOL_SELECTION_STRATEGY` | The tool selection strategy to use | "default", "vector", "llm" | "default" |
-| `GOOSE_EMBEDDING_MODEL_PROVIDER` | The provider to use for generating embeddings for the "vector" strategy | [See available providers](/docs/getting-started/providers#available-providers) (must support embeddings) | "openai" |
-| `GOOSE_EMBEDDING_MODEL` | The model to use for generating embeddings for the "vector" strategy | Model name (provider-specific) | "text-embedding-3-small" |
-
-**Examples**
-
-```bash
-# Use vector-based tool selection with custom settings
-export GOOSE_ROUTER_TOOL_SELECTION_STRATEGY=vector
-export GOOSE_EMBEDDING_MODEL_PROVIDER=ollama
-export GOOSE_EMBEDDING_MODEL=nomic-embed-text
-
-# Or use LLM-based selection
-export GOOSE_ROUTER_TOOL_SELECTION_STRATEGY=llm
-```
-
-**Embedding Provider Support**
-
-The default embedding provider is OpenAI. If using a different provider:
-- Ensure the provider supports embeddings
-- Specify an appropriate embedding model for that provider
-- Ensure the provider is properly configured with necessary credentials
-
 ## Security Configuration
 
 These variables control security related features.
