@@ -96,7 +96,10 @@ pub fn map_http_error_to_provider_error(
             }
         }
         StatusCode::TOO_MANY_REQUESTS => {
-            ProviderError::RateLimitExceeded(format!("{:?}", payload))
+            ProviderError::RateLimitExceeded {
+                details: format!("{:?}", payload),
+                retry_delay: None,
+            }
         }
         _ if status.is_server_error() => {
             ProviderError::ServerError(format!("{:?}", payload))
