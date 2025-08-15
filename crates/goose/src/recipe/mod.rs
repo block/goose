@@ -256,30 +256,21 @@ pub struct RecipeBuilder {
 impl Recipe {
     /// Returns true if harmful content is detected in instructions, prompt, or activities fields
     pub fn check_for_security_warnings(&self) -> bool {
-        let mut has_security_warnings = false;
-
-        if let Some(instructions) = &self.instructions {
-            if contains_unicode_tags(instructions) {
-                has_security_warnings = true;
-            }
-        }
-
-        if let Some(prompt) = &self.prompt {
-            if contains_unicode_tags(prompt) {
-                has_security_warnings = true;
-            }
+        if [self.instructions.as_deref(), self.prompt.as_deref()]
+            .iter()
+            .flatten()
+            .any(|&field| contains_unicode_tags(field))
+        {
+            return true;
         }
 
         if let Some(activities) = &self.activities {
-            for activity in activities.iter() {
-                if contains_unicode_tags(activity) {
-                    has_security_warnings = true;
-                    break;
-                }
-            }
+            return activities
+                .iter()
+                .any(|activity| contains_unicode_tags(activity));
         }
 
-        has_security_warnings
+        false
     }
 
     /// Creates a new RecipeBuilder to construct a Recipe instance

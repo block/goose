@@ -1441,13 +1441,6 @@ export type ScanRecipeData = {
     url: '/recipes/scan';
 };
 
-export type ScanRecipeErrors = {
-    /**
-     * Bad request
-     */
-    400: unknown;
-};
-
 export type ScanRecipeResponses = {
     /**
      * Recipe scanned successfully

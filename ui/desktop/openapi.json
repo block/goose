@@ -806,9 +806,6 @@
                 }
               }
             }
-          },
-          "400": {
-            "description": "Bad request"
           }
         }
       }
