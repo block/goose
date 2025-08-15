@@ -180,7 +180,6 @@ async fn decode_recipe(
     request_body = ScanRecipeRequest,
     responses(
         (status = 200, description = "Recipe scanned successfully", body = ScanRecipeResponse),
-        (status = 400, description = "Bad request")
     ),
     tag = "Recipe Management"
 )]

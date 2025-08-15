@@ -84,12 +84,12 @@ export const useRecipeManager = (messages: Message[], locationState?: LocationSt
     const checkRecipeAcceptance = async () => {
       if (recipeConfig) {
         try {
-          const scanResult = await scanRecipe(recipeConfig);
-          setHasSecurityWarnings(scanResult.has_security_warnings);
-
           const hasAccepted = await window.electron.hasAcceptedRecipeBefore(recipeConfig);
 
-          if (scanResult.has_security_warnings || !hasAccepted) {
+          if (!hasAccepted) {
+            const securityScanResult = await scanRecipe(recipeConfig);
+            setHasSecurityWarnings(securityScanResult.has_security_warnings);
+
             setIsRecipeWarningModalOpen(true);
           } else {
             setRecipeAccepted(true);

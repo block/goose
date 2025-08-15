@@ -87,9 +87,7 @@ export function RecipeWarningModal({
           <Button variant="outline" onClick={onCancel}>
             Cancel
           </Button>
-          <Button onClick={onConfirm}>
-            {hasSecurityWarnings ? 'Trust and Continue' : 'Trust and Execute'}
-          </Button>
+          <Button onClick={onConfirm}>Trust and Execute</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
