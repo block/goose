@@ -1,6 +1,7 @@
 // TooltipWrapper.tsx
 import React from 'react';
-import { Tooltip, TooltipTrigger, TooltipContent } from '../../../../ui/Tooltip';
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../../../../ui/Tooltip';
+import { Portal } from '@radix-ui/react-portal';
 
 interface TooltipWrapperProps {
   children: React.ReactNode;
@@ -18,11 +19,15 @@ export function TooltipWrapper({
   className = '',
 }: TooltipWrapperProps) {
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>{children}</TooltipTrigger>
-      <TooltipContent side={side} align={align} className={className}>
-        {typeof tooltipContent === 'string' ? <p>{tooltipContent}</p> : tooltipContent}
-      </TooltipContent>
-    </Tooltip>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>{children}</TooltipTrigger>
+        <Portal>
+          <TooltipContent side={side} align={align} className={className}>
+            {typeof tooltipContent === 'string' ? <p>{tooltipContent}</p> : tooltipContent}
+          </TooltipContent>
+        </Portal>
+      </Tooltip>
+    </TooltipProvider>
   );
 }

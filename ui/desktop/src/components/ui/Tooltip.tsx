@@ -3,57 +3,23 @@ import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 
 import { cn } from '../../utils';
 
-// Create a global context to track tooltip provider instances
-const TooltipContext = React.createContext<boolean>(false);
-
-// Use this to check if we're inside a TooltipProvider
-export function useTooltipContext() {
-  return React.useContext(TooltipContext);
-}
-
-// Global provider that should be used at the root of your app
 function TooltipProvider({
   delayDuration = 0,
-  children,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
-  // Check if we're already inside a provider
-  const hasProvider = useTooltipContext();
-  
-  // If we already have a provider, just render children without creating another provider
-  if (hasProvider) {
-    return <>{children}</>;
-  }
-  
-  // Otherwise create a new provider
   return (
-    <TooltipContext.Provider value={true}>
-      <TooltipPrimitive.Provider
-        data-slot="tooltip-provider"
-        delayDuration={delayDuration}
-        {...props}
-      >
-        {children}
-      </TooltipPrimitive.Provider>
-    </TooltipContext.Provider>
+    <TooltipPrimitive.Provider
+      data-slot="tooltip-provider"
+      delayDuration={delayDuration}
+      {...props}
+    />
   );
 }
 
-// Root tooltip component that ensures it has a provider
-function Tooltip({ children, ...props }: React.ComponentProps<typeof TooltipPrimitive.Root>) {
-  const hasProvider = useTooltipContext();
-  
-  // If we're already inside a provider, just render the root
-  if (hasProvider) {
-    return <TooltipPrimitive.Root data-slot="tooltip" {...props}>{children}</TooltipPrimitive.Root>;
-  }
-  
-  // Otherwise wrap with a provider
+function Tooltip({ ...props }: React.ComponentProps<typeof TooltipPrimitive.Root>) {
   return (
     <TooltipProvider>
-      <TooltipPrimitive.Root data-slot="tooltip" {...props}>
-        {children}
-      </TooltipPrimitive.Root>
+      <TooltipPrimitive.Root data-slot="tooltip" {...props} />
     </TooltipProvider>
   );
 }
