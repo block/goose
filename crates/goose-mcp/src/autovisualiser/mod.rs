@@ -1,3 +1,4 @@
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::{formatdoc, indoc};
 use serde_json::Value;
@@ -180,11 +181,14 @@ impl AutoVisualiserRouter {
             tracing::info!("Debug HTML saved to /tmp/vis.html");
         }
 
-        // Create a proper ResourceContents::TextResourceContents
-        let resource_contents = ResourceContents::TextResourceContents {
+        // Use BlobResourceContents with base64 encoding to avoid JSON string escaping issues
+        let html_bytes = html_content.as_bytes();
+        let base64_encoded = STANDARD.encode(html_bytes);
+
+        let resource_contents = ResourceContents::BlobResourceContents {
             uri: "ui://sankey/diagram".to_string(),
             mime_type: Some("text/html".to_string()),
-            text: html_content,
+            blob: base64_encoded,
         };
 
         Ok(vec![Content::resource(resource_contents)])
