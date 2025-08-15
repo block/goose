@@ -7,7 +7,7 @@ use crate::state::AppState;
 use axum::{
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
-    routing::{delete, get, put},
+    routing::{delete, get, post, put},
     Json, Router,
 };
 use goose::conversation::message::Message;
@@ -41,6 +41,22 @@ pub struct SessionHistoryResponse {
 pub struct UpdateSessionMetadataRequest {
     /// Updated description (name) for the session (max 200 characters)
     description: String,
+}
+
+#[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct BranchSessionRequest {
+    /// Index of the message to branch from (inclusive)
+    message_index: usize,
+    /// Optional description for the new branch
+    description: Option<String>,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct BranchSessionResponse {
+    /// ID of the newly created branch session
+    branch_session_id: String,
 }
 
 const MAX_DESCRIPTION_LENGTH: usize = 200;
