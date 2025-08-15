@@ -62,14 +62,6 @@ function unregisterAllProtocolHandlers() {
       }
     });
     
-    // Clean up temporary files
-    console.log('\nCleaning up temporary files...');
-    try {
-      execSync('rm -rf /tmp/GooseDevApp.app', { stdio: 'ignore' });
-    } catch (error) {
-      // Ignore cleanup errors
-    }
-    
     // Force Launch Services to rebuild its database
     console.log('Rebuilding Launch Services database...');
     try {

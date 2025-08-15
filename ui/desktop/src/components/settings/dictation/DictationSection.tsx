@@ -3,21 +3,15 @@ import { Switch } from '../../ui/switch';
 import { ChevronDown } from 'lucide-react';
 import { Input } from '../../ui/input';
 import { useConfig } from '../../ConfigContext';
-
-type DictationProvider = 'openai' | 'elevenlabs';
-
-interface DictationSettings {
-  enabled: boolean;
-  provider: DictationProvider;
-}
+import { DictationProvider, DictationSettings } from '../../../hooks/useDictationSettings';
 
 const DICTATION_SETTINGS_KEY = 'dictation_settings';
 const ELEVENLABS_API_KEY = 'ELEVENLABS_API_KEY';
 
 export default function DictationSection() {
   const [settings, setSettings] = useState<DictationSettings>({
-    enabled: true,
-    provider: 'openai',
+    enabled: false,
+    provider: null,
   });
   const [hasOpenAIKey, setHasOpenAIKey] = useState(false);
   const [showProviderDropdown, setShowProviderDropdown] = useState(false);
@@ -120,7 +114,11 @@ export default function DictationSection() {
   };
 
   const handleToggle = (enabled: boolean) => {
-    saveSettings({ ...settings, enabled });
+    saveSettings({
+      ...settings,
+      enabled,
+      provider: settings.provider === null ? 'openai' : settings.provider,
+    });
   };
 
   const handleProviderChange = (provider: DictationProvider) => {
@@ -157,7 +155,7 @@ export default function DictationSection() {
       case 'elevenlabs':
         return 'ElevenLabs';
       default:
-        return provider;
+        return 'None (disabled)';
     }
   };
 

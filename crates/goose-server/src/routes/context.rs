@@ -67,7 +67,7 @@ async fn manage_context(
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     } else if request.manage_action == "summarize" {
-        (processed_messages, token_counts) = agent
+        (processed_messages, token_counts, _) = agent
             .summarize_context(&request.messages)
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
