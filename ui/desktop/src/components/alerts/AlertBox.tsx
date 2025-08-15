@@ -34,8 +34,8 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
 
     setIsSaving(true);
     try {
-      // Update the environment variable via API
-      const response = await fetch(getApiUrl('/config/env'), {
+      // Update the configuration via the upsert API
+      const response = await fetch(getApiUrl('/config/upsert'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -43,12 +43,14 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
         },
         body: JSON.stringify({
           key: 'GOOSE_AUTO_COMPACT_THRESHOLD',
-          value: (thresholdValue / 100).toString(),
+          value: thresholdValue / 100, // Convert percentage to decimal
+          is_secret: false,
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update threshold');
+        const errorText = await response.text();
+        throw new Error(`Failed to update threshold: ${errorText}`);
       }
 
       setIsEditingThreshold(false);
@@ -57,7 +59,9 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
       window.location.reload();
     } catch (error) {
       console.error('Error saving threshold:', error);
-      window.alert('Failed to save threshold. Please try again.');
+      window.alert(
+        `Failed to save threshold: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     } finally {
       setIsSaving(false);
     }
