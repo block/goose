@@ -35,8 +35,12 @@ pub async fn oauth_flow(
 ) -> Result<AuthorizationManager, anyhow::Error> {
     if let Ok(oauth_state) = load_cached_state(mcp_server_url, name).await {
         if let Some(authorization_manager) = oauth_state.into_authorization_manager() {
-            return Ok(authorization_manager);
-        } else if let Err(e) = clear_credentials(name) {
+            if authorization_manager.refresh_token().await.is_ok() {
+                return Ok(authorization_manager);
+            }
+        }
+
+        if let Err(e) = clear_credentials(name) {
             warn!("error clearing bad credentials: {}", e);
         }
     }
