@@ -28,6 +28,49 @@ export type AuthorRequest = {
 };
 
 /**
+ * Represents a reference to another session that was branched from or to
+ */
+export type BranchReference = {
+    /**
+     * Optional description of the branch relationship
+     */
+    description?: string | null;
+    /**
+     * The session ID that this branch relates to
+     */
+    sessionId: string;
+};
+
+/**
+ * Indicates where a branch originated from
+ */
+export type BranchSource = {
+    /**
+     * Optional description of why this branch was created
+     */
+    description?: string | null;
+    /**
+     * The message index in the source session where the branch occurred
+     */
+    messageIndex: number;
+    /**
+     * The session this was branched from
+     */
+    sessionId: string;
+};
+
+/**
+ * Metadata about session branching relationships for a message
+ */
+export type BranchingMetadata = {
+    branchedFrom?: BranchSource | null;
+    /**
+     * Sessions that were branched from this message
+     */
+    branchesCreated?: Array<BranchReference> | null;
+};
+
+/**
  * Configuration key metadata for provider setup
  */
 export type ConfigKey = {
@@ -351,6 +394,7 @@ export type ListSchedulesResponse = {
  * A message to or from an LLM
  */
 export type Message = {
+    branchingMetadata?: BranchingMetadata | null;
     content: Array<MessageContent>;
     created?: number;
     id?: string | null;

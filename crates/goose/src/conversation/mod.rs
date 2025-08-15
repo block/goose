@@ -265,7 +265,18 @@ fn merge_consecutive_messages(messages: Vec<Message>) -> (Vec<Message>, Vec<Stri
         if let Some(last) = merged_messages.last_mut() {
             let effective = effective_role(&message);
             if effective_role(last) == effective {
+                // Preserve the first message's ID if it exists, otherwise use the incoming ID
+                if last.id.is_none() && message.id.is_some() {
+                    last.id = message.id.clone();
+                }
+
+                // Merge branching metadata - combine both if they exist
+                last.branching_metadata =
+                    merge_branching_metadata(&last.branching_metadata, &message.branching_metadata);
+
+                // Merge the content
                 last.content.extend(message.content);
+
                 issues.push(format!("Merged consecutive {} messages", effective));
                 continue;
             }
@@ -274,6 +285,38 @@ fn merge_consecutive_messages(messages: Vec<Message>) -> (Vec<Message>, Vec<Stri
     }
 
     (merged_messages, issues)
+}
+
+fn merge_branching_metadata(
+    existing: &Option<crate::conversation::message::BranchingMetadata>,
+    incoming: &Option<crate::conversation::message::BranchingMetadata>,
+) -> Option<crate::conversation::message::BranchingMetadata> {
+    match (existing, incoming) {
+        (None, None) => None,
+        (Some(existing), None) => Some(existing.clone()),
+        (None, Some(incoming)) => Some(incoming.clone()),
+        (Some(existing), Some(incoming)) => {
+            let mut merged = existing.clone();
+
+            // Merge branches_created, avoiding duplicates
+            for branch in &incoming.branches_created {
+                if !merged
+                    .branches_created
+                    .iter()
+                    .any(|b| b.session_id == branch.session_id)
+                {
+                    merged.branches_created.push(branch.clone());
+                }
+            }
+
+            // Use existing branched_from unless it's None, then use incoming
+            if merged.branched_from.is_none() {
+                merged.branched_from = incoming.branched_from.clone();
+            }
+
+            Some(merged)
+        }
+    }
 }
 
 fn has_tool_response(message: &Message) -> bool {
@@ -370,7 +413,7 @@ mod tests {
         let (fixed, issues) = fix_conversation(Conversation::new_unvalidated(messages.clone()));
 
         // Uncomment the following line to print the debug report
-        // let report = debug_conversation_fix(&messages, &fixed, &issues);
+        // let report = debug_conversation_fix(&messages, &fixed.messages(), &issues);
         // print!("\n{}", report);
 
         let (_fixed, issues_with_fixed) = fix_conversation(fixed.clone());
@@ -530,5 +573,135 @@ mod tests {
 
         let (_fixed, issues) = run_verify(messages);
         assert_eq!(issues.len(), 0);
+    }
+
+    #[test]
+    fn test_branch_session_with_metadata() {
+        use crate::conversation::message::{BranchReference, BranchSource, BranchingMetadata};
+
+        // Create messages with branching metadata
+        let mut message1 = Message::user().with_text("First message");
+        message1.branching_metadata = Some(BranchingMetadata {
+            branches_created: vec![BranchReference {
+                session_id: "branch1".to_string(),
+                description: Some("First branch".to_string()),
+            }],
+            branched_from: None,
+        });
+
+        let mut message2 = Message::user().with_text("Second message");
+        message2.branching_metadata = Some(BranchingMetadata {
+            branches_created: vec![BranchReference {
+                session_id: "branch2".to_string(),
+                description: Some("Second branch".to_string()),
+            }],
+            branched_from: Some(BranchSource {
+                session_id: "source_session".to_string(),
+                message_index: 0,
+                description: Some("Branched from source".to_string()),
+            }),
+        });
+
+        let messages = vec![message1, message2];
+
+        let (fixed, issues) = run_verify(messages);
+
+        // Should merge the two user messages
+        assert_eq!(fixed.len(), 1);
+        assert_eq!(issues.len(), 1);
+        assert!(issues[0].contains("Merged consecutive user messages"));
+
+        // Check that branching metadata was properly merged
+        let merged_message = &fixed[0];
+        assert!(merged_message.branching_metadata.is_some());
+
+        let metadata = merged_message.branching_metadata.as_ref().unwrap();
+
+        // Should have both branch references
+        assert_eq!(metadata.branches_created.len(), 2);
+        assert!(metadata
+            .branches_created
+            .iter()
+            .any(|b| b.session_id == "branch1"));
+        assert!(metadata
+            .branches_created
+            .iter()
+            .any(|b| b.session_id == "branch2"));
+
+        // Should preserve the branched_from from the second message since first had None
+        assert!(metadata.branched_from.is_some());
+        let branched_from = metadata.branched_from.as_ref().unwrap();
+        assert_eq!(branched_from.session_id, "source_session");
+    }
+
+    #[test]
+    fn test_branch_metadata_merge_with_none() {
+        use crate::conversation::message::{BranchReference, BranchingMetadata};
+
+        // First message has no metadata
+        let message1 = Message::user().with_text("First message");
+
+        // Second message has metadata
+        let mut message2 = Message::user().with_text("Second message");
+        message2.branching_metadata = Some(BranchingMetadata {
+            branches_created: vec![BranchReference {
+                session_id: "branch1".to_string(),
+                description: Some("Only branch".to_string()),
+            }],
+            branched_from: None,
+        });
+
+        let messages = vec![message1, message2];
+
+        let (fixed, issues) = run_verify(messages);
+
+        // Should merge the two user messages
+        assert_eq!(fixed.len(), 1);
+        assert_eq!(issues.len(), 1);
+
+        // Check that branching metadata from second message was preserved
+        let merged_message = &fixed[0];
+        assert!(merged_message.branching_metadata.is_some());
+
+        let metadata = merged_message.branching_metadata.as_ref().unwrap();
+        assert_eq!(metadata.branches_created.len(), 1);
+        assert_eq!(metadata.branches_created[0].session_id, "branch1");
+    }
+
+    #[test]
+    fn test_message_id_preservation_during_merge() {
+        // Test that message IDs are preserved correctly during merging
+
+        // Case 1: First message has ID, second doesn't - keep first ID
+        let message1 = Message::user().with_text("First message").with_id("id1");
+        let message2 = Message::user().with_text("Second message");
+        let messages = vec![message1, message2];
+        let (fixed, _) = run_verify(messages);
+        assert_eq!(fixed.len(), 1);
+        assert_eq!(fixed[0].id, Some("id1".to_string()));
+
+        // Case 2: First message has no ID, second has ID - use second ID
+        let message1 = Message::user().with_text("First message");
+        let message2 = Message::user().with_text("Second message").with_id("id2");
+        let messages = vec![message1, message2];
+        let (fixed, _) = run_verify(messages);
+        assert_eq!(fixed.len(), 1);
+        assert_eq!(fixed[0].id, Some("id2".to_string()));
+
+        // Case 3: Both messages have IDs - keep first ID (prevent ID changes)
+        let message1 = Message::user().with_text("First message").with_id("id1");
+        let message2 = Message::user().with_text("Second message").with_id("id2");
+        let messages = vec![message1, message2];
+        let (fixed, _) = run_verify(messages);
+        assert_eq!(fixed.len(), 1);
+        assert_eq!(fixed[0].id, Some("id1".to_string())); // Should keep the first ID
+
+        // Case 4: Neither message has ID - result should have no ID
+        let message1 = Message::user().with_text("First message");
+        let message2 = Message::user().with_text("Second message");
+        let messages = vec![message1, message2];
+        let (fixed, _) = run_verify(messages);
+        assert_eq!(fixed.len(), 1);
+        assert_eq!(fixed[0].id, None);
     }
 }

@@ -1594,6 +1594,70 @@
           }
         }
       },
+      "BranchReference": {
+        "type": "object",
+        "description": "Represents a reference to another session that was branched from or to",
+        "required": [
+          "sessionId"
+        ],
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "Optional description of the branch relationship",
+            "nullable": true
+          },
+          "sessionId": {
+            "type": "string",
+            "description": "The session ID that this branch relates to"
+          }
+        }
+      },
+      "BranchSource": {
+        "type": "object",
+        "description": "Indicates where a branch originated from",
+        "required": [
+          "sessionId",
+          "messageIndex"
+        ],
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "Optional description of why this branch was created",
+            "nullable": true
+          },
+          "messageIndex": {
+            "type": "integer",
+            "description": "The message index in the source session where the branch occurred",
+            "minimum": 0
+          },
+          "sessionId": {
+            "type": "string",
+            "description": "The session this was branched from"
+          }
+        }
+      },
+      "BranchingMetadata": {
+        "type": "object",
+        "description": "Metadata about session branching relationships for a message",
+        "properties": {
+          "branchedFrom": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BranchSource"
+              }
+            ],
+            "nullable": true
+          },
+          "branchesCreated": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BranchReference"
+            },
+            "description": "Sessions that were branched from this message",
+            "nullable": true
+          }
+        }
+      },
       "ConfigKey": {
         "type": "object",
         "description": "Configuration key metadata for provider setup",
@@ -2473,6 +2537,14 @@
           "content"
         ],
         "properties": {
+          "branchingMetadata": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BranchingMetadata"
+              }
+            ],
+            "nullable": true
+          },
           "content": {
             "type": "array",
             "items": {

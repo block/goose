@@ -115,6 +115,39 @@ pub struct SummarizationRequested {
     pub msg: String,
 }
 
+/// Represents a reference to another session that was branched from or to
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct BranchReference {
+    /// The session ID that this branch relates to
+    pub session_id: String,
+    /// Optional description of the branch relationship
+    pub description: Option<String>,
+}
+
+/// Indicates where a branch originated from
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct BranchSource {
+    /// The session this was branched from
+    pub session_id: String,
+    /// The message index in the source session where the branch occurred
+    pub message_index: usize,
+    /// Optional description of why this branch was created
+    pub description: Option<String>,
+}
+
+/// Metadata about session branching relationships for a message
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct BranchingMetadata {
+    /// Sessions that were branched from this message
+    #[serde(default)]
+    pub branches_created: Vec<BranchReference>,
+    /// Information about where this session was branched from
+    pub branched_from: Option<BranchSource>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 /// Content passed inside a message, which can be both simple content and tool content
 #[serde(tag = "type", rename_all = "camelCase")]
@@ -374,6 +407,9 @@ pub struct Message {
     pub created: i64,
     #[serde(deserialize_with = "deserialize_sanitized_content")]
     pub content: Vec<MessageContent>,
+    /// Optional metadata about session branching relationships
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub branching_metadata: Option<BranchingMetadata>,
 }
 
 impl fmt::Debug for Message {
@@ -385,7 +421,21 @@ impl fmt::Debug for Message {
             .collect::<Vec<_>>()
             .join(" ");
 
-        write!(f, "{:?}: {}", self.role, joined_content)
+        let metadata_str = if let Some(ref metadata) = self.branching_metadata {
+            format!(
+                " [branches_created: {}, branched_from: {}]",
+                metadata.branches_created.len(),
+                if metadata.branched_from.is_some() {
+                    "yes"
+                } else {
+                    "no"
+                }
+            )
+        } else {
+            String::new()
+        };
+
+        write!(f, "{:?}: {}{}", self.role, joined_content, metadata_str)
     }
 }
 
@@ -400,6 +450,7 @@ impl Message {
             role,
             created,
             content,
+            branching_metadata: None,
         }
     }
     pub fn debug(&self) -> String {
@@ -413,6 +464,7 @@ impl Message {
             role: Role::User,
             created: Utc::now().timestamp(),
             content: Vec::new(),
+            branching_metadata: None,
         }
     }
 
@@ -423,6 +475,7 @@ impl Message {
             role: Role::Assistant,
             created: Utc::now().timestamp(),
             content: Vec::new(),
+            branching_metadata: None,
         }
     }
 
