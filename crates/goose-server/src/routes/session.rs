@@ -10,7 +10,8 @@ use axum::{
     routing::{delete, get, post, put},
     Json, Router,
 };
-use goose::conversation::message::Message;
+use goose::conversation::message::{BranchReference, BranchSource, BranchingMetadata, Message};
+use goose::conversation::Conversation;
 use goose::session;
 use goose::session::info::{get_valid_sorted_sessions, SessionInfo, SortOrder};
 use goose::session::SessionMetadata;
@@ -368,6 +369,134 @@ async fn delete_session(
     Ok(StatusCode::OK)
 }
 
+#[utoipa::path(
+    post,
+    path = "/sessions/{session_id}/branch",
+    request_body = BranchSessionRequest,
+    params(
+        ("session_id" = String, Path, description = "Unique identifier for the session to branch from")
+    ),
+    responses(
+        (status = 200, description = "Session branched successfully", body = BranchSessionResponse),
+        (status = 400, description = "Bad request - Invalid message index or description too long"),
+        (status = 401, description = "Unauthorized - Invalid or missing API key"),
+        (status = 404, description = "Session not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "Session Management"
+)]
+// Branch a session from a specific message
+async fn branch_session(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(session_id): Path<String>,
+    Json(request): Json<BranchSessionRequest>,
+) -> Result<Json<BranchSessionResponse>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
+    // Validate description length if provided
+    if let Some(ref description) = request.description {
+        if description.len() > MAX_DESCRIPTION_LENGTH {
+            return Err(StatusCode::BAD_REQUEST);
+        }
+    }
+
+    // Get the source session path
+    let source_session_path = session::get_path(session::Identifier::Name(session_id.clone()))
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
+
+    // Read source session data
+    let source_metadata =
+        session::read_metadata(&source_session_path).map_err(|_| StatusCode::NOT_FOUND)?;
+
+    let source_messages =
+        session::read_messages(&source_session_path).map_err(|_| StatusCode::NOT_FOUND)?;
+
+    // Validate message index
+    if request.message_index >= source_messages.len() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    // Create new session ID
+    let branch_session_id = session::generate_session_id();
+
+    // Copy messages up to and including the specified index
+    let mut branch_messages: Vec<Message> = source_messages
+        .messages()
+        .iter()
+        .take(request.message_index + 1)
+        .cloned()
+        .collect();
+
+    // Add branching metadata to the original session's messages
+    let mut updated_source_messages = source_messages.messages().clone();
+    if let Some(original_message) = updated_source_messages.get_mut(request.message_index) {
+        // Initialize branching metadata if it doesn't exist
+        if original_message.branching_metadata.is_none() {
+            original_message.branching_metadata = Some(BranchingMetadata::default());
+        }
+
+        // Add the new branch reference
+        if let Some(ref mut metadata) = original_message.branching_metadata {
+            metadata.branches_created.push(BranchReference {
+                session_id: branch_session_id.clone(),
+                description: request.description.clone(),
+            });
+        }
+    }
+
+    // Add branching metadata to the branch session's message at the branch point
+    if let Some(branch_message) = branch_messages.get_mut(request.message_index) {
+        branch_message.branching_metadata = Some(BranchingMetadata {
+            branches_created: Vec::new(),
+            branched_from: Some(BranchSource {
+                session_id: session_id.clone(),
+                message_index: request.message_index,
+                description: request.description.clone(),
+            }),
+        });
+    }
+
+    // Create branch session metadata
+    let branch_description = request
+        .description
+        .unwrap_or_else(|| format!("Branch from {}", session_id));
+
+    let mut branch_metadata = source_metadata.clone();
+    branch_metadata.description = branch_description;
+
+    // Create the branch session
+    let branch_session_path =
+        session::get_path(session::Identifier::Name(branch_session_id.clone()))
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Save branch session
+    let branch_messages_container = Conversation::new_unvalidated(branch_messages);
+    session::persist_messages(&branch_session_path, &branch_messages_container, None, None)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    session::update_metadata(&branch_session_path, &branch_metadata)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Update the original session with branching metadata
+    let updated_source_messages_container = Conversation::new_unvalidated(updated_source_messages);
+    session::persist_messages(
+        &source_session_path,
+        &updated_source_messages_container,
+        None,
+        None,
+    )
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(BranchSessionResponse { branch_session_id }))
+}
+
 // Configure routes for this module
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
@@ -379,6 +508,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
             "/sessions/{session_id}/metadata",
             put(update_session_metadata),
         )
+        .route("/sessions/{session_id}/branch", post(branch_session))
         .with_state(state)
 }
 
@@ -437,5 +567,122 @@ mod tests {
         // Test edge cases
         assert!(String::new().len() <= MAX_DESCRIPTION_LENGTH); // Empty string
         assert!("Short".len() <= MAX_DESCRIPTION_LENGTH); // Short string
+    }
+
+    #[tokio::test]
+    async fn test_branch_session_request_deserialization() {
+        // Test basic request
+        let json = r#"{"messageIndex": 5}"#;
+        let request: BranchSessionRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.message_index, 5);
+        assert_eq!(request.description, None);
+
+        // Test request with description
+        let json = r#"{"messageIndex": 3, "description": "My branch"}"#;
+        let request: BranchSessionRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.message_index, 3);
+        assert_eq!(request.description, Some("My branch".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_branch_session_response_serialization() {
+        let response = BranchSessionResponse {
+            branch_session_id: "test-session-123".to_string(),
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("branchSessionId"));
+        assert!(json.contains("test-session-123"));
+    }
+
+    #[tokio::test]
+    async fn test_branch_session_with_metadata() {
+        use goose::conversation::message::Message;
+        use goose::conversation::Conversation;
+
+        // Create test messages
+        let messages = vec![
+            Message::user().with_text("Hello"),
+            Message::assistant().with_text("Hi there!"),
+            Message::user().with_text("How are you?"),
+            Message::assistant().with_text("I'm doing well, thanks!"),
+        ];
+
+        // Test the branching logic without file operations
+        let message_index = 2; // Branch from the second user message
+        let branch_description = Some("Test branch".to_string());
+
+        // Create branch session ID
+        let source_session_id = goose::session::generate_session_id();
+        let branch_session_id = goose::session::generate_session_id();
+
+        // Copy messages up to and including the specified index
+        let mut branch_messages: Vec<Message> =
+            messages.iter().take(message_index + 1).cloned().collect();
+
+        // Add branching metadata to the original session's messages
+        let mut updated_source_messages = messages.clone();
+        if let Some(original_message) = updated_source_messages.get_mut(message_index) {
+            original_message.branching_metadata = Some(BranchingMetadata {
+                branches_created: vec![BranchReference {
+                    session_id: branch_session_id.clone(),
+                    description: branch_description.clone(),
+                }],
+                branched_from: None,
+            });
+        }
+
+        // Add branching metadata to the branch session's message at the branch point
+        if let Some(branch_message) = branch_messages.get_mut(message_index) {
+            branch_message.branching_metadata = Some(BranchingMetadata {
+                branches_created: Vec::new(),
+                branched_from: Some(BranchSource {
+                    session_id: source_session_id.clone(),
+                    message_index,
+                    description: branch_description.clone(),
+                }),
+            });
+        }
+
+        // Verify the branch messages
+        assert_eq!(branch_messages.len(), 3); // Should have 3 messages (up to and including index 2)
+
+        // Verify the last message has branching metadata indicating it was branched from source
+        let last_branch_message = branch_messages.last().unwrap();
+        assert!(last_branch_message.branching_metadata.is_some());
+
+        let branch_metadata = last_branch_message.branching_metadata.as_ref().unwrap();
+        assert!(branch_metadata.branched_from.is_some());
+
+        let branch_source = branch_metadata.branched_from.as_ref().unwrap();
+        assert_eq!(branch_source.session_id, source_session_id);
+        assert_eq!(branch_source.message_index, 2);
+        assert_eq!(branch_source.description, Some("Test branch".to_string()));
+
+        // Verify the original session has branching metadata
+        let original_message = &updated_source_messages[message_index];
+        assert!(original_message.branching_metadata.is_some());
+
+        let original_metadata = original_message.branching_metadata.as_ref().unwrap();
+        let branches = &original_metadata.branches_created;
+        assert_eq!(branches.len(), 1);
+        assert_eq!(branches[0].session_id, branch_session_id);
+        assert_eq!(branches[0].description, Some("Test branch".to_string()));
+
+        // Test serialization/deserialization of branching metadata
+        let serialized = serde_json::to_string(&last_branch_message).unwrap();
+        let deserialized: Message = serde_json::from_str(&serialized).unwrap();
+
+        assert!(deserialized.branching_metadata.is_some());
+        let deserialized_metadata = deserialized.branching_metadata.as_ref().unwrap();
+        assert!(deserialized_metadata.branched_from.is_some());
+
+        let deserialized_source = deserialized_metadata.branched_from.as_ref().unwrap();
+        assert_eq!(deserialized_source.session_id, source_session_id);
+        assert_eq!(deserialized_source.message_index, 2);
+        assert_eq!(
+            deserialized_source.description,
+            Some("Test branch".to_string())
+        );
     }
 }
