@@ -828,4 +828,22 @@ mod tests {
             "Hello\\u0001World"
         );
     }
+
+    #[test]
+    fn test_parse_google_retry_delay() {
+        let payload = json!({
+            "error": {
+                "details": [
+                    {
+                        "@type": "type.googleapis.com/google.rpc.RetryInfo",
+                        "retryDelay": "42s"
+                    }
+                ]
+            }
+        });
+        assert_eq!(
+            parse_google_retry_delay(&payload),
+            Some(Duration::from_secs(42))
+        );
+    }
 }
