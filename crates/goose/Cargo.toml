@@ -100,6 +100,7 @@ unicode-normalization = "0.1"
 # Vector database for tool selection
 lancedb = "0.13"
 arrow = "52.2"
+oauth2 = "5.0.0"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }
