@@ -101,7 +101,14 @@ pub trait ProviderRetry {
                             error
                         );
 
-                        let delay = config.delay_for_attempt(attempts);
+                        let delay = match &error {
+                            ProviderError::RateLimitExceeded {
+                                retry_delay: Some(provider_delay),
+                                ..
+                            } => *provider_delay,
+                            _ => config.delay_for_attempt(attempts),
+                        };
+
                         tracing::info!("Backing off for {:?} before retry", delay);
                         sleep(delay).await;
                         continue;

@@ -216,7 +216,7 @@ fn parse_google_retry_delay(payload: &Value) -> Option<Duration> {
                 if detail
                     .get("@type")
                     .and_then(|t| t.as_str())
-                    .map_or(false, |s| s.ends_with("RetryInfo"))
+                    .is_some_and(|s| s.ends_with("RetryInfo"))
                 {
                     detail
                         .get("retryDelay")
