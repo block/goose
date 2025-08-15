@@ -266,7 +266,8 @@ const PairRouteWrapper = ({
     }
     // If we have a recipe config but resetChat is false and we already have a recipe,
     // do nothing - just continue with the existing chat state
-  }, [location.state, setChat, setPairChat]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
 
   return (
     <Pair
