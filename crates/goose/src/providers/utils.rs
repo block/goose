@@ -96,7 +96,10 @@ pub fn map_http_error_to_provider_error(
             }
         }
         StatusCode::TOO_MANY_REQUESTS => {
-            ProviderError::RateLimitExceeded(format!("{:?}", payload))
+            ProviderError::RateLimitExceeded {
+                details: format!("{:?}", payload),
+                retry_delay: None,
+            }
         }
         StatusCode::INTERNAL_SERVER_ERROR | StatusCode::SERVICE_UNAVAILABLE => {
             ProviderError::ServerError(format!("{:?}", payload))
@@ -244,7 +247,10 @@ pub async fn handle_response_google_compat(response: Response) -> Result<Value, 
             Err(ProviderError::RequestFailed(format!("Request failed with status: {}. Message: {}", final_status, error_msg)))
         }
         StatusCode::TOO_MANY_REQUESTS => {
-            Err(ProviderError::RateLimitExceeded(format!("{:?}", payload)))
+            Err(ProviderError::RateLimitExceeded {
+                details: format!("{:?}", payload),
+                retry_delay: None,
+            })
         }
         StatusCode::INTERNAL_SERVER_ERROR | StatusCode::SERVICE_UNAVAILABLE => {
             Err(ProviderError::ServerError(format!("{:?}", payload)))

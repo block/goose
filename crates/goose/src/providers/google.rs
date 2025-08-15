@@ -1,7 +1,7 @@
 use super::api_client::{ApiClient, AuthMethod};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
-use super::utils::{emit_debug_trace, handle_response_google_compat, unescape_json_values};
+use super::utils::{emit_debug_trace, handle_response_google_compat};
 use crate::conversation::message::Message;
 use crate::impl_provider_default;
 use crate::model::ModelConfig;
@@ -121,7 +121,7 @@ impl Provider for GoogleProvider {
             .await?;
 
         // Parse response
-        let message = response_to_message(unescape_json_values(&response))?;
+        let message = response_to_message(response.clone())?;
         let usage = get_usage(&response)?;
         let model = match response.get("modelVersion") {
             Some(model_version) => model_version.as_str().unwrap_or_default().to_string(),
