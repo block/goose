@@ -2124,6 +2124,7 @@ mod tests {
                 json!({
                     "command": "Get-ChildItem"
                 }),
+                dummy_sender(),
             )
             .await;
         assert!(result.is_ok());

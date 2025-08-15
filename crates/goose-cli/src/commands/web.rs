@@ -620,7 +620,7 @@ async fn process_message_streaming(
 
                                     // For now, auto-summarize in web mode
                                     // TODO: Implement proper UI for context handling
-                                    let (summarized_messages, _) =
+                                    let (summarized_messages, _, _) =
                                         agent.summarize_context(messages.messages()).await?;
                                     {
                                         let mut session_msgs = session_messages.lock().await;

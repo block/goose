@@ -29,10 +29,8 @@ jobs:
           filters: |
             docs-only:
               - 'documentation/**'
-              - '**/*.md'
             code:
               - '!documentation/**'
-              - '!**/*.md'
 
   rust-format:
     name: Check Rust Code Format
