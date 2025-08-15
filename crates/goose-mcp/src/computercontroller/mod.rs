@@ -1025,21 +1025,15 @@ impl ComputerControllerRouter {
     async fn mcp_ui_hello(&self, _params: Value) -> Result<Vec<Content>, ToolError> {
         // Create an MCP UI resource with HTML content
         let html_content = "<html><body><h1>Hello from MCP UI!</h1></body></html>";
-        
-        // Return the content with the MCP UI resource format
-        let resource_content = serde_json::json!({
-            "type": "resource",
-            "resource": {
-                "uri": "ui://hello/greeting",
-                "mimeType": "text/html",
-                "text": html_content
-            }
-        });
-        
-        Ok(vec![Content::text(format!(
-            "MCP UI Hello tool executed successfully. Resource: {}",
-            resource_content
-        ))])
+
+        // Create a proper ResourceContents::TextResourceContents
+        let resource_contents = rmcp::model::ResourceContents::TextResourceContents {
+            uri: "ui://hello/greeting".to_string(),
+            mime_type: Some("text/html".to_string()),
+            text: html_content.to_string(),
+        };
+
+        Ok(vec![Content::resource(resource_contents)])
     }
 
     async fn cache(&self, params: Value) -> Result<Vec<Content>, ToolError> {
