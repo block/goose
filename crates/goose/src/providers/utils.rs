@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{from_value, json, Map, Value};
 use std::io::Read;
 use std::path::Path;
+use std::time::Duration;
 
 use crate::providers::errors::{OpenAIError, ProviderError};
 
@@ -205,6 +206,31 @@ fn get_google_final_status(status: StatusCode, payload: Option<&Value>) -> Statu
     status
 }
 
+fn parse_google_retry_delay(payload: &Value) -> Option<Duration> {
+    payload
+        .get("error")
+        .and_then(|error| error.get("details"))
+        .and_then(|details| details.as_array())
+        .and_then(|details_array| {
+            details_array.iter().find_map(|detail| {
+                if detail
+                    .get("@type")
+                    .and_then(|t| t.as_str())
+                    .map_or(false, |s| s.ends_with("RetryInfo"))
+                {
+                    detail
+                        .get("retryDelay")
+                        .and_then(|delay| delay.as_str())
+                        .and_then(|s| s.strip_suffix('s'))
+                        .and_then(|num| num.parse::<u64>().ok())
+                        .map(Duration::from_secs)
+                } else {
+                    None
+                }
+            })
+        })
+}
+
 /// Handle response from Google Gemini API-compatible endpoints.
 ///
 /// Processes HTTP responses, handling specific statuses and parsing the payload
@@ -245,6 +271,13 @@ pub async fn handle_response_google_compat(response: Response) -> Result<Value, 
                 "{}", format!("Provider request failed with status: {}. Payload: {:?}", final_status, payload)
             );
             Err(ProviderError::RequestFailed(format!("Request failed with status: {}. Message: {}", final_status, error_msg)))
+        }
+        StatusCode::TOO_MANY_REQUESTS => {
+            let retry_delay = payload.as_ref().and_then(parse_google_retry_delay);
+            Err(ProviderError::RateLimitExceeded {
+                details: format!("{:?}", payload),
+                retry_delay,
+            })
         }
         _ if final_status.is_server_error() => {
             Err(ProviderError::ServerError(format!("{:?}", payload)))
