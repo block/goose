@@ -383,9 +383,6 @@ app.on('open-file', async (event, filePath) => {
   await handleFileOpen(filePath);
 });
 
-// Note: On macOS, the 'open-file' event may fire multiple times for multiple files.
-// We rely on repeated 'open-file' events instead of the non-standard 'open-files' event.
-
 async function handleFileOpen(filePath: string) {
   try {
     if (!filePath || typeof filePath !== 'string') {
