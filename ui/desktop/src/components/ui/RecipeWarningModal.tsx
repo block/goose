@@ -36,17 +36,8 @@ export function RecipeWarningModal({
             {hasSecurityWarnings ? '⚠️ Security Warning' : '⚠️ New Recipe Warning'}
           </DialogTitle>
           <DialogDescription>
-            {hasSecurityWarnings ? (
-              <>
-                This recipe contains potentially harmful characters that will be ignored for your
-                safety. Only proceed if you trust the source of this recipe.
-              </>
-            ) : (
-              <>
-                You are about to execute a recipe that you haven't run before. Only proceed if you
-                trust the source of this recipe.
-              </>
-            )}
+            You are about to execute a recipe that you haven't run before. Only proceed if you trust
+            the source of this recipe.
           </DialogDescription>
         </DialogHeader>
 
