@@ -2,10 +2,12 @@ use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue},
-    Client, Response, StatusCode,
+    Certificate, Client, Identity, Response, StatusCode,
 };
 use serde_json::Value;
 use std::fmt;
+use std::fs::read_to_string;
+use std::path::PathBuf;
 use std::time::Duration;
 
 pub struct ApiClient {
@@ -25,6 +27,87 @@ pub enum AuthMethod {
     #[allow(dead_code)]
     OAuth(OAuthConfig),
     Custom(Box<dyn AuthProvider>),
+    MutualTls(TlsConfig),
+}
+
+#[derive(Debug, Clone)]
+pub struct TlsConfig {
+    pub client_cert_path: Option<PathBuf>,
+    pub client_key_path: Option<PathBuf>,
+    pub ca_cert_path: Option<PathBuf>,
+}
+
+impl TlsConfig {
+    pub fn new() -> Self {
+        Self {
+            client_cert_path: None,
+            client_key_path: None,
+            ca_cert_path: None,
+        }
+    }
+
+    pub fn with_client_cert(mut self, path: PathBuf) -> Self {
+        self.client_cert_path = Some(path);
+        self
+    }
+
+    pub fn with_client_key(mut self, path: PathBuf) -> Self {
+        self.client_key_path = Some(path);
+        self
+    }
+
+    pub fn with_ca_cert(mut self, path: PathBuf) -> Self {
+        self.ca_cert_path = Some(path);
+        self
+    }
+
+    pub fn is_configured(&self) -> bool {
+        self.client_cert_path.is_some()
+            || self.client_key_path.is_some()
+            || self.ca_cert_path.is_some()
+    }
+
+    pub fn load_identity(&self) -> Result<Option<Identity>> {
+        match (&self.client_cert_path, &self.client_key_path) {
+            (Some(cert_path), Some(key_path)) => {
+                let cert_pem = read_to_string(cert_path)
+                    .map_err(|e| anyhow::anyhow!("Failed to read client certificate: {}", e))?;
+                let key_pem = read_to_string(key_path)
+                    .map_err(|e| anyhow::anyhow!("Failed to read client private key: {}", e))?;
+
+                // Create a combined PEM file with certificate and private key
+                let combined_pem = format!("{}\n{}", cert_pem, key_pem);
+
+                let identity = Identity::from_pem(combined_pem.as_bytes()).map_err(|e| {
+                    anyhow::anyhow!("Failed to create identity from cert and key: {}", e)
+                })?;
+
+                Ok(Some(identity))
+            }
+            (Some(_), None) => Err(anyhow::anyhow!(
+                "Client certificate provided but no private key"
+            )),
+            (None, Some(_)) => Err(anyhow::anyhow!(
+                "Client private key provided but no certificate"
+            )),
+            (None, None) => Ok(None),
+        }
+    }
+
+    pub fn load_ca_certificates(&self) -> Result<Vec<Certificate>> {
+        match &self.ca_cert_path {
+            Some(ca_path) => {
+                let ca_pem = read_to_string(ca_path)
+                    .map_err(|e| anyhow::anyhow!("Failed to read CA certificate: {}", e))?;
+
+                let certs = Certificate::from_pem_bundle(ca_pem.as_bytes())
+                    .map_err(|e| anyhow::anyhow!("Failed to parse CA certificate bundle: {}", e))?;
+
+                Ok(certs)
+            }
+            None => Ok(Vec::new()),
+        }
+    }
 }
 
 pub struct OAuthConfig {
@@ -55,6 +138,21 @@ impl fmt::Debug for AuthMethod {
                 .finish(),
             AuthMethod::OAuth(_) => f.debug_tuple("OAuth").field(&"[config]").finish(),
             AuthMethod::Custom(_) => f.debug_tuple("Custom").field(&"[provider]").finish(),
+            AuthMethod::MutualTls(tls_config) => f
+                .debug_struct("MutualTls")
+                .field(
+                    "client_cert",
+                    &tls_config.client_cert_path.as_ref().map(|_| "[path]"),
+                )
+                .field(
+                    "client_key",
+                    &tls_config.client_key_path.as_ref().map(|_| "[path]"),
+                )
+                .field(
+                    "ca_cert",
+                    &tls_config.ca_cert_path.as_ref().map(|_| "[path]"),
+                )
+                .finish(),
         }
     }
 }
@@ -79,8 +177,28 @@ impl ApiClient {
     }
 
     pub fn with_timeout(host: String, auth: AuthMethod, timeout: Duration) -> Result<Self> {
+        let mut client_builder = Client::builder().timeout(timeout);
+
+        // Configure TLS if mutual TLS is specified
+        if let AuthMethod::MutualTls(tls_config) = &auth {
+            if tls_config.is_configured() {
+                // Load client identity (certificate + private key)
+                if let Some(identity) = tls_config.load_identity()? {
+                    client_builder = client_builder.identity(identity);
+                }
+
+                // Load CA certificates
+                let ca_certs = tls_config.load_ca_certificates()?;
+                for ca_cert in ca_certs {
+                    client_builder = client_builder.add_root_certificate(ca_cert);
+                }
+            }
+        }
+
+        let client = client_builder.build()?;
+
         Ok(Self {
-            client: Client::builder().timeout(timeout).build()?,
+            client,
             host,
             auth,
             default_headers: HeaderMap::new(),
@@ -90,10 +208,28 @@ impl ApiClient {
 
     pub fn with_headers(mut self, headers: HeaderMap) -> Result<Self> {
         self.default_headers = headers;
-        self.client = Client::builder()
+
+        let mut client_builder = Client::builder()
             .timeout(self.timeout)
-            .default_headers(self.default_headers.clone())
-            .build()?;
+            .default_headers(self.default_headers.clone());
+
+        // Re-configure TLS if mutual TLS is specified
+        if let AuthMethod::MutualTls(tls_config) = &self.auth {
+            if tls_config.is_configured() {
+                // Load client identity (certificate + private key)
+                if let Some(identity) = tls_config.load_identity()? {
+                    client_builder = client_builder.identity(identity);
+                }
+
+                // Load CA certificates
+                let ca_certs = tls_config.load_ca_certificates()?;
+                for ca_cert in ca_certs {
+                    client_builder = client_builder.add_root_certificate(ca_cert);
+                }
+            }
+        }
+
+        self.client = client_builder.build()?;
         Ok(self)
     }
 
@@ -101,10 +237,28 @@ impl ApiClient {
         let header_name = HeaderName::from_bytes(key.as_bytes())?;
         let header_value = HeaderValue::from_str(value)?;
         self.default_headers.insert(header_name, header_value);
-        self.client = Client::builder()
+
+        let mut client_builder = Client::builder()
             .timeout(self.timeout)
-            .default_headers(self.default_headers.clone())
-            .build()?;
+            .default_headers(self.default_headers.clone());
+
+        // Re-configure TLS if mutual TLS is specified
+        if let AuthMethod::MutualTls(tls_config) = &self.auth {
+            if tls_config.is_configured() {
+                // Load client identity (certificate + private key)
+                if let Some(identity) = tls_config.load_identity()? {
+                    client_builder = client_builder.identity(identity);
+                }
+
+                // Load CA certificates
+                let ca_certs = tls_config.load_ca_certificates()?;
+                for ca_cert in ca_certs {
+                    client_builder = client_builder.add_root_certificate(ca_cert);
+                }
+            }
+        }
+
+        self.client = client_builder.build()?;
         Ok(self)
     }
 
@@ -206,6 +360,10 @@ impl<'a> ApiRequestBuilder<'a> {
             AuthMethod::Custom(provider) => {
                 let (header_name, header_value) = provider.get_auth_header().await?;
                 request.header(header_name, header_value)
+            }
+            AuthMethod::MutualTls(_) => {
+                // Mutual TLS is configured at the client level, no additional headers needed
+                request
             }
         };
 
