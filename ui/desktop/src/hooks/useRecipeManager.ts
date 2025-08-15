@@ -88,7 +88,8 @@ export const useRecipeManager = (messages: Message[], locationState?: LocationSt
           setHasSecurityWarnings(scanResult.has_security_warnings);
 
           const hasAccepted = await window.electron.hasAcceptedRecipeBefore(recipeConfig);
-          if (!hasAccepted) {
+
+          if (scanResult.has_security_warnings || !hasAccepted) {
             setIsRecipeWarningModalOpen(true);
           } else {
             setRecipeAccepted(true);
