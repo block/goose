@@ -222,8 +222,23 @@ export default function ChatInput({
   }, [chatContext?.contextKey]);
 
   useEffect(() => {
-    // Only load draft once and if conditions are met
+    // Check if this is a new window/session by looking at the URL parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const isResumedSession = urlParams.get('resumeSessionId') !== null;
+
+    // Only load draft if:
+    // 1. No initial value
+    // 2. No recipe config
+    // 3. Not already loaded
+    // 4. Chat context exists
+    // 5. This is NOT a new window (no messages and not a resumed session)
     if (!initialValue && !recipeConfig && !draftLoadedRef.current && chatContext) {
+      // Skip loading draft for new windows (empty chat that's not resumed)
+      if (messages.length === 0 && !isResumedSession) {
+        draftLoadedRef.current = true;
+        return;
+      }
+
       const draftText = chatContext.draft || '';
 
       if (draftText) {
@@ -234,7 +249,7 @@ export default function ChatInput({
       // Always mark as loaded after checking, regardless of whether we found a draft
       draftLoadedRef.current = true;
     }
-  }, [chatContext, initialValue, recipeConfig]);
+  }, [chatContext, initialValue, recipeConfig, chatContext?.draft, messages.length]);
 
   // Save draft when user types (debounced)
   const debouncedSaveDraft = useMemo(

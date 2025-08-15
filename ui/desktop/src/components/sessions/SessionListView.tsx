@@ -8,7 +8,6 @@ import { View, ViewOptions } from '../../App';
 import { formatMessageTimestamp } from '../../utils/timeUtils';
 import { SearchView } from '../conversation/SearchView';
 import { SearchHighlighter } from '../../utils/searchHighlighter';
-import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { groupSessionsByDate, type DateGroup } from '../../utils/dateUtils';
 import { Skeleton } from '../ui/skeleton';
 import { toast } from 'react-toastify';
@@ -485,88 +484,73 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
 
   return (
     <>
-      <MainPanelLayout>
-        <div className="flex-1 flex flex-col min-h-0">
-          <div className="bg-background-default px-8 pb-8 pt-16">
-            <div className="flex flex-col page-transition">
-              <div className="flex justify-between items-center mb-1">
-                <h1 className="text-4xl font-light">Chat history</h1>
-              </div>
-              <p className="text-sm text-text-muted mb-4">
-                View and search your past conversations with Goose.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex-1 min-h-0 relative px-8">
-            <ScrollArea className="h-full" data-search-scroll-area>
-              <div ref={containerRef} className="h-full relative">
-                <SearchView
-                  onSearch={handleSearch}
-                  onNavigate={handleSearchNavigation}
-                  searchResults={searchResults}
-                  className="relative"
-                >
-                  {/* Skeleton layer - always rendered but conditionally visible */}
-                  <div
-                    className={`absolute inset-0 transition-opacity duration-300 ${
-                      isLoading || showSkeleton
-                        ? 'opacity-100 z-10'
-                        : 'opacity-0 z-0 pointer-events-none'
-                    }`}
-                  >
-                    <div className="space-y-8">
-                      {/* Today section */}
-                      <div className="space-y-4">
-                        <Skeleton className="h-6 w-16" />
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-                          <SessionSkeleton variant={0} />
-                          <SessionSkeleton variant={1} />
-                          <SessionSkeleton variant={2} />
-                          <SessionSkeleton variant={3} />
-                          <SessionSkeleton variant={0} />
-                        </div>
-                      </div>
-
-                      {/* Yesterday section */}
-                      <div className="space-y-4">
-                        <Skeleton className="h-6 w-20" />
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-                          <SessionSkeleton variant={1} />
-                          <SessionSkeleton variant={2} />
-                          <SessionSkeleton variant={3} />
-                          <SessionSkeleton variant={0} />
-                          <SessionSkeleton variant={1} />
-                          <SessionSkeleton variant={2} />
-                        </div>
-                      </div>
-
-                      {/* Additional section */}
-                      <div className="space-y-4">
-                        <Skeleton className="h-6 w-24" />
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-                          <SessionSkeleton variant={3} />
-                          <SessionSkeleton variant={0} />
-                          <SessionSkeleton variant={1} />
-                        </div>
-                      </div>
+      <div className="flex-1 min-h-0 relative px-8">
+        <ScrollArea className="h-full" data-search-scroll-area>
+          <div ref={containerRef} className="h-full relative">
+            <SearchView
+              onSearch={handleSearch}
+              onNavigate={handleSearchNavigation}
+              searchResults={searchResults}
+              className="relative"
+            >
+              {/* Skeleton layer - always rendered but conditionally visible */}
+              <div
+                className={`absolute inset-0 transition-opacity duration-300 ${
+                  isLoading || showSkeleton
+                    ? 'opacity-100 z-10'
+                    : 'opacity-0 z-0 pointer-events-none'
+                }`}
+              >
+                <div className="space-y-8">
+                  {/* Today section */}
+                  <div className="space-y-4">
+                    <Skeleton className="h-6 w-16" />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+                      <SessionSkeleton variant={0} />
+                      <SessionSkeleton variant={1} />
+                      <SessionSkeleton variant={2} />
+                      <SessionSkeleton variant={3} />
+                      <SessionSkeleton variant={0} />
                     </div>
                   </div>
 
-                  {/* Content layer - always rendered but conditionally visible */}
-                  <div
-                    className={`relative transition-opacity duration-300 ${
-                      showContent ? 'opacity-100 z-10' : 'opacity-0 z-0'
-                    }`}
-                  >
-                    {renderActualContent()}
+                  {/* Yesterday section */}
+                  <div className="space-y-4">
+                    <Skeleton className="h-6 w-20" />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+                      <SessionSkeleton variant={1} />
+                      <SessionSkeleton variant={2} />
+                      <SessionSkeleton variant={3} />
+                      <SessionSkeleton variant={0} />
+                      <SessionSkeleton variant={1} />
+                      <SessionSkeleton variant={2} />
+                    </div>
                   </div>
-                </SearchView>
+
+                  {/* Additional section */}
+                  <div className="space-y-4">
+                    <Skeleton className="h-6 w-24" />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+                      <SessionSkeleton variant={3} />
+                      <SessionSkeleton variant={0} />
+                      <SessionSkeleton variant={1} />
+                    </div>
+                  </div>
+                </div>
               </div>
-            </ScrollArea>
+
+              {/* Content layer - always rendered but conditionally visible */}
+              <div
+                className={`relative transition-opacity duration-300 ${
+                  showContent ? 'opacity-100 z-10' : 'opacity-0 z-0'
+                }`}
+              >
+                {renderActualContent()}
+              </div>
+            </SearchView>
           </div>
-        </div>
-      </MainPanelLayout>
+        </ScrollArea>
+      </div>
 
       <EditSessionModal
         session={editingSession}
