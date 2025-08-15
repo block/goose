@@ -10,8 +10,8 @@ use tokio::process::Command;
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::utils::emit_debug_trace;
-use crate::impl_provider_default;
 use crate::conversation::message::{Message, MessageContent};
+use crate::impl_provider_default;
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
 
