@@ -113,6 +113,7 @@ These variables control how Goose manages conversation sessions and context.
 | `GOOSE_TEMPORAL_BIN` | Optional custom path to your Temporal binary | /path/to/temporal-service | None |
 | `GOOSE_RANDOM_THINKING_MESSAGES` | Controls whether to show amusing random messages during processing | "true", "false" | "true" |
 | `GOOSE_CLI_SHOW_COST` | Toggles display of model cost estimates in CLI output | "true", "1" (case insensitive) to enable | false |
+| `GOOSE_AUTO_COMPACT_THRESHOLD` | Set the percentage threshold at which Goose [automatically summarizes your session](/docs/guides/smart-context-management.md#automatic-compaction). | Float between 0.0 and 1.0 (disabled at 0.0) | 0.8 |
 
 **Examples**
 
@@ -149,6 +150,9 @@ export GOOSE_RANDOM_THINKING_MESSAGES=false
 
 # Enable model cost display in CLI
 export GOOSE_CLI_SHOW_COST=true
+
+# Automatically compact sessions when 60% of available tokens are used
+export GOOSE_AUTO_COMPACT_THRESHOLD=0.6
 ```
 
 ### Model Context Limit Overrides
