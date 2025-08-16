@@ -224,7 +224,7 @@ export default function ChatInput({
     const messageToSend = queuedMessages.find(msg => msg.id === messageId);
     if (!messageToSend) return;
     
-    // Set flag to prevent automatic queue processing
+    // Set flag to prevent automatic queue processing only for this specific message
     sendNowTriggeredRef.current = true;
     
     if (onStop) onStop();
