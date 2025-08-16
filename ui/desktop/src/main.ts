@@ -383,6 +383,18 @@ app.on('open-file', async (event, filePath) => {
   await handleFileOpen(filePath);
 });
 
+// Handle multiple files/folders (macOS only)
+if (process.platform === 'darwin') {
+  // Use type assertion for non-standard Electron event
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  app.on('open-files' as any, async (event: any, filePaths: string[]) => {
+    event.preventDefault();
+    for (const filePath of filePaths) {
+      await handleFileOpen(filePath);
+    }
+  });
+}
+
 async function handleFileOpen(filePath: string) {
   try {
     if (!filePath || typeof filePath !== 'string') {
@@ -699,6 +711,14 @@ const createChat = async (
     return { action: 'allow' };
   });
 
+  // Handle new-window events (alternative approach for external links)
+  // Use type assertion for non-standard Electron event
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  mainWindow.webContents.on('new-window' as any, function (event: any, url: string) {
+    event.preventDefault();
+    shell.openExternal(url);
+  });
+
   // Load the index.html of the app.
   let queryParams = '';
   if (query) {
@@ -754,6 +774,16 @@ const createChat = async (
     if (cmd === 'browser-backward') {
       mainWindow.webContents.send('mouse-back-button-clicked');
       e.preventDefault();
+    }
+  });
+
+  // Handle mouse back button (button 3)
+  // Use type assertion for non-standard Electron event
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  mainWindow.webContents.on('mouse-up' as any, function (_event: any, mouseButton: number) {
+    // MouseButton 3 is the back button.
+    if (mouseButton === 3) {
+      mainWindow.webContents.send('mouse-back-button-clicked');
     }
   });
 
