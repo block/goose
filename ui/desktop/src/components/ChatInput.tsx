@@ -103,6 +103,7 @@ export default function ChatInput({
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
   const [isFocused, setIsFocused] = useState(false);
   const [pastedImages, setPastedImages] = useState<PastedImage[]>([]);
+  const [queuedMessage, setQueuedMessage] = useState('');
 
   // Derived state - chatState != Idle means we're in some form of loading state
   const isLoading = chatState !== ChatState.Idle;
@@ -890,6 +891,15 @@ export default function ChatInput({
       }
 
       evt.preventDefault();
+
+      // Queue message if loading, it is a little jank as it is only one at a time for now
+      if (isLoading && displayValue.trim()) {
+        setQueuedMessage(displayValue);
+        setDisplayValue('');
+        setValue('');
+        return;
+      }
+
       const canSubmit =
         !isLoading &&
         !isLoadingCompaction &&
@@ -954,6 +964,25 @@ export default function ChatInput({
   const isAnyImageLoading = pastedImages.some((img) => img.isLoading);
   const isAnyDroppedFileLoading = allDroppedFiles.some((file) => file.isLoading);
 
+  const wasLoadingRef = useRef(isLoading);
+  useEffect(() => {
+    if (wasLoadingRef.current && !isLoading && queuedMessage) {
+      // submit the queued message directly when ready
+      LocalMessageStorage.addMessage(queuedMessage);
+      handleSubmit(
+        new CustomEvent('submit', {
+          detail: { value: queuedMessage },
+        }) as unknown as React.FormEvent
+      );
+
+      setQueuedMessage('');
+      setDisplayValue('');
+      setValue('');
+    }
+    wasLoadingRef.current = isLoading;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading]);
+
   return (
     <div
       className={`flex flex-col relative h-auto p-4 transition-colors ${
@@ -974,7 +1003,13 @@ export default function ChatInput({
             data-testid="chat-input"
             autoFocus
             id="dynamic-textarea"
-            placeholder={isRecording ? '' : '⌘↑/⌘↓ to navigate messages'}
+            placeholder={
+              isRecording
+                ? ''
+                : queuedMessage
+                  ? `Queued: ${queuedMessage.substring(0, 50)}${queuedMessage.length > 50 ? '...' : ''}`
+                  : '⌘↑/⌘↓ to navigate messages'
+            }
             value={displayValue}
             onChange={handleChange}
             onCompositionStart={handleCompositionStart}
@@ -1065,7 +1100,7 @@ export default function ChatInput({
                       ? 'bg-red-500 text-white hover:bg-red-600 border-red-500'
                       : isTranscribing
                         ? 'bg-slate-600 text-white cursor-not-allowed animate-pulse border-slate-600'
-                        : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600'
+                        : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600 hover:cursor-pointer'
                   }`}
                 >
                   <Microphone />
