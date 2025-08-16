@@ -28,6 +28,15 @@ jobs:
         with:
           node-version: 20 
 
+      - name: Cache Node.js modules
+        if: github.event.action != 'closed'
+        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
+        with:
+          path: ./documentation/node_modules
+          key: ${{ runner.os }}-documentation-${{ hashFiles('./documentation/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-documentation-
+
       - name: Install dependencies and build docs
         working-directory: ./documentation
         if: github.event.action != 'closed'
