@@ -15,11 +15,25 @@ import { PanelLeft } from 'lucide-react';
 This tutorial covers how to add the [Dev.to MCP Server](https://github.com/nickytonline/dev-to-mcp) as a Goose extension to enable access to the Dev.to public API. With this extension, Goose can fetch articles, tags, user info, comments, and more—without requiring authentication.
 
 :::tip TLDR
-**Endpoint URL**
-```sh
-http://localhost:3000/mcp
-```
-Make sure your server is running before adding the extension in Goose 
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+  [Launch the installer](goose://extension?type=streamable_http&url=http%3A%2F%2Flocalhost%3A3000%2Fmcp&id=dev-to&name=Dev.to&description=Access%20Dev.to%20articles%20and%20content)
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+  Use `goose configure` to add a `Remote Extension (Streaming HTTP)` extension type with:
+
+  **Endpoint URL**
+
+  ```
+  http://localhost:3000/mcp
+  ```
+
+</TabItem>
+</Tabs>
+
+**Required Setup** 
+
+Make sure your Dev.to MCP server is running before adding the extension
 :::
 
 ## Configuration
@@ -44,17 +58,13 @@ Your server will now be running at:
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-  2. Navigate to `Extensions`
-  3. Click `Add Custom Extension`
-  4. In `Extension Name`, enter: `dev.to`
-  5. In the `Type` dropdown, select: `Streamable HTTP`
-  6. (Optional) Add a Description 
-  7. In `Endpoint URL`, enter:` http://localhost:3000/mcp`
-  8. Set `Timeout` to `300` (default)
-  9. Leave `Environment Variables` empty
-  10. Leave `Request Headers` empty
-  11. Click `Add Extension`
+    <GooseDesktopInstaller
+      extensionId="dev-to"
+      extensionName="Dev.to"
+      description="Access Dev.to articles and content"
+      type="http"
+      url="http://localhost:3000/mcp"
+    />
 
   </TabItem>
   <TabItem value="cli" label="Goose CLI" default>
