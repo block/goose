@@ -128,7 +128,7 @@ jobs:
         working-directory: ui/desktop
 
       - name: Run Tests
-        run: source ../../bin/activate-hermit && npm run test -- --ci --runInBand
+        run: source ../../bin/activate-hermit && npm run test:run
         working-directory: ui/desktop
 
   # Faster Desktop App build for PRs only

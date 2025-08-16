@@ -146,7 +146,7 @@
       "bash -c 'npm run typecheck'",
       "eslint --fix --max-warnings 0 --no-warn-ignored",
       "prettier --write",
-      "bash -c 'npm test'"
+      "bash -c 'npm run test:run'"
     ],
     "src/**/*.{css,json}": [
       "prettier --write"
