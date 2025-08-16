@@ -25,6 +25,7 @@ interface ToolConfirmationProps {
   isClicked: boolean;
   toolConfirmationId: string;
   toolName: string;
+  prompt?: string; // Security warning or custom prompt
 }
 
 export default function ToolConfirmation({
@@ -32,6 +33,7 @@ export default function ToolConfirmation({
   isClicked,
   toolConfirmationId,
   toolName,
+  prompt,
 }: ToolConfirmationProps) {
   // Check if we have a stored state for this tool confirmation
   const storedState = toolConfirmationState.get(toolConfirmationId);
@@ -121,7 +123,7 @@ export default function ToolConfirmation({
   ) : (
     <>
       <div className="goose-message-content bg-background-muted rounded-2xl px-4 py-2 rounded-b-none text-textStandard">
-        Goose would like to call the above tool. Allow?
+        {prompt || 'Goose would like to call the above tool. Allow?'}
       </div>
       {clicked ? (
         <div className="goose-message-tool bg-background-default border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-2 pb-2 flex items-center justify-between">
@@ -188,9 +190,12 @@ export default function ToolConfirmation({
         </div>
       ) : (
         <div className="goose-message-tool bg-background-default border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-2 pb-2 flex gap-2 items-center">
-          <Button className="rounded-full" onClick={() => handleButtonClick(ALWAYS_ALLOW)}>
-            Always Allow
-          </Button>
+          {/* Hide "Always Allow" for security warnings to prevent bypassing future security checks */}
+          {!prompt?.includes('SECURITY WARNING') && (
+            <Button className="rounded-full" onClick={() => handleButtonClick(ALWAYS_ALLOW)}>
+              Always Allow
+            </Button>
+          )}
           <Button
             className="rounded-full"
             variant="secondary"

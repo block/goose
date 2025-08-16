@@ -102,6 +102,10 @@ lancedb = "0.13"
 arrow = "52.2"
 oauth2 = "5.0.0"
 
+# ML inference backends for security scanning
+ort = "2.0.0-rc.10"  # ONNX Runtime - use latest RC
+tokenizers = { version = "0.20.4", default-features = false, features = ["onig"] }  # HuggingFace tokenizers
+
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }
 
