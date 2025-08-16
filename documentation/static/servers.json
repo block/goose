@@ -235,23 +235,6 @@
     "environmentVariables": []
   },
   {
-    "id": "figma",
-    "name": "Figma",
-    "description": "Figma design tool integration",
-    "command": "npx -y @hapins/figma-mcp",
-    "link": "https://github.com/hapins/figma-mcp",
-    "installation_notes": "Install using npx package manager. Requires Figma access token from user settings.",
-    "is_builtin": false,
-    "endorsed": false,
-    "environmentVariables": [
-      {
-        "name": "FIGMA_ACCESS_TOKEN",
-        "description": "Access token from Figma user settings",
-        "required": true
-      }
-    ]
-  },
-  {
     "id": "filesystem-mcp",
     "name": "Filesystem",
     "description": "File system operations and management",
