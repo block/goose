@@ -30,7 +30,7 @@ use std::path::PathBuf;
 #[derive(Parser)]
 #[command(author, version, display_name = "", about, long_about = None)]
 struct Cli {
-    #[command(subcommand)]
+    #[clap(subcommand)]
     command: Option<Command>,
 }
 
@@ -273,6 +273,30 @@ enum RecipeCommand {
 }
 
 #[derive(Subcommand)]
+enum RepoCommand {
+    #[command(about = "Index the repository and generate/update the repo map using Tree-sitter")]
+    Index {
+        /// Path to the root of the repository to index (default: current directory)
+        #[arg(
+            long,
+            value_name = "PATH",
+            help = "Path to the root of the repository to index",
+            default_value = "."
+        )]
+        path: String,
+
+        /// Output file name (default: .goose-repo-index.jsonl)
+        #[arg(
+            long,
+            value_name = "FILE",
+            help = "Output file name",
+            default_value = ".goose-repo-index.jsonl"
+        )]
+        output: String,
+    },
+}
+
+#[derive(Subcommand)]
 enum Command {
     /// Configure Goose settings
     #[command(about = "Configure Goose settings")]
@@ -384,6 +408,21 @@ enum Command {
             value_delimiter = ','
         )]
         builtins: Vec<String>,
+    },
+
+    /// Open the last project directory
+    #[command(about = "Open the last project directory", visible_alias = "p")]
+    Project {},
+
+    /// List recent project directories
+    #[command(about = "List recent project directories", visible_alias = "ps")]
+    Projects,
+
+    /// Repository indexing and analysis
+    #[command(about = "Repository indexing and analysis tools")]
+    Repo {
+        #[command(subcommand)]
+        command: Option<RepoCommand>,
     },
 
     /// Execute commands from an instruction file
@@ -696,6 +735,9 @@ pub async fn cli() -> Result<()> {
         Some(Command::Info { .. }) => "info",
         Some(Command::Mcp { .. }) => "mcp",
         Some(Command::Session { .. }) => "session",
+        Some(Command::Repo { .. }) => "repo",
+        Some(Command::Project {}) => "project",
+        Some(Command::Projects) => "projects",
         Some(Command::Run { .. }) => "run",
         Some(Command::Schedule { .. }) => "schedule",
         Some(Command::Update { .. }) => "update",
@@ -712,6 +754,29 @@ pub async fn cli() -> Result<()> {
     );
 
     match cli.command {
+        Some(Command::Repo { command }) => {
+            match command {
+                Some(RepoCommand::Index { path, output }) => {
+                    crate::commands::repo::index_repository_with_args(&path, &output)?;
+                    return Ok(());
+                }
+                _ => {
+                    // Default to help or list in future
+                    println!("Usage: goose repo index --path <dir> --output <file>");
+                    return Ok(());
+                }
+            }
+        }
+        Some(Command::Project {}) => {
+            // TODO: implement project open behavior (placeholder)
+            eprintln!("Project command not yet implemented");
+            return Ok(());
+        }
+        Some(Command::Projects) => {
+            // TODO: implement projects listing behavior (placeholder)
+            eprintln!("Projects command not yet implemented");
+            return Ok(());
+        }
         Some(Command::Configure {}) => {
             let _ = handle_configure().await;
             return Ok(());
