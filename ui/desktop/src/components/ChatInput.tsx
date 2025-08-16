@@ -220,6 +220,25 @@ export default function ChatInput({
   const handleStopAndSend = (messageId: string) => {
     // Resume queue processing when using Send Now
 
+    // Manually process next message in queue after Send Now completes
+    const processNextInQueue = () => {
+      setTimeout(() => {
+        if (!isLoading && queuedMessages.length > 1 && !queuePausedRef.current) {
+          const remainingMessages = queuedMessages.filter(msg => msg.id !== messageId);
+          if (remainingMessages.length > 0) {
+            const nextMessage = remainingMessages[0];
+            LocalMessageStorage.addMessage(nextMessage.content);
+            handleSubmit(new CustomEvent("submit", { detail: { value: nextMessage.content } }) as unknown as React.FormEvent);
+            setQueuedMessages(prev => prev.filter(msg => msg.id !== nextMessage.id));
+          }
+        }
+      }, 1000);
+    };
+
+    // Trigger processing after current message is sent
+    processNextInQueue();
+
+
     // Manually process next message in queue after Send Now if not loading
     const processNextInQueue = () => {
       if (!isLoading && queuedMessages.length > 1 && !queuePausedRef.current) {
