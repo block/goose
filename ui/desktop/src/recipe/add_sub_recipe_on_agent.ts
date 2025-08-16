@@ -1,7 +1,12 @@
 import { addSubRecipes, SubRecipe } from '../api';
 
 export async function addSubRecipesToAgent(subRecipes: SubRecipe[]) {
-  const add_sub_recipe_response = await addSubRecipes({ body: { sub_recipes: subRecipes } });
+  const add_sub_recipe_response = await addSubRecipes({
+    body: { sub_recipes: subRecipes },
+    headers: {
+      'X-Secret-Key': await window.electron.getSecretKey(),
+    },
+  });
   if (add_sub_recipe_response.error) {
     console.warn(`Failed to add sub recipes: ${add_sub_recipe_response.error}`);
   } else {
