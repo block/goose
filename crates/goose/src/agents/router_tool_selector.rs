@@ -12,6 +12,7 @@ use std::env;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+#[cfg(feature = "tool_vectordb")]
 use crate::agents::tool_vectordb::ToolVectorDB;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
@@ -40,12 +41,14 @@ pub trait RouterToolSelector: Send + Sync {
     fn selector_type(&self) -> RouterToolSelectionStrategy;
 }
 
+#[cfg(feature = "tool_vectordb")]
 pub struct VectorToolSelector {
     vector_db: Arc<RwLock<ToolVectorDB>>,
     embedding_provider: Arc<dyn Provider>,
     recent_tool_calls: Arc<RwLock<VecDeque<String>>>,
 }
 
+#[cfg(feature = "tool_vectordb")]
 impl VectorToolSelector {
     pub async fn new(provider: Arc<dyn Provider>, table_name: String) -> Result<Self> {
         let vector_db = ToolVectorDB::new(Some(table_name)).await?;
@@ -79,6 +82,7 @@ impl VectorToolSelector {
 }
 
 #[async_trait]
+#[cfg(feature = "tool_vectordb")]
 impl RouterToolSelector for VectorToolSelector {
     async fn select_tools(&self, params: Value) -> Result<Vec<Content>, ErrorData> {
         let query = params
@@ -427,8 +431,17 @@ pub async fn create_tool_selector(
 ) -> Result<Box<dyn RouterToolSelector>> {
     match strategy {
         Some(RouterToolSelectionStrategy::Vector) => {
-            let selector = VectorToolSelector::new(provider, table_name.unwrap()).await?;
-            Ok(Box::new(selector))
+            #[cfg(feature = "tool_vectordb")]
+            {
+                let selector = VectorToolSelector::new(provider, table_name.unwrap()).await?;
+                Ok(Box::new(selector))
+            }
+            #[cfg(not(feature = "tool_vectordb"))]
+            {
+                Err(anyhow::anyhow!(
+                    "Vector tool selection is not enabled. Enable 'tool_vectordb' feature."
+                ))
+            }
         }
         Some(RouterToolSelectionStrategy::Llm) => {
             let selector = LLMToolSelector::new(provider).await?;

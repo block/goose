@@ -96,11 +96,13 @@ dashmap = "6.1"
 ahash = "0.8"
 tokio-util = "0.7.15"
 unicode-normalization = "0.1"
-
-# Vector database for tool selection
-lancedb = "0.13"
-arrow = "52.2"
 oauth2 = "5.0.0"
+lancedb = { version = "0.13", optional = true }
+arrow = { version = "52.2", optional = true }
+
+[features]
+default = []
+tool_vectordb = ["lancedb", "arrow"]
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }

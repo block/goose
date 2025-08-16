@@ -21,6 +21,7 @@ pub mod todo_tools;
 mod tool_execution;
 mod tool_route_manager;
 mod tool_router_index_manager;
+#[cfg(feature = "tool_vectordb")]
 pub(crate) mod tool_vectordb;
 pub mod types;
 
