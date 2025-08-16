@@ -3,7 +3,7 @@ import { Input } from '../../../../../ui/input';
 import { Select } from '../../../../../ui/Select';
 import { Button } from '../../../../../ui/button';
 import { SecureStorageNotice } from '../SecureStorageNotice';
-import { Checkbox } from '../../../../../ui/checkbox';
+import { Checkbox } from '@radix-ui/themes';
 
 interface CustomProviderFormProps {
   onSubmit: (data: {
@@ -50,7 +50,6 @@ export default function CustomProviderForm({ onSubmit, onCancel }: CustomProvide
       return;
     }
 
-    // parse custom models (separate with commas)
     const modelList = models
       .split(',')
       .map((m) => m.trim())

@@ -3,7 +3,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  // DialogFooter,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '../../../ui/dialog';
@@ -243,21 +243,23 @@ export default function ProviderConfigurationModal() {
           ) : null}
         </div>
 
-        <ProviderSetupActions
-          requiredParameters={requiredParameters}
-          onCancel={handleCancel}
-          onSubmit={handleSubmitForm}
-          onDelete={handleDelete}
-          showDeleteConfirmation={showDeleteConfirmation}
-          onConfirmDelete={handleConfirmDelete}
-          onCancelDelete={() => {
-            setShowDeleteConfirmation(false);
-            setIsActiveProvider(false);
-          }}
-          canDelete={isConfigured && !isActiveProvider} // Disable delete button for active provider
-          providerName={currentProvider.metadata.display_name}
-          isActiveProvider={isActiveProvider} // Pass this to actions for button state
-        />
+        <DialogFooter>
+          <ProviderSetupActions
+            requiredParameters={requiredParameters}
+            onCancel={handleCancel}
+            onSubmit={handleSubmitForm}
+            onDelete={handleDelete}
+            showDeleteConfirmation={showDeleteConfirmation}
+            onConfirmDelete={handleConfirmDelete}
+            onCancelDelete={() => {
+              setShowDeleteConfirmation(false);
+              setIsActiveProvider(false);
+            }}
+            canDelete={isConfigured && !isActiveProvider}
+            providerName={currentProvider.metadata.display_name}
+            isActiveProvider={isActiveProvider}
+          />
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
