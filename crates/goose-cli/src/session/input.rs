@@ -68,8 +68,16 @@ pub fn get_input(
         rustyline::EventHandler::Conditional(Box::new(CtrlCHandler)),
     );
 
-    let prompt = format!("{} ", console::style("( O)>").cyan().bold());
-
+    // On Windows, we need to be careful with ANSI codes and cursor positioning
+    // Using a simpler prompt format to avoid cursor shift issues
+    let prompt = if cfg!(target_os = "windows") {
+        // For Windows, use a simpler prompt without bold styling which can cause issues
+        format!("{} ", console::style("( O)>").cyan())
+    } else {
+        // For other platforms, keep the original styling
+        format!("{} ", console::style("( O)>").cyan().bold())
+    };
+    
     let input = match editor.readline(&prompt) {
         Ok(text) => text,
         Err(e) => match e {
