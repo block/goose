@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Clock, Send, GripVertical } from 'lucide-react';
+import { X, Clock, Send, GripVertical, Zap, Sparkles } from 'lucide-react';
 import { Button } from './ui/button';
 
 interface QueuedMessage {
@@ -15,6 +15,7 @@ interface MessageQueueProps {
   onStopAndSend?: (messageId: string) => void;
   onReorderMessages?: (reorderedMessages: QueuedMessage[]) => void;
   className?: string;
+  isPaused?: boolean;
 }
 
 export const MessageQueue: React.FC<MessageQueueProps> = ({
@@ -24,9 +25,11 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
   onStopAndSend,
   onReorderMessages,
   className = '',
+  isPaused = false,
 }) => {
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
   const [dragOverItem, setDragOverItem] = useState<string | null>(null);
+  const [hoveredMessage, setHoveredMessage] = useState<string | null>(null);
 
   if (queuedMessages.length === 0) {
     return null;
@@ -76,26 +79,67 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
     setDragOverItem(null);
   };
 
+  const formatTimestamp = (timestamp: number) => {
+    const now = Date.now();
+    const diff = now - timestamp;
+    if (diff < 60000) return 'just now';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+    return `${Math.floor(diff / 3600000)}h ago`;
+  };
+
   return (
-    <div className={`flex flex-col gap-2 p-3 ${className}`}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Clock className="w-4 h-4" />
-          <span>Queued Messages ({queuedMessages.length})</span>
+    <div className={`relative ${className}`}>
+      {/* Queue Header */}
+      <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-slate-50/80 to-blue-50/80 dark:from-slate-900/80 dark:to-blue-900/20 border-b border-border/30 backdrop-blur-sm">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            {isPaused ? (
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              </div>
+            )}
+          </div>
+          <div className="flex flex-col">
+            <span className="text-sm font-medium text-foreground">
+              {isPaused ? 'Queue Paused' : 'Message Queue'}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {queuedMessages.length} message{queuedMessages.length !== 1 ? 's' : ''} 
+              {isPaused ? ' waiting' : ' queued'}
+            </span>
+          </div>
         </div>
+        
         {queuedMessages.length > 1 && (
           <Button
             variant="ghost"
             size="sm"
             onClick={onClearQueue}
-            className="text-xs h-6 px-2 text-muted-foreground hover:text-foreground"
+            className="text-xs h-7 px-3 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
           >
             Clear All
           </Button>
         )}
       </div>
+
+      {/* Status Banner for Paused State */}
+      {isPaused && (
+        <div className="px-4 py-2 bg-amber-50/80 dark:bg-amber-900/20 border-b border-amber-200/50 dark:border-amber-800/50">
+          <div className="flex items-center gap-2 text-sm text-amber-800 dark:text-amber-200">
+            <Zap className="w-4 h-4" />
+            <span>Queue paused by interruption. Use "Send Now" or add a new message to resume.</span>
+          </div>
+        </div>
+      )}
       
-      <div className="flex flex-wrap gap-2">
+      {/* Message Bubbles */}
+      <div className="p-4 space-y-3 bg-gradient-to-b from-transparent to-slate-50/30 dark:to-slate-900/30">
         {queuedMessages.map((message, index) => (
           <div
             key={message.id}
@@ -106,65 +150,99 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
             onDragLeave={handleDragLeave}
             onDrop={(e) => handleDrop(e, message.id)}
             onDragEnd={handleDragEnd}
+            onMouseEnter={() => setHoveredMessage(message.id)}
+            onMouseLeave={() => setHoveredMessage(null)}
           >
             {/* Main message bubble */}
-            <div className={`flex items-center gap-2 rounded-lg px-3 py-2 border transition-all duration-200 ${
+            <div className={`relative flex items-center gap-3 rounded-xl px-4 py-3 border transition-all duration-300 ease-out ${
               draggedItem === message.id 
-                ? 'bg-blue-100 border-blue-300 opacity-50 scale-105 dark:bg-blue-950/50 dark:border-blue-700' 
+                ? 'bg-blue-100/80 border-blue-300 opacity-60 scale-105 shadow-lg dark:bg-blue-950/50 dark:border-blue-700 rotate-2' 
                 : dragOverItem === message.id
-                ? 'bg-green-100 border-green-300 dark:bg-green-950/50 dark:border-green-700'
-                : 'bg-secondary/50 hover:bg-secondary/70 border-border/50'
-            }`}>
-              {/* Drag handle */}
-              {onReorderMessages && (
-                <div className="opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing">
-                  <GripVertical className="w-3 h-3 text-muted-foreground" />
-                </div>
-              )}
+                ? 'bg-green-100/80 border-green-400 shadow-lg dark:bg-green-950/50 dark:border-green-600 scale-102'
+                : hoveredMessage === message.id
+                ? 'bg-white/90 border-slate-300 shadow-md dark:bg-slate-800/90 dark:border-slate-600 scale-101'
+                : 'bg-white/60 hover:bg-white/80 border-slate-200/60 hover:border-slate-300 dark:bg-slate-800/60 dark:hover:bg-slate-800/80 dark:border-slate-700/60 dark:hover:border-slate-600'
+            } backdrop-blur-sm`}>
               
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="text-xs font-mono text-muted-foreground">
+              {/* Priority indicator */}
+              <div className="flex items-center gap-2">
+                <div className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold transition-colors ${
+                  index === 0 
+                    ? 'bg-blue-500 text-white shadow-md' 
+                    : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+                }`}>
                   {index + 1}
-                </span>
-                <span className="text-sm truncate max-w-[200px]" title={message.content}>
-                  {message.content.length > 50 
-                    ? `${message.content.substring(0, 50)}...` 
-                    : message.content
-                  }
-                </span>
+                </div>
+                
+                {/* Drag handle */}
+                {onReorderMessages && (
+                  <div className={`opacity-0 group-hover:opacity-60 hover:opacity-100 transition-all duration-200 cursor-grab active:cursor-grabbing ${
+                    hoveredMessage === message.id ? 'opacity-40' : ''
+                  }`}>
+                    <GripVertical className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+                  </div>
+                )}
               </div>
               
-              {/* Remove button */}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onRemoveMessage(message.id)}
-                className="opacity-0 group-hover:opacity-100 transition-opacity h-5 w-5 p-0 hover:bg-destructive/20 hover:text-destructive"
-                title="Remove this message from queue"
-              >
-                <X className="w-3 h-3" />
-              </Button>
+              {/* Message content */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-sm text-foreground leading-relaxed" title={message.content}>
+                    {message.content.length > 80 
+                      ? `${message.content.substring(0, 80)}...` 
+                      : message.content
+                    }
+                  </p>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="text-xs text-muted-foreground font-mono">
+                      {formatTimestamp(message.timestamp)}
+                    </span>
+                    
+                    {/* Remove button */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onRemoveMessage(message.id)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0 hover:bg-destructive/20 hover:text-destructive rounded-full"
+                      title="Remove this message from queue"
+                    >
+                      <X className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </div>
             
-            {/* Send Now pill - appears below on hover */}
+            {/* Send Now pill - appears below on hover with smooth animation */}
             {onStopAndSend && (
-              <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-1 opacity-0 group-hover:opacity-100 transition-all duration-200 ease-in-out translate-y-[-4px] group-hover:translate-y-0 pointer-events-none group-hover:pointer-events-auto z-10">
+              <div className={`absolute top-full left-1/2 transform -translate-x-1/2 mt-2 transition-all duration-300 ease-out z-20 ${
+                hoveredMessage === message.id 
+                  ? 'opacity-100 translate-y-0 pointer-events-auto' 
+                  : 'opacity-0 translate-y-[-8px] pointer-events-none'
+              }`}>
                 <Button
                   variant="default"
                   size="sm"
                   onClick={() => onStopAndSend(message.id)}
-                  className="h-7 px-3 text-xs bg-blue-600 hover:bg-blue-700 text-white border-0 rounded-full shadow-lg whitespace-nowrap"
+                  className="h-8 px-4 text-xs bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white border-0 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 whitespace-nowrap font-medium"
                   title="Stop current processing and send this message now"
                 >
-                  <Send className="w-3 h-3 mr-1.5" />
+                  <Send className="w-3 h-3 mr-2" />
                   Send Now
                 </Button>
               </div>
             )}
             
-            {/* Drop indicator */}
+            {/* Drop indicator with enhanced visuals */}
             {dragOverItem === message.id && draggedItem !== message.id && (
-              <div className="absolute inset-0 border-2 border-green-400 rounded-lg pointer-events-none animate-pulse" />
+              <div className="absolute inset-0 border-2 border-green-400 rounded-xl pointer-events-none animate-pulse bg-green-100/20 dark:bg-green-900/20" />
+            )}
+            
+            {/* Next up indicator */}
+            {index === 0 && !isPaused && (
+              <div className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs px-2 py-1 rounded-full font-medium shadow-md">
+                Next
+              </div>
             )}
           </div>
         ))}
@@ -172,8 +250,9 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
       
       {/* Drag instructions */}
       {onReorderMessages && queuedMessages.length > 1 && (
-        <div className="text-xs text-muted-foreground mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          💡 Drag messages to reorder them
+        <div className="px-4 pb-3 text-xs text-muted-foreground flex items-center gap-2 opacity-60 hover:opacity-100 transition-opacity">
+          <GripVertical className="w-3 h-3" />
+          <span>Drag messages to reorder priority</span>
         </div>
       )}
     </div>
