@@ -9,6 +9,11 @@ use serde::Deserialize;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::{oneshot, Mutex};
+use tracing::warn;
+
+use crate::oauth::persist::{clear_credentials, load_cached_state, save_credentials};
+
+mod persist;
 
 const CALLBACK_TEMPLATE: &str = include_str!("oauth_callback.html");
 
@@ -28,6 +33,18 @@ pub async fn oauth_flow(
     mcp_server_url: &String,
     name: &String,
 ) -> Result<AuthorizationManager, anyhow::Error> {
+    if let Ok(oauth_state) = load_cached_state(mcp_server_url, name).await {
+        if let Some(authorization_manager) = oauth_state.into_authorization_manager() {
+            if authorization_manager.refresh_token().await.is_ok() {
+                return Ok(authorization_manager);
+            }
+        }
+
+        if let Err(e) = clear_credentials(name) {
+            warn!("error clearing bad credentials: {}", e);
+        }
+    }
+
     let (code_sender, code_receiver) = oneshot::channel::<String>();
     let app_state = AppState {
         code_receiver: Arc::new(Mutex::new(Some(code_sender))),
@@ -52,7 +69,6 @@ pub async fn oauth_flow(
     let used_addr = listener.local_addr()?;
     tokio::spawn(async move {
         let result = axum::serve(listener, app).await;
-
         if let Err(e) = result {
             eprintln!("Callback server error: {}", e);
         }
@@ -73,9 +89,13 @@ pub async fn oauth_flow(
     let auth_code = code_receiver.await?;
     oauth_state.handle_callback(&auth_code).await?;
 
-    let am = oauth_state
+    if let Err(e) = save_credentials(name, &oauth_state).await {
+        warn!("Failed to save credentials: {}", e);
+    }
+
+    let auth_manager = oauth_state
         .into_authorization_manager()
         .ok_or_else(|| anyhow::anyhow!("Failed to get authorization manager"))?;
 
-    Ok(am)
+    Ok(auth_manager)
 }

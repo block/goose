@@ -65,6 +65,7 @@ Here's how to configure:
         To change modes mid-session, use the `/mode` command.
 
         * Autonomous: `/mode auto`
+        * Smart Approve: `/mode smart_approve`
         * Approve: `/mode approve`
         * Chat: `/mode chat`     
       </TabItem>

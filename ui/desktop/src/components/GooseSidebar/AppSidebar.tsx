@@ -143,6 +143,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
           <div className="sidebar-item">
             <SidebarMenuItem>
               <SidebarMenuButton
+                data-testid={`sidebar-${entry.label.toLowerCase()}-button`}
                 onClick={() => navigate(entry.path)}
                 isActive={isActivePath(entry.path)}
                 tooltip={entry.tooltip}

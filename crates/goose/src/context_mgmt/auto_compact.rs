@@ -262,7 +262,6 @@ mod tests {
             working_dir: PathBuf::from(working_dir),
             description: "Test session".to_string(),
             schedule_id: Some("test_job".to_string()),
-            project_id: None,
             total_tokens: Some(100),
             input_tokens: Some(50),
             output_tokens: Some(50),
@@ -651,7 +650,6 @@ mod tests {
             comprehensive_metadata.schedule_id,
             Some("test_job".to_string())
         );
-        assert!(comprehensive_metadata.project_id.is_none());
         assert_eq!(comprehensive_metadata.total_tokens, Some(100));
         assert_eq!(comprehensive_metadata.input_tokens, Some(50));
         assert_eq!(comprehensive_metadata.output_tokens, Some(50));
