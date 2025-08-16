@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use super::{
     anthropic::AnthropicProvider,
@@ -16,13 +16,18 @@ use super::{
     ollama::OllamaProvider,
     openai::OpenAiProvider,
     openrouter::OpenRouterProvider,
+    provider_registry::ProviderRegistry,
     sagemaker_tgi::SageMakerTgiProvider,
     snowflake::SnowflakeProvider,
     venice::VeniceProvider,
     xai::XaiProvider,
 };
+use crate::config::base::APP_STRATEGY;
+use crate::config::custom_providers::register_custom_providers;
 use crate::model::ModelConfig;
 use anyhow::Result;
+use etcetera::{choose_app_strategy, AppStrategy};
+use once_cell::sync::Lazy;
 
 #[cfg(test)]
 use super::errors::ProviderError;
@@ -39,27 +44,54 @@ fn default_fallback_turns() -> usize {
     2
 }
 
+static REGISTRY: Lazy<RwLock<ProviderRegistry>> = Lazy::new(|| {
+    let registry = ProviderRegistry::new().with_providers(|registry| {
+        registry.register::<OpenAiProvider, _>(|model| OpenAiProvider::from_env(model));
+        registry.register::<AnthropicProvider, _>(|model| AnthropicProvider::from_env(model));
+        registry.register::<OllamaProvider, _>(|model| OllamaProvider::from_env(model));
+        registry.register::<AzureProvider, _>(|model| AzureProvider::from_env(model));
+        registry.register::<BedrockProvider, _>(|model| BedrockProvider::from_env(model));
+        registry.register::<ClaudeCodeProvider, _>(|model| ClaudeCodeProvider::from_env(model));
+        registry.register::<DatabricksProvider, _>(|model| DatabricksProvider::from_env(model));
+        registry.register::<GcpVertexAIProvider, _>(|model| GcpVertexAIProvider::from_env(model));
+        registry.register::<GeminiCliProvider, _>(|model| GeminiCliProvider::from_env(model));
+        registry.register::<GoogleProvider, _>(|model| GoogleProvider::from_env(model));
+        registry.register::<GroqProvider, _>(|model| GroqProvider::from_env(model));
+        registry.register::<LiteLLMProvider, _>(|model| LiteLLMProvider::from_env(model));
+        registry.register::<OpenRouterProvider, _>(|model| OpenRouterProvider::from_env(model));
+        registry.register::<SageMakerTgiProvider, _>(|model| SageMakerTgiProvider::from_env(model));
+        registry.register::<SnowflakeProvider, _>(|model| SnowflakeProvider::from_env(model));
+        registry.register::<VeniceProvider, _>(|model| VeniceProvider::from_env(model));
+        registry.register::<XaiProvider, _>(|model| XaiProvider::from_env(model));
+
+        load_custom_providers_into_registry(registry);
+    });
+    RwLock::new(registry)
+});
+
+fn load_custom_providers_into_registry(registry: &mut ProviderRegistry) {
+    let config_dir = choose_app_strategy(APP_STRATEGY.clone())
+        .expect("goose requires a home dir")
+        .config_dir();
+
+    if let Err(e) = register_custom_providers(registry, &config_dir.join("custom_providers")) {
+        tracing::warn!("Failed to load custom providers: {}", e);
+    }
+}
+
 pub fn providers() -> Vec<ProviderMetadata> {
-    vec![
-        AnthropicProvider::metadata(),
-        AzureProvider::metadata(),
-        BedrockProvider::metadata(),
-        ClaudeCodeProvider::metadata(),
-        DatabricksProvider::metadata(),
-        GcpVertexAIProvider::metadata(),
-        GeminiCliProvider::metadata(),
-        // GithubCopilotProvider::metadata(),
-        GoogleProvider::metadata(),
-        GroqProvider::metadata(),
-        LiteLLMProvider::metadata(),
-        OllamaProvider::metadata(),
-        OpenAiProvider::metadata(),
-        OpenRouterProvider::metadata(),
-        SageMakerTgiProvider::metadata(),
-        VeniceProvider::metadata(),
-        SnowflakeProvider::metadata(),
-        XaiProvider::metadata(),
-    ]
+    REGISTRY.read().unwrap().all_metadata()
+}
+
+pub fn refresh_custom_providers() -> Result<()> {
+    let mut registry = REGISTRY.write().unwrap();
+
+    registry.remove_custom_providers();
+
+    load_custom_providers_into_registry(&mut registry);
+
+    tracing::info!("Custom providers refreshed");
+    Ok(())
 }
 
 pub fn create(name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>> {
@@ -71,7 +103,10 @@ pub fn create(name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>> {
 
         return create_lead_worker_from_env(name, &model, &lead_model_name);
     }
-    create_provider(name, model)
+
+    let result = REGISTRY.read().unwrap().create(name, model);
+
+    result
 }
 
 /// Create a lead/worker provider from environment variables
@@ -132,9 +167,15 @@ fn create_lead_worker_from_env(
         worker_config
     };
 
-    // Create the providers
-    let lead_provider = create_provider(&lead_provider_name, lead_model_config)?;
-    let worker_provider = create_provider(default_provider_name, worker_model_config)?;
+    // create providers
+    let lead_provider = REGISTRY
+        .read()
+        .unwrap()
+        .create(&lead_provider_name, lead_model_config)?;
+    let worker_provider = REGISTRY
+        .read()
+        .unwrap()
+        .create(default_provider_name, worker_model_config)?;
 
     // Create the lead/worker provider with configured settings
     Ok(Arc::new(LeadWorkerProvider::new_with_settings(
@@ -144,31 +185,6 @@ fn create_lead_worker_from_env(
         failure_threshold,
         fallback_turns,
     )))
-}
-
-fn create_provider(name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>> {
-    // We use Arc instead of Box to be able to clone for multiple async tasks
-    match name {
-        "anthropic" => Ok(Arc::new(AnthropicProvider::from_env(model)?)),
-        "aws_bedrock" => Ok(Arc::new(BedrockProvider::from_env(model)?)),
-        "azure_openai" => Ok(Arc::new(AzureProvider::from_env(model)?)),
-        "claude-code" => Ok(Arc::new(ClaudeCodeProvider::from_env(model)?)),
-        "databricks" => Ok(Arc::new(DatabricksProvider::from_env(model)?)),
-        "gcp_vertex_ai" => Ok(Arc::new(GcpVertexAIProvider::from_env(model)?)),
-        "gemini-cli" => Ok(Arc::new(GeminiCliProvider::from_env(model)?)),
-        // "github_copilot" => Ok(Arc::new(GithubCopilotProvider::from_env(model)?)),
-        "google" => Ok(Arc::new(GoogleProvider::from_env(model)?)),
-        "groq" => Ok(Arc::new(GroqProvider::from_env(model)?)),
-        "litellm" => Ok(Arc::new(LiteLLMProvider::from_env(model)?)),
-        "ollama" => Ok(Arc::new(OllamaProvider::from_env(model)?)),
-        "openai" => Ok(Arc::new(OpenAiProvider::from_env(model)?)),
-        "openrouter" => Ok(Arc::new(OpenRouterProvider::from_env(model)?)),
-        "sagemaker_tgi" => Ok(Arc::new(SageMakerTgiProvider::from_env(model)?)),
-        "snowflake" => Ok(Arc::new(SnowflakeProvider::from_env(model)?)),
-        "venice" => Ok(Arc::new(VeniceProvider::from_env(model)?)),
-        "xai" => Ok(Arc::new(XaiProvider::from_env(model)?)),
-        _ => Err(anyhow::anyhow!("Unknown provider: {}", name)),
-    }
 }
 
 #[cfg(test)]

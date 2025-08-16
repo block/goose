@@ -15,6 +15,7 @@ use super::formats::anthropic::{
     create_request, get_usage, response_to_message, response_to_streaming_message,
 };
 use super::utils::{emit_debug_trace, get_model, map_http_error_to_provider_error};
+use crate::config::custom_providers::CustomProviderConfig;
 use crate::conversation::message::Message;
 use crate::impl_provider_default;
 use crate::model::ModelConfig;
@@ -42,6 +43,7 @@ pub struct AnthropicProvider {
     #[serde(skip)]
     api_client: ApiClient,
     model: ModelConfig,
+    supports_streaming: bool,
 }
 
 impl_provider_default!(AnthropicProvider);
@@ -62,7 +64,32 @@ impl AnthropicProvider {
         let api_client =
             ApiClient::new(host, auth)?.with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
 
-        Ok(Self { api_client, model })
+        Ok(Self {
+            api_client,
+            model,
+            supports_streaming: true,
+        })
+    }
+
+    pub fn from_custom_config(model: ModelConfig, config: CustomProviderConfig) -> Result<Self> {
+        let global_config = crate::config::Config::global();
+        let api_key: String = global_config
+            .get_secret(&config.api_key_env)
+            .map_err(|_| anyhow::anyhow!("Missing API key: {}", config.api_key_env))?;
+
+        let auth = AuthMethod::ApiKey {
+            header_name: "x-api-key".to_string(),
+            key: api_key,
+        };
+
+        let api_client = ApiClient::new(config.base_url, auth)?
+            .with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
+
+        Ok(Self {
+            api_client,
+            model,
+            supports_streaming: config.supports_streaming.unwrap_or(true),
+        })
     }
 
     fn get_conditional_headers(&self) -> Vec<(&str, &str)> {
@@ -260,6 +287,6 @@ impl Provider for AnthropicProvider {
     }
 
     fn supports_streaming(&self) -> bool {
-        true
+        self.supports_streaming
     }
 }

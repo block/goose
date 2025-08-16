@@ -1,5 +1,6 @@
 use cliclack::spinner;
 use console::style;
+use etcetera::{choose_app_strategy, AppStrategy};
 use goose::agents::extension::ToolInfo;
 use goose::agents::extension_manager::get_parameter_names;
 use goose::agents::platform_tools::{
@@ -7,6 +8,8 @@ use goose::agents::platform_tools::{
 };
 use goose::agents::Agent;
 use goose::agents::{extension::Envs, ExtensionConfig};
+use goose::config::base::APP_STRATEGY;
+use goose::config::custom_providers::CustomProviderConfig;
 use goose::config::extensions::name_to_key;
 use goose::config::permission::PermissionLevel;
 use goose::config::{
@@ -221,6 +224,11 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
                 "Configure Providers",
                 "Change provider or update credentials",
             )
+            .item(
+                "custom_providers",
+                "Custom Providers",
+                "Add custom provider with compatible API",
+            )
             .item("add", "Add Extension", "Connect to a new extension")
             .item(
                 "toggle",
@@ -241,6 +249,7 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
             "remove" => remove_extension_dialog(),
             "settings" => configure_settings_dialog().await.and(Ok(())),
             "providers" => configure_provider_dialog().await.and(Ok(())),
+            "custom_providers" => configure_custom_provider_dialog(),
             _ => unreachable!(),
         }
     }
@@ -1776,6 +1785,129 @@ pub async fn handle_openrouter_auth() -> Result<(), Box<dyn Error>> {
             eprintln!("Authentication failed: {}", e);
             return Err(e.into());
         }
+    }
+
+    Ok(())
+}
+
+pub fn configure_custom_provider_dialog() -> Result<(), Box<dyn Error>> {
+    let action = cliclack::select("What would you like to do?")
+        .item(
+            "add",
+            "Add A Custom Provider",
+            "Add a new OpenAI/Anthropic/Ollama compatible Provider",
+        )
+        .item(
+            "remove",
+            "Remove Custom Provider",
+            "Remove an existing custom provider",
+        )
+        .interact()?;
+
+    match action {
+        "add" => {
+            let provider_type = cliclack::select("What type of API is this?")
+                .item(
+                    "openai_compatible",
+                    "OpenAI Compatible",
+                    "Uses OpenAI API format",
+                )
+                .item(
+                    "anthropic_compatible",
+                    "Anthropic Compatible",
+                    "Uses Anthropic API format",
+                )
+                .item(
+                    "ollama_compatible",
+                    "Ollama Compatible",
+                    "Uses Ollama API format",
+                )
+                .interact()?;
+
+            let display_name: String = cliclack::input("What should we call this provider?")
+                .placeholder("Your Provider Name")
+                .validate(|input: &String| {
+                    if input.is_empty() {
+                        Err("Please enter a name")
+                    } else {
+                        Ok(())
+                    }
+                })
+                .interact()?;
+
+            let api_url: String = cliclack::input("Provider API URL:")
+                .placeholder("https://api.example.com/v1/messages")
+                .validate(|input: &String| {
+                    if !input.starts_with("http://") && !input.starts_with("https://") {
+                        Err("Inputed URL must start with either http:// or https://")
+                    } else {
+                        Ok(())
+                    }
+                })
+                .interact()?;
+
+            let api_key: String = cliclack::password("API key:").mask('▪').interact()?;
+
+            let models_input: String = cliclack::input("Available models (seperate with commas):")
+                .placeholder("model-a, model-b, model-c")
+                .validate(|input: &String| {
+                    if input.trim().is_empty() {
+                        Err("Please enter at least one model name")
+                    } else {
+                        Ok(())
+                    }
+                })
+                .interact()?;
+
+            let models: Vec<String> = models_input
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+
+            let supports_streaming =
+                cliclack::confirm("Does this provider support streaming responses?")
+                    .initial_value(true)
+                    .interact()?;
+
+            CustomProviderConfig::create_and_save(
+                provider_type,
+                display_name.clone(),
+                api_url,
+                api_key,
+                models,
+                Some(supports_streaming),
+            )?;
+
+            cliclack::outro(format!("Custom provider added: {}", display_name))?;
+        }
+        "remove" => {
+            let custom_providers_dir = goose::config::custom_providers::custom_providers_dir();
+
+            let custom_providers = if custom_providers_dir.exists() {
+                goose::config::custom_providers::load_custom_providers(&custom_providers_dir)?
+            } else {
+                Vec::new()
+            };
+            if custom_providers.is_empty() {
+                cliclack::outro("No custom providers added just yet.")?;
+                return Ok(());
+            }
+
+            let provider_items: Vec<_> = custom_providers
+                .iter()
+                .map(|p| (p.name.as_str(), p.display_name.as_str(), "Custom provider"))
+                .collect();
+
+            let selected_id = cliclack::select("Which custom provider would you like to remove?")
+                .items(&provider_items)
+                .interact()?;
+
+            CustomProviderConfig::remove(selected_id)?;
+
+            cliclack::outro(format!("Removed custom provider: {}", selected_id))?;
+        }
+        _ => unreachable!(),
     }
 
     Ok(())
