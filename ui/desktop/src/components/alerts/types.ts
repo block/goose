@@ -16,4 +16,7 @@ export interface Alert {
     current: number;
     total: number;
   };
+  showSummarizeButton?: boolean;
+  onSummarize?: () => void;
+  summarizeIcon?: React.ReactNode;
 }

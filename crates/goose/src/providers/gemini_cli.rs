@@ -9,8 +9,8 @@ use tokio::process::Command;
 use super::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::utils::emit_debug_trace;
+use crate::conversation::message::{Message, MessageContent};
 use crate::impl_provider_default;
-use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use rmcp::model::Role;
 use rmcp::model::Tool;
@@ -176,9 +176,13 @@ impl GeminiCliProvider {
 
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
-        let mut child = cmd
-            .spawn()
-            .map_err(|e| ProviderError::RequestFailed(format!("Failed to spawn command: {}", e)))?;
+        let mut child = cmd.spawn().map_err(|e| {
+            ProviderError::RequestFailed(format!(
+                "Failed to spawn Gemini CLI command '{}': {}. \
+                Make sure the Gemini CLI is installed and in your PATH.",
+                self.command, e
+            ))
+        })?;
 
         let stdout = child
             .stdout

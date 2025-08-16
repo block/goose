@@ -39,6 +39,8 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    outputs:
+        artifact-url: ${{ steps.upload-app-bundle.outputs.artifact-url }}
     steps:
       # Debug information about the workflow and inputs
       - name: Debug workflow info
@@ -265,16 +267,19 @@ jobs:
               exit 1
             fi
 
-            if [ "$(jq -r .body.state response.json)" == "completed" ]; then
+            state="$(jq -r .body.state response.json)"
+
+            if [ "${state}" == "completed" ]; then
               echo "✅ signing complete ($(($(date +%s) - start_time))s)"
               break
             fi
 
-            if [ $(($(date +%s) - start_time)) -ge 900 ]; then
+            if [ $(($(date +%s) - start_time)) -ge 3600 ]; then
               echo "⚠️ timed out ($(($(date +%s) - start_time))s)"
               exit 1
             fi
-            echo "⏲️ waiting for signing to complete ($(($(date +%s) - start_time))s)"
+
+            echo "⏲️ waiting for signing to complete (${state}: $(($(date +%s) - start_time))s)"
           done
 
           # parse lambda response
@@ -294,6 +299,7 @@ jobs:
           df -h
 
       - name: Upload Desktop artifact
+        id: upload-app-bundle
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # pin@v4
         with:
           name: Goose-darwin-arm64

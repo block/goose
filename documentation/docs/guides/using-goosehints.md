@@ -35,12 +35,10 @@ Goose supports two types of hint files:
 - **Global hints file** - These hints will apply to all your sessions with Goose, regardless of directory.
 - **Local hints file** -  These hints will only apply when working in a specific directory.
 
-:::tip
 You can use both global and local hints at the same time. When both exist, Goose will consider both your global preferences and project-specific requirements. If the instructions in your local hints file conflict with your global preferences, Goose will prioritize the local hints.
-:::
 
-:::tip
-You can name your context files differently -- e.g. `AGENTS.md` -- and Goose can still pick them up. Configure the `CONTEXT_FILE_NAMES` setting!
+:::tip Custom Context File
+You can [customize context file names](#custom-context-files) using the `CONTEXT_FILE_NAMES` environment variable.
 :::
 
 <Tabs groupId="interface">
@@ -77,6 +75,8 @@ You can name your context files differently -- e.g. `AGENTS.md` -- and Goose can
 The `.goosehints` file can include any instructions or contextual details relevant to your projects.
 
 A good time to consider adding a `.goosehints` file is when you find yourself repeating prompts, or providing the same kind of instructions multiple times. It's also a great way to provide a lot of context which might be better suited in a file.
+
+Goosehints are loaded at the start of your session and become part of the system prompt sent with every request. This means the content of `.goosehints` contributes to token usage, so keeping it concise can save both cost and processing time.
 
 ## Setting up hints
 
@@ -124,4 +124,28 @@ Like prompts, this is not an extensive list to shape your `.goosehints` file. Yo
 - **Keep file updated**: Regularly update the `.goosehints` file to reflect any changes in project protocols or priorities.
 - **Be concise**: Make sure the content is straightforward and to the point, ensuring Goose can quickly parse and act on the information.
 - **Start small**: Create a small set of clear, specific hints and gradually expand them based on your needs. This makes it easier to understand how Goose interprets and applies your instructions.
+- **Reference other files**: Point Goose to relevant files like /docs/style.md or /scripts/validation.js to reduce repetition and keep instructions lightweight.
 
+## Custom Context Files
+
+Goose looks for `.goosehints` files by default, but you can configure a different filename or multiple context files using the `CONTEXT_FILE_NAMES` environment variable. This is useful for:
+
+- **Tool compatibility**: Use conventions from other AI tools (`AGENTS.md`, `CLAUDE.md`)
+- **Organization**: Separate frequently-used rules into multiple files that load automatically
+- **Project conventions**: Use context files from your project's established toolchain (`.cursorrules`)
+
+Here's how it works:
+1. Goose looks for each configured filename in both global (~/.config/goose/) and local (current directory) locations
+2. All found files are loaded and combined into the context
+
+### Configuration
+
+Set the `CONTEXT_FILE_NAMES` environment variable to a JSON array of filenames. If not set, it defaults to `[".goosehints"]`.
+
+```bash
+# Single custom file
+export CONTEXT_FILE_NAMES='["AGENTS.md"]'
+
+# Multiple files (loaded in order)
+export CONTEXT_FILE_NAMES='["CLAUDE.md", ".goosehints", "project_rules.txt"]'
+```

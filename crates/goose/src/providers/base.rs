@@ -3,7 +3,9 @@ use futures::Stream;
 use serde::{Deserialize, Serialize};
 
 use super::errors::ProviderError;
-use crate::message::Message;
+use super::retry::RetryConfig;
+use crate::conversation::message::Message;
+use crate::conversation::Conversation;
 use crate::model::ModelConfig;
 use crate::utils::safe_truncate;
 use rmcp::model::Tool;
@@ -162,21 +164,45 @@ impl ProviderMetadata {
     }
 }
 
+/// Configuration key metadata for provider setup
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ConfigKey {
+    /// The name of the configuration key (e.g., "API_KEY")
     pub name: String,
+    /// Whether this key is required for the provider to function
     pub required: bool,
+    /// Whether this key should be stored securely (e.g., in keychain)
     pub secret: bool,
+    /// Optional default value for the key
     pub default: Option<String>,
+    /// Whether this key should be configured using OAuth device code flow
+    /// When true, the provider's configure_oauth() method will be called instead of prompting for manual input
+    pub oauth_flow: bool,
 }
 
 impl ConfigKey {
+    /// Create a new ConfigKey
     pub fn new(name: &str, required: bool, secret: bool, default: Option<&str>) -> Self {
         Self {
             name: name.to_string(),
             required,
             secret,
             default: default.map(|s| s.to_string()),
+            oauth_flow: false,
+        }
+    }
+
+    /// Create a new ConfigKey that uses OAuth device code flow for configuration
+    ///
+    /// This is used for providers that support OAuth authentication instead of manual API key entry.
+    /// When oauth_flow is true, the configuration system will call the provider's configure_oauth() method.
+    pub fn new_oauth(name: &str, required: bool, secret: bool, default: Option<&str>) -> Self {
+        Self {
+            name: name.to_string(),
+            required,
+            secret,
+            default: default.map(|s| s.to_string()),
+            oauth_flow: true,
         }
     }
 }
@@ -190,6 +216,34 @@ pub struct ProviderUsage {
 impl ProviderUsage {
     pub fn new(model: String, usage: Usage) -> Self {
         Self { model, usage }
+    }
+
+    /// Ensures this ProviderUsage has token counts, estimating them if necessary
+    pub async fn ensure_tokens(
+        &mut self,
+        system_prompt: &str,
+        request_messages: &[Message],
+        response: &Message,
+        tools: &[Tool],
+    ) -> Result<(), ProviderError> {
+        crate::providers::usage_estimator::ensure_usage_tokens(
+            self,
+            system_prompt,
+            request_messages,
+            response,
+            tools,
+        )
+        .await
+        .map_err(|e| ProviderError::ExecutionError(format!("Failed to ensure usage tokens: {}", e)))
+    }
+
+    /// Combine this ProviderUsage with another, adding their token counts
+    /// Uses the model from this ProviderUsage
+    pub fn combine_with(&self, other: &ProviderUsage) -> ProviderUsage {
+        ProviderUsage {
+            model: self.model.clone(),
+            usage: self.usage + other.usage,
+        }
     }
 }
 
@@ -286,8 +340,12 @@ pub trait Provider: Send + Sync {
     /// Get the model config from the provider
     fn get_model_config(&self) -> ModelConfig;
 
-    /// Optional hook to fetch supported models asynchronously.
-    async fn fetch_supported_models_async(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    fn retry_config(&self) -> RetryConfig {
+        RetryConfig::default()
+    }
+
+    /// Optional hook to fetch supported models.
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         Ok(None)
     }
 
@@ -340,30 +398,25 @@ pub trait Provider: Send + Sync {
         }
     }
 
-    /// Generate a session name/description based on the conversation history
-    /// This method can be overridden by providers to implement custom session naming strategies.
-    /// The default implementation creates a prompt asking for a concise description in 4 words or less.
-    async fn generate_session_name(&self, messages: &[Message]) -> Result<String, ProviderError> {
-        // Create a prompt for a concise description
-        let mut description_prompt = "Based on the conversation so far, provide a concise description of this session in 4 words or less. This will be used for finding the session later in a UI with limited space - reply *ONLY* with the description".to_string();
-
-        // Get context from the first 3 user messages
-        let context: Vec<String> = messages
+    /// Returns the first 3 user messages as strings for session naming
+    fn get_initial_user_messages(&self, messages: &Conversation) -> Vec<String> {
+        messages
             .iter()
             .filter(|m| m.role == rmcp::model::Role::User)
             .take(3)
             .map(|m| m.as_concat_text())
-            .collect();
+            .collect()
+    }
 
-        if !context.is_empty() {
-            description_prompt = format!(
-                "Here are the first few user messages:\n{}\n\n{}",
-                context.join("\n"),
-                description_prompt
-            );
-        }
-
-        let message = Message::user().with_text(&description_prompt);
+    /// Generate a session name/description based on the conversation history
+    /// Creates a prompt asking for a concise description in 4 words or less.
+    async fn generate_session_name(
+        &self,
+        messages: &Conversation,
+    ) -> Result<String, ProviderError> {
+        let context = self.get_initial_user_messages(messages);
+        let prompt = self.create_session_name_prompt(&context);
+        let message = Message::user().with_text(&prompt);
         let result = self
             .complete(
                 "Reply with only a description in four words or less",
@@ -373,13 +426,40 @@ pub trait Provider: Send + Sync {
             .await?;
 
         let description = result.0.as_concat_text();
-        let sanitized_description = if description.chars().count() > 100 {
-            safe_truncate(&description, 100)
-        } else {
-            description
-        };
 
-        Ok(sanitized_description)
+        Ok(safe_truncate(&description, 100))
+    }
+
+    // Generate a prompt for a session name based on the conversation history
+    fn create_session_name_prompt(&self, context: &[String]) -> String {
+        // Create a prompt for a concise description
+        let mut prompt = "Based on the conversation so far, provide a concise description of this session in 4 words or less. This will be used for finding the session later in a UI with limited space - reply *ONLY* with the description".to_string();
+
+        if !context.is_empty() {
+            prompt = format!(
+                "Here are the first few user messages:\n{}\n\n{}",
+                context.join("\n"),
+                prompt
+            );
+        }
+        prompt
+    }
+
+    /// Configure OAuth authentication for this provider
+    ///
+    /// This method is called when a provider has configuration keys marked with oauth_flow = true.
+    /// Providers that support OAuth should override this method to implement their specific OAuth flow.
+    ///
+    /// # Returns
+    /// * `Ok(())` if OAuth configuration succeeds and credentials are saved
+    /// * `Err(ProviderError)` if OAuth fails or is not supported by this provider
+    ///
+    /// # Default Implementation
+    /// The default implementation returns an error indicating OAuth is not supported.
+    async fn configure_oauth(&self) -> Result<(), ProviderError> {
+        Err(ProviderError::ExecutionError(
+            "OAuth configuration not supported by this provider".to_string(),
+        ))
     }
 }
 

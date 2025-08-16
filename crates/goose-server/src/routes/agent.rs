@@ -16,22 +16,15 @@ use goose::{
 };
 use goose::{config::Config, recipe::SubRecipe};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::sync::Arc;
 
-#[derive(Serialize)]
-struct VersionsResponse {
-    available_versions: Vec<String>,
-    default_version: String,
-}
-
-#[derive(Deserialize)]
-struct ExtendPromptRequest {
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct ExtendPromptRequest {
     extension: String,
 }
 
-#[derive(Serialize)]
-struct ExtendPromptResponse {
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct ExtendPromptResponse {
     success: bool,
 }
 
@@ -45,57 +38,25 @@ pub struct AddSubRecipesResponse {
     success: bool,
 }
 
-#[derive(Deserialize)]
-struct ProviderFile {
-    name: String,
-    description: String,
-    models: Vec<String>,
-    required_keys: Vec<String>,
-}
-
-#[derive(Serialize)]
-struct ProviderDetails {
-    name: String,
-    description: String,
-    models: Vec<String>,
-    required_keys: Vec<String>,
-}
-
-#[derive(Serialize)]
-struct ProviderList {
-    id: String,
-    details: ProviderDetails,
-}
-
-#[derive(Deserialize)]
-struct UpdateProviderRequest {
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct UpdateProviderRequest {
     provider: String,
     model: Option<String>,
 }
 
-#[derive(Deserialize)]
-struct SessionConfigRequest {
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct SessionConfigRequest {
     response: Option<Response>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct GetToolsQuery {
     extension_name: Option<String>,
 }
 
-#[derive(Serialize)]
-struct ErrorResponse {
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct ErrorResponse {
     error: String,
-}
-
-async fn get_versions() -> Json<VersionsResponse> {
-    let versions = ["goose".to_string()];
-    let default_version = "goose".to_string();
-
-    Json(VersionsResponse {
-        available_versions: versions.iter().map(|v| v.to_string()).collect(),
-        default_version,
-    })
 }
 
 #[utoipa::path(
@@ -103,8 +64,9 @@ async fn get_versions() -> Json<VersionsResponse> {
     path = "/agent/add_sub_recipes",
     request_body = AddSubRecipesRequest,
     responses(
-        (status = 200, description = "added sub recipes to agent successfully", body = AddSubRecipesResponse),
+        (status = 200, description = "Added sub recipes to agent successfully", body = AddSubRecipesResponse),
         (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 424, description = "Agent not initialized"),
     ),
 )]
 async fn add_sub_recipes(
@@ -122,6 +84,16 @@ async fn add_sub_recipes(
     Ok(Json(AddSubRecipesResponse { success: true }))
 }
 
+#[utoipa::path(
+    post,
+    path = "/agent/prompt",
+    request_body = ExtendPromptRequest,
+    responses(
+        (status = 200, description = "Extended system prompt successfully", body = ExtendPromptResponse),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 424, description = "Agent not initialized"),
+    ),
+)]
 async fn extend_prompt(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -135,29 +107,6 @@ async fn extend_prompt(
         .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
     agent.extend_system_prompt(payload.extension.clone()).await;
     Ok(Json(ExtendPromptResponse { success: true }))
-}
-
-async fn list_providers() -> Json<Vec<ProviderList>> {
-    let contents = include_str!("providers_and_keys.json");
-
-    let providers: HashMap<String, ProviderFile> =
-        serde_json::from_str(contents).expect("Failed to parse providers_and_keys.json");
-
-    let response: Vec<ProviderList> = providers
-        .into_iter()
-        .map(|(id, provider)| ProviderList {
-            id,
-            details: ProviderDetails {
-                name: provider.name,
-                description: provider.description,
-                models: provider.models,
-                required_keys: provider.required_keys,
-            },
-        })
-        .collect();
-
-    // Return the response as JSON.
-    Json(response)
 }
 
 #[utoipa::path(
@@ -224,8 +173,12 @@ async fn get_tools(
 #[utoipa::path(
     post,
     path = "/agent/update_provider",
+    request_body = UpdateProviderRequest,
     responses(
-        (status = 200, description = "Update provider completed", body = String),
+        (status = 200, description = "Provider updated successfully"),
+        (status = 400, description = "Bad request - missing or invalid parameters"),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 424, description = "Agent not initialized"),
         (status = 500, description = "Internal server error")
     )
 )]
@@ -234,15 +187,7 @@ async fn update_agent_provider(
     headers: HeaderMap,
     Json(payload): Json<UpdateProviderRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    // Verify secret key
-    let secret_key = headers
-        .get("X-Secret-Key")
-        .and_then(|value| value.to_str().ok())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-
-    if secret_key != state.secret_key {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
+    verify_secret_key(&headers, &state)?;
 
     let agent = state
         .get_agent()
@@ -250,13 +195,18 @@ async fn update_agent_provider(
         .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
 
     let config = Config::global();
-    let model = payload.model.unwrap_or_else(|| {
-        config
-            .get_param("GOOSE_MODEL")
-            .expect("Did not find a model on payload or in env to update provider with")
-    });
-    let model_config = ModelConfig::new(&model).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let new_provider = create(&payload.provider, model_config).unwrap();
+    let model = match payload
+        .model
+        .or_else(|| config.get_param("GOOSE_MODEL").ok())
+    {
+        Some(m) => m,
+        None => return Err(StatusCode::BAD_REQUEST),
+    };
+
+    let model_config = ModelConfig::new(&model).map_err(|_| StatusCode::BAD_REQUEST)?;
+
+    let new_provider =
+        create(&payload.provider, model_config).map_err(|_| StatusCode::BAD_REQUEST)?;
     agent
         .update_provider(new_provider)
         .await
@@ -270,6 +220,8 @@ async fn update_agent_provider(
     path = "/agent/update_router_tool_selector",
     responses(
         (status = 200, description = "Tool selection strategy updated successfully", body = String),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 424, description = "Agent not initialized"),
         (status = 500, description = "Internal server error")
     )
 )]
@@ -308,8 +260,11 @@ async fn update_router_tool_selector(
 #[utoipa::path(
     post,
     path = "/agent/session_config",
+    request_body = SessionConfigRequest,
     responses(
         (status = 200, description = "Session config updated successfully", body = String),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 424, description = "Agent not initialized"),
         (status = 500, description = "Internal server error")
     )
 )]
@@ -345,8 +300,6 @@ async fn update_session_config(
 
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
-        .route("/agent/versions", get(get_versions))
-        .route("/agent/providers", get(list_providers))
         .route("/agent/prompt", post(extend_prompt))
         .route("/agent/tools", get(get_tools))
         .route("/agent/update_provider", post(update_agent_provider))

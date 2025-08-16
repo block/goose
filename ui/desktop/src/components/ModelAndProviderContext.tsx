@@ -8,7 +8,6 @@ import {
   getModelDisplayName,
   getProviderDisplayName,
 } from './settings/models/predefinedModelsUtils';
-import { ensureClientInitialized } from '../utils';
 
 // titles
 export const UNKNOWN_PROVIDER_TITLE = 'Provider name lookup';
@@ -171,7 +170,6 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
 
   const refreshCurrentModelAndProvider = useCallback(async () => {
     try {
-      await ensureClientInitialized();
       const { model, provider } = await getCurrentModelAndProvider();
       setCurrentModel(model);
       setCurrentProvider(provider);

@@ -8,7 +8,7 @@ use serde_json::Value;
 use tokio::time::sleep;
 use url::Url;
 
-use crate::message::Message;
+use crate::conversation::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
 
@@ -21,6 +21,7 @@ use crate::providers::formats::gcpvertexai::{
 use crate::impl_provider_default;
 use crate::providers::formats::gcpvertexai::GcpLocation::Iowa;
 use crate::providers::gcpauth::GcpAuth;
+use crate::providers::retry::RetryConfig;
 use crate::providers::utils::emit_debug_trace;
 use rmcp::model::Tool;
 
@@ -50,69 +51,6 @@ enum GcpVertexAIError {
     /// Error during GCP authentication
     #[error("Authentication error: {0}")]
     AuthError(String),
-}
-
-/// Retry configuration for handling rate limit errors
-#[derive(Debug, Clone)]
-struct RetryConfig {
-    /// Maximum number of retry attempts for 429 errors
-    max_rate_limit_retries: usize,
-    /// Maximum number of retry attempts for 529 errors
-    max_overloaded_retries: usize,
-    /// Initial interval between retries in milliseconds
-    initial_interval_ms: u64,
-    /// Multiplier for backoff (exponential)
-    backoff_multiplier: f64,
-    /// Maximum interval between retries in milliseconds
-    max_interval_ms: u64,
-}
-
-impl Default for RetryConfig {
-    fn default() -> Self {
-        Self {
-            max_rate_limit_retries: DEFAULT_MAX_RETRIES,
-            max_overloaded_retries: DEFAULT_MAX_RETRIES,
-            initial_interval_ms: DEFAULT_INITIAL_RETRY_INTERVAL_MS,
-            backoff_multiplier: DEFAULT_BACKOFF_MULTIPLIER,
-            max_interval_ms: DEFAULT_MAX_RETRY_INTERVAL_MS,
-        }
-    }
-}
-
-impl RetryConfig {
-    /// Calculate the delay for a specific retry attempt (with jitter)
-    fn delay_for_attempt(&self, attempt: usize) -> Duration {
-        if attempt == 0 {
-            return Duration::from_millis(0);
-        }
-
-        // Calculate exponential backoff
-        let exponent = (attempt - 1) as u32;
-        let base_delay_ms = (self.initial_interval_ms as f64
-            * self.backoff_multiplier.powi(exponent as i32)) as u64;
-
-        // Apply max limit
-        let capped_delay_ms = std::cmp::min(base_delay_ms, self.max_interval_ms);
-
-        // Add jitter (+/-20% randomness) to avoid thundering herd problem
-        let jitter_factor = 0.8 + (rand::random::<f64>() * 0.4); // Between 0.8 and 1.2
-        let jittered_delay_ms = (capped_delay_ms as f64 * jitter_factor) as u64;
-
-        Duration::from_millis(jittered_delay_ms)
-    }
-
-    /// Get max retries for a specific error type
-    #[allow(dead_code)] // Used in tests
-    fn max_retries_for_status(&self, status: StatusCode) -> usize {
-        if status == StatusCode::TOO_MANY_REQUESTS {
-            self.max_rate_limit_retries
-        } else if status == *STATUS_API_OVERLOADED {
-            self.max_overloaded_retries
-        } else {
-            // Default to rate limit retries for any other status code
-            self.max_rate_limit_retries
-        }
-    }
 }
 
 /// Provider implementation for Google Cloud Platform's Vertex AI service.
@@ -194,31 +132,10 @@ impl GcpVertexAIProvider {
     /// Loads retry configuration from environment variables or uses defaults.
     fn load_retry_config(config: &crate::config::Config) -> RetryConfig {
         // Load max retries for 429 rate limit errors
-        let max_rate_limit_retries = config
-            .get_param("GCP_MAX_RATE_LIMIT_RETRIES")
+        let max_retries = config
+            .get_param("GCP_MAX_RETRIES")
             .ok()
             .and_then(|v: String| v.parse::<usize>().ok())
-            .or_else(|| {
-                // Fall back to generic GCP_MAX_RETRIES if specific one isn't set
-                config
-                    .get_param("GCP_MAX_RETRIES")
-                    .ok()
-                    .and_then(|v: String| v.parse::<usize>().ok())
-            })
-            .unwrap_or(DEFAULT_MAX_RETRIES);
-
-        // Load max retries for 529 API overloaded errors
-        let max_overloaded_retries = config
-            .get_param("GCP_MAX_OVERLOADED_RETRIES")
-            .ok()
-            .and_then(|v: String| v.parse::<usize>().ok())
-            .or_else(|| {
-                // Fall back to generic GCP_MAX_RETRIES if specific one isn't set
-                config
-                    .get_param("GCP_MAX_RETRIES")
-                    .ok()
-                    .and_then(|v: String| v.parse::<usize>().ok())
-            })
             .unwrap_or(DEFAULT_MAX_RETRIES);
 
         let initial_interval_ms = config
@@ -239,13 +156,12 @@ impl GcpVertexAIProvider {
             .and_then(|v: String| v.parse::<u64>().ok())
             .unwrap_or(DEFAULT_MAX_RETRY_INTERVAL_MS);
 
-        RetryConfig {
-            max_rate_limit_retries,
-            max_overloaded_retries,
+        RetryConfig::new(
+            max_retries,
             initial_interval_ms,
             backoff_multiplier,
             max_interval_ms,
-        }
+        )
     }
 
     /// Determines the appropriate GCP location for model deployment.
@@ -335,6 +251,18 @@ impl GcpVertexAIProvider {
         let mut last_error = None;
 
         loop {
+            // Check if we've exceeded max retries
+            if rate_limit_attempts > self.retry_config.max_retries
+                && overloaded_attempts > self.retry_config.max_retries
+            {
+                let error_msg = format!(
+                    "Exceeded maximum retry attempts ({}) for rate limiting errors",
+                    self.retry_config.max_retries
+                );
+                tracing::error!("{}", error_msg);
+                return Err(last_error.unwrap_or(ProviderError::RateLimitExceeded(error_msg)));
+            }
+
             // Get a fresh auth token for each attempt
             let auth_header = self
                 .get_auth_header()
@@ -358,10 +286,10 @@ impl GcpVertexAIProvider {
                 status if status == StatusCode::TOO_MANY_REQUESTS => {
                     rate_limit_attempts += 1;
 
-                    if rate_limit_attempts > self.retry_config.max_rate_limit_retries {
+                    if rate_limit_attempts > self.retry_config.max_retries {
                         let error_msg = format!(
                             "Exceeded maximum retry attempts ({}) for rate limiting (429) errors",
-                            self.retry_config.max_rate_limit_retries
+                            self.retry_config.max_retries
                         );
                         tracing::error!("{}", error_msg);
                         return Err(
@@ -386,7 +314,7 @@ impl GcpVertexAIProvider {
                     tracing::warn!(
                         "Rate limit exceeded error (429) (attempt {}/{}): {}. Retrying after backoff...",
                         rate_limit_attempts,
-                        self.retry_config.max_rate_limit_retries,
+                        self.retry_config.max_retries,
                         error_message
                     );
 
@@ -401,10 +329,10 @@ impl GcpVertexAIProvider {
                 status if status == *STATUS_API_OVERLOADED => {
                     overloaded_attempts += 1;
 
-                    if overloaded_attempts > self.retry_config.max_overloaded_retries {
+                    if overloaded_attempts > self.retry_config.max_retries {
                         let error_msg = format!(
                             "Exceeded maximum retry attempts ({}) for API overloaded (529) errors",
-                            self.retry_config.max_overloaded_retries
+                            self.retry_config.max_retries
                         );
                         tracing::error!("{}", error_msg);
                         return Err(
@@ -421,7 +349,7 @@ impl GcpVertexAIProvider {
                     tracing::warn!(
                         "API overloaded error (529) (attempt {}/{}): {}. Retrying after backoff...",
                         overloaded_attempts,
-                        self.retry_config.max_overloaded_retries,
+                        self.retry_config.max_retries,
                         error_message
                     );
 
@@ -550,18 +478,6 @@ impl Provider for GcpVertexAIProvider {
                 ConfigKey::new("GCP_PROJECT_ID", true, false, None),
                 ConfigKey::new("GCP_LOCATION", true, false, Some(Iowa.to_string().as_str())),
                 ConfigKey::new(
-                    "GCP_MAX_RATE_LIMIT_RETRIES",
-                    false,
-                    false,
-                    Some(&DEFAULT_MAX_RETRIES.to_string()),
-                ),
-                ConfigKey::new(
-                    "GCP_MAX_OVERLOADED_RETRIES",
-                    false,
-                    false,
-                    Some(&DEFAULT_MAX_RETRIES.to_string()),
-                ),
-                ConfigKey::new(
                     "GCP_MAX_RETRIES",
                     false,
                     false,
@@ -634,13 +550,7 @@ mod tests {
 
     #[test]
     fn test_retry_config_delay_calculation() {
-        let config = RetryConfig {
-            max_rate_limit_retries: 5,
-            max_overloaded_retries: 5,
-            initial_interval_ms: 1000,
-            backoff_multiplier: 2.0,
-            max_interval_ms: 32000,
-        };
+        let config = RetryConfig::new(5, 1000, 2.0, 32000);
 
         // First attempt has no delay
         let delay0 = config.delay_for_attempt(0);
@@ -657,27 +567,6 @@ mod tests {
         // Check that max interval is respected
         let delay10 = config.delay_for_attempt(10);
         assert!(delay10.as_millis() <= 38400); // max_interval_ms * 1.2 (max jitter)
-    }
-
-    #[test]
-    fn test_max_retries_for_status() {
-        let config = RetryConfig {
-            max_rate_limit_retries: 5,
-            max_overloaded_retries: 10,
-            initial_interval_ms: 1000,
-            backoff_multiplier: 2.0,
-            max_interval_ms: 32000,
-        };
-
-        // Check that we get the right max retries for each error type
-        assert_eq!(
-            config.max_retries_for_status(StatusCode::TOO_MANY_REQUESTS),
-            5
-        );
-        assert_eq!(config.max_retries_for_status(*STATUS_API_OVERLOADED), 10);
-
-        // For any other status code, we should get the rate limit retries
-        assert_eq!(config.max_retries_for_status(StatusCode::BAD_REQUEST), 5);
     }
 
     #[test]
@@ -742,7 +631,7 @@ mod tests {
         assert!(model_names.contains(&"claude-3-5-sonnet-v2@20241022".to_string()));
         assert!(model_names.contains(&"gemini-1.5-pro-002".to_string()));
         assert!(model_names.contains(&"gemini-2.5-pro".to_string()));
-        // Should contain the original 2 config keys plus 6 new retry-related ones
-        assert_eq!(metadata.config_keys.len(), 8);
+        // Should contain the original 2 config keys plus 4 new retry-related ones
+        assert_eq!(metadata.config_keys.len(), 6);
     }
 }

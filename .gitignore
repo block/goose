@@ -59,3 +59,8 @@ do_not_version/
 /ui/desktop/src/bin/goose-scheduler-executor
 /ui/desktop/src/bin/goose
 /.env
+
+/working_dir
+
+# Error log artifacts from mcp replay tests
+crates/goose/tests/mcp_replays/*errors.txt

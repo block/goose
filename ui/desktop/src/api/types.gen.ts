@@ -26,10 +26,30 @@ export type AuthorRequest = {
     metadata?: string | null;
 };
 
+/**
+ * Configuration key metadata for provider setup
+ */
 export type ConfigKey = {
+    /**
+     * Optional default value for the key
+     */
     default?: string | null;
+    /**
+     * The name of the configuration key (e.g., "API_KEY")
+     */
     name: string;
+    /**
+     * Whether this key should be configured using OAuth device code flow
+     * When true, the provider's configure_oauth() method will be called instead of prompting for manual input
+     */
+    oauth_flow: boolean;
+    /**
+     * Whether this key is required for the provider to function
+     */
     required: boolean;
+    /**
+     * Whether this key should be stored securely (e.g., in keychain)
+     */
     secret: boolean;
 };
 
@@ -121,6 +141,18 @@ export type EncodeRecipeResponse = {
 
 export type Envs = {
     [key: string]: string;
+};
+
+export type ErrorResponse = {
+    error: string;
+};
+
+export type ExtendPromptRequest = {
+    extension: string;
+};
+
+export type ExtendPromptResponse = {
+    success: boolean;
 };
 
 /**
@@ -251,6 +283,10 @@ export type FrontendToolRequest = {
     toolCall: {
         [key: string]: unknown;
     };
+};
+
+export type GetToolsQuery = {
+    extension_name?: string | null;
 };
 
 export type ImageContent = {
@@ -556,6 +592,10 @@ export type ScheduledJob = {
     source: string;
 };
 
+export type SessionConfigRequest = {
+    response?: Response | null;
+};
+
 export type SessionDisplayInfo = {
     accumulatedInputTokens?: number | null;
     accumulatedOutputTokens?: number | null;
@@ -630,10 +670,6 @@ export type SessionMetadata = {
      */
     output_tokens?: number | null;
     /**
-     * ID of the project this session belongs to, if any
-     */
-    project_id?: string | null;
-    /**
      * ID of the schedule that triggered this session, if any
      */
     schedule_id?: string | null;
@@ -703,6 +739,9 @@ export type Tool = {
         [key: string]: unknown;
     };
     name: string;
+    outputSchema?: {
+        [key: string]: unknown;
+    };
 };
 
 export type ToolAnnotations = {
@@ -749,6 +788,11 @@ export type ToolResponse = {
     };
 };
 
+export type UpdateProviderRequest = {
+    model?: string | null;
+    provider: string;
+};
+
 export type UpdateScheduleRequest = {
     cron: string;
 };
@@ -775,16 +819,78 @@ export type AddSubRecipesErrors = {
      * Unauthorized - invalid secret key
      */
     401: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
 };
 
 export type AddSubRecipesResponses = {
     /**
-     * added sub recipes to agent successfully
+     * Added sub recipes to agent successfully
      */
     200: AddSubRecipesResponse;
 };
 
 export type AddSubRecipesResponse2 = AddSubRecipesResponses[keyof AddSubRecipesResponses];
+
+export type ExtendPromptData = {
+    body: ExtendPromptRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/prompt';
+};
+
+export type ExtendPromptErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+};
+
+export type ExtendPromptResponses = {
+    /**
+     * Extended system prompt successfully
+     */
+    200: ExtendPromptResponse;
+};
+
+export type ExtendPromptResponse2 = ExtendPromptResponses[keyof ExtendPromptResponses];
+
+export type UpdateSessionConfigData = {
+    body: SessionConfigRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/session_config';
+};
+
+export type UpdateSessionConfigErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type UpdateSessionConfigResponses = {
+    /**
+     * Session config updated successfully
+     */
+    200: string;
+};
+
+export type UpdateSessionConfigResponse = UpdateSessionConfigResponses[keyof UpdateSessionConfigResponses];
 
 export type GetToolsData = {
     body?: never;
@@ -821,6 +927,70 @@ export type GetToolsResponses = {
 };
 
 export type GetToolsResponse = GetToolsResponses[keyof GetToolsResponses];
+
+export type UpdateAgentProviderData = {
+    body: UpdateProviderRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/update_provider';
+};
+
+export type UpdateAgentProviderErrors = {
+    /**
+     * Bad request - missing or invalid parameters
+     */
+    400: unknown;
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type UpdateAgentProviderResponses = {
+    /**
+     * Provider updated successfully
+     */
+    200: unknown;
+};
+
+export type UpdateRouterToolSelectorData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/agent/update_router_tool_selector';
+};
+
+export type UpdateRouterToolSelectorErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type UpdateRouterToolSelectorResponses = {
+    /**
+     * Tool selection strategy updated successfully
+     */
+    200: string;
+};
+
+export type UpdateRouterToolSelectorResponse = UpdateRouterToolSelectorResponses[keyof UpdateRouterToolSelectorResponses];
 
 export type ReadAllConfigData = {
     body?: never;

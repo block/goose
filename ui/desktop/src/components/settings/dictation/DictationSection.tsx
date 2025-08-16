@@ -3,21 +3,15 @@ import { Switch } from '../../ui/switch';
 import { ChevronDown } from 'lucide-react';
 import { Input } from '../../ui/input';
 import { useConfig } from '../../ConfigContext';
-
-type DictationProvider = 'openai' | 'elevenlabs';
-
-interface DictationSettings {
-  enabled: boolean;
-  provider: DictationProvider;
-}
+import { DictationProvider, DictationSettings } from '../../../hooks/useDictationSettings';
 
 const DICTATION_SETTINGS_KEY = 'dictation_settings';
 const ELEVENLABS_API_KEY = 'ELEVENLABS_API_KEY';
 
 export default function DictationSection() {
   const [settings, setSettings] = useState<DictationSettings>({
-    enabled: true,
-    provider: 'openai',
+    enabled: false,
+    provider: null,
   });
   const [hasOpenAIKey, setHasOpenAIKey] = useState(false);
   const [showProviderDropdown, setShowProviderDropdown] = useState(false);
@@ -97,13 +91,34 @@ export default function DictationSection() {
     checkOpenAIKey();
   }, [getProviders]);
 
+  const handleDropdownToggle = async () => {
+    const newShowState = !showProviderDropdown;
+    setShowProviderDropdown(newShowState);
+
+    if (newShowState) {
+      try {
+        const providers = await getProviders(true);
+        const openAIProvider = providers.find((p) => p.name === 'openai');
+        const isConfigured = !!openAIProvider?.is_configured;
+        setHasOpenAIKey(isConfigured);
+      } catch (error) {
+        console.error('Error checking OpenAI configuration:', error);
+        setHasOpenAIKey(false);
+      }
+    }
+  };
+
   const saveSettings = (newSettings: DictationSettings) => {
     setSettings(newSettings);
     localStorage.setItem(DICTATION_SETTINGS_KEY, JSON.stringify(newSettings));
   };
 
   const handleToggle = (enabled: boolean) => {
-    saveSettings({ ...settings, enabled });
+    saveSettings({
+      ...settings,
+      enabled,
+      provider: settings.provider === null ? 'openai' : settings.provider,
+    });
   };
 
   const handleProviderChange = (provider: DictationProvider) => {
@@ -140,7 +155,7 @@ export default function DictationSection() {
       case 'elevenlabs':
         return 'ElevenLabs';
       default:
-        return provider;
+        return 'None (disabled)';
     }
   };
 
@@ -171,7 +186,7 @@ export default function DictationSection() {
             </div>
             <div className="relative">
               <button
-                onClick={() => setShowProviderDropdown(!showProviderDropdown)}
+                onClick={handleDropdownToggle}
                 className="flex items-center gap-2 px-3 py-1.5 text-sm border border-borderSubtle rounded-md hover:border-borderStandard transition-colors text-textStandard bg-background-default"
               >
                 {getProviderLabel(settings.provider)}
@@ -182,12 +197,7 @@ export default function DictationSection() {
                 <div className="absolute right-0 mt-1 w-48 bg-background-default border border-borderStandard rounded-md shadow-lg z-10">
                   <button
                     onClick={() => handleProviderChange('openai')}
-                    disabled={!hasOpenAIKey}
-                    className={`w-full px-3 py-2 text-left text-sm transition-colors first:rounded-t-md ${
-                      hasOpenAIKey
-                        ? 'hover:bg-bgSubtle text-textStandard'
-                        : 'text-textSubtle cursor-not-allowed'
-                    }`}
+                    className="w-full px-3 py-2 text-left text-sm transition-colors first:rounded-t-md hover:bg-bgSubtle text-textStandard"
                   >
                     OpenAI Whisper
                     {!hasOpenAIKey && <span className="text-xs ml-1">(not configured)</span>}

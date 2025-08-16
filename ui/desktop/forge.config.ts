@@ -54,7 +54,7 @@ module.exports = {
   makers: [
     {
       name: '@electron-forge/maker-zip',
-      platforms: ['darwin', 'win32'],
+      platforms: ['darwin', 'win32', 'linux'],
       config: {
         arch: process.env.ELECTRON_ARCH === 'x64' ? ['x64'] : ['arm64'],
         options: {
@@ -69,7 +69,11 @@ module.exports = {
         bin: 'Goose',
         maintainer: 'Block, Inc.',
         homepage: 'https://block.github.io/goose/',
-        categories: ['Development']
+        categories: ['Development'],
+        mimeType: ['x-scheme-handler/goose'],
+        options: {
+          icon: 'src/images/icon.png'
+        }
       },
     },
     {
@@ -79,7 +83,10 @@ module.exports = {
         bin: 'Goose',
         maintainer: 'Block, Inc.',
         homepage: 'https://block.github.io/goose/',
-        categories: ['Development']
+        categories: ['Development'],
+        options: {
+          icon: 'src/images/icon.png'
+        }
       },
     },
   ],

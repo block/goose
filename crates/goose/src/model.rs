@@ -17,6 +17,7 @@ pub enum ConfigError {
 static MODEL_SPECIFIC_LIMITS: Lazy<Vec<(&'static str, usize)>> = Lazy::new(|| {
     vec![
         // openai
+        ("gpt-5", 272_000),
         ("gpt-4-turbo", 128_000),
         ("gpt-4.1", 1_000_000),
         ("gpt-4-1", 1_000_000),
@@ -249,19 +250,28 @@ mod tests {
     #[test]
     #[serial]
     fn test_model_config_context_limits() {
-        let config = ModelConfig::new("claude-3-opus")
-            .unwrap()
-            .with_context_limit(Some(150_000));
-        assert_eq!(config.context_limit(), 150_000);
+        // Clear all GOOSE environment variables to ensure clean test environment
+        with_var("GOOSE_TEMPERATURE", None::<&str>, || {
+            with_var("GOOSE_CONTEXT_LIMIT", None::<&str>, || {
+                with_var("GOOSE_TOOLSHIM", None::<&str>, || {
+                    with_var("GOOSE_TOOLSHIM_OLLAMA_MODEL", None::<&str>, || {
+                        let config = ModelConfig::new("claude-3-opus")
+                            .unwrap()
+                            .with_context_limit(Some(150_000));
+                        assert_eq!(config.context_limit(), 150_000);
 
-        let config = ModelConfig::new("claude-3-opus").unwrap();
-        assert_eq!(config.context_limit(), 200_000);
+                        let config = ModelConfig::new("claude-3-opus").unwrap();
+                        assert_eq!(config.context_limit(), 200_000);
 
-        let config = ModelConfig::new("gpt-4-turbo").unwrap();
-        assert_eq!(config.context_limit(), 128_000);
+                        let config = ModelConfig::new("gpt-4-turbo").unwrap();
+                        assert_eq!(config.context_limit(), 128_000);
 
-        let config = ModelConfig::new("unknown-model").unwrap();
-        assert_eq!(config.context_limit(), DEFAULT_CONTEXT_LIMIT);
+                        let config = ModelConfig::new("unknown-model").unwrap();
+                        assert_eq!(config.context_limit(), DEFAULT_CONTEXT_LIMIT);
+                    });
+                });
+            });
+        });
     }
 
     #[test]

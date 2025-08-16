@@ -6,7 +6,8 @@ import { startOpenRouterSetup } from '../utils/openRouterSetup';
 import WelcomeGooseLogo from './WelcomeGooseLogo';
 import { initializeSystem } from '../utils/providerUtils';
 import { toastService } from '../toasts';
-import { ensureClientInitialized } from '../utils';
+import { OllamaSetup } from './OllamaSetup';
+import { checkOllamaStatus } from '../utils/ollamaDetection';
 
 interface ProviderGuardProps {
   children: React.ReactNode;
@@ -18,6 +19,8 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
   const [isChecking, setIsChecking] = useState(true);
   const [hasProvider, setHasProvider] = useState(false);
   const [showFirstTimeSetup, setShowFirstTimeSetup] = useState(false);
+  const [showOllamaSetup, setShowOllamaSetup] = useState(false);
+  const [ollamaDetected, setOllamaDetected] = useState(false);
   const [openRouterSetupState, setOpenRouterSetupState] = useState<{
     show: boolean;
     title: string;
@@ -96,19 +99,21 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
   useEffect(() => {
     const checkProvider = async () => {
       try {
-        await ensureClientInitialized();
-
         const config = window.electron.getConfig();
         console.log('ProviderGuard - Full config:', config);
 
         const provider = (await read('GOOSE_PROVIDER', false)) ?? config.GOOSE_DEFAULT_PROVIDER;
         const model = (await read('GOOSE_MODEL', false)) ?? config.GOOSE_DEFAULT_MODEL;
 
+        // Always check for Ollama regardless of provider status
+        const ollamaStatus = await checkOllamaStatus();
+        setOllamaDetected(ollamaStatus.isRunning);
+
         if (provider && model) {
           console.log('ProviderGuard - Provider and model found, continuing normally');
           setHasProvider(true);
         } else {
-          console.log('ProviderGuard - No provider/model configured, showing first time setup');
+          console.log('ProviderGuard - No provider/model configured');
           setShowFirstTimeSetup(true);
         }
       } catch (error) {
@@ -124,7 +129,24 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [read]);
 
-  if (isChecking && !openRouterSetupState?.show && !showFirstTimeSetup) {
+  // Poll for Ollama status while the first time setup is shown
+  useEffect(() => {
+    if (!showFirstTimeSetup) return;
+
+    const checkOllama = async () => {
+      const status = await checkOllamaStatus();
+      setOllamaDetected(status.isRunning);
+    };
+
+    // Check every 3 seconds
+    const interval = window.setInterval(checkOllama, 3000);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [showFirstTimeSetup]);
+
+  if (isChecking && !openRouterSetupState?.show && !showFirstTimeSetup && !showOllamaSetup) {
     return (
       <div className="flex justify-center items-center py-12">
         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-textStandard"></div>
@@ -146,6 +168,28 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
     );
   }
 
+  if (showOllamaSetup) {
+    return (
+      <div className="h-screen w-full flex flex-col items-center justify-center bg-background-default">
+        <div className="max-w-md w-full mx-auto p-8">
+          <div className="mb-8 text-center">
+            <WelcomeGooseLogo />
+          </div>
+          <OllamaSetup
+            onSuccess={() => {
+              setShowOllamaSetup(false);
+              setHasProvider(true);
+            }}
+            onCancel={() => {
+              setShowOllamaSetup(false);
+              setShowFirstTimeSetup(true);
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
+
   if (showFirstTimeSetup) {
     return (
       <div className="h-screen w-full flex flex-col items-center justify-center bg-background-default">
@@ -159,9 +203,26 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
           <div className="space-y-4">
             <button
               onClick={handleOpenRouterSetup}
-              className="w-full px-6 py-3 bg-background-muted text-text-standard rounded-lg hover:bg-background-hover transition-colors font-medium"
+              className="w-full px-6 py-3 bg-background-muted text-text-standard rounded-lg hover:bg-background-hover transition-colors font-medium flex items-center justify-center gap-2"
             >
               Automatic setup with OpenRouter (recommended)
+            </button>
+
+            <button
+              onClick={() => {
+                setShowFirstTimeSetup(false);
+                setShowOllamaSetup(true);
+              }}
+              className="w-full px-6 py-3 bg-background-muted text-text-standard rounded-lg hover:bg-background-hover transition-colors font-medium flex items-center justify-center gap-2"
+            >
+              {ollamaDetected ? (
+                <>
+                  <span className="text-text-success">●</span>
+                  Use Ollama (auto detected)
+                </>
+              ) : (
+                'Set up Ollama (run AI locally and free)'
+              )}
             </button>
 
             <button
@@ -173,8 +234,10 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
           </div>
 
           <p className="text-sm text-text-muted mt-6">
-            OpenRouter provides access to multiple AI models. To use this it will need to create an
-            account with OpenRouter.
+            OpenRouter provides instant access to multiple AI models with a simple setup.
+            {ollamaDetected
+              ? ' Ollama is also detected on your system for running models locally.'
+              : ' You can also install Ollama to run free AI models locally on your computer.'}
           </p>
         </div>
       </div>

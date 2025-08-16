@@ -110,7 +110,9 @@ export default function DefaultProviderSetupForm({
       ) : (
         requiredParameters.map((parameter) => (
           <div key={parameter.name}>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{parameter.name}</label>
+            <label className="block text-sm font-medium text-textStandard mb-1">
+              {parameter.name}
+            </label>
             <Input
               type={parameter.secret ? 'password' : 'text'}
               value={configValues[parameter.name] || ''}
@@ -124,8 +126,8 @@ export default function DefaultProviderSetupForm({
               className={`w-full h-14 px-4 font-regular rounded-lg shadow-none ${
                 validationErrors[parameter.name]
                   ? 'border-2 border-red-500'
-                  : 'border border-gray-300'
-              } bg-white text-lg placeholder:text-gray-400 font-regular text-gray-900`}
+                  : 'border border-borderSubtle hover:border-borderStandard'
+              } bg-background-default text-lg placeholder:text-textSubtle font-regular text-textStandard`}
               required={true}
             />
           </div>

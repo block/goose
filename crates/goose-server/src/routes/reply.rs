@@ -9,9 +9,10 @@ use axum::{
 };
 use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
+use goose::conversation::message::{Message, MessageContent};
+use goose::conversation::Conversation;
 use goose::{
     agents::{AgentEvent, SessionConfig},
-    message::{push_message, Message},
     permission::permission_confirmation::PrincipalType,
 };
 use goose::{
@@ -36,6 +37,53 @@ use tokio::time::timeout;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
 use utoipa::ToSchema;
+
+fn track_tool_telemetry(content: &MessageContent, all_messages: &[Message]) {
+    match content {
+        MessageContent::ToolRequest(tool_request) => {
+            if let Ok(tool_call) = &tool_request.tool_call {
+                tracing::info!(monotonic_counter.goose.tool_calls = 1,
+                    tool_name = %tool_call.name,
+                    "Tool call started"
+                );
+            }
+        }
+        MessageContent::ToolResponse(tool_response) => {
+            let tool_name = all_messages
+                .iter()
+                .rev()
+                .find_map(|msg| {
+                    msg.content.iter().find_map(|c| {
+                        if let MessageContent::ToolRequest(req) = c {
+                            if req.id == tool_response.id {
+                                if let Ok(tool_call) = &req.tool_call {
+                                    Some(tool_call.name.clone())
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    })
+                })
+                .unwrap_or_else(|| "unknown".to_string());
+
+            let success = tool_response.tool_result.is_ok();
+            let result_status = if success { "success" } else { "error" };
+
+            tracing::info!(
+                counter.goose.tool_completions = 1,
+                tool_name = %tool_name,
+                result = %result_status,
+                "Tool call completed"
+            );
+        }
+        _ => {}
+    }
+}
 
 #[derive(Debug, Deserialize, Serialize)]
 struct ChatRequest {
@@ -99,19 +147,24 @@ enum MessageEvent {
         request_id: String,
         message: ServerNotification,
     },
+    Ping,
 }
 
 async fn stream_event(
     event: MessageEvent,
     tx: &mpsc::Sender<String>,
-) -> Result<(), mpsc::error::SendError<String>> {
+    cancel_token: &CancellationToken,
+) {
     let json = serde_json::to_string(&event).unwrap_or_else(|e| {
         format!(
             r#"{{"type":"Error","error":"Failed to serialize event: {}"}}"#,
             e
         )
     });
-    tx.send(format!("data: {}\n\n", json)).await
+    if tx.send(format!("data: {}\n\n", json)).await.is_err() {
+        tracing::info!("client hung up");
+        cancel_token.cancel();
+    }
 }
 
 async fn reply_handler(
@@ -121,11 +174,20 @@ async fn reply_handler(
 ) -> Result<SseResponse, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
+    let session_start = std::time::Instant::now();
+
+    tracing::info!(
+        counter.goose.session_starts = 1,
+        session_type = "app",
+        interface = "ui",
+        "Session started"
+    );
+
     let (tx, rx) = mpsc::channel(100);
     let stream = ReceiverStream::new(rx);
     let cancel_token = CancellationToken::new();
 
-    let messages = request.messages;
+    let messages = Conversation::new_unvalidated(request.messages);
     let session_working_dir = request.session_working_dir.clone();
 
     let session_id = request
@@ -144,6 +206,7 @@ async fn reply_handler(
                         error: "No agent configured".to_string(),
                     },
                     &task_tx,
+                    &cancel_token,
                 )
                 .await;
                 return;
@@ -159,12 +222,9 @@ async fn reply_handler(
             retry_config: None,
         };
 
-        // Messages will be auto-compacted in agent.reply() if needed
-        let messages_to_process = messages.clone();
-
         let mut stream = match agent
             .reply(
-                &messages_to_process,
+                messages.clone(),
                 Some(session_config),
                 Some(task_cancel.clone()),
             )
@@ -173,11 +233,12 @@ async fn reply_handler(
             Ok(stream) => stream,
             Err(e) => {
                 tracing::error!("Failed to start reply stream: {:?}", e);
-                let _ = stream_event(
+                stream_event(
                     MessageEvent::Error {
                         error: e.to_string(),
                     },
                     &task_tx,
+                    &cancel_token,
                 )
                 .await;
                 return;
@@ -194,6 +255,7 @@ async fn reply_handler(
                         error: format!("Failed to get session path: {}", e),
                     },
                     &task_tx,
+                    &cancel_token,
                 )
                 .await;
                 return;
@@ -201,90 +263,76 @@ async fn reply_handler(
         };
         let saved_message_count = all_messages.len();
 
+        let mut heartbeat_interval = tokio::time::interval(Duration::from_millis(500));
         loop {
             tokio::select! {
-                            _ = task_cancel.cancelled() => {
-                                tracing::info!("Agent task cancelled");
+                _ = task_cancel.cancelled() => {
+                    tracing::info!("Agent task cancelled");
+                    break;
+                }
+                _ = heartbeat_interval.tick() => {
+                    stream_event(MessageEvent::Ping, &tx, &cancel_token).await;
+                }
+                response = timeout(Duration::from_millis(500), stream.next()) => {
+                    match response {
+                        Ok(Some(Ok(AgentEvent::Message(message)))) => {
+                            for content in &message.content {
+                                track_tool_telemetry(content, all_messages.messages());
+                            }
+
+                            all_messages.push(message.clone());
+                            stream_event(MessageEvent::Message { message }, &tx, &cancel_token).await;
+                        }
+                        Ok(Some(Ok(AgentEvent::HistoryReplaced(new_messages)))) => {
+                            // Replace the message history with the compacted messages
+                            all_messages = Conversation::new_unvalidated(new_messages);
+                            // Note: We don't send this as a stream event since it's an internal operation
+                            // The client will see the compaction notification message that was sent before this event
+                        }
+                        Ok(Some(Ok(AgentEvent::ModelChange { model, mode }))) => {
+                            stream_event(MessageEvent::ModelChange { model, mode }, &tx, &cancel_token).await;
+                        }
+                        Ok(Some(Ok(AgentEvent::McpNotification((request_id, n))))) => {
+                            stream_event(MessageEvent::Notification{
+                                request_id: request_id.clone(),
+                                message: n,
+                            }, &tx, &cancel_token).await;
+                        }
+
+                        Ok(Some(Err(e))) => {
+                            tracing::error!("Error processing message: {}", e);
+                            stream_event(
+                                MessageEvent::Error {
+                                    error: e.to_string(),
+                                },
+                                &tx,
+                                &cancel_token,
+                            ).await;
+                            break;
+                        }
+                        Ok(None) => {
+                            break;
+                        }
+                        Err(_) => {
+                            if tx.is_closed() {
                                 break;
                             }
-            response = timeout(Duration::from_millis(500), stream.next()) => {
-                                match response {
-                                    Ok(Some(Ok(AgentEvent::Message(message)))) => {
-                                        push_message(&mut all_messages, message.clone());
-                                        if let Err(e) = stream_event(MessageEvent::Message { message }, &tx).await {
-                                            tracing::error!("Error sending message through channel: {}", e);
-                                            let _ = stream_event(
-                                                MessageEvent::Error {
-                                                    error: e.to_string(),
-                                                },
-                                                &tx,
-                                            ).await;
-                                            break;
-                                        }
-                                    }
-                                    Ok(Some(Ok(AgentEvent::HistoryReplaced(new_messages)))) => {
-                                        // Replace the message history with the compacted messages
-                                        all_messages = new_messages;
-                                        // Note: We don't send this as a stream event since it's an internal operation
-                                        // The client will see the compaction notification message that was sent before this event
-                                    }
-                                    Ok(Some(Ok(AgentEvent::ModelChange { model, mode }))) => {
-                                        if let Err(e) = stream_event(MessageEvent::ModelChange { model, mode }, &tx).await {
-                                            tracing::error!("Error sending model change through channel: {}", e);
-                                            let _ = stream_event(
-                                                MessageEvent::Error {
-                                                    error: e.to_string(),
-                                                },
-                                                &tx,
-                                            ).await;
-                                        }
-                                    }
-                                    Ok(Some(Ok(AgentEvent::McpNotification((request_id, n))))) => {
-                                        if let Err(e) = stream_event(MessageEvent::Notification{
-                                            request_id: request_id.clone(),
-                                            message: n,
-                                        }, &tx).await {
-                                            tracing::error!("Error sending message through channel: {}", e);
-                                            let _ = stream_event(
-                                                MessageEvent::Error {
-                                                    error: e.to_string(),
-                                                },
-                                                &tx,
-                                            ).await;
-                                        }
-                                    }
-
-                                    Ok(Some(Err(e))) => {
-                                        tracing::error!("Error processing message: {}", e);
-                                        let _ = stream_event(
-                                            MessageEvent::Error {
-                                                error: e.to_string(),
-                                            },
-                                            &tx,
-                                        ).await;
-                                        break;
-                                    }
-                                    Ok(None) => {
-                                        break;
-                                    }
-                                    Err(_) => {
-                                        if tx.is_closed() {
-                                            break;
-                                        }
-                                        continue;
-                                    }
-                                }
-                            }
+                            continue;
                         }
+                    }
+                }
+            }
         }
 
         if all_messages.len() > saved_message_count {
             if let Ok(provider) = agent.provider().await {
                 let provider = Arc::clone(&provider);
+                let session_path_clone = session_path.to_path_buf();
+                let all_messages_clone = all_messages.clone();
                 tokio::spawn(async move {
                     if let Err(e) = session::persist_messages(
-                        &session_path,
-                        &all_messages,
+                        &session_path_clone,
+                        &all_messages_clone,
                         Some(provider),
                         Some(PathBuf::from(&session_working_dir)),
                     )
@@ -296,11 +344,64 @@ async fn reply_handler(
             }
         }
 
+        let session_duration = session_start.elapsed();
+
+        if let Ok(metadata) = session::read_metadata(&session_path) {
+            let total_tokens = metadata.total_tokens.unwrap_or(0);
+            let message_count = metadata.message_count;
+
+            tracing::info!(
+                counter.goose.session_completions = 1,
+                session_type = "app",
+                interface = "ui",
+                exit_type = "normal",
+                duration_ms = session_duration.as_millis() as u64,
+                total_tokens,
+                message_count,
+                "Session completed"
+            );
+
+            tracing::info!(
+                counter.goose.session_duration_ms = session_duration.as_millis() as u64,
+                session_type = "app",
+                interface = "ui",
+                "Session duration"
+            );
+
+            if total_tokens > 0 {
+                tracing::info!(
+                    counter.goose.session_tokens = total_tokens,
+                    session_type = "app",
+                    interface = "ui",
+                    "Session tokens"
+                );
+            }
+        } else {
+            tracing::info!(
+                counter.goose.session_completions = 1,
+                session_type = "app",
+                interface = "ui",
+                exit_type = "normal",
+                duration_ms = session_duration.as_millis() as u64,
+                total_tokens = 0u64,
+                message_count = all_messages.len(),
+                "Session completed"
+            );
+
+            tracing::info!(
+                counter.goose.session_duration_ms = session_duration.as_millis() as u64,
+                session_type = "app",
+                interface = "ui",
+                "Session duration"
+            );
+        }
+
         let _ = stream_event(
             MessageEvent::Finish {
                 reason: "stop".to_string(),
             },
             &task_tx,
+            &cancel_token,
         )
         .await;
     }));
@@ -415,6 +516,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use goose::conversation::message::Message;
     use goose::{
         agents::Agent,
         model::ModelConfig,
@@ -455,6 +557,7 @@ mod tests {
     mod integration_tests {
         use super::*;
         use axum::{body::Body, http::Request};
+        use goose::conversation::message::Message;
         use std::sync::Arc;
         use tower::ServiceExt;
 

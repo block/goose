@@ -37,6 +37,32 @@ dalton:
   socials:
     github: dalton-turner
 
+damien:
+  name: Damien Ramunno-Johnson
+  title: Principal Machine Learning Engineer
+  image_url: https://avatars.githubusercontent.com/u/2729283?v=4
+  page: true
+  socials:
+    linkedin: damienrj
+    github: damienrj
+
+dean:
+  name: Dean Wyatte
+  title: Principal Machine Learning Engineer
+  image_url: https://avatars.githubusercontent.com/u/2512762?v=4
+  page: true
+  socials:
+    github: dwyatte
+
+harrison:
+  name: Harrison Mamin
+  title: Senior Machine Learning Engineer
+  image_url: https://avatars.githubusercontent.com/u/114013937?v=4
+  page: true
+  socials:
+    github: hdmamin
+    
+
 tania:
   name: Tania Chakraborty
   title: Senior Technical Community Manager
@@ -117,3 +143,13 @@ glenn:
     github: hiddenillusion
     x: hiddenillusion
     bluesky: hiddenillusion
+
+rarora:
+  name: Ravneet Singh Arora
+  title: Staff Machine Learning Engineer
+  image_url: https://avatars.githubusercontent.com/u/130506156?v=4
+  page: true
+  socials:
+    linkedin: ravneet-arora-9b913537
+    github: ravarora2
+
