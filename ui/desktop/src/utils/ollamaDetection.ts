@@ -156,7 +156,7 @@ export async function pullOllamaModel(
             if (onProgress) {
               onProgress(progress);
             }
-          } catch (e) {
+          } catch {
             // Ignore parse errors
           }
         }

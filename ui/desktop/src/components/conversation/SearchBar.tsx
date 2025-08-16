@@ -20,7 +20,7 @@ interface SearchBarProps {
     currentIndex: number;
   };
   /** Optional ref for the search input element */
-  inputRef?: React.RefObject<HTMLInputElement>;
+  inputRef?: React.RefObject<HTMLInputElement | null>;
   /** Initial search term */
   initialSearchTerm?: string;
 }
@@ -41,7 +41,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   const [isExiting, setIsExiting] = useState(false);
   const internalInputRef = React.useRef<HTMLInputElement>(null);
   const inputRef = externalInputRef || internalInputRef;
-  const debouncedSearchRef = useRef<ReturnType<typeof debounce>>();
+  const debouncedSearchRef = useRef<ReturnType<typeof debounce> | null>(null);
 
   // Create debounced search function
   useEffect(() => {

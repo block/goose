@@ -115,9 +115,9 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
     try {
       model = (await read('GOOSE_MODEL', false)) as string;
       provider = (await read('GOOSE_PROVIDER', false)) as string;
-    } catch (error) {
+    } catch {
       console.error(`Failed to read GOOSE_MODEL or GOOSE_PROVIDER from config`);
-      throw error;
+      throw new Error('Failed to read GOOSE_MODEL or GOOSE_PROVIDER from config');
     }
     if (!model || !provider) {
       console.log('[getCurrentModelAndProvider] Checking app environment as fallback');
@@ -136,7 +136,7 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
 
     try {
       metadata = await getProviderMetadata(String(gooseProvider), getProviders);
-    } catch (error) {
+    } catch {
       return { model: gooseModel, provider: gooseProvider };
     }
     const providerDisplayName = metadata.display_name;
@@ -148,7 +148,7 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
     try {
       const currentModelName = (await read('GOOSE_MODEL', false)) as string;
       return getModelDisplayName(currentModelName);
-    } catch (error) {
+    } catch {
       return 'Select Model';
     }
   }, [read]);
@@ -163,7 +163,7 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
       // Fall back to regular provider display name lookup
       const { provider } = await getCurrentModelAndProviderForDisplay();
       return provider;
-    } catch (error) {
+    } catch {
       return '';
     }
   }, [read, getCurrentModelAndProviderForDisplay]);
@@ -173,8 +173,8 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
       const { model, provider } = await getCurrentModelAndProvider();
       setCurrentModel(model);
       setCurrentProvider(provider);
-    } catch (error) {
-      console.error('Failed to refresh current model and provider:', error);
+    } catch (_error) {
+      console.error('Failed to refresh current model and provider:', _error);
     }
   }, [getCurrentModelAndProvider]);
 

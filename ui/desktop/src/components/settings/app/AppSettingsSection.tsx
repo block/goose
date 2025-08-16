@@ -91,7 +91,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
       } else {
         setPricingStatus('error');
       }
-    } catch (error) {
+    } catch {
       setPricingStatus('error');
     }
   };
@@ -121,7 +121,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
       } else {
         setPricingStatus('error');
       }
-    } catch (error) {
+    } catch {
       setPricingStatus('error');
     } finally {
       setIsRefreshing(false);

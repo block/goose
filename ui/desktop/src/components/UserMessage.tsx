@@ -13,7 +13,7 @@ interface UserMessageProps {
 }
 
 export default function UserMessage({ message }: UserMessageProps) {
-  const contentRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
 
   // Extract text content from the message
   const textContent = getTextContent(message);
@@ -63,6 +63,7 @@ export default function UserMessage({ message }: UserMessageProps) {
         </div>
 
         {/* TODO(alexhancock): Re-enable link previews once styled well again */}
+        {/* eslint-disable-next-line no-constant-binary-expression */}
         {false && urls.length > 0 && (
           <div className="flex flex-wrap mt-2">
             {urls.map((url, index) => (

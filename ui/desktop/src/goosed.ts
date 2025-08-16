@@ -48,10 +48,10 @@ const checkServerStatus = async (
         log.info(`Server is ready after ${attempt} attempts`);
         return true;
       }
-    } catch (error) {
+    } catch {
       // Expected error when server isn't ready yet
       if (attempt === maxAttempts) {
-        log.error(`Server failed to respond after ${maxAttempts} attempts:`, error);
+        log.error(`Server failed to respond after ${maxAttempts} attempts`);
       }
     }
     await new Promise((resolve) => setTimeout(resolve, interval));
@@ -123,7 +123,7 @@ export const startGoosed = async (
       log.warn(`Provided path is not a directory, falling back to home directory`);
       dir = homeDir;
     }
-  } catch (error) {
+  } catch {
     log.warn(`Directory does not exist, falling back to home directory`);
     dir = homeDir;
   }

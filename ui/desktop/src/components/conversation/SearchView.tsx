@@ -44,7 +44,7 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
     count: number;
   } | null>(null);
 
-  const searchInputRef = React.useRef<HTMLInputElement>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const highlighterRef = React.useRef<SearchHighlighter | null>(null);
   const containerRef = React.useRef<SearchContainerElement | null>(null);
   const lastSearchRef = React.useRef<{ term: string; caseSensitive: boolean }>({

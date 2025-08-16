@@ -251,7 +251,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
   const actionButtons = showActionButtons ? (
     <>
       <Tooltip>
-        <TooltipTrigger>
+        <TooltipTrigger asChild>
           <Button
             onClick={handleShare}
             disabled={!canShare || isSharing}

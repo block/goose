@@ -238,7 +238,7 @@ export const EditScheduleModal: React.FC<EditScheduleModalProps> = ({
               return `${dateObj.getMinutes()} ${dateObj.getHours()} ${dateObj.getDate()} ${
                 dateObj.getMonth() + 1
               } *`;
-            } catch (e) {
+            } catch {
               return "Error parsing date/time for 'once'.";
             }
           }
@@ -293,7 +293,7 @@ export const EditScheduleModal: React.FC<EditScheduleModalProps> = ({
       } else {
         setReadableCronExpression(cronstrue.toString(cron));
       }
-    } catch (e) {
+    } catch {
       setReadableCronExpression('Could not parse cron string.');
     }
   }, [
