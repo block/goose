@@ -177,6 +177,7 @@ export default function ChatInput({
   const isAnyDroppedFileLoading = allDroppedFiles.some((file) => file.isLoading);
   const wasLoadingRef = useRef(isLoading);
   const sendNowTriggeredRef = useRef(false);
+  const queuePausedRef = useRef(false);
   // Debug logging for draft context
   useEffect(() => {
     if (wasLoadingRef.current && !isLoading && queuedMessages.length > 0) {
