@@ -1632,6 +1632,12 @@
               "type"
             ],
             "properties": {
+              "available_tools": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "bundled": {
                 "type": "boolean",
                 "description": "Whether this extension is bundled with Goose",
@@ -1687,6 +1693,12 @@
                   "type": "string"
                 }
               },
+              "available_tools": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "bundled": {
                 "type": "boolean",
                 "description": "Whether this extension is bundled with Goose",
@@ -1734,6 +1746,12 @@
               "type"
             ],
             "properties": {
+              "available_tools": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "bundled": {
                 "type": "boolean",
                 "description": "Whether this extension is bundled with Goose",
@@ -1774,6 +1792,12 @@
               "type"
             ],
             "properties": {
+              "available_tools": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "bundled": {
                 "type": "boolean",
                 "description": "Whether this extension is bundled with Goose",
@@ -1828,6 +1852,12 @@
               "type"
             ],
             "properties": {
+              "available_tools": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "bundled": {
                 "type": "boolean",
                 "description": "Whether this extension is bundled with Goose",
@@ -1866,6 +1896,12 @@
               "type"
             ],
             "properties": {
+              "available_tools": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "code": {
                 "type": "string",
                 "description": "The Python code to execute"

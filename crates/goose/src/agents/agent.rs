@@ -691,6 +691,7 @@ impl Agent {
                 tools,
                 instructions,
                 bundled: _,
+                available_tools: _,
             } => {
                 // For frontend tools, just store them in the frontend_tools map
                 let mut frontend_tools = self.frontend_tools.lock().await;

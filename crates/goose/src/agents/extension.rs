@@ -163,6 +163,8 @@ pub enum ExtensionConfig {
         /// Whether this extension is bundled with Goose
         #[serde(default)]
         bundled: Option<bool>,
+        #[serde(default)]
+        available_tools: Vec<String>,
     },
     /// Standard I/O client with command and arguments
     #[serde(rename = "stdio")]
@@ -180,6 +182,8 @@ pub enum ExtensionConfig {
         /// Whether this extension is bundled with Goose
         #[serde(default)]
         bundled: Option<bool>,
+        #[serde(default)]
+        available_tools: Vec<String>,
     },
     /// Built-in extension that is part of the goose binary
     #[serde(rename = "builtin")]
@@ -192,6 +196,8 @@ pub enum ExtensionConfig {
         /// Whether this extension is bundled with Goose
         #[serde(default)]
         bundled: Option<bool>,
+        #[serde(default)]
+        available_tools: Vec<String>,
     },
     /// Streamable HTTP client with a URI endpoint using MCP Streamable HTTP specification
     #[serde(rename = "streamable_http")]
@@ -212,6 +218,8 @@ pub enum ExtensionConfig {
         /// Whether this extension is bundled with Goose
         #[serde(default)]
         bundled: Option<bool>,
+        #[serde(default)]
+        available_tools: Vec<String>,
     },
     /// Frontend-provided tools that will be called through the frontend
     #[serde(rename = "frontend")]
@@ -225,6 +233,8 @@ pub enum ExtensionConfig {
         /// Whether this extension is bundled with Goose
         #[serde(default)]
         bundled: Option<bool>,
+        #[serde(default)]
+        available_tools: Vec<String>,
     },
     /// Inline Python code that will be executed using uvx
     #[serde(rename = "inline_python")]
@@ -240,6 +250,8 @@ pub enum ExtensionConfig {
         /// Python package dependencies required by this extension
         #[serde(default)]
         dependencies: Option<Vec<String>>,
+        #[serde(default)]
+        available_tools: Vec<String>,
     },
 }
 
@@ -251,6 +263,7 @@ impl Default for ExtensionConfig {
             description: None,
             timeout: Some(config::DEFAULT_EXTENSION_TIMEOUT),
             bundled: Some(true),
+            available_tools: Vec::new(),
         }
     }
 }
@@ -265,6 +278,7 @@ impl ExtensionConfig {
             description: Some(description.into()),
             timeout: Some(timeout.into()),
             bundled: None,
+            available_tools: Vec::new(),
         }
     }
 
@@ -283,6 +297,7 @@ impl ExtensionConfig {
             description: Some(description.into()),
             timeout: Some(timeout.into()),
             bundled: None,
+            available_tools: Vec::new(),
         }
     }
 
@@ -301,6 +316,7 @@ impl ExtensionConfig {
             description: Some(description.into()),
             timeout: Some(timeout.into()),
             bundled: None,
+            available_tools: Vec::new(),
         }
     }
 
@@ -316,6 +332,7 @@ impl ExtensionConfig {
             description: Some(description.into()),
             timeout: Some(timeout.into()),
             dependencies: None,
+            available_tools: Vec::new(),
         }
     }
 
@@ -333,6 +350,7 @@ impl ExtensionConfig {
                 timeout,
                 description,
                 bundled,
+                available_tools,
                 ..
             } => Self::Stdio {
                 name,
@@ -343,6 +361,7 @@ impl ExtensionConfig {
                 description,
                 timeout,
                 bundled,
+                available_tools,
             },
             other => other,
         }
@@ -364,6 +383,34 @@ impl ExtensionConfig {
             Self::InlinePython { name, .. } => name,
         }
         .to_string()
+    }
+
+    /// Check if a tool should be available to the LLM
+    pub fn is_tool_available(&self, tool_name: &str) -> bool {
+        let available_tools = match self {
+            Self::Sse {
+                available_tools, ..
+            }
+            | Self::StreamableHttp {
+                available_tools, ..
+            }
+            | Self::Stdio {
+                available_tools, ..
+            }
+            | Self::Builtin {
+                available_tools, ..
+            }
+            | Self::InlinePython {
+                available_tools, ..
+            }
+            | Self::Frontend {
+                available_tools, ..
+            } => available_tools,
+        };
+
+        // If no tools are specified, all tools are available
+        // If tools are specified, only those tools are available
+        available_tools.is_empty() || available_tools.contains(&tool_name.to_string())
     }
 }
 

@@ -143,6 +143,7 @@ mod tests {
                     description: None,
                     timeout: None,
                     bundled: None,
+                    available_tools: Vec::new(),
                 },
                 ExtensionConfig::Stdio {
                     name: "slack-mcp".to_string(),
@@ -153,6 +154,7 @@ mod tests {
                     timeout: None,
                     description: None,
                     bundled: None,
+                    available_tools: Vec::new(),
                 },
                 ExtensionConfig::Builtin {
                     name: "builtin-ext".to_string(),
@@ -160,6 +162,7 @@ mod tests {
                     description: None,
                     timeout: None,
                     bundled: None,
+                    available_tools: Vec::new(),
                 },
             ]),
             context: None,
@@ -237,6 +240,7 @@ mod tests {
                     description: None,
                     timeout: None,
                     bundled: None,
+                    available_tools: Vec::new(),
                 },
                 ExtensionConfig::Stdio {
                     name: "service-b".to_string(),
@@ -247,6 +251,7 @@ mod tests {
                     timeout: None,
                     description: None,
                     bundled: None,
+                    available_tools: Vec::new(),
                 },
             ]),
             context: None,
@@ -294,6 +299,7 @@ mod tests {
                 description: None,
                 timeout: None,
                 bundled: None,
+                available_tools: Vec::new(),
             }]),
             sub_recipes: Some(vec![SubRecipe {
                 name: "child-recipe".to_string(),

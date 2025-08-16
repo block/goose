@@ -42,6 +42,7 @@ pub struct ExtensionManager {
     instructions: HashMap<String, String>,
     resource_capable_extensions: HashSet<String>,
     temp_dirs: HashMap<String, tempfile::TempDir>,
+    extension_configs: HashMap<String, ExtensionConfig>,
 }
 
 /// A flattened representation of a resource used by the agent to prepare inference
@@ -155,6 +156,7 @@ impl ExtensionManager {
             instructions: HashMap::new(),
             resource_capable_extensions: HashSet::new(),
             temp_dirs: HashMap::new(),
+            extension_configs: HashMap::new(),
         }
     }
 
@@ -333,6 +335,7 @@ impl ExtensionManager {
                 description: _,
                 timeout,
                 bundled: _,
+                available_tools: _,
             } => {
                 let cmd = std::env::current_exe()
                     .expect("should find the current executable")
@@ -385,7 +388,8 @@ impl ExtensionManager {
                 .insert(sanitized_name.clone());
         }
 
-        self.add_client(sanitized_name, client);
+        self.add_client(sanitized_name.clone(), client);
+        self.extension_configs.insert(sanitized_name, config);
         Ok(())
     }
 
@@ -415,6 +419,7 @@ impl ExtensionManager {
         self.instructions.remove(&sanitized_name);
         self.resource_capable_extensions.remove(&sanitized_name);
         self.temp_dirs.remove(&sanitized_name);
+        self.extension_configs.remove(&sanitized_name);
         Ok(())
     }
 
@@ -471,6 +476,7 @@ impl ExtensionManager {
         let client_futures = filtered_clients.map(|(name, client)| {
             let name = name.clone();
             let client = client.clone();
+            let extension_config = self.extension_configs.get(&name).cloned();
 
             task::spawn(async move {
                 let mut tools = Vec::new();
@@ -481,13 +487,20 @@ impl ExtensionManager {
 
                 loop {
                     for tool in client_tools.tools {
-                        tools.push(Tool {
-                            name: format!("{}__{}", name, tool.name).into(),
-                            description: tool.description,
-                            input_schema: tool.input_schema,
-                            annotations: tool.annotations,
-                            output_schema: tool.output_schema,
-                        });
+                        let is_available = extension_config
+                            .as_ref()
+                            .map(|config| config.is_tool_available(&tool.name))
+                            .unwrap_or(true);
+
+                        if is_available {
+                            tools.push(Tool {
+                                name: format!("{}__{}", name, tool.name).into(),
+                                description: tool.description,
+                                input_schema: tool.input_schema,
+                                annotations: tool.annotations,
+                                output_schema: tool.output_schema,
+                            });
+                        }
                     }
 
                     // Exit loop when there are no more pages
@@ -750,6 +763,20 @@ impl ExtensionManager {
             })?
             .to_string();
 
+        if let Some(extension_config) = self.extension_configs.get(client_name) {
+            if !extension_config.is_tool_available(&tool_name) {
+                return Err(ErrorData::new(
+                    ErrorCode::RESOURCE_NOT_FOUND,
+                    format!(
+                        "Tool '{}' is not available for extension '{}'",
+                        tool_name, client_name
+                    ),
+                    None,
+                )
+                .into());
+            }
+        }
+
         let arguments = tool_call.arguments.clone();
         let client = client.clone();
         let notifications_receiver = client.lock().await.subscribe().await;
@@ -981,7 +1008,34 @@ mod tests {
             _next_cursor: Option<String>,
             _cancellation_token: CancellationToken,
         ) -> Result<ListToolsResult, Error> {
-            Err(Error::TransportClosed)
+            use serde_json::json;
+            use std::sync::Arc;
+            Ok(ListToolsResult {
+                tools: vec![
+                    Tool {
+                        name: "tool".into(),
+                        description: Some("A basic tool".into()),
+                        input_schema: Arc::new(json!({}).as_object().unwrap().clone()),
+                        annotations: None,
+                        output_schema: None,
+                    },
+                    Tool {
+                        name: "available_tool".into(),
+                        description: Some("An available tool".into()),
+                        input_schema: Arc::new(json!({}).as_object().unwrap().clone()),
+                        annotations: None,
+                        output_schema: None,
+                    },
+                    Tool {
+                        name: "hidden_tool".into(),
+                        description: Some("A hidden tool".into()),
+                        input_schema: Arc::new(json!({}).as_object().unwrap().clone()),
+                        annotations: None,
+                        output_schema: None,
+                    },
+                ],
+                next_cursor: None,
+            })
         }
 
         async fn call_tool(
@@ -991,7 +1045,7 @@ mod tests {
             _cancellation_token: CancellationToken,
         ) -> Result<CallToolResult, Error> {
             match name {
-                "tool" | "test__tool" => Ok(CallToolResult {
+                "tool" | "test__tool" | "available_tool" | "hidden_tool" => Ok(CallToolResult {
                     content: Some(vec![]),
                     is_error: None,
                     structured_content: None,
@@ -1179,5 +1233,137 @@ mod tests {
         } else {
             panic!("Expected ErrorData with ErrorCode::RESOURCE_NOT_FOUND");
         }
+    }
+
+    #[tokio::test]
+    async fn test_tool_availability_filtering() {
+        let mut extension_manager = ExtensionManager::new();
+
+        // Only "available_tool" should be available to the LLM
+        let available_tools = vec!["available_tool".to_string()];
+
+        let config = ExtensionConfig::Builtin {
+            name: "test_extension".to_string(),
+            display_name: Some("Test Extension".to_string()),
+            description: Some("Test extension for available tools".to_string()),
+            timeout: Some(300),
+            bundled: Some(true),
+            available_tools,
+        };
+
+        let sanitized_name = normalize("test_extension".to_string());
+        extension_manager
+            .extension_configs
+            .insert(sanitized_name.clone(), config);
+
+        extension_manager.clients.insert(
+            sanitized_name,
+            Arc::new(Mutex::new(Box::new(MockClient {}))),
+        );
+
+        let tools = extension_manager.get_prefixed_tools(None).await.unwrap();
+
+        let tool_names: Vec<String> = tools.iter().map(|t| t.name.to_string()).collect();
+        assert!(!tool_names.iter().any(|name| name == "test_extension__tool")); // Default unavailable
+        assert!(tool_names
+            .iter()
+            .any(|name| name == "test_extension__available_tool"));
+        assert!(!tool_names
+            .iter()
+            .any(|name| name == "test_extension__hidden_tool"));
+        assert!(tool_names.len() == 1);
+    }
+
+    #[tokio::test]
+    async fn test_tool_availability_defaults_to_available() {
+        let mut extension_manager = ExtensionManager::new();
+
+        let config = ExtensionConfig::Builtin {
+            name: "test_extension".to_string(),
+            display_name: Some("Test Extension".to_string()),
+            description: Some("Test extension for available tools".to_string()),
+            timeout: Some(300),
+            bundled: Some(true),
+            available_tools: vec![],
+        };
+
+        let sanitized_name = normalize("test_extension".to_string());
+        extension_manager
+            .extension_configs
+            .insert(sanitized_name.clone(), config);
+
+        extension_manager.clients.insert(
+            sanitized_name,
+            Arc::new(Mutex::new(Box::new(MockClient {}))),
+        );
+
+        let tools = extension_manager.get_prefixed_tools(None).await.unwrap();
+
+        let tool_names: Vec<String> = tools.iter().map(|t| t.name.to_string()).collect();
+        assert!(tool_names.iter().any(|name| name == "test_extension__tool"));
+        assert!(tool_names
+            .iter()
+            .any(|name| name == "test_extension__available_tool"));
+        assert!(tool_names
+            .iter()
+            .any(|name| name == "test_extension__hidden_tool"));
+        assert!(tool_names.len() == 3);
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_unavailable_tool_returns_error() {
+        let mut extension_manager = ExtensionManager::new();
+
+        let available_tools = vec!["available_tool".to_string()];
+
+        let config = ExtensionConfig::Builtin {
+            name: "test_extension".to_string(),
+            display_name: Some("Test Extension".to_string()),
+            description: Some("Test extension for tool dispatch".to_string()),
+            timeout: Some(300),
+            bundled: Some(true),
+            available_tools,
+        };
+
+        let sanitized_name = normalize("test_extension".to_string());
+        extension_manager
+            .extension_configs
+            .insert(sanitized_name.clone(), config);
+
+        extension_manager.clients.insert(
+            sanitized_name,
+            Arc::new(Mutex::new(Box::new(MockClient {}))),
+        );
+
+        // Try to call an unavailable tool
+        let unavailable_tool_call = ToolCall {
+            name: "test_extension__tool".to_string(),
+            arguments: json!({}),
+        };
+
+        let result = extension_manager
+            .dispatch_tool_call(unavailable_tool_call, CancellationToken::default())
+            .await;
+
+        // Should return RESOURCE_NOT_FOUND error
+        if let Err(err) = result {
+            let tool_err = err.downcast_ref::<ErrorData>().expect("Expected ErrorData");
+            assert_eq!(tool_err.code, ErrorCode::RESOURCE_NOT_FOUND);
+            assert!(tool_err.message.contains("is not available"));
+        } else {
+            panic!("Expected ErrorData with ErrorCode::RESOURCE_NOT_FOUND");
+        }
+
+        // Try to call an available tool - should succeed
+        let available_tool_call = ToolCall {
+            name: "test_extension__available_tool".to_string(),
+            arguments: json!({}),
+        };
+
+        let result = extension_manager
+            .dispatch_tool_call(available_tool_call, CancellationToken::default())
+            .await;
+
+        assert!(result.is_ok());
     }
 }

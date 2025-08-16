@@ -113,6 +113,7 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
                                 timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
                                 bundled: Some(true),
                                 description: None,
+                                available_tools: Vec::new(),
                             },
                         })?;
                     }
@@ -771,6 +772,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     timeout: Some(timeout),
                     bundled: Some(true),
                     description: None,
+                    available_tools: Vec::new(),
                 },
             })?;
 
@@ -878,6 +880,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     description,
                     timeout: Some(timeout),
                     bundled: None,
+                    available_tools: Vec::new(),
                 },
             })?;
 
@@ -980,6 +983,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     description,
                     timeout: Some(timeout),
                     bundled: None,
+                    available_tools: Vec::new(),
                 },
             })?;
 
@@ -1107,6 +1111,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     description,
                     timeout: Some(timeout),
                     bundled: None,
+                    available_tools: Vec::new(),
                 },
             })?;
 
@@ -1749,6 +1754,7 @@ pub async fn handle_openrouter_auth() -> Result<(), Box<dyn Error>> {
                                         timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
                                         bundled: Some(true),
                                         description: None,
+                                        available_tools: Vec::new(),
                                     },
                                 }) {
                                     Ok(_) => println!("✓ Developer extension enabled"),
