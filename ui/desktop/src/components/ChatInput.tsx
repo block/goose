@@ -618,7 +618,7 @@ export default function ChatInput({
   };
 
   return (
-    <div      className={`flex flex-col relative h-auto p-4 transition-colors ${
+    <div      className={`flex flex-col relative h-auto px-4 pb-4 transition-colors ${
         disableAnimation ? '' : 'page-transition'
       } ${
         isFocused

@@ -97,7 +97,7 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
       <div className={`relative ${className}`}>
         {/* Compact Header */}
         <div 
-          className="flex items-center justify-between px-4 py-2.5 bg-gradient-to-r from-slate-50/60 to-blue-50/60 dark:from-slate-900/60 dark:to-blue-900/20 border-b border-border/20 backdrop-blur-sm cursor-pointer hover:bg-gradient-to-r hover:from-slate-50/80 hover:to-blue-50/80 dark:hover:from-slate-900/80 dark:hover:to-blue-900/30 transition-all duration-200"
+          className="flex items-center justify-between px-4 py-2.5 bg-background border-b border-border/20 cursor-pointer hover:bg-muted/30 transition-all duration-200"
           onClick={() => setIsExpanded(true)}
         >
           <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -124,7 +124,7 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
             
             {/* Queue count */}
             {remainingCount > 0 && (
-              <div className="flex items-center gap-1 text-xs text-muted-foreground bg-white/50 dark:bg-black/20 px-2 py-1 rounded-full">
+              <div className="flex items-center gap-1 text-xs text-muted-foreground bg-bgSubtle border border-borderSubtle px-2 py-1 rounded-full font-medium">
                 <span>+{remainingCount}</span>
               </div>
             )}
@@ -140,7 +140,7 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
                   e.stopPropagation();
                   onStopAndSend(nextMessage.id);
                 }}
-                className="h-7 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:text-blue-300 dark:hover:bg-blue-950/30"
+                className="h-7 px-2 text-xs text-info hover:text-info/80 hover:bg-info/10"
                 title="Send this message now"
               >
                 <Send className="w-3 h-3" />
@@ -172,11 +172,11 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
     );
   }
 
-  // Expanded View (your previous full implementation)
+  // Expanded View
   return (
     <div className={`relative ${className}`}>
       {/* Expanded Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-slate-50/80 to-blue-50/80 dark:from-slate-900/80 dark:to-blue-900/20 border-b border-border/30 backdrop-blur-sm">
+      <div className="flex items-center justify-between px-4 py-3 bg-background border-b border-border/30">
         <div className="flex items-center gap-3">
           <div className="relative">
             {isPaused ? (
@@ -187,7 +187,7 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
             ) : (
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <Sparkles className="w-4 h-4 text-info" />
               </div>
             )}
           </div>
@@ -238,7 +238,7 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
       )}
       
       {/* Message Bubbles */}
-      <div className="p-4 space-y-3 bg-gradient-to-b from-transparent to-slate-50/30 dark:to-slate-900/30 max-h-80 overflow-y-auto">
+      <div className="p-4 space-y-3 bg-background max-h-80 overflow-y-auto">
         {queuedMessages.map((message, index) => (
           <div
             key={message.id}
@@ -255,12 +255,12 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
             {/* Main message bubble */}
             <div className={`relative flex items-center gap-3 rounded-xl px-4 py-3 border transition-all duration-300 ease-out ${
               draggedItem === message.id 
-                ? 'bg-blue-100/80 border-blue-300 opacity-60 scale-105 shadow-lg dark:bg-blue-950/50 dark:border-blue-700 rotate-2' 
+                ? 'bg-info/20 border-info opacity-60 scale-105 shadow-lg rotate-2' 
                 : dragOverItem === message.id
                 ? 'bg-green-100/80 border-green-400 shadow-lg dark:bg-green-950/50 dark:border-green-600 scale-102'
                 : hoveredMessage === message.id
-                ? 'bg-white/90 border-slate-300 shadow-md dark:bg-slate-800/90 dark:border-slate-600 scale-101'
-                : 'bg-white/60 hover:bg-white/80 border-slate-200/60 hover:border-slate-300 dark:bg-slate-800/60 dark:hover:bg-slate-800/80 dark:border-slate-700/60 dark:hover:border-slate-600'
+                ? 'bg-muted/90 border-border shadow-md scale-101'
+                : 'bg-muted/60 hover:bg-muted/80 border-border/60 hover:border-border dark:border-border/60 dark:hover:border-border'
             } backdrop-blur-sm`}>
               
               {/* Priority indicator */}
@@ -268,7 +268,7 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
                 <div className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold transition-colors ${
                   index === 0 
                     ? 'bg-blue-500 text-white shadow-md' 
-                    : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+                    : 'bg-muted text-muted-foreground'
                 }`}>
                   {index + 1}
                 </div>
@@ -285,52 +285,45 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
               
               {/* Message content */}
               <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between gap-3">
-                  <p className="text-sm text-foreground leading-relaxed" title={message.content}>
-                    {message.content.length > 80 
-                      ? `${message.content.substring(0, 80)}...` 
-                      : message.content
-                    }
-                  </p>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className="text-xs text-muted-foreground font-mono">
-                      {formatTimestamp(message.timestamp)}
-                    </span>
-                    
-                    {/* Remove button */}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onRemoveMessage(message.id)}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0 hover:bg-destructive/20 hover:text-destructive rounded-full"
-                      title="Remove this message from queue"
-                    >
-                      <X className="w-3 h-3" />
-                    </Button>
-                  </div>
-                </div>
+                <p className="text-sm text-foreground leading-relaxed" title={message.content}>
+                  {message.content.length > 80 
+                    ? `${message.content.substring(0, 80)}...` 
+                    : message.content
+                  }
+                </p>
               </div>
-            </div>
-            
-            {/* Send Now pill - appears below on hover with smooth animation */}
-            {onStopAndSend && (
-              <div className={`absolute top-full left-1/2 transform -translate-x-1/2 mt-2 transition-all duration-300 ease-out z-20 ${
-                hoveredMessage === message.id 
-                  ? 'opacity-100 translate-y-0 pointer-events-auto' 
-                  : 'opacity-0 translate-y-[-8px] pointer-events-none'
-              }`}>
+              
+              {/* Right side actions */}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <span className="text-xs text-muted-foreground font-mono">
+                  {formatTimestamp(message.timestamp)}
+                </span>
+                
+                {/* Send Now button - inline */}
+                {onStopAndSend && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onStopAndSend(message.id)}
+                    className="h-7 w-7 p-0 rounded-full transition-all duration-200"
+                    title="Stop current processing and send this message now"
+                  >
+                    <Send className="w-3 h-3" />
+                  </Button>
+                )}
+                
+                {/* Remove button */}
                 <Button
-                  variant="default"
+                  variant="ghost"
                   size="sm"
-                  onClick={() => onStopAndSend(message.id)}
-                  className="h-8 px-4 text-xs bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white border-0 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 whitespace-nowrap font-medium"
-                  title="Stop current processing and send this message now"
+                  onClick={() => onRemoveMessage(message.id)}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0 hover:bg-destructive/20 hover:text-destructive rounded-full"
+                  title="Remove this message from queue"
                 >
-                  <Send className="w-3 h-3 mr-2" />
-                  Send Now
+                  <X className="w-3 h-3" />
                 </Button>
               </div>
-            )}
+            </div>
             
             {/* Drop indicator with enhanced visuals */}
             {dragOverItem === message.id && draggedItem !== message.id && (
