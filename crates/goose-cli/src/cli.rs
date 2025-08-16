@@ -27,8 +27,6 @@ use goose_bench::runners::model_runner::ModelRunner;
 use std::io::Read;
 use std::path::PathBuf;
 
-use crate::commands::repo;
-
 #[derive(Parser)]
 #[command(author, version, display_name = "", about, long_about = None)]
 struct Cli {
@@ -769,6 +767,16 @@ pub async fn cli() -> Result<()> {
                 }
             }
         }
+        Some(Command::Project {}) => {
+            // TODO: implement project open behavior (placeholder)
+            eprintln!("Project command not yet implemented");
+            return Ok(());
+        }
+        Some(Command::Projects) => {
+            // TODO: implement projects listing behavior (placeholder)
+            eprintln!("Projects command not yet implemented");
+            return Ok(());
+        }
         Some(Command::Configure {}) => {
             let _ = handle_configure().await;
             return Ok(());
@@ -1204,16 +1212,6 @@ pub async fn cli() -> Result<()> {
                 Ok(())
             };
         }
-        Some(Command::Repo { command }) => match command {
-            Some(RepoCommand::Index { path, output }) => {
-                repo::index_repository_with_args(&path, &output)?;
-                return Ok(());
-            }
-            None => {
-                eprintln!("No repo subcommand specified");
-                return Ok(());
-            }
-        },
     }
     Ok(())
 }
