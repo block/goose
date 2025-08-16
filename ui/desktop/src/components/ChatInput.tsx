@@ -181,6 +181,12 @@ export default function ChatInput({
   // Debug logging for draft context
   useEffect(() => {
     if (wasLoadingRef.current && !isLoading && queuedMessages.length > 0) {
+      // Skip automatic processing if queue is paused by stop command
+      if (queuePausedRef.current) {
+        wasLoadingRef.current = isLoading;
+        return;
+      }
+
       // Skip automatic processing if Send Now was triggered
       if (sendNowTriggeredRef.current) {
         sendNowTriggeredRef.current = false;
@@ -212,6 +218,9 @@ export default function ChatInput({
   };
 
   const handleStopAndSend = (messageId: string) => {
+    // Resume queue processing when using Send Now
+    queuePausedRef.current = false;
+
     const messageToSend = queuedMessages.find(msg => msg.id === messageId);
     if (!messageToSend) return;
     
@@ -431,6 +440,10 @@ export default function ChatInput({
         const input = displayValue.trim().toLowerCase();
         if (input === "stop" || input === "wait" || input.startsWith("stop ") || input.startsWith("wait ")) {
           if (onStop) onStop(); // Stop immediately
+
+          // Pause the queue to prevent auto-processing next message
+          queuePausedRef.current = true;
+
           LocalMessageStorage.addMessage(displayValue.trim());
           handleSubmit(new CustomEvent("submit", { detail: { value: displayValue.trim() } }) as unknown as React.FormEvent);
           setDisplayValue("");
@@ -456,6 +469,9 @@ export default function ChatInput({
         (displayValue.trim() ||
           pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
           allDroppedFiles.some((file) => !file.error && !file.isLoading));
+      // Resume queue processing when sending a new message
+      queuePausedRef.current = false;
+
       if (canSubmit) {
         performSubmit();
       }
@@ -580,6 +596,9 @@ export default function ChatInput({
       (displayValue.trim() ||
         pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
         allDroppedFiles.some((file) => !file.error && !file.isLoading));
+      // Resume queue processing when sending a new message
+      queuePausedRef.current = false;
+
     if (canSubmit) {
       performSubmit();
     }
