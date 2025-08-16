@@ -89,15 +89,37 @@ async fn handle_text_instruction_task(
     task_execution_tracker.start_task(&task.id).await;
 
     let result = tokio::select! {
-        result = run_complete_subagent_task(text_instruction.to_string(), task_config) => result,
+        result = run_complete_subagent_task(text_instruction.to_string(), task_config.clone()) => result,
         _ = cancellation_token.cancelled() => {
             return Err("Task cancelled".to_string());
         }
     };
     match result {
-        Ok(result_text) => Ok(serde_json::json!({
-            "result": result_text
-        })),
+        Ok(result_text) => {
+            // Get provider information from task_config
+            let provider_info = if let Some(provider) = task_config.provider() {
+                let model_config = provider.get_model_config();
+
+                // Get provider name from config
+                // Use the stored provider name
+                let provider_name = task_config.provider_name.as_deref().unwrap_or("unknown");
+
+                serde_json::json!({
+                    "provider_name": provider_name,
+                    "model_id": model_config.model_name.clone()
+                })
+            } else {
+                serde_json::json!({
+                    "provider_name": "unknown",
+                    "model_id": "unknown"
+                })
+            };
+
+            Ok(serde_json::json!({
+                "result": result_text,
+                "provider_info": provider_info
+            }))
+        }
         Err(e) => {
             let error_msg = format!("Subagent execution failed: {}", e);
             Err(error_msg)
