@@ -27,7 +27,13 @@ import { COST_TRACKING_ENABLED } from '../updates';
 import { CostTracker } from './bottom_menu/CostTracker';
 import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
 import { Recipe } from '../recipe';
+import MessageQueue from './MessageQueue';
 
+interface QueuedMessage {
+  id: string;
+  content: string;
+  timestamp: number;
+}
 interface PastedImage {
   id: string;
   dataUrl: string; // For immediate preview
@@ -103,13 +109,51 @@ export default function ChatInput({
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
   const [isFocused, setIsFocused] = useState(false);
   const [pastedImages, setPastedImages] = useState<PastedImage[]>([]);
-  const [queuedMessage, setQueuedMessage] = useState('');
+  const [queuedMessages, setQueuedMessages] = useState<Array<{id: string, content: string, timestamp: number}>>([]);
+  const [isComposing, setIsComposing] = useState(false);
 
+  // File drop functionality
+  const { droppedFiles: localDroppedFiles, handleDrop: handleLocalDrop, handleDragOver: handleLocalDragOver } = useFileDrop();
+  
+
+  const [mentionPopover, setMentionPopover] = useState<{
+    isOpen: boolean;
+    position: { x: number; y: number };
+    query: string;
+    mentionStart: number;
+    selectedIndex: number;
+  }>({
+    isOpen: false,
+    position: { x: 0, y: 0 },
+    query: "",
+    mentionStart: -1,
+    selectedIndex: 0,
+  });
+  const [hasUserTyped, setHasUserTyped] = useState(false);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [savedInput, setSavedInput] = useState("");
+  const [isInGlobalHistory, setIsInGlobalHistory] = useState(false);
+  // Combine parent dropped files with local ones
+  // Voice recording functionality
+  const {
+    isRecording,
+    isTranscribing,
+    startRecording,
+    stopRecording,
+    audioContext,
+    analyser
+  } = useWhisper();
+  const allDroppedFiles = [...(droppedFiles || []), ...localDroppedFiles];
   // Derived state - chatState != Idle means we're in some form of loading state
   const isLoading = chatState !== ChatState.Idle;
   const { alerts, addAlert, clearAlerts } = useAlerts();
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const toolCount = useToolCount();
+  const mentionPopoverRef = useRef<{
+    getDisplayFiles: () => FileItemWithMatch[];
+    selectFile: (index: number) => void;
+  }>(null);
   const { isLoadingCompaction, handleManualCompaction } = useChatContextManager();
   const { getProviders, read } = useConfig();
   const { getCurrentModelAndProvider, currentModel, currentProvider } = useModelAndProvider();
@@ -121,423 +165,125 @@ export default function ChatInput({
   const chatContext = useChatContext(); // This should always be available now
   const draftLoadedRef = useRef(false);
 
+  const maxHeight = 10 * 24;
+  const dictationSettings = useDictationSettings();
+
+
+  const hasSubmittableContent =
+    displayValue.trim() ||
+    pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
+    allDroppedFiles.some((file) => !file.error && !file.isLoading);
+  const isAnyImageLoading = pastedImages.some((img) => img.isLoading);
+  const isAnyDroppedFileLoading = allDroppedFiles.some((file) => file.isLoading);
+  const wasLoadingRef = useRef(isLoading);
+  const sendNowTriggeredRef = useRef(false);
   // Debug logging for draft context
   useEffect(() => {
-    // Debug logging removed - draft functionality is working correctly
-  }, [chatContext?.contextKey, chatContext?.draft, chatContext]);
-  const [mentionPopover, setMentionPopover] = useState<{
-    isOpen: boolean;
-    position: { x: number; y: number };
-    query: string;
-    mentionStart: number;
-    selectedIndex: number;
-  }>({
-    isOpen: false,
-    position: { x: 0, y: 0 },
-    query: '',
-    mentionStart: -1,
-    selectedIndex: 0,
-  });
-  const mentionPopoverRef = useRef<{
-    getDisplayFiles: () => FileItemWithMatch[];
-    selectFile: (index: number) => void;
-  }>(null);
-
-  // Whisper hook for voice dictation
-  const {
-    isRecording,
-    isTranscribing,
-    canUseDictation,
-    audioContext,
-    analyser,
-    startRecording,
-    stopRecording,
-    recordingDuration,
-    estimatedSize,
-  } = useWhisper({
-    onTranscription: (text) => {
-      // Append transcribed text to the current input
-      const newValue = displayValue.trim() ? `${displayValue.trim()} ${text}` : text;
-      setDisplayValue(newValue);
-      setValue(newValue);
-      textAreaRef.current?.focus();
-    },
-    onError: (error) => {
-      toastError({
-        title: 'Dictation Error',
-        msg: error.message,
-      });
-    },
-    onSizeWarning: (sizeMB) => {
-      toastError({
-        title: 'Recording Size Warning',
-        msg: `Recording is ${sizeMB.toFixed(1)}MB. Maximum size is 25MB.`,
-      });
-    },
-  });
-
-  // Get dictation settings to check configuration status
-  const { settings: dictationSettings } = useDictationSettings();
-
-  // Update internal value when initialValue changes
-  useEffect(() => {
-    setValue(initialValue);
-    setDisplayValue(initialValue);
-
-    // Reset draft loaded flag when initialValue changes
-    draftLoadedRef.current = false;
-
-    // Use a functional update to get the current pastedImages
-    // and perform cleanup. This avoids needing pastedImages in the deps.
-    setPastedImages((currentPastedImages) => {
-      currentPastedImages.forEach((img) => {
-        if (img.filePath) {
-          window.electron.deleteTempFile(img.filePath);
-        }
-      });
-      return []; // Return a new empty array
-    });
-
-    // Reset history index when input is cleared
-    setHistoryIndex(-1);
-    setIsInGlobalHistory(false);
-    setHasUserTyped(false);
-  }, [initialValue]); // Keep only initialValue as a dependency
-
-  // Handle recipe prompt updates
-  useEffect(() => {
-    // If recipe is accepted and we have an initial prompt, and no messages yet, set the prompt
-    if (recipeAccepted && initialPrompt && messages.length === 0 && !displayValue.trim()) {
-      setDisplayValue(initialPrompt);
-      setValue(initialPrompt);
-      setTimeout(() => {
-        textAreaRef.current?.focus();
-      }, 0);
-    }
-  }, [recipeAccepted, initialPrompt, messages.length, displayValue]);
-
-  // Draft functionality - load draft if no initial value or recipe
-  useEffect(() => {
-    // Reset draft loaded flag when context changes
-    draftLoadedRef.current = false;
-  }, [chatContext?.contextKey]);
-
-  useEffect(() => {
-    // Only load draft once and if conditions are met
-    if (!initialValue && !recipeConfig && !draftLoadedRef.current && chatContext) {
-      const draftText = chatContext.draft || '';
-
-      if (draftText) {
-        setDisplayValue(draftText);
-        setValue(draftText);
-      }
-
-      // Always mark as loaded after checking, regardless of whether we found a draft
-      draftLoadedRef.current = true;
-    }
-  }, [chatContext, initialValue, recipeConfig]);
-
-  // Save draft when user types (debounced)
-  const debouncedSaveDraft = useMemo(
-    () =>
-      debounce((value: string) => {
-        if (chatContext && chatContext.setDraft) {
-          chatContext.setDraft(value);
-        }
-      }, 500), // Save draft after 500ms of no typing
-    [chatContext]
-  );
-
-  // State to track if the IME is composing (i.e., in the middle of Japanese IME input)
-  const [isComposing, setIsComposing] = useState(false);
-  const [historyIndex, setHistoryIndex] = useState(-1);
-  const [savedInput, setSavedInput] = useState('');
-  const [isInGlobalHistory, setIsInGlobalHistory] = useState(false);
-  const [hasUserTyped, setHasUserTyped] = useState(false);
-  const textAreaRef = useRef<HTMLTextAreaElement>(null);
-  const timeoutRefsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
-
-  // Use shared file drop hook for ChatInput
-  const {
-    droppedFiles: localDroppedFiles,
-    setDroppedFiles: setLocalDroppedFiles,
-    handleDrop: handleLocalDrop,
-    handleDragOver: handleLocalDragOver,
-  } = useFileDrop();
-
-  // Merge local dropped files with parent dropped files
-  const allDroppedFiles = [...droppedFiles, ...localDroppedFiles];
-
-  const handleRemoveDroppedFile = (idToRemove: string) => {
-    // Remove from local dropped files
-    setLocalDroppedFiles((prev) => prev.filter((file) => file.id !== idToRemove));
-
-    // If it's from parent, call the parent's callback
-    if (onFilesProcessed && droppedFiles.some((file) => file.id === idToRemove)) {
-      onFilesProcessed();
-    }
-  };
-
-  const handleRemovePastedImage = (idToRemove: string) => {
-    const imageToRemove = pastedImages.find((img) => img.id === idToRemove);
-    if (imageToRemove?.filePath) {
-      window.electron.deleteTempFile(imageToRemove.filePath);
-    }
-    setPastedImages((currentImages) => currentImages.filter((img) => img.id !== idToRemove));
-  };
-
-  const handleRetryImageSave = async (imageId: string) => {
-    const imageToRetry = pastedImages.find((img) => img.id === imageId);
-    if (!imageToRetry || !imageToRetry.dataUrl) return;
-
-    // Set the image to loading state
-    setPastedImages((prev) =>
-      prev.map((img) => (img.id === imageId ? { ...img, isLoading: true, error: undefined } : img))
-    );
-
-    try {
-      const result = await window.electron.saveDataUrlToTemp(imageToRetry.dataUrl, imageId);
-      setPastedImages((prev) =>
-        prev.map((img) =>
-          img.id === result.id
-            ? { ...img, filePath: result.filePath, error: result.error, isLoading: false }
-            : img
-        )
-      );
-    } catch (err) {
-      console.error('Error retrying image save:', err);
-      setPastedImages((prev) =>
-        prev.map((img) =>
-          img.id === imageId
-            ? { ...img, error: 'Failed to save image via Electron.', isLoading: false }
-            : img
-        )
-      );
-    }
-  };
-
-  useEffect(() => {
-    if (textAreaRef.current) {
-      textAreaRef.current.focus();
-    }
-  }, []);
-
-  // Load model limits from the API
-  const getModelLimits = async () => {
-    try {
-      const response = await read('model-limits', false);
-      if (response) {
-        // The response is already parsed, no need for JSON.parse
-        return response as ModelLimit[];
-      }
-    } catch (err) {
-      console.error('Error fetching model limits:', err);
-    }
-    return [];
-  };
-
-  // Helper function to find model limit using pattern matching
-  const findModelLimit = (modelName: string, modelLimits: ModelLimit[]): number | null => {
-    if (!modelName) return null;
-    const matchingLimit = modelLimits.find((limit) =>
-      modelName.toLowerCase().includes(limit.pattern.toLowerCase())
-    );
-    return matchingLimit ? matchingLimit.context_limit : null;
-  };
-
-  // Load providers and get current model's token limit
-  const loadProviderDetails = async () => {
-    try {
-      // Reset token limit loaded state
-      setIsTokenLimitLoaded(false);
-
-      // Get current model and provider first to avoid unnecessary provider fetches
-      const { model, provider } = await getCurrentModelAndProvider();
-      if (!model || !provider) {
-        console.log('No model or provider found');
-        setIsTokenLimitLoaded(true);
+    if (wasLoadingRef.current && !isLoading && queuedMessages.length > 0) {
+      // Skip automatic processing if Send Now was triggered
+      if (sendNowTriggeredRef.current) {
+        sendNowTriggeredRef.current = false;
+        wasLoadingRef.current = isLoading;
         return;
       }
+      
+      // submit the queued message directly when ready
+      const nextMessage = queuedMessages[0];
+      LocalMessageStorage.addMessage(nextMessage.content);
+      handleSubmit(
+        new CustomEvent("submit", {
+          detail: { value: nextMessage.content },
+        }) as unknown as React.FormEvent
+      );
 
-      const providers = await getProviders(true);
-
-      // Find the provider details for the current provider
-      const currentProvider = providers.find((p) => p.name === provider);
-      if (currentProvider?.metadata?.known_models) {
-        // Find the model's token limit from the backend response
-        const modelConfig = currentProvider.metadata.known_models.find((m) => m.name === model);
-        if (modelConfig?.context_limit) {
-          setTokenLimit(modelConfig.context_limit);
-          setIsTokenLimitLoaded(true);
-          return;
-        }
-      }
-
-      // Fallback: Use pattern matching logic if no exact model match was found
-      const modelLimit = await getModelLimits();
-      const fallbackLimit = findModelLimit(model as string, modelLimit);
-      if (fallbackLimit !== null) {
-        setTokenLimit(fallbackLimit);
-        setIsTokenLimitLoaded(true);
-        return;
-      }
-
-      // If no match found, use the default model limit
-      setTokenLimit(TOKEN_LIMIT_DEFAULT);
-      setIsTokenLimitLoaded(true);
-    } catch (err) {
-      console.error('Error loading providers or token limit:', err);
-      // Set default limit on error
-      setTokenLimit(TOKEN_LIMIT_DEFAULT);
-      setIsTokenLimitLoaded(true);
+      // Remove the processed message from queue
+      setQueuedMessages(prev => prev.slice(1));
     }
+    wasLoadingRef.current = isLoading;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading]);  // Queue management functions
+  const handleRemoveQueuedMessage = (id: string) => {
+    setQueuedMessages(prev => prev.filter(msg => msg.id !== id));
   };
 
-  // Initial load and refresh when model changes
-  useEffect(() => {
-    loadProviderDetails();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentModel, currentProvider]);
+  const handleClearQueue = () => {
+    setQueuedMessages([]);
+  };
 
-  // Handle tool count alerts and token usage
-  useEffect(() => {
-    clearAlerts();
+  const handleStopAndSend = (messageId: string) => {
+    const messageToSend = queuedMessages.find(msg => msg.id === messageId);
+    if (!messageToSend) return;
+    
+    // Set flag to prevent automatic queue processing
+    sendNowTriggeredRef.current = true;
+    
+    if (onStop) onStop();
+    setQueuedMessages(prev => prev.filter(msg => msg.id !== messageId));
+    LocalMessageStorage.addMessage(messageToSend.content);
+    handleSubmit(new CustomEvent("submit", { detail: { value: messageToSend.content } }) as unknown as React.FormEvent);
+  };
+  const performSubmit = () => {
+    const validPastedImageFilesPaths = pastedImages
+      .filter((img) => img.filePath && !img.error && !img.isLoading)
+      .map((img) => img.filePath as string);
 
-    // Always show token alerts if we have loaded the real token limit and have tokens
-    if (isTokenLimitLoaded && tokenLimit && numTokens && numTokens > 0) {
-      if (numTokens >= tokenLimit) {
-        // Only show error alert when limit reached
-        addAlert({
-          type: AlertType.Error,
-          message: `Token limit reached (${numTokens.toLocaleString()}/${tokenLimit.toLocaleString()}) \n You've reached the model's conversation limit. The session will be saved — copy anything important and start a new one to continue.`,
-          autoShow: true, // Auto-show token limit errors
-        });
-      } else if (numTokens >= tokenLimit * TOKEN_WARNING_THRESHOLD) {
-        // Only show warning alert when approaching limit
-        addAlert({
-          type: AlertType.Warning,
-          message: `Approaching token limit (${numTokens.toLocaleString()}/${tokenLimit.toLocaleString()}) \n You're reaching the model's conversation limit. Consider compacting the conversation to continue.`,
-          autoShow: true, // Auto-show token limit warnings
-        });
-      } else {
-        // Show info alert with summarize button
-        addAlert({
-          type: AlertType.Info,
-          message: 'Context window',
-          progress: {
-            current: numTokens,
-            total: tokenLimit,
-          },
-          showSummarizeButton: true,
-          onSummarize: () => {
-            handleManualCompaction(messages, setMessages);
-          },
-          summarizeIcon: <ScrollText size={12} />,
-        });
+    // Get paths from all dropped files (both parent and local)
+    const droppedFilePaths = allDroppedFiles
+      .filter((file) => !file.error && !file.isLoading)
+      .map((file) => file.path);
+
+    let textToSend = displayValue.trim();
+
+    // Combine pasted images and dropped files
+    const allFilePaths = [...validPastedImageFilesPaths, ...droppedFilePaths];
+    if (allFilePaths.length > 0) {
+      const pathsString = allFilePaths.join(" ");
+      textToSend = textToSend ? `${textToSend} ${pathsString}` : pathsString;
+    }
+
+    if (textToSend) {
+      if (displayValue.trim()) {
+        LocalMessageStorage.addMessage(displayValue);
+      } else if (allFilePaths.length > 0) {
+        LocalMessageStorage.addMessage(allFilePaths.join(" "));
       }
-    } else if (isTokenLimitLoaded && tokenLimit) {
-      // Always show context window info even when no tokens are present (start of conversation)
-      addAlert({
-        type: AlertType.Info,
-        message: 'Context window',
-        progress: {
-          current: 0,
-          total: tokenLimit,
-        },
-        showSummarizeButton: messages.length > 0,
-        onSummarize:
-          messages.length > 0
-            ? () => {
-                handleManualCompaction(messages, setMessages);
-              }
-            : undefined,
-        summarizeIcon: messages.length > 0 ? <ScrollText size={12} /> : undefined,
-      });
+
+      handleSubmit(
+        new CustomEvent("submit", { detail: { value: textToSend } }) as unknown as React.FormEvent
+      );
+
+      setDisplayValue("");
+      setValue("");
+      setPastedImages([]);
+      setHistoryIndex(-1);
+      setSavedInput("");
+      setIsInGlobalHistory(false);
+      setHasUserTyped(false);
+
+      // Clear draft when message is sent
+      if (chatContext && chatContext.clearDraft) {
+        chatContext.clearDraft();
+      }
+
+      // Clear both parent and local dropped files after processing
+      if (onFilesProcessed && droppedFiles.length > 0) {
+        onFilesProcessed();
+      }
+      if (localDroppedFiles.length > 0) {
+        // Note: We need to add setLocalDroppedFiles function
+      }
     }
-
-    // Add tool count alert if we have the data
-    if (toolCount !== null && toolCount > TOOLS_MAX_SUGGESTED) {
-      addAlert({
-        type: AlertType.Warning,
-        message: `Too many tools can degrade performance.\nTool count: ${toolCount} (recommend: ${TOOLS_MAX_SUGGESTED})`,
-        action: {
-          text: 'View extensions',
-          onClick: () => setView('extensions'),
-        },
-        autoShow: false, // Don't auto-show tool count warnings
-      });
-    }
-    // We intentionally omit setView as it shouldn't trigger a re-render of alerts
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [numTokens, toolCount, tokenLimit, isTokenLimitLoaded, addAlert, clearAlerts]);
-
-  // Cleanup effect for component unmount - prevent memory leaks
-  useEffect(() => {
-    return () => {
-      // Clear any pending timeouts from image processing
-      setPastedImages((currentImages) => {
-        currentImages.forEach((img) => {
-          if (img.filePath) {
-            try {
-              window.electron.deleteTempFile(img.filePath);
-            } catch (error) {
-              console.error('Error deleting temp file:', error);
-            }
-          }
-        });
-        return [];
-      });
-
-      // Clear all tracked timeouts
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      const timeouts = timeoutRefsRef.current;
-      timeouts.forEach((timeoutId) => {
-        window.clearTimeout(timeoutId);
-      });
-      timeouts.clear();
-
-      // Clear alerts to prevent memory leaks
-      clearAlerts();
-    };
-  }, [clearAlerts]);
-
-  const maxHeight = 10 * 24;
-
-  // Immediate function to update actual value - no debounce for better responsiveness
-  const updateValue = React.useCallback((value: string) => {
-    setValue(value);
-  }, []);
-
-  const debouncedAutosize = useMemo(
-    () =>
-      debounce((element: HTMLTextAreaElement) => {
-        element.style.height = '0px'; // Reset height
-        const scrollHeight = element.scrollHeight;
-        element.style.height = Math.min(scrollHeight, maxHeight) + 'px';
-      }, 50),
-    [maxHeight]
-  );
-
-  useEffect(() => {
-    if (textAreaRef.current) {
-      debouncedAutosize(textAreaRef.current);
-    }
-  }, [debouncedAutosize, displayValue]);
-
-  // Reset textarea height when displayValue is empty
-  useEffect(() => {
-    if (textAreaRef.current && displayValue === '') {
-      textAreaRef.current.style.height = 'auto';
-    }
-  }, [displayValue]);
+  };
+  const handleReorderMessages = (reorderedMessages: QueuedMessage[]) => {
+    setQueuedMessages(reorderedMessages);
+  };
 
   const handleChange = (evt: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = evt.target.value;
     const cursorPosition = evt.target.selectionStart;
 
     setDisplayValue(val); // Update display immediately
-    updateValue(val); // Update actual value immediately for better responsiveness
-    debouncedSaveDraft(val); // Save draft with debounce
+    setValue(val); // Update actual value immediately for better responsiveness
     // Mark that the user has typed something
     setHasUserTyped(true);
 
@@ -547,42 +293,176 @@ export default function ChatInput({
 
   const checkForMention = (text: string, cursorPosition: number, textArea: HTMLTextAreaElement) => {
     // Find the last @ before the cursor
-    const beforeCursor = text.slice(0, cursorPosition);
-    const lastAtIndex = beforeCursor.lastIndexOf('@');
-
-    if (lastAtIndex === -1) {
-      // No @ found, close mention popover
+    const textBeforeCursor = text.substring(0, cursorPosition);
+    const atIndex = textBeforeCursor.lastIndexOf("@");
+    
+    if (atIndex !== -1) {
+      const query = textBeforeCursor.substring(atIndex + 1);
+      const rect = textArea.getBoundingClientRect();
+      setMentionPopover({
+        isOpen: true,
+        query,
+        selectedIndex: 0,
+        position: { x: rect.left, y: rect.top - 200 },
+        mentionStart: atIndex,
+      });
+    } else {
       setMentionPopover((prev) => ({ ...prev, isOpen: false }));
-      return;
     }
-
-    // Check if there's a space between @ and cursor (which would end the mention)
-    const afterAt = beforeCursor.slice(lastAtIndex + 1);
-    if (afterAt.includes(' ') || afterAt.includes('\n')) {
-      setMentionPopover((prev) => ({ ...prev, isOpen: false }));
-      return;
-    }
-
-    // Calculate position for the popover - position it above the chat input
-    const textAreaRect = textArea.getBoundingClientRect();
-
-    setMentionPopover((prev) => ({
-      ...prev,
-      isOpen: true,
-      position: {
-        x: textAreaRect.left,
-        y: textAreaRect.top, // Position at the top of the textarea
-      },
-      query: afterAt,
-      mentionStart: lastAtIndex,
-      selectedIndex: 0, // Reset selection when query changes
-      // filteredFiles will be populated by the MentionPopover component
-    }));
+  };
+  // Handlers for composition events, which are crucial for proper IME behavior
+  const handleCompositionStart = () => {
+    setIsComposing(true);
   };
 
+  const handleCompositionEnd = () => {
+    setIsComposing(false);
+  };
+  const handleHistoryNavigation = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const isUp = evt.key === "ArrowUp";
+    const isDown = evt.key === "ArrowDown";
+
+    // Only handle up/down keys with Cmd/Ctrl modifier
+    if ((!isUp && !isDown) || !(evt.metaKey || evt.ctrlKey) || evt.altKey || evt.shiftKey) {
+      return;
+    }
+
+    // Only prevent history navigation if the user has actively typed something
+    if (hasUserTyped && displayValue.trim() !== "") {
+      return;
+    }
+
+    evt.preventDefault();
+
+    // Get global history once to avoid multiple calls
+    const globalHistory = LocalMessageStorage.getRecentMessages() || [];
+
+    // Save current input if we're just starting to navigate history
+    if (historyIndex === -1) {
+      setSavedInput(displayValue || "");
+      setIsInGlobalHistory(commandHistory.length === 0);
+    }
+
+    // Determine which history we're using
+    const currentHistory = isInGlobalHistory ? globalHistory : commandHistory;
+    let newIndex = historyIndex;
+    let newValue = "";
+
+    if (isUp) {
+      // Go backwards in history (older messages)
+      if (newIndex < currentHistory.length - 1) {
+        newIndex++;
+        newValue = currentHistory[currentHistory.length - 1 - newIndex];
+      }
+    } else if (isDown) {
+      // Go forwards in history (newer messages)
+      if (newIndex > 0) {
+        newIndex--;
+        newValue = currentHistory[currentHistory.length - 1 - newIndex];
+      } else if (newIndex === 0) {
+        // Return to saved input
+        newIndex = -1;
+        newValue = savedInput;
+      }
+    }
+
+    setHistoryIndex(newIndex);
+    setDisplayValue(newValue);
+    setValue(newValue);
+    // Reset hasUserTyped when we populate from history
+    setHasUserTyped(false);
+  };
+
+  const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // If mention popover is open, handle arrow keys and enter
+    if (mentionPopover.isOpen && mentionPopoverRef.current) {
+      if (evt.key === "ArrowDown") {
+        evt.preventDefault();
+        const displayFiles = mentionPopoverRef.current.getDisplayFiles();
+        const maxIndex = Math.max(0, displayFiles.length - 1);
+        setMentionPopover((prev) => ({
+          ...prev,
+          selectedIndex: Math.min(prev.selectedIndex + 1, maxIndex),
+        }));
+        return;
+      }
+      if (evt.key === "ArrowUp") {
+        evt.preventDefault();
+        setMentionPopover((prev) => ({
+          ...prev,
+          selectedIndex: Math.max(prev.selectedIndex - 1, 0),
+        }));
+        return;
+      }
+      if (evt.key === "Enter") {
+        evt.preventDefault();
+        mentionPopoverRef.current.selectFile(mentionPopover.selectedIndex);
+        return;
+      }
+      if (evt.key === "Escape") {
+        evt.preventDefault();
+        setMentionPopover((prev) => ({ ...prev, isOpen: false }));
+        return;
+      }
+    }
+
+    // Handle history navigation first
+    handleHistoryNavigation(evt);
+
+    if (evt.key === "Enter") {
+      // should not trigger submit on Enter if it's composing (IME input in progress) or shift/alt(option) is pressed
+      if (evt.shiftKey || isComposing) {
+        // Allow line break for Shift+Enter, or during IME composition
+        return;
+      }
+
+      if (evt.altKey) {
+        const newValue = displayValue + "\n";
+        setDisplayValue(newValue);
+        setValue(newValue);
+        return;
+      }
+
+      evt.preventDefault();
+
+      // Check for stop commands and interrupt immediately
+      if (isLoading && displayValue.trim()) {
+        const input = displayValue.trim().toLowerCase();
+        if (input === "stop" || input === "wait" || input.startsWith("stop ") || input.startsWith("wait ")) {
+          if (onStop) onStop(); // Stop immediately
+          LocalMessageStorage.addMessage(displayValue.trim());
+          handleSubmit(new CustomEvent("submit", { detail: { value: displayValue.trim() } }) as unknown as React.FormEvent);
+          setDisplayValue("");
+          setValue("");
+          return;
+        }
+        
+        // If not an interruption, add to queue
+        const newMessage = {
+          id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+          content: displayValue.trim(),
+          timestamp: Date.now()
+        };
+        setQueuedMessages(prev => [...prev, newMessage]);
+        setDisplayValue("");
+        setValue("");
+        return;
+      }
+
+      const canSubmit =
+        !isLoading &&
+        !isLoadingCompaction &&
+        (displayValue.trim() ||
+          pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
+          allDroppedFiles.some((file) => !file.error && !file.isLoading));
+      if (canSubmit) {
+        performSubmit();
+      }
+    }
+  };
   const handlePaste = async (evt: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const files = Array.from(evt.clipboardData.files || []);
-    const imageFiles = files.filter((file) => file.type.startsWith('image/'));
+    const imageFiles = files.filter((file) => file.type.startsWith("image/"));
 
     if (imageFiles.length === 0) return;
 
@@ -593,7 +473,7 @@ export default function ChatInput({
         ...prev,
         {
           id: `error-${Date.now()}`,
-          dataUrl: '',
+          dataUrl: "",
           isLoading: false,
           error: `Cannot paste ${imageFiles.length} image(s). Maximum ${MAX_IMAGES_PER_MESSAGE} images per message allowed. Currently have ${pastedImages.length}.`,
         },
@@ -601,7 +481,7 @@ export default function ChatInput({
 
       // Remove the error message after 5 seconds with cleanup tracking
       const timeoutId = setTimeout(() => {
-        setPastedImages((prev) => prev.filter((img) => !img.id.startsWith('error-')));
+        setPastedImages((prev) => prev.filter((img) => !img.id.startsWith("error-")));
         timeoutRefsRef.current.delete(timeoutId);
       }, 5000);
       timeoutRefsRef.current.add(timeoutId);
@@ -620,7 +500,7 @@ export default function ChatInput({
         const errorId = `error-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
         newImages.push({
           id: errorId,
-          dataUrl: '',
+          dataUrl: "",
           isLoading: false,
           error: `Image too large (${Math.round(file.size / (1024 * 1024))}MB). Maximum ${MAX_IMAGE_SIZE_MB}MB allowed.`,
         });
@@ -640,7 +520,7 @@ export default function ChatInput({
       // Add the image with loading state
       newImages.push({
         id: imageId,
-        dataUrl: '',
+        dataUrl: "",
         isLoading: true,
       });
 
@@ -664,11 +544,11 @@ export default function ChatInput({
               )
             );
           } catch (err) {
-            console.error('Error saving pasted image:', err);
+            console.error("Error saving pasted image:", err);
             setPastedImages((prev) =>
               prev.map((img) =>
                 img.id === imageId
-                  ? { ...img, error: 'Failed to save image via Electron.', isLoading: false }
+                  ? { ...img, error: "Failed to save image via Electron.", isLoading: false }
                   : img
               )
             );
@@ -676,11 +556,11 @@ export default function ChatInput({
         }
       };
       reader.onerror = () => {
-        console.error('Failed to read image file:', file.name);
+        console.error("Failed to read image file:", file.name);
         setPastedImages((prev) =>
           prev.map((img) =>
             img.id === imageId
-              ? { ...img, error: 'Failed to read image file.', isLoading: false }
+              ? { ...img, error: "Failed to read image file.", isLoading: false }
               : img
           )
         );
@@ -691,227 +571,6 @@ export default function ChatInput({
     // Add all new images to the existing list
     setPastedImages((prev) => [...prev, ...newImages]);
   };
-
-  // Cleanup debounced functions on unmount
-  useEffect(() => {
-    return () => {
-      debouncedAutosize.cancel?.();
-      debouncedSaveDraft.cancel?.();
-    };
-  }, [debouncedAutosize, debouncedSaveDraft]);
-
-  // Handlers for composition events, which are crucial for proper IME behavior
-  const handleCompositionStart = () => {
-    setIsComposing(true);
-  };
-
-  const handleCompositionEnd = () => {
-    setIsComposing(false);
-  };
-
-  const handleHistoryNavigation = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    const isUp = evt.key === 'ArrowUp';
-    const isDown = evt.key === 'ArrowDown';
-
-    // Only handle up/down keys with Cmd/Ctrl modifier
-    if ((!isUp && !isDown) || !(evt.metaKey || evt.ctrlKey) || evt.altKey || evt.shiftKey) {
-      return;
-    }
-
-    // Only prevent history navigation if the user has actively typed something
-    // This allows history navigation when text is populated from history or other sources
-    // but prevents it when the user is actively editing text
-    if (hasUserTyped && displayValue.trim() !== '') {
-      return;
-    }
-
-    evt.preventDefault();
-
-    // Get global history once to avoid multiple calls
-    const globalHistory = LocalMessageStorage.getRecentMessages() || [];
-
-    // Save current input if we're just starting to navigate history
-    if (historyIndex === -1) {
-      setSavedInput(displayValue || '');
-      setIsInGlobalHistory(commandHistory.length === 0);
-    }
-
-    // Determine which history we're using
-    const currentHistory = isInGlobalHistory ? globalHistory : commandHistory;
-    let newIndex = historyIndex;
-    let newValue = '';
-
-    // Handle navigation
-    if (isUp) {
-      // Moving up through history
-      if (newIndex < currentHistory.length - 1) {
-        // Still have items in current history
-        newIndex = historyIndex + 1;
-        newValue = currentHistory[newIndex];
-      } else if (!isInGlobalHistory && globalHistory.length > 0) {
-        // Switch to global history
-        setIsInGlobalHistory(true);
-        newIndex = 0;
-        newValue = globalHistory[newIndex];
-      }
-    } else {
-      // Moving down through history
-      if (newIndex > 0) {
-        // Still have items in current history
-        newIndex = historyIndex - 1;
-        newValue = currentHistory[newIndex];
-      } else if (isInGlobalHistory && commandHistory.length > 0) {
-        // Switch to chat history
-        setIsInGlobalHistory(false);
-        newIndex = commandHistory.length - 1;
-        newValue = commandHistory[newIndex];
-      } else {
-        // Return to original input
-        newIndex = -1;
-        newValue = savedInput;
-      }
-    }
-
-    // Update display if we have a new value
-    if (newIndex !== historyIndex) {
-      setHistoryIndex(newIndex);
-      if (newIndex === -1) {
-        setDisplayValue(savedInput || '');
-        setValue(savedInput || '');
-      } else {
-        setDisplayValue(newValue || '');
-        setValue(newValue || '');
-      }
-      // Reset hasUserTyped when we populate from history
-      setHasUserTyped(false);
-    }
-  };
-
-  const performSubmit = () => {
-    const validPastedImageFilesPaths = pastedImages
-      .filter((img) => img.filePath && !img.error && !img.isLoading)
-      .map((img) => img.filePath as string);
-
-    // Get paths from all dropped files (both parent and local)
-    const droppedFilePaths = allDroppedFiles
-      .filter((file) => !file.error && !file.isLoading)
-      .map((file) => file.path);
-
-    let textToSend = displayValue.trim();
-
-    // Combine pasted images and dropped files
-    const allFilePaths = [...validPastedImageFilesPaths, ...droppedFilePaths];
-    if (allFilePaths.length > 0) {
-      const pathsString = allFilePaths.join(' ');
-      textToSend = textToSend ? `${textToSend} ${pathsString}` : pathsString;
-    }
-
-    if (textToSend) {
-      if (displayValue.trim()) {
-        LocalMessageStorage.addMessage(displayValue);
-      } else if (allFilePaths.length > 0) {
-        LocalMessageStorage.addMessage(allFilePaths.join(' '));
-      }
-
-      handleSubmit(
-        new CustomEvent('submit', { detail: { value: textToSend } }) as unknown as React.FormEvent
-      );
-
-      setDisplayValue('');
-      setValue('');
-      setPastedImages([]);
-      setHistoryIndex(-1);
-      setSavedInput('');
-      setIsInGlobalHistory(false);
-      setHasUserTyped(false);
-
-      // Clear draft when message is sent
-      if (chatContext && chatContext.clearDraft) {
-        chatContext.clearDraft();
-      }
-
-      // Clear both parent and local dropped files after processing
-      if (onFilesProcessed && droppedFiles.length > 0) {
-        onFilesProcessed();
-      }
-      if (localDroppedFiles.length > 0) {
-        setLocalDroppedFiles([]);
-      }
-    }
-  };
-
-  const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // If mention popover is open, handle arrow keys and enter
-    if (mentionPopover.isOpen && mentionPopoverRef.current) {
-      if (evt.key === 'ArrowDown') {
-        evt.preventDefault();
-        const displayFiles = mentionPopoverRef.current.getDisplayFiles();
-        const maxIndex = Math.max(0, displayFiles.length - 1);
-        setMentionPopover((prev) => ({
-          ...prev,
-          selectedIndex: Math.min(prev.selectedIndex + 1, maxIndex),
-        }));
-        return;
-      }
-      if (evt.key === 'ArrowUp') {
-        evt.preventDefault();
-        setMentionPopover((prev) => ({
-          ...prev,
-          selectedIndex: Math.max(prev.selectedIndex - 1, 0),
-        }));
-        return;
-      }
-      if (evt.key === 'Enter') {
-        evt.preventDefault();
-        mentionPopoverRef.current.selectFile(mentionPopover.selectedIndex);
-        return;
-      }
-      if (evt.key === 'Escape') {
-        evt.preventDefault();
-        setMentionPopover((prev) => ({ ...prev, isOpen: false }));
-        return;
-      }
-    }
-
-    // Handle history navigation first
-    handleHistoryNavigation(evt);
-
-    if (evt.key === 'Enter') {
-      // should not trigger submit on Enter if it's composing (IME input in progress) or shift/alt(option) is pressed
-      if (evt.shiftKey || isComposing) {
-        // Allow line break for Shift+Enter, or during IME composition
-        return;
-      }
-
-      if (evt.altKey) {
-        const newValue = displayValue + '\n';
-        setDisplayValue(newValue);
-        setValue(newValue);
-        return;
-      }
-
-      evt.preventDefault();
-
-      // Queue message if loading, it is a little jank as it is only one at a time for now
-      if (isLoading && displayValue.trim()) {
-        setQueuedMessage(displayValue);
-        setDisplayValue('');
-        setValue('');
-        return;
-      }
-
-      const canSubmit =
-        !isLoading &&
-        !isLoadingCompaction &&
-        (displayValue.trim() ||
-          pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
-          allDroppedFiles.some((file) => !file.error && !file.isLoading));
-      if (canSubmit) {
-        performSubmit();
-      }
-    }
-  };
-
   const onFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const canSubmit =
@@ -957,35 +616,8 @@ export default function ChatInput({
     }, 0);
   };
 
-  const hasSubmittableContent =
-    displayValue.trim() ||
-    pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
-    allDroppedFiles.some((file) => !file.error && !file.isLoading);
-  const isAnyImageLoading = pastedImages.some((img) => img.isLoading);
-  const isAnyDroppedFileLoading = allDroppedFiles.some((file) => file.isLoading);
-
-  const wasLoadingRef = useRef(isLoading);
-  useEffect(() => {
-    if (wasLoadingRef.current && !isLoading && queuedMessage) {
-      // submit the queued message directly when ready
-      LocalMessageStorage.addMessage(queuedMessage);
-      handleSubmit(
-        new CustomEvent('submit', {
-          detail: { value: queuedMessage },
-        }) as unknown as React.FormEvent
-      );
-
-      setQueuedMessage('');
-      setDisplayValue('');
-      setValue('');
-    }
-    wasLoadingRef.current = isLoading;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading]);
-
   return (
-    <div
-      className={`flex flex-col relative h-auto p-4 transition-colors ${
+    <div      className={`flex flex-col relative h-auto p-4 transition-colors ${
         disableAnimation ? '' : 'page-transition'
       } ${
         isFocused
@@ -996,6 +628,15 @@ export default function ChatInput({
       onDrop={handleLocalDrop}
       onDragOver={handleLocalDragOver}
     >
+      {/* Message Queue Display */}
+      <MessageQueue
+        queuedMessages={queuedMessages}
+        onRemoveMessage={handleRemoveQueuedMessage}
+        onClearQueue={handleClearQueue}
+        onStopAndSend={handleStopAndSend}
+        onReorderMessages={handleReorderMessages}
+        className="border-b border-border/30"
+      />
       {/* Input row with inline action buttons wrapped in form */}
       <form onSubmit={onFormSubmit} className="relative flex items-end">
         <div className="relative flex-1">
@@ -1006,8 +647,8 @@ export default function ChatInput({
             placeholder={
               isRecording
                 ? ''
-                : queuedMessage
-                  ? `Queued: ${queuedMessage.substring(0, 50)}${queuedMessage.length > 50 ? '...' : ''}`
+                : queuedMessages.length > 0
+                  ? `${queuedMessages.length} message${queuedMessages.length > 1 ? 's' : ''} queued`
                   : '⌘↑/⌘↓ to navigate messages'
             }
             value={displayValue}
