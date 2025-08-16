@@ -112,14 +112,6 @@ jobs:
         run: |
           source ./bin/activate-hermit
           echo "Performing pre-build cleanup..."
-          # Clean npm cache
-          npm cache clean --force || true
-          # Clean any previous build artifacts
-          rm -rf target || true
-          # Clean Homebrew cache
-          brew cleanup || true
-          # Remove unnecessary large directories
-          rm -rf ~/Library/Caches/* || true
           # Check disk space after cleanup
           df -h
 
@@ -197,9 +189,9 @@ jobs:
           path: |
             ui/desktop/node_modules
             .hermit/node/cache
-          key: ${{ runner.os }}-hermit-npm-${{ hashFiles('ui/desktop/package-lock.json') }}
+          key: macos-npm-cache-v1-${{ runner.os }}-${{ hashFiles('ui/desktop/package-lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-hermit-npm-
+            macos-npm-cache-v1-${{ runner.os }}-
 
       - name: Install dependencies
         run: source ../../bin/activate-hermit && npm ci

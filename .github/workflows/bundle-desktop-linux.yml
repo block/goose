@@ -81,20 +81,6 @@ jobs:
       - name: Pre-build cleanup
         run: |
           echo "Performing aggressive pre-build cleanup..."
-          # Clean npm cache
-          npm cache clean --force || true
-          # Clean any previous build artifacts
-          rm -rf target || true
-          # Clean Homebrew cache (if exists)
-          brew cleanup || true
-          # Remove unnecessary large directories
-          sudo rm -rf /usr/share/dotnet || true
-          sudo rm -rf /usr/local/lib/android || true
-          sudo rm -rf /opt/ghc || true
-          sudo rm -rf /usr/local/share/boost || true
-          # Clean apt cache
-          sudo apt-get clean || true
-          sudo apt-get autoremove -y || true
           # Check disk space after cleanup
           df -h
 
@@ -160,9 +146,9 @@ jobs:
           path: |
             ui/desktop/node_modules
             .hermit/node/cache
-          key: ${{ runner.os }}-linux-hermit-npm-${{ hashFiles('ui/desktop/package-lock.json') }}
+          key: linux-npm-cache-v1-${{ runner.os }}-${{ hashFiles('ui/desktop/package-lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-linux-hermit-npm-
+            linux-npm-cache-v1-${{ runner.os }}-
 
       - name: Install npm dependencies
         run: |

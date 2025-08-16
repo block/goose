@@ -115,9 +115,9 @@ jobs:
           path: |
             ui/desktop/node_modules
             .hermit/node/cache
-          key: ${{ runner.os }}-hermit-npm-${{ hashFiles('ui/desktop/package-lock.json') }}
+          key: ci-npm-cache-v1-${{ runner.os }}-${{ hashFiles('ui/desktop/package-lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-hermit-npm-
+            ci-npm-cache-v1-${{ runner.os }}-
 
       - name: Install Dependencies
         run: source ../../bin/activate-hermit && npm ci
