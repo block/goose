@@ -48,6 +48,12 @@ impl SubRecipeManager {
         }
     }
 
+    /// Clear all sub-recipes and their associated tools
+    pub fn clear(&mut self) {
+        self.sub_recipe_tools.clear();
+        self.sub_recipes.clear();
+    }
+
     pub fn is_sub_recipe_tool(&self, tool_name: &str) -> bool {
         self.sub_recipe_tools.contains_key(tool_name)
     }

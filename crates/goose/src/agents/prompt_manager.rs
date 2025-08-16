@@ -35,6 +35,11 @@ impl PromptManager {
         self.system_prompt_extras.push(instruction);
     }
 
+    /// Clear session-specific prompt extras (preserves override)
+    pub fn clear_session_extras(&mut self) {
+        self.system_prompt_extras.clear();
+    }
+
     /// Override the system prompt with custom text
     pub fn set_system_prompt_override(&mut self, template: String) {
         self.system_prompt_override = Some(template);

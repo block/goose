@@ -50,6 +50,12 @@ impl TasksManager {
         }
         Ok(tasks)
     }
+
+    /// Reset the tasks manager, clearing all stored tasks
+    pub async fn reset(&self) {
+        let mut task_map = self.tasks.write().await;
+        task_map.clear();
+    }
 }
 
 #[cfg(test)]

@@ -197,6 +197,33 @@ impl Agent {
         *tool_monitor = Some(ToolMonitor::new(max_repetitions));
     }
 
+    pub async fn clear_todo_list(&self) {
+        let mut todo_list = self.todo_list.lock().await;
+        todo_list.clear();
+    }
+
+    /// Reset all session-specific state while preserving configuration
+    /// This should be called between sessions to ensure a clean slate
+    pub async fn reset_session_state(&self) {
+        self.clear_todo_list().await;
+
+        self.reset_retry_attempts().await;
+
+        let mut tool_monitor = self.tool_monitor.lock().await;
+        *tool_monitor = None;
+
+        let mut final_output = self.final_output_tool.lock().await;
+        *final_output = None;
+
+        let mut sub_recipe_manager = self.sub_recipe_manager.lock().await;
+        sub_recipe_manager.clear();
+
+        self.tasks_manager.reset().await;
+
+        let mut prompt_manager = self.prompt_manager.lock().await;
+        prompt_manager.clear_session_extras();
+    }
+
     /// Reset the retry attempts counter to 0
     pub async fn reset_retry_attempts(&self) {
         self.retry_manager.reset_attempts().await;
@@ -1519,21 +1546,51 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_todo_tools_integration() -> Result<()> {
+    async fn test_reset_session_state() -> Result<()> {
         let agent = Agent::new();
 
-        // Test that task planner tools are listed
-        let tools = agent.list_tools(None).await;
+        // Add some state to the agent
+        let response = Response {
+            json_schema: Some(serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "result": {"type": "string"}
+                }
+            })),
+        };
+        agent.add_final_output_tool(response).await;
 
-        let todo_read = tools.iter().find(|tool| tool.name == TODO_READ_TOOL_NAME);
-        let todo_write = tools.iter().find(|tool| tool.name == TODO_WRITE_TOOL_NAME);
+        // Write to the TODO list
+        let write_call = mcp_core::tool::ToolCall {
+            name: TODO_WRITE_TOOL_NAME.to_string(),
+            arguments: serde_json::json!({
+                "content": "Test todo content"
+            }),
+        };
+        let (_id, _result) = agent
+            .dispatch_tool_call(write_call, "test-write".to_string(), None)
+            .await;
 
-        assert!(todo_read.is_some(), "TODO read tool should be present");
-        assert!(todo_write.is_some(), "TODO write tool should be present");
+        // Verify state exists
+        let todo_content = agent.todo_list.lock().await.clone();
+        assert_eq!(todo_content, "Test todo content");
+        assert!(agent.final_output_tool.lock().await.is_some());
 
-        // Test todo_list initialization
-        let todo_content = agent.todo_list.lock().await;
-        assert_eq!(*todo_content, "", "TODO list should be initially empty");
+        // Reset session state
+        agent.reset_session_state().await;
+
+        // Verify state is cleared
+        let todo_content_after = agent.todo_list.lock().await.clone();
+        assert_eq!(todo_content_after, "", "TODO list should be cleared");
+        assert!(
+            agent.final_output_tool.lock().await.is_none(),
+            "Final output tool should be cleared"
+        );
+        assert_eq!(
+            agent.get_retry_attempts().await,
+            0,
+            "Retry attempts should be reset"
+        );
 
         Ok(())
     }
