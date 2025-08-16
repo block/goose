@@ -630,6 +630,7 @@ export default function ChatInput({
     >
       {/* Message Queue Display */}
       <MessageQueue
+        isPaused={queuePausedRef.current}
         queuedMessages={queuedMessages}
         onRemoveMessage={handleRemoveQueuedMessage}
         onClearQueue={handleClearQueue}

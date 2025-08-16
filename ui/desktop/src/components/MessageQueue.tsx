@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Clock, Send, GripVertical, Zap, Sparkles } from 'lucide-react';
+import { X, Clock, Send, GripVertical, Zap, Sparkles, ChevronDown, ChevronUp, MoreHorizontal } from 'lucide-react';
 import { Button } from './ui/button';
 
 interface QueuedMessage {
@@ -27,6 +27,7 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
   className = '',
   isPaused = false,
 }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
   const [dragOverItem, setDragOverItem] = useState<string | null>(null);
   const [hoveredMessage, setHoveredMessage] = useState<string | null>(null);
@@ -82,14 +83,99 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
   const formatTimestamp = (timestamp: number) => {
     const now = Date.now();
     const diff = now - timestamp;
-    if (diff < 60000) return 'just now';
-    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-    return `${Math.floor(diff / 3600000)}h ago`;
+    if (diff < 60000) return 'now';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m`;
+    return `${Math.floor(diff / 3600000)}h`;
   };
 
+  const nextMessage = queuedMessages[0];
+  const remainingCount = queuedMessages.length - 1;
+
+  // Compact View
+  if (!isExpanded) {
+    return (
+      <div className={`relative ${className}`}>
+        {/* Compact Header */}
+        <div 
+          className="flex items-center justify-between px-4 py-2.5 bg-gradient-to-r from-slate-50/60 to-blue-50/60 dark:from-slate-900/60 dark:to-blue-900/20 border-b border-border/20 backdrop-blur-sm cursor-pointer hover:bg-gradient-to-r hover:from-slate-50/80 hover:to-blue-50/80 dark:hover:from-slate-900/80 dark:hover:to-blue-900/30 transition-all duration-200"
+          onClick={() => setIsExpanded(true)}
+        >
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              {isPaused ? (
+                <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+              ) : (
+                <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+              )}
+              <span className="text-sm font-medium text-foreground">
+                {isPaused ? 'Paused' : 'Next'}
+              </span>
+            </div>
+            
+            {/* Next message preview */}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-muted-foreground truncate" title={nextMessage.content}>
+                {nextMessage.content.length > 40 
+                  ? `${nextMessage.content.substring(0, 40)}...` 
+                  : nextMessage.content
+                }
+              </p>
+            </div>
+            
+            {/* Queue count */}
+            {remainingCount > 0 && (
+              <div className="flex items-center gap-1 text-xs text-muted-foreground bg-white/50 dark:bg-black/20 px-2 py-1 rounded-full">
+                <span>+{remainingCount}</span>
+              </div>
+            )}
+          </div>
+          
+          <div className="flex items-center gap-2">
+            {/* Quick Send Now button */}
+            {onStopAndSend && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onStopAndSend(nextMessage.id);
+                }}
+                className="h-7 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:text-blue-300 dark:hover:bg-blue-950/30"
+                title="Send this message now"
+              >
+                <Send className="w-3 h-3" />
+              </Button>
+            )}
+            
+            {/* Expand button */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+              title="Expand queue"
+            >
+              <ChevronDown className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Paused state indicator */}
+        {isPaused && (
+          <div className="px-4 py-1.5 bg-amber-50/60 dark:bg-amber-900/20 border-b border-amber-200/30 dark:border-amber-800/30">
+            <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-300">
+              <Zap className="w-3 h-3" />
+              <span>Queue paused - click "Send" or add new message to resume</span>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Expanded View (your previous full implementation)
   return (
     <div className={`relative ${className}`}>
-      {/* Queue Header */}
+      {/* Expanded Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-slate-50/80 to-blue-50/80 dark:from-slate-900/80 dark:to-blue-900/20 border-b border-border/30 backdrop-blur-sm">
         <div className="flex items-center gap-3">
           <div className="relative">
@@ -116,16 +202,29 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
           </div>
         </div>
         
-        {queuedMessages.length > 1 && (
+        <div className="flex items-center gap-2">
+          {queuedMessages.length > 1 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClearQueue}
+              className="text-xs h-7 px-3 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+            >
+              Clear All
+            </Button>
+          )}
+          
+          {/* Collapse button */}
           <Button
             variant="ghost"
             size="sm"
-            onClick={onClearQueue}
-            className="text-xs h-7 px-3 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+            onClick={() => setIsExpanded(false)}
+            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+            title="Collapse queue"
           >
-            Clear All
+            <ChevronUp className="w-4 h-4" />
           </Button>
-        )}
+        </div>
       </div>
 
       {/* Status Banner for Paused State */}
@@ -139,7 +238,7 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
       )}
       
       {/* Message Bubbles */}
-      <div className="p-4 space-y-3 bg-gradient-to-b from-transparent to-slate-50/30 dark:to-slate-900/30">
+      <div className="p-4 space-y-3 bg-gradient-to-b from-transparent to-slate-50/30 dark:to-slate-900/30 max-h-80 overflow-y-auto">
         {queuedMessages.map((message, index) => (
           <div
             key={message.id}
