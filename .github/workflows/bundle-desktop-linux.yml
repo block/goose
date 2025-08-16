@@ -154,11 +154,20 @@ jobs:
           chmod +x ui/desktop/src/bin/temporal-service
           ls -la ui/desktop/src/bin/
 
+      - name: Cache npm dependencies
+        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
+        with:
+          path: |
+            ui/desktop/node_modules
+            .hermit/node/cache
+          key: ${{ runner.os }}-linux-hermit-npm-${{ hashFiles('ui/desktop/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-linux-hermit-npm-
+
       - name: Install npm dependencies
         run: |
           source ./bin/activate-hermit
           cd ui/desktop
-          npm cache clean --force || true
           npm install
           # Verify installation
           ls -la node_modules/.bin/ | head -5
