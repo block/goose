@@ -15,7 +15,7 @@ interface MessageQueueProps {
   onStopAndSend?: (messageId: string) => void;
   onEditMessage?: (messageId: string, newContent: string) => void;
   onTriggerQueueProcessing?: () => void;
-  isEditingRef?: React.MutableRefObject<boolean>;
+  editingMessageIdRef?: React.MutableRefObject<string | null>;
   onReorderMessages?: (reorderedMessages: QueuedMessage[]) => void;
   className?: string;
   isPaused?: boolean;
@@ -28,7 +28,7 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
   onStopAndSend,
   onEditMessage,
   onTriggerQueueProcessing,
-  isEditingRef,
+  editingMessageIdRef,
   onReorderMessages,
   className = '',
   isPaused = false,
@@ -311,7 +311,7 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
                             onEditMessage(message.id, editContent);
                           }
                           setEditingMessage(null);
-                          if (isEditingRef) isEditingRef.current = false;
+                          if (editingMessageIdRef) editingMessageIdRef.current = null;
                           // Trigger queue processing if system is ready
                           if (onTriggerQueueProcessing) {
                             setTimeout(onTriggerQueueProcessing, 100);
@@ -327,7 +327,7 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
                         size="sm"
                         onClick={() => {
                           setEditingMessage(null);
-                          if (isEditingRef) isEditingRef.current = false;
+                          if (editingMessageIdRef) editingMessageIdRef.current = null;
                           // Trigger queue processing if system is ready
                           if (onTriggerQueueProcessing) {
                             setTimeout(onTriggerQueueProcessing, 100);
@@ -346,7 +346,7 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
                     title={`${message.content} (Click to edit)`}
                     onClick={() => {
                       setEditingMessage(message.id);
-                      if (isEditingRef) isEditingRef.current = true;
+                      if (editingMessageIdRef) editingMessageIdRef.current = message.id;
                       setEditContent(message.content);
                     }}
                   >

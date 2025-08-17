@@ -178,16 +178,20 @@ export default function ChatInput({
   const wasLoadingRef = useRef(isLoading);
   const sendNowTriggeredRef = useRef(false);
   const queuePausedRef = useRef(false);
+  const editingMessageIdRef = useRef<string | null>(null);
   const isEditingRef = useRef(false);
   // Debug logging for draft context
   useEffect(() => {
     if (wasLoadingRef.current && !isLoading && queuedMessages.length > 0) {
       // Skip automatic processing if queue is paused by stop command
 
-      // Skip automatic processing if someone is editing a message
-      if (isEditingRef.current) {
-        wasLoadingRef.current = isLoading;
-        return;
+      // Skip automatic processing only if editing the first message in queue
+      if (editingMessageIdRef.current && queuedMessages.length > 0) {
+        // Only pause if editing the first message (next to be processed)
+        if (editingMessageIdRef.current === queuedMessages[0].id) {
+          wasLoadingRef.current = isLoading;
+          return;
+        }
       }
 
       if (queuePausedRef.current) {
@@ -327,7 +331,7 @@ export default function ChatInput({
 
   const handleTriggerQueueProcessing = () => {
     // Manually trigger queue processing if not loading and messages exist
-    if (!isLoading && queuedMessages.length > 0 && !queuePausedRef.current && !isEditingRef.current) {
+    if (!isLoading && queuedMessages.length > 0 && !queuePausedRef.current && !editingMessageIdRef.current) {
       const nextMessage = queuedMessages[0];
       LocalMessageStorage.addMessage(nextMessage.content);
       handleSubmit(new CustomEvent("submit", { detail: { value: nextMessage.content } }) as unknown as React.FormEvent);
@@ -705,7 +709,7 @@ export default function ChatInput({
         onReorderMessages={handleReorderMessages}
         onEditMessage={handleEditMessage}
         onTriggerQueueProcessing={handleTriggerQueueProcessing}
-        isEditingRef={isEditingRef}
+        editingMessageIdRef={editingMessageIdRef}
         className="border-b border-border/30"
       />
       {/* Input row with inline action buttons wrapped in form */}
