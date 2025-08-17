@@ -166,7 +166,26 @@ export async function addExtensionFromDeepLink(
       : getSseConfig(remoteUrl, name, description || '', timeout)
     : getStdioConfig(cmd!, parsedUrl, name, description || '', timeout);
 
-  // Check if extension requires env vars and go to settings if so
+  // For Streamable HTTP, try activating directly (this will trigger OAuth if needed)
+  if (config.type === 'streamable_http') {
+    try {
+      console.log(
+        'Attempting to activate streamable_http extension (OAuth will trigger if needed)'
+      );
+      await activateExtension({ extensionConfig: config, addToConfig: addExtensionFn });
+      return;
+    } catch (error) {
+      console.error(
+        'Failed to activate streamable_http extension from deeplink, opening modal:',
+        error
+      );
+      // Fallback to modal so user can adjust headers/timeout, then retry
+      setView('settings', { deepLinkConfig: config, showEnvVars: true });
+      return;
+    }
+  }
+
+  // Check if stdio extension requires env vars and go to settings if so
   if (config.envs && Object.keys(config.envs).length > 0) {
     console.log('Environment variables required, redirecting to settings');
     console.log('Calling setView with:', { deepLinkConfig: config, showEnvVars: true });
