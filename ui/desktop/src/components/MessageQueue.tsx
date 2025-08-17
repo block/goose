@@ -360,8 +360,15 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
                     variant="ghost"
                     size="sm"
                     onClick={() => onStopAndSend(message.id)}
-                    className="h-7 w-7 p-0 rounded-full transition-all duration-200"
-                    title="Stop current processing and send this message now"
+                    disabled={editingMessage === message.id}
+                    className={`h-7 w-7 p-0 rounded-full transition-all duration-200 ${
+                      editingMessage === message.id 
+                        ? "opacity-30 cursor-not-allowed" 
+                        : "hover:bg-muted/50"
+                    }`}
+                    title={editingMessage === message.id 
+                      ? "Cannot send while editing" 
+                      : "Stop current processing and send this message now"}
                   >
                     <Send className="w-3 h-3" />
                   </Button>
