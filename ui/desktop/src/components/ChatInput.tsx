@@ -178,10 +178,18 @@ export default function ChatInput({
   const wasLoadingRef = useRef(isLoading);
   const sendNowTriggeredRef = useRef(false);
   const queuePausedRef = useRef(false);
+  const isEditingRef = useRef(false);
   // Debug logging for draft context
   useEffect(() => {
     if (wasLoadingRef.current && !isLoading && queuedMessages.length > 0) {
       // Skip automatic processing if queue is paused by stop command
+
+      // Skip automatic processing if someone is editing a message
+      if (isEditingRef.current) {
+        wasLoadingRef.current = isLoading;
+        return;
+      }
+
       if (queuePausedRef.current) {
         wasLoadingRef.current = isLoading;
         return;
@@ -686,6 +694,7 @@ export default function ChatInput({
         onStopAndSend={handleStopAndSend}
         onReorderMessages={handleReorderMessages}
         onEditMessage={handleEditMessage}
+        isEditingRef={isEditingRef}
         className="border-b border-border/30"
       />
       {/* Input row with inline action buttons wrapped in form */}
