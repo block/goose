@@ -110,7 +110,10 @@ export default function ChatInput({
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
   const [isFocused, setIsFocused] = useState(false);
   const [pastedImages, setPastedImages] = useState<PastedImage[]>([]);
-  const [queuedMessages, setQueuedMessages] = useState<Array<{id: string, content: string, timestamp: number}>>([]);
+  const [queuedMessages, setQueuedMessages] = useState<Array<{id: string, content: string, timestamp: number}>>(() => {
+    // Load saved queue on component mount
+    return QueueStorage.loadQueue();
+  });
   const [isComposing, setIsComposing] = useState(false);
 
   // Save queue to localStorage whenever it changes
