@@ -1,5 +1,5 @@
 ---
-title: "How PulseMCP Automated Newsletter Workflow with Goose"
+title: "How PulseMCP Automated Their Newsletter Workflow with Goose"
 description: PulseMCP used Goose recipes, subagents, and sub-recipes to automate the boring parts of their newsletter workflow
 authors: 
     - rizel
@@ -78,14 +78,14 @@ The PulseMCP implementation proves we're past the demo phase of AI agents. Real 
 *Want to build your own AI agent workflows? [Get started with Goose](https://block.github.io/goose/) and join the community of developers building the future of human-AI collaboration.*
 
 <head>
-  <meta property="og:title" content="How PulseMCP Automated Newsletter Workflow with Goose" />
+  <meta property="og:title" content="How PulseMCP Automated Their Newsletter Workflow with Goose" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/08/13/pulse-mcp-automates-recipe" />
-  <meta property="og:description" content="uPlseMCP used Goose recipes, subagents, and sub-recipes to automate the boring parts of their newsletter workflow" />
+  <meta property="og:description" content="PulseMCP used Goose recipes, subagents, and sub-recipes to automate the boring parts of their newsletter workflow" />
   <meta property="og:image" content="https://block.github.io/goose/assets/images/pulsemcp-65abe93bd65402c122b395ae6bdadf95.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
-  <meta name="twitter:title" content="How PulseMCP Automated Newsletter Workflow with Goose" />
+  <meta name="twitter:title" content="How PulseMCP Automated Their Newsletter Workflow with Goose" />
   <meta name="twitter:description" content="PulseMCP used Goose recipes, subagents, and sub-recipes to automate the boring parts of their newsletter workflow" />
   <meta name="twitter:image" content="https://block.github.io/goose/assets/images/pulsemcp-65abe93bd65402c122b395ae6bdadf95.png" />
 </head>

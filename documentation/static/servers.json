@@ -195,6 +195,18 @@
     "environmentVariables": []
   },
   {
+    "id": "dev-to",
+    "name": "Dev.to",
+    "description": "Access Dev.to articles and content (requires local server setup)",
+    "url": "http://localhost:3000/mcp",
+    "link": "https://github.com/nickytonline/dev-to-mcp",
+    "installation_notes": "This is a local extension. You must first clone, install, and run the Dev.to MCP server locally before adding this extension.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [],
+    "type": "streamable-http"
+  },
+  {
     "id": "elevenlabs-mcp",
     "name": "ElevenLabs",
     "description": "Text-to-speech and voice synthesis",
@@ -393,9 +405,10 @@
     "id": "neon",
     "name": "Neon",
     "description": "Manage Neon Postgres databases, projects, and branches",
-    "command": "npx -y @neondatabase/mcp-server-neon start <YOUR_NEON_API_KEY>",
+    "type": "streamable-http",
+    "url": "https://mcp.neon.tech/mcp",
     "link": "https://github.com/neondatabase-labs/mcp-server-neon",
-    "installation_notes": "Install using npx package manager (add your Neon API key to the command) or connect to the remote server.",
+    "installation_notes": "Streaming HTTP extension with OAuth browser authentication to your Neon account.",
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": []
