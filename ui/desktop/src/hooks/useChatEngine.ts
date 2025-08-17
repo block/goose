@@ -51,6 +51,9 @@ export const useChatEngine = ({
   const [localOutputTokens, setLocalOutputTokens] = useState<number>(0);
   const [powerSaveTimeoutId, setPowerSaveTimeoutId] = useState<number | null>(null);
 
+  // Track pending edited message
+  const [pendingEdit, setPendingEdit] = useState<{ id: string; content: string } | null>(null);
+
   // Store message in global history when it's added (if enabled)
   const storeMessageInHistory = useCallback(
     (message: Message) => {
@@ -417,23 +420,24 @@ export const useChatEngine = ({
         // Truncate the history to the point *before* the edited message.
         const history = messages.slice(0, messageIndex);
 
-        // Create the new message with the edited content.
-        const updatedMessage = createUserMessage(newContent);
-
-        // Set the new history. This is a two-step process to ensure React state updates correctly.
-        // 1. Set the truncated history.
+        // Set the truncated history.
         setMessages(history);
 
-        // 2. Append the new message. This will trigger the `useMessageStream` hook
-        //    to get a new response. We use a timeout to ensure the first state update
-        //    has been processed before we append.
-        setTimeout(() => {
-          append(updatedMessage);
-        }, 50);
+        // Instead of setTimeout, set pendingEdit which will be handled in useEffect
+        setPendingEdit({ id: messageId, content: newContent });
       }
     },
-    [messages, setMessages, append]
+    [messages, setMessages, setPendingEdit]
   );
+
+  // Listen for pending edit and append message after messages updated
+  useEffect(() => {
+    if (pendingEdit) {
+      const updatedMessage = createUserMessage(pendingEdit.content);
+      append(updatedMessage);
+      setPendingEdit(null); // Reset after processing
+    }
+  }, [pendingEdit, append]);
 
   return {
     // Core message data
