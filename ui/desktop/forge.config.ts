@@ -4,9 +4,8 @@ const { resolve } = require('path');
 
 let cfg = {
   asar: true,
-  extraResource: ['src/bin', 'src/images'],
+  extraResource: ['src/bin', 'src/images', 'src/goose_apps/assets'],
   icon: 'src/images/icon',
-  // Windows specific configuration
   win32: {
     icon: 'src/images/icon.ico',
     certificateFile: process.env.WINDOWS_CERTIFICATE_FILE,
@@ -14,7 +13,6 @@ let cfg = {
     rfc3161TimeStampServer: 'http://timestamp.digicert.com',
     signWithParams: '/fd sha256 /tr http://timestamp.digicert.com /td sha256',
   },
-  // Protocol registration
   protocols: [
     {
       name: 'GooseProtocol',
@@ -26,12 +24,12 @@ let cfg = {
     // Document types for drag-and-drop support onto dock icon
     CFBundleDocumentTypes: [
       {
-        CFBundleTypeName: "Folders",
-        CFBundleTypeRole: "Viewer",
-        LSHandlerRank: "Alternate",
-        LSItemContentTypes: ["public.directory", "public.folder"]
-      }
-    ]
+        CFBundleTypeName: 'Folders',
+        CFBundleTypeRole: 'Viewer',
+        LSHandlerRank: 'Alternate',
+        LSItemContentTypes: ['public.directory', 'public.folder'],
+      },
+    ],
   },
 };
 
@@ -72,8 +70,8 @@ module.exports = {
         categories: ['Development'],
         mimeType: ['x-scheme-handler/goose'],
         options: {
-          icon: 'src/images/icon.png'
-        }
+          icon: 'src/images/icon.png',
+        },
       },
     },
     {
@@ -85,8 +83,8 @@ module.exports = {
         homepage: 'https://block.github.io/goose/',
         categories: ['Development'],
         options: {
-          icon: 'src/images/icon.png'
-        }
+          icon: 'src/images/icon.png',
+        },
       },
     },
   ],
