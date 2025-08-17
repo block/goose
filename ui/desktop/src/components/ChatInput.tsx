@@ -698,7 +698,7 @@ export default function ChatInput({
         className="border-b border-border/30"
       />
       {/* Input row with inline action buttons wrapped in form */}
-      <form onSubmit={onFormSubmit} className="relative flex items-end">
+      <form onSubmit={onFormSubmit} className={`relative flex items-end ${queuedMessages.length > 0 ? "" : "pt-4"}`}>
         <div className="relative flex-1">
           <textarea
             data-testid="chat-input"
