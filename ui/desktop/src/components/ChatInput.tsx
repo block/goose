@@ -117,6 +117,28 @@ export default function ChatInput({
   const [isComposing, setIsComposing] = useState(false);
 
   // Save queue to localStorage whenever it changes
+
+  // Reset processing state and check queue on mount
+  useEffect(() => {
+    // Reset refs to ensure clean state after navigation
+    queuePausedRef.current = false;
+    editingMessageIdRef.current = null;
+    wasLoadingRef.current = isLoading;
+    
+    // If we have queued messages and not loading, trigger processing
+    if (queuedMessages.length > 0 && !isLoading) {
+      // Small delay to ensure component is fully mounted
+      const timer = setTimeout(() => {
+        if (!isLoading && queuedMessages.length > 0 && !queuePausedRef.current) {
+          const nextMessage = queuedMessages[0];
+          LocalMessageStorage.addMessage(nextMessage.content);
+          handleSubmit(new CustomEvent("submit", { detail: { value: nextMessage.content } }) as unknown as React.FormEvent);
+          setQueuedMessages(prev => prev.slice(1));
+        }
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, []); // Only run on mount
   useEffect(() => {
     QueueStorage.saveQueue(queuedMessages);
   }, [queuedMessages]);
