@@ -317,7 +317,7 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
                   variant="ghost"
                   size="sm"
                   onClick={() => onRemoveMessage(message.id)}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0 hover:bg-destructive/20 hover:text-destructive rounded-full"
+                  className="opacity-60 hover:opacity-100 transition-opacity h-6 w-6 p-0 hover:bg-destructive/20 hover:text-destructive rounded-full"
                   title="Remove this message from queue"
                 >
                   <X className="w-3 h-3" />
