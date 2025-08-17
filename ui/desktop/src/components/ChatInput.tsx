@@ -28,6 +28,7 @@ import { CostTracker } from './bottom_menu/CostTracker';
 import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
 import { Recipe } from '../recipe';
 import MessageQueue from './MessageQueue';
+import { QueueStorage, QueuedMessage as StoredQueuedMessage } from '../utils/queueStorage';
 
 interface QueuedMessage {
   id: string;
@@ -111,6 +112,11 @@ export default function ChatInput({
   const [pastedImages, setPastedImages] = useState<PastedImage[]>([]);
   const [queuedMessages, setQueuedMessages] = useState<Array<{id: string, content: string, timestamp: number}>>([]);
   const [isComposing, setIsComposing] = useState(false);
+
+  // Save queue to localStorage whenever it changes
+  useEffect(() => {
+    QueueStorage.saveQueue(queuedMessages);
+  }, [queuedMessages]);
 
   // File drop functionality
   const { droppedFiles: localDroppedFiles, handleDrop: handleLocalDrop, handleDragOver: handleLocalDragOver } = useFileDrop();
@@ -222,10 +228,14 @@ export default function ChatInput({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading]);  // Queue management functions
   const handleRemoveQueuedMessage = (id: string) => {
+    // Update both state and storage
+    QueueStorage.removeMessage(id);
     setQueuedMessages(prev => prev.filter(msg => msg.id !== id));
   };
 
   const handleClearQueue = () => {
+    // Clear both state and storage
+    QueueStorage.clearQueue();
     setQueuedMessages([]);
   };
 
@@ -316,10 +326,14 @@ export default function ChatInput({
   };
   const handleReorderMessages = (reorderedMessages: QueuedMessage[]) => {
 
+    // Update both state and storage
+    QueueStorage.reorderQueue(reorderedMessages);
     setQueuedMessages(reorderedMessages);
   };
 
   const handleEditMessage = (messageId: string, newContent: string) => {
+    // Update both state and storage
+    QueueStorage.updateMessage(messageId, newContent);
     setQueuedMessages(prev => 
       prev.map(msg => 
         msg.id === messageId 
