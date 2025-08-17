@@ -304,6 +304,9 @@ export default function ChatInput({
   };
   const handleReorderMessages = (reorderedMessages: QueuedMessage[]) => {
 
+    setQueuedMessages(reorderedMessages);
+  };
+
   const handleEditMessage = (messageId: string, newContent: string) => {
     setQueuedMessages(prev => 
       prev.map(msg => 
@@ -312,8 +315,6 @@ export default function ChatInput({
           : msg
       )
     );
-  };
-    setQueuedMessages(reorderedMessages);
   };
 
   const handleChange = (evt: React.ChangeEvent<HTMLTextAreaElement>) => {
