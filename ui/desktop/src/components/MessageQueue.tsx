@@ -13,6 +13,7 @@ interface MessageQueueProps {
   onRemoveMessage: (id: string) => void;
   onClearQueue: () => void;
   onStopAndSend?: (messageId: string) => void;
+  onEditMessage?: (messageId: string, newContent: string) => void;
   onReorderMessages?: (reorderedMessages: QueuedMessage[]) => void;
   className?: string;
   isPaused?: boolean;
@@ -23,6 +24,7 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
   onRemoveMessage,
   onClearQueue,
   onStopAndSend,
+  onEditMessage,
   onReorderMessages,
   className = '',
   isPaused = false,
@@ -31,6 +33,8 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
   const [dragOverItem, setDragOverItem] = useState<string | null>(null);
   const [hoveredMessage, setHoveredMessage] = useState<string | null>(null);
+  const [editingMessage, setEditingMessage] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState<string>("");
 
   if (queuedMessages.length === 0) {
     return null;
@@ -285,12 +289,58 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
               
               {/* Message content */}
               <div className="flex-1 min-w-0">
-                <p className="text-sm text-foreground leading-relaxed" title={message.content}>
-                  {message.content.length > 80 
-                    ? `${message.content.substring(0, 80)}...` 
-                    : message.content
-                  }
-                </p>
+                {editingMessage === message.id ? (
+                  <div className="space-y-2">
+                    <textarea
+                      value={editContent}
+                      onChange={(e) => setEditContent(e.target.value)}
+                      className="w-full text-sm bg-background border border-border rounded-md px-2 py-1 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      rows={Math.min(Math.ceil(editContent.length / 60), 4)}
+                      autoFocus
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          if (onEditMessage) {
+                            onEditMessage(message.id, editContent);
+                          }
+                          setEditingMessage(null);
+                          setEditContent("");
+                        }}
+                        className="h-6 px-2 text-xs"
+                      >
+                        Save
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setEditingMessage(null);
+                          setEditContent("");
+                        }}
+                        className="h-6 px-2 text-xs"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <p 
+                    className="text-sm text-foreground leading-relaxed cursor-pointer hover:bg-muted/30 rounded px-1 py-0.5 transition-colors" 
+                    title={`${message.content} (Click to edit)`}
+                    onClick={() => {
+                      setEditingMessage(message.id);
+                      setEditContent(message.content);
+                    }}
+                  >
+                    {message.content.length > 80 
+                      ? `${message.content.substring(0, 80)}...` 
+                      : message.content
+                    }
+                  </p>
+                )}
               </div>
               
               {/* Right side actions */}

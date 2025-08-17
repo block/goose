@@ -303,6 +303,16 @@ export default function ChatInput({
     }
   };
   const handleReorderMessages = (reorderedMessages: QueuedMessage[]) => {
+
+  const handleEditMessage = (messageId: string, newContent: string) => {
+    setQueuedMessages(prev => 
+      prev.map(msg => 
+        msg.id === messageId 
+          ? { ...msg, content: newContent.trim(), timestamp: Date.now() }
+          : msg
+      )
+    );
+  };
     setQueuedMessages(reorderedMessages);
   };
 
@@ -674,6 +684,7 @@ export default function ChatInput({
         onClearQueue={handleClearQueue}
         onStopAndSend={handleStopAndSend}
         onReorderMessages={handleReorderMessages}
+        onEditMessage={handleEditMessage}
         className="border-b border-border/30"
       />
       {/* Input row with inline action buttons wrapped in form */}
