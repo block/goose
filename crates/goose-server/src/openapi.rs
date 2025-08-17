@@ -369,6 +369,10 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::config_management::upsert_permissions,
         super::routes::agent::get_tools,
         super::routes::agent::add_sub_recipes,
+        super::routes::agent::extend_prompt,
+        super::routes::agent::update_agent_provider,
+        super::routes::agent::update_router_tool_selector,
+        super::routes::agent::update_session_config,
         super::routes::reply::confirm_permission,
         super::routes::context::manage_context,
         super::routes::session::list_sessions,
@@ -386,7 +390,7 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::recipe::create_recipe,
         super::routes::recipe::encode_recipe,
         super::routes::recipe::decode_recipe,
-        super::routes::goose_apps::list_apps
+        super::routes::goose_apps::list_apps,
     ),
     components(schemas(
         super::routes::config_management::UpsertConfigQuery,
@@ -465,8 +469,14 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         goose::agents::types::SuccessCheck,
         super::routes::agent::AddSubRecipesRequest,
         super::routes::agent::AddSubRecipesResponse,
-        super::routes::goose_apps::GooseApp,
+        super::routes::agent::ExtendPromptRequest,
+        super::routes::agent::ExtendPromptResponse,
+        super::routes::agent::UpdateProviderRequest,
+        super::routes::agent::SessionConfigRequest,
+        super::routes::agent::GetToolsQuery,
+        super::routes::agent::ErrorResponse,
         super::routes::goose_apps::AppListResponse,
+        super::routes::goose_apps::GooseApp
     ))
 )]
 pub struct ApiDoc;

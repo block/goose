@@ -1591,9 +1591,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.5.31"
+version = "4.5.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "027bb0d98429ae334a8698531da7077bdf906419543a35a55c2cb1b66437d767"
+checksum = "1c1f056bae57e3e54c3375c41ff79619ddd13460a17d7438712bd0d83fda4ff8"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -1601,9 +1601,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.5.31"
+version = "4.5.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5589e0cba072e0f3d23791efac0fd8627b49c829c196a492e88168e6a669d863"
+checksum = "b3e7f4214277f3c7aa526a59dd3fbe306a370daee1f8b7b8c987069cd8e888a8"
 dependencies = [
  "anstream",
  "anstyle",
@@ -1614,9 +1614,9 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "4.5.28"
+version = "4.5.41"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf4ced95c6f4a675af3da73304b9ac4ed991640c36374e4b46795c49e17cf1ed"
+checksum = "ef4f52386a59ca4c860f7393bcf8abd8dfd91ecccc0f774635ff68e92eeef491"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2",
@@ -3282,7 +3282,7 @@ dependencies = [
 
 [[package]]
 name = "goose"
-version = "1.1.0"
+version = "1.4.0"
 dependencies = [
  "ahash",
  "anyhow",
@@ -3317,6 +3317,7 @@ dependencies = [
  "minijinja",
  "mockall",
  "nanoid",
+ "oauth2",
  "once_cell",
  "opentelemetry",
  "opentelemetry-otlp",
@@ -3333,6 +3334,7 @@ dependencies = [
  "sha2",
  "temp-env",
  "tempfile",
+ "test-case",
  "thiserror 1.0.69",
  "tiktoken-rs",
  "tokio",
@@ -3343,6 +3345,7 @@ dependencies = [
  "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",
+ "unicode-normalization",
  "url",
  "urlencoding",
  "utoipa",
@@ -3354,7 +3357,7 @@ dependencies = [
 
 [[package]]
 name = "goose-bench"
-version = "1.1.0"
+version = "1.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3377,7 +3380,7 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.1.0"
+version = "1.4.0"
 dependencies = [
  "anstream",
  "anyhow",
@@ -3428,7 +3431,7 @@ dependencies = [
 
 [[package]]
 name = "goose-mcp"
-version = "1.1.0"
+version = "1.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3466,6 +3469,7 @@ dependencies = [
  "tempfile",
  "thiserror 1.0.69",
  "tokio",
+ "tokio-stream",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
@@ -3479,7 +3483,7 @@ dependencies = [
 
 [[package]]
 name = "goose-server"
-version = "1.1.0"
+version = "1.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3512,6 +3516,14 @@ dependencies = [
  "tracing-appender",
  "tracing-subscriber",
  "utoipa",
+]
+
+[[package]]
+name = "goose-test"
+version = "1.4.0"
+dependencies = [
+ "clap",
+ "serde_json",
 ]
 
 [[package]]
@@ -6988,9 +7000,9 @@ dependencies = [
 
 [[package]]
 name = "rmcp"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a04b2d9da174d72bc0511410242eb3e8f47a02d9e23868e4b076c7c70208eb4"
+checksum = "2faf35b7d3c4b7f8c21c45bb014011b32a0ce6444bf6094da04daab01a8c3c34"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -7016,9 +7028,9 @@ dependencies = [
 
 [[package]]
 name = "rmcp-macros"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "651b4292f292d4a4ba191e64f0ce553aef5455b8ddf831dc6a8cd328dd68d721"
+checksum = "ad9720d9d2a943779f1dc3d47fa9072c7eeffaff4e1a82f67eb9f7ea52696091"
 dependencies = [
  "darling 0.21.0",
  "proc-macro2",
@@ -7448,9 +7460,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.140"
+version = "1.0.142"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "20068b6e96dc6c9bd23e01df8827e6c7e1f2fddd43c21810382803c136b99373"
+checksum = "030fedb782600dcbd6f02d479bf0d817ac3bb40d644745b769d6a96bc3afc5a7"
 dependencies = [
  "indexmap 2.7.1",
  "itoa",
@@ -8854,6 +8866,15 @@ name = "unicode-linebreak"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3b09c83c3c29d37506a3e260c08c03743a6bb66a9cd432c6934ab501a190571f"
+
+[[package]]
+name = "unicode-normalization"
+version = "0.1.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5033c97c4262335cded6d6fc3e5c18ab755e1a3dc96376350f3d8e9f009ad956"
+dependencies = [
+ "tinyvec",
+]
 
 [[package]]
 name = "unicode-segmentation"

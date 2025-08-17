@@ -182,6 +182,37 @@ An example is the GitHub extension whose command is `npx -y @modelcontextprotoco
 
 ---
 
+### Node.js Extensions Not Activating on Windows
+
+If you encounter the error `Node.js installer script not found` when trying to activate Node.js-based extensions on Windows, this is likely due to Goose not finding Node.js in the expected system path.
+
+#### Symptoms:
+- Node.js is installed and working (verified with `node -v` and `npm -v`)
+- Other extensions (like Python-based ones) work fine
+- Error occurs specifically when activating Node.js extensions
+
+#### Solution:
+This issue typically occurs when Node.js is installed in a non-standard location. Goose expects to find Node.js in `C:\Program Files\nodejs\`, but it may be installed elsewhere (e.g., `D:\Program Files\nodejs\`).
+
+1. **Check your Node.js installation path:**
+   ```powershell
+   where.exe node
+   ```
+
+2. **If Node.js is not in `C:\Program Files\nodejs\`, create a symbolic link:**
+   - Open PowerShell as Administrator
+   - Create a symbolic link to redirect Goose to your actual Node.js installation:
+   ```powershell
+   mklink /D "C:\Program Files\nodejs" "D:\Program Files\nodejs"
+   ```
+   (Replace `D:\Program Files\nodejs` with your actual Node.js installation path)
+
+3. **Restart Goose** and try activating the extension again.
+
+This creates a symbolic link that allows Goose to find Node.js in the expected location while keeping your actual installation intact.
+
+---
+
 ### macOS Permission Issues
 
 If you encounter an issue where the Goose Desktop app shows no window on launch, it may be due to file and folder permissions. This typically happens because Goose needs read and write access to the `~/.config` directory to create its log directory and file. 

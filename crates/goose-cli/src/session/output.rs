@@ -248,6 +248,7 @@ fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
             "developer__text_editor" => render_text_editor_request(call, debug),
             "developer__shell" => render_shell_request(call, debug),
             "dynamic_task__create_task" => render_dynamic_task_request(call, debug),
+            "todo__read" | "todo__write" => render_todo_request(call, debug),
             _ => render_default_request(call, debug),
         },
         Err(e) => print_markdown(&e.to_string(), theme),
@@ -452,6 +453,19 @@ fn render_dynamic_task_request(call: &ToolCall, debug: bool) {
     println!();
 }
 
+fn render_todo_request(call: &ToolCall, _debug: bool) {
+    print_tool_header(call);
+
+    // For todo tools, always show the full content without redaction
+    if let Some(Value::String(content)) = call.arguments.get("content") {
+        println!("{}: {}", style("content").dim(), style(content).green());
+    } else {
+        // For todo__read, there are no arguments
+        // Just print an empty line for consistency
+    }
+    println!();
+}
+
 fn render_default_request(call: &ToolCall, debug: bool) {
     print_tool_header(call);
     print_params(&call.arguments, 0, debug);
@@ -537,10 +551,37 @@ fn print_params(value: &Value, depth: usize, debug: bool) {
                         print_params(val, depth + 1, debug);
                     }
                     Value::Array(arr) => {
-                        println!("{}{}:", indent, style(key).dim());
-                        for item in arr.iter() {
-                            println!("{}{}- ", indent, INDENT);
-                            print_params(item, depth + 2, debug);
+                        // Check if all items are simple values (not objects or arrays)
+                        let all_simple = arr.iter().all(|item| {
+                            matches!(
+                                item,
+                                Value::String(_) | Value::Number(_) | Value::Bool(_) | Value::Null
+                            )
+                        });
+
+                        if all_simple {
+                            // Render inline for simple arrays, truncation will be handled by print_value if needed
+                            let values: Vec<String> = arr
+                                .iter()
+                                .map(|item| match item {
+                                    Value::String(s) => s.clone(),
+                                    Value::Number(n) => n.to_string(),
+                                    Value::Bool(b) => b.to_string(),
+                                    Value::Null => "null".to_string(),
+                                    _ => unreachable!(),
+                                })
+                                .collect();
+                            let joined_values = values.join(", ");
+                            print!("{}{}: ", indent, style(key).dim());
+                            // Use print_value to handle truncation consistently
+                            print_value(&Value::String(joined_values), debug);
+                        } else {
+                            // Use the original multi-line format for complex arrays
+                            println!("{}{}:", indent, style(key).dim());
+                            for item in arr.iter() {
+                                println!("{}{}- ", indent, INDENT);
+                                print_params(item, depth + 2, debug);
+                            }
                         }
                     }
                     _ => {
@@ -829,11 +870,11 @@ impl McpSpinners {
         spinner.set_message(message.to_string());
     }
 
-    pub fn update(&mut self, token: &str, value: u32, total: Option<u32>, message: Option<&str>) {
+    pub fn update(&mut self, token: &str, value: f64, total: Option<f64>, message: Option<&str>) {
         let bar = self.bars.entry(token.to_string()).or_insert_with(|| {
             if let Some(total) = total {
                 self.multi_bar.add(
-                    ProgressBar::new((total * 100) as u64).with_style(
+                    ProgressBar::new((total * 100_f64) as u64).with_style(
                         ProgressStyle::with_template("[{elapsed}] {bar:40} {pos:>3}/{len:3} {msg}")
                             .unwrap(),
                     ),
@@ -842,7 +883,7 @@ impl McpSpinners {
                 self.multi_bar.add(ProgressBar::new_spinner())
             }
         });
-        bar.set_position((value * 100) as u64);
+        bar.set_position((value * 100_f64) as u64);
         if let Some(msg) = message {
             bar.set_message(msg.to_string());
         }

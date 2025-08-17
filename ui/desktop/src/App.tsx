@@ -44,7 +44,6 @@ import { COST_TRACKING_ENABLED } from './updates';
 
 import { type SessionDetails } from './sessions';
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
-// import ProjectsContainer from './components/projects/ProjectsContainer';
 import { Recipe } from './recipe';
 import RecipesView from './components/RecipesView';
 import RecipeEditor from './components/RecipeEditor';
@@ -69,7 +68,6 @@ export type View =
   | 'recipes'
   | 'permission'
   | 'apps';
-// | 'projects';
 
 export type ViewOptions = {
   // Settings view options
@@ -189,7 +187,23 @@ const PairRouteWrapper = ({
 
   // Check if we have a resumed session or recipe config from navigation state
   useEffect(() => {
-    // Only process if we actually have navigation state
+    const appConfig = window.appConfig?.get('recipe');
+    if (appConfig && !chatRef.current.recipeConfig) {
+      const recipe = appConfig as Recipe;
+
+      const updatedChat: ChatType = {
+        ...chatRef.current,
+        recipeConfig: recipe,
+        title: recipe.title || chatRef.current.title,
+        messages: [], // Start fresh for recipe from deeplink
+        messageHistoryIndex: 0,
+      };
+      setChat(updatedChat);
+      setPairChat(updatedChat);
+      return;
+    }
+
+    // Only process navigation state if we actually have it
     if (!location.state) {
       console.log('No navigation state, preserving existing chat state');
       return;
@@ -237,8 +251,6 @@ const PairRouteWrapper = ({
       // Clear the navigation state to prevent reloading on navigation
       window.history.replaceState({}, document.title);
     } else if (recipeConfig && !chatRef.current.recipeConfig) {
-      // Only set recipe config if we don't already have one (e.g., from deeplinks)
-
       const updatedChat: ChatType = {
         ...chatRef.current,
         recipeConfig: recipeConfig,
@@ -646,57 +658,6 @@ const ExtensionsRoute = () => {
   );
 };
 
-// const ProjectsRoute = () => {
-//   const navigate = useNavigate();
-//
-//   const setView = (view: View, viewOptions?: ViewOptions) => {
-//     // Convert view to route navigation
-//     switch (view) {
-//       case 'chat':
-//         navigate('/');
-//         break;
-//       case 'pair':
-//         navigate('/pair', { state: viewOptions });
-//         break;
-//       case 'settings':
-//         navigate('/settings', { state: viewOptions });
-//         break;
-//       case 'sessions':
-//         navigate('/sessions');
-//         break;
-//       case 'schedules':
-//         navigate('/schedules');
-//         break;
-//       case 'recipes':
-//         navigate('/recipes');
-//         break;
-//       case 'permission':
-//         navigate('/permission', { state: viewOptions });
-//         break;
-//       case 'ConfigureProviders':
-//         navigate('/configure-providers');
-//         break;
-//       case 'sharedSession':
-//         navigate('/shared-session', { state: viewOptions });
-//         break;
-//       case 'recipeEditor':
-//         navigate('/recipe-editor', { state: viewOptions });
-//         break;
-//       case 'welcome':
-//         navigate('/welcome');
-//         break;
-//       default:
-//         navigate('/');
-//     }
-//   };
-//
-//   return (
-//     <React.Suspense fallback={<div>Loading projects...</div>}>
-//       <ProjectsContainer setView={setView} />
-//     </React.Suspense>
-//   );
-// };
-
 export default function App() {
   const [fatalError, setFatalError] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
@@ -833,6 +794,59 @@ export default function App() {
       return;
     }
 
+    // Check for recipe config - this also needs provider initialization
+    if (recipeConfig && typeof recipeConfig === 'object') {
+      console.log('Recipe deeplink detected, initializing system for recipe');
+
+      const initializeForRecipe = async () => {
+        try {
+          await initConfig();
+          await readAllConfig({ throwOnError: true });
+
+          const config = window.electron.getConfig();
+          const provider = (await read('GOOSE_PROVIDER', false)) ?? config.GOOSE_DEFAULT_PROVIDER;
+          const model = (await read('GOOSE_MODEL', false)) ?? config.GOOSE_DEFAULT_MODEL;
+
+          if (provider && model) {
+            await initializeSystem(provider as string, model as string, {
+              getExtensions,
+              addExtension,
+            });
+
+            // Set up the recipe in pair chat after system is initialized
+            setPairChat((prevChat) => ({
+              ...prevChat,
+              recipeConfig: recipeConfig as Recipe,
+              title: (recipeConfig as Recipe)?.title || 'Recipe Chat',
+              messages: [], // Start fresh for recipe
+              messageHistoryIndex: 0,
+            }));
+
+            // Navigate to pair view
+            window.location.hash = '#/pair';
+            window.history.replaceState(
+              {
+                recipeConfig: recipeConfig,
+                resetChat: true,
+              },
+              '',
+              '#/pair'
+            );
+          } else {
+            throw new Error('No provider/model configured for recipe');
+          }
+        } catch (error) {
+          console.error('Failed to initialize system for recipe:', error);
+          setFatalError(
+            `Failed to initialize system for recipe: ${error instanceof Error ? error.message : 'Unknown error'}`
+          );
+        }
+      };
+
+      initializeForRecipe();
+      return;
+    }
+
     if (viewType) {
       if (viewType === 'recipeEditor' && recipeConfig) {
         // Handle recipe editor deep link - use hash routing
@@ -934,7 +948,6 @@ export default function App() {
             }
 
             await Promise.all(initPromises);
-
             const recipeConfig = window.appConfig.get('recipe');
             if (
               recipeConfig &&
@@ -996,12 +1009,12 @@ export default function App() {
             if (error instanceof MalformedConfigError) {
               throw error;
             }
-            window.location.hash = '#/welcome';
-            window.history.replaceState({}, '', '#/welcome');
+            window.location.hash = '#/';
+            window.history.replaceState({}, '', '#/');
           }
         } else {
-          window.location.hash = '#/welcome';
-          window.history.replaceState({}, '', '#/welcome');
+          window.location.hash = '#/';
+          window.history.replaceState({}, '', '#/');
         }
       } catch (error) {
         console.error('Fatal error during initialization:', error);
@@ -1083,9 +1096,25 @@ export default function App() {
 
   // Handle recipe decode events from main process
   useEffect(() => {
+    const handleLoadRecipeDeeplink = (_event: IpcRendererEvent, ...args: unknown[]) => {
+      const recipeDeeplink = args[0] as string;
+      const scheduledJobId = args[1] as string | undefined;
+
+      // Store the deeplink info in app config for processing
+      const config = window.electron.getConfig();
+      config.recipeDeeplink = recipeDeeplink;
+      if (scheduledJobId) {
+        config.scheduledJobId = scheduledJobId;
+      }
+
+      // Navigate to pair view to handle the recipe loading
+      if (window.location.hash !== '#/pair') {
+        window.location.hash = '#/pair';
+      }
+    };
+
     const handleRecipeDecoded = (_event: IpcRendererEvent, ...args: unknown[]) => {
       const decodedRecipe = args[0] as Recipe;
-      console.log('[App] Recipe decoded successfully:', decodedRecipe);
 
       // Update the pair chat with the decoded recipe
       setPairChat((prevChat) => ({
@@ -1111,14 +1140,16 @@ export default function App() {
       window.location.hash = '#/recipes';
     };
 
+    window.electron.on('load-recipe-deeplink', handleLoadRecipeDeeplink);
     window.electron.on('recipe-decoded', handleRecipeDecoded);
     window.electron.on('recipe-decode-error', handleRecipeDecodeError);
 
     return () => {
+      window.electron.off('load-recipe-deeplink', handleLoadRecipeDeeplink);
       window.electron.off('recipe-decoded', handleRecipeDecoded);
       window.electron.off('recipe-decode-error', handleRecipeDecodeError);
     };
-  }, [setPairChat]);
+  }, [setPairChat, pairChat.id]);
 
   useEffect(() => {
     console.log('Setting up keyboard shortcuts');
@@ -1528,16 +1559,6 @@ export default function App() {
                     </ProviderGuard>
                   }
                 />
-                {/*<Route*/}
-                {/*  path="projects"*/}
-                {/*  element={*/}
-                {/*    <ProviderGuard>*/}
-                {/*      <ChatProvider chat={chat} setChat={setChat}>*/}
-                {/*        <ProjectsRoute />*/}
-                {/*      </ChatProvider>*/}
-                {/*    </ProviderGuard>  */}
-                {/*  }*/}
-                {/*/>*/}
               </Route>
             </Routes>
           </div>

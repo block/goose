@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
-import { FolderKey } from 'lucide-react';
+import { FolderKey, ScrollText } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
 import { Button } from './ui/button';
 import type { View } from '../App';
@@ -12,7 +12,6 @@ import { Message } from '../types/message';
 import { DirSwitcher } from './bottom_menu/DirSwitcher';
 import ModelsBottomBar from './settings/models/bottom_bar/ModelsBottomBar';
 import { BottomMenuModeSelection } from './bottom_menu/BottomMenuModeSelection';
-import { ManualCompactButton } from './context_management/ManualCompactButton';
 import { AlertType, useAlerts } from './alerts';
 import { useToolCount } from './alerts/useToolCount';
 import { useConfig } from './ConfigContext';
@@ -110,7 +109,7 @@ export default function ChatInput({
   const { alerts, addAlert, clearAlerts } = useAlerts();
   const dropdownRef = useRef<HTMLDivElement>(null);
   const toolCount = useToolCount();
-  const { isLoadingCompaction } = useChatContextManager();
+  const { isLoadingCompaction, handleManualCompaction } = useChatContextManager();
   const { getProviders, read } = useConfig();
   const { getCurrentModelAndProvider, currentModel, currentProvider } = useModelAndProvider();
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
@@ -420,7 +419,7 @@ export default function ChatInput({
           autoShow: true, // Auto-show token limit warnings
         });
       } else {
-        // Show info alert only when not in warning/error state
+        // Show info alert with summarize button
         addAlert({
           type: AlertType.Info,
           message: 'Context window',
@@ -428,6 +427,11 @@ export default function ChatInput({
             current: numTokens,
             total: tokenLimit,
           },
+          showSummarizeButton: true,
+          onSummarize: () => {
+            handleManualCompaction(messages, setMessages);
+          },
+          summarizeIcon: <ScrollText size={12} />,
         });
       }
     } else if (isTokenLimitLoaded && tokenLimit) {
@@ -439,6 +443,14 @@ export default function ChatInput({
           current: 0,
           total: tokenLimit,
         },
+        showSummarizeButton: messages.length > 0,
+        onSummarize:
+          messages.length > 0
+            ? () => {
+                handleManualCompaction(messages, setMessages);
+              }
+            : undefined,
+        summarizeIcon: messages.length > 0 ? <ScrollText size={12} /> : undefined,
       });
     }
 
@@ -994,7 +1006,7 @@ export default function ChatInput({
         {/* Inline action buttons on the right */}
         <div className="flex items-center gap-1 px-2 relative">
           {/* Microphone button - show if dictation is enabled, disable if not configured */}
-          {dictationSettings?.enabled && (
+          {(dictationSettings?.enabled || dictationSettings?.provider === null) && (
             <>
               {!canUseDictation ? (
                 <Tooltip>
@@ -1014,11 +1026,24 @@ export default function ChatInput({
                     </span>
                   </TooltipTrigger>
                   <TooltipContent>
-                    {dictationSettings.provider === 'openai'
-                      ? 'OpenAI API key is not configured. Set it up in Settings > Models.'
-                      : dictationSettings.provider === 'elevenlabs'
-                        ? 'ElevenLabs API key is not configured. Set it up in Settings > Chat > Voice Dictation.'
-                        : 'Dictation provider is not properly configured.'}
+                    {dictationSettings.provider === 'openai' ? (
+                      <p>
+                        OpenAI API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
+                        <b>Models.</b>
+                      </p>
+                    ) : dictationSettings.provider === 'elevenlabs' ? (
+                      <p>
+                        ElevenLabs API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
+                        <b>Chat</b> {'>'} <b>Voice Dictation.</b>
+                      </p>
+                    ) : dictationSettings.provider === null ? (
+                      <p>
+                        Dictation is not configured. Configure it in <b>Settings</b> {'>'}{' '}
+                        <b>Chat</b> {'>'} <b>Voice Dictation.</b>
+                      </p>
+                    ) : (
+                      <p>Dictation provider is not properly configured.</p>
+                    )}
                   </TooltipContent>
                 </Tooltip>
               ) : (
@@ -1286,13 +1311,6 @@ export default function ChatInput({
           </Tooltip>
           <div className="w-px h-4 bg-border-default mx-2" />
           <BottomMenuModeSelection />
-          {messages.length > 0 && (
-            <ManualCompactButton
-              messages={messages}
-              isLoading={isLoading}
-              setMessages={setMessages}
-            />
-          )}
           <div className="w-px h-4 bg-border-default mx-2" />
           <div className="flex items-center h-full">
             <Tooltip>

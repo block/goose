@@ -3,9 +3,9 @@ use std::sync::Arc;
 
 use crate::state::AppState;
 use axum::{
-    extract::{Path, State},
+    extract::State,
     http::{HeaderMap, StatusCode},
-    routing::{get, post},
+    routing::get,
     Json, Router,
 };
 use serde::{Deserialize, Serialize};

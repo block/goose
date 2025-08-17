@@ -72,7 +72,7 @@ export function ConfigureSettingsButton({ tooltip, className, ...props }: Action
       variant="outline"
       text={'Configure'}
       iconClassName="rotate-90"
-      className={className}
+      className={clsx('cursor-pointer', className)}
       {...props}
     />
   );
@@ -86,7 +86,7 @@ export function RocketButton({ tooltip, className, ...props }: ActionButtonProps
       tooltip={tooltip}
       variant="outline"
       text={'Launch'}
-      className={className}
+      className={clsx('cursor-pointer', className)}
       {...props}
     />
   );
