@@ -14,6 +14,7 @@ interface MessageQueueProps {
   onClearQueue: () => void;
   onStopAndSend?: (messageId: string) => void;
   onEditMessage?: (messageId: string, newContent: string) => void;
+  onTriggerQueueProcessing?: () => void;
   isEditingRef?: React.MutableRefObject<boolean>;
   onReorderMessages?: (reorderedMessages: QueuedMessage[]) => void;
   className?: string;
@@ -26,6 +27,7 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
   onClearQueue,
   onStopAndSend,
   onEditMessage,
+  onTriggerQueueProcessing,
   isEditingRef,
   onReorderMessages,
   className = '',
@@ -310,6 +312,10 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
                           }
                           setEditingMessage(null);
                           if (isEditingRef) isEditingRef.current = false;
+                          // Trigger queue processing if system is ready
+                          if (onTriggerQueueProcessing) {
+                            setTimeout(onTriggerQueueProcessing, 100);
+                          }
                           setEditContent("");
                         }}
                         className="h-6 px-2 text-xs"
@@ -322,6 +328,10 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
                         onClick={() => {
                           setEditingMessage(null);
                           if (isEditingRef) isEditingRef.current = false;
+                          // Trigger queue processing if system is ready
+                          if (onTriggerQueueProcessing) {
+                            setTimeout(onTriggerQueueProcessing, 100);
+                          }
                           setEditContent("");
                         }}
                         className="h-6 px-2 text-xs"

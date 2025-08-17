@@ -325,6 +325,16 @@ export default function ChatInput({
     );
   };
 
+  const handleTriggerQueueProcessing = () => {
+    // Manually trigger queue processing if not loading and messages exist
+    if (!isLoading && queuedMessages.length > 0 && !queuePausedRef.current && !isEditingRef.current) {
+      const nextMessage = queuedMessages[0];
+      LocalMessageStorage.addMessage(nextMessage.content);
+      handleSubmit(new CustomEvent("submit", { detail: { value: nextMessage.content } }) as unknown as React.FormEvent);
+      setQueuedMessages(prev => prev.slice(1));
+    }
+  };
+
   const handleChange = (evt: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = evt.target.value;
     const cursorPosition = evt.target.selectionStart;
@@ -694,6 +704,7 @@ export default function ChatInput({
         onStopAndSend={handleStopAndSend}
         onReorderMessages={handleReorderMessages}
         onEditMessage={handleEditMessage}
+        onTriggerQueueProcessing={handleTriggerQueueProcessing}
         isEditingRef={isEditingRef}
         className="border-b border-border/30"
       />
