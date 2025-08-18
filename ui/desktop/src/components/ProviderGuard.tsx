@@ -232,8 +232,8 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
                 
                 <div className="relative flex items-start justify-between mb-3">
                   <div className="flex-1">
-                    <h3 className="font-medium text-text-standard text-sm sm:text-base flex items-center gap-2">
-                      <OpenRouter className="w-5 h-5 sm:w-6 sm:h-6 text-text-standard flex-shrink-0" />
+                    <OpenRouter className="w-5 h-5 sm:w-6 sm:h-6 mb-3 text-text-standard" />
+                    <h3 className="font-medium text-text-standard text-sm sm:text-base">
                       Automatic setup with OpenRouter
                     </h3>
                   </div>
@@ -242,6 +242,9 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                   </div>
+                </div>
+                  </div>
+                </div>
                 </div>
                 <p className="relative text-text-muted text-sm sm:text-base">
                   Get instant access to multiple AI models including GPT-4, Claude, and more. Quick setup with just a few clicks.
@@ -268,8 +271,9 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
                 className="w-full p-4 sm:p-6 bg-transparent border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group"
               >
                 <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1 flex items-center gap-3">
-                    <Ollama className="w-5 h-5 sm:w-6 sm:h-6 text-text-standard flex-shrink-0" />
+                  <div className="flex-1">
+                    <div className="flex-1">
+                      <Ollama className="w-5 h-5 sm:w-6 sm:h-6 mb-3 text-text-standard" />
                     <h3 className="font-medium text-text-standard text-sm sm:text-base">
                       Ollama
                     </h3>
