@@ -60,7 +60,7 @@ export default function MCPUIResourceRenderer({ content }: MCPUIResourceRenderer
               height: true,
               width: false, // set to false to allow for responsive design
             },
-            // sandboxPermissions: 'allow-forms', // THIS PROP IS UNDERCONSIDERATION
+            sandboxPermissions: 'allow-forms',
           }}
         />
       </div>
