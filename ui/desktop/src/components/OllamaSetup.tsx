@@ -156,8 +156,8 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
 
       {ollamaDetected ? (
         <div className="space-y-4">
-          <div className="bg-background-success/10 border border-border-success rounded-lg p-4">
-            <p className="text-text-success">✓ Ollama is running on your system</p>
+          <div className="flex items-start">
+            <span className="inline-block px-2 py-1 text-xs font-medium bg-green-600 text-white rounded-full">Ollama is detected and running</span>
           </div>
 
           {modelStatus === 'checking' ? (
