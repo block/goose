@@ -256,7 +256,7 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
         onClick={onCancel}
         className="w-full px-6 py-3 bg-transparent text-text-muted rounded-lg hover:bg-background-muted transition-colors"
       >
-        Use a different provider
+        Cancel
       </button>
     </div>
   );
