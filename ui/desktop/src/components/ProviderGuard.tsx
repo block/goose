@@ -243,9 +243,6 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
                     </svg>
                   </div>
                 </div>
-                  </div>
-                </div>
-                </div>
                 <p className="relative text-text-muted text-sm sm:text-base">
                   Get instant access to multiple AI models including GPT-4, Claude, and more. Quick setup with just a few clicks.
                 </p>
@@ -272,8 +269,7 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1">
-                    <div className="flex-1">
-                      <Ollama className="w-5 h-5 sm:w-6 sm:h-6 mb-3 text-text-standard" />
+                    <Ollama className="w-5 h-5 sm:w-6 sm:h-6 mb-3 text-text-standard" />
                     <h3 className="font-medium text-text-standard text-sm sm:text-base">
                       Ollama
                     </h3>
