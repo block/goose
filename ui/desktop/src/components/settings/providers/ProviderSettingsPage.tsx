@@ -105,7 +105,7 @@ export default function ProviderSettings({ onClose, isOnboarding }: ProviderSett
               <BackButton onClick={onClose} />
             </div>
             <h1 className="text-4xl font-light mb-4 pt-6">
-              {isOnboarding ? 'Configure your providers' : 'Provider Configuration Settings'}
+              {isOnboarding ? 'Other providers' : 'Provider Configuration Settings'}
             </h1>
             {isOnboarding && (
               <p className="text-sm sm:text-base text-text-muted max-w-full sm:max-w-2xl">
