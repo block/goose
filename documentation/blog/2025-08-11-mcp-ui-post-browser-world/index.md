@@ -45,17 +45,17 @@ Starting from Goose v1.3.0, you can add MCP-UI as an extension.
 :::tip Add MCP-UI to Goose
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  Use `Add custom extension` in Settings → Extensions to add a `Streamable HTTP` extension type with:
+  [Launch the installer](goose://extension?type=streamable_http&url=https%3A%2F%2Fmcp-aharvard.netlify.app%2Fmcp&id=mcpuidemo&name=MCP-UI%20Demo&description=Demo%20MCP-UI-enabled%20extension)
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
   Use `goose configure` to add a `Remote Extension (Streaming HTTP)` extension type with:
-  </TabItem>
-</Tabs>
 
   **Endpoint URL**
   ```
   https://mcp-aharvard.netlify.app/mcp
   ```
+  </TabItem>
+</Tabs>
 :::
 
 

@@ -6,7 +6,6 @@ use async_stream::try_stream;
 use futures::stream::StreamExt;
 
 use super::super::agents::Agent;
-use crate::agents::router_tool_selector::RouterToolSelectionStrategy;
 use crate::conversation::message::{Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
 use crate::providers::base::{stream_from_single_message, MessageStream, Provider, ProviderUsage};
@@ -35,24 +34,17 @@ async fn toolshim_postprocess(
 impl Agent {
     /// Prepares tools and system prompt for a provider request
     pub async fn prepare_tools_and_prompt(&self) -> anyhow::Result<(Vec<Tool>, Vec<Tool>, String)> {
-        // Get tool selection strategy from config
-        let tool_selection_strategy = self
-            .tool_route_manager
-            .get_router_tool_selection_strategy()
-            .await;
+        // Get router enabled status
+        let router_enabled = self.tool_route_manager.is_router_enabled().await;
 
         // Get tools from extension manager
-        let mut tools = match tool_selection_strategy {
-            Some(RouterToolSelectionStrategy::Vector) => {
-                self.list_tools_for_router(Some(RouterToolSelectionStrategy::Vector))
-                    .await
-            }
-            Some(RouterToolSelectionStrategy::Llm) => {
-                self.list_tools_for_router(Some(RouterToolSelectionStrategy::Llm))
-                    .await
-            }
-            _ => self.list_tools(None).await,
-        };
+        let mut tools = self.list_tools_for_router().await;
+
+        // If router is disabled and no tools were returned, fall back to regular tools
+        if !router_enabled && tools.is_empty() {
+            tools = self.list_tools(None).await;
+        }
+
         // Add frontend tools
         let frontend_tools = self.frontend_tools.lock().await;
         for frontend_tool in frontend_tools.values() {
@@ -74,7 +66,7 @@ impl Agent {
             self.frontend_instructions.lock().await.clone(),
             extension_manager.suggest_disable_extensions_prompt().await,
             Some(model_name),
-            tool_selection_strategy,
+            router_enabled,
         );
 
         // Handle toolshim if enabled

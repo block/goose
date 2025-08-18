@@ -6,6 +6,7 @@ use serial_test::serial;
 use std::sync::Arc;
 
 #[tokio::test]
+#[ignore] // TODO: Re-enable after next release when TODO tools are re-enabled
 async fn test_todo_tools_in_agent_list() {
     let agent = Agent::new();
     let tools = agent.list_tools(None).await;
