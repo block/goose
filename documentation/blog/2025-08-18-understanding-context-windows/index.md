@@ -36,7 +36,7 @@ Test it yourself: paste any text into [OpenAI’s tokenizer tool](https://platfo
 Let's talk about how this works in practice. When you use an AI agent like Goose, you start a session and choose a model like Claude Sonnet 3.7. This model has a context window of 128,000 tokens. This means every session (or conversation) can handle up to 128,000 tokens. If you message "hey" to Goose, you would have used one token. And when Goose responds back, you would have used several more tokens. Now you've used a small portion of your 128,000 tokens, and you have the remainder left.
 
 :::note
-Context windows vary per LLM
+Context windows vary per LLM.
 :::
 
 Once the conversation goes past 128,000 tokens or gets close to it, your agent may start to forget key details from earlier in the conversation, and it might prioritize the most recent information.
