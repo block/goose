@@ -157,21 +157,20 @@ impl AutoVisualiserRouter {
             .get("data")
             .ok_or_else(|| ToolError::InvalidParameters("Missing 'data' parameter".to_string()))?;
 
-        // Load the Sankey template
-        let template_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("src")
-            .join("autovisualiser")
-            .join("sankey_template.html");
-
-        let template = std::fs::read_to_string(&template_path)
-            .map_err(|e| ToolError::ExecutionError(format!("Failed to read template: {}", e)))?;
+        // Load all resources at compile time using include_str!
+        const TEMPLATE: &str = include_str!("sankey_template.html");
+        const D3_MIN: &str = include_str!("d3.min.js");
+        const D3_SANKEY: &str = include_str!("d3.sankey.min.js");
 
         // Convert the data to JSON string
         let data_json = serde_json::to_string(&data)
             .map_err(|e| ToolError::InvalidParameters(format!("Invalid JSON data: {}", e)))?;
 
-        // Replace the placeholder with actual data
-        let html_content = template.replace("{{SANKEY_DATA}}", &data_json);
+        // Replace all placeholders with actual content
+        let html_content = TEMPLATE
+            .replace("{{D3_MIN}}", D3_MIN)
+            .replace("{{D3_SANKY}}", D3_SANKEY) // Note: keeping the typo to match template
+            .replace("{{SANKEY_DATA}}", &data_json);
 
         // Save to /tmp/vis.html for debugging
         let debug_path = std::path::Path::new("/tmp/vis.html");
