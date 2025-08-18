@@ -742,17 +742,46 @@ p > code.bg-inline-code {
   will-change: width;
 }
 
-/* Shimmer animation for onboarding card */
+
+  25% {
+    opacity: 0.3;
+  }
+  50% {
+    transform: translateX(100%);
+    opacity: 0.1;
+  }
+  75% {
+    opacity: 0.3;
+  }
+  100% {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+}
+
+
+/* Subtle back-and-forth shimmer animation for onboarding card */
 @keyframes shimmer {
   0% {
     transform: translateX(-100%);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.15;
+  }
+  50% {
+    transform: translateX(100%);
+    opacity: 0.05;
+  }
+  80% {
+    opacity: 0.15;
   }
   100% {
-    transform: translateX(100%);
+    transform: translateX(-100%);
+    opacity: 0;
   }
 }
 
 .animate-shimmer {
-  animation: shimmer 2s infinite;
+  animation: shimmer 6s ease-in-out infinite;
 }
-
