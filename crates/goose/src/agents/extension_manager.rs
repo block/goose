@@ -371,7 +371,14 @@ impl ExtensionManager {
 
                 Box::new(client)
             }
-            _ => unreachable!(),
+            ExtensionConfig::Frontend { .. } => {
+                // For frontend extensions (including goose_apps), use the GooseAppsClient directly
+                use crate::goose_apps::GooseAppsClient;
+                Box::new(
+                    GooseAppsClient::new()
+                        .map_err(|e| ExtensionError::SetupError(e.to_string()))?,
+                )
+            } //_ => unreachable!(),
         };
 
         let info = client.get_info();

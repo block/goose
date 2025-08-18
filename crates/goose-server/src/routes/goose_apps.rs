@@ -1,95 +1,370 @@
 use super::utils::verify_secret_key;
-use std::sync::Arc;
-
 use crate::state::AppState;
 use axum::{
-    extract::State,
+    extract::{Path, State},
     http::{HeaderMap, StatusCode},
-    routing::get,
+    routing::{delete, get, post, put},
     Json, Router,
 };
+use goose::goose_apps::{GooseApp, GooseAppsManager};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use utoipa::ToSchema;
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct GooseApp {
-    pub name: String,
-    pub description: Option<String>,
-    pub js_implementation: String,
-}
 
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AppListResponse {
-    /// List of installed Goose apps
     pub apps: Vec<GooseApp>,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AppResponse {
+    pub app: GooseApp,
+}
+
+#[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateAppRequest {
+    pub app: GooseApp,
+}
+
+#[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateAppRequest {
+    pub app: GooseApp,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SuccessResponse {
+    pub message: String,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ErrorResponse {
+    pub error: String,
 }
 
 #[utoipa::path(
     get,
     path = "/apps/list_apps",
     responses(
-       (status = 200, description = "List of installed apps retrieved successfully", body = AppListResponse),
-       (status = 401, description = "Unauthorized - Invalid or missing API key", body = ErrorResponse),
-       (status = 500, description = "Internal server error", body = ErrorResponse),
+        (status = 200, description = "List of installed apps retrieved successfully", body = AppListResponse),
+        (status = 401, description = "Unauthorized - Invalid or missing API key", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse),
     ),
     security(
-       ("api_key" = [])
+        ("api_key" = [])
     ),
     tag = "App Management"
 )]
 async fn list_apps(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-) -> Result<Json<AppListResponse>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
+) -> Result<Json<AppListResponse>, (StatusCode, Json<ErrorResponse>)> {
+    verify_secret_key(&headers, &state).map_err(|_| {
+        (
+            StatusCode::UNAUTHORIZED,
+            Json(ErrorResponse {
+                error: "Unauthorized".to_string(),
+            }),
+        )
+    })?;
 
-    let clock_app = GooseApp {
-        name: "Clock".to_string(),
-        description: Some("Digital clock".to_string()),
-        js_implementation: r#"
-class ClockWidget extends GooseWidget {
-   getName() {
-       return 'Clock';
-   }
+    let manager = GooseAppsManager::new().map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: format!("Failed to initialize apps manager: {}", e),
+            }),
+        )
+    })?;
 
-   render() {
-       return `<div style="text-align: center; font-family: monospace; font-size: 2rem; padding: 20px;">
-           ${new Date().toLocaleTimeString()}
-       </div>`;
-   }
+    let apps = manager.list_apps().map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: format!("Failed to list apps: {}", e),
+            }),
+        )
+    })?;
 
-   onMount() {
-       setInterval(() => this.api.update(), 1000);
-   }
+    Ok(Json(AppListResponse { apps }))
 }
-"#.to_string(),
-    };
 
-    Ok(Json(AppListResponse {
-        apps: vec![clock_app],
+#[utoipa::path(
+    get,
+    path = "/apps/{name}",
+    responses(
+        (status = 200, description = "App retrieved successfully", body = AppResponse),
+        (status = 401, description = "Unauthorized - Invalid or missing API key", body = ErrorResponse),
+        (status = 404, description = "App not found", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse),
+    ),
+    params(
+        ("name" = String, Path, description = "Name of the app")
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "App Management"
+)]
+async fn get_app(
+    State(state): State<Arc<AppState>>,
+    Path(name): Path<String>,
+    headers: HeaderMap,
+) -> Result<Json<AppResponse>, (StatusCode, Json<ErrorResponse>)> {
+    verify_secret_key(&headers, &state).map_err(|_| {
+        (
+            StatusCode::UNAUTHORIZED,
+            Json(ErrorResponse {
+                error: "Unauthorized".to_string(),
+            }),
+        )
+    })?;
+
+    let manager = GooseAppsManager::new().map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: format!("Failed to initialize apps manager: {}", e),
+            }),
+        )
+    })?;
+
+    let app = manager.get_app(&name).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: format!("Failed to get app: {}", e),
+            }),
+        )
+    })?;
+
+    match app {
+        Some(app) => Ok(Json(AppResponse { app })),
+        None => Err((
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse {
+                error: format!("App '{}' not found", name),
+            }),
+        )),
+    }
+}
+
+#[utoipa::path(
+    post,
+    path = "/apps",
+    request_body = CreateAppRequest,
+    responses(
+        (status = 201, description = "App created successfully", body = SuccessResponse),
+        (status = 400, description = "Bad request - Invalid app data", body = ErrorResponse),
+        (status = 401, description = "Unauthorized - Invalid or missing API key", body = ErrorResponse),
+        (status = 409, description = "Conflict - App already exists", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse),
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "App Management"
+)]
+async fn create_app(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(request): Json<CreateAppRequest>,
+) -> Result<(StatusCode, Json<SuccessResponse>), (StatusCode, Json<ErrorResponse>)> {
+    verify_secret_key(&headers, &state).map_err(|_| {
+        (
+            StatusCode::UNAUTHORIZED,
+            Json(ErrorResponse {
+                error: "Unauthorized".to_string(),
+            }),
+        )
+    })?;
+
+    let manager = GooseAppsManager::new().map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: format!("Failed to initialize apps manager: {}", e),
+            }),
+        )
+    })?;
+
+    // Check if app already exists
+    if manager.app_exists(&request.app.name) {
+        return Err((
+            StatusCode::CONFLICT,
+            Json(ErrorResponse {
+                error: format!("App '{}' already exists", request.app.name),
+            }),
+        ));
+    }
+
+    manager.update_app(&request.app).map_err(|e| {
+        let error_msg = e.to_string();
+        if error_msg.contains("extends GooseWidget") {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse { error: error_msg }),
+            )
+        } else {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse { error: error_msg }),
+            )
+        }
+    })?;
+
+    Ok((
+        StatusCode::CREATED,
+        Json(SuccessResponse {
+            message: format!("App '{}' created successfully", request.app.name),
+        }),
+    ))
+}
+
+#[utoipa::path(
+    put,
+    path = "/apps/{name}",
+    request_body = UpdateAppRequest,
+    responses(
+        (status = 200, description = "App updated successfully", body = SuccessResponse),
+        (status = 400, description = "Bad request - Invalid app data", body = ErrorResponse),
+        (status = 401, description = "Unauthorized - Invalid or missing API key", body = ErrorResponse),
+        (status = 404, description = "App not found", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse),
+    ),
+    params(
+        ("name" = String, Path, description = "Name of the app to update")
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "App Management"
+)]
+async fn update_app(
+    State(state): State<Arc<AppState>>,
+    Path(name): Path<String>,
+    headers: HeaderMap,
+    Json(request): Json<UpdateAppRequest>,
+) -> Result<Json<SuccessResponse>, (StatusCode, Json<ErrorResponse>)> {
+    verify_secret_key(&headers, &state).map_err(|_| {
+        (
+            StatusCode::UNAUTHORIZED,
+            Json(ErrorResponse {
+                error: "Unauthorized".to_string(),
+            }),
+        )
+    })?;
+
+    let manager = GooseAppsManager::new().map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: format!("Failed to initialize apps manager: {}", e),
+            }),
+        )
+    })?;
+
+    // Check if app exists
+    if !manager.app_exists(&name) {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse {
+                error: format!("App '{}' not found", name),
+            }),
+        ));
+    }
+
+    manager.update_app(&request.app).map_err(|e| {
+        let error_msg = e.to_string();
+        if error_msg.contains("extends GooseWidget") {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse { error: error_msg }),
+            )
+        } else {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse { error: error_msg }),
+            )
+        }
+    })?;
+
+    Ok(Json(SuccessResponse {
+        message: format!("App '{}' updated successfully", name),
     }))
 }
 
-#[derive(Deserialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct LaunchAppRequest {
-    /// Name of the app to launch
-    pub app_name: String,
-}
+#[utoipa::path(
+    delete,
+    path = "/apps/{name}",
+    responses(
+        (status = 200, description = "App deleted successfully", body = SuccessResponse),
+        (status = 401, description = "Unauthorized - Invalid or missing API key", body = ErrorResponse),
+        (status = 404, description = "App not found", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse),
+    ),
+    params(
+        ("name" = String, Path, description = "Name of the app to delete")
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "App Management"
+)]
+async fn delete_app(
+    State(state): State<Arc<AppState>>,
+    Path(name): Path<String>,
+    headers: HeaderMap,
+) -> Result<Json<SuccessResponse>, (StatusCode, Json<ErrorResponse>)> {
+    verify_secret_key(&headers, &state).map_err(|_| {
+        (
+            StatusCode::UNAUTHORIZED,
+            Json(ErrorResponse {
+                error: "Unauthorized".to_string(),
+            }),
+        )
+    })?;
 
-#[derive(Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct LaunchAppResponse {
-    /// Success message
-    pub message: String,
-    /// Port on which the app is running (if applicable)
-    pub port: Option<u16>,
+    let manager = GooseAppsManager::new().map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: format!("Failed to initialize apps manager: {}", e),
+            }),
+        )
+    })?;
+
+    manager.delete_app(&name).map_err(|e| {
+        let error_msg = e.to_string();
+        if error_msg.contains("not found") {
+            (
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse { error: error_msg }),
+            )
+        } else {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse { error: error_msg }),
+            )
+        }
+    })?;
+
+    Ok(Json(SuccessResponse {
+        message: format!("App '{}' deleted successfully", name),
+    }))
 }
 
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/apps/list_apps", get(list_apps))
+        .route("/apps/{name}", get(get_app))
+        .route("/apps", post(create_app))
+        .route("/apps/{name}", put(update_app))
+        .route("/apps/{name}", delete(delete_app))
         .with_state(state)
 }

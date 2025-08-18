@@ -53,6 +53,7 @@ import { UPDATES_ENABLED } from './updates';
 import { Recipe } from './recipe';
 import './utils/recipeHash';
 import { launchGooseApp } from './goose_apps';
+import { GooseApp } from './api';
 
 // API URL constructor for main process before window is ready
 function getApiUrlMain(endpoint: string, dynamicPort: number): string {
@@ -2033,8 +2034,8 @@ app.whenReady().then(async () => {
     createChat(app, query, dir, version, resumeSessionId, recipe, viewType);
   });
 
-  ipcMain.handle('launch-goose-app', async (_, appName: string, jsImplementation: string) => {
-    await launchGooseApp(appName, jsImplementation);
+  ipcMain.handle('launch-goose-app', async (_, app: GooseApp) => {
+    await launchGooseApp(app);
   });
 
   ipcMain.on('notify', (_event, data) => {

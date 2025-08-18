@@ -17,9 +17,6 @@ export type Annotations = {
 };
 
 export type AppListResponse = {
-    /**
-     * List of installed Goose apps
-     */
     apps: Array<GooseApp>;
 };
 
@@ -298,8 +295,11 @@ export type GetToolsQuery = {
 
 export type GooseApp = {
     description?: string | null;
-    jsImplementation: string;
+    height?: number | null;
+    jsImplementation?: string;
     name: string;
+    resizable?: boolean | null;
+    width?: number | null;
 };
 
 export type ImageContent = {

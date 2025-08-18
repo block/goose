@@ -36,9 +36,12 @@ impl ExtensionConfigManager {
         let extensions: HashMap<String, ExtensionEntry> = match config.get_param("extensions") {
             Ok(exts) => exts,
             Err(super::ConfigError::NotFound(_)) => {
-                // Initialize with default developer extension
-                let defaults = HashMap::from([(
-                    name_to_key(DEFAULT_EXTENSION), // Use key format for top-level key in config
+                // Initialize with default developer extension and goose_apps
+                let mut defaults = HashMap::new();
+                
+                // Default developer extension
+                defaults.insert(
+                    name_to_key(DEFAULT_EXTENSION),
                     ExtensionEntry {
                         enabled: true,
                         config: ExtensionConfig::Builtin {
@@ -49,7 +52,22 @@ impl ExtensionConfigManager {
                             description: Some(DEFAULT_EXTENSION_DESCRIPTION.to_string()),
                         },
                     },
-                )]);
+                );
+                
+                // Default goose_apps extension - DISABLED by default
+                defaults.insert(
+                    name_to_key("goose_apps"),
+                    ExtensionEntry {
+                        enabled: false, // Disabled by default
+                        config: ExtensionConfig::Frontend {
+                            name: "goose_apps".to_string(),
+                            tools: vec![], // Will be populated when loaded
+                            instructions: Some("Manage Goose Apps - create, update, list JavaScript apps that extend Goose functionality.".to_string()),
+                            bundled: Some(true),
+                        },
+                    },
+                );
+                
                 config.set_param("extensions", serde_json::to_value(&defaults)?)?;
                 defaults
             }

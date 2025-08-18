@@ -1319,8 +1319,7 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/GooseApp"
-            },
-            "description": "List of installed Goose apps"
+            }
           }
         }
       },
@@ -2046,19 +2045,34 @@
       "GooseApp": {
         "type": "object",
         "required": [
-          "name",
-          "jsImplementation"
+          "name"
         ],
         "properties": {
           "description": {
             "type": "string",
             "nullable": true
           },
+          "height": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true,
+            "minimum": 0
+          },
           "jsImplementation": {
             "type": "string"
           },
           "name": {
             "type": "string"
+          },
+          "resizable": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "width": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true,
+            "minimum": 0
           }
         }
       },

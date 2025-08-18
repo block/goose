@@ -23,3 +23,4 @@ pub mod utils;
 mod cron_test;
 #[macro_use]
 mod macros;
+pub mod goose_apps;

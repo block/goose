@@ -26,7 +26,7 @@ export default function AppsView() {
   }, []);
 
   const handleLaunchApp = async (app: GooseApp) => {
-    await window.electron.launchGooseApp(app.name, app.jsImplementation);
+    await window.electron.launchGooseApp(app);
   };
 
   if (loading) {

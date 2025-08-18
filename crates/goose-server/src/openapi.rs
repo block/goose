@@ -3,6 +3,7 @@ use goose::agents::extension::ToolInfo;
 use goose::agents::ExtensionConfig;
 use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
+use goose::goose_apps::GooseApp;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata};
 use goose::session::info::SessionInfo;
@@ -391,6 +392,10 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::recipe::encode_recipe,
         super::routes::recipe::decode_recipe,
         super::routes::goose_apps::list_apps,
+        super::routes::goose_apps::get_app,
+        super::routes::goose_apps::create_app,
+        super::routes::goose_apps::update_app,
+        super::routes::goose_apps::delete_app,
     ),
     components(schemas(
         super::routes::config_management::UpsertConfigQuery,
@@ -407,6 +412,7 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::context::ContextManageResponse,
         super::routes::session::SessionListResponse,
         super::routes::session::SessionHistoryResponse,
+        GooseApp,
         Message,
         MessageContent,
         ContentSchema,
@@ -476,7 +482,6 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::agent::GetToolsQuery,
         super::routes::agent::ErrorResponse,
         super::routes::goose_apps::AppListResponse,
-        super::routes::goose_apps::GooseApp
     ))
 )]
 pub struct ApiDoc;
