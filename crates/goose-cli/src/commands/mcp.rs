@@ -1,6 +1,7 @@
 use anyhow::Result;
 use goose_mcp::{
-    ComputerControllerRouter, DeveloperRouter, GoogleDriveRouter, MemoryRouter, TutorialRouter,
+    ComputerControllerRouter, DeveloperRouter, GoogleDriveRouter, MemoryRouter, NostrMcpRouter,
+    TutorialRouter,
 };
 use mcp_server::router::RouterService;
 use mcp_server::{BoundedService, ByteTransport, Server};
@@ -30,6 +31,11 @@ pub async fn run_server(name: &str) -> Result<()> {
             Some(Box::new(RouterService(router)))
         }
         "memory" => Some(Box::new(RouterService(MemoryRouter::new()))),
+        "nostr_memory_mcp" => {
+            let nsec = std::env::var("NOSTR_NSEC").ok();
+            let router = NostrMcpRouter::new(nsec);
+            Some(Box::new(RouterService(router)))
+        }
         "tutorial" => Some(Box::new(RouterService(TutorialRouter::new()))),
         _ => None,
     };

@@ -33,6 +33,7 @@ fn get_display_name(extension_id: &str) -> String {
         "computercontroller" => "Computer Controller".to_string(),
         "googledrive" => "Google Drive".to_string(),
         "memory" => "Memory".to_string(),
+        "nostr_memory_mcp" => "Nostr Memory".to_string(),
         "tutorial" => "Tutorial".to_string(),
         "jetbrains" => "JetBrains".to_string(),
         // Add other extensions as needed
@@ -749,6 +750,11 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     "tutorial",
                     "Tutorial",
                     "Access interactive tutorials and guides",
+                )
+                .item(
+                    "nostr_memory_mcp",
+                    "Nostr Memory",
+                    "persistent memory storage using Nostr protocol with encryption",
                 )
                 .interact()?
                 .to_string();

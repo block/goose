@@ -629,5 +629,22 @@
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": []
+  },
+  {
+    "id": "nostr_memory",
+    "name": "Nostr Memory",
+    "description": "Built-in persistent memory storage using Nostr protocol with encryption",
+    "command": "",
+    "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/nostr_memory_mcp",
+    "installation_notes": "This is a built-in extension that comes with Goose and can be enabled on the Extensions page. Requires NOSTR_NSEC environment variable to be set with your Nostr private key.",
+    "is_builtin": true,
+    "endorsed": true,
+    "environmentVariables": [
+      {
+        "name": "NOSTR_NSEC",
+        "description": "Your Nostr private key (nsec) for encrypted memory storage",
+        "required": true
+      }
+    ]
   }
 ]

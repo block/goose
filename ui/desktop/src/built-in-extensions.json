@@ -33,5 +33,15 @@
     "enabled": false,
     "type": "builtin",
     "env_keys": []
+  },
+  {
+    "id": "nostr_memory_mcp",
+    "name": "nostr_memory_mcp",
+    "display_name": "Nostr Memory",
+    "description": "Persistent memory storage using Nostr protocol with encryption",
+    "enabled": false,
+    "type": "builtin",
+    "env_keys": [],
+    "timeout": 300
   }
 ]

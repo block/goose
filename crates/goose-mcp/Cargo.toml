@@ -63,6 +63,7 @@ hyper = "1"
 serde_with = "3"
 which = "6.0"
 glob = "0.3"
+nostr-sdk = {version = "0.43", features = ["all-nips"]}
 
 
 [dev-dependencies]
