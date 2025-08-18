@@ -232,7 +232,7 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
                 
                 <div className="relative flex items-start justify-between mb-3">
                   <div className="flex-1">
-                    <OpenRouter className="w-5 h-5 sm:w-6 sm:h-6 mb-3 text-text-standard" />
+                    <OpenRouter className="w-5 h-5 sm:w-6 sm:h-6 mb-12 text-text-standard" />
                     <h3 className="font-medium text-text-standard text-sm sm:text-base">
                       Automatic setup with OpenRouter
                     </h3>
@@ -269,7 +269,7 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1">
-                    <Ollama className="w-5 h-5 sm:w-6 sm:h-6 mb-3 text-text-standard" />
+                    <Ollama className="w-5 h-5 sm:w-6 sm:h-6 mb-12 text-text-standard" />
                     <h3 className="font-medium text-text-standard text-sm sm:text-base">
                       Ollama
                     </h3>
