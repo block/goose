@@ -61,7 +61,7 @@ The Claude Code provider integrates with Anthropic's [Claude CLI tool](https://c
 
 ### Cursor Agent
 
-The Cursor Agent provider integrates with Cursor's [cursor-agent CLI tool](https://docs.cursor.com/en/cli/installation), providing access to Cursor Agent through your existing subscription.
+The Cursor provider integrates with Cursor's [CLI agent](https://docs.cursor.com/en/cli/installation), providing access to through your existing subscription.
 
 **Features:**
 
