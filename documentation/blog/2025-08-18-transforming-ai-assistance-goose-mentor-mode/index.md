@@ -158,5 +158,5 @@ The early results suggest this approach resonates with developers who want to gr
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="Transforming AI Assistance from Automation to Education: The Story Behind Goose Mentor Mode" />
   <meta name="twitter:description" content="How a Junior developer's AI Agent confusion, led to creating an educational MCP extension that transforms Goose from an automation tool into a learning mentor." />
-  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/goose-mentor-mode-header.png" />
+  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/goose-mentor-mode-header-77058a250a163440d791e057ef3196ea.png" />
 </head>
