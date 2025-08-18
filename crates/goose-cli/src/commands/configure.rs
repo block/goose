@@ -74,7 +74,7 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
             )
             .item(
                 "tetrate",
-                "Tetrate Agent Router Login",
+                "Tetrate Agent Router Service Login",
                 "Sign in with Tetrate Agent Router Service to automatically configure models",
             )
             .item(
@@ -108,7 +108,7 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
                     Err(e) => {
                         let _ = config.clear();
                         println!(
-                            "\n  {} Tetrate Agent Router authentication failed: {} \n  Please try again or use manual configuration",
+                            "\n  {} Tetrate Agent Router Service authentication failed: {} \n  Please try again or use manual configuration",
                             style("Error").red().italic(),
                             e,
                         );
@@ -1796,13 +1796,12 @@ pub async fn handle_tetrate_auth() -> Result<(), Box<dyn Error>> {
     use goose::conversation::message::Message;
     use goose::providers::create;
 
-    // Use the Tetrate Agent Router authentication flow
+    // Use the Tetrate Agent Router Service authentication flow
     let mut auth_flow = TetrateAuth::new()?;
     match auth_flow.complete_flow().await {
         Ok(api_key) => {
             println!("\nAuthentication complete!");
 
-            // Get config instance
             let config = Config::global();
 
             // Use the existing configure_tetrate function to set everything up

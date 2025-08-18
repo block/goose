@@ -14,7 +14,7 @@ use tokio::sync::oneshot;
 use tokio::time::timeout;
 
 /// Default models for Tetrate Agent Router Service configuration
-const TETRATE_DEFAULT_MODEL: &str = "anthropic/claude-sonnet-4";
+pub const TETRATE_DEFAULT_MODEL: &str = "claude-4-sonnet-20250514";
 
 // Auth endpoints are on the main web domain
 const TETRATE_AUTH_URL: &str = "https://router.tetrate.ai/auth";
