@@ -35,6 +35,7 @@ The following settings can be configured at the root level of your config.yaml f
 | `GOOSE_CLI_SHOW_COST` | Show estimated cost for token use in the CLI | true/false | false | No |
 | `GOOSE_ALLOWLIST` | URL for allowed extensions | Valid URL | None | No |
 | `GOOSE_RECIPE_GITHUB_REPO` | GitHub repository for recipes | Format: "org/repo" | None | No |
+| `GOOSE_AUTO_COMPACT_THRESHOLD` | Set the percentage threshold at which Goose [automatically summarizes your session](/docs/guides/smart-context-management.md#automatic-compaction). | Float between 0.0 and 1.0 (disabled at 0.0)| 0.8 | No |
 
 ## Experimental Features
 

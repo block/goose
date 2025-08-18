@@ -21,8 +21,7 @@ use crate::agents::recipe_tools::dynamic_task_tools::{
     create_dynamic_task, create_dynamic_task_tool, DYNAMIC_TASK_TOOL_NAME_PREFIX,
 };
 use crate::agents::retry::{RetryManager, RetryResult};
-use crate::agents::router_tool_selector::RouterToolSelectionStrategy;
-use crate::agents::router_tools::{ROUTER_LLM_SEARCH_TOOL_NAME, ROUTER_VECTOR_SEARCH_TOOL_NAME};
+use crate::agents::router_tools::ROUTER_LLM_SEARCH_TOOL_NAME;
 use crate::agents::sub_recipe_manager::SubRecipeManager;
 use crate::agents::subagent_execution_tool::subagent_execute_task_tool::{
     self, SUBAGENT_EXECUTE_TASK_TOOL_NAME,
@@ -59,7 +58,9 @@ use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::subagent_task_config::TaskConfig;
 use crate::agents::todo_tools::{
-    todo_read_tool, todo_write_tool, TODO_READ_TOOL_NAME, TODO_WRITE_TOOL_NAME,
+    // todo_read_tool, todo_write_tool, // TODO: Re-enable after next release
+    TODO_READ_TOOL_NAME,
+    TODO_WRITE_TOOL_NAME,
 };
 use crate::conversation::message::{Message, ToolRequest};
 
@@ -530,9 +531,7 @@ impl Agent {
                 "Updated ({} chars)",
                 char_count
             ))]))
-        } else if tool_call.name == ROUTER_VECTOR_SEARCH_TOOL_NAME
-            || tool_call.name == ROUTER_LLM_SEARCH_TOOL_NAME
-        {
+        } else if tool_call.name == ROUTER_LLM_SEARCH_TOOL_NAME {
             match self
                 .tool_route_manager
                 .dispatch_route_search_tool(tool_call.arguments)
@@ -575,8 +574,8 @@ impl Agent {
         extension_name: String,
         request_id: String,
     ) -> (String, Result<Vec<Content>, ErrorData>) {
-        let selector = self.tool_route_manager.get_router_tool_selector().await;
-        if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
+        if self.tool_route_manager.is_router_functional().await {
+            let selector = self.tool_route_manager.get_router_tool_selector().await;
             if let Some(selector) = selector {
                 let selector_action = if action == "disable" { "remove" } else { "add" };
                 let extension_manager = self.extension_manager.read().await;
@@ -593,7 +592,7 @@ impl Agent {
                         request_id,
                         Err(ErrorData::new(
                             ErrorCode::INTERNAL_ERROR,
-                            format!("Failed to update vector index: {}", e),
+                            format!("Failed to update LLM index: {}", e),
                             None,
                         )),
                     );
@@ -653,31 +652,29 @@ impl Agent {
             .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None));
 
         drop(extension_manager);
-        // Update vector index if operation was successful and vector routing is enabled
-        if result.is_ok() {
+        // Update LLM index if operation was successful and LLM routing is functional
+        if result.is_ok() && self.tool_route_manager.is_router_functional().await {
             let selector = self.tool_route_manager.get_router_tool_selector().await;
-            if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
-                if let Some(selector) = selector {
-                    let vector_action = if action == "disable" { "remove" } else { "add" };
-                    let extension_manager = self.extension_manager.read().await;
-                    let selector = Arc::new(selector);
-                    if let Err(e) = ToolRouterIndexManager::update_extension_tools(
-                        &selector,
-                        &extension_manager,
-                        &extension_name,
-                        vector_action,
-                    )
-                    .await
-                    {
-                        return (
-                            request_id,
-                            Err(ErrorData::new(
-                                ErrorCode::INTERNAL_ERROR,
-                                format!("Failed to update vector index: {}", e),
-                                None,
-                            )),
-                        );
-                    }
+            if let Some(selector) = selector {
+                let llm_action = if action == "disable" { "remove" } else { "add" };
+                let extension_manager = self.extension_manager.read().await;
+                let selector = Arc::new(selector);
+                if let Err(e) = ToolRouterIndexManager::update_extension_tools(
+                    &selector,
+                    &extension_manager,
+                    &extension_name,
+                    llm_action,
+                )
+                .await
+                {
+                    return (
+                        request_id,
+                        Err(ErrorData::new(
+                            ErrorCode::INTERNAL_ERROR,
+                            format!("Failed to update LLM index: {}", e),
+                            None,
+                        )),
+                    );
                 }
             }
         }
@@ -691,6 +688,7 @@ impl Agent {
                 tools,
                 instructions,
                 bundled: _,
+                available_tools: _,
             } => {
                 // For frontend tools, just store them in the frontend_tools map
                 let mut frontend_tools = self.frontend_tools.lock().await;
@@ -718,9 +716,9 @@ impl Agent {
             }
         }
 
-        // If vector tool selection is enabled, index the tools
-        let selector = self.tool_route_manager.get_router_tool_selector().await;
-        if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
+        // If LLM tool selection is functional, index the tools
+        if self.tool_route_manager.is_router_functional().await {
+            let selector = self.tool_route_manager.get_router_tool_selector().await;
             if let Some(selector) = selector {
                 let extension_manager = self.extension_manager.read().await;
                 let selector = Arc::new(selector);
@@ -760,7 +758,8 @@ impl Agent {
             ]);
 
             // Add task planner tools
-            prefixed_tools.extend([todo_read_tool(), todo_write_tool()]);
+            // TODO: Re-enable after next release
+            // prefixed_tools.extend([todo_read_tool(), todo_write_tool()]);
 
             // Dynamic task tool
             prefixed_tools.push(create_dynamic_task_tool());
@@ -787,12 +786,9 @@ impl Agent {
         prefixed_tools
     }
 
-    pub async fn list_tools_for_router(
-        &self,
-        strategy: Option<RouterToolSelectionStrategy>,
-    ) -> Vec<Tool> {
+    pub async fn list_tools_for_router(&self) -> Vec<Tool> {
         self.tool_route_manager
-            .list_tools_for_router(strategy, &self.extension_manager)
+            .list_tools_for_router(&self.extension_manager)
             .await
     }
 
@@ -801,9 +797,9 @@ impl Agent {
         extension_manager.remove_extension(name).await?;
         drop(extension_manager);
 
-        // If vector tool selection is enabled, remove tools from the index
-        let selector = self.tool_route_manager.get_router_tool_selector().await;
-        if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
+        // If LLM tool selection is functional, remove tools from the index
+        if self.tool_route_manager.is_router_functional().await {
+            let selector = self.tool_route_manager.get_router_tool_selector().await;
             if let Some(selector) = selector {
                 let extension_manager = self.extension_manager.read().await;
                 ToolRouterIndexManager::update_extension_tools(
@@ -1350,7 +1346,7 @@ impl Agent {
             self.frontend_instructions.lock().await.clone(),
             extension_manager.suggest_disable_extensions_prompt().await,
             Some(model_name),
-            None,
+            false,
         );
 
         let recipe_prompt = prompt_manager.get_recipe_prompt().await;
@@ -1509,7 +1505,7 @@ mod tests {
 
         let prompt_manager = agent.prompt_manager.lock().await;
         let system_prompt =
-            prompt_manager.build_system_prompt(vec![], None, Value::Null, None, None);
+            prompt_manager.build_system_prompt(vec![], None, Value::Null, None, false);
 
         let final_output_tool_ref = agent.final_output_tool.lock().await;
         let final_output_tool_system_prompt =
@@ -1519,6 +1515,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore] // TODO: Re-enable after next release when TODO tools are re-enabled
     async fn test_todo_tools_integration() -> Result<()> {
         let agent = Agent::new();
 

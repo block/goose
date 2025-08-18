@@ -685,6 +685,7 @@ sub_recipes:
                 description,
                 timeout,
                 dependencies,
+                ..
             } => {
                 assert_eq!(name, "test_python");
                 assert_eq!(code, "print('hello world')");
