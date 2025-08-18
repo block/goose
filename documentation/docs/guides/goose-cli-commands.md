@@ -597,7 +597,7 @@ The CLI provides a set of slash commands that can be accessed during a session. 
 - `/builtin <names>` - Add builtin extensions by name (comma-separated)
 - `/exit` or `/quit` - Exit the current session
 - `/extension <command>` - Add a stdio extension (format: ENV1=val1 command args...)
-- `/mode <n>` - Set the goose mode to use ('auto', 'approve', 'chat')
+- `/mode <n>` - Set the goose mode to use ('auto', 'smart_approve', 'approve', 'chat')
 - `/plan <message>` - Create a structured plan based on the given message
 - `/prompt <n> [--info] [key=value...]` - Get prompt info or execute a prompt
 - `/prompts [--extension <n>]` - List all available prompts, optionally filtered by extension

@@ -1812,15 +1812,6 @@ app.whenReady().then(async () => {
     callback({ cancel: false, requestHeaders: details.requestHeaders });
   });
 
-  // Test error feature - only enabled with GOOSE_TEST_ERROR=true
-  if (process.env.GOOSE_TEST_ERROR === 'true') {
-    console.log('Test error feature enabled, will throw error in 5 seconds');
-    setTimeout(() => {
-      console.log('Throwing test error now...');
-      throw new Error('Test error: This is a simulated fatal error after 5 seconds');
-    }, 5000);
-  }
-
   // Create tray if enabled in settings
   const settings = loadSettings();
   if (settings.showMenuBarIcon) {

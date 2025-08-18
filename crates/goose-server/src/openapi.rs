@@ -369,6 +369,10 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::config_management::upsert_permissions,
         super::routes::agent::get_tools,
         super::routes::agent::add_sub_recipes,
+        super::routes::agent::extend_prompt,
+        super::routes::agent::update_agent_provider,
+        super::routes::agent::update_router_tool_selector,
+        super::routes::agent::update_session_config,
         super::routes::reply::confirm_permission,
         super::routes::context::manage_context,
         super::routes::session::list_sessions,
@@ -464,6 +468,12 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         goose::agents::types::SuccessCheck,
         super::routes::agent::AddSubRecipesRequest,
         super::routes::agent::AddSubRecipesResponse,
+        super::routes::agent::ExtendPromptRequest,
+        super::routes::agent::ExtendPromptResponse,
+        super::routes::agent::UpdateProviderRequest,
+        super::routes::agent::SessionConfigRequest,
+        super::routes::agent::GetToolsQuery,
+        super::routes::agent::ErrorResponse,
     ))
 )]
 pub struct ApiDoc;

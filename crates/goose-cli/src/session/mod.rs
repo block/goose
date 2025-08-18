@@ -162,7 +162,7 @@ impl Session {
         message_suffix: &str,
     ) -> Result<()> {
         // Summarize messages to fit within context length
-        let (summarized_messages, _) = agent.summarize_context(messages.messages()).await?;
+        let (summarized_messages, _, _) = agent.summarize_context(messages.messages()).await?;
         let msg = format!("Context maxed out\n{}\n{}", "-".repeat(50), message_suffix);
         output::render_text(&msg, Some(Color::Yellow), true);
         *messages = summarized_messages;
@@ -374,7 +374,6 @@ impl Session {
         cancel_token: CancellationToken,
     ) -> Result<()> {
         let cancel_token = cancel_token.clone();
-        let message_text = message.as_concat_text();
 
         self.push_message(message);
         // Get the provider from the agent for description generation
@@ -394,24 +393,6 @@ impl Session {
                 working_dir,
             )
             .await?;
-        }
-
-        // Track the current directory and last instruction in projects.json
-        let session_id = self
-            .session_file
-            .as_ref()
-            .and_then(|p| p.file_stem())
-            .and_then(|s| s.to_str())
-            .map(|s| s.to_string());
-
-        if let Err(e) = crate::project_tracker::update_project_tracker(
-            Some(&message_text),
-            session_id.as_deref(),
-        ) {
-            eprintln!(
-                "Warning: Failed to update project tracker with instruction: {}",
-                e
-            );
         }
 
         self.process_agent_response(false, cancel_token).await?;
@@ -491,21 +472,6 @@ impl Session {
                             save_history(&mut editor);
 
                             self.push_message(Message::user().with_text(&content));
-
-                            // Track the current directory and last instruction in projects.json
-                            let session_id = self
-                                .session_file
-                                .as_ref()
-                                .and_then(|p| p.file_stem())
-                                .and_then(|s| s.to_str())
-                                .map(|s| s.to_string());
-
-                            if let Err(e) = crate::project_tracker::update_project_tracker(
-                                Some(&content),
-                                session_id.as_deref(),
-                            ) {
-                                eprintln!("Warning: Failed to update project tracker with instruction: {}", e);
-                            }
 
                             let provider = self.agent.provider().await?;
 
@@ -723,7 +689,7 @@ impl Session {
                         let provider = self.agent.provider().await?;
 
                         // Call the summarize_context method which uses the summarize_messages function
-                        let (summarized_messages, _) = self
+                        let (summarized_messages, _token_counts, summarization_usage) = self
                             .agent
                             .summarize_context(self.messages.messages())
                             .await?;
@@ -731,7 +697,7 @@ impl Session {
                         // Update the session messages with the summarized ones
                         self.messages = summarized_messages;
 
-                        // Persist the summarized messages
+                        // Persist the summarized messages and update session metadata with new token counts
                         if let Some(session_file) = &self.session_file {
                             let working_dir = std::env::current_dir().ok();
                             session::persist_messages_with_schedule_id(
@@ -742,6 +708,46 @@ impl Session {
                                 working_dir,
                             )
                             .await?;
+
+                            // Update session metadata with the new token counts from summarization
+                            if let Some(usage) = summarization_usage {
+                                let session_file_path = session::storage::get_path(
+                                    session::storage::Identifier::Path(session_file.to_path_buf()),
+                                )?;
+                                let mut metadata =
+                                    session::storage::read_metadata(&session_file_path)?;
+
+                                // Update token counts with the summarization usage
+                                // Use output tokens as total since that's what's actually in the context going forward
+                                let summary_tokens = usage.usage.output_tokens.unwrap_or(0);
+                                metadata.total_tokens = Some(summary_tokens);
+                                metadata.input_tokens = None; // Clear input tokens since we now have a summary
+                                metadata.output_tokens = Some(summary_tokens);
+                                metadata.message_count = self.messages.len();
+
+                                // Update accumulated tokens (add the summarization cost)
+                                let accumulate = |a: Option<i32>, b: Option<i32>| -> Option<i32> {
+                                    match (a, b) {
+                                        (Some(x), Some(y)) => Some(x + y),
+                                        _ => a.or(b),
+                                    }
+                                };
+                                metadata.accumulated_total_tokens = accumulate(
+                                    metadata.accumulated_total_tokens,
+                                    usage.usage.total_tokens,
+                                );
+                                metadata.accumulated_input_tokens = accumulate(
+                                    metadata.accumulated_input_tokens,
+                                    usage.usage.input_tokens,
+                                );
+                                metadata.accumulated_output_tokens = accumulate(
+                                    metadata.accumulated_output_tokens,
+                                    usage.usage.output_tokens,
+                                );
+
+                                session::storage::update_metadata(&session_file_path, &metadata)
+                                    .await?;
+                            }
                         }
 
                         output::hide_thinking();
@@ -1488,12 +1494,17 @@ impl Session {
             .get_param::<String>("GOOSE_PROVIDER")
             .unwrap_or_else(|_| "unknown".to_string());
 
-        // Initialize pricing cache on startup
-        tracing::info!("Initializing pricing cache...");
-        if let Err(e) = initialize_pricing_cache().await {
-            tracing::warn!(
-                "Failed to initialize pricing cache: {e}. Pricing data may not be available."
-            );
+        // Do not get costing information if show cost is disabled
+        // This will prevent the API call to openrouter.ai
+        // This is useful if for cases where openrouter.ai may be blocked by corporate firewalls
+        if show_cost {
+            // Initialize pricing cache on startup
+            tracing::info!("Initializing pricing cache...");
+            if let Err(e) = initialize_pricing_cache().await {
+                tracing::warn!(
+                    "Failed to initialize pricing cache: {e}. Pricing data may not be available."
+                );
+            }
         }
 
         match self.get_metadata() {

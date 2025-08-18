@@ -97,9 +97,8 @@ ahash = "0.8"
 tokio-util = "0.7.15"
 unicode-normalization = "0.1"
 
-# Vector database for tool selection
-lancedb = "0.13"
 arrow = "52.2"
+oauth2 = "5.0.0"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }
@@ -122,11 +121,3 @@ path = "examples/agent.rs"
 [[example]]
 name = "databricks_oauth"
 path = "examples/databricks_oauth.rs"
-
-[[example]]
-name = "async_token_counter_demo"
-path = "examples/async_token_counter_demo.rs"
-
-[[bench]]
-name = "tokenization_benchmark"
-harness = false

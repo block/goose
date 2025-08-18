@@ -21,8 +21,7 @@ use crate::agents::recipe_tools::dynamic_task_tools::{
     create_dynamic_task, create_dynamic_task_tool, DYNAMIC_TASK_TOOL_NAME_PREFIX,
 };
 use crate::agents::retry::{RetryManager, RetryResult};
-use crate::agents::router_tool_selector::RouterToolSelectionStrategy;
-use crate::agents::router_tools::{ROUTER_LLM_SEARCH_TOOL_NAME, ROUTER_VECTOR_SEARCH_TOOL_NAME};
+use crate::agents::router_tools::ROUTER_LLM_SEARCH_TOOL_NAME;
 use crate::agents::sub_recipe_manager::SubRecipeManager;
 use crate::agents::subagent_execution_tool::subagent_execute_task_tool::{
     self, SUBAGENT_EXECUTE_TASK_TOOL_NAME,
@@ -530,9 +529,7 @@ impl Agent {
                 "Updated ({} chars)",
                 char_count
             ))]))
-        } else if tool_call.name == ROUTER_VECTOR_SEARCH_TOOL_NAME
-            || tool_call.name == ROUTER_LLM_SEARCH_TOOL_NAME
-        {
+        } else if tool_call.name == ROUTER_LLM_SEARCH_TOOL_NAME {
             match self
                 .tool_route_manager
                 .dispatch_route_search_tool(tool_call.arguments)
@@ -575,8 +572,8 @@ impl Agent {
         extension_name: String,
         request_id: String,
     ) -> (String, Result<Vec<Content>, ErrorData>) {
-        let selector = self.tool_route_manager.get_router_tool_selector().await;
-        if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
+        if self.tool_route_manager.is_router_functional().await {
+            let selector = self.tool_route_manager.get_router_tool_selector().await;
             if let Some(selector) = selector {
                 let selector_action = if action == "disable" { "remove" } else { "add" };
                 let extension_manager = self.extension_manager.read().await;
@@ -593,7 +590,7 @@ impl Agent {
                         request_id,
                         Err(ErrorData::new(
                             ErrorCode::INTERNAL_ERROR,
-                            format!("Failed to update vector index: {}", e),
+                            format!("Failed to update LLM index: {}", e),
                             None,
                         )),
                     );
@@ -653,31 +650,29 @@ impl Agent {
             .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None));
 
         drop(extension_manager);
-        // Update vector index if operation was successful and vector routing is enabled
-        if result.is_ok() {
+        // Update LLM index if operation was successful and LLM routing is functional
+        if result.is_ok() && self.tool_route_manager.is_router_functional().await {
             let selector = self.tool_route_manager.get_router_tool_selector().await;
-            if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
-                if let Some(selector) = selector {
-                    let vector_action = if action == "disable" { "remove" } else { "add" };
-                    let extension_manager = self.extension_manager.read().await;
-                    let selector = Arc::new(selector);
-                    if let Err(e) = ToolRouterIndexManager::update_extension_tools(
-                        &selector,
-                        &extension_manager,
-                        &extension_name,
-                        vector_action,
-                    )
-                    .await
-                    {
-                        return (
-                            request_id,
-                            Err(ErrorData::new(
-                                ErrorCode::INTERNAL_ERROR,
-                                format!("Failed to update vector index: {}", e),
-                                None,
-                            )),
-                        );
-                    }
+            if let Some(selector) = selector {
+                let llm_action = if action == "disable" { "remove" } else { "add" };
+                let extension_manager = self.extension_manager.read().await;
+                let selector = Arc::new(selector);
+                if let Err(e) = ToolRouterIndexManager::update_extension_tools(
+                    &selector,
+                    &extension_manager,
+                    &extension_name,
+                    llm_action,
+                )
+                .await
+                {
+                    return (
+                        request_id,
+                        Err(ErrorData::new(
+                            ErrorCode::INTERNAL_ERROR,
+                            format!("Failed to update LLM index: {}", e),
+                            None,
+                        )),
+                    );
                 }
             }
         }
@@ -719,9 +714,9 @@ impl Agent {
             }
         }
 
-        // If vector tool selection is enabled, index the tools
-        let selector = self.tool_route_manager.get_router_tool_selector().await;
-        if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
+        // If LLM tool selection is functional, index the tools
+        if self.tool_route_manager.is_router_functional().await {
+            let selector = self.tool_route_manager.get_router_tool_selector().await;
             if let Some(selector) = selector {
                 let extension_manager = self.extension_manager.read().await;
                 let selector = Arc::new(selector);
@@ -788,12 +783,9 @@ impl Agent {
         prefixed_tools
     }
 
-    pub async fn list_tools_for_router(
-        &self,
-        strategy: Option<RouterToolSelectionStrategy>,
-    ) -> Vec<Tool> {
+    pub async fn list_tools_for_router(&self) -> Vec<Tool> {
         self.tool_route_manager
-            .list_tools_for_router(strategy, &self.extension_manager)
+            .list_tools_for_router(&self.extension_manager)
             .await
     }
 
@@ -802,9 +794,9 @@ impl Agent {
         extension_manager.remove_extension(name).await?;
         drop(extension_manager);
 
-        // If vector tool selection is enabled, remove tools from the index
-        let selector = self.tool_route_manager.get_router_tool_selector().await;
-        if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
+        // If LLM tool selection is functional, remove tools from the index
+        if self.tool_route_manager.is_router_functional().await {
+            let selector = self.tool_route_manager.get_router_tool_selector().await;
             if let Some(selector) = selector {
                 let extension_manager = self.extension_manager.read().await;
                 ToolRouterIndexManager::update_extension_tools(
@@ -844,7 +836,13 @@ impl Agent {
         &self,
         messages: &[Message],
         session: &Option<SessionConfig>,
-    ) -> Result<Option<(Conversation, String)>> {
+    ) -> Result<
+        Option<(
+            Conversation,
+            String,
+            Option<crate::providers::base::ProviderUsage>,
+        )>,
+    > {
         // Try to get session metadata for more accurate token counts
         let session_metadata = if let Some(session_config) = session {
             match session::storage::get_path(session_config.id.clone()) {
@@ -866,21 +864,23 @@ impl Agent {
         if compact_result.compacted {
             let compacted_messages = compact_result.messages;
 
-            // Create compaction notification message
-            let compaction_msg = if let (Some(before), Some(after)) =
-                (compact_result.tokens_before, compact_result.tokens_after)
-            {
-                format!(
-                    "Auto-compacted context: {} → {} tokens ({:.0}% reduction)\n\n",
-                    before,
-                    after,
-                    (1.0 - (after as f64 / before as f64)) * 100.0
-                )
-            } else {
-                "Auto-compacted context to reduce token usage\n\n".to_string()
-            };
+            // Get threshold from config to include in message
+            let config = crate::config::Config::global();
+            let threshold = config
+                .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
+                .unwrap_or(0.8); // Default to 80%
+            let threshold_percentage = (threshold * 100.0) as u32;
 
-            return Ok(Some((compacted_messages, compaction_msg)));
+            let compaction_msg = format!(
+                "Exceeded auto-compact threshold of {}%. Context has been summarized and reduced.\n\n",
+                threshold_percentage
+            );
+
+            return Ok(Some((
+                compacted_messages,
+                compaction_msg,
+                compact_result.summarization_usage,
+            )));
         }
 
         Ok(None)
@@ -894,16 +894,16 @@ impl Agent {
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         // Handle auto-compaction before processing
-        let (messages, compaction_msg) = match self
+        let (messages, compaction_msg, _summarization_usage) = match self
             .handle_auto_compaction(unfixed_conversation.messages(), &session)
             .await?
         {
-            Some((compacted_messages, msg)) => (compacted_messages, Some(msg)),
+            Some((compacted_messages, msg, usage)) => (compacted_messages, Some(msg), usage),
             None => {
                 let context = self
                     .prepare_reply_context(unfixed_conversation, &session)
                     .await?;
-                (context.messages, None)
+                (context.messages, None, None)
             }
         };
 
@@ -1343,7 +1343,7 @@ impl Agent {
             self.frontend_instructions.lock().await.clone(),
             extension_manager.suggest_disable_extensions_prompt().await,
             Some(model_name),
-            None,
+            false,
         );
 
         let recipe_prompt = prompt_manager.get_recipe_prompt().await;
@@ -1502,7 +1502,7 @@ mod tests {
 
         let prompt_manager = agent.prompt_manager.lock().await;
         let system_prompt =
-            prompt_manager.build_system_prompt(vec![], None, Value::Null, None, None);
+            prompt_manager.build_system_prompt(vec![], None, Value::Null, None, false);
 
         let final_output_tool_ref = agent.final_output_tool.lock().await;
         let final_output_tool_system_prompt =

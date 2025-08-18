@@ -78,6 +78,9 @@ impl ResourceItem {
     }
 }
 
+#[cfg(windows)]
+const CREATE_NO_WINDOW_FLAG: u32 = 0x08000000;
+
 /// Sanitizes a string by replacing invalid characters with underscores.
 /// Valid characters match [a-zA-Z0-9_-]
 fn normalize(input: String) -> String {
@@ -112,6 +115,8 @@ async fn child_process_client(
 ) -> ExtensionResult<McpClient> {
     #[cfg(unix)]
     command.process_group(0);
+    #[cfg(windows)]
+    command.creation_flags(CREATE_NO_WINDOW_FLAG);
     let (transport, mut stderr) = TokioChildProcess::builder(command)
         .stderr(Stdio::piped())
         .spawn()?;
@@ -282,7 +287,9 @@ impl ExtensionManager {
                 .await;
                 let client = if let Err(e) = client_res {
                     // make an attempt at oauth, but failing that, return the original error,
-                    // because this might not have been an auth error at all
+                    // because this might not have been an auth error at all.
+                    // TODO: when rmcp supports it, we should trigger this flow on 401s with
+                    // WWW-Authenticate headers, not just any init error
                     let am = match oauth_flow(uri, name).await {
                         Ok(am) => am,
                         Err(_) => return Err(e.into()),
