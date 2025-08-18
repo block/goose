@@ -743,21 +743,6 @@ p > code.bg-inline-code {
 }
 
 
-  25% {
-    opacity: 0.3;
-  }
-  50% {
-    transform: translateX(100%);
-    opacity: 0.1;
-  }
-  75% {
-    opacity: 0.3;
-  }
-  100% {
-    transform: translateX(-100%);
-    opacity: 0;
-  }
-}
 
 
 /* Subtle back-and-forth shimmer animation for onboarding card */
