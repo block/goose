@@ -156,7 +156,7 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
 
       {ollamaDetected ? (
         <div className="space-y-4">
-          <div className="flex items-start">
+          <div className="flex items-start mb-16">
             <span className="inline-block px-2 py-1 text-xs font-medium bg-green-600 text-white rounded-full">Ollama is detected and running</span>
           </div>
 
