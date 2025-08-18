@@ -68,7 +68,7 @@ The Cursor Agent provider integrates with Cursor's [cursor-agent CLI tool](https
 - integrates with Cursor Agent CLI coding tasks.
 - ideal for code-related workflows and file interactions.
 
-**requirements:**
+**Requirements:**
 
 - cursor-agent tool installed and configured.
 - CLI tool authenticated.
