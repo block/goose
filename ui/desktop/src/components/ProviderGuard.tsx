@@ -173,7 +173,7 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
 
   if (showOllamaSetup) {
     return (
-      <div className="h-screen w-full flex flex-col items-center justify-center bg-background-default">
+      <div className="min-h-screen w-full flex flex-col items-center justify-center p-4 bg-background-default">
         <div className="max-w-md w-full mx-auto p-8">
           <div className="mb-8 text-center">
             <WelcomeGooseLogo />
@@ -195,29 +195,29 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
 
   if (showFirstTimeSetup) {
     return (
-      <div className="h-screen w-full flex flex-col items-center justify-center bg-background-default">
+      <div className="min-h-screen w-full flex flex-col items-center justify-center p-4 bg-background-default">
         <div className="max-w-lg w-full mx-auto p-8">
           {/* Header section - same width as buttons, left aligned */}
-          <div className="text-left mb-12">
-            <div className="space-y-4">
+          <div className="text-left mb-8 sm:mb-12">
+            <div className="space-y-3 sm:space-y-4">
               <div className="origin-bottom-left goose-icon-animation">
-                <Goose className="size-8" />
+                <Goose className="size-6 sm:size-8" />
               </div>
-              <h1 className="text-4xl font-light text-left">
+              <h1 className="text-2xl sm:text-4xl font-light text-left">
                 Welcome to Goose
               </h1>
             </div>
-            <p className="text-text-muted text-lg mt-6">
+            <p className="text-text-muted text-base sm:text-lg mt-4 sm:mt-6">
               Since it's your first time here, let's get your set you with a provider so we can make incredible work together.
             </p>
           </div>
 
           {/* Setup options - same width container */}
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             {/* Primary OpenRouter Card with subtle shimmer - wrapped for badge positioning */}
             <div className="relative">
               {/* Recommended badge - positioned relative to wrapper */}
-              <div className="absolute -top-3 -right-3 z-20">
+              <div className="absolute -top-2 -right-2 sm:-top-3 sm:-right-3 z-20">
                 <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-600 text-white rounded-full">
                   Recommended
                 </span>
@@ -225,77 +225,85 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
               
               <div 
                 onClick={handleOpenRouterSetup}
-                className="relative w-full p-6 bg-background-muted border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group overflow-hidden"
+                className="relative w-full p-4 sm:p-6 bg-background-muted border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group overflow-hidden"
               >
                 {/* Subtle shimmer effect */}
                 <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
                 
                 <div className="relative flex items-start justify-between mb-3">
                   <div className="flex-1">
-                    <h3 className="font-medium text-text-standard">
-                    <OpenRouter className="w-6 h-6 mb-12 text-text-standard" />
+                    <h3 className="font-medium text-text-standard text-sm sm:text-base flex items-center gap-2">
+                      <OpenRouter className="w-5 h-5 sm:w-6 sm:h-6 text-text-standard flex-shrink-0" />
                       Automatic setup with OpenRouter
                     </h3>
                   </div>
                   <div className="text-text-muted group-hover:text-text-standard transition-colors">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                   </div>
                 </div>
-                <p className="relative text-text-muted">
+                <p className="relative text-text-muted text-sm sm:text-base">
                   Get instant access to multiple AI models including GPT-4, Claude, and more. Quick setup with just a few clicks.
                 </p>
               </div>
             </div>
 
             {/* Ollama Card - outline style */}
-            <div 
-              onClick={() => {
-                setShowFirstTimeSetup(false);
-                setShowOllamaSetup(true);
-              }}
-              className="w-full p-6 bg-transparent border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group"
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex-1 flex items-center gap-3">
-                  {ollamaDetected && (
-                    <span className="text-text-success">●</span>
-                  )}
-                  <h3 className="font-medium text-text-standard">
-                    <Ollama className="w-6 h-6 mb-12 text-text-standard" />
-                    {ollamaDetected ? 'Ollama (detected)' : 'Ollama'}
-                  </h3>
+            <div className="relative">
+              {/* Detected badge - similar to recommended but green */}
+              {ollamaDetected && (
+                <div className="absolute -top-2 -right-2 sm:-top-3 sm:-right-3 z-20">
+                  <span className="inline-block px-2 py-1 text-xs font-medium bg-green-600 text-white rounded-full">
+                    Detected
+                  </span>
                 </div>
-                <div className="text-text-muted group-hover:text-text-standard transition-colors">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
+              )}
+              
+              <div 
+                onClick={() => {
+                  setShowFirstTimeSetup(false);
+                  setShowOllamaSetup(true);
+                }}
+                className="w-full p-4 sm:p-6 bg-transparent border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1 flex items-center gap-3">
+                    <Ollama className="w-5 h-5 sm:w-6 sm:h-6 text-text-standard flex-shrink-0" />
+                    <h3 className="font-medium text-text-standard text-sm sm:text-base">
+                      Ollama
+                    </h3>
+                  </div>
+                  <div className="text-text-muted group-hover:text-text-standard transition-colors flex-shrink-0">
+                    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
                 </div>
+                <p className="text-text-muted text-sm sm:text-base">
+                  Run AI models locally on your computer. Completely free and private with no internet required.
+                </p>
               </div>
-              <p className="text-text-muted">
-                Run AI models locally on your computer. Completely free and private with no internet required.
-              </p>
             </div>
 
-            {/* Other providers Card - outline style */}
+                        {/* Other providers Card - outline style */}
             <div 
               onClick={() => navigate('/welcome', { replace: true })}
-              className="w-full p-6 bg-transparent border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group"
+              className="w-full p-4 sm:p-6 bg-transparent border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group"
             >
               <div className="flex items-start justify-between mb-3">
                 <div className="flex-1">
-                  <h3 className="font-medium text-text-standard">
+                  <h3 className="font-medium text-text-standard text-sm sm:text-base">
                     Other providers
                   </h3>
                 </div>
                 <div className="text-text-muted group-hover:text-text-standard transition-colors">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
                 </div>
               </div>
-              <p className="text-text-muted">
+              <p className="text-text-muted text-sm sm:text-base">
                 If you've already signed up for providers like Anthropic, OpenAI etc, you can enter your own keys.
               </p>
             </div>
