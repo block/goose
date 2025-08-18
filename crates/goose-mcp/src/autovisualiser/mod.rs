@@ -152,9 +152,112 @@ impl AutoVisualiserRouter {
         )
     }
 
+    fn create_donut_tool() -> Tool {
+        Tool::new(
+            "render_donut",
+            indoc! {r#"
+                Renders donut or pie charts for categorical data visualization.
+                Supports single or multiple charts in a grid layout.
+                
+                Each chart should contain:
+                - data: Array of values or objects with 'label' and 'value'
+                - type: Optional 'doughnut' (default) or 'pie'
+                - title: Optional chart title
+                - labels: Optional array of labels (if data is just numbers)
+                
+                Example single chart:
+                {
+                  "title": "Budget",
+                  "type": "doughnut",
+                  "data": [
+                    {"label": "Marketing", "value": 25000},
+                    {"label": "Development", "value": 35000}
+                  ]
+                }
+                
+                Example multiple charts:
+                [{
+                  "title": "Q1 Sales",
+                  "labels": ["Product A", "Product B"],
+                  "data": [45000, 38000]
+                }]
+            "#},
+            object!({
+                "type": "object",
+                "required": ["data"],
+                "properties": {
+                    "data": {
+                        "oneOf": [
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "title": {"type": "string"},
+                                    "type": {"type": "string", "enum": ["doughnut", "pie"]},
+                                    "labels": {
+                                        "type": "array",
+                                        "items": {"type": "string"}
+                                    },
+                                    "data": {
+                                        "type": "array",
+                                        "items": {
+                                            "oneOf": [
+                                                {"type": "number"},
+                                                {
+                                                    "type": "object",
+                                                    "required": ["label", "value"],
+                                                    "properties": {
+                                                        "label": {"type": "string"},
+                                                        "value": {"type": "number"}
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    }
+                                },
+                                "required": ["data"]
+                            },
+                            {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "title": {"type": "string"},
+                                        "type": {"type": "string", "enum": ["doughnut", "pie"]},
+                                        "labels": {
+                                            "type": "array",
+                                            "items": {"type": "string"}
+                                        },
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "oneOf": [
+                                                    {"type": "number"},
+                                                    {
+                                                        "type": "object",
+                                                        "required": ["label", "value"],
+                                                        "properties": {
+                                                            "label": {"type": "string"},
+                                                            "value": {"type": "number"}
+                                                        }
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": ["data"]
+                                }
+                            }
+                        ]
+                    }
+                }
+            }),
+        )
+    }
+
     pub fn new() -> Self {
         let render_sankey_tool = Self::create_sankey_tool();
         let render_radar_tool = Self::create_radar_tool();
+        let render_donut_tool = Self::create_donut_tool();
 
         // choose_app_strategy().cache_dir()
         // - macOS/Linux: ~/.cache/goose/autovisualiser/
@@ -174,6 +277,7 @@ impl AutoVisualiserRouter {
             ## Available Tools:
             - **render_sankey**: Creates interactive Sankey diagrams from flow data
             - **render_radar**: Creates interactive radar charts for multi-dimensional data comparison
+            - **render_donut**: Creates interactive donut/pie charts for categorical data (supports multiple charts)
 
             ## Purpose:
             This extension is designed to help generate dynamic visualizations and UI
@@ -184,7 +288,7 @@ impl AutoVisualiserRouter {
         "#, cache_dir.display()};
 
         Self {
-            tools: vec![render_sankey_tool, render_radar_tool],
+            tools: vec![render_sankey_tool, render_radar_tool, render_donut_tool],
             cache_dir,
             active_resources: Arc::new(Mutex::new(HashMap::new())),
             instructions,
@@ -272,6 +376,46 @@ impl AutoVisualiserRouter {
 
         Ok(vec![Content::resource(resource_contents)])
     }
+
+    async fn render_donut(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        // Extract the data from parameters
+        let data = params
+            .get("data")
+            .ok_or_else(|| ToolError::InvalidParameters("Missing 'data' parameter".to_string()))?;
+
+        // Load all resources at compile time using include_str!
+        const TEMPLATE: &str = include_str!("donut_template.html");
+        const CHART_MIN: &str = include_str!("chart.min.js");
+
+        // Convert the data to JSON string
+        let data_json = serde_json::to_string(&data)
+            .map_err(|e| ToolError::InvalidParameters(format!("Invalid JSON data: {}", e)))?;
+
+        // Replace all placeholders with actual content
+        let html_content = TEMPLATE
+            .replace("{{CHART_MIN}}", CHART_MIN)
+            .replace("{{CHARTS_DATA}}", &data_json);
+
+        // Save to /tmp/donut.html for debugging
+        let debug_path = std::path::Path::new("/tmp/donut.html");
+        if let Err(e) = std::fs::write(debug_path, &html_content) {
+            tracing::warn!("Failed to write debug HTML to /tmp/donut.html: {}", e);
+        } else {
+            tracing::info!("Debug HTML saved to /tmp/donut.html");
+        }
+
+        // Use BlobResourceContents with base64 encoding to avoid JSON string escaping issues
+        let html_bytes = html_content.as_bytes();
+        let base64_encoded = STANDARD.encode(html_bytes);
+
+        let resource_contents = ResourceContents::BlobResourceContents {
+            uri: "ui://donut/chart".to_string(),
+            mime_type: Some("text/html".to_string()),
+            blob: base64_encoded,
+        };
+
+        Ok(vec![Content::resource(resource_contents)])
+    }
 }
 
 impl Router for AutoVisualiserRouter {
@@ -306,6 +450,7 @@ impl Router for AutoVisualiserRouter {
             match tool_name.as_str() {
                 "render_sankey" => this.render_sankey(arguments).await,
                 "render_radar" => this.render_radar(arguments).await,
+                "render_donut" => this.render_donut(arguments).await,
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
         })
