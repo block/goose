@@ -228,7 +228,7 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
                 className="relative w-full p-4 sm:p-6 bg-background-muted border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group overflow-hidden"
               >
                 {/* Subtle shimmer effect */}
-                <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
+                <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/8 to-transparent"></div>
                 
                 <div className="relative flex items-start justify-between mb-3">
                   <div className="flex-1">
