@@ -34,6 +34,9 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
 
     setIsSaving(true);
     try {
+      const newThreshold = thresholdValue / 100; // Convert percentage to decimal
+      console.log('Saving auto-compact threshold:', newThreshold);
+
       // Update the configuration via the upsert API
       const response = await fetch(getApiUrl('/config/upsert'), {
         method: 'POST',
@@ -43,7 +46,7 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
         },
         body: JSON.stringify({
           key: 'GOOSE_AUTO_COMPACT_THRESHOLD',
-          value: thresholdValue / 100, // Convert percentage to decimal
+          value: newThreshold,
           is_secret: false,
         }),
       });
@@ -53,13 +56,20 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
         throw new Error(`Failed to update threshold: ${errorText}`);
       }
 
+      const responseText = await response.text();
+      console.log('Threshold save response:', responseText);
+
       setIsEditingThreshold(false);
-      
+
       // Dispatch a custom event to notify other components that the threshold has changed
       // This allows ChatInput to reload the threshold without a page reload
-      window.dispatchEvent(new CustomEvent('autoCompactThresholdChanged', { 
-        detail: { threshold: thresholdValue / 100 } 
-      }));
+      window.dispatchEvent(
+        new CustomEvent('autoCompactThresholdChanged', {
+          detail: { threshold: newThreshold },
+        })
+      );
+
+      console.log('Dispatched autoCompactThresholdChanged event with threshold:', newThreshold);
     } catch (error) {
       console.error('Error saving threshold:', error);
       window.alert(

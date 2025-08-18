@@ -95,11 +95,33 @@ pub async fn upsert_config(
     verify_secret_key(&headers, &state)?;
 
     let config = Config::global();
-    let result = config.set(&query.key, query.value, query.is_secret);
+
+    // Log the incoming request for debugging
+    tracing::info!(
+        "Upserting config: key={}, value={:?}, is_secret={}",
+        query.key,
+        query.value,
+        query.is_secret
+    );
+
+    let result = config.set(&query.key, query.value.clone(), query.is_secret);
 
     match result {
-        Ok(_) => Ok(Json(Value::String(format!("Upserted key {}", query.key)))),
-        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+        Ok(_) => {
+            // Verify the value was actually saved
+            if let Ok(saved_value) = config.get_param::<serde_json::Value>(&query.key) {
+                tracing::info!(
+                    "Config value saved successfully: key={}, saved_value={:?}",
+                    query.key,
+                    saved_value
+                );
+            }
+            Ok(Json(Value::String(format!("Upserted key {}", query.key))))
+        }
+        Err(e) => {
+            tracing::error!("Failed to upsert config: key={}, error={:?}", query.key, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
     }
 }
 
@@ -677,7 +699,10 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/validate", get(validate_config))
         .route("/config/permissions", post(upsert_permissions))
         .route("/config/current-model", get(get_current_model))
-        .route("/config/auto-compact-threshold", get(get_auto_compact_threshold))
+        .route(
+            "/config/auto-compact-threshold",
+            get(get_auto_compact_threshold),
+        )
         .with_state(state)
 }
 

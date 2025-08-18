@@ -4103,7 +4103,7 @@ Additional instructions here.
 
         // Test normal size content still works
         let normal_content = "Check out @README.md for details";
-        let references = parse_file_references(&normal_content);
+        let references = parse_file_references(normal_content);
         assert_eq!(references.len(), 1);
         assert_eq!(references[0], PathBuf::from("README.md"));
     }
