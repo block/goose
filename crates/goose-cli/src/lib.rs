@@ -3,6 +3,8 @@ use once_cell::sync::Lazy;
 pub mod cli;
 pub mod commands;
 pub mod logging;
+#[cfg(feature = "repo-index")]
+pub mod background_index;
 pub mod recipes;
 pub mod scenario_tests;
 pub mod session;

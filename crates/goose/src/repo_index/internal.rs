@@ -59,6 +59,7 @@ pub struct RepoIndexOptions<'a> {
 pub enum RepoIndexOutput<'a> {
     FilePath(&'a Path),
     Writer(&'a mut dyn Write),
+    Null, // discard (still counts entities via sink)
 }
 
 pub struct RepoIndexOptionsBuilder<'a> {
@@ -76,6 +77,7 @@ impl<'a> RepoIndexOptionsBuilder<'a> {
     pub fn root(mut self, root: &'a Path) -> Self { self.root = Some(root); self }
     pub fn output_file(mut self, path: &'a Path) -> Self { self.output = Some(RepoIndexOutput::FilePath(path)); self }
     pub fn output_writer(mut self, w: &'a mut dyn Write) -> Self { self.output = Some(RepoIndexOutput::Writer(w)); self }
+    pub fn output_null(mut self) -> Self { self.output = Some(RepoIndexOutput::Null); self }
     pub fn include_langs(mut self, langs: HashSet<&'a str>) -> Self { self.include_langs = Some(langs); self }
     pub fn progress(mut self, cb: &'a ProgressCallback<'a>) -> Self { self.progress = Some(cb); self }
     pub fn build(self) -> RepoIndexOptions<'a> { RepoIndexOptions { root: self.root.expect("root required"), output: self.output.expect("output required"), include_langs: self.include_langs, progress: self.progress } }
@@ -129,6 +131,7 @@ pub fn index_repository(opts: RepoIndexOptions<'_>) -> Result<RepoIndexStats> {
             Box::new(&mut *file_handle)
         }
         RepoIndexOutput::Writer(w) => Box::new(w),
+        RepoIndexOutput::Null => Box::new(std::io::sink()),
     };
     // Counting writer increments entities when we newline an entity JSON
     let mut cw = CountingWriter::new(writer);

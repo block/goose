@@ -533,17 +533,7 @@ impl Agent {
                 "Updated ({} chars)",
                 char_count
             ))]))
-        } else if tool_call.name == crate::agents::repo_tools::REPO_BUILD_TOOL_NAME {
-            #[cfg(feature = "repo-index")]
-            {
-                match crate::agents::repo_tools::handle_repo_build(tool_call.arguments.clone()).await {
-                    Ok(v) => ToolCallResult::from(Ok(vec![Content::text(v.to_string())])),
-                    Err(e) => ToolCallResult::from(Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None)))
-                }
-            }
-            #[cfg(not(feature = "repo-index"))]
-            { ToolCallResult::from(Ok(vec![Content::text("repo-index feature disabled".to_string())])) }
-        } else if tool_call.name == crate::agents::repo_tools::REPO_QUERY_TOOL_NAME {
+    } else if tool_call.name == crate::agents::repo_tools::REPO_QUERY_TOOL_NAME {
             #[cfg(feature = "repo-index")]
             {
                 match crate::agents::repo_tools::handle_repo_query(tool_call.arguments.clone()).await {
@@ -790,7 +780,6 @@ impl Agent {
                 platform_tools::search_available_extensions_tool(),
                 platform_tools::manage_extensions_tool(),
                 platform_tools::manage_schedule_tool(),
-                crate::agents::repo_tools::repo_build_tool(),
                 crate::agents::repo_tools::repo_query_tool(),
                 crate::agents::repo_tools::repo_stats_tool(),
             ]);

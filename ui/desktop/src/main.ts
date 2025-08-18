@@ -19,7 +19,7 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import started from 'electron-squirrel-startup';
 import path from 'node:path';
-import { spawn, spawnSync } from 'child_process';
+import { spawn, execFileSync } from 'child_process';
 import 'dotenv/config';
 import { startGoosed } from './goosed';
 import { getBinaryPath } from './utils/pathUtils';
@@ -1700,58 +1700,75 @@ app.whenReady().then(async () => {
       })
     );
 
-    // Add Index Repository action (feature gated by presence of a binary with repo subcommand)
-    (() => {
-      const candidates = ['goose', 'goosed'];
-      type Candidate = { name: string; path: string };
-      const supported: Candidate | undefined = candidates
-        .map((name) => {
-          try {
-            const p = getBinaryPath(app, name as 'goose');
-            if (!fsSync.existsSync(p)) return undefined;
-            // Fast synchronous probe for repo subcommand support.
-            const probe = spawnSync(p, ['repo', '--help'], { timeout: 2000 });
-            const ok =
-              probe.status === 0 || (probe.stdout && probe.stdout.toString().includes('repo'));
-            if (ok) return { name, path: p };
-          } catch (e) {
-            // ignore individual candidate errors
-          }
-          return undefined;
-        })
-        .find((c): c is Candidate => !!c);
-
-      if (!supported) {
-        log.info('[repo-index] no repo-capable binary (goose/goosed) found; skipping menu item');
-        return;
-      }
-
-      fileMenu.submenu.insert(
-        2,
-        new MenuItem({
-          label: 'Index Repository (Tree-sitter)',
-          click: async () => {
-            const focusedWindow = BrowserWindow.getFocusedWindow();
-            if (!focusedWindow) return;
-            new Notification({ title: 'Goose', body: 'Starting repository indexing…' }).show();
-            const res = await runRepoIndexForWindow(focusedWindow, {
-              /* could pass path */
-            });
-            if (res.ok) {
-              new Notification({
-                title: 'Goose',
-                body: `Indexing complete: ${res.outputPath}`,
-              }).show();
-            } else {
-              new Notification({
-                title: 'Goose',
-                body: `Indexing failed${res.error ? `: ${res.error}` : ''}`,
-              }).show();
+    // Add Index Repository action when BOTH:
+    // 1. ALPHA_FEATURES env var is explicitly enabled (opt-in for experimental UI)
+    // 2. A goose/goosed binary exists that supports the `repo` subcommand
+    if (process.env.ALPHA_FEATURES === 'true') {
+      (() => {
+        const candidates = ['goose', 'goosed'];
+        type Candidate = { name: string; path: string };
+        const supported: Candidate | undefined = candidates
+          .map((name) => {
+            try {
+              const p = getBinaryPath(app, name as 'goose');
+              if (!fsSync.existsSync(p)) return undefined;
+              // Fast synchronous probe for repo subcommand support.
+              // Use execFileSync to avoid shell interpretation (safer than spawnSync with a variable
+              // program path). `getBinaryPath` already validates and resolves the binary path to a
+              // concrete filesystem location, so invoking the binary directly is safe.
+              let ok = false;
+              try {
+                const out = execFileSync(p, ['repo', '--help'], {
+                  timeout: 2000,
+                  stdio: ['ignore', 'pipe', 'pipe'],
+                });
+                if (out && out.toString().includes('repo')) ok = true;
+              } catch (e) {
+                // Non-zero exit or timeout -> treat as unsupported
+                ok = false;
+              }
+              if (ok) return { name, path: p };
+            } catch (e) {
+              // ignore individual candidate errors
             }
-          },
-        })
-      );
-    })();
+            return undefined;
+          })
+          .find((c): c is Candidate => !!c);
+
+        if (!supported) {
+          log.info('[repo-index] no repo-capable binary (goose/goosed) found; skipping menu item');
+          return;
+        }
+
+        fileMenu.submenu.insert(
+          2,
+          new MenuItem({
+            label: 'Index Repository (Tree-sitter)',
+            click: async () => {
+              const focusedWindow = BrowserWindow.getFocusedWindow();
+              if (!focusedWindow) return;
+              new Notification({ title: 'Goose', body: 'Starting repository indexing…' }).show();
+              const res = await runRepoIndexForWindow(focusedWindow, {
+                /* could pass path */
+              });
+              if (res.ok) {
+                new Notification({
+                  title: 'Goose',
+                  body: `Indexing complete: ${res.outputPath}`,
+                }).show();
+              } else {
+                new Notification({
+                  title: 'Goose',
+                  body: `Indexing failed${res.error ? `: ${res.error}` : ''}`,
+                }).show();
+              }
+            },
+          })
+        );
+      })();
+    } else {
+      log.info('[repo-index] ALPHA_FEATURES not enabled; hiding Index Repository menu item');
+    }
 
     // Add Recent Files submenu
     const recentFilesSubmenu = buildRecentFilesMenu();
@@ -2085,22 +2102,30 @@ app.whenReady().then(async () => {
       // Ensure the window has finished loading before attempting to access localStorage.
       if (win.webContents.isLoadingMainFrame()) {
         await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => reject(new Error('window load timeout waiting for config')), 4000);
+          const timeout = setTimeout(
+            () => reject(new Error('window load timeout waiting for config')),
+            4000
+          );
           win.webContents.once('did-finish-load', () => {
-            clearTimeout(timeout);
+            // Use globalThis to appease eslint no-undef in Node env
+            globalThis.clearTimeout(timeout);
             resolve();
           });
         });
       }
       // Resolve working dir from window config if not provided
-      let winConfig: any = {};
+      type WindowConfig = { GOOSE_WORKING_DIR?: string; [k: string]: unknown };
+      let winConfig: WindowConfig = {};
       try {
         const winConfigStr: string | null = await win.webContents.executeJavaScript(
           `localStorage.getItem('gooseConfig')`
         );
         winConfig = winConfigStr ? JSON.parse(winConfigStr) : {};
       } catch (cfgErr) {
-        console.warn('[repo-index] could not read window config, falling back to defaults:', cfgErr);
+        console.warn(
+          '[repo-index] could not read window config, falling back to defaults:',
+          cfgErr
+        );
       }
       const cwd: string =
         (opts.path && String(opts.path)) || winConfig.GOOSE_WORKING_DIR || process.cwd();
@@ -2141,16 +2166,26 @@ app.whenReady().then(async () => {
             if (code === 0) {
               let sizeInfo = '';
               try {
-                const st = fsSync.statSync(outPath);
-                sizeInfo = ` size=${st.size}B`;
-              } catch (_) {}
-              console.log(`[repo-index] completed successfully${sizeInfo} output=${outPath}`);
+                if (fsSync.existsSync(outPath)) {
+                  const st = fsSync.statSync(outPath);
+                  sizeInfo = ` size=${st.size}B`;
+                } else {
+                  sizeInfo = ' (in-memory; no file written)';
+                }
+              } catch (_) {
+                /* ignore */
+              }
+              console.log(
+                `[repo-index] completed successfully${sizeInfo}${fsSync.existsSync(outPath) ? ` output=${outPath}` : ''}`
+              );
               // Notify renderer + native notification
               try {
                 win.webContents.send('repo-index-complete', { ok: true, outputPath: outPath });
                 new Notification({
                   title: 'Repository Indexed',
-                  body: `Index written to ${path.basename(outPath)}`,
+                  body: fsSync.existsSync(outPath)
+                    ? `Index written to ${path.basename(outPath)}`
+                    : 'Index built in memory',
                 }).show();
               } catch (notifyErr) {
                 console.warn('[repo-index] failed to emit completion event:', notifyErr);

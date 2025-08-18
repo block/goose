@@ -1,4 +1,4 @@
-//! Integration tests for repo__build_index, repo__search, repo__stats tools.
+//! Integration tests for repo__search and repo__stats tools (auto-build path).
 //! These exercise the handlers directly (not full agent loop) to keep scope small.
 
 #[cfg(feature = "repo-index")]
@@ -7,29 +7,20 @@ mod repo_tool_tests {
     use goose::agents::repo_tools;
 
     #[tokio::test]
-    async fn build_then_stats_then_search() {
+    async fn stats_then_search_autobuild() {
         // Use repository root (current crate workspace) as test root.
         // In CI this should be fine; build will skip if already cached.
         let root = std::env::current_dir().unwrap();
         let root_str = root.to_string_lossy().to_string();
 
-        // Build index
-    let build_res = repo_tools::handle_repo_build(json!({
-            "root": root_str,
-            "force": true,
-            "langs": ["rust"]
-        })).await.expect("build index");
-        assert_eq!(build_res["status"], "built", "expected built status");
-        assert!(build_res["files_indexed"].as_u64().unwrap() > 0, "should index some files");
-
-        // Stats
-    let stats = repo_tools::handle_repo_stats(json!({"root": build_res["root"].clone()})).await.expect("stats");
+    // Stats (auto-build if missing)
+    let stats = repo_tools::handle_repo_stats(json!({"root": root_str, "langs": ["rust"]})).await.expect("stats");
         assert!(stats["files"].as_u64().unwrap() > 0, "files count");
         assert!(stats["entities"].as_u64().unwrap() > 0, "entities count");
 
         // Simple search for a known symbol (RepoIndexService itself)
     let search = repo_tools::handle_repo_query(json!({
-            "root": build_res["root"].clone(),
+        "root": stats["root"].clone(),
             "query": "RepoIndexService",
             "limit": 5,
             "show_score": true

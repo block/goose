@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use tracing::{info, instrument};
 
 #[cfg(feature = "repo-index")]
 use crate::repo_index::{RepoIndexOptions};
@@ -15,50 +16,30 @@ use crate::repo_index::service::RepoIndexService;
 use anyhow::{anyhow, Result};
 
 // Tool name constants
-pub const REPO_BUILD_TOOL_NAME: &str = "repo__build_index";
 pub const REPO_QUERY_TOOL_NAME: &str = "repo__search";
 pub const REPO_STATS_TOOL_NAME: &str = "repo__stats";
 
 #[derive(Clone)]
 struct CachedIndex {
     service: Arc<RepoIndexService>,
+    built_at: std::time::Instant,
 }
 
 #[cfg(feature = "repo-index")]
 static REPO_INDEX_CACHE: Lazy<RwLock<HashMap<PathBuf, CachedIndex>>> = Lazy::new(|| RwLock::new(HashMap::new()));
+// Per-root build locks to avoid duplicate concurrent builds
+static REPO_BUILD_LOCKS: Lazy<RwLock<HashMap<PathBuf, Arc<tokio::sync::Mutex<()>>>>> = Lazy::new(|| RwLock::new(HashMap::new()));
 
-pub fn repo_build_tool() -> Tool {
-    Tool::new(
-        REPO_BUILD_TOOL_NAME.to_string(),
-        indoc! {r#"
-            Build (or rebuild) the repository symbol index and graph for a given root directory.
-            Always call this first before attempting repo__search if an index may be stale or missing.
-            Provide an absolute or workspace-relative path. Optionally restrict languages.
-        "#}.to_string(),
-        object!({
-            "type": "object",
-            "required": ["root"],
-            "properties": {
-                "root": {"type": "string", "description": "Root directory to index"},
-                "langs": {"type": "array", "items": {"type": "string"}, "description": "Optional subset of languages to include"},
-                "force": {"type": "boolean", "description": "Force rebuild even if cached"}
-            }
-        })
-    ).annotate(ToolAnnotations {
-        title: Some("Build repository index".to_string()),
-        read_only_hint: Some(true),
-        destructive_hint: Some(false),
-        idempotent_hint: Some(false),
-        open_world_hint: Some(false),
-    })
-}
+// repo_build_tool removed: index will auto-build on first search
 
 pub fn repo_query_tool() -> Tool {
     Tool::new(
         REPO_QUERY_TOOL_NAME.to_string(),
         indoc! {r#"
-            Search repository symbols using fuzzy + rank blend and optionally expand call graph.
-            Use after repo__build_index. Provide a query string; you can request callers or callees traversal.
+            Search repository symbols (lazy auto-build). On first query or after TTL expiry the index
+            is (re)built automatically in-memory (no on-disk artifact) unless background indexing already
+            populated it. You can optionally restrict languages and request callers/callees traversal.
+            TTL (seconds) can be overridden via GOOSE_REPO_INDEX_TTL_SECS (default 600). Set to 0 to disable TTL refresh.
         "#}.to_string(),
         object!({
             "type": "object",
@@ -71,7 +52,8 @@ pub fn repo_query_tool() -> Tool {
                 "min_score": {"type": "number", "description": "Minimum blended score filter (0-1)"},
                 "show_score": {"type": "boolean", "description": "Include score details in result"},
                 "callers_depth": {"type": "integer", "description": "Depth of reverse call traversal per match"},
-                "callees_depth": {"type": "integer", "description": "Depth of forward call traversal per match"}
+                "callees_depth": {"type": "integer", "description": "Depth of forward call traversal per match"},
+                "langs": {"type": "array", "items": {"type": "string"}, "description": "Optional whitelist of language IDs (e.g. rust, python)."}
             }
         })
     ).annotate(ToolAnnotations {
@@ -86,12 +68,13 @@ pub fn repo_query_tool() -> Tool {
 pub fn repo_stats_tool() -> Tool {
     Tool::new(
         REPO_STATS_TOOL_NAME.to_string(),
-        "Get high-level statistics about an indexed repository including counts and rank weights.".to_string(),
+    "Get high-level statistics about a repository index (auto-builds if missing).".to_string(),
         object!({
             "type": "object",
             "required": ["root"],
             "properties": {
-                "root": {"type": "string", "description": "Indexed root"}
+        "root": {"type": "string", "description": "Repository root path"},
+        "langs": {"type": "array", "items": {"type": "string"}, "description": "Optional whitelist of language IDs if an auto-build occurs."}
             }
         })
     ).annotate(ToolAnnotations {
@@ -103,53 +86,9 @@ pub fn repo_stats_tool() -> Tool {
     })
 }
 
-#[cfg(feature = "repo-index")]
-pub async fn handle_repo_build(args: serde_json::Value) -> Result<serde_json::Value> {
-    let root_s = args["root"].as_str().ok_or_else(|| anyhow!("missing root"))?;
-    let root = Path::new(root_s).canonicalize().unwrap_or_else(|_| PathBuf::from(root_s));
-    let langs: Option<Vec<String>> = args["langs"].as_array().map(|a| a.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect());
-    let force = args["force"].as_bool().unwrap_or(false);
-    // Fast path: check cache before building heavy options; clone path for Send safety
-    let already_cached = {
-        let cache = REPO_INDEX_CACHE.read().await;
-        !force && cache.contains_key(&root)
-    };
-    if already_cached {
-        return Ok(serde_json::json!({"status":"cached","root":root,"message":"index already cached"}));
-    }
-
-    // Build options without holding references across await points
-    // Build options fully before any awaits so builder does not live across await points
-    let opts = {
-        let mut builder_local = RepoIndexOptions::builder();
-        builder_local = builder_local.root(&root);
-        if let Some(lang_list) = langs.as_ref() {
-            builder_local = builder_local.include_langs(lang_list.iter().map(|s| s.as_str()).collect());
-        }
-    // Provide a dummy file path sink (discard output). On Unix, use /dev/null.
-    #[cfg(target_family = "unix")]
-    let null_path = std::path::Path::new("/dev/null");
-    #[cfg(not(target_family = "unix"))]
-    let null_path = root.join(".goose_index_tmp.jsonl");
-    builder_local = builder_local.output_file(null_path);
-        builder_local.build()
-    };
-    let (svc, stats) = RepoIndexService::build(opts)?; // synchronous
-    let cached = CachedIndex { service: Arc::new(svc) };
-    {
-        let mut cache = REPO_INDEX_CACHE.write().await;
-        cache.insert(root.clone(), cached);
-    }
-    Ok(serde_json::json!({
-        "status":"built",
-        "root": root,
-        "files_indexed": stats.files_indexed,
-        "entities_indexed": stats.entities_indexed,
-        "duration_ms": stats.duration.as_millis()
-    }))
-}
 
 #[cfg(feature = "repo-index")]
+#[instrument(level = "info", skip(args), fields(root = %args.get("root").and_then(|v| v.as_str()).unwrap_or("?"), query = %args.get("query").and_then(|v| v.as_str()).unwrap_or("?")))]
 pub async fn handle_repo_query(args: serde_json::Value) -> Result<serde_json::Value> {
     use crate::repo_index::service::StoredEntity;
     let root_s = args["root"].as_str().ok_or_else(|| anyhow!("missing root"))?;
@@ -161,6 +100,48 @@ pub async fn handle_repo_query(args: serde_json::Value) -> Result<serde_json::Va
     let callers_depth = args["callers_depth"].as_u64().unwrap_or(0) as u32;
     let callees_depth = args["callees_depth"].as_u64().unwrap_or(0) as u32;
     let root = Path::new(root_s).canonicalize().unwrap_or_else(|_| PathBuf::from(root_s));
+    let langs: Option<Vec<String>> = args["langs"].as_array().map(|a| a.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect());
+
+    // TTL-based auto build
+    let ttl_secs: u64 = std::env::var("GOOSE_REPO_INDEX_TTL_SECS").ok().and_then(|v| v.parse().ok()).unwrap_or(600);
+    // Double-checked TTL + build lock
+    let mut need_build = false;
+    {
+        let cache = REPO_INDEX_CACHE.read().await;
+        if let Some(cached) = cache.get(&root) {
+            if ttl_secs > 0 && cached.built_at.elapsed().as_secs() >= ttl_secs { need_build = true; }
+        } else { need_build = true; }
+    }
+    if need_build {
+        // Acquire per-root build mutex
+        let lock_arc = {
+            let mut locks = REPO_BUILD_LOCKS.write().await;
+            locks.entry(root.clone()).or_insert_with(|| Arc::new(tokio::sync::Mutex::new(()))).clone()
+        };
+        let _g = lock_arc.lock().await; // wait for any ongoing build
+        // Re-check after acquiring lock
+        let mut do_build = false;
+        {
+            let cache = REPO_INDEX_CACHE.read().await;
+            if let Some(cached) = cache.get(&root) {
+                if ttl_secs > 0 && cached.built_at.elapsed().as_secs() >= ttl_secs { do_build = true; }
+            } else { do_build = true; }
+        }
+        if do_build {
+            let build_start = std::time::Instant::now();
+            let (svc, _stats) = {
+                let mut builder_local = RepoIndexOptions::builder();
+                builder_local = builder_local.root(&root);
+                if let Some(lang_list) = langs.as_ref() { builder_local = builder_local.include_langs(lang_list.iter().map(|s| s.as_str()).collect()); }
+                builder_local = builder_local.output_null();
+                RepoIndexService::build(builder_local.build())?
+            };
+            let mut cache = REPO_INDEX_CACHE.write().await;
+            cache.insert(root.clone(), CachedIndex { service: Arc::new(svc), built_at: std::time::Instant::now() });
+            let elapsed = build_start.elapsed();
+            info!(counter.goose.repo.builds = 1, event = "repo.index.build", root = %root.display(), duration_ms = elapsed.as_millis() as u64, ttl_secs, trigger = "query", "Repository index built (query path)");
+        }
+    }
 
     let svc = {
         let cache = REPO_INDEX_CACHE.read().await;
@@ -229,17 +210,45 @@ pub async fn handle_repo_query(args: serde_json::Value) -> Result<serde_json::Va
         if results.len() >= limit { break; }
     }
 
+    info!(counter.goose.repo.search_calls = 1, event = "repo.index.search", root = %root.display(), query, results = results.len(), exact_only, callers_depth, callees_depth, limit, "Repository search executed");
     Ok(serde_json::json!({"results": results}))
 }
 
 #[cfg(feature = "repo-index")]
+#[instrument(level = "info", skip(args), fields(root = %args.get("root").and_then(|v| v.as_str()).unwrap_or("?")))]
 pub async fn handle_repo_stats(args: serde_json::Value) -> Result<serde_json::Value> {
     let root_s = args["root"].as_str().ok_or_else(|| anyhow!("missing root"))?;
     let root = Path::new(root_s).canonicalize().unwrap_or_else(|_| PathBuf::from(root_s));
+    let langs: Option<Vec<String>> = args["langs"].as_array().map(|a| a.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect());
+
+    // If not cached, build (no TTL for stats path; on-demand only)
+    let exists = { REPO_INDEX_CACHE.read().await.contains_key(&root) };
+    if !exists {
+        let lock_arc = {
+            let mut locks = REPO_BUILD_LOCKS.write().await;
+            locks.entry(root.clone()).or_insert_with(|| Arc::new(tokio::sync::Mutex::new(()))).clone()
+        };
+        let _g = lock_arc.lock().await;
+        let exists2 = { REPO_INDEX_CACHE.read().await.contains_key(&root) };
+    if !exists2 {
+        let build_start = std::time::Instant::now();
+            let (svc, _stats) = {
+                let mut builder_local = RepoIndexOptions::builder();
+                builder_local = builder_local.root(&root).output_null();
+                if let Some(lang_list) = langs.as_ref() { builder_local = builder_local.include_langs(lang_list.iter().map(|s| s.as_str()).collect()); }
+                RepoIndexService::build(builder_local.build())?
+            };
+            let mut cache = REPO_INDEX_CACHE.write().await;
+            cache.insert(root.clone(), CachedIndex { service: Arc::new(svc), built_at: std::time::Instant::now() });
+        let elapsed = build_start.elapsed();
+            info!(counter.goose.repo.builds = 1, event = "repo.index.build", root = %root.display(), duration_ms = elapsed.as_millis() as u64, trigger = "stats", reason = "stats", "Repository index built (stats path)");
+        }
+    }
     let svc = {
         let cache = REPO_INDEX_CACHE.read().await;
         cache.get(&root).map(|c| c.service.clone())
-    }.ok_or_else(|| anyhow!("no cached index for root"))?;
+    }.ok_or_else(|| anyhow!("index build failed"))?;
+    info!(counter.goose.repo.stats_calls = 1, event = "repo.index.stats", root = %root.display(), files = svc.files.len(), entities = svc.entities.len(), "Repository stats collected");
     Ok(serde_json::json!({
         "root": root,
         "files": svc.files.len(),

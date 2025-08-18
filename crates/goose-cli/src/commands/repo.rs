@@ -1,18 +1,24 @@
 use anyhow::Result;
-use std::fs::File;
 use std::path::Path;
 
-/// Thin CLI wrapper delegating to the core repo index implementation (`goose::repo_index`).
-/// Keeps the CLI free from Tree-sitter details; feature-gated logic lives in the core crate.
-pub fn index_repository_with_args(root_path: &str, output_file: &str) -> Result<()> {
+pub fn status_repository(root_path: &str, json: bool) -> Result<()> {
     let root = Path::new(root_path);
-    let mut file = File::create(output_file)?;
-    let opts = goose::repo_index::RepoIndexOptions::builder()
-        .root(root)
-        .output_writer(&mut file)
-    // in future we could plumb CLI flags for filtering/progress here
-        .build();
-    let stats = goose::repo_index::index_repository(opts)?;
-    eprintln!("Indexed {} files / {} entities", stats.files_indexed, stats.entities_indexed);
+    let meta_path = root.join(".goose-repo-index.meta.json");
+    if !meta_path.exists() {
+    println!("No index meta file found (path {}). Enable ALPHA_FEATURES and allow an auto-build by using repo tools or start background indexing.", meta_path.display());
+        return Ok(());
+    }
+    let data = std::fs::read_to_string(&meta_path)?;
+    if json {
+        println!("{}", data);
+        return Ok(());
+    }
+    let v: serde_json::Value = serde_json::from_str(&data)?;
+    let files = v.get("files_indexed").and_then(|x| x.as_u64()).unwrap_or(0);
+    let ents = v.get("entities_indexed").and_then(|x| x.as_u64()).unwrap_or(0);
+    let dur = v.get("duration_ms").and_then(|x| x.as_u64()).unwrap_or(0);
+    let wrote = v.get("wrote_file").and_then(|x| x.as_bool()).unwrap_or(false);
+    let out_file = v.get("output_file").and_then(|x| x.as_str()).unwrap_or("-");
+    println!("Indexed {} files / {} entities in {}ms{}", files, ents, dur, if wrote { format!(" (file: {})", out_file) } else { " (in-memory)".to_string() });
     Ok(())
 }

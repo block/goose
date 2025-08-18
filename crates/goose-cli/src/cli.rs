@@ -274,25 +274,14 @@ enum RecipeCommand {
 
 #[derive(Subcommand)]
 enum RepoCommand {
-    #[command(about = "Index the repository and generate/update the repo map using Tree-sitter")]
-    Index {
-        /// Path to the root of the repository to index (default: current directory)
-        #[arg(
-            long,
-            value_name = "PATH",
-            help = "Path to the root of the repository to index",
-            default_value = "."
-        )]
+    #[command(about = "Show latest background or manual repository index status")]
+    Status {
+        /// Path to the root (default: current directory)
+        #[arg(long, value_name = "PATH", default_value = ".", help = "Path to repo root")]
         path: String,
-
-        /// Output file name (default: .goose-repo-index.jsonl)
-        #[arg(
-            long,
-            value_name = "FILE",
-            help = "Output file name",
-            default_value = ".goose-repo-index.jsonl"
-        )]
-        output: String,
+        /// Output as JSON
+        #[arg(long, help = "Emit raw JSON meta if available")]
+        json: bool,
     },
     #[command(about = "Query repository symbols (exact name match) using in-memory index")]
     Query {
@@ -796,12 +785,23 @@ pub struct RecipeInfo {
 pub async fn cli() -> Result<()> {
     let cli = Cli::parse();
 
+    // Fire-and-forget background repo indexing (auto) for qualifying commands.
+    // Only runs when ALPHA_FEATURES + not explicitly disabled via GOOSE_AUTO_INDEX=0.
+    // Safe to call early; function internally ensures single spawn.
+    #[cfg(feature = "repo-index")]
+    let _bg_index_handle = crate::background_index::spawn_background_index();
+
+    // Experimental gating: hide repo indexing commands unless ALPHA_FEATURES=true.
+    // We still compile the code (feature flag controls code inclusion) but we avoid
+    // exposing the subcommand at runtime for general users unless explicitly opted in.
+    let alpha_enabled = std::env::var("ALPHA_FEATURES").map(|v| v == "true").unwrap_or(false);
+
     let command_name = match &cli.command {
         Some(Command::Configure {}) => "configure",
         Some(Command::Info { .. }) => "info",
         Some(Command::Mcp { .. }) => "mcp",
         Some(Command::Session { .. }) => "session",
-        Some(Command::Repo { .. }) => "repo",
+        Some(Command::Repo { .. }) => if alpha_enabled { "repo" } else { "(repo-hidden)" },
         Some(Command::Project {}) => "project",
         Some(Command::Projects) => "projects",
         Some(Command::Run { .. }) => "run",
@@ -821,9 +821,13 @@ pub async fn cli() -> Result<()> {
 
     match cli.command {
         Some(Command::Repo { command }) => {
+            if !alpha_enabled {
+                eprintln!("Repository commands are experimental. Set ALPHA_FEATURES=true to enable.");
+                return Ok(());
+            }
             match command {
-                Some(RepoCommand::Index { path, output }) => {
-                    crate::commands::repo::index_repository_with_args(&path, &output)?;
+                Some(RepoCommand::Status { path, json }) => {
+                    crate::commands::repo::status_repository(&path, json)?;
                     return Ok(());
                 }
                 Some(RepoCommand::Query { path, symbol: _symbol, limit: _limit, docs: _docs, graph_depth: _graph_depth, exact_only: _exact_only, show_score: _show_score, min_score: _min_score }) => {
@@ -890,13 +894,9 @@ pub async fn cli() -> Result<()> {
                         return Ok(());
                     }
                 }
-                _ => {
-                    // Default to help or list in future
-                    println!("Usage: goose repo index --path <dir> --output <file>");
-                    return Ok(());
-                }
+                _ => { println!("Usage: goose repo status --path <dir> [--json]"); return Ok(()); }
             }
-        }
+    }
         Some(Command::Project {}) => {
             // TODO: implement project open behavior (placeholder)
             eprintln!("Project command not yet implemented");
@@ -1303,6 +1303,9 @@ pub async fn cli() -> Result<()> {
             return Ok(());
         }
         Some(Command::Web { port, host, open }) => {
+            // Ensure background index also active for web server lifecycle.
+            #[cfg(feature = "repo-index")]
+            { let _ = crate::background_index::spawn_background_index(); }
             crate::commands::web::handle_web(port, host, open).await?;
             return Ok(());
         }

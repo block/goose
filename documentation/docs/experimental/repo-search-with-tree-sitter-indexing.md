@@ -1,26 +1,159 @@
-# Repository Search with Tree-sitter Indexing (Experimental)
+---
+title: Repository Search with Tree-sitter Indexing
+sidebar_label: Repository Search (Experimental)
+sidebar_position: 5
+---
 
-> Experimental repository indexing: graph + PageRank + blended fuzzy symbol search across multiple languages.
+> Experimental: Gives Goose a structured understanding of your codebase so it can answer deeper questions (relationships, key entry points, symbol lookup) across multiple languages.
 
-## Overview
-The Goose repository indexing stack provides:
-- Incremental (build-time) Tree-sitter based parsing across multiple languages.
-- In-memory graph model (calls, containment, imports) with weighted PageRank centrality.
-- Fuzzy + rank blended symbol search with traversal (callers/callees) expansion.
-- Agent tools (`repo__build_index`, `repo__search`, `repo__stats`) for autonomous workflows.
-- CLI integration for ad‑hoc exploration.
+## What Is This?
+An internal capability the LLM agent uses (not something you routinely invoke) that scans the repository and keeps an in‑memory graph of symbols (functions, types, etc.) plus relationships (callers, callees, containment, imports). The agent consults this graph before or during multi‑step reasoning to choose better starting points and jump across code logically.
 
-This enables fast localization of relevant code entities, supports higher-level reasoning (e.g. impact analysis), and improves tool routing by surfacing influential symbols.
+## Why You Might Care
+| If you want to… | Indexing helps by… |
+|------------------|--------------------|
+| Find where to start in a large unfamiliar repo | Surfacing ranked "central" entry points |
+| Jump across a call chain while debugging | Providing callers / callees relationships |
+| Ask “Who uses X?” or “Where is Y defined?” | Resolving definitions & references quickly |
+| Reduce irrelevant file reads by the agent | Prioritizing important symbols first |
+| Work in a polyglot repo | Normalizing entities across languages |
 
+## Common Use Cases
+- On‑ramp to a new service: “List key entry points related to auth/session.”
+- Debugging a failing request path by traversing callers.
+- Estimating impact before a refactor (who calls this function?).
+- Quickly locating a type/struct/class whose name you only half remember.
+- Improving multi‑step agent plans that need good starting symbols.
+
+## Key Benefits (User View)
+| Benefit | What You Get |
+|---------|--------------|
+| Faster symbol lookup | Jump to definitions or related code quickly |
+| Call graph awareness | Ask about callers / callees of important functions |
+| Cross‑language support | Mixed repos (e.g. frontend TS + backend Rust + scripts) still index |
+| Better agent decisions | Improves tool routing & reduces irrelevant file reads |
+| Lightweight & local | Runs locally; no code leaves your machine |
+
+## When Does It Run?
+You generally do not run anything manually. The first time the agent needs structural code insight it transparently builds the index (in memory). A time‑to‑live (TTL, default 600s) triggers a silent refresh later. Optional background mode can pre‑warm the index. Manual CLI queries exist only for debugging.
+
+## Quick Start (Agent Focused)
+1. Enable experimental features:
+```
+export ALPHA_FEATURES=true
+```
+2. Start Goose (CLI, desktop, or web) and simply ask a structural question, e.g.:
+  “List key entry points handling scheduling logic” or “Who calls RepoIndexService::build?”
+3. The agent will auto‑build (first use) then answer using ranked symbols + call graph data.
+4. (Optional) Inspect status:
+```
+ALPHA_FEATURES=true goose repo status --path .
+ALPHA_FEATURES=true goose repo status --path . --json
+```
+5. (Optional, debugging) Run a direct symbol query outside the agent:
+```
+ALPHA_FEATURES=true goose repo query --path . --symbol AuthService
+```
+This bypasses reasoning and just prints raw matches – useful for verifying extraction.
+
+## Desktop UI (Optional Visibility)
+If the menu item “Index Repository (Tree-sitter)” is enabled (ALPHA_FEATURES), invoking it forces an immediate build; otherwise the agent will still build lazily on demand. For normal usage you can ignore the menu and just converse.
+
+## Supported Languages (Current)
+Rust, Python, JavaScript, TypeScript, Go, C#, Java, C++, Swift.
+
+## What Changes After Indexing?
+Before: Goose relies on ad‑hoc fuzzy text scans.  
+After: Goose can resolve symbol definitions, surface ranked “central” entities sooner, and traverse callers / callees for richer answers.
+
+## Example Output (Truncated)
+```
+ALPHA_FEATURES=true goose repo query --path . --symbol RepoIndexService --show-score
+{
+  "results": [
+    {
+      "name": "RepoIndexService",
+      "kind": "class",
+      "file": "crates/goose/src/repo_index/service.rs",
+      "rank": 0.0123,
+      "score": 0.94
+    }
+  ]
+}
+```
+
+## Enabling / Disabling
+- Set `ALPHA_FEATURES=true` to expose the feature (CLI + UI menu / background auto index). Unset it to hide.
+- Optional env for background behavior: `GOOSE_AUTO_INDEX=0` (disable), `GOOSE_AUTO_INDEX_WATCH=1` (enable watch), `GOOSE_AUTO_INDEX_WRITE_FILE=1` (persist JSONL on background runs).
+  - Status meta file: `.goose-repo-index.meta.json` (written after each background/manual run when ALPHA_FEATURES enabled)
+
+## Typical Workflow (Agent Centric)
+1. Open a project.
+2. Ask a question needing structural understanding.
+3. Agent triggers first build (transparent) and caches it.
+4. Further symbol questions use the cache; a refresh happens silently after TTL or via watch mode.
+5. Optionally inspect with `repo status` if you want confirmation or counts.
+
+## Troubleshooting
+| Issue | Fix |
+|-------|-----|
+| Menu item missing | Ensure `ALPHA_FEATURES=true` was exported before launching the UI |
+| CLI says experimental | Re-run with `ALPHA_FEATURES=true` prefixed |
+| Output file empty / tiny | Verify there are supported language files; check for glob‑ignored paths |
+| Slow first build | Large repos: allow full pass; subsequent builds reuse OS caches |
+
+## Limitations (User Level)
+- No automatic watch mode yet—rerun after large refactors.
+- Only symbol/function level granularity; variable/field level coverage is minimal in some languages.
+- Ranking heuristics are experimental and may change.
+
+## Want the Deep Dive?
+Full technical architecture, data model, ranking math, environment overrides, search scoring, and upgrade guidance live in the separate technical reference:
+
+➡️  See: [Repository Indexing Technical Reference](./repo-index-technical-reference)
+
+---
+*Experimental: interfaces and JSON output may change. Pin to a commit or feature‑gate usage in downstream tooling.*
+
+<!-- (Advanced content moved to repo-index-technical-reference.md) -->
+<!-- END -->
 ## Feature Flags & Stability
-All functionality is gated behind the Cargo feature `repo-index` (plus language specific `tree-sitter-*` features). The system is experimental; APIs and output schemas may evolve.
+The repository indexing system is experimental; APIs and output schemas may evolve. The Rust implementation currently builds in the `repo-index` code by default (via the CLI crate's dependency enabling the feature). Exposure to end users is controlled at runtime by the environment variable `ALPHA_FEATURES`.
+
+### Enabling the feature (current behavior)
+
+Runtime opt‑in only:
+
+1. Set `ALPHA_FEATURES=true` to expose the experimental CLI `repo` subcommands and the desktop UI menu item "Index Repository (Tree-sitter)".
+2. Launch the CLI / UI as usual.
+
+Examples:
+
+Enable for the desktop app during development:
+```
+export ALPHA_FEATURES=true
+cd ui/desktop
+npm run start-gui
+```
+
+Just recipe (if defined) for UI:
+```
+just run-ui-alpha   # assumes it exports ALPHA_FEATURES=true for you
+```
+
+Without `ALPHA_FEATURES=true` the agent falls back to lighter text heuristics only (no structured symbol graph) and the repo subcommands/menu stay hidden.
+
+### About the Cargo feature
+Internally the code is still feature‑gated with `repo-index` (plus language specific `tree-sitter-*` features). Because the CLI crate depends on the core crate with `features = ["repo-index"]`, workspace builds already compile the indexing code—no extra `--features` flag is required right now. If the project later decides to make the build truly optional (e.g. to reduce compile time or binary size) documentation will be updated with the explicit build command.
+
+If you are experimenting locally and want to trim unused grammars, you can manually adjust the dependency features and rebuild (advanced / not required for normal usage).
 
 ## Architecture at a Glance
 1. Tree-sitter extraction streams JSONL entities (legacy path retained).
 2. `RepoIndexService::build` loads entities into memory, constructs graphs, runs PageRank.
 3. Search layer blends lexical similarity with normalized rank for ordering.
-4. Agent tool layer exposes build/search/stats with lightweight caching.
-5. CLI & future UI layers consume agent or service APIs.
+4. Agent tool layer exposes search/stats (auto-build on demand) with caching.
+5. CLI / UI expose only thin debugging/status surfaces; normal users rely purely on agent behavior.
 
 ```
 +-------------+     +------------------+     +------------------+     +---------------------+
@@ -61,23 +194,11 @@ Filters / flags:
 - `--show-score` (surfaced in tool JSON)
 - Depth-limited traversal: callers / callees.
 
-## Agent Tools
-| Tool | Purpose | Key Arguments |
-|------|---------|---------------|
-| `repo__build_index` | Build + cache index | `root`, `langs[]`, `force` |
-| `repo__search` | Fuzzy + rank search | `root`, `query`, `limit`, `exact_only`, `min_score`, `show_score`, `callers_depth`, `callees_depth` |
-| `repo__stats` | Repo statistics | `root` |
-
-### Build Tool Output
-```
-{
-  "status": "built" | "cached",
-  "root": "/abs/path",
-  "files_indexed": <u64>,
-  "entities_indexed": <u64>,
-  "duration_ms": <u64>
-}
-```
+## Agent Tools (Internal)
+| Tool | Purpose (Agent) | Notes |
+|------|-----------------|-------|
+| `repo__search` | Retrieve ranked symbol matches + optional callers/callees | Triggers initial build if cache absent / expired |
+| `repo__stats` | Lightweight counts / weights (also auto-build) | Mainly for debugging & status surfacing |
 
 ### Search Tool Output
 ```
@@ -114,12 +235,11 @@ Filters / flags:
 }
 ```
 
-## CLI Usage (Examples)
+## Debug CLI Example
 ```
-# Build & search
-GOOSE_REPO_RANK_CALL_WEIGHT=1.2 goose repo build --root . --langs rust,python
-GOOSE_REPO_RANK_CALL_WEIGHT=1.2 goose repo query RepoIndexService --show-score --callers-depth 1
+ALPHA_FEATURES=true goose repo query --path . --symbol RepoIndexService --show-score --callers-depth 1
 ```
+Use only to inspect extraction / ranking; the agent already does this internally.
 
 ## Programmatic Build
 ```rust
@@ -133,8 +253,8 @@ let (svc, stats) = goose::repo_index::service::RepoIndexService::build(opts)?;
 println!("{} entities", stats.entities_indexed);
 ```
 
-## Caching Strategy
-Agent layer holds an in-memory cache keyed by canonical root path. `repo__build_index` returns `status="cached"` when fresh unless `force=true`.
+## Caching Strategy (Invisible to User)
+Per-root in-memory cache keyed by canonical path. First tool call builds; TTL (env `GOOSE_REPO_INDEX_TTL_SECS`, default 600) triggers rebuild on next access. Set TTL to 0 to pin the initial build.
 
 ## Limitations & Roadmap
 - No incremental / watch rebuild yet
@@ -209,6 +329,29 @@ Existing table lists defaults; implicit constraints retained here for clarity:
 - `GOOSE_REPO_RANK_ITERATIONS` in [1,200].
 
 ## Performance & Future Optimization Notes
+## Observability (Events & Metrics)
+The indexing layer emits structured tracing events you can forward to OTLP / Langfuse / logs. Each event includes stable fields for internal dashboards.
+
+| Event | When | Key Fields |
+|-------|------|------------|
+| `repo.index.build` | Any index build (lazy query, stats, background, watch) | `root`, `duration_ms`, `files`, `entities`, `trigger` (`query`\|`stats`\|`background`\|`watch`), `ttl_secs?`, `background` (bool) |
+| `repo.index.search` | After a symbol search completes | `root`, `query`, `results`, `limit`, `exact_only`, `callers_depth`, `callees_depth` |
+| `repo.index.stats` | After stats gathered | `root`, `files`, `entities` |
+
+Monotonic counters (prefixed via tracing metadata):
+| Counter | Increment Condition |
+|---------|---------------------|
+| `counter.goose.repo.builds` | Each successful build (any trigger) |
+| `counter.goose.repo.search_calls` | Each search invocation |
+| `counter.goose.repo.stats_calls` | Each stats invocation |
+
+Example log line (conceptual):
+```
+INFO event=repo.index.build counter.goose.repo.builds=1 root="/workspace" trigger="query" duration_ms=842 files=120 entities=1435 ttl_secs=600 Repository index built (query path)
+```
+
+Dashboards can chart: build durations (p95), search results count distribution, build frequency per root, time from process start to first build.
+
 Initial considerations (summarized):
 - Potential parallel parse (currently sequential/simple concurrency depending on implementation state).
 - String interning / arena allocation to reduce memory for large repos.
