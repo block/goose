@@ -26,12 +26,12 @@ let cfg = {
     // Document types for drag-and-drop support onto dock icon
     CFBundleDocumentTypes: [
       {
-        CFBundleTypeName: "Folders",
-        CFBundleTypeRole: "Viewer",
-        LSHandlerRank: "Alternate",
-        LSItemContentTypes: ["public.directory", "public.folder"]
-      }
-    ]
+        CFBundleTypeName: 'Folders',
+        CFBundleTypeRole: 'Viewer',
+        LSHandlerRank: 'Alternate',
+        LSItemContentTypes: ['public.directory', 'public.folder'],
+      },
+    ],
   },
 };
 
@@ -72,8 +72,9 @@ module.exports = {
         categories: ['Development'],
         mimeType: ['x-scheme-handler/goose'],
         options: {
-          icon: 'src/images/icon.png'
-        }
+          icon: 'src/images/icon.png',
+          arch: process.env.ELECTRON_ARCH || 'x64',
+        },
       },
     },
     {
@@ -85,8 +86,9 @@ module.exports = {
         homepage: 'https://block.github.io/goose/',
         categories: ['Development'],
         options: {
-          icon: 'src/images/icon.png'
-        }
+          icon: 'src/images/icon.png',
+          arch: process.env.ELECTRON_ARCH || 'x64',
+        },
       },
     },
   ],
