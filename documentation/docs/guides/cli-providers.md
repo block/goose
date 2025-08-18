@@ -9,9 +9,9 @@ description: Use Claude Code, Cursor Agent, or Gemini CLI subscriptions in Goose
 
 Goose can make use of pass-through providers that integrate with existing CLI tools from Anthropic, Cursor, and Google. These providers allow you to use your existing Claude Code, Cursor Agent, and Google Gemini CLI subscriptions through Goose's interface, adding session management, persistence, and workflow integration capabilities to these tools.
 
-:::warning
-
+:::warning Limitations
 These providers don’t fully support all Goose features, may have platform or capability limitations, and can sometimes require advanced debugging if issues arise. They’re included here purely as a convenience.
+:::
 
 ## Why Use CLI Providers?
 
