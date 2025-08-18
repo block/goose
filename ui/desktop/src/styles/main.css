@@ -741,3 +741,18 @@ p > code.bg-inline-code {
 [data-state='collapsed'] [data-slot='sidebar-gap'] {
   will-change: width;
 }
+
+/* Shimmer animation for onboarding card */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+}
+
