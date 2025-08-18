@@ -254,10 +254,92 @@ impl AutoVisualiserRouter {
         )
     }
 
+    fn create_show_chart_tool() -> Tool {
+        Tool::new(
+            "show_chart",
+            indoc! {r#"
+                Renders interactive line, scatter, or bar charts using Chart.js.
+                
+                Required: type ('line', 'scatter', or 'bar'), datasets array
+                Optional: labels, title, subtitle, xAxisLabel, yAxisLabel, options
+                
+                Example:
+                {
+                  "type": "line",
+                  "title": "Monthly Sales",
+                  "labels": ["Jan", "Feb", "Mar"],
+                  "datasets": [
+                    {"label": "Product A", "data": [65, 59, 80]}
+                  ]
+                }
+            "#},
+            object!({
+                "type": "object",
+                "required": ["data"],
+                "properties": {
+                    "data": {
+                        "type": "object",
+                        "required": ["type", "datasets"],
+                        "properties": {
+                            "type": {
+                                "type": "string",
+                                "enum": ["line", "scatter", "bar"]
+                            },
+                            "title": {"type": "string"},
+                            "subtitle": {"type": "string"},
+                            "xAxisLabel": {"type": "string"},
+                            "yAxisLabel": {"type": "string"},
+                            "labels": {
+                                "type": "array",
+                                "items": {"type": "string"}
+                            },
+                            "datasets": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "required": ["data"],
+                                    "properties": {
+                                        "label": {"type": "string"},
+                                        "data": {
+                                            "oneOf": [
+                                                {
+                                                    "type": "array",
+                                                    "items": {"type": "number"}
+                                                },
+                                                {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "required": ["x", "y"],
+                                                        "properties": {
+                                                            "x": {"type": "number"},
+                                                            "y": {"type": "number"}
+                                                        }
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        "backgroundColor": {"type": "string"},
+                                        "borderColor": {"type": "string"},
+                                        "borderWidth": {"type": "number"},
+                                        "tension": {"type": "number"},
+                                        "fill": {"type": "boolean"}
+                                    }
+                                }
+                            },
+                            "options": {"type": "object"}
+                        }
+                    }
+                }
+            }),
+        )
+    }
+
     pub fn new() -> Self {
         let render_sankey_tool = Self::create_sankey_tool();
         let render_radar_tool = Self::create_radar_tool();
         let render_donut_tool = Self::create_donut_tool();
+        let show_chart_tool = Self::create_show_chart_tool();
 
         // choose_app_strategy().cache_dir()
         // - macOS/Linux: ~/.cache/goose/autovisualiser/
@@ -278,6 +360,7 @@ impl AutoVisualiserRouter {
             - **render_sankey**: Creates interactive Sankey diagrams from flow data
             - **render_radar**: Creates interactive radar charts for multi-dimensional data comparison
             - **render_donut**: Creates interactive donut/pie charts for categorical data (supports multiple charts)
+            - **show_chart**: Creates interactive line, scatter, or bar charts for data visualization
 
             ## Purpose:
             This extension is designed to help generate dynamic visualizations and UI
@@ -288,7 +371,12 @@ impl AutoVisualiserRouter {
         "#, cache_dir.display()};
 
         Self {
-            tools: vec![render_sankey_tool, render_radar_tool, render_donut_tool],
+            tools: vec![
+                render_sankey_tool,
+                render_radar_tool,
+                render_donut_tool,
+                show_chart_tool,
+            ],
             cache_dir,
             active_resources: Arc::new(Mutex::new(HashMap::new())),
             instructions,
@@ -416,6 +504,46 @@ impl AutoVisualiserRouter {
 
         Ok(vec![Content::resource(resource_contents)])
     }
+
+    async fn show_chart(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        // Extract the data from parameters
+        let data = params
+            .get("data")
+            .ok_or_else(|| ToolError::InvalidParameters("Missing 'data' parameter".to_string()))?;
+
+        // Load all resources at compile time using include_str!
+        const TEMPLATE: &str = include_str!("chart_template.html");
+        const CHART_MIN: &str = include_str!("chart.min.js");
+
+        // Convert the data to JSON string
+        let data_json = serde_json::to_string(&data)
+            .map_err(|e| ToolError::InvalidParameters(format!("Invalid JSON data: {}", e)))?;
+
+        // Replace all placeholders with actual content
+        let html_content = TEMPLATE
+            .replace("{{CHART_MIN}}", CHART_MIN)
+            .replace("{{CHART_DATA}}", &data_json);
+
+        // Save to /tmp/chart.html for debugging
+        let debug_path = std::path::Path::new("/tmp/chart.html");
+        if let Err(e) = std::fs::write(debug_path, &html_content) {
+            tracing::warn!("Failed to write debug HTML to /tmp/chart.html: {}", e);
+        } else {
+            tracing::info!("Debug HTML saved to /tmp/chart.html");
+        }
+
+        // Use BlobResourceContents with base64 encoding to avoid JSON string escaping issues
+        let html_bytes = html_content.as_bytes();
+        let base64_encoded = STANDARD.encode(html_bytes);
+
+        let resource_contents = ResourceContents::BlobResourceContents {
+            uri: "ui://chart/interactive".to_string(),
+            mime_type: Some("text/html".to_string()),
+            blob: base64_encoded,
+        };
+
+        Ok(vec![Content::resource(resource_contents)])
+    }
 }
 
 impl Router for AutoVisualiserRouter {
@@ -451,6 +579,7 @@ impl Router for AutoVisualiserRouter {
                 "render_sankey" => this.render_sankey(arguments).await,
                 "render_radar" => this.render_radar(arguments).await,
                 "render_donut" => this.render_donut(arguments).await,
+                "show_chart" => this.show_chart(arguments).await,
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
         })
