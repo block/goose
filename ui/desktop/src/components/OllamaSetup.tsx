@@ -166,7 +166,7 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
             </div>
           ) : modelStatus === 'not-available' ? (
             <div className="space-y-4">
-              <div className="bg-background-warning/10 border border-border-warning rounded-lg p-4">
+              <div className="flex items-start mb-16">
                 <p className="text-text-warning text-sm">
                   The {getPreferredModel()} model is not installed
                 </p>
@@ -224,8 +224,8 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="bg-background-warning/10 border border-border-warning rounded-lg p-4">
-            <p className="text-text-warning">Ollama is not detected on your system</p>
+          <div className="flex items-start mb-16">
+            <span className="inline-block px-2 py-1 text-xs font-medium bg-orange-600 text-white rounded-full">Ollama is not detected on your system</span>
           </div>
 
           {isPolling ? (
