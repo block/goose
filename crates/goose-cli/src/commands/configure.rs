@@ -1179,7 +1179,7 @@ pub async fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
         .item(
             "goose_router_strategy",
             "Router Tool Selection Strategy",
-            "Configure the strategy for selecting tools to use (experimental)",
+            "Experimental: configure a strategy for auto selecting tools to use",
         )
         .item(
             "tool_permission",

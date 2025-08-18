@@ -236,7 +236,7 @@ mod tests {
         manager.set_system_prompt_override(malicious_override.to_string());
 
         let result =
-            manager.build_system_prompt(vec![], None, Value::String("".to_string()), None, None);
+            manager.build_system_prompt(vec![], None, Value::String("".to_string()), None, false);
 
         assert!(!result.contains('\u{E0041}'));
         assert!(!result.contains('\u{E0042}'));
@@ -252,7 +252,7 @@ mod tests {
         manager.add_system_prompt_extra(malicious_extra.to_string());
 
         let result =
-            manager.build_system_prompt(vec![], None, Value::String("".to_string()), None, None);
+            manager.build_system_prompt(vec![], None, Value::String("".to_string()), None, false);
 
         assert!(!result.contains('\u{E0041}'));
         assert!(!result.contains('\u{E0042}'));
@@ -269,7 +269,7 @@ mod tests {
         manager.add_system_prompt_extra("Third\u{E0043}instruction".to_string());
 
         let result =
-            manager.build_system_prompt(vec![], None, Value::String("".to_string()), None, None);
+            manager.build_system_prompt(vec![], None, Value::String("".to_string()), None, false);
 
         assert!(!result.contains('\u{E0041}'));
         assert!(!result.contains('\u{E0042}'));
@@ -286,7 +286,7 @@ mod tests {
         manager.add_system_prompt_extra(legitimate_unicode.to_string());
 
         let result =
-            manager.build_system_prompt(vec![], None, Value::String("".to_string()), None, None);
+            manager.build_system_prompt(vec![], None, Value::String("".to_string()), None, false);
 
         assert!(result.contains("世界"));
         assert!(result.contains("🌍"));
@@ -308,7 +308,7 @@ mod tests {
             None,
             Value::String("".to_string()),
             None,
-            None,
+            false,
         );
 
         assert!(!result.contains('\u{E0041}'));
