@@ -59,7 +59,8 @@ use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DEC
 use crate::agents::subagent_task_config::TaskConfig;
 use crate::agents::todo_tools::{
     // todo_read_tool, todo_write_tool, // TODO: Re-enable after next release
-    TODO_READ_TOOL_NAME, TODO_WRITE_TOOL_NAME,
+    TODO_READ_TOOL_NAME,
+    TODO_WRITE_TOOL_NAME,
 };
 use crate::conversation::message::{Message, ToolRequest};
 
