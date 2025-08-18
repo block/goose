@@ -131,7 +131,7 @@ The Gemini CLI provider integrates with Google's [Gemini CLI tool](https://ai.go
 
 3. **Configure goose**
 
-   set the provider environment variable:
+   Set the provider environment variable:
 
    ```bash
    export goose_provider=cursor-agent
