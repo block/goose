@@ -764,6 +764,48 @@ impl Session {
 
                     continue;
                 }
+                InputResult::IndexRepo(path_opt) => {
+                    save_history(&mut editor);
+                    let target = path_opt.unwrap_or_else(|| ".".to_string());
+                    println!("{}", console::style(format!("Indexing repository at {}...", target)).yellow());
+                    output::show_thinking();
+                    #[cfg(feature = "repo-index")]
+                    {
+                        let opts = goose::repo_index::RepoIndexOptions::builder()
+                            .root(std::path::Path::new(&target))
+                            .output_file(std::path::Path::new("/dev/null"))
+                            .build();
+                        match goose::repo_index::index_repository(opts) {
+                            Ok(stats) => {
+                                output::hide_thinking();
+                                println!(
+                                    "{}",
+                                    console::style(format!(
+                                        "Indexed {} files / {} entities in {:?}",
+                                        stats.files_indexed, stats.entities_indexed, stats.duration
+                                    ))
+                                    .green()
+                                );
+                            }
+                            Err(e) => {
+                                output::hide_thinking();
+                                println!(
+                                    "{}",
+                                    console::style(format!("Index failed: {}", e)).red()
+                                );
+                            }
+                        }
+                    }
+                    #[cfg(not(feature = "repo-index"))]
+                    {
+                        output::hide_thinking();
+                        println!(
+                            "{}",
+                            console::style("Goose was compiled without repo-index feature").red()
+                        );
+                    }
+                    continue;
+                }
             }
         }
 

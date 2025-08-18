@@ -9,6 +9,7 @@ pub mod prompt_template;
 pub mod providers;
 pub mod recipe;
 pub mod recipe_deeplink;
+pub mod repo_index; // feature-gated implementation inside module
 pub mod scheduler;
 pub mod scheduler_factory;
 pub mod scheduler_trait;

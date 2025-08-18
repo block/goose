@@ -30,7 +30,7 @@ use std::path::PathBuf;
 #[derive(Parser)]
 #[command(author, version, display_name = "", about, long_about = None)]
 struct Cli {
-    #[command(subcommand)]
+    #[clap(subcommand)]
     command: Option<Command>,
 }
 
@@ -273,6 +273,96 @@ enum RecipeCommand {
 }
 
 #[derive(Subcommand)]
+enum RepoCommand {
+    #[command(about = "Index the repository and generate/update the repo map using Tree-sitter")]
+    Index {
+        /// Path to the root of the repository to index (default: current directory)
+        #[arg(
+            long,
+            value_name = "PATH",
+            help = "Path to the root of the repository to index",
+            default_value = "."
+        )]
+        path: String,
+
+        /// Output file name (default: .goose-repo-index.jsonl)
+        #[arg(
+            long,
+            value_name = "FILE",
+            help = "Output file name",
+            default_value = ".goose-repo-index.jsonl"
+        )]
+        output: String,
+    },
+    #[command(about = "Query repository symbols (exact name match) using in-memory index")]
+    Query {
+        /// Path to the root of the repository to query (default: current directory)
+        #[arg(
+            long,
+            value_name = "PATH",
+            help = "Path to the root of the repository to index/query",
+            default_value = "."
+        )]
+        path: String,
+
+        /// Symbol name to search for (exact, case-insensitive)
+        #[arg(
+            value_name = "SYMBOL",
+            help = "Symbol name to search for (exact match, case-insensitive)"
+        )]
+        symbol: String,
+
+        /// Limit number of results
+        #[arg(
+            long = "limit",
+            value_name = "N",
+            help = "Limit number of results",
+            default_value = "20"
+        )]
+        limit: usize,
+
+        /// Include doc excerpt in output
+        #[arg(
+            long = "docs",
+            help = "Include first line of doc comment in output"
+        )]
+        docs: bool,
+
+        /// Depth to also print callers/callees (0 = none)
+        #[arg(
+            long = "graph-depth",
+            value_name = "DEPTH",
+            help = "Include callers/callees up to this depth (0 disables)",
+            default_value = "0"
+        )]
+        graph_depth: u32,
+
+        /// Force exact (case-insensitive) match only (disables fuzzy + rank blend)
+        #[arg(
+            long = "exact-only",
+            help = "Force exact match only (disable fuzzy search)"
+        )]
+        exact_only: bool,
+
+        /// Show blended fuzzy+rank score alongside rank
+        #[arg(
+            long = "show-score",
+            help = "Show blended fuzzy+rank score in output"
+        )]
+        show_score: bool,
+
+        /// Minimum blended score (0-1) required to include a result (applies only to fuzzy mode)
+        #[arg(
+            long = "min-score",
+            value_name = "FLOAT",
+            help = "Minimum blended score (0-1) to include a fuzzy result",
+            default_value = "0.0"
+        )]
+        min_score: f32,
+    },
+}
+
+#[derive(Subcommand)]
 enum Command {
     /// Configure Goose settings
     #[command(about = "Configure Goose settings")]
@@ -384,6 +474,21 @@ enum Command {
             value_delimiter = ','
         )]
         builtins: Vec<String>,
+    },
+
+    /// Open the last project directory
+    #[command(about = "Open the last project directory", visible_alias = "p")]
+    Project {},
+
+    /// List recent project directories
+    #[command(about = "List recent project directories", visible_alias = "ps")]
+    Projects,
+
+    /// Repository indexing and analysis
+    #[command(about = "Repository indexing and analysis tools")]
+    Repo {
+        #[command(subcommand)]
+        command: Option<RepoCommand>,
     },
 
     /// Execute commands from an instruction file
@@ -696,6 +801,9 @@ pub async fn cli() -> Result<()> {
         Some(Command::Info { .. }) => "info",
         Some(Command::Mcp { .. }) => "mcp",
         Some(Command::Session { .. }) => "session",
+        Some(Command::Repo { .. }) => "repo",
+        Some(Command::Project {}) => "project",
+        Some(Command::Projects) => "projects",
         Some(Command::Run { .. }) => "run",
         Some(Command::Schedule { .. }) => "schedule",
         Some(Command::Update { .. }) => "update",
@@ -712,6 +820,93 @@ pub async fn cli() -> Result<()> {
     );
 
     match cli.command {
+        Some(Command::Repo { command }) => {
+            match command {
+                Some(RepoCommand::Index { path, output }) => {
+                    crate::commands::repo::index_repository_with_args(&path, &output)?;
+                    return Ok(());
+                }
+                Some(RepoCommand::Query { path, symbol: _symbol, limit: _limit, docs: _docs, graph_depth: _graph_depth, exact_only: _exact_only, show_score: _show_score, min_score: _min_score }) => {
+                    // Build the in-memory index service and perform a query
+                    #[cfg(feature = "repo-index")]
+                    {
+                        use std::path::Path;
+                        use goose::repo_index::RepoIndexOptions;
+                        use goose::repo_index::service::RepoIndexService;
+                        // Build options using builder (no output file needed for in-memory service)
+                        let fake_output_path = Path::new("/dev/null"); // required by builder; service does its own walk
+                        let opts = RepoIndexOptions::builder()
+                            .root(Path::new(&path))
+                            .output_file(fake_output_path)
+                            .build();
+                        match RepoIndexService::build(opts) {
+                            Ok((svc, stats)) => {
+                                // Summaries to ensure variables are used (avoid unused warnings) and give context
+                                // (Only printed at verbose depth conditions to stay concise)
+                                // Determine search mode (fuzzy+rank vs exact)
+                                let mut scored: Vec<(f32, &goose::repo_index::service::StoredEntity)> = Vec::new();
+                                if !_exact_only {
+                                    let q = _symbol.to_lowercase();
+                                    let mut min_rank = f32::MAX; let mut max_rank = f32::MIN;
+                                    for e in &svc.entities { if e.rank < min_rank { min_rank = e.rank; } if e.rank > max_rank { max_rank = e.rank; } }
+                                    let rank_range = if (max_rank - min_rank).abs() < 1e-9 { 1.0 } else { max_rank - min_rank };
+                                    fn levenshtein(a:&str,b:&str)->usize{ let mut dp:Vec<usize>=(0..=b.len()).collect(); for (i,ca) in a.chars().enumerate(){ let mut prev=dp[0]; dp[0]=i+1; for (j,cb) in b.chars().enumerate(){ let temp=dp[j+1]; dp[j+1]= if ca==cb { prev } else { 1+prev.min(dp[j]).min(dp[j+1]) }; prev=temp; } } *dp.last().unwrap() }
+                                    for e in &svc.entities { if e.kind.as_str()=="file" { continue; } let name_lower=e.name.to_lowercase(); let mut lex=0.0f32; if name_lower==q { lex=1.0; } else if name_lower.starts_with(&q){ lex=0.8; } else if name_lower.contains(&q){ lex=0.5; } else { let d=levenshtein(&name_lower,&q); if d<=2 { lex=(0.3-0.1*d as f32).max(0.0);} } if lex>0.0 { let norm_rank=(e.rank-min_rank)/rank_range; let blended=lex*0.6+norm_rank*0.4; if blended >= _min_score { scored.push((blended,e)); } } }
+                                    scored.sort_by(|a,b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+                                    if scored.len() > _limit { scored.truncate(_limit); }
+                                }
+                                if _exact_only || scored.is_empty() {
+                                    let mut exact = svc.search_symbol_exact(&_symbol);
+                                    if exact.len() > _limit { exact.truncate(_limit); }
+                                    if exact.is_empty() {
+                                        println!("No matches for '{}' (indexed {} files, {} entities, path={})", _symbol, stats.files_indexed, stats.entities_indexed, path);
+                                        return Ok(());
+                                    }
+                                    println!("Top {} exact matches for '{}' (searched {} files / {} entities, path={})", exact.len(), _symbol, stats.files_indexed, stats.entities_indexed, path);
+                                    for e in exact.iter() { let file=&svc.files[e.file_id as usize]; if _docs { let doc_first=e.doc.as_deref().and_then(|d| d.lines().next()).unwrap_or(""); if doc_first.is_empty(){ println!("{:.4} {}:{}-{} | {} {} | {}", e.rank, file.path, e.start_line, e.end_line, e.kind.as_str(), e.name, e.signature);} else { println!("{:.4} {}:{}-{} | {} {} | {} // {}", e.rank, file.path, e.start_line, e.end_line, e.kind.as_str(), e.name, e.signature, doc_first);} } else { println!("{:.4} {}:{}-{} | {} {} | {}", e.rank, file.path, e.start_line, e.end_line, e.kind.as_str(), e.name, e.signature);} }
+                                    if _graph_depth > 0 { for e in exact.iter(){ let callees=svc.callees_up_to(e.id,_graph_depth); if !callees.is_empty(){ let names:Vec<&str>=callees.iter().filter_map(|id|svc.entities.get(*id as usize).map(|se|se.name.as_str())).take(15).collect(); println!("  {} callees(depth<= {}): {}", e.name,_graph_depth,names.join(", ")); } let callers=svc.callers_up_to(e.id,_graph_depth); if !callers.is_empty(){ let names:Vec<&str>=callers.iter().filter_map(|id|svc.entities.get(*id as usize).map(|se|se.name.as_str())).take(15).collect(); println!("  {} callers(depth<= {}): {}", e.name,_graph_depth,names.join(", ")); } } }
+                                } else {
+                                    println!("Top {} fuzzy+rank matches for '{}' (min_score={} searched {} files / {} entities, path={})", scored.len(), _symbol, _min_score, stats.files_indexed, stats.entities_indexed, path);
+                                    for (score,e) in scored.iter() { let file=&svc.files[e.file_id as usize]; if _docs { let doc_first=e.doc.as_deref().and_then(|d| d.lines().next()).unwrap_or(""); if doc_first.is_empty(){ if _show_score { println!("{:.4} {:.4} {}:{}-{} | {} {} | {}", e.rank, score, file.path, e.start_line, e.end_line, e.kind.as_str(), e.name, e.signature);} else { println!("{:.4} {}:{}-{} | {} {} | {}", e.rank, file.path, e.start_line, e.end_line, e.kind.as_str(), e.name, e.signature);} } else { if _show_score { println!("{:.4} {:.4} {}:{}-{} | {} {} | {} // {}", e.rank, score, file.path, e.start_line, e.end_line, e.kind.as_str(), e.name, e.signature, doc_first);} else { println!("{:.4} {}:{}-{} | {} {} | {} // {}", e.rank, file.path, e.start_line, e.end_line, e.kind.as_str(), e.name, e.signature, doc_first);} } } else { if _show_score { println!("{:.4} {:.4} {}:{}-{} | {} {} | {}", e.rank, score, file.path, e.start_line, e.end_line, e.kind.as_str(), e.name, e.signature);} else { println!("{:.4} {}:{}-{} | {} {} | {}", e.rank, file.path, e.start_line, e.end_line, e.kind.as_str(), e.name, e.signature);} } }
+                                    if _graph_depth > 0 { for (_,e) in scored.iter(){ let callees=svc.callees_up_to(e.id,_graph_depth); if !callees.is_empty(){ let names:Vec<&str>=callees.iter().filter_map(|id|svc.entities.get(*id as usize).map(|se|se.name.as_str())).take(15).collect(); println!("  {} callees(depth<= {}): {}", e.name,_graph_depth,names.join(", ")); } let callers=svc.callers_up_to(e.id,_graph_depth); if !callers.is_empty(){ let names:Vec<&str>=callers.iter().filter_map(|id|svc.entities.get(*id as usize).map(|se|se.name.as_str())).take(15).collect(); println!("  {} callers(depth<= {}): {}", e.name,_graph_depth,names.join(", ")); } } }
+                                }
+                                // Summarize unresolved imports count as additional context using path just for display
+                                let unresolved_total: usize = svc.unresolved_imports.iter().map(|v| v.len()).sum();
+                                if unresolved_total > 0 {
+                                    println!("Unresolved imports across repo ({}): {}", path, unresolved_total);
+                                }
+                            }
+                            Err(err) => {
+                                eprintln!("Query failed: {err}");
+                            }
+                        }
+                        return Ok(());
+                    }
+                    #[cfg(not(feature = "repo-index"))]
+                    {
+                        // Mark variable as used to avoid unused warning when feature is disabled
+                        let _ = &path;
+                        eprintln!("Repo query requires building with --features repo-index");
+                        return Ok(());
+                    }
+                }
+                _ => {
+                    // Default to help or list in future
+                    println!("Usage: goose repo index --path <dir> --output <file>");
+                    return Ok(());
+                }
+            }
+        }
+        Some(Command::Project {}) => {
+            // TODO: implement project open behavior (placeholder)
+            eprintln!("Project command not yet implemented");
+            return Ok(());
+        }
+        Some(Command::Projects) => {
+            // TODO: implement projects listing behavior (placeholder)
+            eprintln!("Projects command not yet implemented");
+            return Ok(());
+        }
         Some(Command::Configure {}) => {
             let _ = handle_configure().await;
             return Ok(());
