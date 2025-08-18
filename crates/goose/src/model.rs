@@ -114,7 +114,7 @@ impl ModelConfig {
         custom_env_var: Option<&str>,
     ) -> Result<Option<usize>, ConfigError> {
         let config = crate::config::Config::global();
-        
+
         // Try custom env var first
         if let Some(env_var) = custom_env_var {
             match config.get_param::<String>(env_var) {
@@ -169,7 +169,7 @@ impl ModelConfig {
                 }
             }
         }
-        
+
         // Try default GOOSE_CONTEXT_LIMIT
         match config.get_param::<String>("GOOSE_CONTEXT_LIMIT") {
             Ok(val) => {
@@ -215,21 +215,17 @@ impl ModelConfig {
                     }
                 }
             }
-            Err(e) => {
-                Err(ConfigError::InvalidValue(
-                    "GOOSE_CONTEXT_LIMIT".to_string(),
-                    "unknown".to_string(),
-                    format!("config error: {}", e),
-                ))
-            }
+            Err(e) => Err(ConfigError::InvalidValue(
+                "GOOSE_CONTEXT_LIMIT".to_string(),
+                "unknown".to_string(),
+                format!("config error: {}", e),
+            )),
         }
     }
 
-
-
     fn parse_temperature() -> Result<Option<f32>, ConfigError> {
         let config = crate::config::Config::global();
-        
+
         // Try to get as string first to capture the original value for error reporting
         match config.get_param::<String>("GOOSE_TEMPERATURE") {
             Ok(val) => {
@@ -288,7 +284,7 @@ impl ModelConfig {
 
     fn parse_max_tokens() -> Result<Option<i32>, ConfigError> {
         let config = crate::config::Config::global();
-        
+
         // First try to get as string to capture the original value
         match config.get_param::<String>("GOOSE_MAX_TOKENS") {
             Ok(val) => {
@@ -347,20 +343,18 @@ impl ModelConfig {
 
     fn parse_toolshim() -> Result<bool, ConfigError> {
         let config = crate::config::Config::global();
-        
+
         // First try to get as string for validation
         match config.get_param::<String>("GOOSE_TOOLSHIM") {
-            Ok(val) => {
-                match val.to_lowercase().as_str() {
-                    "1" | "true" | "yes" | "on" => Ok(true),
-                    "0" | "false" | "no" | "off" => Ok(false),
-                    _ => Err(ConfigError::InvalidValue(
-                        "GOOSE_TOOLSHIM".to_string(),
-                        val,
-                        "must be one of: 1, true, yes, on, 0, false, no, off".to_string(),
-                    )),
-                }
-            }
+            Ok(val) => match val.to_lowercase().as_str() {
+                "1" | "true" | "yes" | "on" => Ok(true),
+                "0" | "false" | "no" | "off" => Ok(false),
+                _ => Err(ConfigError::InvalidValue(
+                    "GOOSE_TOOLSHIM".to_string(),
+                    val,
+                    "must be one of: 1, true, yes, on, 0, false, no, off".to_string(),
+                )),
+            },
             Err(crate::config::ConfigError::NotFound(_)) => {
                 // Not found is OK, means it's not set
                 Ok(false)
@@ -393,7 +387,7 @@ impl ModelConfig {
 
     fn parse_toolshim_model() -> Result<Option<String>, ConfigError> {
         let config = crate::config::Config::global();
-        
+
         match config.get_param::<String>("GOOSE_TOOLSHIM_OLLAMA_MODEL") {
             Ok(val) if val.trim().is_empty() => Err(ConfigError::InvalidValue(
                 "GOOSE_TOOLSHIM_OLLAMA_MODEL".to_string(),
@@ -454,20 +448,23 @@ impl ModelConfig {
     }
 
     pub fn new_or_fail(model_name: &str) -> ModelConfig {
-        ModelConfig::new(model_name)
-            .unwrap_or_else(|err| {
-                // For tests and backwards compatibility, try creating a basic config
-                // if validation fails, but log the error
-                tracing::warn!("Failed to create validated model config for {}: {}. Creating basic config.", model_name, err);
-                ModelConfig {
-                    model_name: model_name.to_string(),
-                    context_limit: Self::get_model_specific_limit(model_name),
-                    temperature: None,
-                    max_tokens: None,
-                    toolshim: false,
-                    toolshim_model: None,
-                }
-            })
+        ModelConfig::new(model_name).unwrap_or_else(|err| {
+            // For tests and backwards compatibility, try creating a basic config
+            // if validation fails, but log the error
+            tracing::warn!(
+                "Failed to create validated model config for {}: {}. Creating basic config.",
+                model_name,
+                err
+            );
+            ModelConfig {
+                model_name: model_name.to_string(),
+                context_limit: Self::get_model_specific_limit(model_name),
+                temperature: None,
+                max_tokens: None,
+                toolshim: false,
+                toolshim_model: None,
+            }
+        })
     }
 }
 
@@ -593,7 +590,7 @@ mod tests {
                 ConfigError::InvalidRange(var, msg) => {
                     assert_eq!(var, "GOOSE_MAX_TOKENS");
                     assert!(msg.contains("greater than 0"));
-                },
+                }
                 other => {
                     panic!("Expected InvalidRange error, got: {:?}", other);
                 }
@@ -607,7 +604,7 @@ mod tests {
                 ConfigError::InvalidRange(var, msg) => {
                     assert_eq!(var, "GOOSE_MAX_TOKENS");
                     assert!(msg.contains("greater than 0"));
-                },
+                }
                 other => {
                     panic!("Expected InvalidRange error, got: {:?}", other);
                 }
