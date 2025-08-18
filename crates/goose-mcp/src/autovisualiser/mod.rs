@@ -31,8 +31,8 @@ impl Default for AutoVisualiserRouter {
 }
 
 impl AutoVisualiserRouter {
-    pub fn new() -> Self {
-        let render_sankey_tool = Tool::new(
+    fn create_sankey_tool() -> Tool {
+        Tool::new(
             "render_sankey",
             indoc! {r#"
                 Renders a Sankey diagram visualization from flow data.
@@ -88,7 +88,73 @@ impl AutoVisualiserRouter {
                     }
                 }
             }),
-        );
+        )
+    }
+
+    fn create_radar_tool() -> Tool {
+        Tool::new(
+            "render_radar",
+            indoc! {r#"
+                Renders a radar chart (spider chart) visualization for multi-dimensional data comparison.
+                Returns an interactive HTML visualization using Chart.js.
+                
+                The data should contain:
+                - labels: Array of strings representing the dimensions/axes
+                - datasets: Array of dataset objects with 'label' and 'data' properties
+                
+                Example:
+                {
+                  "labels": ["Speed", "Strength", "Endurance", "Agility", "Intelligence"],
+                  "datasets": [
+                    {
+                      "label": "Player 1",
+                      "data": [85, 70, 90, 75, 80]
+                    },
+                    {
+                      "label": "Player 2", 
+                      "data": [75, 85, 80, 90, 70]
+                    }
+                  ]
+                }
+            "#},
+            object!({
+                "type": "object",
+                "required": ["data"],
+                "properties": {
+                    "data": {
+                        "type": "object",
+                        "required": ["labels", "datasets"],
+                        "properties": {
+                            "labels": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "datasets": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "required": ["label", "data"],
+                                    "properties": {
+                                        "label": {"type": "string"},
+                                        "data": {
+                                            "type": "array",
+                                            "items": {"type": "number"}
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }),
+        )
+    }
+
+    pub fn new() -> Self {
+        let render_sankey_tool = Self::create_sankey_tool();
+        let render_radar_tool = Self::create_radar_tool();
 
         // choose_app_strategy().cache_dir()
         // - macOS/Linux: ~/.cache/goose/autovisualiser/
@@ -107,6 +173,7 @@ impl AutoVisualiserRouter {
 
             ## Available Tools:
             - **render_sankey**: Creates interactive Sankey diagrams from flow data
+            - **render_radar**: Creates interactive radar charts for multi-dimensional data comparison
 
             ## Purpose:
             This extension is designed to help generate dynamic visualizations and UI
@@ -117,13 +184,12 @@ impl AutoVisualiserRouter {
         "#, cache_dir.display()};
 
         Self {
-            tools: vec![render_sankey_tool],
+            tools: vec![render_sankey_tool, render_radar_tool],
             cache_dir,
             active_resources: Arc::new(Mutex::new(HashMap::new())),
             instructions,
         }
     }
-
 
     async fn render_sankey(&self, params: Value) -> Result<Vec<Content>, ToolError> {
         // Extract the data from parameters
@@ -166,6 +232,46 @@ impl AutoVisualiserRouter {
 
         Ok(vec![Content::resource(resource_contents)])
     }
+
+    async fn render_radar(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        // Extract the data from parameters
+        let data = params
+            .get("data")
+            .ok_or_else(|| ToolError::InvalidParameters("Missing 'data' parameter".to_string()))?;
+
+        // Load all resources at compile time using include_str!
+        const TEMPLATE: &str = include_str!("radar_template.html");
+        const CHART_MIN: &str = include_str!("chart.min.js");
+
+        // Convert the data to JSON string
+        let data_json = serde_json::to_string(&data)
+            .map_err(|e| ToolError::InvalidParameters(format!("Invalid JSON data: {}", e)))?;
+
+        // Replace all placeholders with actual content
+        let html_content = TEMPLATE
+            .replace("{{CHART_MIN}}", CHART_MIN)
+            .replace("{{RADAR_DATA}}", &data_json);
+
+        // Save to /tmp/radar.html for debugging
+        let debug_path = std::path::Path::new("/tmp/radar.html");
+        if let Err(e) = std::fs::write(debug_path, &html_content) {
+            tracing::warn!("Failed to write debug HTML to /tmp/radar.html: {}", e);
+        } else {
+            tracing::info!("Debug HTML saved to /tmp/radar.html");
+        }
+
+        // Use BlobResourceContents with base64 encoding to avoid JSON string escaping issues
+        let html_bytes = html_content.as_bytes();
+        let base64_encoded = STANDARD.encode(html_bytes);
+
+        let resource_contents = ResourceContents::BlobResourceContents {
+            uri: "ui://radar/chart".to_string(),
+            mime_type: Some("text/html".to_string()),
+            blob: base64_encoded,
+        };
+
+        Ok(vec![Content::resource(resource_contents)])
+    }
 }
 
 impl Router for AutoVisualiserRouter {
@@ -199,6 +305,7 @@ impl Router for AutoVisualiserRouter {
         Box::pin(async move {
             match tool_name.as_str() {
                 "render_sankey" => this.render_sankey(arguments).await,
+                "render_radar" => this.render_radar(arguments).await,
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
         })
