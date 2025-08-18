@@ -3,6 +3,7 @@ pub mod configure;
 pub mod info;
 pub mod mcp;
 pub mod recipe;
+pub mod repo;
 pub mod schedule;
 pub mod session;
 pub mod update;

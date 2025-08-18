@@ -1,84 +1,53 @@
-import type { OpenDialogOptions, OpenDialogReturnValue } from 'electron';
 import {
   app,
-  App,
+  session,
   BrowserWindow,
   dialog,
-  Event,
-  globalShortcut,
   ipcMain,
   Menu,
   MenuItem,
   Notification,
   powerSaveBlocker,
-  session,
-  shell,
   Tray,
+  App,
+  globalShortcut,
+  Event,
 } from 'electron';
+import type { OpenDialogReturnValue } from 'electron';
 import { Buffer } from 'node:buffer';
-import { MouseUpEvent } from './types/electron';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import started from 'electron-squirrel-startup';
 import path from 'node:path';
-import os from 'node:os';
-import { spawn } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import 'dotenv/config';
 import { startGoosed } from './goosed';
-import { expandTilde, getBinaryPath } from './utils/pathUtils';
+import { getBinaryPath } from './utils/pathUtils';
 import { loadShellEnv } from './utils/loadEnv';
 import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
 import {
+  createEnvironmentMenu,
   EnvToggles,
   loadSettings,
   saveSettings,
-  SchedulingEngine,
   updateEnvironmentVariables,
   updateSchedulingEngineEnvironment,
+  SchedulingEngine,
 } from './utils/settings';
 import * as crypto from 'crypto';
-// import electron from "electron";
+import * as electron from 'electron';
 import * as yaml from 'yaml';
 import windowStateKeeper from 'electron-window-state';
 import {
-  getUpdateAvailable,
+  setupAutoUpdater,
   registerUpdateIpcHandlers,
   setTrayRef,
-  setupAutoUpdater,
   updateTrayMenu,
+  getUpdateAvailable,
 } from './utils/autoUpdater';
 import { UPDATES_ENABLED } from './updates';
-import { Recipe } from './recipe';
-import './utils/recipeHash';
-
-// API URL constructor for main process before window is ready
-function getApiUrlMain(endpoint: string, dynamicPort: number): string {
-  const host = process.env.GOOSE_API_HOST || 'http://127.0.0.1';
-  const port = dynamicPort || process.env.GOOSE_PORT;
-  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  return `${host}:${port}${cleanEndpoint}`;
-}
-
-// When opening the app with a deeplink, the window is still initializing so we have to duplicate some window dependant logic here.
-async function decodeRecipeMain(deeplink: string, port: number): Promise<Recipe | null> {
-  try {
-    const response = await fetch(getApiUrlMain('/recipes/decode', port), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ deeplink }),
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      return data.recipe;
-    }
-  } catch (error) {
-    console.error('Failed to decode recipe:', error);
-  }
-  return null;
-}
 
 // Updater functions (moved here to keep updates.ts minimal for release replacement)
 function shouldSetupUpdater(): boolean {
@@ -163,28 +132,7 @@ async function ensureTempDirExists(): Promise<string> {
 
 if (started) app.quit();
 
-// In development mode, force registration as the default protocol client
-// In production, register normally
-if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-  // Development mode - force registration
-  console.log('[Main] Development mode: Forcing protocol registration for goose://');
-  app.setAsDefaultProtocolClient('goose');
-
-  if (process.platform === 'darwin') {
-    try {
-      // Reset the default handler to ensure dev version takes precedence
-      spawn('open', ['-a', process.execPath, '--args', '--reset-protocol-handler', 'goose'], {
-        detached: true,
-        stdio: 'ignore',
-      });
-    } catch (error) {
-      console.warn('[Main] Could not reset protocol handler:', error);
-    }
-  }
-} else {
-  // Production mode - normal registration
-  app.setAsDefaultProtocolClient('goose');
-}
+app.setAsDefaultProtocolClient('goose');
 
 // Only apply single instance lock on Windows where it's needed for deep links
 let gotTheLock = true;
@@ -198,26 +146,34 @@ if (process.platform === 'win32') {
       const protocolUrl = commandLine.find((arg) => arg.startsWith('goose://'));
       if (protocolUrl) {
         const parsedUrl = new URL(protocolUrl);
+
         // If it's a bot/recipe URL, handle it directly by creating a new window
         if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
-          app.whenReady().then(async () => {
+          app.whenReady().then(() => {
             const recentDirs = loadRecentDirs();
             const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
-            const recipeDeeplink = parsedUrl.searchParams.get('config');
-            const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
+            let recipeConfig = null;
+            const configParam = parsedUrl.searchParams.get('config');
+            if (configParam) {
+              try {
+                recipeConfig = JSON.parse(
+                  Buffer.from(decodeURIComponent(configParam), 'base64').toString('utf-8')
+                );
 
-            createChat(
-              app,
-              undefined,
-              openDir || undefined,
-              undefined,
-              undefined,
-              undefined,
-              undefined,
-              recipeDeeplink || undefined,
-              scheduledJobId || undefined
-            );
+                // Check if this is a scheduled job
+                const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
+                if (scheduledJobId) {
+                  console.log(`[main] Opening scheduled job: ${scheduledJobId}`);
+                  recipeConfig.scheduledJobId = scheduledJobId;
+                  recipeConfig.isScheduledExecution = true;
+                }
+              } catch (e) {
+                console.error('Failed to parse bot config:', e);
+              }
+            }
+
+            createChat(app, undefined, openDir || undefined, undefined, undefined, recipeConfig);
           });
           return; // Skip the rest of the handler
         }
@@ -266,7 +222,7 @@ async function handleProtocolUrl(url: string) {
       existingWindows.length > 0
         ? existingWindows[0]
         : await createChat(app, undefined, openDir || undefined);
-    await processProtocolUrl(parsedUrl, targetWindow);
+    processProtocolUrl(parsedUrl, targetWindow);
   } else {
     // For other URL types, reuse existing window if available
     const existingWindows = BrowserWindow.getAllWindows();
@@ -283,17 +239,17 @@ async function handleProtocolUrl(url: string) {
     if (firstOpenWindow) {
       const webContents = firstOpenWindow.webContents;
       if (webContents.isLoadingMainFrame()) {
-        webContents.once('did-finish-load', async () => {
-          await processProtocolUrl(parsedUrl, firstOpenWindow);
+        webContents.once('did-finish-load', () => {
+          processProtocolUrl(parsedUrl, firstOpenWindow);
         });
       } else {
-        await processProtocolUrl(parsedUrl, firstOpenWindow);
+        processProtocolUrl(parsedUrl, firstOpenWindow);
       }
     }
   }
 }
 
-async function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
+function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
   const recentDirs = loadRecentDirs();
   const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
@@ -302,21 +258,27 @@ async function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
   } else if (parsedUrl.hostname === 'sessions') {
     window.webContents.send('open-shared-session', pendingDeepLink);
   } else if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
-    const recipeDeeplink = parsedUrl.searchParams.get('config');
-    const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
+    let recipeConfig = null;
+    const configParam = parsedUrl.searchParams.get('config');
+    if (configParam) {
+      try {
+        recipeConfig = JSON.parse(
+          Buffer.from(decodeURIComponent(configParam), 'base64').toString('utf-8')
+        );
 
+        // Check if this is a scheduled job
+        const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
+        if (scheduledJobId) {
+          console.log(`[main] Opening scheduled job: ${scheduledJobId}`);
+          recipeConfig.scheduledJobId = scheduledJobId;
+          recipeConfig.isScheduledExecution = true;
+        }
+      } catch (e) {
+        console.error('Failed to parse bot config:', e);
+      }
+    }
     // Create a new window and ignore the passed-in window
-    createChat(
-      app,
-      undefined,
-      openDir || undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      recipeDeeplink || undefined,
-      scheduledJobId || undefined
-    );
+    createChat(app, undefined, openDir || undefined, undefined, undefined, recipeConfig);
   }
   pendingDeepLink = null;
 }
@@ -328,24 +290,28 @@ app.on('open-url', async (_event, url) => {
     const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
     // Handle bot/recipe URLs by directly creating a new window
-    console.log('[Main] Received open-url event:', url);
     if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
-      console.log('[Main] Detected bot/recipe URL, creating new chat window');
-      const recipeDeeplink = parsedUrl.searchParams.get('config');
-      const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
+      let recipeConfig = null;
+      const configParam = parsedUrl.searchParams.get('config');
+      const base64 = decodeURIComponent(configParam || '');
+      if (configParam) {
+        try {
+          recipeConfig = JSON.parse(Buffer.from(base64, 'base64').toString('utf-8'));
+
+          // Check if this is a scheduled job
+          const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
+          if (scheduledJobId) {
+            console.log(`[main] Opening scheduled job: ${scheduledJobId}`);
+            recipeConfig.scheduledJobId = scheduledJobId;
+            recipeConfig.isScheduledExecution = true;
+          }
+        } catch (e) {
+          console.error('Failed to parse bot config:', e);
+        }
+      }
 
       // Create a new window directly
-      await createChat(
-        app,
-        undefined,
-        openDir || undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        recipeDeeplink || undefined,
-        scheduledJobId || undefined
-      );
+      await createChat(app, undefined, openDir || undefined, undefined, undefined, recipeConfig);
       return; // Skip the rest of the handler
     }
 
@@ -456,11 +422,13 @@ const getGooseProvider = () => {
   //{env-macro-start}//
   //needed when goose is bundled for a specific provider
   //{env-macro-end}//
-  return [
-    process.env.GOOSE_DEFAULT_PROVIDER,
-    process.env.GOOSE_DEFAULT_MODEL,
-    process.env.GOOSE_PREDEFINED_MODELS,
-  ];
+  return [process.env.GOOSE_DEFAULT_PROVIDER, process.env.GOOSE_DEFAULT_MODEL];
+};
+
+const generateSecretKey = () => {
+  const key = crypto.randomBytes(32).toString('hex');
+  process.env.GOOSE_SERVER__SECRET_KEY = key;
+  return key;
 };
 
 const getSharingUrl = () => {
@@ -478,33 +446,35 @@ const getVersion = () => {
   return process.env.GOOSE_VERSION;
 };
 
-const [provider, model, predefinedModels] = getGooseProvider();
+let [provider, model] = getGooseProvider();
 
-const sharingUrl = getSharingUrl();
+let sharingUrl = getSharingUrl();
 
-const gooseVersion = getVersion();
-
-const SERVER_SECRET = process.env.GOOSE_EXTERNAL_BACKEND
-  ? 'test'
-  : crypto.randomBytes(32).toString('hex');
+let gooseVersion = getVersion();
 
 let appConfig = {
   GOOSE_DEFAULT_PROVIDER: provider,
   GOOSE_DEFAULT_MODEL: model,
-  GOOSE_PREDEFINED_MODELS: predefinedModels,
   GOOSE_API_HOST: 'http://127.0.0.1',
   GOOSE_PORT: 0,
   GOOSE_WORKING_DIR: '',
   // If GOOSE_ALLOWLIST_WARNING env var is not set, defaults to false (strict blocking mode)
   GOOSE_ALLOWLIST_WARNING: process.env.GOOSE_ALLOWLIST_WARNING === 'true',
+  secretKey: generateSecretKey(),
 };
 
 // Track windows by ID
 let windowCounter = 0;
 const windowMap = new Map<number, BrowserWindow>();
 
-// Track power save blockers per window
-const windowPowerSaveBlockers = new Map<number, number>(); // windowId -> blockerId
+interface RecipeConfig {
+  id: string;
+  title: string;
+  description: string;
+  instructions: string;
+  activities: string[];
+  prompt: string;
+}
 
 const createChat = async (
   app: App,
@@ -512,10 +482,8 @@ const createChat = async (
   dir?: string,
   _version?: string,
   resumeSessionId?: string,
-  recipe?: Recipe, // Recipe configuration when already loaded, takes precedence over deeplink
-  viewType?: string,
-  recipeDeeplink?: string, // Raw deeplink used as a fallback when recipe is not loaded. Required on new windows as we need to wait for the window to load before decoding.
-  scheduledJobId?: string // Scheduled job ID if applicable
+  recipeConfig?: RecipeConfig, // Bot configuration
+  viewType?: string // View type
 ) => {
   // Initialize variables for process and configuration
   let port = 0;
@@ -558,8 +526,8 @@ const createChat = async (
     };
     const [newPort, newWorkingDir, newGoosedProcess] = await startGoosed(
       app,
-      SERVER_SECRET,
-      dir,
+      appConfig.secretKey,
+      dir ?? null,
       envVars
     );
     port = newPort;
@@ -567,30 +535,24 @@ const createChat = async (
     goosedProcess = newGoosedProcess;
   }
 
-  // Create window config with loading state for recipe deeplinks
-  let isLoadingRecipe = false;
-  if (!recipe && recipeDeeplink) {
-    isLoadingRecipe = true;
-    console.log('[Main] Creating window with recipe loading state for deeplink:', recipeDeeplink);
-  }
-
   // Load and manage window state
   const mainWindowState = windowStateKeeper({
-    defaultWidth: 940, // large enough to show the sidebar on launch
+    defaultWidth: 750,
     defaultHeight: 800,
   });
 
   const mainWindow = new BrowserWindow({
     titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'default',
-    trafficLightPosition: process.platform === 'darwin' ? { x: 20, y: 16 } : undefined,
+    trafficLightPosition: process.platform === 'darwin' ? { x: 16, y: 20 } : undefined,
     vibrancy: process.platform === 'darwin' ? 'window' : undefined,
-    frame: process.platform !== 'darwin',
+    frame: process.platform === 'darwin' ? false : true,
     x: mainWindowState.x,
     y: mainWindowState.y,
     width: mainWindowState.width,
     height: mainWindowState.height,
-    minWidth: 750,
+    minWidth: 650,
     resizable: true,
+    transparent: false,
     useContentSize: true,
     icon: path.join(__dirname, '../images/icon'),
     webPreferences: {
@@ -608,7 +570,7 @@ const createChat = async (
           REQUEST_DIR: dir,
           GOOSE_BASE_URL_SHARE: sharingUrl,
           GOOSE_VERSION: gooseVersion,
-          recipe: recipe,
+          recipeConfig: recipeConfig,
         }),
       ],
       partition: 'persist:goose', // Add this line to ensure persistence
@@ -662,57 +624,25 @@ const createChat = async (
     GOOSE_WORKING_DIR: working_dir,
     REQUEST_DIR: dir,
     GOOSE_BASE_URL_SHARE: sharingUrl,
-    recipe: recipe,
+    recipeConfig: recipeConfig,
   };
 
   // We need to wait for the window to load before we can access localStorage
   mainWindow.webContents.on('did-finish-load', () => {
     const configStr = JSON.stringify(windowConfig).replace(/'/g, "\\'");
-    mainWindow.webContents
-      .executeJavaScript(
-        `
-      (function() {
-        function setConfig() {
-          try {
-            if (window.localStorage) {
-              localStorage.setItem('gooseConfig', '${configStr}');
-              return true;
-            }
-          } catch (e) {
-            console.warn('localStorage access failed:', e);
-          }
-          return false;
-        }
-
-        if (!setConfig()) {
-          setTimeout(() => {
-            if (!setConfig()) {
-              console.error('Failed to set localStorage after retry - continuing without localStorage config');
-            }
-          }, 100);
-        }
-      })();
-    `
-      )
-      .catch((error) => {
-        console.error('Failed to execute localStorage script:', error);
-      });
+    mainWindow.webContents.executeJavaScript(`
+      localStorage.setItem('gooseConfig', '${configStr}')
+    `);
   });
 
   // Handle new window creation for links
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     // Open all links in external browser
     if (url.startsWith('http:') || url.startsWith('https:')) {
-      shell.openExternal(url);
+      electron.shell.openExternal(url);
       return { action: 'deny' };
     }
     return { action: 'allow' };
-  });
-
-  // Handle new-window events (alternative approach for external links)
-  mainWindow.webContents.on('new-window', (event, url) => {
-    event.preventDefault();
-    shell.openExternal(url);
   });
 
   // Load the index.html of the app.
@@ -733,11 +663,6 @@ const createChat = async (
     queryParams = queryParams
       ? `${queryParams}&view=${encodeURIComponent(viewType)}`
       : `?view=${encodeURIComponent(viewType)}`;
-  }
-
-  // For recipe deeplinks, navigate directly to pair view
-  if (recipe || recipeDeeplink) {
-    queryParams = queryParams ? `${queryParams}&view=pair` : `?view=pair`;
   }
 
   // Increment window counter to track number of windows
@@ -766,96 +691,10 @@ const createChat = async (
     }
   });
 
-  mainWindow.on('app-command', (e, cmd) => {
-    if (cmd === 'browser-backward') {
-      mainWindow.webContents.send('mouse-back-button-clicked');
-      e.preventDefault();
-    }
-  });
-
-  mainWindow.webContents.on('mouse-up', (_event: MouseUpEvent, mouseButton: number) => {
-    // MouseButton 3 is the back button.
-    if (mouseButton === 3) {
-      mainWindow.webContents.send('mouse-back-button-clicked');
-    }
-  });
-
   windowMap.set(windowId, mainWindow);
-
-  // Handle recipe decoding in the background after window is created
-  if (isLoadingRecipe && recipeDeeplink) {
-    console.log('[Main] Starting background recipe decoding for:', recipeDeeplink);
-
-    // Decode recipe asynchronously after window is created
-    decodeRecipeMain(recipeDeeplink, port)
-      .then((decodedRecipe) => {
-        if (decodedRecipe) {
-          console.log('[Main] Recipe decoded successfully, updating window config');
-
-          // Handle scheduled job parameters if present
-          if (scheduledJobId) {
-            decodedRecipe.scheduledJobId = scheduledJobId;
-            decodedRecipe.isScheduledExecution = true;
-          }
-
-          // Update the window config with the decoded recipe
-          const updatedConfig = {
-            ...windowConfig,
-            recipe: decodedRecipe,
-          };
-
-          // Send the decoded recipe to the renderer process
-          mainWindow.webContents.send('recipe-decoded', decodedRecipe);
-
-          // Update localStorage with the decoded recipe
-          const configStr = JSON.stringify(updatedConfig).replace(/'/g, "\\'");
-          mainWindow.webContents
-            .executeJavaScript(
-              `
-            try {
-              localStorage.setItem('gooseConfig', '${configStr}');
-              console.log('[Renderer] Recipe decoded and config updated');
-            } catch (e) {
-              console.error('[Renderer] Failed to update config with decoded recipe:', e);
-            }
-          `
-            )
-            .catch((error) => {
-              console.error('[Main] Failed to update localStorage with decoded recipe:', error);
-            });
-        } else {
-          console.error('[Main] Failed to decode recipe from deeplink');
-          // Send error to renderer
-          mainWindow.webContents.send('recipe-decode-error', 'Failed to decode recipe');
-        }
-      })
-      .catch((error) => {
-        console.error('[Main] Error decoding recipe:', error);
-        // Send error to renderer
-        mainWindow.webContents.send('recipe-decode-error', error.message || 'Unknown error');
-      });
-  }
-
   // Handle window closure
   mainWindow.on('closed', () => {
     windowMap.delete(windowId);
-
-    if (windowPowerSaveBlockers.has(windowId)) {
-      const blockerId = windowPowerSaveBlockers.get(windowId)!;
-      try {
-        powerSaveBlocker.stop(blockerId);
-        console.log(
-          `[Main] Stopped power save blocker ${blockerId} for closing window ${windowId}`
-        );
-      } catch (error) {
-        console.error(
-          `[Main] Failed to stop power save blocker ${blockerId} for window ${windowId}:`,
-          error
-        );
-      }
-      windowPowerSaveBlockers.delete(windowId);
-    }
-
     if (goosedProcess && typeof goosedProcess === 'object' && 'kill' in goosedProcess) {
       goosedProcess.kill();
     }
@@ -949,60 +788,8 @@ const buildRecentFilesMenu = () => {
 const openDirectoryDialog = async (
   replaceWindow: boolean = false
 ): Promise<OpenDialogReturnValue> => {
-  // Get the current working directory from the focused window
-  let defaultPath: string | undefined;
-  const currentWindow = BrowserWindow.getFocusedWindow();
-
-  if (currentWindow) {
-    try {
-      const currentWorkingDir = await currentWindow.webContents.executeJavaScript(
-        `window.appConfig ? window.appConfig.get('GOOSE_WORKING_DIR') : null`
-      );
-
-      if (currentWorkingDir && typeof currentWorkingDir === 'string') {
-        // Verify the directory exists before using it as default
-        try {
-          const stats = fsSync.lstatSync(currentWorkingDir);
-          if (stats.isDirectory()) {
-            defaultPath = currentWorkingDir;
-          }
-        } catch (error) {
-          if (error && typeof error === 'object' && 'code' in error) {
-            const fsError = error as { code?: string; message?: string };
-            if (
-              fsError.code === 'ENOENT' ||
-              fsError.code === 'EACCES' ||
-              fsError.code === 'EPERM'
-            ) {
-              console.warn(
-                `Current working directory not accessible (${fsError.code}): ${currentWorkingDir}, falling back to home directory`
-              );
-              defaultPath = os.homedir();
-            } else {
-              console.warn(
-                `Unexpected filesystem error (${fsError.code}) for directory ${currentWorkingDir}:`,
-                fsError.message
-              );
-              defaultPath = os.homedir();
-            }
-          } else {
-            console.warn(`Unexpected error checking directory ${currentWorkingDir}:`, error);
-            defaultPath = os.homedir();
-          }
-        }
-      }
-    } catch (error) {
-      console.warn('Failed to get current working directory from window:', error);
-    }
-  }
-
-  if (!defaultPath) {
-    defaultPath = os.homedir();
-  }
-
   const result = (await dialog.showOpenDialog({
     properties: ['openFile', 'openDirectory', 'createDirectory'],
-    defaultPath: defaultPath,
   })) as unknown as OpenDialogReturnValue;
 
   if (!result.canceled && result.filePaths.length > 0) {
@@ -1027,43 +814,9 @@ const openDirectoryDialog = async (
 
     addRecentDir(dirToAdd);
     const currentWindow = BrowserWindow.getFocusedWindow();
-
+    await createChat(app, undefined, dirToAdd);
     if (replaceWindow && currentWindow) {
-      // Replace current window with new one
-      await createChat(app, undefined, dirToAdd);
       currentWindow.close();
-    } else {
-      // Update the working directory in the current window's localStorage
-      if (currentWindow) {
-        try {
-          const updateConfigScript = `
-            try {
-              const currentConfig = JSON.parse(localStorage.getItem('gooseConfig') || '{}');
-              const updatedConfig = {
-                ...currentConfig,
-                GOOSE_WORKING_DIR: '${dirToAdd.replace(/'/g, "\\'")}',
-              };
-              localStorage.setItem('gooseConfig', JSON.stringify(updatedConfig));
-              
-              // Trigger a config update event so the UI can refresh
-              window.dispatchEvent(new CustomEvent('goose-config-updated', { 
-                detail: { GOOSE_WORKING_DIR: '${dirToAdd.replace(/'/g, "\\'")}' } 
-              }));
-            } catch (e) {
-              console.error('Failed to update working directory in localStorage:', e);
-            }
-          `;
-          await currentWindow.webContents.executeJavaScript(updateConfigScript);
-          console.log(`Updated working directory to: ${dirToAdd}`);
-        } catch (error) {
-          console.error('Failed to update working directory:', error);
-          // Fallback: create new window
-          await createChat(app, undefined, dirToAdd);
-        }
-      } else {
-        // No current window, create new one
-        await createChat(app, undefined, dirToAdd);
-      }
     }
   }
   return result;
@@ -1110,15 +863,12 @@ ipcMain.handle('directory-chooser', (_event, replace: boolean = false) => {
 // Handle scheduling engine settings
 ipcMain.handle('get-settings', () => {
   try {
-    return loadSettings();
+    const settings = loadSettings();
+    return settings;
   } catch (error) {
     console.error('Error getting settings:', error);
     return null;
   }
-});
-
-ipcMain.handle('get-secret-key', () => {
-  return SERVER_SECRET;
 });
 
 ipcMain.handle('set-scheduling-engine', async (_event, engine: string) => {
@@ -1283,80 +1033,47 @@ ipcMain.handle('get-quit-confirmation-state', () => {
   }
 });
 
-// Handle wakelock setting
-ipcMain.handle('set-wakelock', async (_event, enable: boolean) => {
-  try {
-    const settings = loadSettings();
-    settings.enableWakelock = enable;
-    saveSettings(settings);
-
-    // Stop all existing power save blockers when disabling the setting
-    if (!enable) {
-      for (const [windowId, blockerId] of windowPowerSaveBlockers.entries()) {
-        try {
-          powerSaveBlocker.stop(blockerId);
-          console.log(
-            `[Main] Stopped power save blocker ${blockerId} for window ${windowId} due to wakelock setting disabled`
-          );
-        } catch (error) {
-          console.error(
-            `[Main] Failed to stop power save blocker ${blockerId} for window ${windowId}:`,
-            error
-          );
-        }
-      }
-      windowPowerSaveBlockers.clear();
-    }
-
-    return true;
-  } catch (error) {
-    console.error('Error setting wakelock:', error);
-    return false;
-  }
-});
-
-ipcMain.handle('get-wakelock-state', () => {
-  try {
-    const settings = loadSettings();
-    return settings.enableWakelock ?? false;
-  } catch (error) {
-    console.error('Error getting wakelock state:', error);
-    return false;
-  }
-});
-
 // Add file/directory selection handler
 ipcMain.handle('select-file-or-directory', async (_event, defaultPath?: string) => {
-  const dialogOptions: OpenDialogOptions = {
+  const result = (await dialog.showOpenDialog({
     properties: process.platform === 'darwin' ? ['openFile', 'openDirectory'] : ['openFile'],
-  };
-
-  // Set default path if provided
-  if (defaultPath) {
-    // Expand tilde to home directory
-    const expandedPath = expandTilde(defaultPath);
-
-    // Check if the path exists
-    try {
-      const stats = await fs.stat(expandedPath);
-      if (stats.isDirectory()) {
-        dialogOptions.defaultPath = expandedPath;
-      } else {
-        dialogOptions.defaultPath = path.dirname(expandedPath);
-      }
-    } catch (error) {
-      // If path doesn't exist, fall back to home directory and log error
-      console.error(`Default path does not exist: ${expandedPath}, falling back to home directory`);
-      dialogOptions.defaultPath = os.homedir();
-    }
-  }
-
-  const result = (await dialog.showOpenDialog(dialogOptions)) as unknown as OpenDialogReturnValue;
+    // If provided, use the defaultPath as a hint for the dialog
+    defaultPath:
+      typeof defaultPath === 'string' && defaultPath.length > 0 ? defaultPath : undefined,
+  })) as unknown as OpenDialogReturnValue;
 
   if (!result.canceled && result.filePaths.length > 0) {
     return result.filePaths[0];
   }
   return null;
+});
+
+// Secret key for authenticating local requests
+ipcMain.handle('get-secret-key', async () => {
+  try {
+    return appConfig.secretKey;
+  } catch (e) {
+    console.error('Error retrieving secret key:', e);
+    return '';
+  }
+});
+
+// Open a directory in the native file explorer
+ipcMain.handle('open-directory-in-explorer', async (_event, dirPath: string) => {
+  try {
+    if (!dirPath || typeof dirPath !== 'string') return false;
+    if (process.platform === 'darwin') {
+      spawn('open', [dirPath]);
+    } else if (process.platform === 'win32') {
+      spawn('explorer.exe', [dirPath]);
+    } else {
+      spawn('xdg-open', [dirPath]);
+    }
+    return true;
+  } catch (e) {
+    console.error('Failed to open directory in explorer:', e);
+    return false;
+  }
 });
 
 // IPC handler to save data URL to a temporary file
@@ -1621,7 +1338,9 @@ ipcMain.handle('get-binary-path', (_event, binaryName) => {
 ipcMain.handle('read-file', (_event, filePath) => {
   return new Promise((resolve) => {
     // Expand tilde to home directory
-    const expandedPath = expandTilde(filePath);
+    const expandedPath = filePath.startsWith('~')
+      ? path.join(app.getPath('home'), filePath.slice(1))
+      : filePath;
 
     const cat = spawn('cat', [expandedPath]);
     let output = '';
@@ -1654,7 +1373,9 @@ ipcMain.handle('read-file', (_event, filePath) => {
 ipcMain.handle('write-file', (_event, filePath, content) => {
   return new Promise((resolve) => {
     // Expand tilde to home directory
-    const expandedPath = expandTilde(filePath);
+    const expandedPath = filePath.startsWith('~')
+      ? path.join(app.getPath('home'), filePath.slice(1))
+      : filePath;
 
     // Create a write stream to the file
     // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -1673,7 +1394,9 @@ ipcMain.handle('write-file', (_event, filePath, content) => {
 ipcMain.handle('ensure-directory', async (_event, dirPath) => {
   try {
     // Expand tilde to home directory
-    const expandedPath = expandTilde(dirPath);
+    const expandedPath = dirPath.startsWith('~')
+      ? path.join(app.getPath('home'), dirPath.slice(1))
+      : dirPath;
 
     await fs.mkdir(expandedPath, { recursive: true });
     return true;
@@ -1686,7 +1409,9 @@ ipcMain.handle('ensure-directory', async (_event, dirPath) => {
 ipcMain.handle('list-files', async (_event, dirPath, extension) => {
   try {
     // Expand tilde to home directory
-    const expandedPath = expandTilde(dirPath);
+    const expandedPath = dirPath.startsWith('~')
+      ? path.join(app.getPath('home'), dirPath.slice(1))
+      : dirPath;
 
     const files = await fs.readdir(expandedPath);
     if (extension) {
@@ -1701,11 +1426,19 @@ ipcMain.handle('list-files', async (_event, dirPath, extension) => {
 
 // Handle message box dialogs
 ipcMain.handle('show-message-box', async (_event, options) => {
-  return dialog.showMessageBox(options);
+  const result = await dialog.showMessageBox(options);
+  return result;
 });
 
+// Handle allowed extensions list fetching
 ipcMain.handle('get-allowed-extensions', async () => {
-  return await getAllowList();
+  try {
+    const allowList = await getAllowList();
+    return allowList;
+  } catch (error) {
+    console.error('Error fetching allowed extensions:', error);
+    throw error;
+  }
 });
 
 const createNewWindow = async (app: App, dir?: string | null) => {
@@ -1776,18 +1509,18 @@ app.whenReady().then(async () => {
           "default-src 'self';" +
           // Allow inline styles since we use them in our React components
           "style-src 'self' 'unsafe-inline';" +
-          // Scripts from our app and inline scripts (for theme initialization)
-          "script-src 'self' 'unsafe-inline';" +
+          // Scripts only from our app
+          "script-src 'self';" +
           // Images from our app and data: URLs (for base64 images)
           "img-src 'self' data: https:;" +
           // Connect to our local API and specific external services
           "connect-src 'self' http://127.0.0.1:* https://api.github.com https://github.com https://objects.githubusercontent.com" +
           // Don't allow any plugins
           "object-src 'none';" +
-          // Allow all frames (iframes)
-          "frame-src 'self' https: http:;" +
-          // Font sources - allow self, data URLs, and external fonts
-          "font-src 'self' data: https:;" +
+          // Don't allow any frames
+          "frame-src 'none';" +
+          // Font sources
+          "font-src 'self';" +
           // Media sources - allow microphone
           "media-src 'self' mediastream:;" +
           // Form actions
@@ -1811,6 +1544,15 @@ app.whenReady().then(async () => {
     details.requestHeaders['Origin'] = 'http://localhost:5173';
     callback({ cancel: false, requestHeaders: details.requestHeaders });
   });
+
+  // Test error feature - only enabled with GOOSE_TEST_ERROR=true
+  if (process.env.GOOSE_TEST_ERROR === 'true') {
+    console.log('Test error feature enabled, will throw error in 5 seconds');
+    setTimeout(() => {
+      console.log('Throwing test error now...');
+      throw new Error('Test error: This is a simulated fatal error after 5 seconds');
+    }, 5000);
+  }
 
   // Create tray if enabled in settings
   const settings = loadSettings();
@@ -1915,6 +1657,25 @@ app.whenReady().then(async () => {
     );
   }
 
+  // Add Environment menu items to View menu
+  const viewMenu = menu?.items.find((item) => item.label === 'View');
+  if (viewMenu?.submenu) {
+    viewMenu.submenu.append(new MenuItem({ type: 'separator' }));
+    viewMenu.submenu.append(
+      new MenuItem({
+        label: 'Environment',
+        submenu: Menu.buildFromTemplate(
+          createEnvironmentMenu(envToggles, (newToggles) => {
+            envToggles = newToggles;
+            const currentSettings = loadSettings();
+            saveSettings({ ...currentSettings, envToggles: newToggles });
+            updateEnvironmentVariables(newToggles);
+          })
+        ),
+      })
+    );
+  }
+
   const fileMenu = menu?.items.find((item) => item.label === 'File');
 
   if (fileMenu?.submenu) {
@@ -1939,11 +1700,64 @@ app.whenReady().then(async () => {
       })
     );
 
+    // Add Index Repository action (feature gated by presence of a binary with repo subcommand)
+    (() => {
+      const candidates = ['goose', 'goosed'];
+      type Candidate = { name: string; path: string };
+      const supported: Candidate | undefined = candidates
+        .map((name) => {
+          try {
+            const p = getBinaryPath(app, name as 'goose');
+            if (!fsSync.existsSync(p)) return undefined;
+            // Fast synchronous probe for repo subcommand support.
+            const probe = spawnSync(p, ['repo', '--help'], { timeout: 2000 });
+            const ok =
+              probe.status === 0 || (probe.stdout && probe.stdout.toString().includes('repo'));
+            if (ok) return { name, path: p };
+          } catch (e) {
+            // ignore individual candidate errors
+          }
+          return undefined;
+        })
+        .find((c): c is Candidate => !!c);
+
+      if (!supported) {
+        log.info('[repo-index] no repo-capable binary (goose/goosed) found; skipping menu item');
+        return;
+      }
+
+      fileMenu.submenu.insert(
+        2,
+        new MenuItem({
+          label: 'Index Repository (Tree-sitter)',
+          click: async () => {
+            const focusedWindow = BrowserWindow.getFocusedWindow();
+            if (!focusedWindow) return;
+            new Notification({ title: 'Goose', body: 'Starting repository indexing…' }).show();
+            const res = await runRepoIndexForWindow(focusedWindow, {
+              /* could pass path */
+            });
+            if (res.ok) {
+              new Notification({
+                title: 'Goose',
+                body: `Indexing complete: ${res.outputPath}`,
+              }).show();
+            } else {
+              new Notification({
+                title: 'Goose',
+                body: `Indexing failed${res.error ? `: ${res.error}` : ''}`,
+              }).show();
+            }
+          },
+        })
+      );
+    })();
+
     // Add Recent Files submenu
     const recentFilesSubmenu = buildRecentFilesMenu();
     if (recentFilesSubmenu.length > 0) {
       fileMenu.submenu.insert(
-        2,
+        3,
         new MenuItem({
           label: 'Recent Directories',
           submenu: recentFilesSubmenu,
@@ -1951,7 +1765,7 @@ app.whenReady().then(async () => {
       );
     }
 
-    fileMenu.submenu.insert(3, new MenuItem({ type: 'separator' }));
+    fileMenu.submenu.insert(4, new MenuItem({ type: 'separator' }));
 
     // The Close Window item is here.
 
@@ -2019,18 +1833,21 @@ app.whenReady().then(async () => {
     }
   });
 
-  ipcMain.on('create-chat-window', (_, query, dir, version, resumeSessionId, recipe, viewType) => {
-    if (!dir?.trim()) {
-      const recentDirs = loadRecentDirs();
-      dir = recentDirs.length > 0 ? recentDirs[0] : undefined;
+  ipcMain.on(
+    'create-chat-window',
+    (_, query, dir, version, resumeSessionId, recipeConfig, viewType) => {
+      if (!dir?.trim()) {
+        const recentDirs = loadRecentDirs();
+        dir = recentDirs.length > 0 ? recentDirs[0] : null;
+      }
+
+      // Log the recipeConfig for debugging
+      console.log('Creating chat window with recipeConfig:', recipeConfig);
+
+      // Pass recipeConfig as part of viewOptions when viewType is recipeEditor
+      createChat(app, query, dir, version, resumeSessionId, recipeConfig, viewType);
     }
-
-    // Log the recipe for debugging
-    console.log('Creating chat window with recipe:', recipe);
-
-    // Pass recipe as part of viewOptions when viewType is recipeEditor
-    createChat(app, query, dir, version, resumeSessionId, recipe, viewType);
-  });
+  );
 
   ipcMain.on('notify', (_event, data) => {
     try {
@@ -2099,37 +1916,62 @@ app.whenReady().then(async () => {
     }
   });
 
-  ipcMain.handle('start-power-save-blocker', (event) => {
-    const window = BrowserWindow.fromWebContents(event.sender);
-    const windowId = window?.id;
+  let powerSaveBlockerId: number | null = null;
 
-    if (windowId && !windowPowerSaveBlockers.has(windowId)) {
-      const blockerId = powerSaveBlocker.start('prevent-app-suspension');
-      windowPowerSaveBlockers.set(windowId, blockerId);
-      console.log(`[Main] Started power save blocker ${blockerId} for window ${windowId}`);
+  ipcMain.handle('start-power-save-blocker', () => {
+    log.info('Starting power save blocker...');
+    if (powerSaveBlockerId === null) {
+      powerSaveBlockerId = powerSaveBlocker.start('prevent-display-sleep');
+      log.info('Started power save blocker');
       return true;
     }
-
-    if (windowId && windowPowerSaveBlockers.has(windowId)) {
-      console.log(`[Main] Power save blocker already active for window ${windowId}`);
-    }
-
     return false;
   });
 
-  ipcMain.handle('stop-power-save-blocker', (event) => {
-    const window = BrowserWindow.fromWebContents(event.sender);
-    const windowId = window?.id;
-
-    if (windowId && windowPowerSaveBlockers.has(windowId)) {
-      const blockerId = windowPowerSaveBlockers.get(windowId)!;
-      powerSaveBlocker.stop(blockerId);
-      windowPowerSaveBlockers.delete(windowId);
-      console.log(`[Main] Stopped power save blocker ${blockerId} for window ${windowId}`);
+  ipcMain.handle('stop-power-save-blocker', () => {
+    log.info('Stopping power save blocker...');
+    if (powerSaveBlockerId !== null) {
+      powerSaveBlocker.stop(powerSaveBlockerId);
+      powerSaveBlockerId = null;
+      log.info('Stopped power save blocker');
       return true;
     }
-
     return false;
+  });
+
+  // Get current wakelock state
+  ipcMain.handle('get-wakelock-state', () => {
+    try {
+      return powerSaveBlockerId !== null;
+    } catch (e) {
+      console.error('Error getting wakelock state:', e);
+      return false;
+    }
+  });
+
+  // Enable/disable wakelock and persist in settings
+  ipcMain.handle('set-wakelock', async (_event, enable: boolean) => {
+    try {
+      const settings = loadSettings();
+      if (enable) {
+        if (powerSaveBlockerId === null) {
+          powerSaveBlockerId = powerSaveBlocker.start('prevent-display-sleep');
+          log.info('Enabled wakelock');
+        }
+      } else {
+        if (powerSaveBlockerId !== null) {
+          powerSaveBlocker.stop(powerSaveBlockerId);
+          powerSaveBlockerId = null;
+          log.info('Disabled wakelock');
+        }
+      }
+      settings.enableWakelock = enable;
+      saveSettings(settings);
+      return true;
+    } catch (e) {
+      console.error('Error setting wakelock:', e);
+      return false;
+    }
   });
 
   // Handle metadata fetching from main process
@@ -2194,7 +2036,7 @@ app.whenReady().then(async () => {
         spawn('xdg-open', [url]);
       }
     } catch (error) {
-      console.error('Error opening URL in browser:', error);
+      console.error('Error opening URL in Chrome:', error);
     }
   });
 
@@ -2204,70 +2046,221 @@ app.whenReady().then(async () => {
     app.exit(0);
   });
 
+  // Close the current window from renderer
+  ipcMain.on('close-window', (event) => {
+    try {
+      const win = BrowserWindow.fromWebContents(event.sender);
+      win?.close();
+    } catch (e) {
+      console.error('Error closing window:', e);
+    }
+  });
+
   // Handler for getting app version
   ipcMain.on('get-app-version', (event) => {
     event.returnValue = app.getVersion();
   });
 
-  ipcMain.handle('open-directory-in-explorer', async (_event, path: string) => {
+  // Allow renderer to request window config
+  ipcMain.handle('get-window-config', async (event) => {
     try {
-      return !!(await shell.openPath(path));
-    } catch (error) {
-      console.error('Error opening directory in explorer:', error);
-      return false;
+      const win = BrowserWindow.fromWebContents(event.sender);
+      if (!win) return null;
+      const configStr = await win.webContents.executeJavaScript(
+        `localStorage.getItem('gooseConfig')`
+      );
+      return configStr ? JSON.parse(configStr) : null;
+    } catch (e) {
+      console.error('Failed to get window config:', e);
+      return null;
     }
   });
+
+  // Helper to run repo indexing for a window
+  async function runRepoIndexForWindow(
+    win: BrowserWindow,
+    opts: { path?: string; output?: string } = {}
+  ): Promise<{ ok: boolean; outputPath?: string; error?: string }> {
+    try {
+      // Ensure the window has finished loading before attempting to access localStorage.
+      if (win.webContents.isLoadingMainFrame()) {
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('window load timeout waiting for config')), 4000);
+          win.webContents.once('did-finish-load', () => {
+            clearTimeout(timeout);
+            resolve();
+          });
+        });
+      }
+      // Resolve working dir from window config if not provided
+      let winConfig: any = {};
+      try {
+        const winConfigStr: string | null = await win.webContents.executeJavaScript(
+          `localStorage.getItem('gooseConfig')`
+        );
+        winConfig = winConfigStr ? JSON.parse(winConfigStr) : {};
+      } catch (cfgErr) {
+        console.warn('[repo-index] could not read window config, falling back to defaults:', cfgErr);
+      }
+      const cwd: string =
+        (opts.path && String(opts.path)) || winConfig.GOOSE_WORKING_DIR || process.cwd();
+
+      // Default output file inside cwd
+      const outPath: string =
+        (opts.output && String(opts.output)) || path.join(cwd, '.goose-repo-index.jsonl');
+
+      // Resolve goose binary path
+      let goosePath: string;
+      try {
+        goosePath = getBinaryPath(app, 'goose');
+      } catch (e) {
+        console.error('[repo-index] failed to resolve goose binary:', e);
+        return { ok: false, error: 'Unable to locate goose binary for indexing' };
+      }
+      if (!fsSync.existsSync(goosePath)) {
+        console.error('[repo-index] goose binary path resolved but file missing:', goosePath);
+        return { ok: false, error: 'goose binary not found on filesystem' };
+      }
+
+      const args = ['repo', 'index', '--path', cwd, '--output', outPath];
+      console.log('[repo-index] spawning', goosePath, args.join(' '), 'cwd=', cwd);
+
+      const child = spawn(goosePath, args, {
+        cwd,
+        env: { ...process.env },
+      });
+
+      // Stream progress to renderer
+      const channel = 'repo-index-progress';
+      child.stdout.on('data', (d) => win.webContents.send(channel, d.toString()));
+      child.stderr.on('data', (d) => win.webContents.send(channel, d.toString()));
+
+      const result: Promise<{ ok: boolean; outputPath?: string; error?: string }> = new Promise(
+        (resolve) => {
+          child.on('close', (code) => {
+            if (code === 0) {
+              let sizeInfo = '';
+              try {
+                const st = fsSync.statSync(outPath);
+                sizeInfo = ` size=${st.size}B`;
+              } catch (_) {}
+              console.log(`[repo-index] completed successfully${sizeInfo} output=${outPath}`);
+              // Notify renderer + native notification
+              try {
+                win.webContents.send('repo-index-complete', { ok: true, outputPath: outPath });
+                new Notification({
+                  title: 'Repository Indexed',
+                  body: `Index written to ${path.basename(outPath)}`,
+                }).show();
+              } catch (notifyErr) {
+                console.warn('[repo-index] failed to emit completion event:', notifyErr);
+              }
+              resolve({ ok: true, outputPath: outPath });
+            } else {
+              const err = `goose exited with code ${code}`;
+              console.error('[repo-index]', err);
+              try {
+                win.webContents.send('repo-index-complete', { ok: false, error: err });
+                new Notification({
+                  title: 'Repository Index Failed',
+                  body: err,
+                }).show();
+              } catch (notifyErr) {
+                console.warn('[repo-index] failed to emit failure event:', notifyErr);
+              }
+              resolve({ ok: false, error: err });
+            }
+          });
+          child.on('error', (err) => resolve({ ok: false, error: String(err) }));
+        }
+      );
+
+      return await result;
+    } catch (e) {
+      console.error('runRepoIndexForWindow failed:', e);
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
+  }
+
+  // Run repository index via goose CLI for the current window's working dir
+  ipcMain.handle(
+    'repo-index',
+    async (
+      event,
+      opts: { path?: string; output?: string } = {}
+    ): Promise<{ ok: boolean; outputPath?: string; error?: string }> => {
+      try {
+        const win = BrowserWindow.fromWebContents(event.sender);
+        if (!win) throw new Error('No window');
+        return await runRepoIndexForWindow(win, opts);
+      } catch (e) {
+        console.error('repo-index failed:', e);
+        return { ok: false, error: e instanceof Error ? e.message : String(e) };
+      }
+    }
+  );
 });
 
+/**
+ * Fetches the allowed extensions list from the remote YAML file if GOOSE_ALLOWLIST is set.
+ * If the ALLOWLIST is not set, any are allowed. If one is set, it will warn if the deeplink
+ * doesn't match a command from the list.
+ * If it fails to load, then it will return an empty list.
+ * If the format is incorrect, it will return an empty list.
+ * Format of yaml is:
+ *
+ ```yaml:
+ extensions:
+  - id: slack
+    command: uvx mcp_slack
+  - id: knowledge_graph_memory
+    command: npx -y @modelcontextprotocol/server-memory
+  ```
+ *
+ * @returns A promise that resolves to an array of extension commands that are allowed.
+ */
 async function getAllowList(): Promise<string[]> {
   if (!process.env.GOOSE_ALLOWLIST) {
     return [];
   }
 
-  const response = await fetch(process.env.GOOSE_ALLOWLIST);
+  try {
+    // Fetch the YAML file
+    const response = await fetch(process.env.GOOSE_ALLOWLIST);
 
-  if (!response.ok) {
-    throw new Error(
-      `Failed to fetch allowed extensions: ${response.status} ${response.statusText}`
-    );
-  }
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch allowed extensions: ${response.status} ${response.statusText}`
+      );
+    }
 
-  // Parse the YAML content
-  const yamlContent = await response.text();
-  const parsedYaml = yaml.parse(yamlContent);
+    // Parse the YAML content
+    const yamlContent = await response.text();
+    const parsedYaml = yaml.parse(yamlContent);
 
-  // Extract the commands from the extensions array
-  if (parsedYaml && parsedYaml.extensions && Array.isArray(parsedYaml.extensions)) {
-    const commands = parsedYaml.extensions.map(
-      (ext: { id: string; command: string }) => ext.command
-    );
-    console.log(`Fetched ${commands.length} allowed extension commands`);
-    return commands;
-  } else {
-    console.error('Invalid YAML structure:', parsedYaml);
-    return [];
+    // Extract the commands from the extensions array
+    if (parsedYaml && parsedYaml.extensions && Array.isArray(parsedYaml.extensions)) {
+      const commands = parsedYaml.extensions.map(
+        (ext: { id: string; command: string }) => ext.command
+      );
+      console.log(`Fetched ${commands.length} allowed extension commands`);
+      return commands;
+    } else {
+      console.error('Invalid YAML structure:', parsedYaml);
+      return [];
+    }
+  } catch (error) {
+    console.error('Error in getAllowList:', error);
+    throw error;
   }
 }
 
 app.on('will-quit', async () => {
-  for (const [windowId, blockerId] of windowPowerSaveBlockers.entries()) {
-    try {
-      powerSaveBlocker.stop(blockerId);
-      console.log(
-        `[Main] Stopped power save blocker ${blockerId} for window ${windowId} during app quit`
-      );
-    } catch (error) {
-      console.error(
-        `[Main] Failed to stop power save blocker ${blockerId} for window ${windowId}:`,
-        error
-      );
-    }
-  }
-  windowPowerSaveBlockers.clear();
-
   // Unregister all shortcuts when quitting
   globalShortcut.unregisterAll();
 
+  // Clean up the temp directory on app quit
+  console.log('[Main] App "will-quit". Cleaning up temporary image directory...');
   try {
     await fs.access(gooseTempDir); // Check if directory exists to avoid error on fs.rm if it doesn't
 

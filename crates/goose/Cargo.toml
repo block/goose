@@ -77,6 +77,19 @@ utoipa = { version = "4.1", features = ["chrono"] }
 tokio-cron-scheduler = "0.14.0"
 urlencoding = "2.1"
 
+# Optional repository indexing feature (Tree-sitter based)
+ignore = { version = "0.4", optional = true }
+tree-sitter = { version = "0.23", optional = true }
+tree-sitter-rust = { version = "0.23", optional = true }
+tree-sitter-python = { version = "0.23", package = "tree-sitter-python", optional = true }
+tree-sitter-javascript = { version = "0.23", package = "tree-sitter-javascript", optional = true }
+tree-sitter-typescript = { version = "0.23", package = "tree-sitter-typescript", optional = true }
+tree-sitter-cpp = { version = "0.23", optional = true }
+tree-sitter-java = { version = "0.23", package = "tree-sitter-java", optional = true }
+tree-sitter-c-sharp = { version = "0.23", package = "tree-sitter-c-sharp", optional = true }
+tree-sitter-swift = { version = "0.6", package = "tree-sitter-swift", optional = true }
+tree-sitter-go = { version = "0.23", package = "tree-sitter-go", optional = true }
+
 # For Bedrock provider
 aws-config = { version = "1.5.16", features = ["behavior-version-latest"] }
 aws-smithy-types = "1.2.13"
@@ -115,6 +128,21 @@ temp-env = "0.3.6"
 dotenvy = "0.15.7"
 ctor = "0.2.9"
 test-case = "3.3"
+
+[features]
+repo-index = [
+    "ignore",
+    "tree-sitter",
+    "tree-sitter-rust",
+    "tree-sitter-python",
+    "tree-sitter-javascript",
+    "tree-sitter-typescript",
+    "tree-sitter-cpp",
+    "tree-sitter-java",
+    "tree-sitter-c-sharp",
+    "tree-sitter-swift",
+    "tree-sitter-go",
+]
 
 [[example]]
 name = "agent"

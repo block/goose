@@ -21,6 +21,7 @@ pub enum InputResult {
     Clear,
     Recipe(Option<String>),
     Summarize,
+    IndexRepo(Option<String>), // optional path argument
 }
 
 #[derive(Debug)]
@@ -121,6 +122,7 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
     const CMD_CLEAR: &str = "/clear";
     const CMD_RECIPE: &str = "/recipe";
     const CMD_SUMMARIZE: &str = "/summarize";
+    const CMD_INDEX: &str = "/index";
 
     match input {
         "/exit" | "/quit" => Some(InputResult::Exit),
@@ -181,8 +183,17 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
         s if s == CMD_CLEAR => Some(InputResult::Clear),
         s if s.starts_with(CMD_RECIPE) => parse_recipe_command(s),
         s if s == CMD_SUMMARIZE => Some(InputResult::Summarize),
+        s if s.starts_with(CMD_INDEX) => parse_index_command(s),
         _ => None,
     }
+}
+
+fn parse_index_command(s: &str) -> Option<InputResult> {
+    const CMD_INDEX: &str = "/index";
+    if s == CMD_INDEX { return Some(InputResult::IndexRepo(None)); }
+    let rest = s[CMD_INDEX.len()..].trim();
+    if rest.is_empty() { return Some(InputResult::IndexRepo(None)); }
+    Some(InputResult::IndexRepo(Some(rest.to_string())))
 }
 
 fn parse_recipe_command(s: &str) -> Option<InputResult> {
@@ -291,6 +302,7 @@ fn print_help() {
 /recipe [filepath] - Generate a recipe from the current conversation and save it to the specified filepath (must end with .yaml).
                        If no filepath is provided, it will be saved to ./recipe.yaml.
 /summarize - Summarize the current conversation to reduce context length while preserving key information.
+/index [path] - Build a repository index (Tree-sitter). Optional path (defaults to current working directory).
 /? or /help - Display this help message
 /clear - Clears the current chat history
 

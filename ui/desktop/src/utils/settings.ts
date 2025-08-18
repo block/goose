@@ -1,4 +1,5 @@
 import { app } from 'electron';
+import type Electron from 'electron';
 import fs from 'fs';
 import path from 'path';
 
@@ -77,4 +78,33 @@ export function updateSchedulingEngineEnvironment(schedulingEngine: SchedulingEn
   } else {
     process.env.GOOSE_SCHEDULER_TYPE = 'legacy';
   }
+}
+
+// Build Environment submenu items for the View menu
+export function createEnvironmentMenu(
+  toggles: EnvToggles,
+  onChange: (newToggles: EnvToggles) => void
+): Electron.MenuItemConstructorOptions[] {
+  return [
+    {
+      label: 'Server Memory',
+      type: 'checkbox',
+      checked: !!toggles.GOOSE_SERVER__MEMORY,
+      click: () =>
+        onChange({
+          ...toggles,
+          GOOSE_SERVER__MEMORY: !toggles.GOOSE_SERVER__MEMORY,
+        }),
+    },
+    {
+      label: 'Computer Controller',
+      type: 'checkbox',
+      checked: !!toggles.GOOSE_SERVER__COMPUTER_CONTROLLER,
+      click: () =>
+        onChange({
+          ...toggles,
+          GOOSE_SERVER__COMPUTER_CONTROLLER: !toggles.GOOSE_SERVER__COMPUTER_CONTROLLER,
+        }),
+    },
+  ];
 }

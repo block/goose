@@ -117,6 +117,12 @@ copy-binary-windows:
     @powershell.exe -Command "if (Test-Path ./target/x86_64-pc-windows-gnu/release/goosed.exe) { \
         Write-Host 'Copying Windows binary and DLLs to ui/desktop/src/bin...'; \
         Copy-Item -Path './target/x86_64-pc-windows-gnu/release/goosed.exe' -Destination './ui/desktop/src/bin/' -Force; \
+        if (Test-Path ./target/x86_64-pc-windows-gnu/release/goose.exe) { \
+            Write-Host 'Copying Windows goose CLI binary...'; \
+            Copy-Item -Path './target/x86_64-pc-windows-gnu/release/goose.exe' -Destination './ui/desktop/src/bin/' -Force; \
+        } else { \
+            Write-Host 'Windows goose CLI binary not found.' -ForegroundColor Yellow; \
+        } \
         Copy-Item -Path './target/x86_64-pc-windows-gnu/release/*.dll' -Destination './ui/desktop/src/bin/' -Force; \
     } else { \
         Write-Host 'Windows binary not found.' -ForegroundColor Red; \
@@ -234,6 +240,12 @@ make-ui-windows:
         mkdir -p ./ui/desktop/src/bin && \
         echo "Copying Windows binary and DLLs..." && \
         cp -f ./target/x86_64-pc-windows-gnu/release/goosed.exe ./ui/desktop/src/bin/ && \
+        if [ -f "./target/x86_64-pc-windows-gnu/release/goose.exe" ]; then \
+            echo "Copying Windows goose CLI binary..." && \
+            cp -f ./target/x86_64-pc-windows-gnu/release/goose.exe ./ui/desktop/src/bin/ ; \
+        else \
+            echo "Windows goose CLI binary not found." ; \
+        fi && \
         cp -f ./target/x86_64-pc-windows-gnu/release/*.dll ./ui/desktop/src/bin/ && \
         echo "Starting Windows package build..." && \
         (cd ui/desktop && npm run bundle:windows) && \

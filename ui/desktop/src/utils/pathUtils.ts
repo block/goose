@@ -31,6 +31,11 @@ export const getBinaryPath = (app: Electron.App, binaryName: string): string => 
       return path.join(process.resourcesPath, 'bin', 'goosed.exe');
     }
 
+    // For goose.exe, prefer the explicit resources/bin path like goosed
+    if (binaryName === 'goose') {
+      return path.join(process.resourcesPath, 'bin', 'goose.exe');
+    }
+
     // Map binary names to their Windows equivalents
     const windowsBinaryMap: Record<string, string> = {
       npx: 'npx.cmd',

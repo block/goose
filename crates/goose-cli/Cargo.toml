@@ -10,12 +10,10 @@ description.workspace = true
 [lints]
 workspace = true
 
-[[bin]]
-name = "goose"
-path = "src/main.rs"
+
 
 [dependencies]
-goose = { path = "../goose" }
+goose = { path = "../goose", features = ["repo-index"] }
 goose-bench = { path = "../goose-bench" }
 goose-mcp = { path = "../goose-mcp" }
 mcp-client = { path = "../mcp-client" }
@@ -36,6 +34,20 @@ serde = { version = "1.0", features = ["derive"] }  # For serialization
 serde_yaml = "0.9"
 tempfile = "3"
 etcetera = "0.8.0"
+reqwest = { version = "0.12.9", features = [
+        "rustls-tls-native-roots",
+        "json",
+        "cookies",
+        "gzip",
+        "brotli",
+        "deflate",
+        "zstd",
+        "charset",
+        "http2",
+        "stream"
+    ], default-features = false }
+walkdir = "2.5"
+ignore = "0.4"
 rand = "0.8.5"
 rustyline = "15.0.0"
 tracing = "0.1"
@@ -54,17 +66,26 @@ axum = { version = "0.8.1", features = ["ws", "macros"] }
 tower-http = { version = "0.5", features = ["cors", "fs"] }
 http = "1.0"
 webbrowser = "1.0"
+
+
 indicatif = "0.17.11"
 tokio-util = "0.7.15"
 is-terminal = "0.4.16"
 anstream = "0.6.18"
-
-[target.'cfg(target_os = "windows")'.dependencies]
-winapi = { version = "0.3", features = ["wincred"] }
-
 
 [dev-dependencies]
 tempfile = "3"
 temp-env = { version = "0.3.6", features = ["async_closure"] }
 test-case = "3.3"
 tokio = { version = "1.43", features = ["rt", "macros"] }
+
+[features]
+# Forward the repo-index feature flag so conditional compilation in CLI works cleanly
+repo-index = []
+
+[[bin]]
+name = "goose"
+path = "src/main.rs"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+winapi = { version = "0.3", features = ["wincred"] }
