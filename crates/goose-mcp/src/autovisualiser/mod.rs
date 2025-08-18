@@ -32,18 +32,6 @@ impl Default for AutoVisualiserRouter {
 
 impl AutoVisualiserRouter {
     pub fn new() -> Self {
-        let mcp_ui_hello_tool = Tool::new(
-            "mcp_ui_hello",
-            indoc! {r#"
-                Returns a simple HTML hello message using the MCP UI resource format.
-                This is a demonstration tool that shows how to return HTML content through the MCP UI resource protocol.
-            "#},
-            object!({
-                "type": "object",
-                "properties": {}
-            }),
-        );
-
         let render_sankey_tool = Tool::new(
             "render_sankey",
             indoc! {r#"
@@ -118,7 +106,6 @@ impl AutoVisualiserRouter {
             and UI generation using MCP UI resources.
 
             ## Available Tools:
-            - **mcp_ui_hello**: A simple demonstration tool that returns HTML content
             - **render_sankey**: Creates interactive Sankey diagrams from flow data
 
             ## Purpose:
@@ -130,26 +117,13 @@ impl AutoVisualiserRouter {
         "#, cache_dir.display()};
 
         Self {
-            tools: vec![mcp_ui_hello_tool, render_sankey_tool],
+            tools: vec![render_sankey_tool],
             cache_dir,
             active_resources: Arc::new(Mutex::new(HashMap::new())),
             instructions,
         }
     }
 
-    async fn mcp_ui_hello(&self, _params: Value) -> Result<Vec<Content>, ToolError> {
-        // Create an MCP UI resource with HTML content
-        let html_content = "<html><body><h1>Hello from MCP UI!</h1></body></html>";
-
-        // Create a proper ResourceContents::TextResourceContents
-        let resource_contents = ResourceContents::TextResourceContents {
-            uri: "ui://hello/greeting".to_string(),
-            mime_type: Some("text/html".to_string()),
-            text: html_content.to_string(),
-        };
-
-        Ok(vec![Content::resource(resource_contents)])
-    }
 
     async fn render_sankey(&self, params: Value) -> Result<Vec<Content>, ToolError> {
         // Extract the data from parameters
@@ -224,7 +198,6 @@ impl Router for AutoVisualiserRouter {
         let tool_name = tool_name.to_string();
         Box::pin(async move {
             match tool_name.as_str() {
-                "mcp_ui_hello" => this.mcp_ui_hello(arguments).await,
                 "render_sankey" => this.render_sankey(arguments).await,
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
