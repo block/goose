@@ -8,54 +8,45 @@ interface MCPUIResourceRendererProps {
 }
 
 export default function MCPUIResourceRenderer({ content }: MCPUIResourceRendererProps) {
-  const handleAction = (action: UIActionResult) => {
-    console.log(
-      `MCP UI message received (but only handled with a toast notification for now):`,
-      action
-    );
-    toast.info(`${action.type} message sent from MCP UI, refer to console for more info`, {
-      data: action,
-    });
-    return { status: 'handled', message: `${action.type} action logged` };
+  const handleUnsupportedMessage = (type: string) => {
+    console.warn(`MCP-UI "${type}" message type not supported`);
+    toast.info(`MCP-UI "${type}" message posted, refer to console for more info`);
   };
 
   const handleUIAction = useCallback(async (result: UIActionResult) => {
     switch (result.type) {
-      case 'intent': {
-        // TODO: Implement intent handling
-        handleAction(result);
+      case 'tool':
+        handleUnsupportedMessage('tool');
         break;
-      }
-
-      case 'link': {
-        // TODO: Implement link handling
-        handleAction(result);
+      case 'intent':
+        handleUnsupportedMessage('intent');
         break;
-      }
-
-      case 'notify': {
-        // TODO: Implement notify handling
-        handleAction(result);
+      case 'prompt':
+        handleUnsupportedMessage('prompt');
         break;
-      }
-
-      case 'prompt': {
-        // TODO: Implement prompt handling
-        handleAction(result);
+      case 'link':
+        handleUnsupportedMessage('link');
         break;
-      }
-
-      case 'tool': {
-        // TODO: Implement tool call handling
-        handleAction(result);
+      case 'notify':
+        handleUnsupportedMessage('notify');
         break;
-      }
-
-      default: {
-        console.warn('unsupported message sent from MCP-UI:', result);
+      default:
+        console.log(`MCP-UI message received:`, result);
         break;
-      }
     }
+
+    // SUPER IMPORTANT: MCP-UIs depend on receiving a response to their message
+    const response = {
+      type: 'ui-message-response',
+      payload: result,
+    };
+
+    console.info(
+      `Goose posted the following response message back to the MCP-UI request:`,
+      response
+    );
+
+    return response;
   }, []);
 
   return (
@@ -69,6 +60,7 @@ export default function MCPUIResourceRenderer({ content }: MCPUIResourceRenderer
               height: true,
               width: false, // set to false to allow for responsive design
             },
+            // sandboxPermissions: 'allow-forms', // THIS PROP IS UNDERCONSIDERATION
           }}
         />
       </div>
