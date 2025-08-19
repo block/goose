@@ -72,7 +72,7 @@ export const ManualCompactButton: React.FC<ManualCompactButtonProps> = ({
         </Tooltip>
       </div>
 
-      {/* Confirmation Modal */}
+      {/* Summarization Confirmation Modal */}
       <Dialog open={isConfirmationOpen} onOpenChange={handleClose}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>

@@ -4,6 +4,8 @@ import { generateSessionId } from '../sessions';
 import { Recipe } from '../recipe';
 import { useDraftContext } from './DraftContext';
 
+export const DEFAULT_CHAT_TITLE = 'New Chat';
+
 interface ChatContextType {
   chat: ChatType;
   setChat: (chat: ChatType) => void;
@@ -53,7 +55,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
     const newSessionId = generateSessionId();
     setChat({
       id: newSessionId,
-      title: 'New Chat',
+      title: DEFAULT_CHAT_TITLE,
       messages: [],
       messageHistoryIndex: 0,
       recipeConfig: null, // Clear recipe when resetting chat

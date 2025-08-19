@@ -114,6 +114,7 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
                                 timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
                                 bundled: Some(true),
                                 description: None,
+                                available_tools: Vec::new(),
                             },
                         })?;
                     }
@@ -280,7 +281,146 @@ async fn handle_oauth_configuration(
     }
 }
 
-/// Dialog for configuring the AI provider and model
+/// Interactive model search that truncates the list to improve UX
+fn interactive_model_search(models: &[String]) -> Result<String, Box<dyn std::error::Error>> {
+    const MAX_VISIBLE: usize = 30;
+    let mut query = String::new();
+
+    loop {
+        let _ = cliclack::clear_screen();
+
+        let _ = cliclack::log::info(format!(
+            "🔍 {} models available. Type to filter.",
+            models.len()
+        ));
+
+        let input: String = cliclack::input("Filtering models, press Enter to search")
+            .placeholder("e.g., gpt, sonnet, llama, qwen")
+            .default_input(&query)
+            .interact::<String>()?;
+        query = input.trim().to_string();
+
+        let filtered: Vec<String> = if query.is_empty() {
+            models.to_vec()
+        } else {
+            let q = query.to_lowercase();
+            models
+                .iter()
+                .filter(|m| m.to_lowercase().contains(&q))
+                .cloned()
+                .collect()
+        };
+
+        if filtered.is_empty() {
+            let _ = cliclack::log::warning("No matching models. Try a different search.");
+            continue;
+        }
+
+        let mut items: Vec<(String, String, &str)> = filtered
+            .iter()
+            .take(MAX_VISIBLE)
+            .map(|m| (m.clone(), m.clone(), ""))
+            .collect();
+
+        if filtered.len() > MAX_VISIBLE {
+            items.insert(
+                0,
+                (
+                    "__refine__".to_string(),
+                    format!(
+                        "Refine search to see more (showing {} of {} results)",
+                        MAX_VISIBLE,
+                        filtered.len()
+                    ),
+                    "Too many matches",
+                ),
+            );
+        } else {
+            items.insert(
+                0,
+                (
+                    "__new_search__".to_string(),
+                    "Start a new search...".to_string(),
+                    "Enter a different search term",
+                ),
+            );
+        }
+
+        let selection = cliclack::select("Select a model:")
+            .items(&items)
+            .interact()?;
+
+        if selection == "__refine__" {
+            continue;
+        } else if selection == "__new_search__" {
+            query.clear();
+            continue;
+        } else {
+            return Ok(selection);
+        }
+    }
+}
+
+fn select_model_from_list(
+    models: &[String],
+    provider_meta: &goose::providers::base::ProviderMetadata,
+) -> Result<String, Box<dyn std::error::Error>> {
+    const MAX_MODELS: usize = 10;
+    // Smart model selection:
+    // If we have more than MAX_MODELS models, show the recommended models with additional search option.
+    // Otherwise, show all models without search.
+
+    if models.len() > MAX_MODELS {
+        // Get recommended models from provider metadata
+        let recommended_models: Vec<String> = provider_meta
+            .known_models
+            .iter()
+            .map(|m| m.name.clone())
+            .filter(|name| models.contains(name))
+            .collect();
+
+        if !recommended_models.is_empty() {
+            let mut model_items: Vec<(String, String, &str)> = recommended_models
+                .iter()
+                .map(|m| (m.clone(), m.clone(), "Recommended"))
+                .collect();
+
+            model_items.insert(
+                0,
+                (
+                    "search_all".to_string(),
+                    "Search all models...".to_string(),
+                    "Search complete model list",
+                ),
+            );
+
+            let selection = cliclack::select("Select a model:")
+                .items(&model_items)
+                .interact()?;
+
+            if selection == "search_all" {
+                Ok(interactive_model_search(models)?)
+            } else {
+                Ok(selection)
+            }
+        } else {
+            Ok(interactive_model_search(models)?)
+        }
+    } else {
+        // just a few models, show all without search for better UX
+        Ok(cliclack::select("Select a model:")
+            .items(
+                &models
+                    .iter()
+                    .map(|m| (m, m.as_str(), ""))
+                    .collect::<Vec<_>>(),
+            )
+            .interact()?
+            .to_string())
+    }
+}
+
+/// Dialog for configuring the A provider and model
 pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
     // Get global config instance
     let config = Config::global();
@@ -428,16 +568,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
             cliclack::outro(style(e.to_string()).on_red().white())?;
             return Ok(false);
         }
-        Ok(Some(models)) => cliclack::select("Select a model:")
-            .items(
-                &models
-                    .iter()
-                    .map(|m| (m, m.as_str(), ""))
-                    .collect::<Vec<_>>(),
-            )
-            .filter_mode() // enable "fuzzy search" filtering for the list of models
-            .interact()?
-            .to_string(),
+        Ok(Some(models)) => select_model_from_list(&models, provider_meta)?,
         Ok(None) => {
             let default_model =
                 std::env::var("GOOSE_MODEL").unwrap_or(provider_meta.default_model.clone());
@@ -647,6 +778,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     timeout: Some(timeout),
                     bundled: Some(true),
                     description: None,
+                    available_tools: Vec::new(),
                 },
             })?;
 
@@ -754,6 +886,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     description,
                     timeout: Some(timeout),
                     bundled: None,
+                    available_tools: Vec::new(),
                 },
             })?;
 
@@ -856,6 +989,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     description,
                     timeout: Some(timeout),
                     bundled: None,
+                    available_tools: Vec::new(),
                 },
             })?;
 
@@ -983,6 +1117,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     description,
                     timeout: Some(timeout),
                     bundled: None,
+                    available_tools: Vec::new(),
                 },
             })?;
 
@@ -1055,7 +1190,7 @@ pub async fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
         .item(
             "goose_router_strategy",
             "Router Tool Selection Strategy",
-            "Configure the strategy for selecting tools to use",
+            "Experimental: configure a strategy for auto selecting tools to use",
         )
         .item(
             "tool_permission",
@@ -1176,40 +1311,27 @@ pub fn configure_goose_mode_dialog() -> Result<(), Box<dyn Error>> {
 pub fn configure_goose_router_strategy_dialog() -> Result<(), Box<dyn Error>> {
     let config = Config::global();
 
-    // Check if GOOSE_ROUTER_STRATEGY is set as an environment variable
-    if std::env::var("GOOSE_ROUTER_TOOL_SELECTION_STRATEGY").is_ok() {
-        let _ = cliclack::log::info("Notice: GOOSE_ROUTER_TOOL_SELECTION_STRATEGY environment variable is set. Configuration will override this.");
-    }
-
-    let strategy = cliclack::select("Which router strategy would you like to use?")
+    let enable_router = cliclack::select("Would you like to enable smart tool routing?")
         .item(
-            "vector",
-            "Vector Strategy",
-            "Use vector-based similarity to select tools",
+            "true",
+            "Enable Router",
+            "Use LLM-based intelligence to select tools",
         )
         .item(
-            "default",
-            "Default Strategy",
+            "false",
+            "Disable Router",
             "Use the default tool selection strategy",
         )
         .interact()?;
 
-    match strategy {
-        "vector" => {
-            config.set_param(
-                "GOOSE_ROUTER_TOOL_SELECTION_STRATEGY",
-                Value::String("vector".to_string()),
-            )?;
-            cliclack::outro(
-                "Set to Vector Strategy - using vector-based similarity for tool selection",
-            )?;
+    match enable_router {
+        "true" => {
+            config.set_param("GOOSE_ENABLE_ROUTER", Value::String("true".to_string()))?;
+            cliclack::outro("Router enabled - using LLM-based intelligence for tool selection")?;
         }
-        "default" => {
-            config.set_param(
-                "GOOSE_ROUTER_TOOL_SELECTION_STRATEGY",
-                Value::String("default".to_string()),
-            )?;
-            cliclack::outro("Set to Default Strategy - using default tool selection")?;
+        "false" => {
+            config.set_param("GOOSE_ENABLE_ROUTER", Value::String("false".to_string()))?;
+            cliclack::outro("Router disabled - using default tool selection")?;
         }
         _ => unreachable!(),
     };
@@ -1625,6 +1747,7 @@ pub async fn handle_openrouter_auth() -> Result<(), Box<dyn Error>> {
                                         timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
                                         bundled: Some(true),
                                         description: None,
+                                        available_tools: Vec::new(),
                                     },
                                 }) {
                                     Ok(_) => println!("✓ Developer extension enabled"),

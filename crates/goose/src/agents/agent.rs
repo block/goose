@@ -21,8 +21,7 @@ use crate::agents::recipe_tools::dynamic_task_tools::{
     create_dynamic_task, create_dynamic_task_tool, DYNAMIC_TASK_TOOL_NAME_PREFIX,
 };
 use crate::agents::retry::{RetryManager, RetryResult};
-use crate::agents::router_tool_selector::RouterToolSelectionStrategy;
-use crate::agents::router_tools::{ROUTER_LLM_SEARCH_TOOL_NAME, ROUTER_VECTOR_SEARCH_TOOL_NAME};
+use crate::agents::router_tools::ROUTER_LLM_SEARCH_TOOL_NAME;
 use crate::agents::sub_recipe_manager::SubRecipeManager;
 use crate::agents::subagent_execution_tool::subagent_execute_task_tool::{
     self, SUBAGENT_EXECUTE_TASK_TOOL_NAME,
@@ -44,9 +43,11 @@ use crate::scheduler_trait::SchedulerTrait;
 use crate::session;
 use crate::tool_monitor::{ToolCall, ToolMonitor};
 use crate::utils::is_token_cancelled;
-use mcp_core::{ToolError, ToolResult};
+use mcp_core::ToolResult;
 use regex::Regex;
-use rmcp::model::{Content, GetPromptResult, Prompt, ServerNotification, Tool};
+use rmcp::model::{
+    Content, ErrorCode, ErrorData, GetPromptResult, Prompt, ServerNotification, Tool,
+};
 use serde_json::Value;
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tokio_util::sync::CancellationToken;
@@ -57,7 +58,9 @@ use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::subagent_task_config::TaskConfig;
 use crate::agents::todo_tools::{
-    todo_read_tool, todo_write_tool, TODO_READ_TOOL_NAME, TODO_WRITE_TOOL_NAME,
+    // todo_read_tool, todo_write_tool, // TODO: Re-enable after next release
+    TODO_READ_TOOL_NAME,
+    TODO_WRITE_TOOL_NAME,
 };
 use crate::conversation::message::{Message, ToolRequest};
 
@@ -238,7 +241,7 @@ impl Agent {
         let unfixed_messages = unfixed_conversation.messages().clone();
         let (conversation, issues) = fix_conversation(unfixed_conversation.clone());
         if !issues.is_empty() {
-            tracing::warn!(
+            debug!(
                 "Conversation issue fixed: {}",
                 debug_conversation_fix(
                     unfixed_messages.as_slice(),
@@ -376,7 +379,7 @@ impl Agent {
         tool_call: mcp_core::tool::ToolCall,
         request_id: String,
         cancellation_token: Option<CancellationToken>,
-    ) -> (String, Result<ToolCallResult, ToolError>) {
+    ) -> (String, Result<ToolCallResult, ErrorData>) {
         // Check if this tool call should be allowed based on repetition monitoring
         if let Some(monitor) = self.tool_monitor.lock().await.as_mut() {
             let tool_call_info = ToolCall::new(tool_call.name.clone(), tool_call.arguments.clone());
@@ -384,8 +387,10 @@ impl Agent {
             if !monitor.check_tool_call(tool_call_info) {
                 return (
                     request_id,
-                    Err(ToolError::ExecutionError(
+                    Err(ErrorData::new(
+                        ErrorCode::INTERNAL_ERROR,
                         "Tool call rejected: exceeded maximum allowed repetitions".to_string(),
+                        None,
                     )),
                 );
             }
@@ -425,8 +430,10 @@ impl Agent {
             } else {
                 (
                     request_id,
-                    Err(ToolError::ExecutionError(
+                    Err(ErrorData::new(
+                        ErrorCode::INTERNAL_ERROR,
                         "Final output tool not defined".to_string(),
+                        None,
                     )),
                 )
             };
@@ -478,8 +485,10 @@ impl Agent {
             ToolCallResult::from(extension_manager.search_available_extensions().await)
         } else if self.is_frontend_tool(&tool_call.name).await {
             // For frontend tools, return an error indicating we need frontend execution
-            ToolCallResult::from(Err(ToolError::ExecutionError(
+            ToolCallResult::from(Err(ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
                 "Frontend tool execution required".to_string(),
+                None,
             )))
         } else if tool_call.name == TODO_READ_TOOL_NAME {
             // Handle task planner read tool
@@ -505,11 +514,13 @@ impl Agent {
             if max_chars > 0 && char_count > max_chars {
                 return (
                     request_id,
-                    Ok(ToolCallResult::from(Err(ToolError::ExecutionError(
+                    Ok(ToolCallResult::from(Err(ErrorData::new(
+                        ErrorCode::INTERNAL_ERROR,
                         format!(
                             "Todo list too large: {} chars (max: {})",
                             char_count, max_chars
                         ),
+                        None,
                     )))),
                 );
             }
@@ -520,9 +531,7 @@ impl Agent {
                 "Updated ({} chars)",
                 char_count
             ))]))
-        } else if tool_call.name == ROUTER_VECTOR_SEARCH_TOOL_NAME
-            || tool_call.name == ROUTER_LLM_SEARCH_TOOL_NAME
-        {
+        } else if tool_call.name == ROUTER_LLM_SEARCH_TOOL_NAME {
             match self
                 .tool_route_manager
                 .dispatch_route_search_tool(tool_call.arguments)
@@ -537,7 +546,11 @@ impl Agent {
                 .dispatch_tool_call(tool_call.clone(), cancellation_token.unwrap_or_default())
                 .await;
             result.unwrap_or_else(|e| {
-                ToolCallResult::from(Err(ToolError::ExecutionError(e.to_string())))
+                ToolCallResult::from(Err(ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    e.to_string(),
+                    None,
+                )))
             })
         };
 
@@ -554,14 +567,15 @@ impl Agent {
         )
     }
 
+    #[allow(clippy::too_many_lines)]
     pub(super) async fn manage_extensions(
         &self,
         action: String,
         extension_name: String,
         request_id: String,
-    ) -> (String, Result<Vec<Content>, ToolError>) {
-        let selector = self.tool_route_manager.get_router_tool_selector().await;
-        if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
+    ) -> (String, Result<Vec<Content>, ErrorData>) {
+        if self.tool_route_manager.is_router_functional().await {
+            let selector = self.tool_route_manager.get_router_tool_selector().await;
             if let Some(selector) = selector {
                 let selector_action = if action == "disable" { "remove" } else { "add" };
                 let extension_manager = self.extension_manager.read().await;
@@ -576,10 +590,11 @@ impl Agent {
                 {
                     return (
                         request_id,
-                        Err(ToolError::ExecutionError(format!(
-                            "Failed to update vector index: {}",
-                            e
-                        ))),
+                        Err(ErrorData::new(
+                            ErrorCode::INTERNAL_ERROR,
+                            format!("Failed to update LLM index: {}", e),
+                            None,
+                        )),
                     );
                 }
             }
@@ -595,7 +610,7 @@ impl Agent {
                         extension_name
                     ))]
                 })
-                .map_err(|e| ToolError::ExecutionError(e.to_string()));
+                .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None));
             return (request_id, result);
         }
 
@@ -604,19 +619,24 @@ impl Agent {
             Ok(None) => {
                 return (
                     request_id,
-                    Err(ToolError::ExecutionError(format!(
+                    Err(ErrorData::new(
+                        ErrorCode::RESOURCE_NOT_FOUND,
+                        format!(
                         "Extension '{}' not found. Please check the extension name and try again.",
                         extension_name
-                    ))),
+                    ),
+                        None,
+                    )),
                 )
             }
             Err(e) => {
                 return (
                     request_id,
-                    Err(ToolError::ExecutionError(format!(
-                        "Failed to get extension config: {}",
-                        e
-                    ))),
+                    Err(ErrorData::new(
+                        ErrorCode::INTERNAL_ERROR,
+                        format!("Failed to get extension config: {}", e),
+                        None,
+                    )),
                 )
             }
         };
@@ -629,33 +649,32 @@ impl Agent {
                     extension_name
                 ))]
             })
-            .map_err(|e| ToolError::ExecutionError(e.to_string()));
+            .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None));
 
         drop(extension_manager);
-        // Update vector index if operation was successful and vector routing is enabled
-        if result.is_ok() {
+        // Update LLM index if operation was successful and LLM routing is functional
+        if result.is_ok() && self.tool_route_manager.is_router_functional().await {
             let selector = self.tool_route_manager.get_router_tool_selector().await;
-            if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
-                if let Some(selector) = selector {
-                    let vector_action = if action == "disable" { "remove" } else { "add" };
-                    let extension_manager = self.extension_manager.read().await;
-                    let selector = Arc::new(selector);
-                    if let Err(e) = ToolRouterIndexManager::update_extension_tools(
-                        &selector,
-                        &extension_manager,
-                        &extension_name,
-                        vector_action,
-                    )
-                    .await
-                    {
-                        return (
-                            request_id,
-                            Err(ToolError::ExecutionError(format!(
-                                "Failed to update vector index: {}",
-                                e
-                            ))),
-                        );
-                    }
+            if let Some(selector) = selector {
+                let llm_action = if action == "disable" { "remove" } else { "add" };
+                let extension_manager = self.extension_manager.read().await;
+                let selector = Arc::new(selector);
+                if let Err(e) = ToolRouterIndexManager::update_extension_tools(
+                    &selector,
+                    &extension_manager,
+                    &extension_name,
+                    llm_action,
+                )
+                .await
+                {
+                    return (
+                        request_id,
+                        Err(ErrorData::new(
+                            ErrorCode::INTERNAL_ERROR,
+                            format!("Failed to update LLM index: {}", e),
+                            None,
+                        )),
+                    );
                 }
             }
         }
@@ -669,6 +688,7 @@ impl Agent {
                 tools,
                 instructions,
                 bundled: _,
+                available_tools: _,
             } => {
                 // For frontend tools, just store them in the frontend_tools map
                 let mut frontend_tools = self.frontend_tools.lock().await;
@@ -696,9 +716,9 @@ impl Agent {
             }
         }
 
-        // If vector tool selection is enabled, index the tools
-        let selector = self.tool_route_manager.get_router_tool_selector().await;
-        if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
+        // If LLM tool selection is functional, index the tools
+        if self.tool_route_manager.is_router_functional().await {
+            let selector = self.tool_route_manager.get_router_tool_selector().await;
             if let Some(selector) = selector {
                 let extension_manager = self.extension_manager.read().await;
                 let selector = Arc::new(selector);
@@ -738,7 +758,8 @@ impl Agent {
             ]);
 
             // Add task planner tools
-            prefixed_tools.extend([todo_read_tool(), todo_write_tool()]);
+            // TODO: Re-enable after next release
+            // prefixed_tools.extend([todo_read_tool(), todo_write_tool()]);
 
             // Dynamic task tool
             prefixed_tools.push(create_dynamic_task_tool());
@@ -765,12 +786,9 @@ impl Agent {
         prefixed_tools
     }
 
-    pub async fn list_tools_for_router(
-        &self,
-        strategy: Option<RouterToolSelectionStrategy>,
-    ) -> Vec<Tool> {
+    pub async fn list_tools_for_router(&self) -> Vec<Tool> {
         self.tool_route_manager
-            .list_tools_for_router(strategy, &self.extension_manager)
+            .list_tools_for_router(&self.extension_manager)
             .await
     }
 
@@ -779,9 +797,9 @@ impl Agent {
         extension_manager.remove_extension(name).await?;
         drop(extension_manager);
 
-        // If vector tool selection is enabled, remove tools from the index
-        let selector = self.tool_route_manager.get_router_tool_selector().await;
-        if ToolRouterIndexManager::is_tool_router_enabled(&selector) {
+        // If LLM tool selection is functional, remove tools from the index
+        if self.tool_route_manager.is_router_functional().await {
+            let selector = self.tool_route_manager.get_router_tool_selector().await;
             if let Some(selector) = selector {
                 let extension_manager = self.extension_manager.read().await;
                 ToolRouterIndexManager::update_extension_tools(
@@ -821,7 +839,13 @@ impl Agent {
         &self,
         messages: &[Message],
         session: &Option<SessionConfig>,
-    ) -> Result<Option<(Conversation, String)>> {
+    ) -> Result<
+        Option<(
+            Conversation,
+            String,
+            Option<crate::providers::base::ProviderUsage>,
+        )>,
+    > {
         // Try to get session metadata for more accurate token counts
         let session_metadata = if let Some(session_config) = session {
             match session::storage::get_path(session_config.id.clone()) {
@@ -843,21 +867,23 @@ impl Agent {
         if compact_result.compacted {
             let compacted_messages = compact_result.messages;
 
-            // Create compaction notification message
-            let compaction_msg = if let (Some(before), Some(after)) =
-                (compact_result.tokens_before, compact_result.tokens_after)
-            {
-                format!(
-                    "Auto-compacted context: {} → {} tokens ({:.0}% reduction)\n\n",
-                    before,
-                    after,
-                    (1.0 - (after as f64 / before as f64)) * 100.0
-                )
-            } else {
-                "Auto-compacted context to reduce token usage\n\n".to_string()
-            };
+            // Get threshold from config to include in message
+            let config = crate::config::Config::global();
+            let threshold = config
+                .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
+                .unwrap_or(0.8); // Default to 80%
+            let threshold_percentage = (threshold * 100.0) as u32;
 
-            return Ok(Some((compacted_messages, compaction_msg)));
+            let compaction_msg = format!(
+                "Exceeded auto-compact threshold of {}%. Context has been summarized and reduced.\n\n",
+                threshold_percentage
+            );
+
+            return Ok(Some((
+                compacted_messages,
+                compaction_msg,
+                compact_result.summarization_usage,
+            )));
         }
 
         Ok(None)
@@ -871,16 +897,16 @@ impl Agent {
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         // Handle auto-compaction before processing
-        let (messages, compaction_msg) = match self
+        let (messages, compaction_msg, _summarization_usage) = match self
             .handle_auto_compaction(unfixed_conversation.messages(), &session)
             .await?
         {
-            Some((compacted_messages, msg)) => (compacted_messages, Some(msg)),
+            Some((compacted_messages, msg, usage)) => (compacted_messages, Some(msg), usage),
             None => {
                 let context = self
                     .prepare_reply_context(unfixed_conversation, &session)
                     .await?;
-                (context.messages, None)
+                (context.messages, None, None)
             }
         };
 
@@ -1320,7 +1346,7 @@ impl Agent {
             self.frontend_instructions.lock().await.clone(),
             extension_manager.suggest_disable_extensions_prompt().await,
             Some(model_name),
-            None,
+            false,
         );
 
         let recipe_prompt = prompt_manager.get_recipe_prompt().await;
@@ -1479,7 +1505,7 @@ mod tests {
 
         let prompt_manager = agent.prompt_manager.lock().await;
         let system_prompt =
-            prompt_manager.build_system_prompt(vec![], None, Value::Null, None, None);
+            prompt_manager.build_system_prompt(vec![], None, Value::Null, None, false);
 
         let final_output_tool_ref = agent.final_output_tool.lock().await;
         let final_output_tool_system_prompt =
@@ -1489,6 +1515,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore] // TODO: Re-enable after next release when TODO tools are re-enabled
     async fn test_todo_tools_integration() -> Result<()> {
         let agent = Agent::new();
 

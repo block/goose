@@ -11,7 +11,7 @@ export const WaveformVisualizer: React.FC<WaveformVisualizerProps> = ({
   isRecording,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animationRef = useRef<number>();
+  const animationRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!canvasRef.current || !analyser || !isRecording) return;

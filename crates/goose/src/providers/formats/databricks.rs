@@ -5,10 +5,13 @@ use crate::providers::utils::{
     sanitize_function_name, ImageFormat,
 };
 use anyhow::{anyhow, Error};
-use mcp_core::{ToolCall, ToolError};
-use rmcp::model::{AnnotateAble, Content, RawContent, ResourceContents, Role, Tool};
+use mcp_core::ToolCall;
+use rmcp::model::{
+    AnnotateAble, Content, ErrorCode, ErrorData, RawContent, ResourceContents, Role, Tool,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::borrow::Cow;
 
 #[derive(Serialize)]
 struct DatabricksMessage {
@@ -356,10 +359,14 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                 };
 
                 if !is_valid_function_name(&function_name) {
-                    let error = ToolError::NotFound(format!(
-                        "The provided function name '{}' had invalid characters, it must match this regex [a-zA-Z0-9_-]+",
-                        function_name
-                    ));
+                    let error = ErrorData {
+                        code: ErrorCode::INVALID_REQUEST,
+                        message: Cow::from(format!(
+                            "The provided function name '{}' had invalid characters, it must match this regex [a-zA-Z0-9_-]+",
+                            function_name
+                        )),
+                        data: None,
+                    };
                     content.push(MessageContent::tool_request(id, Err(error)));
                 } else {
                     match safely_parse_json(&arguments_str) {
@@ -370,10 +377,14 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                             ));
                         }
                         Err(e) => {
-                            let error = ToolError::InvalidParameters(format!(
-                                "Could not interpret tool use parameters for id {}: {}. Raw arguments: '{}'",
-                                id, e, arguments_str
-                            ));
+                            let error = ErrorData {
+                                code: ErrorCode::INVALID_PARAMS,
+                                message: Cow::from(format!(
+                                    "Could not interpret tool use parameters for id {}: {}. Raw arguments: '{}'",
+                                    id, e, arguments_str
+                                )),
+                                data: None,
+                            };
                             content.push(MessageContent::tool_request(id, Err(error)));
                         }
                     }
@@ -963,7 +974,11 @@ mod tests {
 
         if let MessageContent::ToolRequest(request) = &message.content[0] {
             match &request.tool_call {
-                Err(ToolError::NotFound(msg)) => {
+                Err(ErrorData {
+                    code: ErrorCode::INVALID_REQUEST,
+                    message: msg,
+                    data: None,
+                }) => {
                     assert!(msg.starts_with("The provided function name"));
                 }
                 _ => panic!("Expected ToolNotFound error"),
@@ -985,7 +1000,11 @@ mod tests {
 
         if let MessageContent::ToolRequest(request) = &message.content[0] {
             match &request.tool_call {
-                Err(ToolError::InvalidParameters(msg)) => {
+                Err(ErrorData {
+                    code: ErrorCode::INVALID_PARAMS,
+                    message: msg,
+                    data: None,
+                }) => {
                     assert!(msg.starts_with("Could not interpret tool use parameters"));
                 }
                 _ => panic!("Expected InvalidParameters error"),
