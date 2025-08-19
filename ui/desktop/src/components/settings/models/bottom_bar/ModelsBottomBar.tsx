@@ -22,7 +22,7 @@ import { toastSuccess, toastError } from '../../../../toasts';
 import ViewRecipeModal from '../../../ViewRecipeModal';
 
 interface ModelsBottomBarProps {
-  dropdownRef: React.RefObject<HTMLDivElement>;
+  dropdownRef: React.RefObject<HTMLDivElement | null>;
   setView: (view: View) => void;
   alerts: Alert[];
   recipeConfig?: Recipe | null;
