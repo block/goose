@@ -88,6 +88,7 @@ export function DashboardCanvas({ widgets, onWidgetMove, onWidgetResize }: Dashb
         document.removeEventListener('mouseup', handleMouseUp);
       };
     }
+    return () => {}; // Return empty cleanup function when no draggedWidget
   }, [draggedWidget, handleMouseMove, handleMouseUp]);
 
   // Clean up on unmount
