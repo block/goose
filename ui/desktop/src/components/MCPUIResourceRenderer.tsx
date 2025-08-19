@@ -64,12 +64,11 @@ export default function MCPUIResourceRenderer({ content }: MCPUIResourceRenderer
         <UIResourceRenderer
           resource={content.resource}
           onUIAction={handleUIAction}
-          htmlProps={{
-            autoResizeIframe: {
-              height: true,
-              width: false, // set to false to allow for responsive design
-            },
-          }}
+          htmlProps={
+            {
+              // Remove autoResizeIframe as it's not in the type definition
+            }
+          }
         />
       </div>
     </div>

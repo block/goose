@@ -5,7 +5,6 @@ pub mod conversation;
 pub mod model;
 pub mod oauth;
 pub mod permission;
-pub mod project;
 pub mod prompt_template;
 pub mod providers;
 pub mod recipe;

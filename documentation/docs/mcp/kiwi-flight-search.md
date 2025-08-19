@@ -11,6 +11,7 @@ import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
 import { PanelLeft } from 'lucide-react';
 
+<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/MhLU91zKE4M" />
 
 This tutorial covers how to add the [Kiwi Flight Search MCP Server](https://mcp.kiwi.com) as a Goose extension to enable flight search and price comparison.
 

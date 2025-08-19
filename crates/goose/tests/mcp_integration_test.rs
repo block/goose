@@ -123,6 +123,7 @@ async fn test_replayed_session(
         env_keys: vec![],
         timeout: Some(30),
         bundled: Some(false),
+        available_tools: vec![],
     };
 
     let mut extension_manager = ExtensionManager::new();

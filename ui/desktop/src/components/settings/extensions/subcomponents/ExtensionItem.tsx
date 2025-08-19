@@ -37,7 +37,7 @@ export default function ExtensionItem({
       // Call the actual toggle function that performs the async operation
       await onToggle(ext);
       // Success case is handled by the useEffect below when extension.enabled changes
-    } catch (error) {
+    } catch {
       // If there was an error, revert the visual state
       console.log('Toggle failed, reverting visual state');
       setVisuallyEnabled(!newState);

@@ -113,7 +113,7 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
           }
           setIsLoading(false);
         }
-      } catch (error) {
+      } catch {
         setHasAttemptedFetch(true);
         // Only set pricing failed if we're not dealing with a known free provider
         const freeProviders = ['ollama', 'local', 'localhost'];

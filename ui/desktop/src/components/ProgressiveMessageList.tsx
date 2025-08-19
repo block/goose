@@ -37,6 +37,7 @@ interface ProgressiveMessageListProps {
   // Custom render function for messages
   renderMessage?: (message: Message, index: number) => React.ReactNode | null;
   isStreamingMessage?: boolean; // Whether messages are currently being streamed
+  onMessageUpdate?: (messageId: string, newContent: string) => void;
 }
 
 export default function ProgressiveMessageList({
@@ -52,6 +53,7 @@ export default function ProgressiveMessageList({
   showLoadingThreshold = 50,
   renderMessage, // Custom render function
   isStreamingMessage = false, // Whether messages are currently being streamed
+  onMessageUpdate,
 }: ProgressiveMessageListProps) {
   const [renderedCount, setRenderedCount] = useState(() => {
     // Initialize with either all messages (if small) or first batch (if large)
@@ -75,7 +77,7 @@ export default function ProgressiveMessageList({
     const contextManager = useChatContextManager();
     hasContextHandlerContent = contextManager.hasContextHandlerContent;
     getContextHandlerType = contextManager.getContextHandlerType;
-  } catch (error) {
+  } catch {
     // Context manager not available (e.g., in session history view)
     // This is fine, we'll just skip context handler functionality
     hasContextHandlerContent = undefined;
@@ -141,11 +143,16 @@ export default function ProgressiveMessageList({
 
   // Force complete rendering when search is active
   useEffect(() => {
+    // Only add listener if we're actually loading
+    if (!isLoading) {
+      return;
+    }
+
     const handleKeyDown = (e: KeyboardEvent) => {
       const isMac = window.electron.platform === 'darwin';
       const isSearchShortcut = (isMac ? e.metaKey : e.ctrlKey) && e.key === 'f';
 
-      if (isSearchShortcut && isLoading) {
+      if (isSearchShortcut) {
         // Immediately render all messages when search is triggered
         setRenderedCount(messages.length);
         setIsLoading(false);
@@ -201,7 +208,9 @@ export default function ProgressiveMessageList({
                     }}
                   />
                 ) : (
-                  !hasOnlyToolResponses(message) && <UserMessage message={message} />
+                  !hasOnlyToolResponses(message) && (
+                    <UserMessage message={message} onMessageUpdate={onMessageUpdate} />
+                  )
                 )}
               </>
             ) : (
@@ -248,14 +257,15 @@ export default function ProgressiveMessageList({
     renderedCount,
     renderMessage,
     isUserMessage,
-    hasContextHandlerContent,
-    getContextHandlerType,
     chat,
     append,
     appendMessage,
     toolCallNotifications,
-    onScrollToBottom,
     isStreamingMessage,
+    onMessageUpdate,
+    hasContextHandlerContent,
+    getContextHandlerType,
+    onScrollToBottom,
   ]);
 
   return (
