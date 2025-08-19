@@ -296,7 +296,7 @@ These variables are automatically set by Goose during command execution.
 Sometimes you want Goose to use different commands or have different shell behavior than your normal terminal usage. For example, you might want Goose to use a different tool, or prevent Goose from running long-running development servers that could hang the AI agent. This is most useful when using Goose CLI, where shell commands are executed directly in your terminal environment.
 
 **How it works:**
-1. When Goose runs commands → `GOOSE_TERMINAL` is automatically set to "1"
+1. When Goose runs commands, `GOOSE_TERMINAL` is automatically set to "1"
 2. Your shell configuration can detect this and direct Goose to change its default behavior while keeping your normal terminal usage unchanged
 
 **Example:**
