@@ -3,8 +3,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::agents::extension::ExtensionInfo;
-use crate::agents::router_tool_selector::RouterToolSelectionStrategy;
-use crate::agents::router_tools::{llm_search_tool_prompt, vector_search_tool_prompt};
+use crate::agents::router_tools::llm_search_tool_prompt;
 use crate::providers::base::get_current_model;
 use crate::{config::Config, prompt_template, utils::sanitize_unicode_tags};
 
@@ -69,7 +68,7 @@ impl PromptManager {
         frontend_instructions: Option<String>,
         suggest_disable_extensions_prompt: Value,
         model_name: Option<&str>,
-        tool_selection_strategy: Option<RouterToolSelectionStrategy>,
+        router_enabled: bool,
     ) -> String {
         let mut context: HashMap<&str, Value> = HashMap::new();
         let mut extensions_info = extensions_info.clone();
@@ -96,20 +95,11 @@ impl PromptManager {
             serde_json::to_value(sanitized_extensions_info).unwrap(),
         );
 
-        match tool_selection_strategy {
-            Some(RouterToolSelectionStrategy::Vector) => {
-                context.insert(
-                    "tool_selection_strategy",
-                    Value::String(vector_search_tool_prompt()),
-                );
-            }
-            Some(RouterToolSelectionStrategy::Llm) => {
-                context.insert(
-                    "tool_selection_strategy",
-                    Value::String(llm_search_tool_prompt()),
-                );
-            }
-            None => {}
+        if router_enabled {
+            context.insert(
+                "tool_selection_strategy",
+                Value::String(llm_search_tool_prompt()),
+            );
         }
 
         context.insert(
@@ -246,7 +236,7 @@ mod tests {
         manager.set_system_prompt_override(malicious_override.to_string());
 
         let result =
-            manager.build_system_prompt(vec![], None, Value::String("".to_string()), None, None);
+            manager.build_system_prompt(vec![], None, Value::String("".to_string()), None, false);
 
         assert!(!result.contains('\u{E0041}'));
         assert!(!result.contains('\u{E0042}'));
@@ -262,7 +252,7 @@ mod tests {
         manager.add_system_prompt_extra(malicious_extra.to_string());
 
         let result =
-            manager.build_system_prompt(vec![], None, Value::String("".to_string()), None, None);
+            manager.build_system_prompt(vec![], None, Value::String("".to_string()), None, false);
 
         assert!(!result.contains('\u{E0041}'));
         assert!(!result.contains('\u{E0042}'));
@@ -279,7 +269,7 @@ mod tests {
         manager.add_system_prompt_extra("Third\u{E0043}instruction".to_string());
 
         let result =
-            manager.build_system_prompt(vec![], None, Value::String("".to_string()), None, None);
+            manager.build_system_prompt(vec![], None, Value::String("".to_string()), None, false);
 
         assert!(!result.contains('\u{E0041}'));
         assert!(!result.contains('\u{E0042}'));
@@ -296,7 +286,7 @@ mod tests {
         manager.add_system_prompt_extra(legitimate_unicode.to_string());
 
         let result =
-            manager.build_system_prompt(vec![], None, Value::String("".to_string()), None, None);
+            manager.build_system_prompt(vec![], None, Value::String("".to_string()), None, false);
 
         assert!(result.contains("世界"));
         assert!(result.contains("🌍"));
@@ -318,7 +308,7 @@ mod tests {
             None,
             Value::String("".to_string()),
             None,
-            None,
+            false,
         );
 
         assert!(!result.contains('\u{E0041}'));

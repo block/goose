@@ -16,7 +16,7 @@ interface UserMessageProps {
 }
 
 export default function UserMessage({ message, onMessageUpdate }: UserMessageProps) {
-  const contentRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
@@ -255,6 +255,7 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
         )}
 
         {/* TODO(alexhancock): Re-enable link previews once styled well again */}
+        {/* eslint-disable-next-line no-constant-binary-expression */}
         {false && urls.length > 0 && (
           <div className="flex flex-wrap mt-2">
             {urls.map((url, index) => (

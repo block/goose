@@ -194,6 +194,7 @@ async fn add_extension(
             description: None,
             timeout,
             bundled: None,
+            available_tools: Vec::new(),
         },
         ExtensionConfigRequest::StreamableHttp {
             name,
@@ -211,6 +212,7 @@ async fn add_extension(
             description: None,
             timeout,
             bundled: None,
+            available_tools: Vec::new(),
         },
         ExtensionConfigRequest::Stdio {
             name,
@@ -241,6 +243,7 @@ async fn add_extension(
                 env_keys,
                 timeout,
                 bundled: None,
+                available_tools: Vec::new(),
             }
         }
         ExtensionConfigRequest::Builtin {
@@ -253,6 +256,7 @@ async fn add_extension(
             timeout,
             bundled: None,
             description: None,
+            available_tools: Vec::new(),
         },
         ExtensionConfigRequest::Frontend {
             name,
@@ -263,6 +267,7 @@ async fn add_extension(
             tools,
             instructions,
             bundled: None,
+            available_tools: Vec::new(),
         },
     };
 

@@ -153,3 +153,11 @@ rarora:
     linkedin: ravneet-arora-9b913537
     github: ravarora2
 
+jeuston:
+  name: Joe Euston
+  title: Software Engineering Manager
+  image_url: https://avatars.githubusercontent.com/u/52311495?v=4
+  page: true
+  socials:
+    linkedin: joeeuston
+    github: joeeuston-dev

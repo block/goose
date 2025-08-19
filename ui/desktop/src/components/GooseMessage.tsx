@@ -42,7 +42,7 @@ export default function GooseMessage({
   appendMessage,
   isStreaming = false,
 }: GooseMessageProps) {
-  const contentRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
   // Track which tool confirmations we've already handled to prevent infinite loops
   const handledToolConfirmations = useRef<Set<string>>(new Set());
 
@@ -228,6 +228,7 @@ export default function GooseMessage({
       </div>
 
       {/* TODO(alexhancock): Re-enable link previews once styled well again */}
+      {/* eslint-disable-next-line no-constant-binary-expression */}
       {false && urls.length > 0 && (
         <div className="flex flex-wrap mt-[16px]">
           {urls.map((url, index) => (
@@ -238,6 +239,7 @@ export default function GooseMessage({
 
       {/* enable or disable prompts here */}
       {/* NOTE from alexhancock on 1/14/2025 - disabling again temporarily due to non-determinism in when the forms show up */}
+      {/* eslint-disable-next-line no-constant-binary-expression */}
       {false && metadata && (
         <div className="flex mt-[16px]">
           <GooseResponseForm message={displayText} metadata={metadata || null} append={append} />

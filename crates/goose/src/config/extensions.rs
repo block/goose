@@ -47,6 +47,7 @@ impl ExtensionConfigManager {
                             timeout: Some(DEFAULT_EXTENSION_TIMEOUT),
                             bundled: Some(true),
                             description: Some(DEFAULT_EXTENSION_DESCRIPTION.to_string()),
+                            available_tools: Vec::new(),
                         },
                     },
                 )]);
