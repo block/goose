@@ -11,7 +11,7 @@ const QUEUE_EXPIRY_HOURS = 24;
 export class QueueStorage {
   private static getStoredQueue(): QueuedMessage[] {
     try {
-      const stored = sessionStorage.getItem(QUEUE_STORAGE_KEY);
+      const stored = window.sessionStorage.getItem(QUEUE_STORAGE_KEY);
       if (!stored) return [];
 
       const queue = JSON.parse(stored) as QueuedMessage[];
@@ -37,7 +37,7 @@ export class QueueStorage {
 
   private static setStoredQueue(queue: QueuedMessage[]) {
     try {
-      sessionStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(queue));
+      window.sessionStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(queue));
     } catch (error) {
       console.error('Error saving message queue:', error);
     }
@@ -66,7 +66,7 @@ export class QueueStorage {
   }
 
   static clearQueue() {
-    sessionStorage.removeItem(QUEUE_STORAGE_KEY);
+    window.sessionStorage.removeItem(QUEUE_STORAGE_KEY);
   }
 
   static addMessage(message: QueuedMessage) {

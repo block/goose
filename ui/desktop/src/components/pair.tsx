@@ -72,7 +72,7 @@ export default function Pair({
     if (chatInputContainer) {
       chatInputContainer.style.background = 'transparent';
       chatInputContainer.style.backdropFilter = 'none';
-      // @ts-ignore - webkitBackdropFilter is a valid CSS property
+      // @ts-expect-error - webkitBackdropFilter is a valid CSS property
       chatInputContainer.style.webkitBackdropFilter = 'none';
       chatInputContainer.style.border = 'none';
     }
@@ -85,7 +85,7 @@ export default function Pair({
       if (chatInputContainer) {
         chatInputContainer.style.background = '';
         chatInputContainer.style.backdropFilter = '';
-        // @ts-ignore - webkitBackdropFilter is a valid CSS property
+        // @ts-expect-error - webkitBackdropFilter is a valid CSS property
         chatInputContainer.style.webkitBackdropFilter = '';
         chatInputContainer.style.border = '';
       }

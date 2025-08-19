@@ -21,7 +21,17 @@ export interface WidgetData {
   type: WidgetType;
   position: WidgetPosition;
   size: WidgetSize;
-  data?: any;
+  data?: {
+    totalSessions?: number;
+    totalTokens?: number;
+    recentSessions?: Array<{
+      id: string;
+      metadata?: { description?: string };
+      modified: string;
+    }>;
+    greeting?: string;
+    subtitle?: string;
+  };
   title?: string;
 }
 

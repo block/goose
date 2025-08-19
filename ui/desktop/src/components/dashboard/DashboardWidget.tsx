@@ -69,7 +69,7 @@ export function DashboardWidget({ widget, onMouseDown, isDragging, onReset }: Da
               </Button>
             </div>
             <div className="space-y-1 flex-1 overflow-y-auto min-h-0">
-              {widget.data?.recentSessions?.slice(0, 5).map((session: any) => (
+              {widget.data?.recentSessions?.slice(0, 5).map((session: { id: string; metadata?: { description?: string }; modified: string }) => (
                 <div
                   key={session.id}
                   className="flex items-center justify-between text-xs py-1 px-1 rounded-md hover:bg-background-muted/50 cursor-pointer transition-colors"
