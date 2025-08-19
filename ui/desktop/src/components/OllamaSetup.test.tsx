@@ -81,7 +81,7 @@ describe('OllamaSetup', () => {
       render(<OllamaSetup onSuccess={mockOnSuccess} onCancel={mockOnCancel} />);
 
       await waitFor(() => {
-        fireEvent.click(screen.getByText('Use a different provider'));
+        fireEvent.click(screen.getByText('Cancel'));
       });
 
       expect(mockOnCancel).toHaveBeenCalled();
@@ -156,7 +156,7 @@ describe('OllamaSetup', () => {
       render(<OllamaSetup onSuccess={mockOnSuccess} onCancel={mockOnCancel} />);
 
       await waitFor(() => {
-        expect(screen.getByText(/Ollama is running on your system/)).toBeInTheDocument();
+        expect(screen.getByText(/Ollama is detected and running/)).toBeInTheDocument();
       });
     });
 
@@ -252,7 +252,7 @@ describe('OllamaSetup', () => {
       pollCallback!({ isRunning: true, host: 'http://127.0.0.1:11434' });
 
       await waitFor(() => {
-        expect(screen.getByText('✓ Ollama is running on your system')).toBeInTheDocument();
+        expect(screen.getByText('Ollama is detected and running')).toBeInTheDocument();
       });
     });
   });
