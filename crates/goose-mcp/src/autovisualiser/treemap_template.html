@@ -3,22 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interactive Treemap Visualization</title>
-    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <title>Treemap Visualization</title>
+    
+    <script>
+        {{D3_MIN}}
+    </script>
+    
     <style>
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: Arial, sans-serif;
             margin: 0;
             padding: 20px;
-            min-height: 100vh;
+            background-color: #f5f5f5;
         }
         
         .container {
             margin: 0 auto;
         }
-                
-        .chart-container {
-            padding: 0px;
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
         }
         
         .treemap-container {
@@ -56,7 +62,14 @@
             text-anchor: middle;
             dominant-baseline: middle;
         }
-                
+        
+        .group-label {
+            font-size: 14px;
+            font-weight: bold;
+            fill: #333;
+            pointer-events: none;
+        }
+        
         .tooltip {
             position: absolute;
             background: rgba(0,0,0,0.9);
@@ -69,89 +82,36 @@
             opacity: 0;
             transition: opacity 0.3s ease;
         }
-        
-        
-        @media (max-width: 768px) {
-            .controls {
-                flex-direction: column;
-            }
-            
-            .treemap-container {
-                height: 400px;
-            }
-            
-            .stats {
-                grid-template-columns: 1fr;
-            }
-        }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="chart-container">
-            <div class="treemap-container" id="treemap"></div>
-        </div>
-        
+        <div class="treemap-container" id="treemap"></div>
     </div>
     
     <div class="tooltip" id="tooltip"></div>
 
     <script>
-        let currentData = null;
-        let currentRoot = null;
+        // Data will be injected here
+        const treemapData = {{TREEMAP_DATA}};
+        
+        let currentData = treemapData;
+        let currentRoot = treemapData;
         let svg, treemap, root;
         
-        const width = 1000;
-        const height = 600;
+        const width = 800;
+        const height = 500;
         
-        // Color schemes for different categories
-        const colorSchemes = {
-            tech: d3.scaleOrdinal(d3.schemeSet3),
-            sales: d3.scaleOrdinal(d3.schemeCategory10),
-            portfolio: d3.scaleOrdinal(d3.schemePastel1),
-            world: d3.scaleOrdinal(d3.schemeTableau10),
-            random: d3.scaleOrdinal(d3.schemeSet2)
-        };
-        
-        let currentColorScheme = colorSchemes.tech;
-        
-        // Sample datasets
-        const sampleData = {
-            tech: {
-                name: "Tech Companies",
-                children: [
-                    {
-                        name: "FAANG",
-                        children: [
-                            { name: "Apple", value: 2800, category: "Hardware" },
-                            { name: "Microsoft", value: 2500, category: "Software" },
-                            { name: "Alphabet", value: 1800, category: "Internet" },
-                            { name: "Amazon", value: 1600, category: "E-commerce" },
-                            { name: "Meta", value: 900, category: "Social" }
-                        ]
-                    },
-                    {
-                        name: "Other Tech",
-                        children: [
-                            { name: "Tesla", value: 800, category: "Automotive" },
-                            { name: "Netflix", value: 200, category: "Streaming" },
-                            { name: "Nvidia", value: 600, category: "Hardware" },
-                            { name: "Adobe", value: 250, category: "Software" },
-                            { name: "Salesforce", value: 220, category: "Software" }
-                        ]
-                    }
-                ]
-            },
-        };
+        // Color scheme for different categories
+        const colorScale = d3.scaleOrdinal(d3.schemeTableau10);
         
         function initializeTreemap() {
             const container = d3.select("#treemap");
             container.selectAll("*").remove();
             
             svg = container.append("svg")
-                .attr("width", "100%")
-                .attr("height", "100%")
-                .attr("viewBox", `0 0 ${width} ${height}`)
+                .attr("width", width)
+                .attr("height", height)
                 .style("font", "10px sans-serif");
             
             treemap = d3.treemap()
@@ -166,22 +126,30 @@
                 currentRoot = data;
             }
             
+            // Create hierarchy and calculate layout
             root = d3.hierarchy(data)
                 .sum(d => d.value || 0)
                 .sort((a, b) => b.value - a.value);
             
             treemap(root);
             
+            // Clear previous content
             svg.selectAll("*").remove();
             
+            // Create leaf nodes
             const leaf = svg.selectAll("g")
                 .data(root.leaves())
                 .join("g")
                 .attr("transform", d => `translate(${d.x0},${d.y0})`);
             
+            // Add rectangles
             leaf.append("rect")
                 .attr("class", "treemap-rect")
-                .attr("fill", d => currentColorScheme(d.data.category || d.parent.data.name))
+                .attr("fill", d => {
+                    // Use category for color, or parent name if no category
+                    const colorKey = d.data.category || d.parent.data.name || 'default';
+                    return colorScale(colorKey);
+                })
                 .attr("width", d => d.x1 - d.x0)
                 .attr("height", d => d.y1 - d.y0)
                 .on("mouseover", function(event, d) {
@@ -194,11 +162,13 @@
                     hideTooltip();
                 })
                 .on("click", function(event, d) {
+                    // Navigate to parent if it has children
                     if (d.parent && d.parent.data.children) {
-                        navigateToParent(d.parent.data);
+                        updateTreemap(d.parent.data, false);
                     }
                 });
             
+            // Add text labels
             leaf.append("text")
                 .attr("class", "treemap-text")
                 .attr("x", d => (d.x1 - d.x0) / 2)
@@ -212,19 +182,30 @@
                         const text = d.data.name;
                         const ratio = availableWidth / textLength;
                         const maxLength = Math.floor(text.length * ratio) - 3;
-                        d3.select(this).text(text.substring(0, maxLength) + "...");
+                        if (maxLength > 0) {
+                            d3.select(this).text(text.substring(0, maxLength) + "...");
+                        } else {
+                            d3.select(this).text("");
+                        }
                     }
                 });
             
+            // Add value labels
             leaf.append("text")
                 .attr("class", "treemap-value")
                 .attr("x", d => (d.x1 - d.x0) / 2)
                 .attr("y", d => (d.y1 - d.y0) / 2 + 10)
                 .text(d => formatValue(d.data.value))
-                .style("font-size", d => Math.min((d.x1 - d.x0) / 10, (d.y1 - d.y0) / 6, 12) + "px");
+                .style("font-size", d => Math.min((d.x1 - d.x0) / 10, (d.y1 - d.y0) / 6, 12) + "px")
+                .style("display", d => {
+                    // Hide value if rectangle is too small
+                    const rectHeight = d.y1 - d.y0;
+                    return rectHeight < 30 ? "none" : "block";
+                });
             
-            // Add parent group rectangles for navigation
+            // Add group boundaries and labels for navigation (if data has children)
             if (data.children) {
+                // Add group rectangles for visual hierarchy
                 const groups = svg.selectAll(".group-rect")
                     .data(root.children || [])
                     .join("rect")
@@ -235,14 +216,10 @@
                     .attr("height", d => d.y1 - d.y0)
                     .attr("fill", "none")
                     .attr("stroke", "#333")
-                    .attr("stroke-width", 3)
-                    .attr("stroke-dasharray", "5,5")
+                    .attr("stroke-width", 2)
+                    .attr("stroke-dasharray", "3,3")
                     .style("cursor", "pointer")
-                    .on("click", function(event, d) {
-                        if (d.data.children) {
-                            navigateToChild(d.data);
-                        }
-                    });
+                    .style("pointer-events", "none");
                 
                 // Add group labels
                 svg.selectAll(".group-label")
@@ -252,88 +229,24 @@
                     .attr("x", d => d.x0 + 5)
                     .attr("y", d => d.y0 + 15)
                     .text(d => d.data.name)
-                    .style("font-size", "14px")
-                    .style("font-weight", "bold")
-                    .style("fill", "#333")
-                    .style("pointer-events", "none");
-            }
-            
-        }
-        
-        function navigateToChild(childData) {
-            updateTreemap(childData, false);
-        }
-        
-        function navigateToParent(parentData) {
-            updateTreemap(parentData, false);
-        }
-        
-        function navigateToRoot() {
-            if (currentRoot) {
-                updateTreemap(currentRoot, true);
-            }
-        }
-                
-        function loadSampleData(type) {
-            currentColorScheme = colorSchemes[type];
-            updateTreemap(sampleData[type]);
-        }
-        
-        function generateRandomData() {
-            const categories = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon'];
-            const data = {
-                name: "Random Data",
-                children: []
-            };
-            
-            for (let i = 0; i < 3; i++) {
-                const group = {
-                    name: `Group ${i + 1}`,
-                    children: []
-                };
-                
-                for (let j = 0; j < Math.floor(Math.random() * 5) + 3; j++) {
-                    group.children.push({
-                        name: `Item ${i}-${j}`,
-                        value: Math.floor(Math.random() * 500) + 50,
-                        category: categories[Math.floor(Math.random() * categories.length)]
+                    .style("display", d => {
+                        // Hide label if group is too small
+                        const groupWidth = d.x1 - d.x0;
+                        return groupWidth < 50 ? "none" : "block";
                     });
-                }
-                
-                data.children.push(group);
             }
-            
-            currentColorScheme = colorSchemes.random;
-            updateTreemap(data);
-        }
-        
-        function resetZoom() {
-            navigateToRoot();
-        }
-        
-        function exportSVG() {
-            const svgElement = document.querySelector("#treemap svg");
-            const serializer = new XMLSerializer();
-            const svgString = serializer.serializeToString(svgElement);
-            
-            const blob = new Blob([svgString], { type: "image/svg+xml" });
-            const url = URL.createObjectURL(blob);
-            
-            const link = document.createElement("a");
-            link.href = url;
-            link.download = "treemap.svg";
-            link.click();
-            
-            URL.revokeObjectURL(url);
         }
         
         function showTooltip(event, d) {
             const tooltip = document.getElementById('tooltip');
+            const percentage = ((d.data.value / root.value) * 100).toFixed(1);
+            
             tooltip.innerHTML = `
                 <strong>${d.data.name}</strong><br>
                 Value: ${formatValue(d.data.value)}<br>
-                Category: ${d.data.category || 'N/A'}<br>
-                Percentage: ${((d.data.value / root.value) * 100).toFixed(1)}%
+                ${d.data.category ? `Category: ${d.data.category}<br>` : ''}
+                Percentage: ${percentage}%
+                ${d.parent ? `<br>Parent: ${d.parent.data.name}` : ''}
             `;
             tooltip.style.opacity = 1;
             moveTooltip(event);
@@ -356,12 +269,53 @@
             } else if (value >= 1000) {
                 return (value / 1000).toFixed(1) + 'K';
             }
-            return value.toString();
+            return value.toLocaleString();
         }
-                
-        // Initialize the treemap
-        initializeTreemap();
-        loadSampleData('tech');
+        
+        // Function to measure and report content size for iframe auto-resizing
+        function reportContentSize() {
+            // Get the actual content height
+            const contentHeight = Math.max(
+                document.body.scrollHeight,
+                document.body.offsetHeight,
+                document.documentElement.clientHeight,
+                document.documentElement.scrollHeight,
+                document.documentElement.offsetHeight
+            );
+            
+            // Send size change message to parent window (for MCP-UI iframe auto-resize)
+            // The message format must match what the MCP-UI client expects
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'ui-size-change',  // lowercase as expected by MCP-UI client
+                    payload: {
+                        height: contentHeight
+                        // width is optional, we're not setting it to allow responsive design
+                    }
+                }, '*');
+            }
+        }
+        
+        // Initialize and render on load
+        window.onload = function() {
+            initializeTreemap();
+            updateTreemap(treemapData);
+            
+            // Report initial size
+            setTimeout(reportContentSize, 100);
+            
+            // Watch for size changes using ResizeObserver if available
+            if (typeof ResizeObserver !== 'undefined') {
+                const resizeObserver = new ResizeObserver(() => {
+                    reportContentSize();
+                });
+                resizeObserver.observe(document.body);
+                resizeObserver.observe(document.documentElement);
+            }
+            
+            // Fallback: also report on window resize
+            window.addEventListener('resize', reportContentSize);
+        };
     </script>
 </body>
 </html>

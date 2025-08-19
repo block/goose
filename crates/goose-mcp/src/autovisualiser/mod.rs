@@ -256,6 +256,58 @@ impl AutoVisualiserRouter {
         )
     }
 
+    fn create_treemap_tool() -> Tool {
+        Tool::new(
+            "render_treemap",
+            indoc! {r#"
+                Renders a treemap visualization for hierarchical data with proportional area representation.
+                Returns an interactive HTML visualization using D3.js.
+                
+                The data should be a hierarchical structure with:
+                - name: Name of the node (required)
+                - value: Numeric value for leaf nodes (optional for parent nodes)
+                - children: Array of child nodes (optional)
+                - category: Category for coloring (optional)
+                
+                Example:
+                {
+                  "name": "Root",
+                  "children": [
+                    {
+                      "name": "Group A",
+                      "children": [
+                        {"name": "Item 1", "value": 100, "category": "Type1"},
+                        {"name": "Item 2", "value": 200, "category": "Type2"}
+                      ]
+                    },
+                    {"name": "Item 3", "value": 150, "category": "Type1"}
+                  ]
+                }
+            "#},
+            object!({
+                "type": "object",
+                "required": ["data"],
+                "properties": {
+                    "data": {
+                        "type": "object",
+                        "required": ["name"],
+                        "properties": {
+                            "name": {"type": "string"},
+                            "value": {"type": "number"},
+                            "category": {"type": "string"},
+                            "children": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/properties/data"
+                                }
+                            }
+                        }
+                    }
+                }
+            }),
+        )
+    }
+
     fn create_chord_tool() -> Tool {
         Tool::new(
             "render_chord",
@@ -471,6 +523,7 @@ impl AutoVisualiserRouter {
         let render_sankey_tool = Self::create_sankey_tool();
         let render_radar_tool = Self::create_radar_tool();
         let render_donut_tool = Self::create_donut_tool();
+        let render_treemap_tool = Self::create_treemap_tool();
         let render_chord_tool = Self::create_chord_tool();
         let render_map_tool = Self::create_map_tool();
         let show_chart_tool = Self::create_show_chart_tool();
@@ -494,6 +547,7 @@ impl AutoVisualiserRouter {
             - **render_sankey**: Creates interactive Sankey diagrams from flow data
             - **render_radar**: Creates interactive radar charts for multi-dimensional data comparison
             - **render_donut**: Creates interactive donut/pie charts for categorical data (supports multiple charts)
+            - **render_treemap**: Creates interactive treemap visualizations for hierarchical data
             - **render_chord**: Creates interactive chord diagrams for relationship/flow visualization
             - **render_map**: Creates interactive map visualizations with location markers
             - **show_chart**: Creates interactive line, scatter, or bar charts for data visualization
@@ -511,6 +565,7 @@ impl AutoVisualiserRouter {
                 render_sankey_tool,
                 render_radar_tool,
                 render_donut_tool,
+                render_treemap_tool,
                 render_chord_tool,
                 render_map_tool,
                 show_chart_tool,
@@ -614,6 +669,55 @@ impl AutoVisualiserRouter {
 
         let resource_contents = ResourceContents::BlobResourceContents {
             uri: "ui://radar/chart".to_string(),
+            mime_type: Some("text/html".to_string()),
+            blob: base64_encoded,
+        };
+
+        Ok(vec![Content::resource(resource_contents)])
+    }
+
+    async fn render_treemap(&self, params: Value) -> Result<Vec<Content>, ErrorData> {
+        // Extract the data from parameters
+        let data = params.get("data").ok_or_else(|| {
+            ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Missing 'data' parameter".to_string(),
+                None,
+            )
+        })?;
+
+        // Load all resources at compile time using include_str!
+        const TEMPLATE: &str = include_str!("treemap_template.html");
+        const D3_MIN: &str = include_str!("d3.min.js");
+
+        // Convert the data to JSON string
+        let data_json = serde_json::to_string(&data).map_err(|e| {
+            ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                format!("Invalid JSON data: {}", e),
+                None,
+            )
+        })?;
+
+        // Replace all placeholders with actual content
+        let html_content = TEMPLATE
+            .replace("{{D3_MIN}}", D3_MIN)
+            .replace("{{TREEMAP_DATA}}", &data_json);
+
+        // Save to /tmp/treemap.html for debugging
+        let debug_path = std::path::Path::new("/tmp/treemap.html");
+        if let Err(e) = std::fs::write(debug_path, &html_content) {
+            tracing::warn!("Failed to write debug HTML to /tmp/treemap.html: {}", e);
+        } else {
+            tracing::info!("Debug HTML saved to /tmp/treemap.html");
+        }
+
+        // Use BlobResourceContents with base64 encoding to avoid JSON string escaping issues
+        let html_bytes = html_content.as_bytes();
+        let base64_encoded = STANDARD.encode(html_bytes);
+
+        let resource_contents = ResourceContents::BlobResourceContents {
+            uri: "ui://treemap/visualization".to_string(),
             mime_type: Some("text/html".to_string()),
             blob: base64_encoded,
         };
@@ -867,6 +971,7 @@ impl Router for AutoVisualiserRouter {
                 "render_sankey" => this.render_sankey(arguments).await,
                 "render_radar" => this.render_radar(arguments).await,
                 "render_donut" => this.render_donut(arguments).await,
+                "render_treemap" => this.render_treemap(arguments).await,
                 "render_chord" => this.render_chord(arguments).await,
                 "render_map" => this.render_map(arguments).await,
                 "show_chart" => this.show_chart(arguments).await,
