@@ -44,7 +44,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
   const draft = draftContext.getDraft(contextKey);
 
   const setDraft = (newDraft: string) => {
-    draftContext.setDraft(contextKey, newDraft);
+    // Determine context type from contextKey
+    const contextType = contextKey.startsWith('pair') ? 'pair' : 'hub';
+    draftContext.setDraft(contextKey, newDraft, contextType, chat.title);
   };
 
   const clearDraft = () => {

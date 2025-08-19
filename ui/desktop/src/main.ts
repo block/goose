@@ -2030,6 +2030,12 @@ app.whenReady().then(async () => {
     // Log the recipe for debugging
     console.log('Creating chat window with recipe:', recipe);
 
+    // If no viewType is specified, default to 'pair' for new windows
+    // This ensures each new window gets its own draft context
+    if (!viewType && !resumeSessionId && !recipe) {
+      viewType = 'pair';
+    }
+
     // Pass recipe as part of viewOptions when viewType is recipeEditor
     createChat(app, query, dir, version, resumeSessionId, recipe, viewType);
   });
