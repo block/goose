@@ -202,41 +202,6 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
                 />
               );
             })}
-
-            {/* Percentage text positioned on the current dot */}
-            {(() => {
-              const progress = alert.progress!.current / alert.progress!.total;
-              const progressPercentage = Math.round(progress * 100);
-
-              // Calculate position - adjust for text width at high percentages
-              let leftPosition = `${progress * 100}%`;
-              let transform = 'translateX(-50%)';
-
-              // Adjust position if text would be cut off
-              if (progress > 0.92) {
-                return (
-                  <div
-                    className="absolute -top-5 right-0 text-[10px] font-medium text-gray-600 dark:text-gray-400"
-                    style={{ textAlign: 'right' as const }}
-                  >
-                    {progressPercentage}%
-                  </div>
-                );
-              }
-
-              return (
-                <div
-                  className="absolute -top-5 text-[10px] font-medium text-gray-600 dark:text-gray-400"
-                  style={{
-                    left: leftPosition,
-                    transform,
-                    textAlign: 'center' as const,
-                  }}
-                >
-                  {progressPercentage}%
-                </div>
-              );
-            })()}
           </div>
           <div className="flex justify-between items-baseline text-[11px]">
             <div className="flex gap-1 items-baseline">
