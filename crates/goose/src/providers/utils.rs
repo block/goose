@@ -87,26 +87,29 @@ pub fn map_http_error_to_provider_error(
                     ProviderError::ContextLengthExceeded(payload_str)
                 } else {
                     if let Some(error) = payload.get("error") {
-                        error_msg = error.get("message")
+                        error_msg = error
+                            .get("message")
                             .and_then(|m| m.as_str())
                             .unwrap_or("Unknown error")
                             .to_string();
                     }
-                    ProviderError::RequestFailed(format!("Request failed with status: {}. Message: {}", status, error_msg))
+                    ProviderError::RequestFailed(format!(
+                        "Request failed with status: {}. Message: {}",
+                        status, error_msg
+                    ))
                 }
             } else {
-                ProviderError::RequestFailed(format!("Request failed with status: {}. Message: {}", status, error_msg))
+                ProviderError::RequestFailed(format!(
+                    "Request failed with status: {}. Message: {}",
+                    status, error_msg
+                ))
             }
         }
-        StatusCode::TOO_MANY_REQUESTS => {
-            ProviderError::RateLimitExceeded(format!("{:?}", payload))
-        }
-        _ if status.is_server_error() => {
+        StatusCode::TOO_MANY_REQUESTS => ProviderError::RateLimitExceeded(format!("{:?}", payload)),
+        StatusCode::INTERNAL_SERVER_ERROR | StatusCode::SERVICE_UNAVAILABLE => {
             ProviderError::ServerError(format!("{:?}", payload))
         }
-        _ => {
-            ProviderError::RequestFailed(format!("Request failed with status: {}", status))
-        }
+        _ => ProviderError::RequestFailed(format!("Request failed with status: {}", status)),
     };
 
     if !status.is_success() {
@@ -162,7 +165,6 @@ pub async fn handle_status_openai_compat(response: Response) -> Result<Response,
                 )));
             }
         }
-        // Fall through if not a valid OpenAI error response
     }
 
     let payload = serde_json::from_str::<Value>(&body_str).ok();
@@ -253,8 +255,8 @@ pub async fn handle_response_google_compat(response: Response) -> Result<Value, 
             );
             Err(ProviderError::RequestFailed(format!("Request failed with status: {}. Message: {}", final_status, error_msg)))
         }
-        _ if final_status.is_server_error() => {
-            Err(ProviderError::ServerError(format!("{:?}", payload)))
+        StatusCode::TOO_MANY_REQUESTS => {
+            Err(ProviderError::RateLimitExceeded(format!("{:?}", payload)))
         }
         StatusCode::INTERNAL_SERVER_ERROR | StatusCode::SERVICE_UNAVAILABLE => {
             Err(ProviderError::ServerError(format!("{:?}", payload)))
@@ -496,7 +498,7 @@ pub fn json_escape_control_chars_in_string(s: &str) -> String {
 mod tests {
     use super::*;
     use serde_json::json;
-    use wiremock::{Mock, MockServer, ResponseTemplate, matchers};
+    use wiremock::{matchers, Mock, MockServer, ResponseTemplate};
 
     #[test]
     fn test_detect_image_path() {
@@ -892,7 +894,8 @@ mod tests {
             if let Some(body_value) = body {
                 if body_value.is_string() {
                     // For non-JSON bodies (like "Payload Too Large")
-                    response_template = response_template.set_body_string(body_value.as_str().unwrap().to_string());
+                    response_template =
+                        response_template.set_body_string(body_value.as_str().unwrap().to_string());
                 } else {
                     // For JSON bodies
                     response_template = response_template.set_body_json(&body_value);
