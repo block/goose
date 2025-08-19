@@ -21,7 +21,7 @@
 
 import { useState } from 'react';
 import FlappyGoose from './FlappyGoose';
-import { type View, ViewOptions } from '../App';
+
 import { SessionInsights } from './sessions/SessionsInsights';
 import ChatInput from './ChatInput';
 import { generateSessionId } from '../sessions';
@@ -31,6 +31,7 @@ import 'react-toastify/dist/ReactToastify.css';
 
 import { ChatType } from '../types/chat';
 import { DEFAULT_CHAT_TITLE } from '../contexts/ChatContext';
+import { View, ViewOptions } from '../utils/navigationUtils';
 
 export default function Hub({
   chat: _chat,

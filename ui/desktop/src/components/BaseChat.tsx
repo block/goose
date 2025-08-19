@@ -56,7 +56,7 @@ import {
   ChatContextManagerProvider,
   useChatContextManager,
 } from './context_management/ChatContextManager';
-import { type View, ViewOptions } from '../App';
+import { View, ViewOptions } from '../utils/navigationUtils';
 import { MainPanelLayout } from './Layout/MainPanelLayout';
 import ChatInput from './ChatInput';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
