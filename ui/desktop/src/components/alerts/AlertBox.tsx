@@ -28,14 +28,21 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
     alert.autoCompactThreshold ? Math.round(alert.autoCompactThreshold * 100) : 80
   );
   const [isSaving, setIsSaving] = useState(false);
+  const [showDisabledToast, setShowDisabledToast] = useState(false);
 
   const handleSaveThreshold = async () => {
     if (isSaving) return; // Prevent double-clicks
 
-    // Validate threshold value before saving
-    const validThreshold = Math.max(1, Math.min(99, thresholdValue));
+    // Validate threshold value - allow 0 and 100 as special values to disable
+    const validThreshold = Math.max(0, Math.min(100, thresholdValue));
     if (validThreshold !== thresholdValue) {
       setThresholdValue(validThreshold);
+    }
+
+    // Show toast if disabling
+    if (validThreshold === 0 || validThreshold === 100) {
+      setShowDisabledToast(true);
+      setTimeout(() => setShowDisabledToast(false), 3000);
     }
 
     setIsSaving(true);
@@ -87,31 +94,37 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
   };
 
   return (
-    <div
-      className={cn('flex flex-col gap-2 px-3 py-3', alertStyles[alert.type], className)}
-      onMouseDown={(e) => {
-        // Prevent popover from closing when clicking inside the alert box
-        if (isEditingThreshold) {
-          e.stopPropagation();
-        }
-      }}
-    >
-      {alert.progress ? (
-        <div className="flex flex-col gap-2">
-          <span className="text-[11px]">{alert.message}</span>
+    <div className="relative">
+      {/* Toast notification for disabled auto-compact */}
+      {showDisabledToast && (
+        <div className="absolute top-0 -right-24 bg-yellow-600 text-white px-2 py-1 rounded text-[10px] whitespace-nowrap z-50 shadow-lg">
+          ⚠️ Disabled
+        </div>
+      )}
 
-          {/* Auto-compact threshold indicator with edit */}
-          {alert.autoCompactThreshold !== undefined &&
-            alert.autoCompactThreshold > 0 &&
-            alert.autoCompactThreshold < 1 && (
+      <div
+        className={cn('flex flex-col gap-2 px-3 py-3', alertStyles[alert.type], className)}
+        onMouseDown={(e) => {
+          // Prevent popover from closing when clicking inside the alert box
+          if (isEditingThreshold) {
+            e.stopPropagation();
+          }
+        }}
+      >
+        {alert.progress ? (
+          <div className="flex flex-col gap-2">
+            <span className="text-[11px]">{alert.message}</span>
+
+            {/* Auto-compact threshold indicator with edit */}
+            {alert.autoCompactThreshold !== undefined && (
               <div className="flex items-center justify-center gap-1 min-h-[20px]">
                 {isEditingThreshold ? (
                   <>
                     <span className="text-[10px] opacity-70">Auto summarize at</span>
                     <input
                       type="number"
-                      min="1"
-                      max="99"
+                      min="0"
+                      max="100"
                       step="1"
                       value={thresholdValue}
                       onChange={(e) => {
@@ -120,17 +133,17 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
                         if (e.target.value === '') {
                           setThresholdValue(0);
                         } else if (!isNaN(val)) {
-                          // Clamp value between 1 and 99
-                          setThresholdValue(Math.max(1, Math.min(99, val)));
+                          // Clamp value between 0 and 100
+                          setThresholdValue(Math.max(0, Math.min(100, val)));
                         }
                       }}
                       onBlur={(e) => {
                         // On blur, ensure we have a valid value
                         const val = parseInt(e.target.value, 10);
-                        if (isNaN(val) || val < 1) {
-                          setThresholdValue(1);
-                        } else if (val > 99) {
-                          setThresholdValue(99);
+                        if (isNaN(val) || val < 0) {
+                          setThresholdValue(0);
+                        } else if (val > 100) {
+                          setThresholdValue(100);
                         }
                       }}
                       onKeyDown={(e) => {
@@ -175,7 +188,9 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
                 ) : (
                   <>
                     <span className="text-[10px] opacity-70">
-                      Auto summarize at {Math.round(alert.autoCompactThreshold * 100)}%
+                      {alert.autoCompactThreshold === 0 || alert.autoCompactThreshold === 1
+                        ? 'Auto summarize disabled'
+                        : `Auto summarize at ${Math.round(alert.autoCompactThreshold * 100)}%`}
                     </span>
                     <button
                       type="button"
@@ -194,102 +209,103 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
               </div>
             )}
 
-          <div className="flex justify-between w-full relative">
-            {[...Array(30)].map((_, i) => {
-              const progress = alert.progress!.current / alert.progress!.total;
-              const progressPercentage = Math.round(progress * 100);
-              const dotPosition = i / 29; // 0 to 1 range for 30 dots
-              const isActive = dotPosition <= progress;
-              const isThresholdDot =
-                alert.autoCompactThreshold !== undefined &&
-                alert.autoCompactThreshold > 0 &&
-                alert.autoCompactThreshold < 1 &&
-                Math.abs(dotPosition - alert.autoCompactThreshold) < 0.017; // ~1/30 tolerance
+            <div className="flex justify-between w-full relative">
+              {[...Array(30)].map((_, i) => {
+                const progress = alert.progress!.current / alert.progress!.total;
+                const progressPercentage = Math.round(progress * 100);
+                const dotPosition = i / 29; // 0 to 1 range for 30 dots
+                const isActive = dotPosition <= progress;
+                const isThresholdDot =
+                  alert.autoCompactThreshold !== undefined &&
+                  alert.autoCompactThreshold > 0 &&
+                  alert.autoCompactThreshold < 1 &&
+                  Math.abs(dotPosition - alert.autoCompactThreshold) < 0.017; // ~1/30 tolerance
 
-              // Determine the color based on progress percentage
-              const getProgressColor = () => {
-                if (progressPercentage <= 50) {
-                  return 'bg-green-500'; // Green for 0-50%
-                } else if (progressPercentage <= 75) {
-                  return 'bg-yellow-500'; // Yellow for 51-75%
-                } else if (progressPercentage <= 90) {
-                  return 'bg-orange-500'; // Orange for 76-90%
-                } else {
-                  return 'bg-red-500'; // Red for 91-100%
-                }
-              };
+                // Determine the color based on progress percentage
+                const getProgressColor = () => {
+                  if (progressPercentage <= 50) {
+                    return 'bg-green-500'; // Green for 0-50%
+                  } else if (progressPercentage <= 75) {
+                    return 'bg-yellow-500'; // Yellow for 51-75%
+                  } else if (progressPercentage <= 90) {
+                    return 'bg-orange-500'; // Orange for 76-90%
+                  } else {
+                    return 'bg-red-500'; // Red for 91-100%
+                  }
+                };
 
-              const progressColor = getProgressColor();
-              const inactiveColor = 'bg-gray-300 dark:bg-gray-600';
+                const progressColor = getProgressColor();
+                const inactiveColor = 'bg-gray-300 dark:bg-gray-600';
 
-              return (
-                <div
-                  key={i}
-                  className={cn(
-                    'rounded-full transition-all relative',
-                    isThresholdDot
-                      ? 'h-[6px] w-[6px] -mt-[2px]' // Make threshold dot twice as large
-                      : 'h-[2px] w-[2px]',
-                    isActive ? progressColor : inactiveColor
-                  )}
-                />
-              );
-            })}
-          </div>
-          <div className="flex justify-between items-baseline text-[11px]">
-            <div className="flex gap-1 items-baseline">
+                return (
+                  <div
+                    key={i}
+                    className={cn(
+                      'rounded-full transition-all relative',
+                      isThresholdDot
+                        ? 'h-[6px] w-[6px] -mt-[2px]' // Make threshold dot twice as large
+                        : 'h-[2px] w-[2px]',
+                      isActive ? progressColor : inactiveColor
+                    )}
+                  />
+                );
+              })}
+            </div>
+            <div className="flex justify-between items-baseline text-[11px]">
+              <div className="flex gap-1 items-baseline">
+                <span className={'dark:text-black/60 text-white/60'}>
+                  {alert.progress!.current >= 1000
+                    ? (alert.progress!.current / 1000).toFixed(1) + 'k'
+                    : alert.progress!.current}
+                </span>
+                <span className={'dark:text-black/40 text-white/40'}>
+                  {Math.round((alert.progress!.current / alert.progress!.total) * 100)}%
+                </span>
+              </div>
               <span className={'dark:text-black/60 text-white/60'}>
-                {alert.progress!.current >= 1000
-                  ? (alert.progress!.current / 1000).toFixed(1) + 'k'
-                  : alert.progress!.current}
-              </span>
-              <span className={'dark:text-black/40 text-white/40'}>
-                {Math.round((alert.progress!.current / alert.progress!.total) * 100)}%
+                {alert.progress!.total >= 1000
+                  ? (alert.progress!.total / 1000).toFixed(0) + 'k'
+                  : alert.progress!.total}
               </span>
             </div>
-            <span className={'dark:text-black/60 text-white/60'}>
-              {alert.progress!.total >= 1000
-                ? (alert.progress!.total / 1000).toFixed(0) + 'k'
-                : alert.progress!.total}
-            </span>
+            {alert.showSummarizeButton && alert.onSummarize && (
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  alert.onSummarize!();
+                }}
+                className="flex items-center gap-1.5 text-[11px] hover:opacity-80 cursor-pointer outline-none mt-1"
+              >
+                {alert.summarizeIcon}
+                <span>Summarize now</span>
+              </button>
+            )}
           </div>
-          {alert.showSummarizeButton && alert.onSummarize && (
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                alert.onSummarize!();
-              }}
-              className="flex items-center gap-1.5 text-[11px] hover:opacity-80 cursor-pointer outline-none mt-1"
-            >
-              {alert.summarizeIcon}
-              <span>Summarize now</span>
-            </button>
-          )}
-        </div>
-      ) : (
-        <>
-          <div className="flex items-center gap-2">
-            <div className="flex-shrink-0">{alertIcons[alert.type]}</div>
-            <div className="flex flex-col gap-2 flex-1">
-              <span className="text-[11px] break-words whitespace-pre-line">{alert.message}</span>
-              {alert.action && (
-                <a
-                  role="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    alert.action?.onClick();
-                  }}
-                  className="text-[11px] text-left underline hover:opacity-80 cursor-pointer outline-none"
-                >
-                  {alert.action.text}
-                </a>
-              )}
+        ) : (
+          <>
+            <div className="flex items-center gap-2">
+              <div className="flex-shrink-0">{alertIcons[alert.type]}</div>
+              <div className="flex flex-col gap-2 flex-1">
+                <span className="text-[11px] break-words whitespace-pre-line">{alert.message}</span>
+                {alert.action && (
+                  <a
+                    role="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      alert.action?.onClick();
+                    }}
+                    className="text-[11px] text-left underline hover:opacity-80 cursor-pointer outline-none"
+                  >
+                    {alert.action.text}
+                  </a>
+                )}
+              </div>
             </div>
-          </div>
-        </>
-      )}
+          </>
+        )}
+      </div>
     </div>
   );
 };
