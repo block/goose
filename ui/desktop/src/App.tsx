@@ -39,7 +39,7 @@ import RecipeEditor from './components/RecipeEditor';
 
 // Import the new modules
 import { createNavigationHandler, View, ViewOptions } from './utils/navigationUtils';
-import { performAppInitialization } from './utils/appInitialization';
+import { initializeApp } from './utils/appInitialization';
 
 // Route Components
 const HubRouteWrapper = ({
@@ -413,7 +413,7 @@ export default function App() {
     title: 'Pair Chat',
     messages: [],
     messageHistoryIndex: 0,
-    recipeConfig: null, // Initialize with no recipe
+    recipeConfig: null,
   });
 
   const { getExtensions, addExtension, read } = useConfig();
@@ -490,12 +490,27 @@ export default function App() {
     }
     initAttemptedRef.current = true;
 
-    performAppInitialization({
-      getExtensions,
-      addExtension,
-      read,
-      setPairChat,
-      setFatalError,
+    const initialize = async () => {
+      const config = window.electron.getConfig();
+      const provider = (await read('GOOSE_PROVIDER', false)) ?? config.GOOSE_DEFAULT_PROVIDER;
+      const model = (await read('GOOSE_MODEL', false)) ?? config.GOOSE_DEFAULT_MODEL;
+
+      if (!provider || !model) {
+        throw new Error('Provider and model must be configured');
+      }
+
+      await initializeApp({
+        getExtensions,
+        addExtension,
+        setPairChat,
+        provider: provider as string,
+        model: model as string,
+      });
+    };
+
+    initialize().catch((error) => {
+      console.error('Fatal error during initialization:', error);
+      setFatalError(error instanceof Error ? error.message : 'Unknown error occurred');
     });
   }, [getExtensions, addExtension, read, setPairChat]);
 

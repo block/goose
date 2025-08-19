@@ -13,17 +13,17 @@ import { COST_TRACKING_ENABLED } from '../updates';
 interface InitializationDependencies {
   getExtensions?: (b: boolean) => Promise<FixedExtensionEntry[]>;
   addExtension?: (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>;
-  read: (key: string, is_secret: boolean) => Promise<unknown>;
   setPairChat: (chat: ChatType | ((prev: ChatType) => ChatType)) => void;
-  setFatalError: (error: string) => void;
+  provider: string;
+  model: string;
 }
 
-export const performAppInitialization = async ({
+export const initializeApp = async ({
   getExtensions,
   addExtension,
-  read,
   setPairChat,
-  setFatalError,
+  provider,
+  model,
 }: InitializationDependencies) => {
   console.log(`Initializing app`);
 
@@ -32,23 +32,21 @@ export const performAppInitialization = async ({
   const resumeSessionId = urlParams.get('resumeSessionId');
   const recipeConfig = window.appConfig.get('recipe');
 
-  // Check for session resume first - this takes priority over other navigation
   if (resumeSessionId) {
     console.log('Session resume detected, letting useChat hook handle navigation');
-    await initializeForSessionResume({ getExtensions, addExtension, read, setFatalError });
+    await initializeForSessionResume({ getExtensions, addExtension, provider, model });
     return;
   }
 
-  // Check for recipe config - this also needs provider initialization
   if (recipeConfig && typeof recipeConfig === 'object') {
     console.log('Recipe deeplink detected, initializing system for recipe');
     await initializeForRecipe({
       recipeConfig: recipeConfig as Recipe,
       getExtensions,
       addExtension,
-      read,
       setPairChat,
-      setFatalError,
+      provider,
+      model,
     });
     return;
   }
@@ -58,106 +56,112 @@ export const performAppInitialization = async ({
     return;
   }
 
-  await initializeApp({ getExtensions, addExtension, read, setFatalError });
+  const costDbPromise = COST_TRACKING_ENABLED
+    ? initializeCostDatabase().catch((error) => {
+        console.error('Failed to initialize cost database:', error);
+      })
+    : (() => {
+        console.log('Cost tracking disabled, skipping cost database initialization');
+        return Promise.resolve();
+      })();
+
+  await initConfig();
+
+  try {
+    await readAllConfig({ throwOnError: true });
+  } catch (error) {
+    console.warn('Initial config read failed, attempting recovery:', error);
+    await handleConfigRecovery();
+  }
+
+  if (provider && model) {
+    try {
+      const initPromises = [
+        initializeSystem(provider, model, {
+          getExtensions,
+          addExtension,
+        }),
+      ];
+
+      if (COST_TRACKING_ENABLED) {
+        initPromises.push(costDbPromise);
+      }
+
+      await Promise.all(initPromises);
+    } catch (error) {
+      console.error('Error in system initialization:', error);
+      if (error instanceof MalformedConfigError) {
+        throw error;
+      }
+      window.location.hash = '#/';
+      window.history.replaceState({}, '', '#/');
+    }
+  } else {
+    window.location.hash = '#/';
+    window.history.replaceState({}, '', '#/');
+  }
 };
 
 const initializeForSessionResume = async ({
   getExtensions,
   addExtension,
-  read,
-  setFatalError,
-}: Pick<
-  InitializationDependencies,
-  'getExtensions' | 'addExtension' | 'read' | 'setFatalError'
->) => {
-  try {
-    await initConfig();
-    await readAllConfig({ throwOnError: true });
+  provider,
+  model,
+}: Pick<InitializationDependencies, 'getExtensions' | 'addExtension' | 'provider' | 'model'>) => {
+  await initConfig();
+  await readAllConfig({ throwOnError: true });
 
-    const config = window.electron.getConfig();
-    const provider = (await read('GOOSE_PROVIDER', false)) ?? config.GOOSE_DEFAULT_PROVIDER;
-    const model = (await read('GOOSE_MODEL', false)) ?? config.GOOSE_DEFAULT_MODEL;
-
-    if (provider && model) {
-      await initializeSystem(provider as string, model as string, {
-        getExtensions,
-        addExtension,
-      });
-    } else {
-      throw new Error('No provider/model configured for session resume');
-    }
-  } catch (error) {
-    console.error('Failed to initialize system for session resume:', error);
-    setFatalError(
-      `Failed to initialize system for session resume: ${error instanceof Error ? error.message : 'Unknown error'}`
-    );
-  }
+  await initializeSystem(provider, model, {
+    getExtensions,
+    addExtension,
+  });
 };
 
 const initializeForRecipe = async ({
   recipeConfig,
   getExtensions,
   addExtension,
-  read,
   setPairChat,
-  setFatalError,
+  provider,
+  model,
 }: Pick<
   InitializationDependencies,
-  'getExtensions' | 'addExtension' | 'read' | 'setPairChat' | 'setFatalError'
+  'getExtensions' | 'addExtension' | 'setPairChat' | 'provider' | 'model'
 > & {
   recipeConfig: Recipe;
 }) => {
-  try {
-    await initConfig();
-    await readAllConfig({ throwOnError: true });
+  await initConfig();
+  await readAllConfig({ throwOnError: true });
 
-    const config = window.electron.getConfig();
-    const provider = (await read('GOOSE_PROVIDER', false)) ?? config.GOOSE_DEFAULT_PROVIDER;
-    const model = (await read('GOOSE_MODEL', false)) ?? config.GOOSE_DEFAULT_MODEL;
+  await initializeSystem(provider, model, {
+    getExtensions,
+    addExtension,
+  });
 
-    if (provider && model) {
-      await initializeSystem(provider as string, model as string, {
-        getExtensions,
-        addExtension,
-      });
+  setPairChat((prevChat) => ({
+    ...prevChat,
+    recipeConfig: recipeConfig,
+    title: recipeConfig?.title || 'Recipe Chat',
+    messages: [],
+    messageHistoryIndex: 0,
+  }));
 
-      // Set up the recipe in pair chat after system is initialized
-      setPairChat((prevChat) => ({
-        ...prevChat,
-        recipeConfig: recipeConfig,
-        title: recipeConfig?.title || 'Recipe Chat',
-        messages: [], // Start fresh for recipe
-        messageHistoryIndex: 0,
-      }));
-
-      // Navigate to pair view
-      window.location.hash = '#/pair';
-      window.history.replaceState(
-        {
-          recipeConfig: recipeConfig,
-          resetChat: true,
-        },
-        '',
-        '#/pair'
-      );
-    } else {
-      throw new Error('No provider/model configured for recipe');
-    }
-  } catch (error) {
-    console.error('Failed to initialize system for recipe:', error);
-    setFatalError(
-      `Failed to initialize system for recipe: ${error instanceof Error ? error.message : 'Unknown error'}`
-    );
-  }
+  window.location.hash = '#/pair';
+  window.history.replaceState(
+    {
+      recipeConfig: recipeConfig,
+      resetChat: true,
+    },
+    '',
+    '#/pair'
+  );
 };
 
 const handleViewTypeDeepLink = (viewType: string, recipeConfig: unknown) => {
   if (viewType === 'recipeEditor' && recipeConfig) {
-    // Handle recipe editor deep link - use hash routing
     window.location.hash = '#/recipe-editor';
     window.history.replaceState({ config: recipeConfig }, '', '#/recipe-editor');
   } else {
-    // Handle other deep links by redirecting to appropriate route
     const routeMap: Record<string, string> = {
       chat: '#/',
       pair: '#/pair',
@@ -180,72 +184,6 @@ const handleViewTypeDeepLink = (viewType: string, recipeConfig: unknown) => {
   }
 };
 
-const initializeApp = async ({
-  getExtensions,
-  addExtension,
-  read,
-  setFatalError,
-}: Pick<
-  InitializationDependencies,
-  'getExtensions' | 'addExtension' | 'read' | 'setFatalError'
->) => {
-  try {
-    // Start cost database initialization early (non-blocking) - only if cost tracking is enabled
-    const costDbPromise = COST_TRACKING_ENABLED
-      ? initializeCostDatabase().catch((error) => {
-          console.error('Failed to initialize cost database:', error);
-        })
-      : (() => {
-          console.log('Cost tracking disabled, skipping cost database initialization');
-          return Promise.resolve();
-        })();
-
-    await initConfig();
-
-    try {
-      await readAllConfig({ throwOnError: true });
-    } catch (error) {
-      console.warn('Initial config read failed, attempting recovery:', error);
-      await handleConfigRecovery();
-    }
-
-    const config = window.electron.getConfig();
-    const provider = (await read('GOOSE_PROVIDER', false)) ?? config.GOOSE_DEFAULT_PROVIDER;
-    const model = (await read('GOOSE_MODEL', false)) ?? config.GOOSE_DEFAULT_MODEL;
-
-    if (provider && model) {
-      try {
-        // Initialize system in parallel with cost database (if enabled)
-        const initPromises = [
-          initializeSystem(provider as string, model as string, {
-            getExtensions,
-            addExtension,
-          }),
-        ];
-
-        if (COST_TRACKING_ENABLED) {
-          initPromises.push(costDbPromise);
-        }
-
-        await Promise.all(initPromises);
-      } catch (error) {
-        console.error('Error in system initialization:', error);
-        if (error instanceof MalformedConfigError) {
-          throw error;
-        }
-        window.location.hash = '#/';
-        window.history.replaceState({}, '', '#/');
-      }
-    } else {
-      window.location.hash = '#/';
-      window.history.replaceState({}, '', '#/');
-    }
-  } catch (error) {
-    console.error('Fatal error during initialization:', error);
-    setFatalError(error instanceof Error ? error.message : 'Unknown error occurred');
-  }
-};
-
 const handleConfigRecovery = async () => {
   const configVersion = localStorage.getItem('configVersion');
   const shouldMigrateExtensions = !configVersion || parseInt(configVersion, 10) < 3;
@@ -257,16 +195,12 @@ const handleConfigRecovery = async () => {
       await initConfig();
     } catch (migrationError) {
       console.error('Migration failed:', migrationError);
-      // Continue with recovery attempts
     }
   }
 
-  // Try recovery if migration didn't work or wasn't needed
   console.log('Attempting config recovery...');
   try {
-    // Try to validate first (faster than recovery)
     await validateConfig({ throwOnError: true });
-    // If validation passes, try reading again
     await readAllConfig({ throwOnError: true });
   } catch {
     console.log('Config validation failed, attempting recovery...');
