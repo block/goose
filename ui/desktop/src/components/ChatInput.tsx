@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useMemo } from 'react';
+import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import { FolderKey, ScrollText } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
 import { Button } from './ui/button';
@@ -27,6 +27,7 @@ import { COST_TRACKING_ENABLED } from '../updates';
 import { CostTracker } from './bottom_menu/CostTracker';
 import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
 import { Recipe } from '../recipe';
+import { getApiUrl } from '../config';
 
 interface PastedImage {
   id: string;
@@ -114,6 +115,7 @@ export default function ChatInput({
   const { getCurrentModelAndProvider, currentModel, currentProvider } = useModelAndProvider();
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
   const [isTokenLimitLoaded, setIsTokenLimitLoaded] = useState(false);
+  const [autoCompactThreshold, setAutoCompactThreshold] = useState<number>(0.8); // Default to 80%
 
   // Draft functionality - get chat context and global draft context
   // We need to handle the case where ChatInput is used without ChatProvider (e.g., in Hub)
@@ -398,6 +400,48 @@ export default function ChatInput({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentModel, currentProvider]);
 
+  // Load auto-compact threshold
+  const loadAutoCompactThreshold = useCallback(async () => {
+    try {
+      const secretKey = await window.electron.getSecretKey();
+      const response = await fetch(getApiUrl('/config/auto-compact-threshold'), {
+        headers: {
+          'X-Secret-Key': secretKey,
+        },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Loaded auto-compact threshold from config:', data);
+        if (data.threshold !== undefined) {
+          setAutoCompactThreshold(data.threshold);
+          console.log('Set auto-compact threshold to:', data.threshold);
+        }
+      } else {
+        console.error('Failed to fetch auto-compact threshold, status:', response.status);
+      }
+    } catch (err) {
+      console.error('Error fetching auto-compact threshold:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAutoCompactThreshold();
+  }, [loadAutoCompactThreshold]);
+
+  // Listen for threshold change events from AlertBox
+  useEffect(() => {
+    const handleThresholdChange = (event: any) => {
+      const customEvent = event as CustomEvent<{ threshold: number }>;
+      setAutoCompactThreshold(customEvent.detail.threshold);
+    };
+
+    window.addEventListener('autoCompactThresholdChanged', handleThresholdChange);
+    
+    return () => {
+      window.removeEventListener('autoCompactThresholdChanged', handleThresholdChange);
+    };
+  }, []);
+
   // Handle tool count alerts and token usage
   useEffect(() => {
     clearAlerts();
@@ -419,7 +463,7 @@ export default function ChatInput({
           autoShow: true, // Auto-show token limit warnings
         });
       } else {
-        // Show info alert with summarize button
+        // Show info alert with summarize button and auto-compact threshold
         addAlert({
           type: AlertType.Info,
           message: 'Context window',
@@ -432,6 +476,7 @@ export default function ChatInput({
             handleManualCompaction(messages, setMessages);
           },
           summarizeIcon: <ScrollText size={12} />,
+          autoCompactThreshold: autoCompactThreshold,
         });
       }
     } else if (isTokenLimitLoaded && tokenLimit) {
@@ -451,6 +496,7 @@ export default function ChatInput({
               }
             : undefined,
         summarizeIcon: messages.length > 0 ? <ScrollText size={12} /> : undefined,
+        autoCompactThreshold: autoCompactThreshold,
       });
     }
 
@@ -468,7 +514,15 @@ export default function ChatInput({
     }
     // We intentionally omit setView as it shouldn't trigger a re-render of alerts
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [numTokens, toolCount, tokenLimit, isTokenLimitLoaded, addAlert, clearAlerts]);
+  }, [
+    numTokens,
+    toolCount,
+    tokenLimit,
+    isTokenLimitLoaded,
+    addAlert,
+    clearAlerts,
+    autoCompactThreshold,
+  ]);
 
   // Cleanup effect for component unmount - prevent memory leaks
   useEffect(() => {

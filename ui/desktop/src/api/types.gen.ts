@@ -1016,6 +1016,22 @@ export type ReadAllConfigResponses = {
 
 export type ReadAllConfigResponse = ReadAllConfigResponses[keyof ReadAllConfigResponses];
 
+export type GetAutoCompactThresholdData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/config/auto-compact-threshold';
+};
+
+export type GetAutoCompactThresholdResponses = {
+    /**
+     * Auto-compact threshold retrieved successfully
+     */
+    200: number;
+};
+
+export type GetAutoCompactThresholdResponse = GetAutoCompactThresholdResponses[keyof GetAutoCompactThresholdResponses];
+
 export type BackupConfigData = {
     body?: never;
     path?: never;
@@ -1038,6 +1054,22 @@ export type BackupConfigResponses = {
 };
 
 export type BackupConfigResponse = BackupConfigResponses[keyof BackupConfigResponses];
+
+export type GetCurrentModelData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/config/current-model';
+};
+
+export type GetCurrentModelResponses = {
+    /**
+     * Current model retrieved successfully
+     */
+    200: string;
+};
+
+export type GetCurrentModelResponse = GetCurrentModelResponses[keyof GetCurrentModelResponses];
 
 export type GetExtensionsData = {
     body?: never;

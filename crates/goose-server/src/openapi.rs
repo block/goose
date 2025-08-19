@@ -367,6 +367,8 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::config_management::read_all_config,
         super::routes::config_management::providers,
         super::routes::config_management::upsert_permissions,
+        super::routes::config_management::get_current_model,
+        super::routes::config_management::get_auto_compact_threshold,
         super::routes::agent::get_tools,
         super::routes::agent::add_sub_recipes,
         super::routes::agent::extend_prompt,
