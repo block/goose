@@ -93,13 +93,10 @@ export const initializeApp = async ({
       if (error instanceof MalformedConfigError) {
         throw error;
       }
-      window.location.hash = '#/';
-      window.history.replaceState({}, '', '#/');
     }
-  } else {
-    window.location.hash = '#/';
-    window.history.replaceState({}, '', '#/');
   }
+  window.location.hash = '#/';
+  window.history.replaceState({}, '', '#/');
 };
 
 const initializeForSessionResume = async ({

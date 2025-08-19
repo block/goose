@@ -495,10 +495,6 @@ export default function App() {
       const provider = (await read('GOOSE_PROVIDER', false)) ?? config.GOOSE_DEFAULT_PROVIDER;
       const model = (await read('GOOSE_MODEL', false)) ?? config.GOOSE_DEFAULT_MODEL;
 
-      if (!provider || !model) {
-        throw new Error('Provider and model must be configured');
-      }
-
       await initializeApp({
         getExtensions,
         addExtension,

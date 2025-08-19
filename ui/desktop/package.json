@@ -1,7 +1,7 @@
 {
   "name": "goose-app",
   "productName": "Goose",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Goose App",
   "engines": {
     "node": "^22.17.1"
@@ -143,7 +143,8 @@
     "src/**/*.{ts,tsx}": [
       "bash -c 'npm run typecheck'",
       "eslint --fix --max-warnings 0 --no-warn-ignored",
-      "prettier --write"
+      "prettier --write",
+      "bash -c 'npm run test:run'"
     ],
     "src/**/*.{css,json}": [
       "prettier --write"
