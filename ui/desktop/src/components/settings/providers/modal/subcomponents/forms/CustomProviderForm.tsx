@@ -68,7 +68,7 @@ export default function CustomProviderForm({ onSubmit, onCancel }: CustomProvide
   return (
     <form onSubmit={handleSubmit} className="mt-4 space-y-4">
       <div>
-        <label className="block text-sm font-medium text-white mb-1">
+        <label className="flex items-center text-sm font-medium text-white mb-1">
           Provider Type
           <span className="text-red-500 ml-1">*</span>
         </label>
@@ -96,7 +96,7 @@ export default function CustomProviderForm({ onSubmit, onCancel }: CustomProvide
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-white mb-1">
+        <label className="flex items-center text-sm font-medium text-white mb-1">
           Display Name
           <span className="text-red-500 ml-1">*</span>
         </label>
@@ -112,7 +112,7 @@ export default function CustomProviderForm({ onSubmit, onCancel }: CustomProvide
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-white mb-1">
+        <label className="flex items-center text-sm font-medium text-white mb-1">
           API URL
           <span className="text-red-500 ml-1">*</span>
         </label>
@@ -128,7 +128,7 @@ export default function CustomProviderForm({ onSubmit, onCancel }: CustomProvide
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-white mb-1">
+        <label className="flex items-center text-sm font-medium text-white mb-1">
           API Key
           {!isLocalModel && <span className="text-red-500 ml-1">*</span>}
         </label>
@@ -156,7 +156,7 @@ export default function CustomProviderForm({ onSubmit, onCancel }: CustomProvide
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-white mb-1">
+        <label className="flex items-center text-sm font-medium text-white mb-1">
           Available Models (comma-separated)
           <span className="text-red-500 ml-1">*</span>
         </label>
