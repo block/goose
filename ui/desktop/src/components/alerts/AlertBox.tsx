@@ -32,9 +32,15 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
   const handleSaveThreshold = async () => {
     if (isSaving) return; // Prevent double-clicks
 
+    // Validate threshold value before saving
+    const validThreshold = Math.max(1, Math.min(99, thresholdValue));
+    if (validThreshold !== thresholdValue) {
+      setThresholdValue(validThreshold);
+    }
+
     setIsSaving(true);
     try {
-      const newThreshold = thresholdValue / 100; // Convert percentage to decimal
+      const newThreshold = validThreshold / 100; // Convert percentage to decimal
       console.log('Saving auto-compact threshold:', newThreshold);
 
       // Update the configuration via the upsert API
@@ -104,10 +110,29 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
                     <span className="text-[10px] opacity-70">Auto summarize at</span>
                     <input
                       type="number"
-                      min="50"
-                      max="95"
+                      min="1"
+                      max="99"
+                      step="1"
                       value={thresholdValue}
-                      onChange={(e) => setThresholdValue(Number(e.target.value))}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        // Allow empty input for easier editing
+                        if (e.target.value === '') {
+                          setThresholdValue(0);
+                        } else if (!isNaN(val)) {
+                          // Clamp value between 1 and 99
+                          setThresholdValue(Math.max(1, Math.min(99, val)));
+                        }
+                      }}
+                      onBlur={(e) => {
+                        // On blur, ensure we have a valid value
+                        const val = parseInt(e.target.value, 10);
+                        if (isNaN(val) || val < 1) {
+                          setThresholdValue(1);
+                        } else if (val > 99) {
+                          setThresholdValue(99);
+                        }
+                      }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           handleSaveThreshold();
@@ -120,7 +145,15 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
                           );
                         }
                       }}
-                      className="w-12 px-1 text-[10px] bg-transparent border-b border-current outline-none text-center"
+                      onFocus={(e) => {
+                        // Select all text on focus for easier editing
+                        e.target.select();
+                      }}
+                      onClick={(e) => {
+                        // Prevent issues with text selection
+                        e.stopPropagation();
+                      }}
+                      className="w-12 px-1 text-[10px] bg-white/10 border border-current/30 rounded outline-none text-center focus:bg-white/20 focus:border-current/50 transition-colors"
                       disabled={isSaving}
                       autoFocus
                     />
