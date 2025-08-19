@@ -107,14 +107,6 @@ jobs:
           cd ui/desktop
           npm version "${VERSION}" --no-git-tag-version --allow-same-version
 
-      # Pre-build cleanup to ensure enough disk space
-      - name: Pre-build cleanup
-        run: |
-          source ./bin/activate-hermit
-          echo "Performing pre-build cleanup..."
-          # Check disk space after cleanup
-          df -h
-
       - name: Cache Cargo registry
         uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
         with:
