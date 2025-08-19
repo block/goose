@@ -27,6 +27,7 @@ import { COST_TRACKING_ENABLED } from '../updates';
 import { CostTracker } from './bottom_menu/CostTracker';
 import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
 import { Recipe } from '../recipe';
+import { getApiUrl } from '../config';
 
 interface PastedImage {
   id: string;
@@ -403,16 +404,20 @@ export default function ChatInput({
   const loadAutoCompactThreshold = useCallback(async () => {
     try {
       const secretKey = await window.electron.getSecretKey();
-      const response = await fetch('/api/config/auto-compact-threshold', {
+      const response = await fetch(getApiUrl('/config/auto-compact-threshold'), {
         headers: {
           'X-Secret-Key': secretKey,
         },
       });
       if (response.ok) {
         const data = await response.json();
+        console.log('Loaded auto-compact threshold from config:', data);
         if (data.threshold !== undefined) {
           setAutoCompactThreshold(data.threshold);
+          console.log('Set auto-compact threshold to:', data.threshold);
         }
+      } else {
+        console.error('Failed to fetch auto-compact threshold, status:', response.status);
       }
     } catch (err) {
       console.error('Error fetching auto-compact threshold:', err);
