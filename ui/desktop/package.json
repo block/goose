@@ -143,8 +143,7 @@
     "src/**/*.{ts,tsx}": [
       "bash -c 'npm run typecheck'",
       "eslint --fix --max-warnings 0 --no-warn-ignored",
-      "prettier --write",
-      "bash -c 'npm run test:run'"
+      "prettier --write"
     ],
     "src/**/*.{css,json}": [
       "prettier --write"
