@@ -946,7 +946,7 @@ impl Agent {
         // If we compacted, yield the compaction message and history replacement event
         if let Some(compaction_msg) = compaction_msg {
             return Ok(Box::pin(async_stream::try_stream! {
-                yield AgentEvent::Message(Message::assistant().with_text(compaction_msg));
+                yield AgentEvent::Message(Message::assistant().with_summarization_requested(compaction_msg));
                 yield AgentEvent::HistoryReplaced(messages.messages().clone());
 
                 // Continue with normal reply processing using compacted messages

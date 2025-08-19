@@ -93,6 +93,8 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
   useEffect(() => {
     if (alerts.length > 0) {
       setShouldShowIndicator(true);
+    } else {
+      setShouldShowIndicator(false);
     }
   }, [alerts.length]);
 
