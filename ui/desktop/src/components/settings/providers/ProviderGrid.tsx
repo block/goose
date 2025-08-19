@@ -29,7 +29,7 @@ const CustomProviderCard = memo(function CustomProviderCard({ onClick }: { onCli
       onClick={onClick}
       header={null}
       body={
-        <div className="flex flex-col items-center justify-center h-full">
+        <div className="flex flex-col items-center justify-center min-h-[200px]">
           <Plus className="w-8 h-8 text-gray-400 mb-2" />
           <div className="text-sm text-gray-600 dark:text-gray-400 text-center">
             <div>Add</div>
@@ -110,9 +110,6 @@ const ProviderCards = memo(function ProviderCards({
     [refreshProviders]
   );
 
-  // We don't need an intermediate function here
-  // Just pass the onProviderLaunch directly
-
   // Use useMemo to memoize the cards array
   const providerCards = useMemo(() => {
     // providers needs to be an array
@@ -128,11 +125,9 @@ const ProviderCards = memo(function ProviderCards({
       />
     ));
 
-    if (!isOnboarding) {
-      cards.push(
-        <CustomProviderCard key="add-custom" onClick={() => setShowCustomProviderModal(true)} />
-      );
-    }
+    cards.push(
+      <CustomProviderCard key="add-custom" onClick={() => setShowCustomProviderModal(true)} />
+    );
 
     return cards;
   }, [
