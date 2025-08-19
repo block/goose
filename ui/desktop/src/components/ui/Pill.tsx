@@ -1,7 +1,7 @@
 import React from 'react';
 import { cn } from '../../utils';
 
-interface PillProps extends React.HTMLAttributes<HTMLSpanElement> {
+interface PillProps extends React.ComponentPropsWithoutRef<'span'> {
   variant?: 'default' | 'success' | 'warning' | 'error' | 'info';
   size?: 'sm' | 'md' | 'lg';
   children: React.ReactNode;
