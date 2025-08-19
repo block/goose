@@ -1036,9 +1036,8 @@ const openDirectoryDialog = async (
     const currentWindow = BrowserWindow.getFocusedWindow();
 
     if (replaceWindow && currentWindow) {
-      // Replace current window with new one
+      // Create a new window instead of replacing the current one
       await createChat(app, undefined, dirToAdd);
-      currentWindow.close();
     } else {
       // Update the working directory in the current window's localStorage
       if (currentWindow) {
