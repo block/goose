@@ -421,18 +421,6 @@ impl ComputerControllerRouter {
             }),
         );
 
-        let mcp_ui_hello_tool = Tool::new(
-            "mcp_ui_hello",
-            indoc! {r#"
-                Returns a simple HTML hello message using the MCP UI resource format.
-                This is a demonstration tool that shows how to return HTML content through the MCP UI resource protocol.
-            "#},
-            object!({
-                "type": "object",
-                "properties": {}
-            }),
-        );
-
         // choose_app_strategy().cache_dir()
         // - macOS/Linux: ~/.cache/goose/computer_controller/
         // - Windows:     ~\AppData\Local\Block\goose\cache\computer_controller\
@@ -560,7 +548,6 @@ impl ComputerControllerRouter {
                 pdf_tool,
                 docx_tool,
                 xlsx_tool,
-                mcp_ui_hello_tool,
             ],
             cache_dir,
             active_resources: Arc::new(Mutex::new(HashMap::new())),
@@ -1022,20 +1009,6 @@ impl ComputerControllerRouter {
         crate::computercontroller::pdf_tool::pdf_tool(path, operation, &self.cache_dir).await
     }
 
-    async fn mcp_ui_hello(&self, _params: Value) -> Result<Vec<Content>, ToolError> {
-        // Create an MCP UI resource with HTML content
-        let html_content = "<html><body><h1>Hello from MCP UI!</h1></body></html>";
-
-        // Create a proper ResourceContents::TextResourceContents
-        let resource_contents = rmcp::model::ResourceContents::TextResourceContents {
-            uri: "ui://hello/greeting".to_string(),
-            mime_type: Some("text/html".to_string()),
-            text: html_content.to_string(),
-        };
-
-        Ok(vec![Content::resource(resource_contents)])
-    }
-
     async fn cache(&self, params: Value) -> Result<Vec<Content>, ToolError> {
         let command = params
             .get("command")
@@ -1150,7 +1123,6 @@ impl Router for ComputerControllerRouter {
                 "pdf_tool" => this.pdf_tool(arguments).await,
                 "docx_tool" => this.docx_tool(arguments).await,
                 "xlsx_tool" => this.xlsx_tool(arguments).await,
-                "mcp_ui_hello" => this.mcp_ui_hello(arguments).await,
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
         })
