@@ -58,7 +58,7 @@ async fn report_failure(
 
     // Create GitHub issue content
     let issue_body = create_github_issue_body(&payload);
-    
+
     // Try to create GitHub issue
     match create_github_issue(&payload.title, &issue_body).await {
         Ok(issue_url) => {
@@ -73,10 +73,11 @@ async fn report_failure(
             error!("Failed to create GitHub issue: {}", e);
             // Fallback: Log the issue locally for manual processing
             log_failure_report_locally(&payload);
-            
+
             Ok(Json(FailureReportResponse {
                 success: false,
-                message: "Failed to submit report automatically. Please report manually on GitHub.".to_string(),
+                message: "Failed to submit report automatically. Please report manually on GitHub."
+                    .to_string(),
                 issue_url: None,
             }))
         }
@@ -119,21 +120,30 @@ fn create_github_issue_body(payload: &FailureReportRequest) -> String {
     )
 }
 
-async fn create_github_issue(title: &str, body: &str) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+async fn create_github_issue(
+    title: &str,
+    body: &str,
+) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     // GitHub API configuration
     let github_token = std::env::var("GITHUB_TOKEN").map_err(|_| "GITHUB_TOKEN not set")?;
     let repo_owner = "block";
     let repo_name = "goose";
-    
+
     let client = reqwest::Client::new();
-    
+
     let mut issue_data = HashMap::new();
     issue_data.insert("title", format!("[FAILURE REPORT] {}", title));
     issue_data.insert("body", body.to_string());
-    issue_data.insert("labels", "[\"bug\", \"needs-triage\", \"failure-report\"]".to_string());
-    
-    let url = format!("https://api.github.com/repos/{}/{}/issues", repo_owner, repo_name);
-    
+    issue_data.insert(
+        "labels",
+        "[\"bug\", \"needs-triage\", \"failure-report\"]".to_string(),
+    );
+
+    let url = format!(
+        "https://api.github.com/repos/{}/{}/issues",
+        repo_owner, repo_name
+    );
+
     let response = client
         .post(&url)
         .header("Authorization", format!("token {}", github_token))
@@ -142,10 +152,11 @@ async fn create_github_issue(title: &str, body: &str) -> Result<String, Box<dyn 
         .json(&issue_data)
         .send()
         .await?;
-    
+
     if response.status().is_success() {
         let issue: serde_json::Value = response.json().await?;
-        let issue_url = issue["html_url"].as_str()
+        let issue_url = issue["html_url"]
+            .as_str()
             .ok_or("GitHub response missing html_url")?;
         Ok(issue_url.to_string())
     } else {
