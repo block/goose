@@ -81,19 +81,27 @@ export default function SettingsView({
             <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
               <div className="px-1">
                 <TabsList className="w-full mb-2 justify-start">
-                  <TabsTrigger value="models" className="flex gap-2">
+                  <TabsTrigger
+                    value="models"
+                    className="flex gap-2"
+                    data-testid="settings-models-tab"
+                  >
                     <Bot className="h-4 w-4" />
                     Models
                   </TabsTrigger>
-                  <TabsTrigger value="chat" className="flex gap-2">
+                  <TabsTrigger value="chat" className="flex gap-2" data-testid="settings-chat-tab">
                     <MessageSquare className="h-4 w-4" />
                     Chat
                   </TabsTrigger>
-                  <TabsTrigger value="sharing" className="flex gap-2">
+                  <TabsTrigger
+                    value="sharing"
+                    className="flex gap-2"
+                    data-testid="settings-sharing-tab"
+                  >
                     <Share2 className="h-4 w-4" />
                     Session
                   </TabsTrigger>
-                  <TabsTrigger value="app" className="flex gap-2">
+                  <TabsTrigger value="app" className="flex gap-2" data-testid="settings-app-tab">
                     <Monitor className="h-4 w-4" />
                     App
                   </TabsTrigger>

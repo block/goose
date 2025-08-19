@@ -35,6 +35,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import { cn } from '../utils';
 
 import { ChatType } from '../types/chat';
+import { DEFAULT_CHAT_TITLE } from '../contexts/ChatContext';
 
 export default function Pair({
   chat,
@@ -75,11 +76,28 @@ export default function Pair({
       // Clear the location state to prevent re-processing
       window.history.replaceState({}, '', '/pair');
     }
-  }, [location.state, chat.id, setChat]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state, chat.id]);
 
   // Handle initial message from hub page
   useEffect(() => {
     const messageFromHub = location.state?.initialMessage;
+    const resetChat = location.state?.resetChat;
+
+    // If we have a resetChat flag from Hub, clear any existing recipe config
+    // This scenario occurs when a user navigates from Hub to start a new chat,
+    // ensuring any previous recipe configuration is cleared for a fresh start
+    if (resetChat) {
+      const newChat: ChatType = {
+        ...chat,
+        recipeConfig: null,
+        recipeParameters: null,
+        title: DEFAULT_CHAT_TITLE,
+        messages: [], // Clear messages for fresh start
+        messageHistoryIndex: 0,
+      };
+      setChat(newChat);
+    }
 
     // Reset processing state when we have a new message from hub
     if (messageFromHub) {
@@ -100,7 +118,8 @@ export default function Pair({
         window.history.replaceState({}, '', '/pair');
       }
     }
-  }, [location.state, hasProcessedInitialInput, initialMessage, chat]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state, hasProcessedInitialInput, initialMessage]);
 
   // Auto-submit the initial message after it's been set and component is ready
   useEffect(() => {
@@ -136,7 +155,6 @@ export default function Pair({
         }
       }, 500); // Give more time for the component to fully mount
 
-      // eslint-disable-next-line no-undef
       return () => clearTimeout(timer);
     }
 

@@ -1,6 +1,8 @@
 // /Users/mnovich/Development/goose-1.0/ui/desktop/src/components/icons/TrashIcon.tsx
 
-interface IconProps extends React.SVGProps<globalThis.SVGSVGElement> {}
+interface IconProps {
+  className?: string;
+}
 
 export const TrashIcon: React.FC<IconProps> = (props) => (
   <svg

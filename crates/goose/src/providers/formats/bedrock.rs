@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -6,8 +7,8 @@ use aws_sdk_bedrockruntime::types as bedrock;
 use aws_smithy_types::{Document, Number};
 use base64::Engine;
 use chrono::Utc;
-use mcp_core::{ToolCall, ToolError, ToolResult};
-use rmcp::model::{Content, RawContent, ResourceContents, Role, Tool};
+use mcp_core::{ToolCall, ToolResult};
+use rmcp::model::{Content, ErrorCode, ErrorData, RawContent, ResourceContents, Role, Tool};
 use serde_json::Value;
 
 use super::super::base::Usage;
@@ -286,9 +287,11 @@ pub fn from_bedrock_content_block(block: &bedrock::ContentBlock) -> Result<Messa
         bedrock::ContentBlock::ToolResult(tool_res) => MessageContent::tool_response(
             tool_res.tool_use_id.to_string(),
             if tool_res.content.is_empty() {
-                Err(ToolError::ExecutionError(
-                    "Empty content for tool use from Bedrock".to_string(),
-                ))
+                Err(ErrorData {
+                    code: ErrorCode::INTERNAL_ERROR,
+                    message: Cow::from("Empty content for tool use from Bedrock".to_string()),
+                    data: None,
+                })
             } else {
                 tool_res
                     .content
@@ -307,9 +310,11 @@ pub fn from_bedrock_tool_result_content_block(
     Ok(match content {
         bedrock::ToolResultContentBlock::Text(text) => Content::text(text.to_string()),
         _ => {
-            return Err(ToolError::ExecutionError(
-                "Unsupported tool result from Bedrock".to_string(),
-            ))
+            return Err(ErrorData {
+                code: ErrorCode::INTERNAL_ERROR,
+                message: Cow::from("Unsupported tool result from Bedrock".to_string()),
+                data: None,
+            })
         }
     })
 }
