@@ -1,5 +1,5 @@
 ---
-unlist: true
+unlisted: true
 title: Figma Extension
 description: Add Figma MCP Server as a Goose Extension
 ---
