@@ -75,6 +75,9 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
           setOpenRouterSetupState(null);
           setShowFirstTimeSetup(false);
           setHasProvider(true);
+          
+          // Navigate to chat after successful setup
+          navigate('/', { replace: true });
         } else {
           throw new Error('Provider or model not found after OpenRouter setup');
         }
@@ -182,6 +185,8 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
             onSuccess={() => {
               setShowOllamaSetup(false);
               setHasProvider(true);
+              // Navigate to chat after successful setup
+              navigate('/', { replace: true });
             }}
             onCancel={() => {
               setShowOllamaSetup(false);
