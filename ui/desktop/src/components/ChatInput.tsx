@@ -107,7 +107,9 @@ export default function ChatInput({
   // Derived state - chatState != Idle means we're in some form of loading state
   const isLoading = chatState !== ChatState.Idle;
   const { alerts, addAlert, clearAlerts } = useAlerts();
-  const dropdownRef: React.RefObject<HTMLDivElement> = useRef<HTMLDivElement>(null);
+  const dropdownRef: React.RefObject<HTMLDivElement> = useRef<HTMLDivElement>(
+    null
+  ) as React.RefObject<HTMLDivElement>;
   const toolCount = useToolCount();
   const { isLoadingCompaction, handleManualCompaction } = useChatContextManager();
   const { getProviders, read } = useConfig();
