@@ -6,12 +6,14 @@ use std::{collections::HashMap, future::Future, path::PathBuf, pin::Pin, sync::A
 use tokio::sync::mpsc;
 
 use mcp_core::{
-    handler::{PromptError, ResourceError, ToolError},
+    handler::{PromptError, ResourceError},
     protocol::ServerCapabilities,
 };
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
-use rmcp::model::{Content, JsonRpcMessage, Prompt, Resource, ResourceContents, Tool};
+use rmcp::model::{
+    Content, ErrorCode, ErrorData, JsonRpcMessage, Prompt, Resource, ResourceContents, Tool,
+};
 use rmcp::object;
 
 /// An extension for automatic data visualization and UI generation
@@ -383,11 +385,15 @@ impl AutoVisualiserRouter {
         }
     }
 
-    async fn render_sankey(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+    async fn render_sankey(&self, params: Value) -> Result<Vec<Content>, ErrorData> {
         // Extract the data from parameters
-        let data = params
-            .get("data")
-            .ok_or_else(|| ToolError::InvalidParameters("Missing 'data' parameter".to_string()))?;
+        let data = params.get("data").ok_or_else(|| {
+            ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Missing 'data' parameter".to_string(),
+                None,
+            )
+        })?;
 
         // Load all resources at compile time using include_str!
         const TEMPLATE: &str = include_str!("sankey_template.html");
@@ -395,8 +401,13 @@ impl AutoVisualiserRouter {
         const D3_SANKEY: &str = include_str!("d3.sankey.min.js");
 
         // Convert the data to JSON string
-        let data_json = serde_json::to_string(&data)
-            .map_err(|e| ToolError::InvalidParameters(format!("Invalid JSON data: {}", e)))?;
+        let data_json = serde_json::to_string(&data).map_err(|e| {
+            ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                format!("Invalid JSON data: {}", e),
+                None,
+            )
+        })?;
 
         // Replace all placeholders with actual content
         let html_content = TEMPLATE
@@ -425,19 +436,28 @@ impl AutoVisualiserRouter {
         Ok(vec![Content::resource(resource_contents)])
     }
 
-    async fn render_radar(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+    async fn render_radar(&self, params: Value) -> Result<Vec<Content>, ErrorData> {
         // Extract the data from parameters
-        let data = params
-            .get("data")
-            .ok_or_else(|| ToolError::InvalidParameters("Missing 'data' parameter".to_string()))?;
+        let data = params.get("data").ok_or_else(|| {
+            ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Missing 'data' parameter".to_string(),
+                None,
+            )
+        })?;
 
         // Load all resources at compile time using include_str!
         const TEMPLATE: &str = include_str!("radar_template.html");
         const CHART_MIN: &str = include_str!("chart.min.js");
 
         // Convert the data to JSON string
-        let data_json = serde_json::to_string(&data)
-            .map_err(|e| ToolError::InvalidParameters(format!("Invalid JSON data: {}", e)))?;
+        let data_json = serde_json::to_string(&data).map_err(|e| {
+            ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                format!("Invalid JSON data: {}", e),
+                None,
+            )
+        })?;
 
         // Replace all placeholders with actual content
         let html_content = TEMPLATE
@@ -465,19 +485,28 @@ impl AutoVisualiserRouter {
         Ok(vec![Content::resource(resource_contents)])
     }
 
-    async fn render_donut(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+    async fn render_donut(&self, params: Value) -> Result<Vec<Content>, ErrorData> {
         // Extract the data from parameters
-        let data = params
-            .get("data")
-            .ok_or_else(|| ToolError::InvalidParameters("Missing 'data' parameter".to_string()))?;
+        let data = params.get("data").ok_or_else(|| {
+            ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Missing 'data' parameter".to_string(),
+                None,
+            )
+        })?;
 
         // Load all resources at compile time using include_str!
         const TEMPLATE: &str = include_str!("donut_template.html");
         const CHART_MIN: &str = include_str!("chart.min.js");
 
         // Convert the data to JSON string
-        let data_json = serde_json::to_string(&data)
-            .map_err(|e| ToolError::InvalidParameters(format!("Invalid JSON data: {}", e)))?;
+        let data_json = serde_json::to_string(&data).map_err(|e| {
+            ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                format!("Invalid JSON data: {}", e),
+                None,
+            )
+        })?;
 
         // Replace all placeholders with actual content
         let html_content = TEMPLATE
@@ -505,19 +534,28 @@ impl AutoVisualiserRouter {
         Ok(vec![Content::resource(resource_contents)])
     }
 
-    async fn show_chart(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+    async fn show_chart(&self, params: Value) -> Result<Vec<Content>, ErrorData> {
         // Extract the data from parameters
-        let data = params
-            .get("data")
-            .ok_or_else(|| ToolError::InvalidParameters("Missing 'data' parameter".to_string()))?;
+        let data = params.get("data").ok_or_else(|| {
+            ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Missing 'data' parameter".to_string(),
+                None,
+            )
+        })?;
 
         // Load all resources at compile time using include_str!
         const TEMPLATE: &str = include_str!("chart_template.html");
         const CHART_MIN: &str = include_str!("chart.min.js");
 
         // Convert the data to JSON string
-        let data_json = serde_json::to_string(&data)
-            .map_err(|e| ToolError::InvalidParameters(format!("Invalid JSON data: {}", e)))?;
+        let data_json = serde_json::to_string(&data).map_err(|e| {
+            ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                format!("Invalid JSON data: {}", e),
+                None,
+            )
+        })?;
 
         // Replace all placeholders with actual content
         let html_content = TEMPLATE
@@ -571,7 +609,7 @@ impl Router for AutoVisualiserRouter {
         tool_name: &str,
         arguments: Value,
         _notifier: mpsc::Sender<JsonRpcMessage>,
-    ) -> Pin<Box<dyn Future<Output = Result<Vec<Content>, ToolError>> + Send + 'static>> {
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<Content>, ErrorData>> + Send + 'static>> {
         let this = self.clone();
         let tool_name = tool_name.to_string();
         Box::pin(async move {
@@ -580,7 +618,11 @@ impl Router for AutoVisualiserRouter {
                 "render_radar" => this.render_radar(arguments).await,
                 "render_donut" => this.render_donut(arguments).await,
                 "show_chart" => this.show_chart(arguments).await,
-                _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
+                _ => Err(ErrorData::new(
+                    ErrorCode::INVALID_REQUEST,
+                    format!("Tool {} not found", tool_name),
+                    None,
+                )),
             }
         })
     }
