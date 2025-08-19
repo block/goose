@@ -456,26 +456,7 @@ impl DeveloperRouter {
             }),
         );
 
-        let list_windows_tool = Tool::new(
-            "list_windows",
-            indoc! {r#"
-                List all available window titles that can be used with screen_capture.
-                Returns a list of window titles that can be used with the window_title parameter
-                of the screen_capture tool.
-            "#},
-            object!({
-                "type": "object",
-                "required": [],
-                "properties": {}
-            }),
-        )
-        .annotate(ToolAnnotations {
-            title: Some("List available windows".to_string()),
-            read_only_hint: Some(true),
-            destructive_hint: Some(false),
-            idempotent_hint: Some(false),
-            open_world_hint: Some(false),
-        });
+
 
         let screen_capture_tool = Tool::new(
             "screen_capture",
@@ -720,7 +701,6 @@ impl DeveloperRouter {
             tools: vec![
                 bash_tool,
                 text_editor_tool,
-                list_windows_tool,
                 screen_capture_tool,
                 image_processor_tool,
             ],
@@ -1617,26 +1597,7 @@ impl DeveloperRouter {
         Ok(())
     }
 
-    async fn list_windows(&self, _params: Value) -> Result<Vec<Content>, ErrorData> {
-        let windows = Window::all().map_err(|_| {
-            ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                "Failed to list windows".to_string(),
-                None,
-            )
-        })?;
 
-        let window_titles: Vec<String> =
-            windows.into_iter().map(|w| w.title().to_string()).collect();
-
-        Ok(vec![
-            Content::text(format!("Available windows:\n{}", window_titles.join("\n")))
-                .with_audience(vec![Role::Assistant]),
-            Content::text(format!("Available windows:\n{}", window_titles.join("\n")))
-                .with_audience(vec![Role::User])
-                .with_priority(0.0),
-        ])
-    }
 
     // Helper function to handle Mac screenshot filenames that contain U+202F (narrow no-break space)
     fn normalize_mac_screenshot_path(&self, path: &Path) -> PathBuf {
@@ -1921,7 +1882,6 @@ impl Router for DeveloperRouter {
             match tool_name.as_str() {
                 "shell" => this.bash(arguments, notifier).await,
                 "text_editor" => this.text_editor(arguments).await,
-                "list_windows" => this.list_windows(arguments).await,
                 "screen_capture" => this.screen_capture(arguments).await,
                 "image_processor" => this.image_processor(arguments).await,
                 _ => Err(ErrorData::new(
