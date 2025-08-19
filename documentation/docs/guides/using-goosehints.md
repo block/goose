@@ -99,7 +99,7 @@ Prefer functional programming patterns where applicable.
 ```
 This is a simple example JavaScript web application that uses the Express.js framework. View [Express documentation](https://expressjs.com/) for extended guidance.
 
-Go through the README.md for information on how to build and test it as needed.
+Go through the @README.md for information on how to build and test it as needed.
 
 Make sure to confirm all changes with me before applying.
 
@@ -115,7 +115,10 @@ Here are some ways people have used hints to provide additional context to Goose
 
 - **Feedback Loop**: Include steps that allow Goose to receive feedback and iteratively improve its suggestions.
 
-- **Point to more detailed documentation**: Indicate important files like `README.md`, `CONTRIBUTING.md`, or others that Goose should consult for detailed explanations.
+- **Point to more detailed documentation**: Indicate important files like `README.md`, `docs/setup-guide.md`, or others that Goose should consult for detailed explanations.
+
+- **Organize with @-mentions**: For frequently-needed documentation, use `@filename.md` or `@relative/path/testing.md` to automatically include file content in your current context instead of just referencing it. This ensures Goose has immediate access to important information. 
+Include core documentation (like API schemas or coding standards) with @-mentions for immediate context, but use plain references (without `@`) for optional or very large files.
 
 Like prompts, this is not an extensive list to shape your `.goosehints` file. You can include as much context as you need.
 

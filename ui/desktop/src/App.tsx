@@ -266,7 +266,8 @@ const PairRouteWrapper = ({
     }
     // If we have a recipe config but resetChat is false and we already have a recipe,
     // do nothing - just continue with the existing chat state
-  }, [location.state, setChat, setPairChat]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
 
   return (
     <Pair
@@ -908,12 +909,12 @@ export default function App() {
             await validateConfig({ throwOnError: true });
             // If validation passes, try reading again
             await readAllConfig({ throwOnError: true });
-          } catch (validateError) {
+          } catch {
             console.log('Config validation failed, attempting recovery...');
             try {
               await recoverConfig({ throwOnError: true });
               await readAllConfig({ throwOnError: true });
-            } catch (recoverError) {
+            } catch {
               console.warn('Config recovery failed, reinitializing...');
               await initConfig();
             }

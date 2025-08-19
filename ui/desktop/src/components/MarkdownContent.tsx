@@ -46,7 +46,7 @@ const CodeBlock = ({ language, children }: { language: string; children: string 
     <div className="relative group w-full">
       <button
         onClick={handleCopy}
-        className="absolute right-2 bottom-2 p-1.5 rounded-lg bg-gray-700/50 text-gray-300
+        className="absolute right-2 bottom-2 p-1.5 rounded-lg bg-gray-700/50 text-gray-300 font-sans text-sm
                  opacity-0 group-hover:opacity-100 transition-opacity duration-200
                  hover:bg-gray-600/50 hover:text-gray-100 z-10"
         title="Copy code"
@@ -68,6 +68,7 @@ const CodeBlock = ({ language, children }: { language: string; children: string 
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-all',
               overflowWrap: 'break-word',
+              fontFamily: 'var(--font-sans)',
             },
           }}
         >
@@ -86,7 +87,7 @@ const MarkdownCode = React.forwardRef(function MarkdownCode(
   return !inline && match ? (
     <CodeBlock language={match[1]}>{String(children).replace(/\n$/, '')}</CodeBlock>
   ) : (
-    <code ref={ref} {...props} className="break-all bg-inline-code whitespace-pre-wrap">
+    <code ref={ref} {...props} className="break-all bg-inline-code whitespace-pre-wrap font-sans">
       {children}
     </code>
   );
@@ -107,25 +108,25 @@ export default function MarkdownContent({ content, className = '' }: MarkdownCon
   }, [content]);
 
   return (
-    <div className="w-full overflow-x-hidden">
+    <div
+      className={`w-full overflow-x-hidden prose prose-sm text-text-default dark:prose-invert max-w-full word-breakfont-sans
+      prose-pre:p-0 prose-pre:m-0 !p-0
+      prose-code:break-all prose-code:whitespace-pre-wrapprose-code:font-sans
+      prose-table:table prose-table:w-full
+      prose-blockquote:text-inherit
+      prose-td:border prose-td:border-border-default prose-td:p-2
+      prose-th:border prose-th:border-border-default prose-th:p-2
+      prose-thead:bg-background-default
+      prose-h1:text-2xl prose-h1:font-normal prose-h1:mb-5 prose-h1:mt-0prose-h1:font-sans
+      prose-h2:text-xl prose-h2:font-normal prose-h2:mb-4 prose-h2:mt-4prose-h2:font-sans
+      prose-h3:text-lg prose-h3:font-normal prose-h3:mb-3 prose-h3:mt-3prose-h3:font-sans
+      prose-p:mt-0 prose-p:mb-2prose-p:font-sans
+      prose-ol:my-2prose-ol:font-sans
+      prose-ul:mt-0 prose-ul:mb-3prose-ul:font-sans
+      prose-li:m-0prose-li:font-sans ${className}`}
+    >
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        className={`prose prose-sm text-text-default dark:prose-invert w-full max-w-full word-break
-          prose-pre:p-0 prose-pre:m-0 !p-0
-          prose-code:break-all prose-code:whitespace-pre-wrap
-          prose-table:table prose-table:w-full
-          prose-blockquote:text-inherit
-          prose-td:border prose-td:border-border-default prose-td:p-2
-          prose-th:border prose-th:border-border-default prose-th:p-2
-          prose-thead:bg-background-default
-          prose-h1:text-2xl prose-h1:font-normal prose-h1:mb-5 prose-h1:mt-0
-          prose-h2:text-xl prose-h2:font-normal prose-h2:mb-4 prose-h2:mt-4
-          prose-h3:text-lg prose-h3:font-normal prose-h3:mb-3 prose-h3:mt-3
-          prose-p:mt-0 prose-p:mb-2
-          prose-ol:my-2
-          prose-ul:mt-0 prose-ul:mb-3
-          prose-li:m-0
-          ${className}`}
         components={{
           a: ({ ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" />,
           code: MarkdownCode,
