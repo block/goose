@@ -95,6 +95,18 @@ vi.mock('./components/ModelAndProviderContext', () => ({
 
 vi.mock('./contexts/ChatContext', () => ({
   ChatProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useChatContext: vi.fn(() => ({
+    chat: {
+      id: 'test-id',
+      title: 'Test Chat',
+      messages: [],
+      messageHistoryIndex: 0,
+      recipeConfig: null,
+    },
+    setChat: vi.fn(),
+    setPairChat: vi.fn(),
+  })),
+  DEFAULT_CHAT_TITLE: 'New Chat',
 }));
 
 vi.mock('./contexts/DraftContext', () => ({
@@ -115,19 +127,6 @@ vi.mock('./components/GoosehintsModal', () => ({
 
 vi.mock('./components/AnnouncementModal', () => ({
   default: () => null,
-}));
-
-vi.mock('./hooks/useChat', () => ({
-  useChat: () => ({
-    chat: {
-      id: 'test-id',
-      title: 'Test Chat',
-      messages: [],
-      messageHistoryIndex: 0,
-      recipeConfig: null,
-    },
-    setChat: vi.fn(),
-  }),
 }));
 
 // Mock react-router-dom to avoid HashRouter issues in tests
