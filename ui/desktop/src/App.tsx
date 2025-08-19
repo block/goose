@@ -10,7 +10,6 @@ import { ConfirmationModal } from './components/ui/ConfirmationModal';
 import { ToastContainer } from 'react-toastify';
 import { extractExtensionName } from './components/settings/extensions/utils';
 import { GoosehintsModal } from './components/GoosehintsModal';
-import { type ExtensionConfig } from './extensions';
 import AnnouncementModal from './components/AnnouncementModal';
 import { generateSessionId } from './sessions';
 import ProviderGuard from './components/ProviderGuard';
@@ -29,7 +28,7 @@ import { ChatProvider } from './contexts/ChatContext';
 import { DraftProvider } from './contexts/DraftContext';
 
 import 'react-toastify/dist/ReactToastify.css';
-import { useConfig, MalformedConfigError } from './components/ConfigContext';
+import { useConfig, MalformedConfigError, ExtensionConfig } from './components/ConfigContext';
 import { ModelAndProviderProvider } from './components/ModelAndProviderContext';
 import { addExtensionFromDeepLink as addExtensionFromDeepLinkV2 } from './components/settings/extensions';
 import {
