@@ -256,6 +256,54 @@ impl AutoVisualiserRouter {
         )
     }
 
+    fn create_chord_tool() -> Tool {
+        Tool::new(
+            "render_chord",
+            indoc! {r#"
+                Renders a chord diagram visualization for showing relationships and flows between entities.
+                Returns an interactive HTML visualization using D3.js.
+                
+                The data should contain:
+                - labels: Array of strings representing the entities
+                - matrix: 2D array of numbers representing flows (matrix[i][j] = flow from i to j)
+                
+                Example:
+                {
+                  "labels": ["North America", "Europe", "Asia", "Africa"],
+                  "matrix": [
+                    [0, 15, 25, 8],   // North America to others
+                    [18, 0, 20, 12],  // Europe to others
+                    [22, 18, 0, 15],  // Asia to others
+                    [5, 10, 18, 0]    // Africa to others
+                  ]
+                }
+            "#},
+            object!({
+                "type": "object",
+                "required": ["data"],
+                "properties": {
+                    "data": {
+                        "type": "object",
+                        "required": ["labels", "matrix"],
+                        "properties": {
+                            "labels": {
+                                "type": "array",
+                                "items": {"type": "string"}
+                            },
+                            "matrix": {
+                                "type": "array",
+                                "items": {
+                                    "type": "array",
+                                    "items": {"type": "number"}
+                                }
+                            }
+                        }
+                    }
+                }
+            }),
+        )
+    }
+
     fn create_map_tool() -> Tool {
         Tool::new(
             "render_map",
@@ -423,6 +471,7 @@ impl AutoVisualiserRouter {
         let render_sankey_tool = Self::create_sankey_tool();
         let render_radar_tool = Self::create_radar_tool();
         let render_donut_tool = Self::create_donut_tool();
+        let render_chord_tool = Self::create_chord_tool();
         let render_map_tool = Self::create_map_tool();
         let show_chart_tool = Self::create_show_chart_tool();
 
@@ -445,6 +494,7 @@ impl AutoVisualiserRouter {
             - **render_sankey**: Creates interactive Sankey diagrams from flow data
             - **render_radar**: Creates interactive radar charts for multi-dimensional data comparison
             - **render_donut**: Creates interactive donut/pie charts for categorical data (supports multiple charts)
+            - **render_chord**: Creates interactive chord diagrams for relationship/flow visualization
             - **render_map**: Creates interactive map visualizations with location markers
             - **show_chart**: Creates interactive line, scatter, or bar charts for data visualization
 
@@ -461,6 +511,7 @@ impl AutoVisualiserRouter {
                 render_sankey_tool,
                 render_radar_tool,
                 render_donut_tool,
+                render_chord_tool,
                 render_map_tool,
                 show_chart_tool,
             ],
@@ -563,6 +614,55 @@ impl AutoVisualiserRouter {
 
         let resource_contents = ResourceContents::BlobResourceContents {
             uri: "ui://radar/chart".to_string(),
+            mime_type: Some("text/html".to_string()),
+            blob: base64_encoded,
+        };
+
+        Ok(vec![Content::resource(resource_contents)])
+    }
+
+    async fn render_chord(&self, params: Value) -> Result<Vec<Content>, ErrorData> {
+        // Extract the data from parameters
+        let data = params.get("data").ok_or_else(|| {
+            ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Missing 'data' parameter".to_string(),
+                None,
+            )
+        })?;
+
+        // Load all resources at compile time using include_str!
+        const TEMPLATE: &str = include_str!("chord_template.html");
+        const D3_MIN: &str = include_str!("d3.min.js");
+
+        // Convert the data to JSON string
+        let data_json = serde_json::to_string(&data).map_err(|e| {
+            ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                format!("Invalid JSON data: {}", e),
+                None,
+            )
+        })?;
+
+        // Replace all placeholders with actual content
+        let html_content = TEMPLATE
+            .replace("{{D3_MIN}}", D3_MIN)
+            .replace("{{CHORD_DATA}}", &data_json);
+
+        // Save to /tmp/chord.html for debugging
+        let debug_path = std::path::Path::new("/tmp/chord.html");
+        if let Err(e) = std::fs::write(debug_path, &html_content) {
+            tracing::warn!("Failed to write debug HTML to /tmp/chord.html: {}", e);
+        } else {
+            tracing::info!("Debug HTML saved to /tmp/chord.html");
+        }
+
+        // Use BlobResourceContents with base64 encoding to avoid JSON string escaping issues
+        let html_bytes = html_content.as_bytes();
+        let base64_encoded = STANDARD.encode(html_bytes);
+
+        let resource_contents = ResourceContents::BlobResourceContents {
+            uri: "ui://chord/diagram".to_string(),
             mime_type: Some("text/html".to_string()),
             blob: base64_encoded,
         };
@@ -767,6 +867,7 @@ impl Router for AutoVisualiserRouter {
                 "render_sankey" => this.render_sankey(arguments).await,
                 "render_radar" => this.render_radar(arguments).await,
                 "render_donut" => this.render_donut(arguments).await,
+                "render_chord" => this.render_chord(arguments).await,
                 "render_map" => this.render_map(arguments).await,
                 "show_chart" => this.show_chart(arguments).await,
                 _ => Err(ErrorData::new(
