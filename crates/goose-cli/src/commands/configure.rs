@@ -32,7 +32,6 @@ fn get_display_name(extension_id: &str) -> String {
     match extension_id {
         "developer" => "Developer Tools".to_string(),
         "computercontroller" => "Computer Controller".to_string(),
-        "googledrive" => "Google Drive".to_string(),
         "memory" => "Memory".to_string(),
         "tutorial" => "Tutorial".to_string(),
         "jetbrains" => "JetBrains".to_string(),
@@ -114,6 +113,7 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
                                 timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
                                 bundled: Some(true),
                                 description: None,
+                                available_tools: Vec::new(),
                             },
                         })?;
                     }
@@ -737,11 +737,6 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     "Developer Tools",
                     "Code editing and shell access",
                 )
-                .item(
-                    "googledrive",
-                    "Google Drive",
-                    "Search and read content from google drive - additional config required",
-                )
                 .item("jetbrains", "JetBrains", "Connect to jetbrains IDEs")
                 .item(
                     "memory",
@@ -774,6 +769,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     timeout: Some(timeout),
                     bundled: Some(true),
                     description: None,
+                    available_tools: Vec::new(),
                 },
             })?;
 
@@ -881,6 +877,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     description,
                     timeout: Some(timeout),
                     bundled: None,
+                    available_tools: Vec::new(),
                 },
             })?;
 
@@ -983,6 +980,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     description,
                     timeout: Some(timeout),
                     bundled: None,
+                    available_tools: Vec::new(),
                 },
             })?;
 
@@ -1110,6 +1108,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     description,
                     timeout: Some(timeout),
                     bundled: None,
+                    available_tools: Vec::new(),
                 },
             })?;
 
@@ -1182,7 +1181,7 @@ pub async fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
         .item(
             "goose_router_strategy",
             "Router Tool Selection Strategy",
-            "Configure the strategy for selecting tools to use",
+            "Experimental: configure a strategy for auto selecting tools to use",
         )
         .item(
             "tool_permission",
@@ -1303,40 +1302,27 @@ pub fn configure_goose_mode_dialog() -> Result<(), Box<dyn Error>> {
 pub fn configure_goose_router_strategy_dialog() -> Result<(), Box<dyn Error>> {
     let config = Config::global();
 
-    // Check if GOOSE_ROUTER_STRATEGY is set as an environment variable
-    if std::env::var("GOOSE_ROUTER_TOOL_SELECTION_STRATEGY").is_ok() {
-        let _ = cliclack::log::info("Notice: GOOSE_ROUTER_TOOL_SELECTION_STRATEGY environment variable is set. Configuration will override this.");
-    }
-
-    let strategy = cliclack::select("Which router strategy would you like to use?")
+    let enable_router = cliclack::select("Would you like to enable smart tool routing?")
         .item(
-            "vector",
-            "Vector Strategy",
-            "Use vector-based similarity to select tools",
+            "true",
+            "Enable Router",
+            "Use LLM-based intelligence to select tools",
         )
         .item(
-            "default",
-            "Default Strategy",
+            "false",
+            "Disable Router",
             "Use the default tool selection strategy",
         )
         .interact()?;
 
-    match strategy {
-        "vector" => {
-            config.set_param(
-                "GOOSE_ROUTER_TOOL_SELECTION_STRATEGY",
-                Value::String("vector".to_string()),
-            )?;
-            cliclack::outro(
-                "Set to Vector Strategy - using vector-based similarity for tool selection",
-            )?;
+    match enable_router {
+        "true" => {
+            config.set_param("GOOSE_ENABLE_ROUTER", Value::String("true".to_string()))?;
+            cliclack::outro("Router enabled - using LLM-based intelligence for tool selection")?;
         }
-        "default" => {
-            config.set_param(
-                "GOOSE_ROUTER_TOOL_SELECTION_STRATEGY",
-                Value::String("default".to_string()),
-            )?;
-            cliclack::outro("Set to Default Strategy - using default tool selection")?;
+        "false" => {
+            config.set_param("GOOSE_ENABLE_ROUTER", Value::String("false".to_string()))?;
+            cliclack::outro("Router disabled - using default tool selection")?;
         }
         _ => unreachable!(),
     };
@@ -1751,6 +1737,7 @@ pub async fn handle_openrouter_auth() -> Result<(), Box<dyn Error>> {
                                         timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
                                         bundled: Some(true),
                                         description: None,
+                                        available_tools: Vec::new(),
                                     },
                                 }) {
                                     Ok(_) => println!("✓ Developer extension enabled"),

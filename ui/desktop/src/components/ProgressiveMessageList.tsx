@@ -37,6 +37,7 @@ interface ProgressiveMessageListProps {
   // Custom render function for messages
   renderMessage?: (message: Message, index: number) => React.ReactNode | null;
   isStreamingMessage?: boolean; // Whether messages are currently being streamed
+  onMessageUpdate?: (messageId: string, newContent: string) => void;
 }
 
 export default function ProgressiveMessageList({
@@ -52,6 +53,7 @@ export default function ProgressiveMessageList({
   showLoadingThreshold = 50,
   renderMessage, // Custom render function
   isStreamingMessage = false, // Whether messages are currently being streamed
+  onMessageUpdate,
 }: ProgressiveMessageListProps) {
   const [renderedCount, setRenderedCount] = useState(() => {
     // Initialize with either all messages (if small) or first batch (if large)
@@ -75,7 +77,7 @@ export default function ProgressiveMessageList({
     const contextManager = useChatContextManager();
     hasContextHandlerContent = contextManager.hasContextHandlerContent;
     getContextHandlerType = contextManager.getContextHandlerType;
-  } catch (error) {
+  } catch {
     // Context manager not available (e.g., in session history view)
     // This is fine, we'll just skip context handler functionality
     hasContextHandlerContent = undefined;
@@ -206,7 +208,9 @@ export default function ProgressiveMessageList({
                     }}
                   />
                 ) : (
-                  !hasOnlyToolResponses(message) && <UserMessage message={message} />
+                  !hasOnlyToolResponses(message) && (
+                    <UserMessage message={message} onMessageUpdate={onMessageUpdate} />
+                  )
                 )}
               </>
             ) : (
@@ -258,6 +262,7 @@ export default function ProgressiveMessageList({
     appendMessage,
     toolCallNotifications,
     isStreamingMessage,
+    onMessageUpdate,
     hasContextHandlerContent,
     getContextHandlerType,
     onScrollToBottom,

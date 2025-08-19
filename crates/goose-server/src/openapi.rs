@@ -391,7 +391,8 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::schedule::sessions_handler,
         super::routes::recipe::create_recipe,
         super::routes::recipe::encode_recipe,
-        super::routes::recipe::decode_recipe
+        super::routes::recipe::decode_recipe,
+        super::routes::recipe::scan_recipe
     ),
     components(schemas(
         super::routes::config_management::UpsertConfigQuery,
@@ -459,6 +460,8 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::recipe::EncodeRecipeResponse,
         super::routes::recipe::DecodeRecipeRequest,
         super::routes::recipe::DecodeRecipeResponse,
+        super::routes::recipe::ScanRecipeRequest,
+        super::routes::recipe::ScanRecipeResponse,
         goose::recipe::Recipe,
         goose::recipe::Author,
         goose::recipe::Settings,

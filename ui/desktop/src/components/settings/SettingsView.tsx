@@ -1,6 +1,6 @@
 import { ScrollArea } from '../ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import type { View, ViewOptions } from '../../App';
+import { View, ViewOptions } from '../../utils/navigationUtils';
 import ModelsSection from './models/ModelsSection';
 import SessionSharingSection from './sessions/SessionSharingSection';
 import AppSettingsSection from './app/AppSettingsSection';

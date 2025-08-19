@@ -34,7 +34,7 @@ export default function ToolCallWithResponse({
     <>
       <div
         className={cn(
-          'w-full text-sm rounded-lg overflow-hidden border-borderSubtle border bg-background-muted'
+          'w-full text-sm font-sans rounded-lg overflow-hidden border-borderSubtle border bg-background-muted'
         )}
       >
         <ToolCallView
@@ -56,7 +56,7 @@ export default function ToolCallWithResponse({
                 <MCPUIResourceRenderer content={content} />
                 <div className="mt-3 p-4 py-3 border border-borderSubtle rounded-lg bg-background-muted flex items-center">
                   <FlaskConical className="mr-2" size={20} />
-                  <div className="text-sm font-medium mono">
+                  <div className="text-sm font-sans">
                     MCP UI is experimental and may change at any time.
                   </div>
                 </div>
@@ -99,7 +99,7 @@ function ToolCallExpandable({
         className="group w-full flex justify-between items-center pr-2 transition-colors rounded-none"
         variant="ghost"
       >
-        <span className="flex items-center font-mono">{label}</span>
+        <span className="flex items-center font-sans text-sm">{label}</span>
         <ChevronRight
           className={cn(
             'group-hover:opacity-100 transition-transform opacity-70',
@@ -523,7 +523,7 @@ interface ToolDetailsViewProps {
 function ToolDetailsView({ toolCall, isStartExpanded }: ToolDetailsViewProps) {
   return (
     <ToolCallExpandable
-      label={<span className="pl-4 font-medium">Tool Details</span>}
+      label={<span className="pl-4 font-sans text-sm">Tool Details</span>}
       isStartExpanded={isStartExpanded}
     >
       <div className="pr-4 pl-8">
@@ -543,7 +543,7 @@ interface ToolResultViewProps {
 function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
   return (
     <ToolCallExpandable
-      label={<span className="pl-4 py-1 font-medium">Output</span>}
+      label={<span className="pl-4 py-1 font-sans text-sm">Output</span>}
       isStartExpanded={isStartExpanded}
     >
       <div className="pl-4 pr-4 py-4">
@@ -564,7 +564,9 @@ function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
             }}
           />
         )}
-        {result.type === 'resource' && <pre>{JSON.stringify(result, null, 2)}</pre>}
+        {result.type === 'resource' && (
+          <pre className="font-sans text-sm">{JSON.stringify(result, null, 2)}</pre>
+        )}
       </div>
     </ToolCallExpandable>
   );
@@ -586,12 +588,18 @@ function ToolLogsView({
     if (boxRef.current) {
       boxRef.current.scrollTop = boxRef.current.scrollHeight;
     }
-  }, [logs]);
+  }, [logs.length]);
+  // normally we do not want to put .length on an array in react deps:
+  //
+  // if the objects inside the array change but length doesn't change you want updates
+  //
+  // in this case, this is array of strings which once added do not change so this cuts
+  // down on the possibility of unwanted runs
 
   return (
     <ToolCallExpandable
       label={
-        <span className="pl-4 py-1 font-medium flex items-center">
+        <span className="pl-4 py-1 font-sans text-sm flex items-center">
           <span>Logs</span>
           {working && (
             <div className="mx-2 inline-block">
@@ -612,7 +620,7 @@ function ToolLogsView({
         className={`flex flex-col items-start space-y-2 overflow-y-auto p-4 ${working ? 'max-h-[4rem]' : 'max-h-[20rem]'}`}
       >
         {logs.map((log, i) => (
-          <span key={i} className="font-mono text-sm text-textSubtle">
+          <span key={i} className="font-sans text-sm text-textSubtle">
             {log}
           </span>
         ))}
@@ -627,7 +635,7 @@ const ProgressBar = ({ progress, total, message }: Omit<Progress, 'progressToken
 
   return (
     <div className="w-full space-y-2">
-      {message && <div className="text-sm text-textSubtle">{message}</div>}
+      {message && <div className="font-sans text-sm text-textSubtle">{message}</div>}
 
       <div className="w-full bg-background-subtle rounded-full h-4 overflow-hidden relative">
         {isDeterminate ? (

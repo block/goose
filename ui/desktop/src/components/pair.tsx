@@ -26,7 +26,7 @@
 
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { type View, ViewOptions } from '../App';
+import { View, ViewOptions } from '../utils/navigationUtils';
 import BaseChat from './BaseChat';
 import { useRecipeManager } from '../hooks/useRecipeManager';
 import { useIsMobile } from '../hooks/use-mobile';
@@ -76,7 +76,8 @@ export default function Pair({
       // Clear the location state to prevent re-processing
       window.history.replaceState({}, '', '/pair');
     }
-  }, [location.state, chat.id, setChat]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state, chat.id]);
 
   // Handle initial message from hub page
   useEffect(() => {
@@ -117,7 +118,8 @@ export default function Pair({
         window.history.replaceState({}, '', '/pair');
       }
     }
-  }, [location.state, hasProcessedInitialInput, initialMessage, chat, setChat]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state, hasProcessedInitialInput, initialMessage]);
 
   // Auto-submit the initial message after it's been set and component is ready
   useEffect(() => {
@@ -153,7 +155,6 @@ export default function Pair({
         }
       }, 500); // Give more time for the component to fully mount
 
-      // eslint-disable-next-line no-undef
       return () => clearTimeout(timer);
     }
 

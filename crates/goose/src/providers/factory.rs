@@ -6,6 +6,7 @@ use super::{
     base::{Provider, ProviderMetadata},
     bedrock::BedrockProvider,
     claude_code::ClaudeCodeProvider,
+    cursor_agent::CursorAgentProvider,
     databricks::DatabricksProvider,
     gcpvertexai::GcpVertexAIProvider,
     gemini_cli::GeminiCliProvider,
@@ -38,18 +39,19 @@ const DEFAULT_FALLBACK_TURNS: usize = 2;
 
 static REGISTRY: Lazy<RwLock<ProviderRegistry>> = Lazy::new(|| {
     let registry = ProviderRegistry::new().with_providers(|registry| {
-        registry.register::<OpenAiProvider, _>(OpenAiProvider::from_env);
         registry.register::<AnthropicProvider, _>(AnthropicProvider::from_env);
-        registry.register::<OllamaProvider, _>(OllamaProvider::from_env);
         registry.register::<AzureProvider, _>(AzureProvider::from_env);
         registry.register::<BedrockProvider, _>(BedrockProvider::from_env);
         registry.register::<ClaudeCodeProvider, _>(ClaudeCodeProvider::from_env);
+        registry.register::<CursorAgentProvider, _>(CursorAgentProvider::from_env);
         registry.register::<DatabricksProvider, _>(DatabricksProvider::from_env);
         registry.register::<GcpVertexAIProvider, _>(GcpVertexAIProvider::from_env);
         registry.register::<GeminiCliProvider, _>(GeminiCliProvider::from_env);
         registry.register::<GoogleProvider, _>(GoogleProvider::from_env);
         registry.register::<GroqProvider, _>(GroqProvider::from_env);
         registry.register::<LiteLLMProvider, _>(LiteLLMProvider::from_env);
+        registry.register::<OllamaProvider, _>(OllamaProvider::from_env);
+        registry.register::<OpenAiProvider, _>(OpenAiProvider::from_env);
         registry.register::<OpenRouterProvider, _>(OpenRouterProvider::from_env);
         registry.register::<SageMakerTgiProvider, _>(SageMakerTgiProvider::from_env);
         registry.register::<SnowflakeProvider, _>(SnowflakeProvider::from_env);
