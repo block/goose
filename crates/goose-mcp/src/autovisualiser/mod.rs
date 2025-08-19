@@ -256,6 +256,88 @@ impl AutoVisualiserRouter {
         )
     }
 
+    fn create_map_tool() -> Tool {
+        Tool::new(
+            "render_map",
+            indoc! {r#"
+                Renders an interactive map visualization with location markers using Leaflet.
+                Returns an interactive HTML visualization with clustering support.
+                
+                The data should contain:
+                - markers: Array of objects with 'lat', 'lng', and optional properties
+                - title: Optional title for the map (default: "Interactive Map")
+                - subtitle: Optional subtitle (default: "Geographic data visualization")
+                - center: Optional center point {lat, lng} (default: USA center)
+                - zoom: Optional initial zoom level (default: 4)
+                - clustering: Optional boolean to enable/disable clustering (default: true)
+                - autoFit: Optional boolean to auto-fit map to markers (default: true)
+                
+                Marker properties:
+                - lat: Latitude (required)
+                - lng: Longitude (required)
+                - name: Location name
+                - value: Numeric value for sizing/coloring
+                - description: Description text
+                - popup: Custom popup HTML
+                - color: Custom marker color
+                - label: Custom marker label
+                - useDefaultIcon: Use default Leaflet icon
+                
+                Example:
+                {
+                  "title": "Store Locations",
+                  "markers": [
+                    {"lat": 37.7749, "lng": -122.4194, "name": "SF Store", "value": 150000},
+                    {"lat": 40.7128, "lng": -74.0060, "name": "NYC Store", "value": 200000}
+                  ]
+                }
+            "#},
+            object!({
+                "type": "object",
+                "required": ["data"],
+                "properties": {
+                    "data": {
+                        "type": "object",
+                        "required": ["markers"],
+                        "properties": {
+                            "markers": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "required": ["lat", "lng"],
+                                    "properties": {
+                                        "lat": {"type": "number"},
+                                        "lng": {"type": "number"},
+                                        "name": {"type": "string"},
+                                        "value": {"type": "number"},
+                                        "description": {"type": "string"},
+                                        "popup": {"type": "string"},
+                                        "color": {"type": "string"},
+                                        "label": {"type": "string"},
+                                        "useDefaultIcon": {"type": "boolean"}
+                                    }
+                                }
+                            },
+                            "title": {"type": "string"},
+                            "subtitle": {"type": "string"},
+                            "center": {
+                                "type": "object",
+                                "properties": {
+                                    "lat": {"type": "number"},
+                                    "lng": {"type": "number"}
+                                }
+                            },
+                            "zoom": {"type": "number"},
+                            "clustering": {"type": "boolean"},
+                            "clusterRadius": {"type": "number"},
+                            "autoFit": {"type": "boolean"}
+                        }
+                    }
+                }
+            }),
+        )
+    }
+
     fn create_show_chart_tool() -> Tool {
         Tool::new(
             "show_chart",
@@ -341,6 +423,7 @@ impl AutoVisualiserRouter {
         let render_sankey_tool = Self::create_sankey_tool();
         let render_radar_tool = Self::create_radar_tool();
         let render_donut_tool = Self::create_donut_tool();
+        let render_map_tool = Self::create_map_tool();
         let show_chart_tool = Self::create_show_chart_tool();
 
         // choose_app_strategy().cache_dir()
@@ -362,6 +445,7 @@ impl AutoVisualiserRouter {
             - **render_sankey**: Creates interactive Sankey diagrams from flow data
             - **render_radar**: Creates interactive radar charts for multi-dimensional data comparison
             - **render_donut**: Creates interactive donut/pie charts for categorical data (supports multiple charts)
+            - **render_map**: Creates interactive map visualizations with location markers
             - **show_chart**: Creates interactive line, scatter, or bar charts for data visualization
 
             ## Purpose:
@@ -377,6 +461,7 @@ impl AutoVisualiserRouter {
                 render_sankey_tool,
                 render_radar_tool,
                 render_donut_tool,
+                render_map_tool,
                 show_chart_tool,
             ],
             cache_dir,
@@ -534,6 +619,71 @@ impl AutoVisualiserRouter {
         Ok(vec![Content::resource(resource_contents)])
     }
 
+    async fn render_map(&self, params: Value) -> Result<Vec<Content>, ErrorData> {
+        // Extract the data from parameters
+        let data = params.get("data").ok_or_else(|| {
+            ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Missing 'data' parameter".to_string(),
+                None,
+            )
+        })?;
+
+        // Load all resources at compile time using include_str!
+        const TEMPLATE: &str = include_str!("map_template.html");
+        const LEAFLET_JS: &str = include_str!("leaflet.min.js");
+        const LEAFLET_CSS: &str = include_str!("leaflet.min.css");
+        const MARKERCLUSTER_JS: &str = include_str!("leaflet.markercluster.min.js");
+
+        // Extract title and subtitle from data if provided
+        let title = data
+            .get("title")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Interactive Map");
+        let subtitle = data
+            .get("subtitle")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Geographic data visualization");
+
+        // Convert the data to JSON string
+        let data_json = serde_json::to_string(&data).map_err(|e| {
+            ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                format!("Invalid JSON data: {}", e),
+                None,
+            )
+        })?;
+
+        // Replace all placeholders with actual content
+        let html_content = TEMPLATE
+            .replace("{{LEAFLET_JS}}", LEAFLET_JS)
+            .replace("{{LEAFLET_CSS}}", LEAFLET_CSS)
+            .replace("{{MARKERCLUSTER_JS}}", MARKERCLUSTER_JS)
+            .replace("{{MAP_DATA}}", &data_json)
+            .replace("{{TITLE}}", title)
+            .replace("{{SUBTITLE}}", subtitle);
+
+        // Save to /tmp/map.html for debugging
+        let debug_path = std::path::Path::new("/tmp/map.html");
+        if let Err(e) = std::fs::write(debug_path, &html_content) {
+            tracing::warn!("Failed to write debug HTML to /tmp/map.html: {}", e);
+        } else {
+            tracing::info!("Debug HTML saved to /tmp/map.html");
+        }
+
+        // Use BlobResourceContents with base64 encoding to avoid JSON string escaping issues
+        let html_bytes = html_content.as_bytes();
+        let base64_encoded = STANDARD.encode(html_bytes);
+
+        let resource_contents = ResourceContents::BlobResourceContents {
+            uri: "ui://map/visualization".to_string(),
+            mime_type: Some("text/html".to_string()),
+            blob: base64_encoded,
+        };
+
+        Ok(vec![Content::resource(resource_contents)])
+    }
+
     async fn show_chart(&self, params: Value) -> Result<Vec<Content>, ErrorData> {
         // Extract the data from parameters
         let data = params.get("data").ok_or_else(|| {
@@ -617,6 +767,7 @@ impl Router for AutoVisualiserRouter {
                 "render_sankey" => this.render_sankey(arguments).await,
                 "render_radar" => this.render_radar(arguments).await,
                 "render_donut" => this.render_donut(arguments).await,
+                "render_map" => this.render_map(arguments).await,
                 "show_chart" => this.show_chart(arguments).await,
                 _ => Err(ErrorData::new(
                     ErrorCode::INVALID_REQUEST,
