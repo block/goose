@@ -94,7 +94,7 @@ export const useRecipeManager = (messages: Message[], locationState?: LocationSt
           } else {
             setRecipeAccepted(true);
           }
-        } catch (error) {
+        } catch {
           setHasSecurityWarnings(false);
           setIsRecipeWarningModalOpen(true);
         }
