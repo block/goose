@@ -128,7 +128,7 @@ export function DashboardCanvas({ widgets, onWidgetMove, onWidgetResize }: Dashb
       
       {/* Dot pattern overlay */}
       <div 
-        className="absolute inset-0 opacity-10"
+        className="absolute inset-0 opacity-10 dark:opacity-20"
         style={{
           backgroundImage: `radial-gradient(circle, rgba(0, 0, 0, 0.4) 1px, transparent 1px)`,
           backgroundSize: '24px 24px',
