@@ -102,7 +102,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     const timer = setTimeout(() => {
       // setIsVisible(true);
     }, 100);
-    // eslint-disable-next-line no-undef
+
     return () => clearTimeout(timer);
   }, []);
 

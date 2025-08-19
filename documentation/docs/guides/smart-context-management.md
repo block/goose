@@ -16,49 +16,79 @@ When working with [Large Language Models (LLMs)](/docs/getting-started/providers
 - **Context Management**: How Goose handles conversations approaching these limits
 - **Turn**: One complete prompt-response interaction between Goose and the LLM
 
-## Context Limit Strategy
+## How Goose Manages Context
+Goose uses a two-tierd approach to context management:
 
-When a conversation reaches the context limit, Goose offers different ways to handle it:
+1. **Auto-Compaction**: Proactively summarizes conversation when approaching token limits
+2. **Context Strategies**: Backup strategy used if the context limit is still exceeded after auto-compaction
 
-| Feature | Description | Best For | Impact |
-|---------|-------------|-----------|---------|
-| **Summarization** | Condenses conversation while preserving key points | Long, complex conversations | Maintains most context |
-| **Truncation** | Removes oldest messages to make room | Simple, linear conversations | Loses old context |
-| **Clear** | Starts fresh while keeping session active | New direction in conversation | Loses all context |
-| **Prompt** | Asks user to choose from the above options | Control over each decision in interactive sessions | Depends on choice made |
+This layered approach lets Goose handle token and context limits gracefully.
 
-Your available options depend on whether you're using the Desktop app or CLI.
+## Automatic Compaction
+Goose automatically compacts (summarizes) older parts of your conversation when approaching token limits, allowing you to maintain long-running sessions without manual intervention. 
+Auto-compaction is triggered by default when you reach 80% of the token limit in Goose Desktop and the Goose CLI.
+
+Control the auto-compaction behavior with the `GOOSE_AUTO_COMPACT_THRESHOLD` [environment variable](/docs/guides/environment-variables.md#session-management). 
+Disable this feature by setting the value to `0.0`.
+
+```
+# Automatically compact sessions when 60% of available tokens are used
+export GOOSE_AUTO_COMPACT_THRESHOLD=0.6
+```
+
+When you reach the auto-compaction threshold:
+  1. Goose will automatically start summarizing the conversation to make room.
+  2. You'll see a message that says **"Auto-compacted context: X → Y tokens (Z% reduction)"**
+  3. Once complete, previous messages in your conversation remain visible, but only the summary is included in the active context for Goose.
+  4. Continue the session with the summarized context in place.
+
+### Manual Compaction
+You can also trigger compaction manually before reaching context or token limits:
+
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+
+  1. Click the scroll text icon <ScrollText className="inline" size={16} /> in the chat interface
+  2. Confirm the summarization in the modal
+  3. View or edit the generated summary if needed
+
+  :::note 
+  Before the scroll icon appears, you must send at least one message in the chat. Simply starting a new session won't trigger it.
+  :::
+
+</TabItem>
+<TabItem value="cli" label="Goose CLI" default>
+
+To proactively trigger summarization before reaching context limits, use the `/summarize` command:
+
+```sh
+( O)> /summarize
+◇  Are you sure you want to summarize this conversation? This will condense the message history.
+│  Yes 
+│
+Summarizing conversation...
+Conversation has been summarized.
+Key information has been preserved while reducing context length.
+```
+
+</TabItem>
+</Tabs>
+
+## Context Limit Strategies
+
+When auto-compaction is disabled, or if a conversation still exceeds the context limit, Goose offers different ways to handle it:
+
+| Feature | Description | Best For | Availability | Impact |
+|---------|-------------|-----------|-----------|---------|
+| **Summarization** | Condenses conversation while preserving key points | Long, complex conversations | Desktop and CLI | Maintains most context |
+| **Truncation** | Removes oldest messages to make room | Simple, linear conversations | CLI only | Loses old context |
+| **Clear** | Starts fresh while keeping session active | New direction in conversation | CLI only | Loses all context |
+| **Prompt** | Asks user to choose from the above options | Control over each decision in interactive sessions | CLI only | Depends on choice made |
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
 
 Goose Desktop exclusively uses summarization to manage context, preserving key information while reducing size.
-
-<Tabs>
-  <TabItem value="automatic" label="Automatic" default>
-
-When you reach the context limit in Goose Desktop:
-
-1. Goose will automatically start summarizing the conversation to make room.
-2. You'll see a message that says **"Preparing summary..."**, followed by **"Session summarized."**
-3. Once complete, you'll have the option to **"View or edit summary."**
-4. You can then continue the session with the summarized context in place.
-
-  </TabItem>
-  <TabItem value="manual" label="Manual">
-
-You can proactively summarize your conversation before reaching context limits:
-
-1. Click the scroll text icon <ScrollText className="inline" size={16} /> in the chat interface
-2. Confirm the summarization in the modal
-3. View or edit the generated summary if needed
-
-:::note 
-Before the scroll icon appears, you must send at least one message in the chat. Simply starting a new session won't trigger it.
-:::
-
-  </TabItem>
-</Tabs>
 
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
@@ -80,9 +110,6 @@ export GOOSE_CONTEXT_STRATEGY=clear      # Automatically clear session
 # Set to prompt the user
 export GOOSE_CONTEXT_STRATEGY=prompt
 ```
-
-<Tabs>
-  <TabItem value="automatic" label="Automatic" default>
 
 When you hit the context limit, the behavior depends on your configuration:
 
@@ -120,25 +147,6 @@ Goose tried its best to truncate messages for you.
 Context maxed out - automatically cleared session.
 --------------------------------------------------
 ```
-
-  </TabItem>
-  <TabItem value="manual" label="Manual">
-
-To proactively trigger summarization before reaching context limits, use the `/summarize` command:
-
-```sh
-( O)> /summarize
-◇  Are you sure you want to summarize this conversation? This will condense the message history.
-│  Yes 
-│
-Summarizing conversation...
-Conversation has been summarized.
-Key information has been preserved while reducing context length.
-```
-
-  </TabItem>
-</Tabs>
-
   </TabItem>
 </Tabs>
 

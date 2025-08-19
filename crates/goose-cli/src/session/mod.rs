@@ -211,6 +211,7 @@ impl Session {
             // TODO: should set timeout
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
             bundled: None,
+            available_tools: Vec::new(),
         };
 
         self.agent
@@ -244,6 +245,7 @@ impl Session {
             // TODO: should set timeout
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
             bundled: None,
+            available_tools: Vec::new(),
         };
 
         self.agent
@@ -278,6 +280,7 @@ impl Session {
             // TODO: should set timeout
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
             bundled: None,
+            available_tools: Vec::new(),
         };
 
         self.agent
@@ -304,6 +307,7 @@ impl Session {
                 timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
                 bundled: None,
                 description: None,
+                available_tools: Vec::new(),
             };
             self.agent
                 .add_extension(config)
