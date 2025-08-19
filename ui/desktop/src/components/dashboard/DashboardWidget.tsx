@@ -3,6 +3,7 @@ import { CardContent, CardDescription } from '../ui/card';
 import { WidgetData, WidgetType } from '../../types/dashboard';
 import { Button } from '../ui/button';
 import { ChatSmart } from '../icons/';
+import { useNavigate } from 'react-router-dom';
 
 interface DashboardWidgetProps {
   widget: WidgetData;
@@ -13,6 +14,7 @@ interface DashboardWidgetProps {
 
 export function DashboardWidget({ widget, onMouseDown, isDragging, onReset }: DashboardWidgetProps) {
   const [showSavedIndicator, setShowSavedIndicator] = useState(false);
+  const navigate = useNavigate();
 
   // Show saved indicator when position changes (but not during dragging)
   useEffect(() => {
@@ -24,6 +26,16 @@ export function DashboardWidget({ widget, onMouseDown, isDragging, onReset }: Da
       return () => clearTimeout(timer);
     }
   }, [widget.position.x, widget.position.y, isDragging]);
+
+  const handleSessionClick = (sessionId: string) => {
+    // Navigate to sessions view with the selected session
+    navigate('/sessions', { state: { selectedSessionId: sessionId } });
+  };
+
+  const handleSeeAllClick = () => {
+    // Navigate to sessions view (history space)
+    navigate('/sessions');
+  };
 
   const renderWidgetContent = () => {
     switch (widget.type) {
@@ -63,7 +75,8 @@ export function DashboardWidget({ widget, onMouseDown, isDragging, onReset }: Da
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-xs text-text-muted flex items-center gap-1 !px-0 hover:bg-transparent hover:underline hover:text-text-default"
+                onClick={handleSeeAllClick}
+                className="text-xs text-text-muted flex items-center gap-1 !px-0 hover:bg-transparent hover:underline hover:text-text-default pointer-events-auto"
               >
                 See all
               </Button>
@@ -72,7 +85,8 @@ export function DashboardWidget({ widget, onMouseDown, isDragging, onReset }: Da
               {widget.data?.recentSessions?.slice(0, 5).map((session: any) => (
                 <div
                   key={session.id}
-                  className="flex items-center justify-between text-xs py-1 px-1 rounded-md hover:bg-background-muted/50 cursor-pointer transition-colors"
+                  onClick={() => handleSessionClick(session.id)}
+                  className="flex items-center justify-between text-xs py-1 px-1 rounded-md hover:bg-background-muted/50 cursor-pointer transition-colors pointer-events-auto"
                 >
                   <div className="flex items-center space-x-2 min-w-0">
                     <ChatSmart className="h-3 w-3 text-text-muted flex-shrink-0" />
