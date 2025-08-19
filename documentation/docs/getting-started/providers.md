@@ -6,7 +6,7 @@ title: Configure LLM Provider
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import { PanelLeft } from 'lucide-react';
-import { ModelSelectionTip } from '@site/src/components/Constants';
+import { ModelSelectionTip } from '@site/src/components/ModelSelectionTip';
 
 # Supported LLM Providers
 

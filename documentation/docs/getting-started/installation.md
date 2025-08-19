@@ -3,7 +3,9 @@ sidebar_position: 1
 ---
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import { RateLimits, DesktopProviderSetup, ModelSelectionTip } from '@site/src/components/Constants';
+import { RateLimits } from '@site/src/components/RateLimits';
+import { DesktopProviderSetup } from '@site/src/components/DesktopProviderSetup';
+import { ModelSelectionTip } from '@site/src/components/ModelSelectionTip';
 import MacDesktopInstallButtons from '@site/src/components/MacDesktopInstallButtons';
 import WindowsDesktopInstallButtons from '@site/src/components/WindowsDesktopInstallButtons';
 import LinuxDesktopInstallButtons from '@site/src/components/LinuxDesktopInstallButtons';
