@@ -78,26 +78,6 @@ jobs:
             dpkg-dev \
             protobuf-compiler
 
-      - name: Pre-build cleanup
-        run: |
-          echo "Performing aggressive pre-build cleanup..."
-          # Clean npm cache
-          npm cache clean --force || true
-          # Clean any previous build artifacts
-          rm -rf target || true
-          # Clean Homebrew cache (if exists)
-          brew cleanup || true
-          # Remove unnecessary large directories
-          sudo rm -rf /usr/share/dotnet || true
-          sudo rm -rf /usr/local/lib/android || true
-          sudo rm -rf /opt/ghc || true
-          sudo rm -rf /usr/local/share/boost || true
-          # Clean apt cache
-          sudo apt-get clean || true
-          sudo apt-get autoremove -y || true
-          # Check disk space after cleanup
-          df -h
-
       - name: Activate hermit and set CARGO_HOME
         run: |
           source bin/activate-hermit
@@ -154,11 +134,20 @@ jobs:
           chmod +x ui/desktop/src/bin/temporal-service
           ls -la ui/desktop/src/bin/
 
+      - name: Cache npm dependencies
+        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
+        with:
+          path: |
+            ui/desktop/node_modules
+            .hermit/node/cache
+          key: linux-npm-cache-v1-${{ runner.os }}-${{ hashFiles('ui/desktop/package-lock.json') }}
+          restore-keys: |
+            linux-npm-cache-v1-${{ runner.os }}-
+
       - name: Install npm dependencies
         run: |
           source ./bin/activate-hermit
           cd ui/desktop
-          npm cache clean --force || true
           npm install
           # Verify installation
           ls -la node_modules/.bin/ | head -5

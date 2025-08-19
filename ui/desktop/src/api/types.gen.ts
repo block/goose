@@ -59,7 +59,9 @@ export type ConfigKeyQuery = {
 };
 
 export type ConfigResponse = {
-    config: {};
+    config: {
+        [key: string]: unknown;
+    };
 };
 
 export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | Annotated;

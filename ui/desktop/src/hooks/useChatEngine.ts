@@ -51,6 +51,9 @@ export const useChatEngine = ({
   const [localOutputTokens, setLocalOutputTokens] = useState<number>(0);
   const [powerSaveTimeoutId, setPowerSaveTimeoutId] = useState<number | null>(null);
 
+  // Track pending edited message
+  const [pendingEdit, setPendingEdit] = useState<{ id: string; content: string } | null>(null);
+
   // Store message in global history when it's added (if enabled)
   const storeMessageInHistory = useCallback(
     (message: Message) => {
@@ -408,6 +411,34 @@ export const useChatEngine = ({
     }, new Map());
   }, [notifications]);
 
+  // Handle message updates from the UI
+  const onMessageUpdate = useCallback(
+    (messageId: string, newContent: string) => {
+      const messageIndex = messages.findIndex((msg) => msg.id === messageId);
+
+      if (messageIndex !== -1) {
+        // Truncate the history to the point *before* the edited message.
+        const history = messages.slice(0, messageIndex);
+
+        // Set the truncated history.
+        setMessages(history);
+
+        // Instead of setTimeout, set pendingEdit which will be handled in useEffect
+        setPendingEdit({ id: messageId, content: newContent });
+      }
+    },
+    [messages, setMessages, setPendingEdit]
+  );
+
+  // Listen for pending edit and append message after messages updated
+  useEffect(() => {
+    if (pendingEdit) {
+      const updatedMessage = createUserMessage(pendingEdit.content);
+      append(updatedMessage);
+      setPendingEdit(null); // Reset after processing
+    }
+  }, [pendingEdit, append]);
+
   return {
     // Core message data
     messages,
@@ -451,5 +482,8 @@ export const useChatEngine = ({
 
     // Error management
     clearError: () => setError(undefined),
+
+    // New functions for message editing
+    onMessageUpdate,
   };
 };
