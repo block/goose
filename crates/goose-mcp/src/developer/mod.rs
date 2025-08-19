@@ -2,6 +2,7 @@ mod editor_models;
 
 mod lang;
 mod shell;
+pub mod rmcp_developer;
 
 use anyhow::Result;
 use base64::Engine;
