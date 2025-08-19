@@ -140,7 +140,7 @@ const electronAPI: ElectronAPI = {
     return config;
   },
   hideWindow: () => ipcRenderer.send('hide-window'),
-  directoryChooser: (replace?: boolean) => ipcRenderer.invoke('directory-chooser', replace),
+  directoryChooser: () => ipcRenderer.invoke('directory-chooser'),
   createChatWindow: (
     query?: string,
     dir?: string,
