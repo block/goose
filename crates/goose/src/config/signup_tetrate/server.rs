@@ -12,8 +12,7 @@ use serde::Deserialize;
 use std::net::SocketAddr;
 use tokio::sync::oneshot;
 
-static TEMPLATES_DIR: Dir =
-    include_dir!("$CARGO_MANIFEST_DIR/src/config/signup_tetrate/templates");
+static TEMPLATES_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/config/signup_tetrate/templates");
 
 #[derive(Debug, Deserialize)]
 struct CallbackQuery {

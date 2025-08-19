@@ -293,7 +293,10 @@ impl Provider for TetrateProvider {
                 .get("message")
                 .and_then(|v| v.as_str())
                 .unwrap_or("unknown error");
-            tracing::warn!("Tetrate Agent Router Service API returned an error: {}", msg);
+            tracing::warn!(
+                "Tetrate Agent Router Service API returned an error: {}",
+                msg
+            );
             return Ok(None);
         }
 
