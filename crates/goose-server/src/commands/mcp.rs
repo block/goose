@@ -1,7 +1,5 @@
 use anyhow::Result;
-use goose_mcp::{
-    ComputerControllerRouter, DeveloperRouter, GoogleDriveRouter, MemoryRouter, TutorialRouter,
-};
+use goose_mcp::{ComputerControllerRouter, DeveloperRouter, MemoryRouter, TutorialRouter};
 use mcp_server::router::RouterService;
 use mcp_server::{BoundedService, ByteTransport, Server};
 use tokio::io::{stdin, stdout};
@@ -14,10 +12,6 @@ pub async fn run(name: &str) -> Result<()> {
     let router: Option<Box<dyn BoundedService>> = match name {
         "developer" => Some(Box::new(RouterService(DeveloperRouter::new()))),
         "computercontroller" => Some(Box::new(RouterService(ComputerControllerRouter::new()))),
-        "google_drive" | "googledrive" => {
-            let router = GoogleDriveRouter::new().await;
-            Some(Box::new(RouterService(router)))
-        }
         "memory" => Some(Box::new(RouterService(MemoryRouter::new()))),
         "tutorial" => Some(Box::new(RouterService(TutorialRouter::new()))),
         _ => None,

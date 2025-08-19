@@ -31,7 +31,6 @@ fn get_display_name(extension_id: &str) -> String {
     match extension_id {
         "developer" => "Developer Tools".to_string(),
         "computercontroller" => "Computer Controller".to_string(),
-        "googledrive" => "Google Drive".to_string(),
         "memory" => "Memory".to_string(),
         "tutorial" => "Tutorial".to_string(),
         "jetbrains" => "JetBrains".to_string(),
@@ -734,11 +733,6 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     "developer",
                     "Developer Tools",
                     "Code editing and shell access",
-                )
-                .item(
-                    "googledrive",
-                    "Google Drive",
-                    "Search and read content from google drive - additional config required",
                 )
                 .item("jetbrains", "JetBrains", "Connect to jetbrains IDEs")
                 .item(
