@@ -9,6 +9,7 @@ import { NotificationEvent } from '../hooks/useMessageStream';
 import { ChevronRight, FlaskConical, LoaderCircle } from 'lucide-react';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';
+import { isUIResource } from '@mcp-ui/client';
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
@@ -50,7 +51,7 @@ export default function ToolCallWithResponse({
       {/* MCP UI — Inline */}
       {toolResponse?.toolResult?.value &&
         toolResponse.toolResult.value.map((content, index) => {
-          if (content.type === 'resource' && content.resource.uri?.startsWith('ui://')) {
+          if (isUIResource(content)) {
             return (
               <div key={`${content.type}-${index}`} className="mt-3">
                 <MCPUIResourceRenderer content={content} />
