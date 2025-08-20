@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import { AddModelModal } from '../subcomponents/AddModelModal';
 import { LeadWorkerSettings } from '../subcomponents/LeadWorkerSettings';
-import { View } from '../../../../App';
+import { View } from '../../../../utils/navigationUtils';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,12 +22,13 @@ import { toastSuccess, toastError } from '../../../../toasts';
 import ViewRecipeModal from '../../../ViewRecipeModal';
 
 interface ModelsBottomBarProps {
-  dropdownRef: React.RefObject<HTMLDivElement | null>;
+  dropdownRef: React.RefObject<HTMLDivElement>;
   setView: (view: View) => void;
   alerts: Alert[];
   recipeConfig?: Recipe | null;
   hasMessages?: boolean; // Add prop to know if there are messages to create a recipe from
 }
+
 export default function ModelsBottomBar({
   dropdownRef,
   setView,

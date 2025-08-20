@@ -3,7 +3,9 @@ sidebar_position: 1
 ---
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import RateLimits from '@site/src/components/RateLimits';
+import { RateLimits } from '@site/src/components/RateLimits';
+import { DesktopProviderSetup } from '@site/src/components/DesktopProviderSetup';
+import { ModelSelectionTip } from '@site/src/components/ModelSelectionTip';
 import MacDesktopInstallButtons from '@site/src/components/MacDesktopInstallButtons';
 import WindowsDesktopInstallButtons from '@site/src/components/WindowsDesktopInstallButtons';
 import LinuxDesktopInstallButtons from '@site/src/components/LinuxDesktopInstallButtons';
@@ -13,11 +15,11 @@ import { PanelLeft } from 'lucide-react';
 
 <Tabs>
   <TabItem value="mac" label="macOS" default>
-    Choose to install Goose on CLI and/or Desktop:
+    Choose to install the Desktop and/or CLI version of Goose:
 
     <Tabs groupId="interface">
       <TabItem value="ui" label="Goose Desktop" default>
-        Install Goose directly from the browser or with [Homebrew](https://brew.sh/).
+        Install Goose Desktop directly from the browser or with [Homebrew](https://brew.sh/).
         
         <h3 style={{ marginTop: '1rem' }}>Option 1: Install via Download</h3>
         <MacDesktopInstallButtons/>
@@ -37,7 +39,7 @@ import { PanelLeft } from 'lucide-react';
         ```
         ---
         <div style={{ marginTop: '1rem' }}>
-          :::note Permissions
+          :::info Permissions
           If you're on an Apple Mac M3 and the Goose Desktop app shows no window on launch, check and update the following:
 
           Ensure the `~/.config` directory has read and write access.
@@ -79,8 +81,8 @@ import { PanelLeft } from 'lucide-react';
     </Tabs>
   </TabItem>
 
-  <TabItem value="linux" label="Linux" default>
-    Choose to install Goose on CLI and/or Desktop:
+  <TabItem value="linux" label="Linux">
+    Choose to install the Desktop and/or CLI version of Goose:
 
     <Tabs groupId="interface">
       <TabItem value="ui" label="Goose Desktop" default>
@@ -126,7 +128,7 @@ import { PanelLeft } from 'lucide-react';
   </TabItem>
 
   <TabItem value="windows" label="Windows">
-    Choose to install Goose on CLI and/or Desktop:
+    Choose to install the Desktop and/or CLI version of Goose:
 
     <Tabs groupId="interface">
       <TabItem value="ui" label="Goose Desktop" default>
@@ -208,18 +210,14 @@ import { PanelLeft } from 'lucide-react';
 </Tabs>
 
 ## Set LLM Provider
-Goose works with a set of [supported LLM providers][providers], and you'll need an API key to get started. When you use Goose for the first time, you'll be prompted to select a provider and enter your API key.
+Goose works with [supported LLM providers][providers]. On first use, you'll be prompted to configure your preferred provider.
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-    Upon installing, the Provider screen will appear. Here is where you can choose your LLM Provider.
-
-    ![Set Up a Provider UI](../assets/guides/set-up-provider-ui.png)
-
-    Once selecting your provider, you'll be prompted to enter an API key if applicable. Do so, and click `Submit`.
+    <DesktopProviderSetup />
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
-    Upon installing, Goose will automatically enter its configuration screen. Here is where you can set up your LLM provider.
+    The CLI automatically enters configuration mode on first run. You'll be prompted to select from [supported LLM providers][providers] and enter your API key.
 
     :::tip Windows Users
     When using the native Windows CLI, choose to not store to keyring when prompted during initial configuration.
@@ -286,11 +284,15 @@ Goose works with a set of [supported LLM providers][providers], and you'll need 
   </TabItem>
 </Tabs>
 
+:::tip
+<ModelSelectionTip />
+:::
+
 ## Update Provider
+You can change your LLM provider or update your API key at any time.
+
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-  **To update your LLM provider and API key:**
-
     1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
     2. Click the `Settings` button on the sidebar.
     3. Click the `Models` tab.
@@ -300,7 +302,6 @@ Goose works with a set of [supported LLM providers][providers], and you'll need 
 
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
-    **To update your LLM provider and API key:**
     1. Run the following command:
     ```sh
     goose configure
@@ -356,7 +357,7 @@ Goose works with a set of [supported LLM providers][providers], and you'll need 
 
 The Goose CLI and Desktop UI share all core configurations, including LLM provider settings, model selection, and extension configurations. When you install or configure extensions in either interface, the settings are stored in a central location at `~/.config/goose/config.yaml`, making them available to both the Desktop application and CLI. This makes it convenient to switch between interfaces while maintaining consistent settings.
 
-:::note
+:::info
 While core configurations are shared between interfaces, extensions have flexibility in how they store authentication credentials. Some extensions may use the shared config file while others implement their own storage methods.
 ::: 
 

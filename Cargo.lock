@@ -2544,91 +2544,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "google-apis-common"
-version = "7.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7530ee92a7e9247c3294ae1b84ea98474dbc27563c49a14d3938e816499bf38f"
-dependencies = [
- "base64 0.22.1",
- "chrono",
- "http 1.2.0",
- "http-body-util",
- "hyper 1.6.0",
- "hyper-util",
- "itertools 0.13.0",
- "mime",
- "percent-encoding",
- "serde",
- "serde_json",
- "serde_with",
- "tokio",
- "url",
- "yup-oauth2",
-]
-
-[[package]]
-name = "google-docs1"
-version = "6.0.0+20240613"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8441d3fa1544efacb0fabf88c45ba60d424d718bb13f2a0ce2a6447efb99d14e"
-dependencies = [
- "chrono",
- "google-apis-common",
- "hyper 1.6.0",
- "hyper-rustls 0.27.5",
- "hyper-util",
- "mime",
- "serde",
- "serde_json",
- "serde_with",
- "tokio",
- "url",
- "yup-oauth2",
-]
-
-[[package]]
-name = "google-drive3"
-version = "6.0.0+20240618"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "84e3944ee656d220932785cf1d8275519c0989830b9b239453983ac44f328d9f"
-dependencies = [
- "chrono",
- "google-apis-common",
- "hyper 1.6.0",
- "hyper-rustls 0.27.5",
- "hyper-util",
- "mime",
- "serde",
- "serde_json",
- "serde_with",
- "tokio",
- "url",
- "yup-oauth2",
-]
-
-[[package]]
-name = "google-sheets4"
-version = "6.0.0+20240621"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e4f8ccfc6418e81d1e2ed66fad49d0487526281505b8a0ed8ee770dc7d6bb1e5"
-dependencies = [
- "chrono",
- "google-apis-common",
- "hyper 1.6.0",
- "hyper-rustls 0.27.5",
- "hyper-util",
- "mime",
- "serde",
- "serde_json",
- "serde_with",
- "tokio",
- "url",
- "yup-oauth2",
-]
-
-[[package]]
 name = "goose"
-version = "1.4.0"
+version = "1.5.0"
 dependencies = [
  "ahash",
  "anyhow",
@@ -2702,7 +2619,7 @@ dependencies = [
 
 [[package]]
 name = "goose-bench"
-version = "1.4.0"
+version = "1.5.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2725,7 +2642,7 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.4.0"
+version = "1.5.0"
 dependencies = [
  "anstream",
  "anyhow",
@@ -2770,13 +2687,14 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
+ "uuid",
  "webbrowser 1.0.4",
  "winapi",
 ]
 
 [[package]]
 name = "goose-mcp"
-version = "1.4.0"
+version = "1.5.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2785,10 +2703,6 @@ dependencies = [
  "docx-rs",
  "etcetera",
  "glob",
- "google-apis-common",
- "google-docs1",
- "google-drive3",
- "google-sheets4",
  "http-body-util",
  "hyper 1.6.0",
  "ignore",
@@ -2828,7 +2742,7 @@ dependencies = [
 
 [[package]]
 name = "goose-server"
-version = "1.4.0"
+version = "1.5.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2861,11 +2775,12 @@ dependencies = [
  "tracing-appender",
  "tracing-subscriber",
  "utoipa",
+ "uuid",
 ]
 
 [[package]]
 name = "goose-test"
-version = "1.4.0"
+version = "1.5.0"
 dependencies = [
  "clap",
  "serde_json",
@@ -4390,15 +4305,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "num_threads"
-version = "0.1.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c7398b9c8b70908f6371f47ed36737907c87c52af34c268fed0bf0ceb92ead9"
-dependencies = [
- "libc",
-]
-
-[[package]]
 name = "number_prefix"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5815,12 +5721,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b07779b9b918cc05650cb30f404d4d7835d26df37c235eded8a6832e2fb82cca"
 
 [[package]]
-name = "seahash"
-version = "4.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c107b6f4780854c8b126e228ea8869f4d7b71260f962fefb57b996b8959ba6b"
-
-[[package]]
 name = "security-framework"
 version = "2.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6523,9 +6423,7 @@ checksum = "bb041120f25f8fbe8fd2dbe4671c7c2ed74d83be2e7a77529bf7e0790ae3f472"
 dependencies = [
  "deranged",
  "itoa",
- "libc",
  "num-conv",
- "num_threads",
  "powerfmt",
  "serde",
  "time-core",
@@ -8081,33 +7979,6 @@ dependencies = [
  "quote",
  "syn 2.0.99",
  "synstructure",
-]
-
-[[package]]
-name = "yup-oauth2"
-version = "11.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ed5f19242090128c5809f6535cc7b8d4e2c32433f6c6005800bbc20a644a7f0"
-dependencies = [
- "anyhow",
- "async-trait",
- "base64 0.22.1",
- "futures",
- "http 1.2.0",
- "http-body-util",
- "hyper 1.6.0",
- "hyper-rustls 0.27.5",
- "hyper-util",
- "log",
- "percent-encoding",
- "rustls 0.23.23",
- "rustls-pemfile 2.2.0",
- "seahash",
- "serde",
- "serde_json",
- "time",
- "tokio",
- "url",
 ]
 
 [[package]]

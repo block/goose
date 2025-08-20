@@ -283,6 +283,33 @@ export ALPHA_FEATURES=true
 ALPHA_FEATURES=true goose session
 ```
 
+## Variables Controlled by Goose
+
+These variables are automatically set by Goose during command execution.
+
+| Variable | Purpose | Values | Default |
+|----------|---------|---------|---------|
+| `GOOSE_TERMINAL` | Indicates that a command is being executed by Goose, enables customizing shell behavior | "1" when set | Unset |
+
+### Customizing Shell Behavior
+
+Sometimes you want Goose to use different commands or have different shell behavior than your normal terminal usage. For example, you might want Goose to use a different tool, or prevent Goose from running long-running development servers that could hang the AI agent. This is most useful when using Goose CLI, where shell commands are executed directly in your terminal environment.
+
+**How it works:**
+1. When Goose runs commands, `GOOSE_TERMINAL` is automatically set to "1"
+2. Your shell configuration can detect this and direct Goose to change its default behavior while keeping your normal terminal usage unchanged
+
+**Example:**
+
+```bash
+# In your ~/.bashrc or ~/.zshrc
+
+# Guide Goose toward better tool choices
+if [[ -n "$GOOSE_TERMINAL" ]]; then
+  alias find="echo 'Use rg instead: rg --files | rg <pattern> for filenames, or rg <pattern> for content search'"
+fi
+```
+
 ## Notes
 
 - Environment variables take precedence over configuration files.

@@ -6,13 +6,14 @@ title: Configure LLM Provider
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import { PanelLeft } from 'lucide-react';
+import { ModelSelectionTip } from '@site/src/components/ModelSelectionTip';
 
 # Supported LLM Providers
 
 Goose is compatible with a wide range of LLM providers, allowing you to choose and integrate your preferred model.
 
 :::tip Model Selection
-Goose relies heavily on tool calling capabilities and currently works best with Anthropic's Claude 3.5 Sonnet and OpenAI's GPT-4o (2024-11-20) model.
+<ModelSelectionTip/>
 [Berkeley Function-Calling Leaderboard][function-calling-leaderboard] can be a good guide for selecting models.
 :::
 

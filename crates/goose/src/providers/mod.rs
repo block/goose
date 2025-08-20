@@ -24,6 +24,7 @@ pub mod ollama;
 pub mod openai;
 pub mod openrouter;
 pub mod pricing;
+pub mod provider_registry;
 mod retry;
 pub mod sagemaker_tgi;
 pub mod snowflake;
@@ -35,4 +36,4 @@ pub mod utils_universal_openai_stream;
 pub mod venice;
 pub mod xai;
 
-pub use factory::{create, providers};
+pub use factory::{create, providers, refresh_custom_providers};

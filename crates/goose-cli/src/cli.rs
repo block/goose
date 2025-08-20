@@ -721,7 +721,7 @@ pub async fn cli() -> Result<()> {
             return Ok(());
         }
         Some(Command::Mcp { name }) => {
-            let _ = run_server(&name).await;
+            run_server(&name).await?;
         }
         Some(Command::Session {
             command,

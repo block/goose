@@ -1,8 +1,12 @@
-import React, { memo, useMemo, useCallback } from 'react';
+import React, { memo, useMemo, useCallback, useState } from 'react';
 import { ProviderCard } from './subcomponents/ProviderCard';
+import CardContainer from './subcomponents/CardContainer';
 import { ProviderModalProvider, useProviderModal } from './modal/ProviderModalProvider';
 import ProviderConfigurationModal from './modal/ProviderConfiguationModal';
-import { ProviderDetails } from '../../../api';
+import { ProviderDetails, CreateCustomProviderRequest } from '../../../api';
+import { Plus } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialog';
+import CustomProviderForm from './modal/subcomponents/forms/CustomProviderForm';
 
 const GridLayout = memo(function GridLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -15,6 +19,27 @@ const GridLayout = memo(function GridLayout({ children }: { children: React.Reac
     >
       {children}
     </div>
+  );
+});
+
+const CustomProviderCard = memo(function CustomProviderCard({ onClick }: { onClick: () => void }) {
+  return (
+    <CardContainer
+      testId="add-custom-provider-card"
+      onClick={onClick}
+      header={null}
+      body={
+        <div className="flex flex-col items-center justify-center min-h-[200px]">
+          <Plus className="w-8 h-8 text-gray-400 mb-2" />
+          <div className="text-sm text-gray-600 dark:text-gray-400 text-center">
+            <div>Add</div>
+            <div>Custom Provider</div>
+          </div>
+        </div>
+      }
+      grayedOut={false}
+      borderStyle="dashed"
+    />
   );
 });
 
@@ -31,6 +56,7 @@ const ProviderCards = memo(function ProviderCards({
   onProviderLaunch: (provider: ProviderDetails) => void;
 }) {
   const { openModal } = useProviderModal();
+  const [showCustomProviderModal, setShowCustomProviderModal] = useState(false);
 
   // Memoize these functions so they don't get recreated on every render
   const configureProviderViaModal = useCallback(
@@ -42,7 +68,7 @@ const ProviderCards = memo(function ProviderCards({
             refreshProviders();
           }
         },
-        onDelete: () => {
+        onDelete: (_values: unknown) => {
           if (refreshProviders) {
             refreshProviders();
           }
@@ -56,7 +82,7 @@ const ProviderCards = memo(function ProviderCards({
   const deleteProviderConfigViaModal = useCallback(
     (provider: ProviderDetails) => {
       openModal(provider, {
-        onDelete: () => {
+        onDelete: (_values: unknown) => {
           // Only refresh if the function is provided
           if (refreshProviders) {
             refreshProviders();
@@ -68,12 +94,27 @@ const ProviderCards = memo(function ProviderCards({
     [openModal, refreshProviders]
   );
 
-  // We don't need an intermediate function here
-  // Just pass the onProviderLaunch directly
+  const handleCreateCustomProvider = useCallback(
+    async (data: CreateCustomProviderRequest) => {
+      try {
+        const { createCustomProvider } = await import('../../../api');
+        await createCustomProvider({ body: data });
+        setShowCustomProviderModal(false);
+        if (refreshProviders) {
+          refreshProviders();
+        }
+      } catch (error) {
+        console.error('Failed to create custom provider:', error);
+      }
+    },
+    [refreshProviders]
+  );
 
   // Use useMemo to memoize the cards array
   const providerCards = useMemo(() => {
-    return providers.map((provider) => (
+    // providers needs to be an array
+    const providersArray = Array.isArray(providers) ? providers : [];
+    const cards = providersArray.map((provider) => (
       <ProviderCard
         key={provider.name}
         provider={provider}
@@ -83,6 +124,12 @@ const ProviderCards = memo(function ProviderCards({
         isOnboarding={isOnboarding}
       />
     ));
+
+    cards.push(
+      <CustomProviderCard key="add-custom" onClick={() => setShowCustomProviderModal(true)} />
+    );
+
+    return cards;
   }, [
     providers,
     isOnboarding,
@@ -91,7 +138,23 @@ const ProviderCards = memo(function ProviderCards({
     onProviderLaunch,
   ]);
 
-  return <>{providerCards}</>;
+  return (
+    <>
+      {providerCards}
+
+      <Dialog open={showCustomProviderModal} onOpenChange={setShowCustomProviderModal}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Add Custom Provider</DialogTitle>
+          </DialogHeader>
+          <CustomProviderForm
+            onSubmit={handleCreateCustomProvider}
+            onCancel={() => setShowCustomProviderModal(false)}
+          />
+        </DialogContent>
+      </Dialog>
+    </>
+  );
 });
 
 export default memo(function ProviderGrid({
