@@ -87,7 +87,7 @@ impl ToolRouterIndexManager {
         tools.push(platform_tools::manage_extensions_tool());
 
         // Add resource tools if supported
-        if extension_manager.supports_resources() {
+        if extension_manager.supports_resources().await {
             tools.push(platform_tools::read_resource_tool());
             tools.push(platform_tools::list_resources_tool());
         }

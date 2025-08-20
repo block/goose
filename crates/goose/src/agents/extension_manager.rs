@@ -10,7 +10,7 @@ use rmcp::transport::streamable_http_client::StreamableHttpClientTransportConfig
 use rmcp::transport::{
     ConfigureCommandExt, SseClientTransport, StreamableHttpClientTransport, TokioChildProcess,
 };
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
@@ -30,19 +30,58 @@ use crate::config::{Config, ExtensionConfigManager};
 use crate::oauth::oauth_flow;
 use crate::prompt_template;
 use mcp_client::client::{McpClient, McpClientTrait};
-use rmcp::model::{Content, ErrorCode, ErrorData, GetPromptResult, Prompt, ResourceContents, Tool};
+use rmcp::model::{
+    Content, ErrorCode, ErrorData, GetPromptResult, Prompt, ResourceContents, ServerInfo, Tool,
+};
 use rmcp::transport::auth::AuthClient;
 use serde_json::Value;
 
 type McpClientBox = Arc<Mutex<Box<dyn McpClientTrait>>>;
 
+struct Extension {
+    pub config: ExtensionConfig,
+
+    client: McpClientBox,
+    server_info: Option<ServerInfo>,
+    _temp_dir: Option<tempfile::TempDir>,
+}
+
+impl Extension {
+    fn new(
+        config: ExtensionConfig,
+        client: McpClientBox,
+        server_info: Option<ServerInfo>,
+        temp_dir: Option<tempfile::TempDir>,
+    ) -> Self {
+        Self {
+            client,
+            config,
+            server_info,
+            _temp_dir: temp_dir,
+        }
+    }
+
+    fn supports_resources(&self) -> bool {
+        self.server_info
+            .as_ref()
+            .and_then(|info| info.capabilities.resources.as_ref())
+            .is_some()
+    }
+
+    fn get_instructions(&self) -> Option<String> {
+        self.server_info
+            .as_ref()
+            .and_then(|info| info.instructions.clone())
+    }
+
+    fn get_client(&self) -> McpClientBox {
+        self.client.clone()
+    }
+}
+
 /// Manages Goose extensions / MCP clients and their interactions
 pub struct ExtensionManager {
-    clients: HashMap<String, McpClientBox>,
-    instructions: HashMap<String, String>,
-    resource_capable_extensions: HashSet<String>,
-    temp_dirs: HashMap<String, tempfile::TempDir>,
-    extension_configs: HashMap<String, ExtensionConfig>,
+    extensions: Mutex<HashMap<String, Extension>>,
 }
 
 /// A flattened representation of a resource used by the agent to prepare inference
@@ -149,26 +188,24 @@ async fn child_process_client(
 }
 
 impl ExtensionManager {
-    /// Create a new ExtensionManager instance
     pub fn new() -> Self {
         Self {
-            clients: HashMap::new(),
-            instructions: HashMap::new(),
-            resource_capable_extensions: HashSet::new(),
-            temp_dirs: HashMap::new(),
-            extension_configs: HashMap::new(),
+            extensions: Mutex::new(HashMap::new()),
         }
     }
 
-    pub fn supports_resources(&self) -> bool {
-        !self.resource_capable_extensions.is_empty()
+    pub async fn supports_resources(&self) -> bool {
+        self.extensions
+            .lock()
+            .await
+            .values()
+            .any(|ext| ext.supports_resources())
     }
 
-    /// Add a new MCP extension based on the provided client type
-    // TODO IMPORTANT need to ensure this times out if the extension command is broken!
-    pub async fn add_extension(&mut self, config: ExtensionConfig) -> ExtensionResult<()> {
+    pub async fn add_extension(&self, config: ExtensionConfig) -> ExtensionResult<()> {
         let config_name = config.key().to_string();
         let sanitized_name = normalize(config_name.clone());
+        let mut temp_dir = None;
 
         /// Helper function to merge environment variables from direct envs and keychain-stored env_keys
         async fn merge_environments(
@@ -355,8 +392,9 @@ impl ExtensionManager {
                 dependencies,
                 ..
             } => {
-                let temp_dir = tempdir()?;
-                let file_path = temp_dir.path().join(format!("{}.py", name));
+                let dir = tempdir()?;
+                let file_path = dir.path().join(format!("{}.py", name));
+                temp_dir = Some(dir);
                 std::fs::write(&file_path, code)?;
 
                 let command = Command::new("uvx").configure(|command| {
@@ -370,61 +408,46 @@ impl ExtensionManager {
                 });
 
                 let client = child_process_client(command, timeout).await?;
-                self.temp_dirs.insert(sanitized_name.clone(), temp_dir);
 
                 Box::new(client)
             }
             _ => unreachable!(),
         };
 
-        let info = client.get_info();
-        if let Some(instructions) = info.and_then(|info| info.instructions.as_ref()) {
-            self.instructions
-                .insert(sanitized_name.clone(), instructions.clone());
-        }
+        let server_info = client.get_info().cloned();
+        self.extensions.lock().await.insert(
+            sanitized_name,
+            Extension::new(config, Arc::new(Mutex::new(client)), server_info, temp_dir),
+        );
 
-        if let Some(_resources) = info.and_then(|info| info.capabilities.resources.as_ref()) {
-            self.resource_capable_extensions
-                .insert(sanitized_name.clone());
-        }
-
-        self.add_client(sanitized_name.clone(), client);
-        self.extension_configs.insert(sanitized_name, config);
         Ok(())
-    }
-
-    pub fn add_client(&mut self, client_name: String, client: Box<dyn McpClientTrait>) {
-        let sanitized_name = normalize(client_name);
-        self.clients
-            .insert(sanitized_name, Arc::new(Mutex::new(client)));
     }
 
     /// Get extensions info
     pub async fn get_extensions_info(&self) -> Vec<ExtensionInfo> {
-        self.clients
-            .keys()
-            .map(|name| {
-                let instructions = self.instructions.get(name).cloned().unwrap_or_default();
-                let has_resources = self.resource_capable_extensions.contains(name);
-                ExtensionInfo::new(name, &instructions, has_resources)
+        self.extensions
+            .lock()
+            .await
+            .iter()
+            .map(|(name, ext)| {
+                ExtensionInfo::new(
+                    name,
+                    ext.get_instructions().unwrap_or_default().as_str(),
+                    ext.supports_resources(),
+                )
             })
             .collect()
     }
 
     /// Get aggregated usage statistics
-    pub async fn remove_extension(&mut self, name: &str) -> ExtensionResult<()> {
+    pub async fn remove_extension(&self, name: &str) -> ExtensionResult<()> {
         let sanitized_name = normalize(name.to_string());
-
-        self.clients.remove(&sanitized_name);
-        self.instructions.remove(&sanitized_name);
-        self.resource_capable_extensions.remove(&sanitized_name);
-        self.temp_dirs.remove(&sanitized_name);
-        self.extension_configs.remove(&sanitized_name);
+        self.extensions.lock().await.remove(&sanitized_name);
         Ok(())
     }
 
     pub async fn suggest_disable_extensions_prompt(&self) -> Value {
-        let enabled_extensions_count = self.clients.len();
+        let enabled_extensions_count = self.extensions.lock().await.len();
 
         let total_tools = self
             .get_prefixed_tools(None)
@@ -456,7 +479,7 @@ impl ExtensionManager {
     }
 
     pub async fn list_extensions(&self) -> ExtensionResult<Vec<String>> {
-        Ok(self.clients.keys().cloned().collect())
+        Ok(self.extensions.lock().await.keys().cloned().collect())
     }
 
     /// Get all tools from all clients with proper prefixing
@@ -465,32 +488,32 @@ impl ExtensionManager {
         extension_name: Option<String>,
     ) -> ExtensionResult<Vec<Tool>> {
         // Filter clients based on the provided extension_name or include all if None
-        let filtered_clients = self.clients.iter().filter(|(name, _)| {
-            if let Some(ref name_filter) = extension_name {
-                *name == name_filter
-            } else {
-                true
-            }
-        });
+        let filtered_clients: Vec<_> = self
+            .extensions
+            .lock()
+            .await
+            .iter()
+            .filter(|(name, _ext)| {
+                if let Some(ref name_filter) = extension_name {
+                    *name == name_filter
+                } else {
+                    true
+                }
+            })
+            .map(|(name, ext)| (name.clone(), ext.config.clone(), ext.get_client()))
+            .collect();
 
-        let client_futures = filtered_clients.map(|(name, client)| {
-            let name = name.clone();
-            let client = client.clone();
-            let extension_config = self.extension_configs.get(&name).cloned();
-
+        let cancel_token = CancellationToken::default();
+        let client_futures = filtered_clients.into_iter().map(|(name, config, client)| {
+            let cancel_token = cancel_token.clone();
             task::spawn(async move {
                 let mut tools = Vec::new();
                 let client_guard = client.lock().await;
-                let mut client_tools = client_guard
-                    .list_tools(None, CancellationToken::default())
-                    .await?;
+                let mut client_tools = client_guard.list_tools(None, cancel_token).await?;
 
                 loop {
                     for tool in client_tools.tools {
-                        let is_available = extension_config
-                            .as_ref()
-                            .map(|config| config.is_tool_available(&tool.name))
-                            .unwrap_or(true);
+                        let is_available = config.is_tool_available(&tool.name);
 
                         if is_available {
                             tools.push(Tool {
@@ -542,11 +565,13 @@ impl ExtensionManager {
     }
 
     /// Find and return a reference to the appropriate client for a tool call
-    fn get_client_for_tool(&self, prefixed_name: &str) -> Option<(&str, McpClientBox)> {
-        self.clients
+    async fn get_client_for_tool(&self, prefixed_name: &str) -> Option<(String, McpClientBox)> {
+        self.extensions
+            .lock()
+            .await
             .iter()
             .find(|(key, _)| prefixed_name.starts_with(*key))
-            .map(|(name, client)| (name.as_str(), Arc::clone(client)))
+            .map(|(name, extension)| (name.clone(), extension.get_client()))
     }
 
     // Function that gets executed for read_resource tool
@@ -574,7 +599,7 @@ impl ExtensionManager {
         // Loop through each extension and try to read the resource, don't raise an error if the resource is not found
         // TODO: do we want to find if a provided uri is in multiple extensions?
         // currently it will return the first match and skip any others
-        for extension_name in self.resource_capable_extensions.iter() {
+        for extension_name in self.extensions.lock().await.keys() {
             let result = self
                 .read_resource_from_extension(uri, extension_name, cancellation_token.clone())
                 .await;
@@ -586,7 +611,9 @@ impl ExtensionManager {
 
         // None of the extensions had the resource so we raise an error
         let available_extensions = self
-            .clients
+            .extensions
+            .lock()
+            .await
             .keys()
             .map(|s| s.as_str())
             .collect::<Vec<&str>>()
@@ -610,7 +637,9 @@ impl ExtensionManager {
         cancellation_token: CancellationToken,
     ) -> Result<Vec<Content>, ErrorData> {
         let available_extensions = self
-            .clients
+            .extensions
+            .lock()
+            .await
             .keys()
             .map(|s| s.as_str())
             .collect::<Vec<&str>>()
@@ -620,11 +649,10 @@ impl ExtensionManager {
             extension_name, available_extensions
         );
 
-        let client = self.clients.get(extension_name).ok_or(ErrorData::new(
-            ErrorCode::INVALID_PARAMS,
-            error_msg,
-            None,
-        ))?;
+        let client = self
+            .get_server_client(extension_name)
+            .await
+            .ok_or(ErrorData::new(ErrorCode::INVALID_PARAMS, error_msg, None))?;
 
         let client_guard = client.lock().await;
         let read_result = client_guard
@@ -655,13 +683,16 @@ impl ExtensionManager {
         extension_name: &str,
         cancellation_token: CancellationToken,
     ) -> Result<Vec<Content>, ErrorData> {
-        let client = self.clients.get(extension_name).ok_or_else(|| {
-            ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                format!("Extension {} is not valid", extension_name),
-                None,
-            )
-        })?;
+        let client = self
+            .get_server_client(extension_name)
+            .await
+            .ok_or_else(|| {
+                ErrorData::new(
+                    ErrorCode::INVALID_PARAMS,
+                    format!("Extension {} is not valid", extension_name),
+                    None,
+                )
+            })?;
 
         let client_guard = client.lock().await;
         client_guard
@@ -704,13 +735,19 @@ impl ExtensionManager {
                 let mut futures = FuturesUnordered::new();
 
                 // Create futures for each resource_capable_extension
-                for extension_name in &self.resource_capable_extensions {
-                    let token = cancellation_token.clone();
-                    futures.push(async move {
-                        self.list_resources_from_extension(extension_name, token)
-                            .await
+                self.extensions
+                    .lock()
+                    .await
+                    .iter()
+                    .filter(|(_name, ext)| ext.supports_resources())
+                    .map(|(name, _ext)| name.clone())
+                    .for_each(|name| {
+                        let token = cancellation_token.clone();
+                        futures.push(async move {
+                            self.list_resources_from_extension(&name.clone(), token)
+                                .await
+                        });
                     });
-                }
 
                 let mut all_resources = Vec::new();
                 let mut errors = Vec::new();
@@ -749,22 +786,25 @@ impl ExtensionManager {
         cancellation_token: CancellationToken,
     ) -> Result<ToolCallResult> {
         // Dispatch tool call based on the prefix naming convention
-        let (client_name, client) = self.get_client_for_tool(&tool_call.name).ok_or_else(|| {
-            ErrorData::new(ErrorCode::RESOURCE_NOT_FOUND, tool_call.name.clone(), None)
-        })?;
+        let (client_name, client) =
+            self.get_client_for_tool(&tool_call.name)
+                .await
+                .ok_or_else(|| {
+                    ErrorData::new(ErrorCode::RESOURCE_NOT_FOUND, tool_call.name.clone(), None)
+                })?;
 
         // rsplit returns the iterator in reverse, tool_name is then at 0
         let tool_name = tool_call
             .name
-            .strip_prefix(client_name)
+            .strip_prefix(client_name.as_str())
             .and_then(|s| s.strip_prefix("__"))
             .ok_or_else(|| {
                 ErrorData::new(ErrorCode::RESOURCE_NOT_FOUND, tool_call.name.clone(), None)
             })?
             .to_string();
 
-        if let Some(extension_config) = self.extension_configs.get(client_name) {
-            if !extension_config.is_tool_available(&tool_name) {
+        if let Some(extension) = self.extensions.lock().await.get(&client_name) {
+            if !extension.config.is_tool_available(&tool_name) {
                 return Err(ErrorData::new(
                     ErrorCode::RESOURCE_NOT_FOUND,
                     format!(
@@ -801,13 +841,16 @@ impl ExtensionManager {
         extension_name: &str,
         cancellation_token: CancellationToken,
     ) -> Result<Vec<Prompt>, ErrorData> {
-        let client = self.clients.get(extension_name).ok_or_else(|| {
-            ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                format!("Extension {} is not valid", extension_name),
-                None,
-            )
-        })?;
+        let client = self
+            .get_server_client(extension_name)
+            .await
+            .ok_or_else(|| {
+                ErrorData::new(
+                    ErrorCode::INVALID_PARAMS,
+                    format!("Extension {} is not valid", extension_name),
+                    None,
+                )
+            })?;
 
         let client_guard = client.lock().await;
         client_guard
@@ -829,12 +872,12 @@ impl ExtensionManager {
     ) -> Result<HashMap<String, Vec<Prompt>>, ErrorData> {
         let mut futures = FuturesUnordered::new();
 
-        for extension_name in self.clients.keys() {
+        for extension_name in self.extensions.lock().await.keys().cloned() {
             let token = cancellation_token.clone();
             futures.push(async move {
                 (
-                    extension_name,
-                    self.list_prompts_from_extension(extension_name, token)
+                    extension_name.clone(),
+                    self.list_prompts_from_extension(&extension_name.as_str(), token)
                         .await,
                 )
             });
@@ -878,8 +921,8 @@ impl ExtensionManager {
         cancellation_token: CancellationToken,
     ) -> Result<GetPromptResult> {
         let client = self
-            .clients
-            .get(extension_name)
+            .get_server_client(extension_name)
+            .await
             .ok_or_else(|| anyhow::anyhow!("Extension {} not found", extension_name))?;
 
         let client_guard = client.lock().await;
@@ -934,7 +977,8 @@ impl ExtensionManager {
         }
 
         // Get currently enabled extensions that can be disabled
-        let enabled_extensions: Vec<String> = self.clients.keys().cloned().collect();
+        let enabled_extensions: Vec<String> =
+            self.extensions.lock().await.keys().cloned().collect();
 
         // Build output string
         if !disabled_extensions.is_empty() {
@@ -960,6 +1004,14 @@ impl ExtensionManager {
         }
 
         Ok(vec![Content::text(output_parts.join("\n"))])
+    }
+
+    async fn get_server_client(&self, name: impl Into<String>) -> Option<McpClientBox> {
+        self.extensions
+            .lock()
+            .await
+            .get(&name.into())
+            .map(|ext| ext.get_client())
     }
 }
 
