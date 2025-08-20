@@ -12,7 +12,7 @@ use mcp_core::{
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
 use rmcp::model::{
-    Content, ErrorCode, ErrorData, JsonRpcMessage, Prompt, Resource, ResourceContents, Tool,
+    Content, ErrorCode, ErrorData, JsonRpcMessage, Prompt, Resource, ResourceContents, Role, Tool,
 };
 use rmcp::object;
 
@@ -624,7 +624,9 @@ impl AutoVisualiserRouter {
             blob: base64_encoded,
         };
 
-        Ok(vec![Content::resource(resource_contents)])
+        Ok(vec![
+            Content::resource(resource_contents).with_audience(vec![Role::User])
+        ])
     }
 
     async fn render_radar(&self, params: Value) -> Result<Vec<Content>, ErrorData> {
@@ -673,7 +675,9 @@ impl AutoVisualiserRouter {
             blob: base64_encoded,
         };
 
-        Ok(vec![Content::resource(resource_contents)])
+        Ok(vec![
+            Content::resource(resource_contents).with_audience(vec![Role::User])
+        ])
     }
 
     async fn render_treemap(&self, params: Value) -> Result<Vec<Content>, ErrorData> {
@@ -722,7 +726,9 @@ impl AutoVisualiserRouter {
             blob: base64_encoded,
         };
 
-        Ok(vec![Content::resource(resource_contents)])
+        Ok(vec![
+            Content::resource(resource_contents).with_audience(vec![Role::User])
+        ])
     }
 
     async fn render_chord(&self, params: Value) -> Result<Vec<Content>, ErrorData> {
@@ -771,7 +777,9 @@ impl AutoVisualiserRouter {
             blob: base64_encoded,
         };
 
-        Ok(vec![Content::resource(resource_contents)])
+        Ok(vec![
+            Content::resource(resource_contents).with_audience(vec![Role::User])
+        ])
     }
 
     async fn render_donut(&self, params: Value) -> Result<Vec<Content>, ErrorData> {
@@ -820,7 +828,9 @@ impl AutoVisualiserRouter {
             blob: base64_encoded,
         };
 
-        Ok(vec![Content::resource(resource_contents)])
+        Ok(vec![
+            Content::resource(resource_contents).with_audience(vec![Role::User])
+        ])
     }
 
     async fn render_map(&self, params: Value) -> Result<Vec<Content>, ErrorData> {
@@ -885,7 +895,9 @@ impl AutoVisualiserRouter {
             blob: base64_encoded,
         };
 
-        Ok(vec![Content::resource(resource_contents)])
+        Ok(vec![
+            Content::resource(resource_contents).with_audience(vec![Role::User])
+        ])
     }
 
     async fn show_chart(&self, params: Value) -> Result<Vec<Content>, ErrorData> {
@@ -934,7 +946,9 @@ impl AutoVisualiserRouter {
             blob: base64_encoded,
         };
 
-        Ok(vec![Content::resource(resource_contents)])
+        Ok(vec![
+            Content::resource(resource_contents).with_audience(vec![Role::User])
+        ])
     }
 }
 
