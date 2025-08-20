@@ -337,16 +337,6 @@ Goose Desktop uses **"shims"** (packaged versions of `npx` and `uvx`) that autom
    ```
 
 3. **Why this works:** Goose only replaces known command names (`npx`, `uvx`, `jbang`, etc.) with its packaged shims. Custom names are passed through unchanged to your system's actual executables.
-
-**Alternative for Enterprise Deployments:**
-
-For organizations with multiple users in airgapped environments, consider creating a custom Goose Desktop distribution that includes:
-- Pre-bundled runtime environments
-- Proxy configurations for your network
-- Pre-configured MCP servers tailored to your organization
-
-This approach eliminates the need for individual workarounds and provides a consistent experience across your organization.
-
 ---
 ### Need Further Help? 
 If you have questions, run into issues, or just need to brainstorm ideas join the [Discord Community][discord]!
