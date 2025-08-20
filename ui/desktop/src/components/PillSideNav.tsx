@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { cn } from '../utils';
 import { 
@@ -13,48 +13,31 @@ import {
   X as CloseIcon
 } from 'lucide-react';
 
-interface NavItemProps {
-  icon: React.ReactNode;
-  label: string;
-  path: string;
-  isActive?: boolean;
-  onClick: () => void;
-}
-
-const NavItem: React.FC<NavItemProps> = ({ 
-  icon, 
-  label, 
-  isActive = false,
-  onClick
-}) => {
-  return (
-    <button 
-      onClick={onClick}
-      className={cn(
-        "flex items-center gap-2 px-3 py-2 rounded-full transition-all duration-200 w-full",
-        isActive 
-          ? "bg-white/15 text-white" 
-          : "text-white/80 hover:text-white hover:bg-white/10"
-      )}
-    >
-      <div className="text-lg">
-        {icon}
-      </div>
-      <span className="text-sm font-medium">{label}</span>
-    </button>
-  );
-};
-
 export const PillSideNav: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const currentPath = location.pathname;
   const [isExpanded, setIsExpanded] = useState(false);
+  const navRef = useRef<HTMLDivElement>(null);
 
   const handleNavigation = (path: string) => {
     navigate(path);
     setIsExpanded(false);
   };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (navRef.current && !navRef.current.contains(event.target as Node)) {
+        setIsExpanded(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   // Navigation items configuration
   const navItems = [
@@ -67,58 +50,57 @@ export const PillSideNav: React.FC = () => {
 
   // Find the current active item
   const activeItem = navItems.find(item => item.path === currentPath) || navItems[0];
+
+  // Create a reordered list with the active item first
+  const orderedNavItems = [
+    activeItem,
+    ...navItems.filter(item => item.path !== activeItem.path)
+  ];
   
-  // Get current mode label
-  const currentModeLabel = activeItem.label;
-
   return (
-    <div className="relative">
-      {/* Collapsed Pill */}
-      {!isExpanded && (
-        <div 
-          className="h-9 bg-white/10 backdrop-blur-md rounded-full 
-                    flex items-center cursor-pointer shadow-md
-                    transition-all duration-300 hover:bg-white/15 px-4
-                    border border-white/20"
-          onClick={() => setIsExpanded(true)}
-        >
-          <span className="text-white font-medium text-sm">{currentModeLabel}</span>
-        </div>
-      )}
-
-      {/* Expanded Navigation */}
-      {isExpanded && (
-        <div className="absolute left-1/2 transform -translate-x-1/2 top-0 z-50
-                      bg-black/70 backdrop-blur-xl
-                      border border-white/20 shadow-xl rounded-lg animate-in fade-in duration-200">
-          <div className="flex flex-col p-2">
-            {/* Header with close button */}
-            <div className="flex items-center justify-between px-2 py-1 mb-1">
-              <span className="text-white font-medium text-sm">Navigation</span>
-              <button 
-                onClick={() => setIsExpanded(false)}
-                className="text-white/70 hover:text-white p-1 rounded-full hover:bg-white/10"
-              >
-                <CloseIcon size={16} />
-              </button>
+    <div className="relative z-50" ref={navRef}>
+      {/* All Pills (including the active one) */}
+      <div className="relative">
+        {orderedNavItems.map((item, index) => {
+          const isActive = item.path === currentPath;
+          const showPill = isExpanded || isActive;
+          
+          // Calculate position - first pill is at top (0), others follow
+          const verticalOffset = index * 42; // Height of pill + small gap
+          
+          return (
+            <div
+              key={item.path}
+              className={cn(
+                "absolute left-1/2 transform -translate-x-1/2",
+                "bg-black/70 backdrop-blur-xl rounded-full shadow-lg border border-white/20",
+                "transition-all duration-300 ease-in-out cursor-pointer",
+                "hover:bg-black/80",
+                showPill 
+                  ? "opacity-100" 
+                  : "opacity-0 pointer-events-none"
+              )}
+              style={{
+                top: showPill ? `${verticalOffset}px` : 0,
+                zIndex: 50 - index,
+                transitionDelay: isExpanded ? `${index * 50}ms` : '0ms'
+              }}
+              onClick={() => {
+                if (isActive) {
+                  setIsExpanded(!isExpanded);
+                } else {
+                  handleNavigation(item.path);
+                }
+              }}
+            >
+              <div className="flex items-center gap-2 px-4 py-2 whitespace-nowrap">
+                <div className="text-white">{item.icon}</div>
+                <span className="text-white text-sm font-medium">{item.label}</span>
+              </div>
             </div>
-
-            {/* Navigation Items */}
-            <div className="space-y-1 min-w-40">
-              {navItems.map((item) => (
-                <NavItem 
-                  key={item.path}
-                  icon={item.icon} 
-                  label={item.label} 
-                  path={item.path}
-                  isActive={currentPath === item.path}
-                  onClick={() => handleNavigation(item.path)}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+          );
+        })}
+      </div>
     </div>
   );
 };

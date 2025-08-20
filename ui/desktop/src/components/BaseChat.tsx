@@ -59,6 +59,7 @@ import {
 import { type View, ViewOptions } from '../App';
 import { MainPanelLayout } from './Layout/MainPanelLayout';
 import ChatInput from './ChatInput';
+import ChatInputWrapper from './ChatInputWrapper';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
 import { RecipeWarningModal } from './ui/RecipeWarningModal';
 import ParameterInputModal from './ParameterInputModal';
@@ -84,6 +85,7 @@ interface BaseChatProps {
   enableLocalStorage?: boolean;
   onMessageStreamFinish?: () => void;
   onMessageSubmit?: (message: string) => void; // Callback after message is submitted
+  onTypingStateChange?: (isTyping: boolean) => void; // Callback for typing state changes
   renderHeader?: () => React.ReactNode;
   renderBeforeMessages?: () => React.ReactNode;
   renderAfterMessages?: () => React.ReactNode;
@@ -103,6 +105,7 @@ function BaseChatContent({
   enableLocalStorage = false,
   onMessageStreamFinish,
   onMessageSubmit,
+  onTypingStateChange,
   renderHeader,
   renderBeforeMessages,
   renderAfterMessages,
@@ -541,28 +544,30 @@ function BaseChatContent({
         <div
           className={`relative z-10 ${disableAnimation ? '' : 'animate-[fadein_400ms_ease-in_forwards]'}`}
         >
-          <ChatInput
-            handleSubmit={handleSubmit}
-            chatState={chatState}
-            onStop={onStopGoose}
-            commandHistory={commandHistory}
-            initialValue={input || ''}
-            setView={setView}
-            numTokens={sessionTokenCount}
-            inputTokens={sessionInputTokens || localInputTokens}
-            outputTokens={sessionOutputTokens || localOutputTokens}
-            droppedFiles={droppedFiles}
-            onFilesProcessed={() => setDroppedFiles([])} // Clear dropped files after processing
-            messages={messages}
-            setMessages={setMessages}
-            disableAnimation={disableAnimation}
-            sessionCosts={sessionCosts}
-            setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-            recipeConfig={recipeConfig}
-            recipeAccepted={recipeAccepted}
-            initialPrompt={initialPrompt}
-            {...customChatInputProps}
-          />
+          <ChatInputWrapper onTypingStateChange={onTypingStateChange}>
+            <ChatInput
+              handleSubmit={handleSubmit}
+              chatState={chatState}
+              onStop={onStopGoose}
+              commandHistory={commandHistory}
+              initialValue={input || ''}
+              setView={setView}
+              numTokens={sessionTokenCount}
+              inputTokens={sessionInputTokens || localInputTokens}
+              outputTokens={sessionOutputTokens || localOutputTokens}
+              droppedFiles={droppedFiles}
+              onFilesProcessed={() => setDroppedFiles([])} // Clear dropped files after processing
+              messages={messages}
+              setMessages={setMessages}
+              disableAnimation={disableAnimation}
+              sessionCosts={sessionCosts}
+              setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+              recipeConfig={recipeConfig}
+              recipeAccepted={recipeAccepted}
+              initialPrompt={initialPrompt}
+              {...customChatInputProps}
+            />
+          </ChatInputWrapper>
         </div>
       </MainPanelLayout>
 

@@ -64,6 +64,9 @@ export default function Pair({
   const { state: currentSidebarState } = useSidebar();
   const isSidebarCollapsed = currentSidebarState === 'collapsed';
 
+  // Get system theme preference
+  const prefersDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+
   // Override backgrounds to allow our gradient to show through
   useEffect(() => {
     // Target the specific SidebarInset component with the complex class
@@ -315,6 +318,16 @@ export default function Pair({
     return <div>{/* Any Pair-specific content before messages can go here */}</div>;
   };
 
+  // Fixed blur intensity and background color based on theme - matching home page styling
+  const blurIntensity = 20; // Consistent blur for chat mode
+  
+  // Get the actual theme from document.documentElement
+  const isDarkTheme = document.documentElement.classList.contains('dark');
+  
+  const backgroundColor = isDarkTheme
+    ? 'rgba(0, 0, 0, 0.7)' // Dark mode: 70% black overlay
+    : 'rgba(255, 255, 255, 0.7)'; // Light mode: 70% white overlay
+
   return (
     <div className="flex flex-col h-full relative bg-transparent">
       {/* Image background implementation */}
@@ -327,9 +340,13 @@ export default function Pair({
         }}
       />
       
-      {/* Optional overlay for better text readability */}
+      {/* Fixed blur overlay - always present with consistent intensity */}
       <div 
-        className="fixed inset-0 -z-10 bg-black/20"
+        className="fixed inset-0 -z-5 pointer-events-none"
+        style={{ 
+          backdropFilter: `blur(${blurIntensity}px)`,
+          backgroundColor: backgroundColor
+        }}
       />
       
       {/* Centered chat content */}
