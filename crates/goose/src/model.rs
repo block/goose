@@ -21,16 +21,14 @@ static MODEL_SPECIFIC_LIMITS: Lazy<Vec<(&'static str, usize)>> = Lazy::new(|| {
         ("gpt-4-turbo", 128_000),
         ("gpt-4.1", 1_000_000),
         ("gpt-4-1", 1_000_000),
-        ("gpt-4o-mini", 128_000), // Fast model for OpenAI
         ("gpt-4o", 128_000),
         ("o4-mini", 200_000),
         ("o3-mini", 200_000),
         ("o3", 200_000),
         // anthropic - all 200k
-        ("claude-3-5-haiku", 200_000), // Fast model for Anthropic
         ("claude", 200_000),
         // google
-        ("gemini-1.5-flash", 1_000_000), // Fast model for Google
+        ("gemini-1.5-flash", 1_000_000),
         ("gemini-1", 128_000),
         ("gemini-2", 1_000_000),
         ("gemma-3-27b", 128_000),
@@ -44,7 +42,6 @@ static MODEL_SPECIFIC_LIMITS: Lazy<Vec<(&'static str, usize)>> = Lazy::new(|| {
         ("gemma-2-27b", 8_192),
         ("gemma-2-9b", 8_192),
         ("gemma-2-2b", 8_192),
-        ("gemma2-9b", 8_192), // Fast model for Groq
         ("gemma2-", 8_192),
         ("gemma-7b", 8_192),
         ("gemma-2b", 8_192),
