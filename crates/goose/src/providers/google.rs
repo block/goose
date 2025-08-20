@@ -54,7 +54,10 @@ pub struct GoogleProvider {
 impl_provider_default!(GoogleProvider);
 
 impl GoogleProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub fn from_env(mut model: ModelConfig) -> Result<Self> {
+        // Set the default fast model for Google - using Gemini Flash
+        model.fast_model = Some("gemini-1.5-flash".to_string());
+
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("GOOGLE_API_KEY")?;
         let host: String = config
@@ -72,8 +75,8 @@ impl GoogleProvider {
         Ok(Self { api_client, model })
     }
 
-    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
-        let path = format!("v1beta/models/{}:generateContent", self.model.model_name);
+    async fn post(&self, model_name: &str, payload: &Value) -> Result<Value, ProviderError> {
+        let path = format!("v1beta/models/{}:generateContent", model_name);
         let response = self.api_client.response_post(&path, payload).await?;
         handle_response_google_compat(response).await
     }
@@ -123,7 +126,7 @@ impl Provider for GoogleProvider {
         let response = self
             .with_retry(|| async {
                 let payload_clone = payload.clone();
-                self.post(&payload_clone).await
+                self.post(model, &payload_clone).await
             })
             .await?;
 

@@ -107,7 +107,10 @@ pub struct DatabricksProvider {
 impl_provider_default!(DatabricksProvider);
 
 impl DatabricksProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub fn from_env(mut model: ModelConfig) -> Result<Self> {
+        // Set the default fast model for Databricks - using a smaller/faster model
+        model.fast_model = Some("databricks-mixtral-8x7b-instruct".to_string());
+
         let config = crate::config::Config::global();
 
         let mut host: Result<String, ConfigError> = config.get_param("DATABRICKS_HOST");
@@ -179,7 +182,10 @@ impl DatabricksProvider {
         }
     }
 
-    pub fn from_params(host: String, api_key: String, model: ModelConfig) -> Result<Self> {
+    pub fn from_params(host: String, api_key: String, mut model: ModelConfig) -> Result<Self> {
+        // Set the default fast model for Databricks
+        model.fast_model = Some("databricks-mixtral-8x7b-instruct".to_string());
+
         let auth = DatabricksAuth::token(api_key);
         let auth_method =
             AuthMethod::Custom(Box::new(DatabricksAuthProvider { auth: auth.clone() }));

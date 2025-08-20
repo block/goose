@@ -33,7 +33,10 @@ pub struct GroqProvider {
 impl_provider_default!(GroqProvider);
 
 impl GroqProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub fn from_env(mut model: ModelConfig) -> Result<Self> {
+        // Set the default fast model for Groq - using a smaller/faster model
+        model.fast_model = Some("gemma2-9b-it".to_string());
+
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("GROQ_API_KEY")?;
         let host: String = config

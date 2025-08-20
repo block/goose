@@ -49,7 +49,10 @@ pub struct AnthropicProvider {
 impl_provider_default!(AnthropicProvider);
 
 impl AnthropicProvider {
-    pub fn from_env(model: ModelConfig) -> Result<Self> {
+    pub fn from_env(mut model: ModelConfig) -> Result<Self> {
+        // Set the default fast model for Anthropic
+        model.fast_model = Some("claude-3-5-haiku-latest".to_string());
+
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("ANTHROPIC_API_KEY")?;
         let host: String = config
@@ -71,7 +74,13 @@ impl AnthropicProvider {
         })
     }
 
-    pub fn from_custom_config(model: ModelConfig, config: CustomProviderConfig) -> Result<Self> {
+    pub fn from_custom_config(
+        mut model: ModelConfig,
+        config: CustomProviderConfig,
+    ) -> Result<Self> {
+        // Set the default fast model for Anthropic
+        model.fast_model = Some("claude-3-5-haiku-latest".to_string());
+
         let global_config = crate::config::Config::global();
         let api_key: String = global_config
             .get_secret(&config.api_key_env)

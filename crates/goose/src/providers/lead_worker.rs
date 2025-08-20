@@ -328,7 +328,7 @@ impl Provider for LeadWorkerProvider {
 
     async fn complete_with_model(
         &self,
-        model: &str,
+        _model: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
