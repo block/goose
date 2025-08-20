@@ -17,8 +17,6 @@ use crate::model::ModelConfig;
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
 use rmcp::model::Tool;
 
-pub const TETRATE_MODEL_PREFIX_ANTHROPIC: &str = "anthropic";
-
 // Tetrate Agent Router Service can run many models, we suggest the default
 pub const TETRATE_KNOWN_MODELS: &[&str] = &[
     "claude-opus-4-1",
@@ -115,96 +113,19 @@ impl TetrateProvider {
     }
 }
 
-/// Update the request when using anthropic model.
-/// For anthropic model, we can enable prompt caching to save cost. Since Tetrate Agent Router Service is the OpenAI compatible
-/// endpoint, we need to modify the open ai request to have anthropic cache control field.
-fn update_request_for_anthropic(original_payload: &Value) -> Value {
-    let mut payload = original_payload.clone();
-
-    if let Some(messages_spec) = payload
-        .as_object_mut()
-        .and_then(|obj| obj.get_mut("messages"))
-        .and_then(|messages| messages.as_array_mut())
-    {
-        // Add "cache_control" to the last and second-to-last "user" messages.
-        // During each turn, we mark the final message with cache_control so the conversation can be
-        // incrementally cached. The second-to-last user message is also marked for caching with the
-        // cache_control parameter, so that this checkpoint can read from the previous cache.
-        let mut user_count = 0;
-        for message in messages_spec.iter_mut().rev() {
-            if message.get("role") == Some(&json!("user")) {
-                if let Some(content) = message.get_mut("content") {
-                    if let Some(content_str) = content.as_str() {
-                        *content = json!([{
-                            "type": "text",
-                            "text": content_str,
-                            "cache_control": { "type": "ephemeral" }
-                        }]);
-                    }
-                }
-                user_count += 1;
-                if user_count >= 2 {
-                    break;
-                }
-            }
-        }
-
-        // Update the system message to have cache_control field.
-        if let Some(system_message) = messages_spec
-            .iter_mut()
-            .find(|msg| msg.get("role") == Some(&json!("system")))
-        {
-            if let Some(content) = system_message.get_mut("content") {
-                if let Some(content_str) = content.as_str() {
-                    *system_message = json!({
-                        "role": "system",
-                        "content": [{
-                            "type": "text",
-                            "text": content_str,
-                            "cache_control": { "type": "ephemeral" }
-                        }]
-                    });
-                }
-            }
-        }
-    }
-
-    if let Some(tools_spec) = payload
-        .as_object_mut()
-        .and_then(|obj| obj.get_mut("tools"))
-        .and_then(|tools| tools.as_array_mut())
-    {
-        // Add "cache_control" to the last tool spec, if any. This means that all tool definitions,
-        // will be cached as a single prefix.
-        if let Some(last_tool) = tools_spec.last_mut() {
-            if let Some(function) = last_tool.get_mut("function") {
-                function
-                    .as_object_mut()
-                    .unwrap()
-                    .insert("cache_control".to_string(), json!({ "type": "ephemeral" }));
-            }
-        }
-    }
-    payload
-}
-
 fn create_request_based_on_model(
     provider: &TetrateProvider,
     system: &str,
     messages: &[Message],
     tools: &[Tool],
 ) -> anyhow::Result<Value, Error> {
-    let mut payload = create_request(
+    let payload = create_request(
         &provider.model,
         system,
         messages,
         tools,
         &super::utils::ImageFormat::OpenAi,
     )?;
-
-    if provider.supports_cache_control() {
-        payload = update_request_for_anthropic(&payload);
-    }
 
     Ok(payload)
 }
@@ -339,11 +260,5 @@ impl Provider for TetrateProvider {
 
         models.sort();
         Ok(Some(models))
-    }
-
-    fn supports_cache_control(&self) -> bool {
-        self.model
-            .model_name
-            .starts_with(TETRATE_MODEL_PREFIX_ANTHROPIC)
     }
 }
