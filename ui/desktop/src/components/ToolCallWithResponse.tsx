@@ -56,7 +56,7 @@ export default function ToolCallWithResponse({
           if (isUIResource(content)) {
             return (
               <div key={`${content.type}-${index}`} className="mt-3">
-                <MCPUIResourceRenderer content={content} append={append} />
+                <MCPUIResourceRenderer content={content} appendPromptToChat={append} />
                 <div className="mt-3 p-4 py-3 border border-borderSubtle rounded-lg bg-background-muted flex items-center">
                   <FlaskConical className="mr-2" size={20} />
                   <div className="text-sm font-sans">

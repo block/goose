@@ -4,12 +4,12 @@ import { useCallback } from 'react';
 import { toast } from 'react-toastify';
 
 // TODOS
-// support ui-lifecycle-iframe-ready
-// support size-change
+// figure out how best to handle the ui-lifecycle-iframe-ready message
+// figure out how best to support size-change messages
 
 interface MCPUIResourceRendererProps {
   content: ResourceContent;
-  append?: (value: string) => void; // Function to append messages to the chat
+  appendPromptToChat?: (value: string) => void;
 }
 
 // More specific result types using discriminated unions
@@ -65,7 +65,10 @@ type NotificationResult = {
   message: string;
 };
 
-export default function MCPUIResourceRenderer({ content, append }: MCPUIResourceRendererProps) {
+export default function MCPUIResourceRenderer({
+  content,
+  appendPromptToChat,
+}: MCPUIResourceRendererProps) {
   // Separate handlers for each action type for better type safety
   const handleToolAction = useCallback(
     async (
@@ -87,9 +90,9 @@ export default function MCPUIResourceRenderer({ content, append }: MCPUIResource
   const handlePromptAction = useCallback(
     async (prompt: string): Promise<UIActionHandlerResult<void>> => {
       // Use append if available
-      if (append) {
+      if (appendPromptToChat) {
         try {
-          append(prompt);
+          appendPromptToChat(prompt);
 
           // Dispatch a custom event to trigger scroll to bottom
           // This ensures the chat scrolls down to show the new prompt
@@ -121,7 +124,7 @@ export default function MCPUIResourceRenderer({ content, append }: MCPUIResource
         },
       };
     },
-    [append]
+    [appendPromptToChat]
   );
 
   const handleLinkAction = useCallback(
