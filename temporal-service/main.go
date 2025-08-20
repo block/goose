@@ -19,6 +19,7 @@ import (
 
 	"go.temporal.io/api/workflowservice/v1"
 	"go.temporal.io/sdk/client"
+	"temporal-service/i18n"
 )
 
 const (
@@ -148,18 +149,18 @@ func findTemporalCLI() (string, error) {
 	// First, try to find temporal in PATH using exec.LookPath
 	log.Println("Checking PATH for temporal CLI...")
 	if path, err := exec.LookPath("temporal"); err == nil {
-		log.Printf("Found temporal in PATH at: %s", path)
+		log.Printf(i18n.T("FoundTemporalInPATH"), path)
 		// Verify it's the correct temporal CLI by checking version
 		log.Println("Verifying temporal CLI version...")
 		cmd := exec.Command(path, "--version")
 		if err := cmd.Run(); err == nil {
-			log.Printf("Successfully verified temporal CLI at: %s", path)
+			log.Printf(i18n.T("SuccessfullyVerifiedTemporalCLI"), path)
 			return path, nil
 		} else {
-			log.Printf("Failed to verify temporal CLI at %s: %v", path, err)
+			log.Printf(i18n.T("FailedToVerifyTemporalCLI"), path, err)
 		}
 	} else {
-		log.Printf("temporal not found in PATH: %v", err)
+		log.Printf(i18n.T("TemporalNotFoundInPATH"), err)
 	}
 
 	// Try using 'which' command to find temporal
@@ -184,16 +185,16 @@ func findTemporalCLI() (string, error) {
 	if path, err := getExistingTemporalCLIFrom(currentPaths); err == nil {
 		return path, nil
 	} else {
-		log.Printf("Attempt to find in local directory failed: %s.", err)
+		log.Printf(i18n.T("AttemptToFindInLocalDirectoryFailed"), err)
 	}
 
 	// Also try relative to the current executable (most important for bundled apps)
 	exePath, err := os.Executable()
 	if err != nil {
-		log.Printf("Failed to get executable path: %v", err)
+		log.Printf(i18n.T("FailedToGetExecutablePath"), err)
 	}
 	exeDir := filepath.Dir(exePath)
-	log.Printf("Executable directory: %s", exeDir)
+	log.Printf(i18n.T("ExecutableDirectory"), exeDir)
 	additionalPaths := []string{
 		filepath.Join(exeDir, "temporal"),
 		filepath.Join(exeDir, "temporal.exe"), // Windows
@@ -201,13 +202,13 @@ func findTemporalCLI() (string, error) {
 		filepath.Join(exeDir, "..", "temporal"),
 		filepath.Join(exeDir, "..", "temporal.exe"),
 	}
-	log.Printf("Will check these additional paths: %v", additionalPaths)
+	log.Printf(i18n.T("WillCheckTheseAdditionalPaths"), additionalPaths)
 	return getExistingTemporalCLIFrom(additionalPaths)
 }
 
 // getExistingTemporalCLIFrom gets a list of paths and returns one of those that is an existing and working Temporal CLI binary
 func getExistingTemporalCLIFrom(possiblePaths []string) (string, error) {
-	log.Printf("Checking %d possible paths for temporal CLI", len(possiblePaths))
+	log.Printf(i18n.T("CheckingPossiblePathsForTemporalCLI"), len(possiblePaths))
 
 	// Check all possible paths in parallel, pick the first one that works.
 	pathFound := make(chan string)
@@ -218,21 +219,21 @@ func getExistingTemporalCLIFrom(possiblePaths []string) (string, error) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			log.Printf("Checking path %d/%d: %s", i+1, len(possiblePaths), path)
+			log.Printf(i18n.T("CheckingPath"), i+1, len(possiblePaths), path)
 			if _, err := os.Stat(path); err != nil {
-				log.Printf("File does not exist at %s: %v", path, err)
+				log.Printf(i18n.T("FileDoesNotExistAt"), path, err)
 				return
 			}
-			log.Printf("File exists at: %s", path)
+			log.Printf(i18n.T("FileExistsAt"), path)
 			// File exists, test if it's executable and the right binary
 			cmd := exec.CommandContext(psCtx, path, "--version")
 			if err := cmd.Run(); err != nil {
-				log.Printf("Failed to verify temporal CLI at %s: %v", path, err)
+				log.Printf(i18n.T("FailedToVerifyTemporalCLI"), path, err)
 				return
 			}
 			select {
 			case pathFound <- path:
-				log.Printf("Successfully verified temporal CLI at: %s", path)
+				log.Printf(i18n.T("SuccessfullyVerifiedTemporalCLI"), path)
 			case <-psCtx.Done():
 				// No need to report the path not chosen.
 			}
@@ -261,20 +262,20 @@ func ensureTemporalServerRunning(ports *PortConfig) error {
 
 	// Check if Temporal server is already running by trying to connect
 	if isTemporalServerRunning(ports.TemporalPort) {
-		log.Printf("Temporal server is already running on port %d", ports.TemporalPort)
+		log.Printf(i18n.T("TemporalServerAlreadyRunningOnPort"), ports.TemporalPort)
 		return nil
 	}
 
-	log.Printf("Temporal server not running, attempting to start it on port %d...", ports.TemporalPort)
+	log.Printf(i18n.T("TemporalServerNotRunningAttemptingToStart"), ports.TemporalPort)
 
 	// Find the temporal CLI binary
 	temporalCmd, err := findTemporalCLI()
 	if err != nil {
-		log.Printf("ERROR: Could not find temporal CLI: %v", err)
+		log.Printf(i18n.T("CouldNotFindTemporalCLI"), err)
 		return fmt.Errorf("could not find temporal CLI: %w", err)
 	}
 
-	log.Printf("Using Temporal CLI at: %s", temporalCmd)
+	log.Printf(i18n.T("UsingTemporalCLIAt"), temporalCmd)
 
 	// Start Temporal server in background
 	args := []string{"server", "start-dev",
@@ -283,7 +284,7 @@ func ensureTemporalServerRunning(ports *PortConfig) error {
 		"--ui-port", strconv.Itoa(ports.UIPort),
 		"--log-level", "warn"}
 
-	log.Printf("Starting Temporal server with command: %s %v", temporalCmd, args)
+	log.Printf(i18n.T("StartingTemporalServerWithCommand"), temporalCmd, args)
 
 	cmd := exec.Command(temporalCmd, args...)
 
@@ -297,11 +298,11 @@ func ensureTemporalServerRunning(ports *PortConfig) error {
 
 	// Start the process
 	if err := cmd.Start(); err != nil {
-		log.Printf("ERROR: Failed to start Temporal server: %v", err)
+		log.Printf(i18n.T("FailedToStartTemporalServer"), err)
 		return fmt.Errorf("failed to start Temporal server: %w", err)
 	}
 
-	log.Printf("Temporal server started with PID: %d (port: %d, UI port: %d)",
+	log.Printf(i18n.T("TemporalServerStartedWithPID"),
 		cmd.Process.Pid, ports.TemporalPort, ports.UIPort)
 
 	// Wait for server to be ready (with timeout)
@@ -314,58 +315,74 @@ func ensureTemporalServerRunning(ports *PortConfig) error {
 	for {
 		select {
 		case <-timeout:
-			log.Printf("ERROR: Timeout waiting for Temporal server to start after %d attempts", attemptCount)
+			log.Printf(i18n.T("TimeoutWaitingForTemporalServerToStart"), attemptCount)
 			return fmt.Errorf("timeout waiting for Temporal server to start")
 		case <-ticker.C:
 			attemptCount++
-			log.Printf("Checking if Temporal server is ready (attempt %d)...", attemptCount)
+			log.Printf(i18n.T("CheckingIfTemporalServerIsReady"), attemptCount)
 			if isTemporalServerRunning(ports.TemporalPort) {
-				log.Printf("Temporal server is now ready on port %d", ports.TemporalPort)
+				log.Printf(i18n.T("TemporalServerIsNowReadyOnPort"), ports.TemporalPort)
 				return nil
 			} else {
-				log.Printf("Temporal server not ready yet (attempt %d)", attemptCount)
+				log.Printf(i18n.T("TemporalServerNotReadyYet"), attemptCount)
 			}
 		}
 	}
 }
 
 func main() {
-	log.Println("Starting Temporal service...")
-	log.Printf("Runtime OS: %s", runtime.GOOS)
-	log.Printf("Runtime ARCH: %s", runtime.GOARCH)
+	// Parse command line arguments for language
+	var lang string
+	if len(os.Args) > 1 && os.Args[1] == "--lang" && len(os.Args) > 2 {
+		lang = os.Args[2]
+		// Remove the --lang flag and value from os.Args
+		os.Args = append(os.Args[:1], os.Args[3:]...)
+	} else {
+		lang = i18n.GetLocale()
+	}
+	
+	// Initialize i18n system
+	if err := i18n.Init(lang); err != nil {
+		log.Printf("Warning: Failed to initialize i18n system: %v, falling back to English", err)
+	}
+	
+	log.Printf("Using language: %s", lang)
+	log.Println(i18n.T("StartingTemporalService"))
+	log.Printf(i18n.T("RuntimeOS"), runtime.GOOS)
+	log.Printf(i18n.T("RuntimeARCH"), runtime.GOARCH)
 	
 	// Log current working directory for debugging
 	if cwd, err := os.Getwd(); err == nil {
-		log.Printf("Current working directory: %s", cwd)
+		log.Printf(i18n.T("CurrentWorkingDirectory"), cwd)
 	}
 	
 	// Log environment variables that might affect behavior
 	if port := os.Getenv("PORT"); port != "" {
-		log.Printf("PORT environment variable: %s", port)
+		log.Printf(i18n.T("PortEnvironmentVariable"), port)
 	}
 	if rustLog := os.Getenv("RUST_LOG"); rustLog != "" {
-		log.Printf("RUST_LOG environment variable: %s", rustLog)
+		log.Printf(i18n.T("RustLogEnvironmentVariable"), rustLog)
 	}
 	if temporalLog := os.Getenv("TEMPORAL_LOG_LEVEL"); temporalLog != "" {
-		log.Printf("TEMPORAL_LOG_LEVEL environment variable: %s", temporalLog)
+		log.Printf(i18n.T("TemporalLogLevelEnvironmentVariable"), temporalLog)
 	}
 
 	// Create Temporal service (this will find available ports automatically)
-	log.Println("Creating Temporal service...")
+	log.Println(i18n.T("CreatingTemporalService"))
 	service, err := NewTemporalService()
 	if err != nil {
-		log.Printf("ERROR: Failed to create Temporal service: %v", err)
-		log.Fatalf("Failed to create Temporal service: %v", err)
+		log.Printf(i18n.T("FailedToCreateTemporalService"), err)
+		log.Fatalf(i18n.T("FailedToCreateTemporalService"), err)
 	}
-	log.Println("✓ Temporal service created successfully")
+	log.Println(i18n.T("TemporalServiceCreatedSuccessfully"))
 
 	// Use the dynamically assigned HTTP port
 	httpPort := service.GetHTTPPort()
 	temporalPort := service.GetTemporalPort()
 	uiPort := service.GetUIPort()
 
-	log.Printf("Temporal server running on port %d", temporalPort)
-	log.Printf("Temporal UI available at http://localhost:%d", uiPort)
+	log.Printf(i18n.T("TemporalServerRunningOnPort"), temporalPort)
+	log.Printf(i18n.T("TemporalUIAvailableAt"), uiPort)
 
 	// Set up HTTP server
 	mux := http.NewServeMux()
@@ -384,7 +401,7 @@ func main() {
 
 	go func() {
 		<-sigChan
-		log.Println("Received shutdown signal")
+		log.Println(i18n.T("ReceivedShutdownSignal"))
 
 		// Kill all managed processes first
 		globalProcessManager.KillAllProcesses()
@@ -400,12 +417,12 @@ func main() {
 		os.Exit(0)
 	}()
 
-	log.Printf("Temporal service starting on port %d", httpPort)
-	log.Printf("Health endpoint: http://localhost:%d/health", httpPort)
-	log.Printf("Jobs endpoint: http://localhost:%d/jobs", httpPort)
-	log.Printf("Ports endpoint: http://localhost:%d/ports", httpPort)
+	log.Printf(i18n.T("TemporalServiceStartingOnPort"), httpPort)
+	log.Printf(i18n.T("HealthEndpoint"), httpPort)
+	log.Printf(i18n.T("JobsEndpoint"), httpPort)
+	log.Printf(i18n.T("PortsEndpoint"), httpPort)
 
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatalf("HTTP server failed: %v", err)
+		log.Fatalf(i18n.T("HTTPServerFailed"), err)
 	}
 }
