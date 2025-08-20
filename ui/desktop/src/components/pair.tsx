@@ -288,7 +288,7 @@ export default function Pair({
   const handleMessageStreamFinish = () => {
     // This will be called with the proper append function from BaseChat
     // For now, we'll handle auto-execution in the BaseChat component
-    setIsInFocusMode(false); // Disable focus mode when the response is complete
+    // Focus mode remains active until chat is refreshed
   };
 
   // Determine the initial value for the chat input
