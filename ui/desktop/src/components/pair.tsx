@@ -56,6 +56,7 @@ export default function Pair({
   const [shouldAutoSubmit, setShouldAutoSubmit] = useState(false);
   const [initialMessage, setInitialMessage] = useState<string | null>(null);
   const [isTransitioningFromHub, setIsTransitioningFromHub] = useState(false);
+  const [isInFocusMode, setIsInFocusMode] = useState(false);
 
   // Get recipe configuration and parameter handling
   const { initialPrompt: recipeInitialPrompt } = useRecipeManager(chat.messages, location.state);
@@ -279,6 +280,7 @@ export default function Pair({
     // This is called after a message is submitted
     setShouldAutoSubmit(false);
     setIsTransitioningFromHub(false); // Clear transitioning state once message is submitted
+    setIsInFocusMode(true); // Enable focus mode when user sends a message
     console.log('Message submitted:', message);
   };
 
@@ -286,6 +288,7 @@ export default function Pair({
   const handleMessageStreamFinish = () => {
     // This will be called with the proper append function from BaseChat
     // For now, we'll handle auto-execution in the BaseChat component
+    setIsInFocusMode(false); // Disable focus mode when the response is complete
   };
 
   // Determine the initial value for the chat input
@@ -318,9 +321,10 @@ export default function Pair({
   // Get the actual theme from document.documentElement
   const isDarkTheme = document.documentElement.classList.contains('dark');
   
-  const backgroundColor = isDarkTheme
-    ? 'rgba(0, 0, 0, 0.7)' // Dark mode: 70% black overlay
-    : 'rgba(255, 255, 255, 0.7)'; // Light mode: 70% white overlay
+  // Determine background color based on focus mode and theme
+  const backgroundColor = isInFocusMode
+    ? (isDarkTheme ? 'rgba(0, 0, 0, 0.9)' : 'rgba(255, 255, 255, 0.9)') // 90% opacity in focus mode
+    : (isDarkTheme ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.7)'); // 70% opacity in normal mode
 
   return (
     <div className="flex flex-col h-full relative bg-transparent">
@@ -336,7 +340,7 @@ export default function Pair({
       
       {/* Fixed blur overlay - always present with consistent intensity */}
       <div 
-        className="fixed inset-0 -z-5 pointer-events-none"
+        className="fixed inset-0 -z-5 pointer-events-none transition-colors duration-500"
         style={{ 
           backdropFilter: `blur(${blurIntensity}px)`,
           backgroundColor: backgroundColor
