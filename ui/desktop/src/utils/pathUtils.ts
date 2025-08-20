@@ -23,13 +23,6 @@ export const getBinaryPath = (app: Electron.App, binaryName: string): string => 
     throw new Error(`Invalid binary name: ${binaryName}`);
   }
 
-  if (process.env.GOOSE_NOHERMIT === 'true') {
-    if (binaryName === 'uvx' || binaryName === 'npx') {
-      console.log('Not replacing: ', binaryName);
-      return binaryName;
-    }
-  }
-
   // On Windows, rely on PATH we just patched in ensureWinShims for command-line tools
   // but use explicit resources/bin path for goosed.exe
   if (process.platform === 'win32') {
