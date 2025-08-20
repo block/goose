@@ -222,6 +222,7 @@ export default function ChatInput({
         textAreaRef.current?.focus();
       }, 0);
     }
+    // we don't need hasSetRecipePromptRef in the dependency array because it is a ref that persists across renders
   }, [recipeAccepted, initialPrompt, messages.length]);
 
   // Reset the recipe prompt flag when the recipe changes or messages are added
