@@ -33,9 +33,7 @@ pub struct GroqProvider {
 impl_provider_default!(GroqProvider);
 
 impl GroqProvider {
-    pub fn from_env(mut model: ModelConfig) -> Result<Self> {
-        // Set the default fast model for Groq - using llama 70b for better context
-        model.fast_model = Some("llama-3.3-70b-versatile".to_string());
+    pub fn from_env(model: ModelConfig) -> Result<Self> {
 
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("GROQ_API_KEY")?;
