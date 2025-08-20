@@ -478,6 +478,7 @@ mod tests {
 
         async fn complete_with_model(
             &self,
+            _model: &str,
             _system: &str,
             _messages: &[Message],
             _tools: &[Tool],
@@ -638,6 +639,7 @@ mod tests {
 
         async fn complete_with_model(
             &self,
+            _model: &str,
             _system: &str,
             _messages: &[Message],
             _tools: &[Tool],

@@ -254,23 +254,22 @@ impl ModelConfig {
     }
 
     pub fn context_limit(&self) -> usize {
-        // If we have a fast_model, use the minimum of both limits
-        if let Some(fast_model) = &self.fast_model {
-            let main_limit = self
-                .context_limit
-                .or_else(|| Self::get_model_specific_limit(&self.model_name));
-            let fast_limit = Self::get_model_specific_limit(fast_model);
+        // If we have an explicit context limit set, use it
+        if let Some(limit) = self.context_limit {
+            return limit;
+        }
 
-            match (main_limit, fast_limit) {
-                (Some(m), Some(f)) => m.min(f),
-                (Some(m), None) => m,
-                (None, Some(f)) => f,
-                (None, None) => DEFAULT_CONTEXT_LIMIT,
-            }
+        // Otherwise, get the model's default limit
+        let main_limit = Self::get_model_specific_limit(&self.model_name)
+            .unwrap_or(DEFAULT_CONTEXT_LIMIT);
+
+        // If we have a fast_model, also check its limit and use the minimum
+        if let Some(fast_model) = &self.fast_model {
+            let fast_limit = Self::get_model_specific_limit(fast_model)
+                .unwrap_or(DEFAULT_CONTEXT_LIMIT);
+            main_limit.min(fast_limit)
         } else {
-            self.context_limit.unwrap_or_else(|| {
-                Self::get_model_specific_limit(&self.model_name).unwrap_or(DEFAULT_CONTEXT_LIMIT)
-            })
+            main_limit
         }
     }
 
