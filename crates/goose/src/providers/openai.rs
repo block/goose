@@ -162,31 +162,6 @@ impl OpenAiProvider {
             .await?;
         handle_response_openai_compat(response).await
     }
-
-    // Core completion logic that takes a model config
-    async fn complete_with_model(
-        &self,
-        model_config: &ModelConfig,
-        system: &str,
-        messages: &[Message],
-        tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request(model_config, system, messages, tools, &ImageFormat::OpenAi)?;
-
-        let json_response = self.post(&payload).await?;
-
-        let message = response_to_message(&json_response)?;
-        let usage = json_response
-            .get("usage")
-            .map(get_usage)
-            .unwrap_or_else(|| {
-                tracing::debug!("Failed to get usage data");
-                Usage::default()
-            });
-        let model = get_model(&json_response);
-        emit_debug_trace(model_config, &payload, &json_response, &usage);
-        Ok((message, ProviderUsage::new(model, usage)))
-    }
 }
 
 #[async_trait]
@@ -220,18 +195,35 @@ impl Provider for OpenAiProvider {
     }
 
     #[tracing::instrument(
-        skip(self, system, messages, tools),
+        skip(self, model, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        model: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        // Thin wrapper that calls complete_with_model with the configured model
-        self.complete_with_model(&self.model, system, messages, tools)
-            .await
+        // Create a temporary model config with the specified model
+        let mut model_config = self.model.clone();
+        model_config.model_name = model.to_string();
+
+        let payload = create_request(&model_config, system, messages, tools, &ImageFormat::OpenAi)?;
+
+        let json_response = self.post(&payload).await?;
+
+        let message = response_to_message(&json_response)?;
+        let usage = json_response
+            .get("usage")
+            .map(get_usage)
+            .unwrap_or_else(|| {
+                tracing::debug!("Failed to get usage data");
+                Usage::default()
+            });
+        let response_model = get_model(&json_response);
+        emit_debug_trace(&model_config, &payload, &json_response, &usage);
+        Ok((message, ProviderUsage::new(response_model, usage)))
     }
 
     async fn complete_fast(
@@ -241,10 +233,7 @@ impl Provider for OpenAiProvider {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         // Use the fast model (gpt-4o-mini) for fast completions
-        let mut fast_config = self.model.clone();
-        fast_config.model_name = OPEN_AI_FAST_MODEL.to_string();
-
-        self.complete_with_model(&fast_config, system, messages, tools)
+        self.complete_with_model(OPEN_AI_FAST_MODEL, system, messages, tools)
             .await
     }
 

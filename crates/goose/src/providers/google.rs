@@ -101,16 +101,23 @@ impl Provider for GoogleProvider {
     }
 
     #[tracing::instrument(
-        skip(self, system, messages, tools),
+        skip(self, model, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        model: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request(&self.model, system, messages, tools)?;
+        // Create a temporary model config with the specified model
+
+        let mut model_config = self.model.clone();
+
+        model_config.model_name = model.to_string();
+
+        let payload = create_request(&model_config, system, messages, tools)?;
 
         // Make request
         let response = self
@@ -123,12 +130,12 @@ impl Provider for GoogleProvider {
         // Parse response
         let message = response_to_message(unescape_json_values(&response))?;
         let usage = get_usage(&response)?;
-        let model = match response.get("modelVersion") {
+        let response_model = match response.get("modelVersion") {
             Some(model_version) => model_version.as_str().unwrap_or_default().to_string(),
-            None => self.model.model_name.clone(),
+            None => model_config.model_name.clone(),
         };
-        emit_debug_trace(&self.model, &payload, &response, &usage);
-        let provider_usage = ProviderUsage::new(model, usage);
+        emit_debug_trace(&model_config, &payload, &response, &usage);
+        let provider_usage = ProviderUsage::new(response_model, usage);
         Ok((message, provider_usage))
     }
 

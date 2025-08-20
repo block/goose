@@ -152,11 +152,12 @@ impl Provider for BedrockProvider {
     }
 
     #[tracing::instrument(
-        skip(self, system, messages, tools),
+        skip(self, model, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        model: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],

@@ -280,15 +280,20 @@ impl Provider for SageMakerTgiProvider {
     }
 
     #[tracing::instrument(
-        skip(self, system, messages, tools),
+        skip(self, model, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        model: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
+        // Create a temporary model config with the specified model
+        let mut model_config = self.model.clone();
+        model_config.model_name = model.to_string();
+
         let model_name = &self.model.model_name;
 
         let request_payload = self.create_tgi_request(system, messages).map_err(|e| {

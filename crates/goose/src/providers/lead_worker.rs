@@ -326,8 +326,9 @@ impl Provider for LeadWorkerProvider {
         self.lead_provider.get_model_config()
     }
 
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        model: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -475,7 +476,7 @@ mod tests {
             self.model_config.clone()
         }
 
-        async fn complete(
+        async fn complete_with_model(
             &self,
             _system: &str,
             _messages: &[Message],
@@ -635,7 +636,7 @@ mod tests {
             self.model_config.clone()
         }
 
-        async fn complete(
+        async fn complete_with_model(
             &self,
             _system: &str,
             _messages: &[Message],

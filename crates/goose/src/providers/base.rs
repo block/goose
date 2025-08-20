@@ -317,6 +317,29 @@ pub trait Provider: Send + Sync {
     where
         Self: Sized;
 
+    /// Internal method that performs completion with a specific model
+    /// This is where providers implement their actual completion logic
+    ///
+    /// # Arguments
+    /// * `model` - The model name to use
+    /// * `system` - The system prompt that guides the model's behavior
+    /// * `messages` - The conversation history as a sequence of messages
+    /// * `tools` - Optional list of tools the model can use
+    ///
+    /// # Returns
+    /// A tuple containing the model's response message and provider usage statistics
+    ///
+    /// # Errors
+    /// ProviderError
+    ///   - It's important to raise ContextLengthExceeded correctly since agent handles it
+    async fn complete_with_model(
+        &self,
+        model: &str,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<(Message, ProviderUsage), ProviderError>;
+
     /// Generate the next message using the configured model and other parameters
     ///
     /// # Arguments
@@ -335,7 +358,12 @@ pub trait Provider: Send + Sync {
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError>;
+    ) -> Result<(Message, ProviderUsage), ProviderError> {
+        // Default implementation: use the provider's configured model
+        let model_config = self.get_model_config();
+        self.complete_with_model(&model_config.model_name, system, messages, tools)
+            .await
+    }
 
     /// Generate the next message using a fast/cheaper model when available
     ///
@@ -358,9 +386,15 @@ pub trait Provider: Send + Sync {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        // Default implementation: just call regular complete
-        // Providers that support fast models should override this
-        self.complete(system, messages, tools).await
+        // Check if a fast model is configured, otherwise fall back to regular model
+        let model_config = self.get_model_config();
+        let model = model_config
+            .fast_model
+            .as_deref()
+            .unwrap_or(&model_config.model_name);
+
+        self.complete_with_model(model, system, messages, tools)
+            .await
     }
 
     /// Get the model config from the provider

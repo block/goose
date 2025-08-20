@@ -93,17 +93,22 @@ impl Provider for XaiProvider {
     }
 
     #[tracing::instrument(
-        skip(self, system, messages, tools),
+        skip(self, model, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        model: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
+        // Create a temporary model config with the specified model
+        let mut model_config = self.model.clone();
+        model_config.model_name = model.to_string();
+
         let payload = create_request(
-            &self.model,
+            &model_config,
             system,
             messages,
             tools,
@@ -117,8 +122,8 @@ impl Provider for XaiProvider {
             tracing::debug!("Failed to get usage data");
             Usage::default()
         });
-        let model = get_model(&response);
-        super::utils::emit_debug_trace(&self.model, &payload, &response, &usage);
-        Ok((message, ProviderUsage::new(model, usage)))
+        let response_model = get_model(&response);
+        super::utils::emit_debug_trace(&model_config, &payload, &response, &usage);
+        Ok((message, ProviderUsage::new(response_model, usage)))
     }
 }

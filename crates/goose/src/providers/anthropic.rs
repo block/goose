@@ -179,16 +179,21 @@ impl Provider for AnthropicProvider {
     }
 
     #[tracing::instrument(
-        skip(self, system, messages, tools),
+        skip(self, model, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        model: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request(&self.model, system, messages, tools)?;
+        // Create a temporary model config with the specified model
+        let mut model_config = self.model.clone();
+        model_config.model_name = model.to_string();
+
+        let payload = create_request(&model_config, system, messages, tools)?;
 
         let response = self
             .with_retry(|| async { self.post(&payload).await })
@@ -201,9 +206,9 @@ impl Provider for AnthropicProvider {
         tracing::debug!("🔍 Anthropic non-streaming parsed usage: input_tokens={:?}, output_tokens={:?}, total_tokens={:?}",
                 usage.input_tokens, usage.output_tokens, usage.total_tokens);
 
-        let model = get_model(&json_response);
-        emit_debug_trace(&self.model, &payload, &json_response, &usage);
-        let provider_usage = ProviderUsage::new(model, usage);
+        let response_model = get_model(&json_response);
+        emit_debug_trace(&model_config, &payload, &json_response, &usage);
+        let provider_usage = ProviderUsage::new(response_model, usage);
         tracing::debug!(
             "🔍 Anthropic non-streaming returning ProviderUsage: {:?}",
             provider_usage

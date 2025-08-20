@@ -238,16 +238,22 @@ impl Provider for DatabricksProvider {
     }
 
     #[tracing::instrument(
-        skip(self, system, messages, tools),
+        skip(self, model, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        model: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let mut payload = create_request(&self.model, system, messages, tools, &self.image_format)?;
+        // Create a temporary model config with the specified model
+        let mut model_config = self.model.clone();
+        model_config.model_name = model.to_string();
+
+        let mut payload =
+            create_request(&model_config, system, messages, tools, &self.image_format)?;
         payload
             .as_object_mut()
             .expect("payload should have model key")
@@ -260,10 +266,10 @@ impl Provider for DatabricksProvider {
             tracing::debug!("Failed to get usage data");
             Usage::default()
         });
-        let model = get_model(&response);
-        super::utils::emit_debug_trace(&self.model, &payload, &response, &usage);
+        let response_model = get_model(&response);
+        super::utils::emit_debug_trace(&model_config, &payload, &response, &usage);
 
-        Ok((message, ProviderUsage::new(model, usage)))
+        Ok((message, ProviderUsage::new(response_model, usage)))
     }
 
     async fn stream(
@@ -272,7 +278,11 @@ impl Provider for DatabricksProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let mut payload = create_request(&self.model, system, messages, tools, &self.image_format)?;
+        // Create a temporary model config with the specified model
+        let model_config = self.model.clone();
+
+        let mut payload =
+            create_request(&model_config, system, messages, tools, &self.image_format)?;
         payload
             .as_object_mut()
             .expect("payload should have model key")

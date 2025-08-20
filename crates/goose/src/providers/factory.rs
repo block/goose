@@ -200,7 +200,7 @@ mod tests {
             self.model_config.clone()
         }
 
-        async fn complete(
+        async fn complete_with_model(
             &self,
             _system: &str,
             _messages: &[Message],
