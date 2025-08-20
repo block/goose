@@ -98,6 +98,8 @@ type ElectronAPI = {
   // Functions for image pasting
   saveDataUrlToTemp: (dataUrl: string, uniqueId: string) => Promise<SaveDataUrlResponse>;
   deleteTempFile: (filePath: string) => void;
+  // Function for opening external URLs securely
+  openExternal: (url: string) => Promise<void>;
   // Function to serve temp images
   getTempImage: (filePath: string) => Promise<string | null>;
   // Update-related functions
@@ -211,6 +213,9 @@ const electronAPI: ElectronAPI = {
   },
   deleteTempFile: (filePath: string): void => {
     ipcRenderer.send('delete-temp-file', filePath);
+  },
+  openExternal: (url: string): Promise<void> => {
+    return ipcRenderer.invoke('open-external', url);
   },
   getTempImage: (filePath: string): Promise<string | null> => {
     return ipcRenderer.invoke('get-temp-image', filePath);

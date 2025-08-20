@@ -1109,6 +1109,17 @@ ipcMain.on('react-ready', () => {
   console.log('[main] React ready - window is prepared for deep links');
 });
 
+// Handle external URL opening
+ipcMain.handle('open-external', async (_event, url: string) => {
+  try {
+    await shell.openExternal(url);
+    return true;
+  } catch (error) {
+    console.error('Error opening external URL:', error);
+    throw error;
+  }
+});
+
 // Handle directory chooser
 ipcMain.handle('directory-chooser', (_event, replace: boolean = false) => {
   return openDirectoryDialog(replace);
