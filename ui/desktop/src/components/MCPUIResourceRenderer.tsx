@@ -9,11 +9,6 @@ import { toast } from 'react-toastify';
 
 interface MCPUIResourceRendererProps {
   content: ResourceContent;
-  // Optional callbacks for when we actually implement these actions
-  onToolCall?: (toolName: string, params: Record<string, unknown>) => Promise<unknown>;
-  onPrompt?: (prompt: string) => Promise<void>;
-  onNavigate?: (url: string) => void;
-  onIntent?: (intent: string, params: Record<string, unknown>) => Promise<void>;
   append?: (value: string) => void; // Function to append messages to the chat
 }
 
@@ -70,99 +65,49 @@ type NotificationResult = {
   message: string;
 };
 
-export default function MCPUIResourceRenderer({
-  content,
-  onToolCall,
-  onPrompt,
-  onNavigate,
-  onIntent,
-  append,
-}: MCPUIResourceRendererProps) {
+export default function MCPUIResourceRenderer({ content, append }: MCPUIResourceRendererProps) {
   // Separate handlers for each action type for better type safety
   const handleToolAction = useCallback(
     async (
       toolName: string,
       params: Record<string, unknown>
     ): Promise<UIActionHandlerResult<ToolCallResult>> => {
-      if (!onToolCall) {
-        return {
-          status: 'error',
-          error: {
-            code: UIActionErrorCode.UNSUPPORTED_ACTION,
-            message: 'Tool calls are not yet implemented',
-            details: { toolName, params },
-          },
-        };
-      }
-
-      const startTime = Date.now();
-      try {
-        const output = await onToolCall(toolName, params);
-        return {
-          status: 'success',
-          data: {
-            toolName,
-            executionTime: Date.now() - startTime,
-            output,
-          },
-          message: `Tool "${toolName}" executed successfully`,
-        };
-      } catch (error) {
-        return {
-          status: 'error',
-          error: {
-            code: UIActionErrorCode.TOOL_EXECUTION_FAILED,
-            message: `Failed to execute tool "${toolName}"`,
-            details: error instanceof Error ? error.message : error,
-          },
-        };
-      }
+      return {
+        status: 'error',
+        error: {
+          code: UIActionErrorCode.UNSUPPORTED_ACTION,
+          message: 'Tool calls are not yet implemented',
+          details: { toolName, params },
+        },
+      };
     },
-    [onToolCall]
+    []
   );
 
   const handlePromptAction = useCallback(
     async (prompt: string): Promise<UIActionHandlerResult<void>> => {
-      const handlePromptSuccess = (message: string) => {
-        window.dispatchEvent(new CustomEvent('scroll-chat-to-bottom'));
-        return {
-          status: 'success' as const,
-          message,
-        };
-      };
-
-      const handlePromptError = (message: string, details: unknown) => ({
-        status: 'error' as const,
-        error: {
-          code: UIActionErrorCode.PROMPT_FAILED,
-          message,
-          details,
-        },
-      });
-
-      // If onPrompt is provided, use it
-      if (onPrompt) {
-        try {
-          await onPrompt(prompt);
-          return handlePromptSuccess('Prompt sent successfully');
-        } catch (error) {
-          return handlePromptError(
-            'Failed to send prompt',
-            error instanceof Error ? error.message : error
-          );
-        }
-      }
-
-      // Fallback to append if available
+      // Use append if available
       if (append) {
         try {
           append(prompt);
-          return handlePromptSuccess('Prompt sent to chat successfully');
+
+          // Dispatch a custom event to trigger scroll to bottom
+          // This ensures the chat scrolls down to show the new prompt
+          window.dispatchEvent(new CustomEvent('scroll-chat-to-bottom'));
+
+          return {
+            status: 'success',
+            message: 'Prompt sent to chat successfully',
+          };
         } catch (error) {
-          return handlePromptError(
-            'Failed to send prompt to chat',
-            error instanceof Error ? error.message : error
-          );
+          return {
+            status: 'error',
+            error: {
+              code: UIActionErrorCode.PROMPT_FAILED,
+              message: 'Failed to send prompt to chat',
+              details: error instanceof Error ? error.message : error,
+            },
+          };
         }
       }
 
@@ -171,96 +116,76 @@ export default function MCPUIResourceRenderer({
         status: 'error',
         error: {
           code: UIActionErrorCode.UNSUPPORTED_ACTION,
-          message:
-            'Prompt handling is not implemented - either onPrompt or append prop is required',
+          message: 'Prompt handling is not implemented - append prop is required',
           details: { prompt },
         },
       };
     },
-    [onPrompt, append]
+    [append]
   );
 
   const handleLinkAction = useCallback(
     async (url: string): Promise<UIActionHandlerResult<void>> => {
-      if (!onNavigate) {
-        // For links, we provide a default implementation using Electron shell
-        try {
-          // Validate URL before opening
-          const urlObj = new URL(url);
+      // Always use default implementation using Electron shell
+      try {
+        // Validate URL before opening
+        const urlObj = new URL(url);
 
-          // Only allow http/https protocols for security
-          if (!['http:', 'https:'].includes(urlObj.protocol)) {
-            return {
-              status: 'error',
-              error: {
-                code: UIActionErrorCode.NAVIGATION_FAILED,
-                message: `Blocked potentially unsafe URL protocol: ${urlObj.protocol}`,
-                details: { url, protocol: urlObj.protocol },
-              },
-            };
-          }
-
-          // Use the exposed electron API for secure external URL opening
-          // This calls the main process via IPC, which then uses shell.openExternal()
-          await window.electron.openExternal(url);
-
-          return {
-            status: 'success',
-            message: `Opened ${url} in default browser`,
-          };
-        } catch (error) {
-          // Handle different types of errors
-          if (error instanceof TypeError && error.message.includes('Invalid URL')) {
-            return {
-              status: 'error',
-              error: {
-                code: UIActionErrorCode.INVALID_PARAMS,
-                message: `Invalid URL format: ${url}`,
-                details: { url, error: error.message },
-              },
-            };
-          }
-
-          if (error instanceof Error && error.message.includes('Failed to open')) {
-            return {
-              status: 'error',
-              error: {
-                code: UIActionErrorCode.NAVIGATION_FAILED,
-                message: `Failed to open URL in default browser`,
-                details: { url, error: error.message },
-              },
-            };
-          }
-
+        // Only allow http/https protocols for security
+        if (!['http:', 'https:'].includes(urlObj.protocol)) {
           return {
             status: 'error',
             error: {
               code: UIActionErrorCode.NAVIGATION_FAILED,
-              message: `Unexpected error opening URL: ${url}`,
-              details: error instanceof Error ? error.message : error,
+              message: `Blocked potentially unsafe URL protocol: ${urlObj.protocol}`,
+              details: { url, protocol: urlObj.protocol },
             },
           };
         }
-      }
 
-      try {
-        onNavigate(url);
+        // Use the exposed electron API for secure external URL opening
+        // This calls the main process via IPC, which then uses shell.openExternal()
+        await window.electron.openExternal(url);
+
         return {
           status: 'success',
-          message: `Navigated to ${url}`,
+          message: `Opened ${url} in default browser`,
         };
       } catch (error) {
+        // Handle different types of errors
+        if (error instanceof TypeError && error.message.includes('Invalid URL')) {
+          return {
+            status: 'error',
+            error: {
+              code: UIActionErrorCode.INVALID_PARAMS,
+              message: `Invalid URL format: ${url}`,
+              details: { url, error: error.message },
+            },
+          };
+        }
+
+        if (error instanceof Error && error.message.includes('Failed to open')) {
+          return {
+            status: 'error',
+            error: {
+              code: UIActionErrorCode.NAVIGATION_FAILED,
+              message: `Failed to open URL in default browser`,
+              details: { url, error: error.message },
+            },
+          };
+        }
+
         return {
           status: 'error',
           error: {
             code: UIActionErrorCode.NAVIGATION_FAILED,
-            message: `Failed to navigate to ${url}`,
+            message: `Unexpected error opening URL: ${url}`,
             details: error instanceof Error ? error.message : error,
           },
         };
       }
     },
-    [onNavigate]
+    []
   );
 
   const handleNotifyAction = useCallback(
@@ -296,35 +221,16 @@ export default function MCPUIResourceRenderer({
       intent: string,
       params: Record<string, unknown>
     ): Promise<UIActionHandlerResult<void>> => {
-      if (!onIntent) {
-        return {
-          status: 'error',
-          error: {
-            code: UIActionErrorCode.UNSUPPORTED_ACTION,
-            message: 'Intent handling is not yet implemented',
-            details: { intent, params },
-          },
-        };
-      }
-
-      try {
-        await onIntent(intent, params);
-        return {
-          status: 'success',
-          message: `Intent "${intent}" processed successfully`,
-        };
-      } catch (error) {
-        return {
-          status: 'error',
-          error: {
-            code: UIActionErrorCode.INTENT_FAILED,
-            message: `Failed to process intent "${intent}"`,
-            details: error instanceof Error ? error.message : error,
-          },
-        };
-      }
+      return {
+        status: 'error',
+        error: {
+          code: UIActionErrorCode.UNSUPPORTED_ACTION,
+          message: 'Intent handling is not yet implemented',
+          details: { intent, params },
+        },
+      };
     },
-    [onIntent]
+    []
   );
 
   // Main handler with exhaustive type checking
