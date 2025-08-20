@@ -1,5 +1,7 @@
 use anyhow::{anyhow, Result};
-use goose_mcp::{AutoVisualiserRouter, ComputerControllerRouter, DeveloperRouter, MemoryRouter, TutorialRouter};
+use goose_mcp::{
+    AutoVisualiserRouter, ComputerControllerRouter, DeveloperRouter, MemoryRouter, TutorialRouter,
+};
 use mcp_server::router::RouterService;
 use mcp_server::{BoundedService, ByteTransport, Server};
 use tokio::io::{stdin, stdout};
