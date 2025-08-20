@@ -362,10 +362,7 @@ function BaseChatContent({
                     rgba(255, 255, 255, 0.05) 100%
                   )
                 `,
-                backdropFilter: 'blur(20px) saturate(180%)',
-                WebkitBackdropFilter: 'blur(20px) saturate(180%)',
                 border: '1px solid rgba(255, 255, 255, 0.1)',
-                boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.37)',
               }}
               autoScroll
               onDrop={handleDrop}
