@@ -21,7 +21,7 @@
 
 import { useState } from 'react';
 import FlappyGoose from './FlappyGoose';
-import { type View, ViewOptions } from '../App';
+
 import { SessionInsights } from './sessions/SessionsInsights';
 import ChatInput from './ChatInput';
 import { generateSessionId } from '../sessions';
@@ -30,6 +30,8 @@ import { ChatContextManagerProvider } from './context_management/ChatContextMana
 import 'react-toastify/dist/ReactToastify.css';
 
 import { ChatType } from '../types/chat';
+import { DEFAULT_CHAT_TITLE } from '../contexts/ChatContext';
+import { View, ViewOptions } from '../utils/navigationUtils';
 
 export default function Hub({
   chat: _chat,
@@ -57,7 +59,7 @@ export default function Hub({
       const newChatId = generateSessionId();
       const newPairChat = {
         id: newChatId, // This generates a unique ID each time
-        title: 'New Chat',
+        title: DEFAULT_CHAT_TITLE,
         messages: [], // Always start with empty messages
         messageHistoryIndex: 0,
         recipeConfig: null, // Clear recipe for new chats from Hub
@@ -68,10 +70,10 @@ export default function Hub({
       setPairChat(newPairChat);
 
       // Navigate to pair page with the message to be submitted immediately
-      // No delay needed since we're updating state synchronously
       setView('pair', {
         disableAnimation: true,
         initialMessage: combinedTextFromInput,
+        resetChat: true,
       });
     }
 

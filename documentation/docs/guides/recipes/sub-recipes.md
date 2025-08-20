@@ -10,7 +10,7 @@ Sub-recipes are recipes that are used by another recipe to perform specific task
 - **Reusable components** - Create common tasks that can be used in various workflows
 
 :::warning Experimental Feature
-Running sub-recipes in parallel is an experimental feature in active development. Behavior and configuration may change in future releases.
+Sub-recipes are an experimental feature in active development. Behavior and configuration may change in future releases.
 :::
 
 ## How Sub-Recipes Work

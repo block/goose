@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useConfig } from '../components/ConfigContext';
 
-export type DictationProvider = 'openai' | 'elevenlabs';
+export type DictationProvider = 'openai' | 'elevenlabs' | null;
 
 export interface DictationSettings {
   enabled: boolean;
@@ -14,7 +14,7 @@ const ELEVENLABS_API_KEY = 'ELEVENLABS_API_KEY';
 export const useDictationSettings = () => {
   const [settings, setSettings] = useState<DictationSettings | null>(null);
   const [hasElevenLabsKey, setHasElevenLabsKey] = useState<boolean>(false);
-  const { read } = useConfig();
+  const { read, getProviders } = useConfig();
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -23,12 +23,20 @@ export const useDictationSettings = () => {
       if (saved) {
         setSettings(JSON.parse(saved));
       } else {
-        // Default settings
-        const defaultSettings: DictationSettings = {
-          enabled: true,
-          provider: 'openai',
-        };
-        setSettings(defaultSettings);
+        const providers = await getProviders(false);
+        // Check if we have an OpenAI API key as primary default
+        const openAIProvider = providers.find((p) => p.name === 'openai');
+        if (openAIProvider && openAIProvider.is_configured) {
+          setSettings({
+            enabled: true,
+            provider: 'openai',
+          });
+        } else {
+          setSettings({
+            enabled: false,
+            provider: null,
+          });
+        }
       }
 
       // Load ElevenLabs API key from storage (non-secret for frontend access)
@@ -54,7 +62,7 @@ export const useDictationSettings = () => {
 
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, [read]);
+  }, [read, getProviders]);
 
   return { settings, hasElevenLabsKey };
 };

@@ -107,11 +107,13 @@ These variables control how Goose manages conversation sessions and context.
 |----------|---------|---------|---------|
 | `GOOSE_CONTEXT_STRATEGY` | Controls how Goose handles context limit exceeded situations | "summarize", "truncate", "clear", "prompt" | "prompt" (interactive), "summarize" (headless) |
 | `GOOSE_MAX_TURNS` | [Maximum number of turns](/docs/guides/smart-context-management#maximum-turns) allowed without user input | Integer (e.g., 10, 50, 100) | 1000 |
+| `CONTEXT_FILE_NAMES` | Specifies custom filenames for [hint/context files](/docs/guides/using-goosehints#custom-context-files) | JSON array of strings (e.g., `["CLAUDE.md", ".goosehints"]`) | `[".goosehints"]` |
 | `GOOSE_CLI_THEME` | [Theme](/docs/guides/goose-cli-commands#themes) for CLI response  markdown | "light", "dark", "ansi" | "dark" |
 | `GOOSE_SCHEDULER_TYPE` | Controls which scheduler Goose uses for [scheduled recipes](/docs/guides/recipes/session-recipes.md#schedule-recipe) | "legacy" or "temporal" | "legacy" (Goose's built-in cron scheduler) | 
 | `GOOSE_TEMPORAL_BIN` | Optional custom path to your Temporal binary | /path/to/temporal-service | None |
 | `GOOSE_RANDOM_THINKING_MESSAGES` | Controls whether to show amusing random messages during processing | "true", "false" | "true" |
 | `GOOSE_CLI_SHOW_COST` | Toggles display of model cost estimates in CLI output | "true", "1" (case insensitive) to enable | false |
+| `GOOSE_AUTO_COMPACT_THRESHOLD` | Set the percentage threshold at which Goose [automatically summarizes your session](/docs/guides/smart-context-management.md#automatic-compaction). | Float between 0.0 and 1.0 (disabled at 0.0) | 0.8 |
 
 **Examples**
 
@@ -131,6 +133,9 @@ export GOOSE_MAX_TURNS=25
 # Set a reasonable limit for production
 export GOOSE_MAX_TURNS=100
 
+# Use multiple context files
+export CONTEXT_FILE_NAMES='["CLAUDE.md", ".goosehints", "project_rules.txt"]'
+
 # Set the ANSI theme for the session
 export GOOSE_CLI_THEME=ansi
 
@@ -145,6 +150,9 @@ export GOOSE_RANDOM_THINKING_MESSAGES=false
 
 # Enable model cost display in CLI
 export GOOSE_CLI_SHOW_COST=true
+
+# Automatically compact sessions when 60% of available tokens are used
+export GOOSE_AUTO_COMPACT_THRESHOLD=0.6
 ```
 
 ### Model Context Limit Overrides
@@ -229,44 +237,6 @@ export GOOSE_EDITOR_MODEL="your-model"
 ```
 
 
-## Tool Selection Strategy
-
-These variables configure the [tool selection strategy](/docs/guides/managing-tools/tool-router).
-
-| Variable | Purpose | Values | Default |
-|----------|---------|---------|--------|
-| `GOOSE_ROUTER_TOOL_SELECTION_STRATEGY` | The tool selection strategy to use | "default", "vector", "llm" | "default" |
-| `GOOSE_EMBEDDING_MODEL_PROVIDER` | The provider to use for generating embeddings for the "vector" strategy | [See available providers](/docs/getting-started/providers#available-providers) (must support embeddings) | "openai" |
-| `GOOSE_EMBEDDING_MODEL` | The model to use for generating embeddings for the "vector" strategy | Model name (provider-specific) | "text-embedding-3-small" |
-
-**Examples**
-
-```bash
-# Use vector-based tool selection with custom settings
-export GOOSE_ROUTER_TOOL_SELECTION_STRATEGY=vector
-export GOOSE_EMBEDDING_MODEL_PROVIDER=ollama
-export GOOSE_EMBEDDING_MODEL=nomic-embed-text
-
-# Or use LLM-based selection
-export GOOSE_ROUTER_TOOL_SELECTION_STRATEGY=llm
-```
-
-**Embedding Provider Support**
-
-The default embedding provider is OpenAI. If using a different provider:
-- Ensure the provider supports embeddings
-- Specify an appropriate embedding model for that provider
-- Ensure the provider is properly configured with necessary credentials
-
-## Desktop in Airgapped Environments with MCP servers
-
-When running in airgapped environments, you will not want hermit to pull down the runtime environments for MCP servers, set: 
-
-`GOOSE_NOSHIM=true`
-
-And it will then use whatever you have on the path/system for uvx and npx, as specified in the mcp configuration.
-
-There may be other challenges with parts of Goose in airgapped environemnts, it is recommended that you consider packaging your own Desktop distribution for your users in that case, which can be tailored (eg for proxies and pre-made configurations).
 
 ## Security Configuration
 
@@ -297,6 +267,17 @@ These variables configure the [Langfuse integration for observability](/docs/tut
 | `LANGFUSE_INIT_PROJECT_PUBLIC_KEY` | Alternative public key for Langfuse | String | None |
 | `LANGFUSE_INIT_PROJECT_SECRET_KEY` | Alternative secret key for Langfuse | String | None |
 
+## Desktop in Airgapped Environments with MCP servers
+
+When running in airgapped environments, you will not want hermit to pull down the runtime environments for MCP servers, set: 
+
+`GOOSE_NOHERMIT=true`
+
+And it will then use whatever you have on the path/system for uvx and npx, as specified in the mcp configuration.
+
+There may be other challenges with parts of Goose in airgapped environemnts, it is recommended that you consider packaging your own Desktop distribution for your users in that case, which can be tailored (eg for proxies and pre-made configurations).
+
+
 ## Experimental Features
 
 These variables enable experimental features that are in active development. These may change or be removed in future releases. Use with caution in production environments.
@@ -313,6 +294,33 @@ export ALPHA_FEATURES=true
 
 # Or enable for a single session
 ALPHA_FEATURES=true goose session
+```
+
+## Variables Controlled by Goose
+
+These variables are automatically set by Goose during command execution.
+
+| Variable | Purpose | Values | Default |
+|----------|---------|---------|---------|
+| `GOOSE_TERMINAL` | Indicates that a command is being executed by Goose, enables customizing shell behavior | "1" when set | Unset |
+
+### Customizing Shell Behavior
+
+Sometimes you want Goose to use different commands or have different shell behavior than your normal terminal usage. For example, you might want Goose to use a different tool, or prevent Goose from running long-running development servers that could hang the AI agent. This is most useful when using Goose CLI, where shell commands are executed directly in your terminal environment.
+
+**How it works:**
+1. When Goose runs commands, `GOOSE_TERMINAL` is automatically set to "1"
+2. Your shell configuration can detect this and direct Goose to change its default behavior while keeping your normal terminal usage unchanged
+
+**Example:**
+
+```bash
+# In your ~/.bashrc or ~/.zshrc
+
+# Guide Goose toward better tool choices
+if [[ -n "$GOOSE_TERMINAL" ]]; then
+  alias find="echo 'Use rg instead: rg --files | rg <pattern> for filenames, or rg <pattern> for content search'"
+fi
 ```
 
 ## Notes

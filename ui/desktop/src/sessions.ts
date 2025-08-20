@@ -1,5 +1,5 @@
 import { Message } from './types/message';
-import { getSessionHistory, listSessions, SessionInfo } from './api';
+import { getSessionHistory, listSessions, SessionInfo, Message as ApiMessage } from './api';
 import { convertApiMessageToFrontendMessage } from './components/context_management';
 import { getApiUrl } from './config';
 
@@ -118,7 +118,7 @@ export async function fetchSessionDetails(sessionId: string): Promise<SessionDet
     return {
       session_id: response.data.sessionId,
       metadata: ensureWorkingDir(response.data.metadata),
-      messages: response.data.messages.map((message) =>
+      messages: response.data.messages.map((message: ApiMessage) =>
         convertApiMessageToFrontendMessage(message, true, true)
       ), // slight diffs between backend and frontend Message obj
     };

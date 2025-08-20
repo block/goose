@@ -59,7 +59,9 @@ export type ConfigKeyQuery = {
 };
 
 export type ConfigResponse = {
-    config: {};
+    config: {
+        [key: string]: unknown;
+    };
 };
 
 export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | Annotated;
@@ -94,6 +96,15 @@ export type ContextManageResponse = {
      * Token counts for each processed message
      */
     tokenCounts: Array<number>;
+};
+
+export type CreateCustomProviderRequest = {
+    api_key: string;
+    api_url: string;
+    display_name: string;
+    models: Array<string>;
+    provider_type: string;
+    supports_streaming?: boolean | null;
 };
 
 export type CreateRecipeRequest = {
@@ -143,10 +154,23 @@ export type Envs = {
     [key: string]: string;
 };
 
+export type ErrorResponse = {
+    error: string;
+};
+
+export type ExtendPromptRequest = {
+    extension: string;
+};
+
+export type ExtendPromptResponse = {
+    success: boolean;
+};
+
 /**
  * Represents the different types of MCP extensions that can be added to the manager
  */
 export type ExtensionConfig = {
+    available_tools?: Array<string>;
     /**
      * Whether this extension is bundled with Goose
      */
@@ -163,6 +187,7 @@ export type ExtensionConfig = {
     uri: string;
 } | {
     args: Array<string>;
+    available_tools?: Array<string>;
     /**
      * Whether this extension is bundled with Goose
      */
@@ -178,6 +203,7 @@ export type ExtensionConfig = {
     timeout?: number | null;
     type: 'stdio';
 } | {
+    available_tools?: Array<string>;
     /**
      * Whether this extension is bundled with Goose
      */
@@ -191,6 +217,7 @@ export type ExtensionConfig = {
     timeout?: number | null;
     type: 'builtin';
 } | {
+    available_tools?: Array<string>;
     /**
      * Whether this extension is bundled with Goose
      */
@@ -209,6 +236,7 @@ export type ExtensionConfig = {
     type: 'streamable_http';
     uri: string;
 } | {
+    available_tools?: Array<string>;
     /**
      * Whether this extension is bundled with Goose
      */
@@ -227,6 +255,7 @@ export type ExtensionConfig = {
     tools: Array<Tool>;
     type: 'frontend';
 } | {
+    available_tools?: Array<string>;
     /**
      * The Python code to execute
      */
@@ -271,6 +300,10 @@ export type FrontendToolRequest = {
     toolCall: {
         [key: string]: unknown;
     };
+};
+
+export type GetToolsQuery = {
+    extension_name?: string | null;
 };
 
 export type ImageContent = {
@@ -564,6 +597,14 @@ export type RunNowResponse = {
     session_id: string;
 };
 
+export type ScanRecipeRequest = {
+    recipe: Recipe;
+};
+
+export type ScanRecipeResponse = {
+    has_security_warnings: boolean;
+};
+
 export type ScheduledJob = {
     cron: string;
     current_session_id?: string | null;
@@ -574,6 +615,10 @@ export type ScheduledJob = {
     paused?: boolean;
     process_start_time?: string | null;
     source: string;
+};
+
+export type SessionConfigRequest = {
+    response?: Response | null;
 };
 
 export type SessionDisplayInfo = {
@@ -649,10 +694,6 @@ export type SessionMetadata = {
      * The number of output tokens used in the session. Retrieved from the provider's last usage.
      */
     output_tokens?: number | null;
-    /**
-     * ID of the project this session belongs to, if any
-     */
-    project_id?: string | null;
     /**
      * ID of the schedule that triggered this session, if any
      */
@@ -772,6 +813,11 @@ export type ToolResponse = {
     };
 };
 
+export type UpdateProviderRequest = {
+    model?: string | null;
+    provider: string;
+};
+
 export type UpdateScheduleRequest = {
     cron: string;
 };
@@ -798,16 +844,78 @@ export type AddSubRecipesErrors = {
      * Unauthorized - invalid secret key
      */
     401: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
 };
 
 export type AddSubRecipesResponses = {
     /**
-     * added sub recipes to agent successfully
+     * Added sub recipes to agent successfully
      */
     200: AddSubRecipesResponse;
 };
 
 export type AddSubRecipesResponse2 = AddSubRecipesResponses[keyof AddSubRecipesResponses];
+
+export type ExtendPromptData = {
+    body: ExtendPromptRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/prompt';
+};
+
+export type ExtendPromptErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+};
+
+export type ExtendPromptResponses = {
+    /**
+     * Extended system prompt successfully
+     */
+    200: ExtendPromptResponse;
+};
+
+export type ExtendPromptResponse2 = ExtendPromptResponses[keyof ExtendPromptResponses];
+
+export type UpdateSessionConfigData = {
+    body: SessionConfigRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/session_config';
+};
+
+export type UpdateSessionConfigErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type UpdateSessionConfigResponses = {
+    /**
+     * Session config updated successfully
+     */
+    200: string;
+};
+
+export type UpdateSessionConfigResponse = UpdateSessionConfigResponses[keyof UpdateSessionConfigResponses];
 
 export type GetToolsData = {
     body?: never;
@@ -844,6 +952,70 @@ export type GetToolsResponses = {
 };
 
 export type GetToolsResponse = GetToolsResponses[keyof GetToolsResponses];
+
+export type UpdateAgentProviderData = {
+    body: UpdateProviderRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/update_provider';
+};
+
+export type UpdateAgentProviderErrors = {
+    /**
+     * Bad request - missing or invalid parameters
+     */
+    400: unknown;
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type UpdateAgentProviderResponses = {
+    /**
+     * Provider updated successfully
+     */
+    200: unknown;
+};
+
+export type UpdateRouterToolSelectorData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/agent/update_router_tool_selector';
+};
+
+export type UpdateRouterToolSelectorErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type UpdateRouterToolSelectorResponses = {
+    /**
+     * Tool selection strategy updated successfully
+     */
+    200: string;
+};
+
+export type UpdateRouterToolSelectorResponse = UpdateRouterToolSelectorResponses[keyof UpdateRouterToolSelectorResponses];
 
 export type ReadAllConfigData = {
     body?: never;
@@ -883,6 +1055,62 @@ export type BackupConfigResponses = {
 };
 
 export type BackupConfigResponse = BackupConfigResponses[keyof BackupConfigResponses];
+
+export type CreateCustomProviderData = {
+    body: CreateCustomProviderRequest;
+    path?: never;
+    query?: never;
+    url: '/config/custom-providers';
+};
+
+export type CreateCustomProviderErrors = {
+    /**
+     * Invalid request
+     */
+    400: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type CreateCustomProviderResponses = {
+    /**
+     * Custom provider created successfully
+     */
+    200: string;
+};
+
+export type CreateCustomProviderResponse = CreateCustomProviderResponses[keyof CreateCustomProviderResponses];
+
+export type RemoveCustomProviderData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/config/custom-providers/{id}';
+};
+
+export type RemoveCustomProviderErrors = {
+    /**
+     * Provider not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type RemoveCustomProviderResponses = {
+    /**
+     * Custom provider removed successfully
+     */
+    200: string;
+};
+
+export type RemoveCustomProviderResponse = RemoveCustomProviderResponses[keyof RemoveCustomProviderResponses];
 
 export type GetExtensionsData = {
     body?: never;
@@ -1278,6 +1506,22 @@ export type EncodeRecipeResponses = {
 };
 
 export type EncodeRecipeResponse2 = EncodeRecipeResponses[keyof EncodeRecipeResponses];
+
+export type ScanRecipeData = {
+    body: ScanRecipeRequest;
+    path?: never;
+    query?: never;
+    url: '/recipes/scan';
+};
+
+export type ScanRecipeResponses = {
+    /**
+     * Recipe scanned successfully
+     */
+    200: ScanRecipeResponse;
+};
+
+export type ScanRecipeResponse2 = ScanRecipeResponses[keyof ScanRecipeResponses];
 
 export type CreateScheduleData = {
     body: CreateScheduleRequest;

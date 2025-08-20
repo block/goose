@@ -1,5 +1,12 @@
 import '@testing-library/jest-dom';
-import { vi } from 'vitest';
+import { vi, afterEach } from 'vitest';
+import { cleanup } from '@testing-library/react';
+
+// This is the standard setup to ensure that React Testing Library's
+// automatic cleanup runs after each test.
+afterEach(() => {
+  cleanup();
+});
 
 // Mock console methods to avoid noise in tests
 // eslint-disable-next-line no-undef

@@ -6,13 +6,14 @@ title: Configure LLM Provider
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import { PanelLeft } from 'lucide-react';
+import { ModelSelectionTip } from '@site/src/components/ModelSelectionTip';
 
 # Supported LLM Providers
 
 Goose is compatible with a wide range of LLM providers, allowing you to choose and integrate your preferred model.
 
 :::tip Model Selection
-Goose relies heavily on tool calling capabilities and currently works best with Anthropic's Claude 3.5 Sonnet and OpenAI's GPT-4o (2024-11-20) model.
+<ModelSelectionTip/>
 [Berkeley Function-Calling Leaderboard][function-calling-leaderboard] can be a good guide for selecting models.
 :::
 
@@ -45,6 +46,7 @@ Goose also supports special "pass-through" providers that work with existing CLI
 | Provider                                                                    | Description                                                                                                                                                                                                               | Requirements                                                                                                                                                                          |
 |-----------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | [Claude Code](https://www.anthropic.com/claude-code) (`claude-code`)                       | Uses Anthropic's Claude CLI tool with your Claude Code subscription. Provides access to Claude with 200K context limit.                                                                                      | Claude CLI installed and authenticated, active Claude Code subscription                                                                                                              |
+| [Cursor Agent](https://docs.cursor.com/en/cli/overview) (`cursor-agent`)   | Uses Cursor's AI CLI tool with your Cursor subscription. Provides access to GPT-5, Claude 4, and other models through the cursor-agent command-line interface.                                              | cursor-agent CLI installed and authenticated                                                                                                         |
 | [Gemini CLI](https://ai.google.dev/gemini-api/docs) (`gemini-cli`)         | Uses Google's Gemini CLI tool with your Google AI subscription. Provides access to Gemini with 1M context limit.                                                                                               | Gemini CLI installed and authenticated                                                                                                                |
 
 :::tip CLI Providers
@@ -144,14 +146,7 @@ To configure your chosen provider or see available options, run `goose configure
     │
     ◓  Checking your configuration...                                                                                       
     └  Configuration saved successfully
-    ```
-  Set the model for an individual session using the [`run` command](/docs/guides/goose-cli-commands.md#run-options):
-
-  ```bash
-  goose run --model goose-claude-4-sonnet -t "initial prompt"
-  ```
-
-
+```
   </TabItem>
 </Tabs>
 
