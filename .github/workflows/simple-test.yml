@@ -1,0 +1,17 @@
+name: Simple Test
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [test-cicd-workflow-fix]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test basic functionality
+        run: |
+          echo "Testing basic workflow functionality"
+          echo "This validates that YAML syntax is correct"
+          echo "If this runs, the indentation fixes work!"
