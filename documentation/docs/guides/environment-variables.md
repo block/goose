@@ -267,7 +267,7 @@ These variables configure the [Langfuse integration for observability](/docs/tut
 ## Running the Desktop app in Airgapped Environments with MCP servers
 
 When running in airgapped environments, you will not want Hermit to pull down the runtime environments that MCP servers will typically need.
-Goose by default will use "shims" for npx and uvx which are packaged with the application which take care of thus for you behind the scenes. 
+Goose by default will use "shims" for npx and uvx which are packaged with the application which take care of this for you behind the scenes. 
 If you do not wish to use these, you can create alternatively named versions of npx/uvx on your system, and if your MCP configuration uses them (eg call it `runuv`) it will pypass the shims and Hermit. 
 
 There may be other challenges with parts of Goose in airgapped environemnts, it is recommended that you consider packaging your own Desktop distribution for your users in that case, which can be tailored (eg for proxies and pre-made configurations for performance and security).
