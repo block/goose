@@ -11,7 +11,6 @@ from mcp.types import ErrorData, INTERNAL_ERROR, INVALID_PARAMS
 
 mcp = FastMCP("wiki")
 
-
 @mcp.tool()
 def read_wikipedia_article(url: str) -> str:
     """
@@ -32,7 +31,7 @@ def read_wikipedia_article(url: str) -> str:
             raise McpError(
                 ErrorData(
                     INTERNAL_ERROR,
-                    f"Failed to retrieve the article. HTTP status code: {response.status_code}",
+                    f"Failed to retrieve the article. HTTP status code: {response.status_code}"
                 )
             )
 
@@ -43,7 +42,7 @@ def read_wikipedia_article(url: str) -> str:
             raise McpError(
                 ErrorData(
                     INVALID_PARAMS,
-                    "Could not find the main content on the provided Wikipedia URL.",
+                    "Could not find the main content on the provided Wikipedia URL."
                 )
             )
 
@@ -60,3 +59,5 @@ def read_wikipedia_article(url: str) -> str:
     except Exception as e:
         # Catch-all for any other unexpected errors
         raise McpError(ErrorData(INTERNAL_ERROR, f"Unexpected error: {str(e)}")) from e
+
+

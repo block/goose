@@ -1,7 +1,6 @@
 import argparse
 from .server import mcp
 
-
 def main():
     """MCP Wiki: read Wikipedia articles and convert them to Markdown."""
     parser = argparse.ArgumentParser(
