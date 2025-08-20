@@ -356,12 +356,7 @@ function BaseChatContent({
               ref={scrollRef}
               className={`flex-1 rounded-b-2xl min-h-0 relative ${contentClassName}`}
               style={{
-                background: `
-                  linear-gradient(135deg, 
-                    rgba(255, 255, 255, 0.1) 0%, 
-                    rgba(255, 255, 255, 0.05) 100%
-                  )
-                `,
+                background: 'transparent',
                 border: '1px solid rgba(255, 255, 255, 0.1)',
               }}
               autoScroll
