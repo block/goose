@@ -44,7 +44,7 @@ pub async fn summarize_messages(
 
     // Send the request to the provider and fetch the response
     let (mut response, mut provider_usage) = provider
-        .complete(&system_prompt, &summarization_request, &[])
+        .complete_fast(&system_prompt, &summarization_request, &[])
         .await?;
 
     // Set role to user as it will be used in following conversation as user content

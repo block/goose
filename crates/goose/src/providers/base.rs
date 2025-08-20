@@ -337,6 +337,42 @@ pub trait Provider: Send + Sync {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError>;
 
+    /// Generate the next message using the configured model and other parameters
+    ///
+    /// # Arguments
+    /// * `system` - The system prompt that guides the model's behavior
+    /// * `messages` - The conversation history as a sequence of messages
+    /// * `tools` - Optional list of tools the model can use
+    ///
+    /// # Returns
+    /// A tuple containing the model's response message and provider usage statistics
+    ///
+    /// # Errors
+    /// ProviderError
+    ///   - It's important to raise ContextLengthExceeded correctly since agent handles it
+    async fn complete_fast(
+        &self,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<(Message, ProviderUsage), ProviderError>;
+
+    /// This shouldn't be exposed externally, but each provider should implement it
+    /// so we can swap out the model for a fast model if configured
+    ///
+    /// # Arguments
+    /// * `system` - The system prompt that guides the model's behavior
+    /// * `messages` - The conversation history as a sequence of messages
+    /// * `tools` - Optional list of tools the model can use
+    async fn _complete_with_model(
+        &self,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+        model: &str,
+    ) -> Result<(Message, ProviderUsage), ProviderError>;
+
+
     /// Get the model config from the provider
     fn get_model_config(&self) -> ModelConfig;
 

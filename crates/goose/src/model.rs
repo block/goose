@@ -72,6 +72,7 @@ pub struct ModelConfig {
     pub max_tokens: Option<i32>,
     pub toolshim: bool,
     pub toolshim_model: Option<String>,
+    pub fast_model: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
