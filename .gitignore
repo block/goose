@@ -64,3 +64,6 @@ do_not_version/
 
 # Error log artifacts from mcp replay tests
 crates/goose/tests/mcp_replays/*errors.txt
+
+# Nix build output
+result
