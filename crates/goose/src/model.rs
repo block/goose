@@ -21,13 +21,16 @@ static MODEL_SPECIFIC_LIMITS: Lazy<Vec<(&'static str, usize)>> = Lazy::new(|| {
         ("gpt-4-turbo", 128_000),
         ("gpt-4.1", 1_000_000),
         ("gpt-4-1", 1_000_000),
+        ("gpt-4o-mini", 128_000), // Fast model for OpenAI
         ("gpt-4o", 128_000),
         ("o4-mini", 200_000),
         ("o3-mini", 200_000),
         ("o3", 200_000),
         // anthropic - all 200k
+        ("claude-3-5-haiku", 200_000), // Fast model for Anthropic
         ("claude", 200_000),
         // google
+        ("gemini-1.5-flash", 1_000_000), // Fast model for Google
         ("gemini-1", 128_000),
         ("gemini-2", 1_000_000),
         ("gemma-3-27b", 128_000),
@@ -41,6 +44,7 @@ static MODEL_SPECIFIC_LIMITS: Lazy<Vec<(&'static str, usize)>> = Lazy::new(|| {
         ("gemma-2-27b", 8_192),
         ("gemma-2-9b", 8_192),
         ("gemma-2-2b", 8_192),
+        ("gemma2-9b", 8_192), // Fast model for Groq
         ("gemma2-", 8_192),
         ("gemma-7b", 8_192),
         ("gemma-2b", 8_192),
@@ -90,7 +94,7 @@ impl ModelConfig {
         model_name: String,
         context_env_var: Option<&str>,
     ) -> Result<Self, ConfigError> {
-        let context_limit = Self::parse_context_limit(&model_name, context_env_var)?;
+        let context_limit = Self::parse_context_limit(&model_name, None, context_env_var)?;
         let temperature = Self::parse_temperature()?;
         let toolshim = Self::parse_toolshim()?;
         let toolshim_model = Self::parse_toolshim_model()?;
@@ -108,8 +112,10 @@ impl ModelConfig {
 
     fn parse_context_limit(
         model_name: &str,
+        fast_model: Option<&str>,
         custom_env_var: Option<&str>,
     ) -> Result<Option<usize>, ConfigError> {
+        // First check if there's an explicit environment variable override
         if let Some(env_var) = custom_env_var {
             if let Ok(val) = std::env::var(env_var) {
                 return Self::validate_context_limit(&val, env_var).map(Some);
@@ -118,7 +124,24 @@ impl ModelConfig {
         if let Ok(val) = std::env::var("GOOSE_CONTEXT_LIMIT") {
             return Self::validate_context_limit(&val, "GOOSE_CONTEXT_LIMIT").map(Some);
         }
-        Ok(Self::get_model_specific_limit(model_name))
+
+        // Get the model's limit
+        let model_limit = Self::get_model_specific_limit(model_name);
+
+        // If there's a fast_model, get its limit and use the minimum
+        if let Some(fast_model_name) = fast_model {
+            let fast_model_limit = Self::get_model_specific_limit(fast_model_name);
+
+            // Return the minimum of both limits (if both exist)
+            match (model_limit, fast_model_limit) {
+                (Some(m), Some(f)) => Ok(Some(m.min(f))),
+                (Some(m), None) => Ok(Some(m)),
+                (None, Some(f)) => Ok(Some(f)),
+                (None, None) => Ok(None),
+            }
+        } else {
+            Ok(model_limit)
+        }
     }
 
     fn validate_context_limit(val: &str, env_var: &str) -> Result<usize, ConfigError> {
@@ -234,7 +257,24 @@ impl ModelConfig {
     }
 
     pub fn context_limit(&self) -> usize {
-        self.context_limit.unwrap_or(DEFAULT_CONTEXT_LIMIT)
+        // If we have a fast_model, use the minimum of both limits
+        if let Some(fast_model) = &self.fast_model {
+            let main_limit = self
+                .context_limit
+                .or_else(|| Self::get_model_specific_limit(&self.model_name));
+            let fast_limit = Self::get_model_specific_limit(fast_model);
+
+            match (main_limit, fast_limit) {
+                (Some(m), Some(f)) => m.min(f),
+                (Some(m), None) => m,
+                (None, Some(f)) => f,
+                (None, None) => DEFAULT_CONTEXT_LIMIT,
+            }
+        } else {
+            self.context_limit.unwrap_or_else(|| {
+                Self::get_model_specific_limit(&self.model_name).unwrap_or(DEFAULT_CONTEXT_LIMIT)
+            })
+        }
     }
 
     pub fn new_or_fail(model_name: &str) -> ModelConfig {

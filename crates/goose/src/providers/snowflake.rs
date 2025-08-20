@@ -309,7 +309,6 @@ impl Provider for SnowflakeProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-
         let mut model_config = self.model.clone();
 
         model_config.model_name = model.to_string();
