@@ -54,15 +54,30 @@ impl Agent {
         permission_manager: &'a mut PermissionManager,
         message_tool_response: Arc<Mutex<Message>>,
         cancellation_token: Option<CancellationToken>,
+        security_results: &'a [crate::security::SecurityResult],
     ) -> BoxStream<'a, anyhow::Result<Message>> {
         try_stream! {
-            for request in tool_requests {
+            for (i, request) in tool_requests.iter().enumerate() {
                 if let Ok(tool_call) = request.tool_call.clone() {
+                    // Find the corresponding security result for this tool request
+                    let security_message = if let Some(security_result) = security_results.get(i) {
+                        if security_result.is_malicious {
+                            Some(format!(
+                                "🔒 Security Alert: This tool call has been flagged as potentially dangerous. Confidence: {:.1}%",
+                                security_result.confidence * 100.0
+                            ))
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    };
+
                     let confirmation = Message::user().with_tool_confirmation_request(
                         request.id.clone(),
                         tool_call.name.clone(),
                         tool_call.arguments.clone(),
-                        Some("Goose would like to call the above tool. Allow? (y/n):".to_string()),
+                        security_message,
                     );
                     yield confirmation;
 

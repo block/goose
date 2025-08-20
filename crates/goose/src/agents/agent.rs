@@ -40,6 +40,7 @@ use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
 use crate::scheduler_trait::SchedulerTrait;
+use crate::security::SecurityManager;
 use crate::session;
 use crate::session::extension_data::ExtensionState;
 use crate::tool_monitor::{ToolCall, ToolMonitor};
@@ -102,6 +103,8 @@ pub struct Agent {
     pub(super) tool_route_manager: ToolRouteManager,
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
     pub(super) retry_manager: RetryManager,
+    pub(super) todo_list: Arc<Mutex<String>>,
+    pub(super) security_manager: SecurityManager,
 }
 
 #[derive(Clone, Debug)]
@@ -178,6 +181,8 @@ impl Agent {
             tool_route_manager: ToolRouteManager::new(),
             scheduler_service: Mutex::new(None),
             retry_manager,
+            todo_list: Arc::new(Mutex::new(String::new())),
+            security_manager: SecurityManager::new(),
         }
     }
 
@@ -1124,7 +1129,7 @@ impl Agent {
                                     }
                                 } else {
                                     let mut permission_manager = PermissionManager::default();
-                                    let (permission_check_result, enable_extension_request_ids) =
+                                    let (mut permission_check_result, enable_extension_request_ids) =
                                         check_tool_permissions(
                                             &remaining_requests,
                                             &mode,
@@ -1133,6 +1138,23 @@ impl Agent {
                                             &mut permission_manager,
                                             self.provider().await?,
                                         ).await;
+
+                                    // Phase 1: Security scanning with pattern matching
+                                    let security_results = self.security_manager
+                                        .filter_malicious_tool_calls(
+                                            messages.messages(),
+                                            &permission_check_result,
+                                            None, // Don't scan system prompt anymore - causes false positives
+                                        )
+                                        .await?;
+
+                                    // Apply security results to permission check results
+                                    if !security_results.is_empty() {
+                                        permission_check_result = self.apply_security_results_to_permissions(
+                                            permission_check_result,
+                                            &security_results,
+                                        ).await;
+                                    }
 
                                     let mut tool_futures = self.handle_approved_and_denied_tools(
                                         &permission_check_result,
@@ -1150,6 +1172,7 @@ impl Agent {
                                         &mut permission_manager,
                                         message_tool_response.clone(),
                                         cancel_token.clone(),
+                                        &security_results,
                                     );
 
                                     while let Some(msg) = tool_approval_stream.try_next().await? {
@@ -1274,6 +1297,98 @@ impl Agent {
                 .get_param("GOOSE_MODE")
                 .unwrap_or_else(|_| "auto".to_string()),
         }
+    }
+
+    /// Apply security scan results to permission check results
+    /// This integrates security scanning with the existing tool approval system
+    async fn apply_security_results_to_permissions(
+        &self,
+        mut permission_result: PermissionCheckResult,
+        security_results: &[crate::security::SecurityResult],
+    ) -> PermissionCheckResult {
+        if security_results.is_empty() {
+            return permission_result;
+        }
+
+        // Create a map of tool requests by ID for easy lookup
+        let mut all_requests: std::collections::HashMap<String, ToolRequest> =
+            std::collections::HashMap::new();
+
+        // Collect all tool requests
+        for req in &permission_result.approved {
+            all_requests.insert(req.id.clone(), req.clone());
+        }
+        for req in &permission_result.needs_approval {
+            all_requests.insert(req.id.clone(), req.clone());
+        }
+        for req in &permission_result.denied {
+            all_requests.insert(req.id.clone(), req.clone());
+        }
+
+        // Collect the combined requests first to avoid borrowing issues
+        let combined_requests: Vec<ToolRequest> = permission_result
+            .approved
+            .iter()
+            .chain(permission_result.needs_approval.iter())
+            .cloned()
+            .collect();
+
+        // Process security results
+        for (i, security_result) in security_results.iter().enumerate() {
+            if !security_result.is_malicious {
+                continue;
+            }
+
+            // Find the corresponding tool request by index
+            if let Some(tool_request) = combined_requests.get(i) {
+                let request_id = &tool_request.id;
+
+                tracing::warn!(
+                    tool_request_id = %request_id,
+                    confidence = security_result.confidence,
+                    explanation = %security_result.explanation,
+                    finding_id = %security_result.finding_id,
+                    "🔒 Security threat detected - modifying tool approval status"
+                );
+
+                // Remove from approved if present
+                permission_result
+                    .approved
+                    .retain(|req| req.id != *request_id);
+
+                if security_result.should_ask_user {
+                    // Move to needs_approval with security context
+                    if let Some(request) = all_requests.get(request_id) {
+                        // Only add if not already in needs_approval
+                        if !permission_result
+                            .needs_approval
+                            .iter()
+                            .any(|req| req.id == *request_id)
+                        {
+                            permission_result.needs_approval.push(request.clone());
+                        }
+                    }
+                } else {
+                    // High confidence threat - move to denied
+                    permission_result
+                        .needs_approval
+                        .retain(|req| req.id != *request_id);
+
+                    if let Some(request) = all_requests.get(request_id) {
+                        // Only add if not already in denied
+                        if !permission_result
+                            .denied
+                            .iter()
+                            .any(|req| req.id == *request_id)
+                        {
+                            permission_result.denied.push(request.clone());
+                        }
+                    }
+                }
+            }
+        }
+
+        permission_result
     }
 
     /// Extend the system prompt with one line of additional instruction
