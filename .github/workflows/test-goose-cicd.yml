@@ -5,9 +5,10 @@ on:
       types: [opened, synchronize, reopened, labeled]
 
 permissions:
-   contents: write
+   contents: read
    pull-requests: write
    issues: write
+   actions: read
 
 env:
    PROVIDER_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -46,9 +47,12 @@ jobs:
            run: |
               mkdir -p ~/.config/goose
               cat <<EOF > ~/.config/goose/config.yaml
-              GOOSE_PROVIDER: openai
-              GOOSE_MODEL: gpt-4o-mini
-              keyring: false
+providers:
+  openai:
+    api_key: \$PROVIDER_API_KEY
+    model: gpt-4o-mini
+default_provider: openai
+keyring: false
               EOF
 
          - name: Create instructions for Goose
@@ -68,6 +72,9 @@ jobs:
 
          - name: Run Goose and filter output
            run: |
+              export GOOSE_PROVIDER=openai
+              export GOOSE_MODEL=gpt-4o-mini
+              export OPENAI_API_KEY=$PROVIDER_API_KEY
               goose run --instructions instructions.txt | \
               # Remove ANSI color codes
               sed -E 's/\x1B\[[0-9;]*[mK]//g' | \
