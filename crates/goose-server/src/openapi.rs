@@ -367,6 +367,8 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::config_management::read_all_config,
         super::routes::config_management::providers,
         super::routes::config_management::upsert_permissions,
+        super::routes::config_management::create_custom_provider,
+        super::routes::config_management::remove_custom_provider,
         super::routes::agent::get_tools,
         super::routes::agent::add_sub_recipes,
         super::routes::agent::extend_prompt,
@@ -389,7 +391,8 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::schedule::sessions_handler,
         super::routes::recipe::create_recipe,
         super::routes::recipe::encode_recipe,
-        super::routes::recipe::decode_recipe
+        super::routes::recipe::decode_recipe,
+        super::routes::recipe::scan_recipe
     ),
     components(schemas(
         super::routes::config_management::UpsertConfigQuery,
@@ -401,6 +404,7 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::config_management::ExtensionQuery,
         super::routes::config_management::ToolPermission,
         super::routes::config_management::UpsertPermissionsQuery,
+        super::routes::config_management::CreateCustomProviderRequest,
         super::routes::reply::PermissionConfirmationRequest,
         super::routes::context::ContextManageRequest,
         super::routes::context::ContextManageResponse,
@@ -456,6 +460,8 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::recipe::EncodeRecipeResponse,
         super::routes::recipe::DecodeRecipeRequest,
         super::routes::recipe::DecodeRecipeResponse,
+        super::routes::recipe::ScanRecipeRequest,
+        super::routes::recipe::ScanRecipeResponse,
         goose::recipe::Recipe,
         goose::recipe::Author,
         goose::recipe::Settings,

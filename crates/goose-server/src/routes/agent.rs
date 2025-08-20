@@ -192,7 +192,7 @@ async fn update_agent_provider(
     let agent = state
         .get_agent()
         .await
-        .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
+        .map_err(|_e| StatusCode::PRECONDITION_FAILED)?;
 
     let config = Config::global();
     let model = match payload
@@ -210,7 +210,7 @@ async fn update_agent_provider(
     agent
         .update_provider(new_provider)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|_e| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(StatusCode::OK)
 }

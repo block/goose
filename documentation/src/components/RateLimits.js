@@ -1,7 +1,7 @@
 import React from "react";
 import Admonition from "@theme/Admonition";
 
-const RateLimits = () => {
+export const RateLimits = () => {
   return (
     <Admonition type="info" title="Billing">
       <a
@@ -25,5 +25,3 @@ const RateLimits = () => {
     </Admonition>
   );
 };
-
-export default RateLimits;

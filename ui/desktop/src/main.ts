@@ -4,7 +4,6 @@ import {
   App,
   BrowserWindow,
   dialog,
-  Event,
   globalShortcut,
   ipcMain,
   Menu,
@@ -16,7 +15,6 @@ import {
   Tray,
 } from 'electron';
 import { Buffer } from 'node:buffer';
-import { MouseUpEvent } from './types/electron';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import started from 'electron-squirrel-startup';
@@ -74,8 +72,8 @@ async function decodeRecipeMain(deeplink: string, port: number): Promise<Recipe 
       const data = await response.json();
       return data.recipe;
     }
-  } catch (error) {
-    console.error('Failed to decode recipe:', error);
+  } catch {
+    console.error('Failed to decode recipe');
   }
   return null;
 }
@@ -177,8 +175,8 @@ if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
         detached: true,
         stdio: 'ignore',
       });
-    } catch (error) {
-      console.warn('[Main] Could not reset protocol handler:', error);
+    } catch {
+      console.warn('[Main] Could not reset protocol handler');
     }
   }
 } else {
@@ -385,13 +383,17 @@ app.on('open-file', async (event, filePath) => {
   await handleFileOpen(filePath);
 });
 
-// Handle multiple files/folders
-app.on('open-files', async (event: Event, filePaths: string[]) => {
-  event.preventDefault();
-  for (const filePath of filePaths) {
-    await handleFileOpen(filePath);
-  }
-});
+// Handle multiple files/folders (macOS only)
+if (process.platform === 'darwin') {
+  // Use type assertion for non-standard Electron event
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  app.on('open-files' as any, async (event: any, filePaths: string[]) => {
+    event.preventDefault();
+    for (const filePath of filePaths) {
+      await handleFileOpen(filePath);
+    }
+  });
+}
 
 async function handleFileOpen(filePath: string) {
   try {
@@ -419,8 +421,8 @@ async function handleFileOpen(filePath: string) {
       newWindow.focus();
       newWindow.moveTop();
     }
-  } catch (error) {
-    console.error('Failed to handle file open:', error);
+  } catch {
+    console.error('Failed to handle file open');
 
     // Show user-friendly error notification
     new Notification({
@@ -710,7 +712,9 @@ const createChat = async (
   });
 
   // Handle new-window events (alternative approach for external links)
-  mainWindow.webContents.on('new-window', (event, url) => {
+  // Use type assertion for non-standard Electron event
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  mainWindow.webContents.on('new-window' as any, function (event: any, url: string) {
     event.preventDefault();
     shell.openExternal(url);
   });
@@ -773,7 +777,10 @@ const createChat = async (
     }
   });
 
-  mainWindow.webContents.on('mouse-up', (_event: MouseUpEvent, mouseButton: number) => {
+  // Handle mouse back button (button 3)
+  // Use type assertion for non-standard Electron event
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  mainWindow.webContents.on('mouse-up' as any, function (_event: any, mouseButton: number) {
     // MouseButton 3 is the back button.
     if (mouseButton === 3) {
       mainWindow.webContents.send('mouse-back-button-clicked');
@@ -1020,7 +1027,7 @@ const openDirectoryDialog = async (
       } else if (stats.isFile()) {
         dirToAdd = path.dirname(selectedPath);
       }
-    } catch (error) {
+    } catch {
       console.warn(`Could not stat selected path, using parent directory`);
       dirToAdd = path.dirname(selectedPath); // Fallback to parent directory
     }
@@ -1176,11 +1183,11 @@ ipcMain.handle('set-dock-icon', async (_event, show: boolean) => {
     saveSettings(settings);
 
     if (show) {
-      await app.dock.show();
+      app.dock?.show();
     } else {
       // Only hide the dock if we have a menu bar icon to maintain accessibility
       if (settings.showMenuBarIcon) {
-        app.dock.hide();
+        app.dock?.hide();
         setTimeout(() => {
           focusWindow();
         }, 50);
@@ -1220,7 +1227,7 @@ ipcMain.handle('open-notifications-settings', async () => {
       try {
         spawn('gnome-control-center', ['notifications']);
         return true;
-      } catch (gnomeError) {
+      } catch {
         console.log('GNOME control center not found, trying other options');
       }
 
@@ -1228,7 +1235,7 @@ ipcMain.handle('open-notifications-settings', async () => {
       try {
         spawn('systemsettings5', ['kcm_notifications']);
         return true;
-      } catch (kdeError) {
+      } catch {
         console.log('KDE systemsettings5 not found, trying other options');
       }
 
@@ -1236,7 +1243,7 @@ ipcMain.handle('open-notifications-settings', async () => {
       try {
         spawn('xfce4-settings-manager', ['--socket-id=notifications']);
         return true;
-      } catch (xfceError) {
+      } catch {
         console.log('XFCE settings manager not found, trying other options');
       }
 
@@ -1244,7 +1251,7 @@ ipcMain.handle('open-notifications-settings', async () => {
       try {
         spawn('gnome-control-center');
         return true;
-      } catch (fallbackError) {
+      } catch {
         console.warn('Could not find a suitable settings application for Linux');
         return false;
       }
@@ -1344,6 +1351,7 @@ ipcMain.handle('select-file-or-directory', async (_event, defaultPath?: string) 
       } else {
         dialogOptions.defaultPath = path.dirname(expandedPath);
       }
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (error) {
       // If path doesn't exist, fall back to home directory and log error
       console.error(`Default path does not exist: ${expandedPath}, falling back to home directory`);
@@ -1651,22 +1659,16 @@ ipcMain.handle('read-file', (_event, filePath) => {
   });
 });
 
-ipcMain.handle('write-file', (_event, filePath, content) => {
-  return new Promise((resolve) => {
+ipcMain.handle('write-file', async (_event, filePath, content) => {
+  try {
     // Expand tilde to home directory
     const expandedPath = expandTilde(filePath);
-
-    // Create a write stream to the file
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const fsNode = require('fs'); // Using require for fs in this specific handler from original
-    try {
-      fsNode.writeFileSync(expandedPath, content, { encoding: 'utf8' });
-      resolve(true);
-    } catch (error) {
-      console.error('Error writing to file:', error);
-      resolve(false);
-    }
-  });
+    await fs.writeFile(expandedPath, content, { encoding: 'utf8' });
+    return true;
+  } catch (error) {
+    console.error('Error writing to file:', error);
+    return false;
+  }
 });
 
 // Enhanced file operations
@@ -1820,7 +1822,7 @@ app.whenReady().then(async () => {
 
   // Handle dock icon visibility (macOS only)
   if (process.platform === 'darwin' && !settings.showDockIcon && settings.showMenuBarIcon) {
-    app.dock.hide();
+    app.dock?.hide();
   }
 
   // Parse command line arguments

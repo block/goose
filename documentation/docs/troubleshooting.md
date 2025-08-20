@@ -30,6 +30,14 @@ For particularly large or complex tasks, consider breaking them into smaller ses
 
 ---
 
+### Preventing Long-Running Commands
+
+If you use Goose CLI and work with web development projects, you may encounter commands that cause Goose to hang indefinitely. Commands like `npm run dev`, `python -m http.server`, or `webpack serve` start development servers that never exit on their own.
+
+You can prevent these issues by customizing your shell to handle these commands differently when Goose runs them. See [Customizing Shell Behavior](/docs/guides/environment-variables#customizing-shell-behavior) for details on using the `GOOSE_TERMINAL` environment variable.
+
+---
+
 ### Context Length Exceeded Error
 
 This error occurs when the input provided to Goose exceeds the maximum token limit of the LLM being used. To resolve this, try breaking down your input into smaller parts. You can also use `.goosehints` as a way to provide goose with detailed context. Refer to the [Using Goosehints Guide][goosehints] for more information.
