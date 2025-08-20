@@ -17,6 +17,7 @@ interface ToolCallWithResponseProps {
   toolResponse?: ToolResponseMessageContent;
   notifications?: NotificationEvent[];
   isStreamingMessage?: boolean;
+  append?: (value: string) => void; // Function to append messages to the chat
 }
 
 export default function ToolCallWithResponse({
@@ -25,6 +26,7 @@ export default function ToolCallWithResponse({
   toolResponse,
   notifications,
   isStreamingMessage = false,
+  append,
 }: ToolCallWithResponseProps) {
   const toolCall = toolRequest.toolCall.status === 'success' ? toolRequest.toolCall.value : null;
   if (!toolCall) {
@@ -54,7 +56,7 @@ export default function ToolCallWithResponse({
           if (isUIResource(content)) {
             return (
               <div key={`${content.type}-${index}`} className="mt-3">
-                <MCPUIResourceRenderer content={content} />
+                <MCPUIResourceRenderer content={content} append={append} />
                 <div className="mt-3 p-4 py-3 border border-borderSubtle rounded-lg bg-background-muted flex items-center">
                   <FlaskConical className="mr-2" size={20} />
                   <div className="text-sm font-sans">

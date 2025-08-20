@@ -14,6 +14,7 @@ interface MCPUIResourceRendererProps {
   onPrompt?: (prompt: string) => Promise<void>;
   onNavigate?: (url: string) => void;
   onIntent?: (intent: string, params: Record<string, unknown>) => Promise<void>;
+  append?: (value: string) => void; // Function to append messages to the chat
 }
 
 // More specific result types using discriminated unions
@@ -75,6 +76,7 @@ export default function MCPUIResourceRenderer({
   onPrompt,
   onNavigate,
   onIntent,
+  append,
 }: MCPUIResourceRendererProps) {
   // Separate handlers for each action type for better type safety
   const handleToolAction = useCallback(
@@ -121,35 +123,61 @@ export default function MCPUIResourceRenderer({
 
   const handlePromptAction = useCallback(
     async (prompt: string): Promise<UIActionHandlerResult<void>> => {
-      if (!onPrompt) {
+      const handlePromptSuccess = (message: string) => {
+        window.dispatchEvent(new CustomEvent('scroll-chat-to-bottom'));
         return {
-          status: 'error',
-          error: {
-            code: UIActionErrorCode.UNSUPPORTED_ACTION,
-            message: 'Prompt handling is not yet implemented',
-            details: { prompt },
-          },
+          status: 'success' as const,
+          message,
         };
+      };
+
+      const handlePromptError = (message: string, details: unknown) => ({
+        status: 'error' as const,
+        error: {
+          code: UIActionErrorCode.PROMPT_FAILED,
+          message,
+          details,
+        },
+      });
+
+      // If onPrompt is provided, use it
+      if (onPrompt) {
+        try {
+          await onPrompt(prompt);
+          return handlePromptSuccess('Prompt sent successfully');
+        } catch (error) {
+          return handlePromptError(
+            'Failed to send prompt',
+            error instanceof Error ? error.message : error
+          );
+        }
       }
 
-      try {
-        await onPrompt(prompt);
-        return {
-          status: 'success',
-          message: 'Prompt sent successfully',
-        };
-      } catch (error) {
-        return {
-          status: 'error',
-          error: {
-            code: UIActionErrorCode.PROMPT_FAILED,
-            message: 'Failed to send prompt',
-            details: error instanceof Error ? error.message : error,
-          },
-        };
+      // Fallback to append if available
+      if (append) {
+        try {
+          append(prompt);
+          return handlePromptSuccess('Prompt sent to chat successfully');
+        } catch (error) {
+          return handlePromptError(
+            'Failed to send prompt to chat',
+            error instanceof Error ? error.message : error
+          );
+        }
       }
+
+      // No prompt handler available
+      return {
+        status: 'error',
+        error: {
+          code: UIActionErrorCode.UNSUPPORTED_ACTION,
+          message:
+            'Prompt handling is not implemented - either onPrompt or append prop is required',
+          details: { prompt },
+        },
+      };
     },
-    [onPrompt]
+    [onPrompt, append]
   );
 
   const handleLinkAction = useCallback(
