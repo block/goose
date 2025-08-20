@@ -404,7 +404,7 @@ export default function ChatInput({
   const loadAutoCompactThreshold = useCallback(async () => {
     try {
       const secretKey = await window.electron.getSecretKey();
-      const response = await fetch(getApiUrl('/config/auto-compact-threshold'), {
+      const response = await fetch(getApiUrl('/config?key=GOOSE_AUTO_COMPACT_THRESHOLD'), {
         headers: {
           'X-Secret-Key': secretKey,
         },
@@ -412,9 +412,9 @@ export default function ChatInput({
       if (response.ok) {
         const data = await response.json();
         console.log('Loaded auto-compact threshold from config:', data);
-        if (data.threshold !== undefined) {
-          setAutoCompactThreshold(data.threshold);
-          console.log('Set auto-compact threshold to:', data.threshold);
+        if (data.value !== undefined && data.value !== null) {
+          setAutoCompactThreshold(data.value);
+          console.log('Set auto-compact threshold to:', data.value);
         }
       } else {
         console.error('Failed to fetch auto-compact threshold, status:', response.status);
