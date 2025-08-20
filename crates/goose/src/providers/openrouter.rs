@@ -248,7 +248,6 @@ impl Provider for OpenRouterProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        // Create a temporary model config with the specified model
         let mut model_config = self.model.clone();
         model_config.model_name = model.to_string();
 

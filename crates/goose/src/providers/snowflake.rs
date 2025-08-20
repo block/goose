@@ -309,7 +309,6 @@ impl Provider for SnowflakeProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        // Create a temporary model config with the specified model
 
         let mut model_config = self.model.clone();
 

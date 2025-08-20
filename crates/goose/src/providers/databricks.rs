@@ -248,7 +248,6 @@ impl Provider for DatabricksProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        // Create a temporary model config with the specified model
         let mut model_config = self.model.clone();
         model_config.model_name = model.to_string();
 
@@ -278,7 +277,6 @@ impl Provider for DatabricksProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        // Create a temporary model config with the specified model
         let model_config = self.model.clone();
 
         let mut payload =
