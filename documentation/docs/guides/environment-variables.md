@@ -236,8 +236,6 @@ export GOOSE_EDITOR_HOST="http://localhost:8000/v1"
 export GOOSE_EDITOR_MODEL="your-model"
 ```
 
-
-
 ## Security Configuration
 
 These variables control security related features.
@@ -254,7 +252,6 @@ When the keyring is disabled, secrets are stored here:
 * Windows: `%APPDATA%\Block\goose\config\secrets.yaml`
 :::
 
-
 ## Langfuse Integration
 
 These variables configure the [Langfuse integration for observability](/docs/tutorials/langfuse).
@@ -267,15 +264,13 @@ These variables configure the [Langfuse integration for observability](/docs/tut
 | `LANGFUSE_INIT_PROJECT_PUBLIC_KEY` | Alternative public key for Langfuse | String | None |
 | `LANGFUSE_INIT_PROJECT_SECRET_KEY` | Alternative secret key for Langfuse | String | None |
 
-## Desktop in Airgapped Environments with MCP servers
+## Running the Desktop app in Airgapped Environments with MCP servers
 
-When running in airgapped environments, you will not want hermit to pull down the runtime environments for MCP servers, set: 
+When running in airgapped environments, you will not want Hermit to pull down the runtime environments that MCP servers will typically need.
+Goose by default will use "shims" for npx and uvx which are packaged with the application which take care of thus for you behind the scenes. 
+If you do not wish to use these, you can create alternatively named versions of npx/uvx on your system, and if your MCP configuration uses them (eg call it `runuv`) it will pypass the shims and Hermit. 
 
-`GOOSE_NOHERMIT=true`
-
-And it will then use whatever you have on the path/system for uvx and npx, as specified in the mcp configuration.
-
-There may be other challenges with parts of Goose in airgapped environemnts, it is recommended that you consider packaging your own Desktop distribution for your users in that case, which can be tailored (eg for proxies and pre-made configurations).
+There may be other challenges with parts of Goose in airgapped environemnts, it is recommended that you consider packaging your own Desktop distribution for your users in that case, which can be tailored (eg for proxies and pre-made configurations for performance and security).
 
 
 ## Experimental Features
