@@ -172,12 +172,18 @@ const isSchedulerSession = (session: Session): boolean => {
     return true;
   }
   
-  // Secondary check: timestamp-only descriptions (scheduler often generates these)
-  // This catches scheduler sessions that have null schedule_id due to bugs
-  const description = session.metadata.description || '';
+  const description = session.metadata.description;
   
+  // Secondary check: empty descriptions (scheduler often doesn't set meaningful descriptions)
+  // This catches automated/scheduled sessions that lack user-provided names
+  if (!description || description.trim() === '') {
+    console.log(`Identified scheduler session by empty description: "${session.id}"`);
+    return true;
+  }
+  
+  // Tertiary check: timestamp-only descriptions (scheduler often generates these)
+  // This catches scheduler sessions that have null schedule_id due to bugs
   // Check if session ID matches description exactly and both follow timestamp format
-  // This is a reliable pattern for scheduler-generated sessions
   if (description === session.id && /^\d{8}_\d{6}$/.test(session.id)) {
     console.log(`Identified scheduler session by timestamp pattern: "${session.id}"`);
     return true;
