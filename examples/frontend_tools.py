@@ -117,6 +117,7 @@ def execute_calculator(args: Dict[str, Any]) -> List[Dict[str, Any]]:
             }
         ]
 
+
 def get_tools() -> Dict[str, Any]:
     with httpx.Client() as client:
         response = client.get(
@@ -154,17 +155,21 @@ def execute_enable_extension(args: Dict[str, Any]) -> List[Dict[str, Any]]:
         )
         if add_response.status_code != 200:
             error_text = add_response.text
-            return [{
-                "type": "text",
-                "text": f"Error: Failed to enable extension: {error_text}",
-                "annotations": None,
-            }]
+            return [
+                {
+                    "type": "text",
+                    "text": f"Error: Failed to enable extension: {error_text}",
+                    "annotations": None,
+                }
+            ]
 
-    return [{
-        "type": "text",
-        "text": f"Successfully enabled extension: {extension_name}",
-        "annotations": None,
-    }]
+    return [
+        {
+            "type": "text",
+            "text": f"Successfully enabled extension: {extension_name}",
+            "annotations": None,
+        }
+    ]
 
 
 def submit_tool_result(tool_id: str, result: List[Dict[str, Any]]) -> None:
@@ -217,7 +222,7 @@ async def chat_loop() -> None:
         # Process the stream of responses
         async with client.stream(
             "POST",
-            f"{GOOSE_URL}/reply", # lock 
+            f"{GOOSE_URL}/reply",  # lock
             json=payload,
             headers={
                 "X-Secret-Key": SECRET_KEY,
@@ -252,24 +257,25 @@ async def chat_loop() -> None:
                         tool_call = content["toolCall"]["value"]
                         print(f"\nTool Request: {tool_call}")
 
-                        if tool_call['name'] == "calculator":
+                        if tool_call["name"] == "calculator":
                             print(f"Calculator: {tool_call}")
                             # Execute the tool
                             result = execute_calculator(tool_call["arguments"])
-                        elif tool_call['name'] == "enable_extension":
+                        elif tool_call["name"] == "enable_extension":
                             # to trigger this tool, use the instruction "use enable_extension tool with "fetch" extension name"
                             print(f"Enabling fetch extension")
-                            result = execute_enable_extension(args={
-                                "type": "stdio", 
-                                "name": "fetch",
-                                "cmd": "uvx",
-                                "args": ["mcp-server-fetch"],
-                                "timeout": 300, 
-                                "bundled": False
-                            })
+                            result = execute_enable_extension(
+                                args={
+                                    "type": "stdio",
+                                    "name": "fetch",
+                                    "cmd": "uvx",
+                                    "args": ["mcp-server-fetch"],
+                                    "timeout": 300,
+                                    "bundled": False,
+                                }
+                            )
                             listed_tools = get_tools()
                             print(f"\nTools after enabling extension: {listed_tools}")
-
 
                         # Submit the result
                         submit_tool_result(content["id"], result)
