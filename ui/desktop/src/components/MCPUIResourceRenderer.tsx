@@ -1,6 +1,13 @@
-import { UIResourceRenderer, UIActionResult } from '@mcp-ui/client';
+import {
+  UIResourceRenderer,
+  UIActionResult,
+  UIActionResultIntent,
+  UIActionResultLink,
+  UIActionResultNotification,
+  UIActionResultPrompt,
+  UIActionResultToolCall,
+} from '@mcp-ui/client';
 import { ResourceContent } from '../types/message';
-import { useCallback } from 'react';
 import { toast } from 'react-toastify';
 
 // TODOS
@@ -52,59 +59,41 @@ enum UIActionErrorCode {
   TIMEOUT = 'TIMEOUT',
 }
 
-// Specific result types for each action
-type ToolCallResult = {
-  toolName: string;
-  executionTime: number;
-  output: unknown;
-};
-
-type NotificationResult = {
-  notificationId?: string;
-  displayedAt: string;
-  message: string;
-};
-
 export default function MCPUIResourceRenderer({
   content,
   appendPromptToChat,
 }: MCPUIResourceRendererProps) {
-  // Separate handlers for each action type for better type safety
-  const handleToolAction = useCallback(
-    async (
-      toolName: string,
-      params: Record<string, unknown>
-    ): Promise<UIActionHandlerResult<ToolCallResult>> => {
+  const handleUIAction = async (actionEvent: UIActionResult): Promise<UIActionHandlerResult> => {
+    console.log('[MCP-UI] Action received:', actionEvent);
+
+    let result: UIActionHandlerResult;
+
+    const handleToolCase = (actionEvent: UIActionResultToolCall) => {
+      const { toolName, params } = actionEvent.payload;
       return {
-        status: 'error',
+        status: 'error' as const,
         error: {
           code: UIActionErrorCode.UNSUPPORTED_ACTION,
           message: 'Tool calls are not yet implemented',
           details: { toolName, params },
         },
       };
-    },
-    []
-  );
+    };
 
-  const handlePromptAction = useCallback(
-    async (prompt: string): Promise<UIActionHandlerResult<void>> => {
-      // Use append if available
+    const handlePromptCase = (actionEvent: UIActionResultPrompt) => {
+      const { prompt } = actionEvent.payload;
+
       if (appendPromptToChat) {
         try {
           appendPromptToChat(prompt);
-
-          // Dispatch a custom event to trigger scroll to bottom
-          // This ensures the chat scrolls down to show the new prompt
           window.dispatchEvent(new CustomEvent('scroll-chat-to-bottom'));
-
           return {
-            status: 'success',
+            status: 'success' as const,
             message: 'Prompt sent to chat successfully',
           };
         } catch (error) {
           return {
-            status: 'error',
+            status: 'error' as const,
             error: {
               code: UIActionErrorCode.PROMPT_FAILED,
               message: 'Failed to send prompt to chat',
@@ -114,30 +103,24 @@ export default function MCPUIResourceRenderer({
         }
       }
 
-      // No prompt handler available
       return {
-        status: 'error',
+        status: 'error' as const,
         error: {
           code: UIActionErrorCode.UNSUPPORTED_ACTION,
           message: 'Prompt handling is not implemented - append prop is required',
           details: { prompt },
         },
       };
-    },
-    [appendPromptToChat]
-  );
+    };
 
-  const handleLinkAction = useCallback(
-    async (url: string): Promise<UIActionHandlerResult<void>> => {
-      // Always use default implementation using Electron shell
+    const handleLinkCase = async (actionEvent: UIActionResultLink) => {
+      const { url } = actionEvent.payload;
+
       try {
-        // Validate URL before opening
         const urlObj = new URL(url);
-
-        // Only allow http/https protocols for security
         if (!['http:', 'https:'].includes(urlObj.protocol)) {
           return {
-            status: 'error',
+            status: 'error' as const,
             error: {
               code: UIActionErrorCode.NAVIGATION_FAILED,
               message: `Blocked potentially unsafe URL protocol: ${urlObj.protocol}`,
@@ -146,59 +129,51 @@ export default function MCPUIResourceRenderer({
           };
         }
 
-        // Use the exposed electron API for secure external URL opening
-        // This calls the main process via IPC, which then uses shell.openExternal()
         await window.electron.openExternal(url);
-
         return {
-          status: 'success',
+          status: 'success' as const,
           message: `Opened ${url} in default browser`,
         };
       } catch (error) {
-        // Handle different types of errors
         if (error instanceof TypeError && error.message.includes('Invalid URL')) {
           return {
-            status: 'error',
+            status: 'error' as const,
             error: {
               code: UIActionErrorCode.INVALID_PARAMS,
               message: `Invalid URL format: ${url}`,
               details: { url, error: error.message },
             },
           };
-        }
-
-        if (error instanceof Error && error.message.includes('Failed to open')) {
+        } else if (error instanceof Error && error.message.includes('Failed to open')) {
           return {
-            status: 'error',
+            status: 'error' as const,
             error: {
               code: UIActionErrorCode.NAVIGATION_FAILED,
               message: `Failed to open URL in default browser`,
               details: { url, error: error.message },
             },
           };
+        } else {
+          return {
+            status: 'error' as const,
+            error: {
+              code: UIActionErrorCode.NAVIGATION_FAILED,
+              message: `Unexpected error opening URL: ${url}`,
+              details: error instanceof Error ? error.message : error,
+            },
+          };
         }
-
-        return {
-          status: 'error',
-          error: {
-            code: UIActionErrorCode.NAVIGATION_FAILED,
-            message: `Unexpected error opening URL: ${url}`,
-            details: error instanceof Error ? error.message : error,
-          },
-        };
       }
-    },
-    []
-  );
+    };
 
-  const handleNotifyAction = useCallback(
-    (message: string): UIActionHandlerResult<NotificationResult> => {
+    const handleNotifyCase = (actionEvent: UIActionResultNotification) => {
+      const { message } = actionEvent.payload;
+
       try {
         const notificationId = `notify-${Date.now()}`;
         toast.info(message);
-
         return {
-          status: 'success',
+          status: 'success' as const,
           data: {
             notificationId,
             displayedAt: new Date().toISOString(),
@@ -207,7 +182,7 @@ export default function MCPUIResourceRenderer({
         };
       } catch (error) {
         return {
-          status: 'error',
+          status: 'error' as const,
           error: {
             code: UIActionErrorCode.UNKNOWN_ACTION,
             message: 'Failed to display notification',
@@ -215,101 +190,78 @@ export default function MCPUIResourceRenderer({
           },
         };
       }
-    },
-    []
-  );
+    };
 
-  const handleIntentAction = useCallback(
-    async (
-      intent: string,
-      params: Record<string, unknown>
-    ): Promise<UIActionHandlerResult<void>> => {
+    const handleIntentCase = (actionEvent: UIActionResultIntent) => {
+      const { intent, params } = actionEvent.payload;
+
       return {
-        status: 'error',
+        status: 'error' as const,
         error: {
           code: UIActionErrorCode.UNSUPPORTED_ACTION,
           message: 'Intent handling is not yet implemented',
           details: { intent, params },
         },
       };
-    },
-    []
-  );
+    };
 
-  // Main handler with exhaustive type checking
-  const handleUIAction = useCallback(
-    async (actionEvent: UIActionResult): Promise<UIActionHandlerResult> => {
-      console.log('[MCP-UI] Action received:', actionEvent);
+    try {
+      switch (actionEvent.type) {
+        case 'tool':
+          result = handleToolCase(actionEvent);
+          break;
 
-      let result: UIActionHandlerResult;
+        case 'prompt':
+          result = await handlePromptCase(actionEvent);
+          break;
 
-      try {
-        switch (actionEvent.type) {
-          case 'tool':
-            result = await handleToolAction(
-              actionEvent.payload.toolName,
-              actionEvent.payload.params
-            );
-            break;
+        case 'link':
+          result = await handleLinkCase(actionEvent);
+          break;
 
-          case 'prompt':
-            result = await handlePromptAction(actionEvent.payload.prompt);
-            break;
+        case 'notify':
+          result = handleNotifyCase(actionEvent);
+          break;
 
-          case 'link':
-            result = await handleLinkAction(actionEvent.payload.url);
-            break;
+        case 'intent':
+          result = handleIntentCase(actionEvent);
+          break;
 
-          case 'notify':
-            result = handleNotifyAction(actionEvent.payload.message);
-            break;
-
-          case 'intent':
-            result = await handleIntentAction(
-              actionEvent.payload.intent,
-              actionEvent.payload.params
-            );
-            break;
-
-          default: {
-            // TypeScript exhaustiveness check
-            const _exhaustiveCheck: never = actionEvent;
-            console.error('Unhandled action type:', _exhaustiveCheck);
-            result = {
-              status: 'error',
-              error: {
-                code: UIActionErrorCode.UNKNOWN_ACTION,
-                message: `Unknown action type`,
-                details: actionEvent,
-              },
-            };
-          }
+        default: {
+          // TypeScript exhaustiveness check
+          const _exhaustiveCheck: never = actionEvent;
+          console.error('Unhandled action type:', _exhaustiveCheck);
+          result = {
+            status: 'error',
+            error: {
+              code: UIActionErrorCode.UNKNOWN_ACTION,
+              message: `Unknown action type`,
+              details: actionEvent,
+            },
+          };
         }
-      } catch (error) {
-        console.error('[MCP-UI] Unexpected error:', error);
-        result = {
-          status: 'error',
-          error: {
-            code: UIActionErrorCode.UNKNOWN_ACTION,
-            message: 'An unexpected error occurred',
-            details: error instanceof Error ? error.stack : error,
-          },
-        };
       }
+    } catch (error) {
+      console.error('[MCP-UI] Unexpected error:', error);
+      result = {
+        status: 'error',
+        error: {
+          code: UIActionErrorCode.UNKNOWN_ACTION,
+          message: 'An unexpected error occurred',
+          details: error instanceof Error ? error.stack : error,
+        },
+      };
+    }
 
-      // Log result with appropriate level
-      if (result.status === 'error') {
-        console.error('[MCP-UI] Action failed:', result);
-      } else if (result.status === 'pending') {
-        console.info('[MCP-UI] Action pending:', result);
-      } else {
-        console.log('[MCP-UI] Action succeeded:', result);
-      }
+    // Log result with appropriate level
+    if (result.status === 'error') {
+      console.error('[MCP-UI] Action failed:', result);
+    } else {
+      console.log('[MCP-UI] Action succeeded:', result);
+    }
 
-      return result;
-    },
-    [handleToolAction, handlePromptAction, handleLinkAction, handleNotifyAction, handleIntentAction]
-  );
+    return result;
+  };
 
   return (
     <div className="mt-3 p-4 border border-borderSubtle rounded-lg bg-background-muted">
