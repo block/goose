@@ -28,6 +28,8 @@ use crate::providers::base::MessageStream;
 use crate::providers::formats::openai::response_to_streaming_message;
 use rmcp::model::Tool;
 
+const OPEN_AI_FAST_MODEL: &str = "gpt-4o-mini";
+
 pub const OPEN_AI_DEFAULT_MODEL: &str = "gpt-4o";
 pub const OPEN_AI_KNOWN_MODELS: &[(&str, usize)] = &[
     ("gpt-4o", 128_000),
@@ -160,6 +162,31 @@ impl OpenAiProvider {
             .await?;
         handle_response_openai_compat(response).await
     }
+
+    // Core completion logic that takes a model config
+    async fn complete_with_model(
+        &self,
+        model_config: &ModelConfig,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<(Message, ProviderUsage), ProviderError> {
+        let payload = create_request(model_config, system, messages, tools, &ImageFormat::OpenAi)?;
+
+        let json_response = self.post(&payload).await?;
+
+        let message = response_to_message(&json_response)?;
+        let usage = json_response
+            .get("usage")
+            .map(get_usage)
+            .unwrap_or_else(|| {
+                tracing::debug!("Failed to get usage data");
+                Usage::default()
+            });
+        let model = get_model(&json_response);
+        emit_debug_trace(model_config, &payload, &json_response, &usage);
+        Ok((message, ProviderUsage::new(model, usage)))
+    }
 }
 
 #[async_trait]
@@ -202,21 +229,23 @@ impl Provider for OpenAiProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi)?;
+        // Thin wrapper that calls complete_with_model with the configured model
+        self.complete_with_model(&self.model, system, messages, tools)
+            .await
+    }
 
-        let json_response = self.post(&payload).await?;
+    async fn complete_fast(
+        &self,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<(Message, ProviderUsage), ProviderError> {
+        // Use the fast model (gpt-4o-mini) for fast completions
+        let mut fast_config = self.model.clone();
+        fast_config.model_name = OPEN_AI_FAST_MODEL.to_string();
 
-        let message = response_to_message(&json_response)?;
-        let usage = json_response
-            .get("usage")
-            .map(get_usage)
-            .unwrap_or_else(|| {
-                tracing::debug!("Failed to get usage data");
-                Usage::default()
-            });
-        let model = get_model(&json_response);
-        emit_debug_trace(&self.model, &payload, &json_response, &usage);
-        Ok((message, ProviderUsage::new(model, usage)))
+        self.complete_with_model(&fast_config, system, messages, tools)
+            .await
     }
 
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {

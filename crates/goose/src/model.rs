@@ -102,6 +102,7 @@ impl ModelConfig {
             max_tokens: None,
             toolshim,
             toolshim_model,
+            fast_model: None,
         })
     }
 
