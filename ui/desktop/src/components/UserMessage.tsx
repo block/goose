@@ -34,7 +34,7 @@ export default function UserMessage({ message }: UserMessageProps) {
     <div className="message flex justify-end mt-[16px] w-full opacity-0 animate-[appear_150ms_ease-in_forwards] bg-transparent">
       <div className="flex-col max-w-[85%] w-fit bg-transparent">
         <div className="flex flex-col group">
-          <div className="flex bg-transparent text-text-on-accent rounded-xl py-2.5 px-4">
+          <div className="flex bg-background-accent text-text-on-accent rounded-xl py-2.5 px-4">
             <div ref={contentRef}>
               <MarkdownContent
                 content={displayText}
