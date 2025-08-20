@@ -200,25 +200,27 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
 
   if (showFirstTimeSetup) {
     return (
-      <div className="min-h-screen w-full flex flex-col items-center justify-center p-4 bg-background-default">
-        <div className="max-w-lg w-full mx-auto p-8">
-          {/* Header section - same width as buttons, left aligned */}
-          <div className="text-left mb-8 sm:mb-12">
-            <div className="space-y-3 sm:space-y-4">
-              <div className="origin-bottom-left goose-icon-animation">
-                <Goose className="size-6 sm:size-8" />
+      <div className="h-screen w-full bg-background-default overflow-hidden">
+        <div className="h-full overflow-y-auto">
+          <div className="min-h-full flex flex-col items-center justify-center p-4 py-8">
+            <div className="max-w-lg w-full mx-auto p-8">
+              {/* Header section - same width as buttons, left aligned */}
+              <div className="text-left mb-8 sm:mb-12">
+                <div className="space-y-3 sm:space-y-4">
+                  <div className="origin-bottom-left goose-icon-animation">
+                    <Goose className="size-6 sm:size-8" />
+                  </div>
+                  <h1 className="text-2xl sm:text-4xl font-light text-left">
+                    Welcome to Goose
+                  </h1>
+                </div>
+                <p className="text-text-muted text-base sm:text-lg mt-4 sm:mt-6">
+                  Since it's your first time here, let's get your set you with a provider so we can make incredible work together.
+                </p>
               </div>
-              <h1 className="text-2xl sm:text-4xl font-light text-left">
-                Welcome to Goose
-              </h1>
-            </div>
-            <p className="text-text-muted text-base sm:text-lg mt-4 sm:mt-6">
-              Since it's your first time here, let's get your set you with a provider so we can make incredible work together.
-            </p>
-          </div>
 
-          {/* Setup options - same width container */}
-          <div className="space-y-3 sm:space-y-4">
+              {/* Setup options - same width container */}
+              <div className="space-y-3 sm:space-y-4">
             {/* Primary OpenRouter Card with subtle shimmer - wrapped for badge positioning */}
             <div className="relative">
               {/* Recommended badge - positioned relative to wrapper */}
@@ -313,6 +315,8 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
               </p>
             </div>
 
+              </div>
+            </div>
           </div>
         </div>
       </div>
