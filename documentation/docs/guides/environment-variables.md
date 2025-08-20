@@ -264,15 +264,6 @@ These variables configure the [Langfuse integration for observability](/docs/tut
 | `LANGFUSE_INIT_PROJECT_PUBLIC_KEY` | Alternative public key for Langfuse | String | None |
 | `LANGFUSE_INIT_PROJECT_SECRET_KEY` | Alternative secret key for Langfuse | String | None |
 
-## Running the Desktop app in Airgapped Environments with MCP servers
-
-When running in airgapped environments, you will not want Hermit to pull down the runtime environments that MCP servers will typically need.
-Goose by default will use "shims" for npx and uvx which are packaged with the application which take care of this for you behind the scenes. 
-If you do not wish to use these, you can create alternatively named versions of npx/uvx on your system, and if your MCP configuration uses them (eg call it `runuv`) it will pypass the shims and Hermit. 
-
-There may be other challenges with parts of Goose in airgapped environemnts, it is recommended that you consider packaging your own Desktop distribution for your users in that case, which can be tailored (eg for proxies and pre-made configurations for performance and security).
-
-
 ## Experimental Features
 
 These variables enable experimental features that are in active development. These may change or be removed in future releases. Use with caution in production environments.
