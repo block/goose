@@ -68,7 +68,9 @@ export default function MCPUIResourceRenderer({
 
     let result: UIActionHandlerResult;
 
-    const handleToolCase = (actionEvent: UIActionResultToolCall) => {
+    const handleToolCase = async (
+      actionEvent: UIActionResultToolCall
+    ): Promise<UIActionHandlerResult> => {
       const { toolName, params } = actionEvent.payload;
       return {
         status: 'error' as const,
@@ -80,7 +82,9 @@ export default function MCPUIResourceRenderer({
       };
     };
 
-    const handlePromptCase = (actionEvent: UIActionResultPrompt) => {
+    const handlePromptCase = async (
+      actionEvent: UIActionResultPrompt
+    ): Promise<UIActionHandlerResult> => {
       const { prompt } = actionEvent.payload;
 
       if (appendPromptToChat) {
@@ -166,7 +170,9 @@ export default function MCPUIResourceRenderer({
       }
     };
 
-    const handleNotifyCase = (actionEvent: UIActionResultNotification) => {
+    const handleNotifyCase = async (
+      actionEvent: UIActionResultNotification
+    ): Promise<UIActionHandlerResult> => {
       const { message } = actionEvent.payload;
 
       try {
@@ -192,7 +198,9 @@ export default function MCPUIResourceRenderer({
       }
     };
 
-    const handleIntentCase = (actionEvent: UIActionResultIntent) => {
+    const handleIntentCase = async (
+      actionEvent: UIActionResultIntent
+    ): Promise<UIActionHandlerResult> => {
       const { intent, params } = actionEvent.payload;
 
       return {
@@ -208,7 +216,7 @@ export default function MCPUIResourceRenderer({
     try {
       switch (actionEvent.type) {
         case 'tool':
-          result = handleToolCase(actionEvent);
+          result = await handleToolCase(actionEvent);
           break;
 
         case 'prompt':
@@ -220,11 +228,11 @@ export default function MCPUIResourceRenderer({
           break;
 
         case 'notify':
-          result = handleNotifyCase(actionEvent);
+          result = await handleNotifyCase(actionEvent);
           break;
 
         case 'intent':
-          result = handleIntentCase(actionEvent);
+          result = await handleIntentCase(actionEvent);
           break;
 
         default: {
