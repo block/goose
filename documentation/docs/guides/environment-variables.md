@@ -134,7 +134,7 @@ export GOOSE_MAX_TURNS=25
 export GOOSE_MAX_TURNS=100
 
 # Use multiple context files
-export CONTEXT_FILE_NAMES='["CLAUDE.md", ".goosehints", "project_rules.txt"]'
+export CONTEXT_FILE_NAMES='["CLAUDE.md", ".goosehints", ".cursorrules", "project_rules.txt"]'
 
 # Set the ANSI theme for the session
 export GOOSE_CLI_THEME=ansi
