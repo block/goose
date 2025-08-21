@@ -17,7 +17,8 @@ use super::embedding::{EmbeddingCapable, EmbeddingRequest, EmbeddingResponse};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
 use super::utils::{
-    emit_debug_trace, handle_response_openai_compat, handle_status_openai_compat, ImageFormat,
+    emit_debug_trace, get_model, handle_response_openai_compat, handle_status_openai_compat,
+    ImageFormat,
 };
 use crate::config::custom_providers::CustomProviderConfig;
 use crate::conversation::message::Message;
@@ -217,11 +218,9 @@ impl Provider for OpenAiProvider {
                 tracing::debug!("Failed to get usage data");
                 Usage::default()
             });
-        emit_debug_trace(model_config, &payload, &json_response, &usage);
-        Ok((
-            message,
-            ProviderUsage::new(model_config.model_name.clone(), usage),
-        ))
+        let model = get_model(&json_response);
+        emit_debug_trace(&self.model, &payload, &json_response, &usage);
+        Ok((message, ProviderUsage::new(model, usage)))
     }
 
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
