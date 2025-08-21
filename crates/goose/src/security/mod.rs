@@ -113,7 +113,10 @@ impl SecurityManager {
                     .analyze_tool_call_with_context(tool_call, messages)
                     .await?;
 
-                if analysis_result.is_malicious {
+                // Get threshold from config - only flag things above threshold
+                let config_threshold = scanner.get_threshold_from_config();
+                
+                if analysis_result.is_malicious && analysis_result.confidence > config_threshold {
                     // Generate a unique finding ID for this security detection
                     let finding_id = format!(
                         "SEC-{}",
@@ -125,19 +128,25 @@ impl SecurityManager {
                         confidence = analysis_result.confidence,
                         explanation = %analysis_result.explanation,
                         finding_id = %finding_id,
-                        "🔒 Tool call flagged as malicious after security analysis"
+                        threshold = config_threshold,
+                        "🔒 Tool call flagged as malicious after security analysis (above threshold)"
                     );
-
-                    // Get threshold from config - if confidence > threshold, ask user
-                    let config_threshold = scanner.get_threshold_from_config();
 
                     results.push(SecurityResult {
                         is_malicious: analysis_result.is_malicious,
                         confidence: analysis_result.confidence,
                         explanation: analysis_result.explanation,
-                        should_ask_user: analysis_result.confidence > config_threshold,
+                        should_ask_user: true, // Always ask user for threats above threshold
                         finding_id,
                     });
+                } else if analysis_result.is_malicious {
+                    tracing::warn!(
+                        tool_name = %tool_call.name,
+                        confidence = analysis_result.confidence,
+                        explanation = %analysis_result.explanation,
+                        threshold = config_threshold,
+                        "🔒 Security finding below threshold - logged but not blocking execution"
+                    );
                 } else {
                     tracing::debug!(
                         tool_name = %tool_call.name,

@@ -1357,7 +1357,7 @@ impl Agent {
                     .retain(|req| req.id != *request_id);
 
                 if security_result.should_ask_user {
-                    // Move to needs_approval with security context
+                    // Confidence above threshold - ask user for approval
                     if let Some(request) = all_requests.get(request_id) {
                         // Only add if not already in needs_approval
                         if !permission_result
@@ -1368,23 +1368,10 @@ impl Agent {
                             permission_result.needs_approval.push(request.clone());
                         }
                     }
-                } else {
-                    // High confidence threat - move to denied
-                    permission_result
-                        .needs_approval
-                        .retain(|req| req.id != *request_id);
-
-                    if let Some(request) = all_requests.get(request_id) {
-                        // Only add if not already in denied
-                        if !permission_result
-                            .denied
-                            .iter()
-                            .any(|req| req.id == *request_id)
-                        {
-                            permission_result.denied.push(request.clone());
-                        }
-                    }
                 }
+                // Note: If should_ask_user is false (confidence below threshold), 
+                // we don't move the tool anywhere - it stays in its current category
+                // (approved or needs_approval) and processes normally
             }
         }
 

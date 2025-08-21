@@ -63,8 +63,16 @@ impl Agent {
                     let security_message = if let Some(security_result) = security_results.get(i) {
                         if security_result.is_malicious {
                             Some(format!(
-                                "🔒 Security Alert: This tool call has been flagged as potentially dangerous. Confidence: {:.1}%",
-                                security_result.confidence * 100.0
+                                "🔒 Security Alert: This tool call has been flagged as potentially dangerous.\n\
+                                Confidence: {:.1}%\n\
+                                Explanation: {}\n\
+                                \n\
+                                Command: {} with arguments:\n{}",
+                                security_result.confidence * 100.0,
+                                security_result.explanation,
+                                tool_call.name,
+                                serde_json::to_string_pretty(&tool_call.arguments)
+                                    .unwrap_or_else(|_| "<<invalid json>>".to_string())
                             ))
                         } else {
                             None
