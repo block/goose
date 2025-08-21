@@ -392,7 +392,7 @@ impl Provider for VeniceProvider {
 
         // Build Venice-specific payload
         let mut payload = json!({
-            "model": strip_flags(&self.model.model_name),
+            "model": strip_flags(&model_config.model_name),
             "messages": formatted_messages,
             "stream": false,
             "temperature": 0.7,
@@ -471,7 +471,7 @@ impl Provider for VeniceProvider {
                 return Ok((
                     message,
                     ProviderUsage::new(
-                        strip_flags(&self.model.model_name).to_string(),
+                        strip_flags(&model_config.model_name).to_string(),
                         Usage::default(),
                     ),
                 ));

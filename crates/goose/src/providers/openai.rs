@@ -17,7 +17,7 @@ use super::embedding::{EmbeddingCapable, EmbeddingRequest, EmbeddingResponse};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
 use super::utils::{
-    emit_debug_trace, get_model, handle_response_openai_compat, handle_status_openai_compat,
+    emit_debug_trace, handle_response_openai_compat, handle_status_openai_compat,
     ImageFormat,
 };
 use crate::config::custom_providers::CustomProviderConfig;

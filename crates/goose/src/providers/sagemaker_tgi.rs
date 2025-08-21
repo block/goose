@@ -290,7 +290,7 @@ impl Provider for SageMakerTgiProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let model_name = &self.model.model_name;
+        let model_name = &model_config.model_name;
 
         let request_payload = self.create_tgi_request(system, messages).map_err(|e| {
             ProviderError::RequestFailed(format!("Failed to create request: {}", e))
