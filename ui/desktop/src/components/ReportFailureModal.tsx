@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { Card, CardContent } from './ui/card';
-import { AlertCircle, CheckCircle, ExternalLink, Loader2 } from 'lucide-react';
+import { AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 import Modal from './Modal';
 import { getApiUrl, getSecretKey } from '../config';
 
@@ -26,7 +26,6 @@ export default function ReportFailureModal({ isOpen, onClose }: ReportFailureMod
   const [recentErrors, setRecentErrors] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
-  const [issueUrl, setIssueUrl] = useState('');
 
   const getExtensionCount = async (): Promise<number> => {
     try {
@@ -136,9 +135,35 @@ export default function ReportFailureModal({ isOpen, onClose }: ReportFailureMod
       // Reset form state
       setDescription('');
       setSubmitStatus('idle');
-      setIssueUrl('');
     }
   }, [isOpen, collectSystemInfo, collectRecentErrors]);
+
+  const formatGitHubIssueBody = () => {
+    if (!systemInfo) return '';
+
+    return `**Describe the bug**
+
+${description}
+
+**Please provide following information:**
+- **OS & Arch:** ${systemInfo.platform} ${systemInfo.architecture}
+- **Interface:** UI (Desktop App)
+- **Version:** ${systemInfo.gooseVersion}
+- **Provider & Model:** ${systemInfo.providerType || 'Unknown'}
+- **Extensions:** ${systemInfo.extensionCount} installed
+
+**Recent Errors/Logs:**
+\`\`\`
+${recentErrors.join('\n')}
+\`\`\`
+
+**Additional context**
+- **Timestamp:** ${new Date().toISOString()}
+- **Reported via:** Goose Desktop App automated failure reporting
+
+---
+*This issue was created via the "Report a Failure" feature.*`;
+  };
 
   const handleSubmit = async () => {
     if (!description.trim()) {
@@ -150,7 +175,7 @@ export default function ReportFailureModal({ isOpen, onClose }: ReportFailureMod
     setSubmitStatus('idle');
 
     try {
-      // Prepare the issue data
+      // Prepare the issue data for local logging
       const issueData = {
         title: `[FAILURE REPORT] ${description.substring(0, 60)}${description.length > 60 ? '...' : ''}`,
         description,
@@ -159,6 +184,7 @@ export default function ReportFailureModal({ isOpen, onClose }: ReportFailureMod
         timestamp: new Date().toISOString(),
       };
 
+      // Log the report locally via our API
       const apiUrl = getApiUrl('/report-failure');
       const secretKey = getSecretKey();
 
@@ -170,19 +196,25 @@ export default function ReportFailureModal({ isOpen, onClose }: ReportFailureMod
         headers['X-Secret-Key'] = secretKey;
       }
 
-      const response = await fetch(apiUrl, {
+      await fetch(apiUrl, {
         method: 'POST',
         headers,
         body: JSON.stringify(issueData),
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        setIssueUrl(result.issueUrl);
-        setSubmitStatus('success');
-      } else {
-        setSubmitStatus('error');
-      }
+      // Construct GitHub issue URL
+      const issueTitle = encodeURIComponent(
+        `[FAILURE REPORT] ${description.substring(0, 60)}${description.length > 60 ? '...' : ''}`
+      );
+      const issueBody = encodeURIComponent(formatGitHubIssueBody());
+      const labels = encodeURIComponent('bug,needs-triage,failure-report');
+
+      const githubUrl = `https://github.com/block/goose/issues/new?title=${issueTitle}&body=${issueBody}&labels=${labels}`;
+
+      // Open GitHub in system browser
+      window.electron?.openUrl?.(githubUrl) || window.open(githubUrl, '_blank');
+
+      setSubmitStatus('success');
     } catch (error) {
       console.error('Failed to submit failure report:', error);
       setSubmitStatus('error');
@@ -216,18 +248,9 @@ export default function ReportFailureModal({ isOpen, onClose }: ReportFailureMod
             <div>
               <h3 className="text-lg font-medium mb-2">Report Submitted Successfully!</h3>
               <p className="text-sm text-text-muted mb-4">
-                Thank you for helping us improve Goose. Your report has been submitted.
+                Your report has been logged and GitHub has opened in your browser to create an
+                issue. Please complete the issue creation to help us improve Goose!
               </p>
-              {issueUrl && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => window.open(issueUrl, '_blank')}
-                  className="flex items-center gap-2"
-                >
-                  View Issue <ExternalLink size={14} />
-                </Button>
-              )}
             </div>
           </div>
         ) : (
