@@ -54,9 +54,9 @@
     "id": "blender-mcp",
     "name": "Blender",
     "description": "3D modeling and animation integration",
-    "command": "npx -y blender-mcp",
+    "command": "uvx blender-mcp",
     "link": "https://github.com/ahujasid/blender-mcp",
-    "installation_notes": "Install using npx package manager.",
+    "installation_notes": "Install using uvx package manager.",
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": []
