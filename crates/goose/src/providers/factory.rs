@@ -164,6 +164,7 @@ fn create_worker_model_config(default_model: &ModelConfig) -> Result<ModelConfig
         if let Ok(limit) = limit_str.parse::<usize>() {
             worker_config = worker_config.with_context_limit(Some(limit));
         }
+    }
 
     Ok(worker_config)
 }
