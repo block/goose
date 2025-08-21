@@ -786,7 +786,7 @@ impl ExtensionManager {
             client_guard
                 .call_tool(&tool_name, arguments, cancellation_token)
                 .await
-                .map(|call| call.content.unwrap_or_default())
+                .map(|call| call.content)
                 .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))
         };
 
@@ -1046,7 +1046,7 @@ mod tests {
         ) -> Result<CallToolResult, Error> {
             match name {
                 "tool" | "test__tool" | "available_tool" | "hidden_tool" => Ok(CallToolResult {
-                    content: Some(vec![]),
+                    content: vec![],
                     is_error: None,
                     structured_content: None,
                 }),

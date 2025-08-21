@@ -73,6 +73,11 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
                 "Sign in with OpenRouter to automatically configure models",
             )
             .item(
+                "tetrate",
+                "Tetrate Agent Router Service Login",
+                "Sign in with Tetrate Agent Router Service to automatically configure models",
+            )
+            .item(
                 "manual",
                 "Manual Configuration",
                 "Choose a provider and enter credentials manually",
@@ -89,6 +94,21 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
                         let _ = config.clear();
                         println!(
                             "\n  {} OpenRouter authentication failed: {} \n  Please try again or use manual configuration",
+                            style("Error").red().italic(),
+                            e,
+                        );
+                    }
+                }
+            }
+            "tetrate" => {
+                match handle_tetrate_auth().await {
+                    Ok(_) => {
+                        // Tetrate auth already handles everything including enabling developer extension
+                    }
+                    Err(e) => {
+                        let _ = config.clear();
+                        println!(
+                            "\n  {} Tetrate Agent Router Service authentication failed: {} \n  Please try again or use manual configuration",
                             style("Error").red().italic(),
                             e,
                         );
@@ -1748,6 +1768,109 @@ pub async fn handle_openrouter_auth() -> Result<(), Box<dyn Error>> {
                             }
 
                             cliclack::outro("OpenRouter setup complete! You can now use Goose.")?;
+                        }
+                        Err(e) => {
+                            eprintln!("⚠️  Configuration test failed: {}", e);
+                            eprintln!("Your settings have been saved, but there may be an issue with the connection.");
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("⚠️  Failed to create provider for testing: {}", e);
+                    eprintln!("Your settings have been saved. Please check your configuration.");
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("Authentication failed: {}", e);
+            return Err(e.into());
+        }
+    }
+
+    Ok(())
+}
+
+/// Handle Tetrate Agent Router Service authentication
+pub async fn handle_tetrate_auth() -> Result<(), Box<dyn Error>> {
+    use goose::config::{configure_tetrate, signup_tetrate::TetrateAuth};
+    use goose::conversation::message::Message;
+    use goose::providers::create;
+
+    // Use the Tetrate Agent Router Service authentication flow
+    let mut auth_flow = TetrateAuth::new()?;
+    match auth_flow.complete_flow().await {
+        Ok(api_key) => {
+            println!("\nAuthentication complete!");
+
+            let config = Config::global();
+
+            // Use the existing configure_tetrate function to set everything up
+            println!("\nConfiguring Tetrate Agent Router Service...");
+            if let Err(e) = configure_tetrate(config, api_key) {
+                eprintln!("Failed to configure Tetrate Agent Router Service: {}", e);
+                return Err(e.into());
+            }
+
+            println!("✓ Tetrate Agent Router Service configuration complete");
+            println!("✓ Models configured successfully");
+
+            // Test configuration - get the model that was configured
+            println!("\nTesting configuration...");
+            let configured_model: String = config.get_param("GOOSE_MODEL")?;
+            let model_config = match goose::model::ModelConfig::new(&configured_model) {
+                Ok(config) => config,
+                Err(e) => {
+                    eprintln!("⚠️  Invalid model configuration: {}", e);
+                    eprintln!(
+                        "Your settings have been saved. Please check your model configuration."
+                    );
+                    return Ok(());
+                }
+            };
+
+            match create("tetrate", model_config) {
+                Ok(provider) => {
+                    // Simple test request
+                    let test_result = provider
+                        .complete(
+                            "You are Goose, an AI assistant.",
+                            &[Message::user().with_text("Say 'Configuration test successful!'")],
+                            &[],
+                        )
+                        .await;
+
+                    match test_result {
+                        Ok(_) => {
+                            println!("✓ Configuration test passed!");
+
+                            // Enable the developer extension by default if not already enabled
+                            let entries = ExtensionConfigManager::get_all()?;
+                            let has_developer = entries
+                                .iter()
+                                .any(|e| e.config.name() == "developer" && e.enabled);
+
+                            if !has_developer {
+                                match ExtensionConfigManager::set(ExtensionEntry {
+                                    enabled: true,
+                                    config: ExtensionConfig::Builtin {
+                                        name: "developer".to_string(),
+                                        display_name: Some(
+                                            goose::config::DEFAULT_DISPLAY_NAME.to_string(),
+                                        ),
+                                        timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+                                        bundled: Some(true),
+                                        description: None,
+                                        available_tools: Vec::new(),
+                                    },
+                                }) {
+                                    Ok(_) => println!("✓ Developer extension enabled"),
+                                    Err(e) => {
+                                        eprintln!("⚠️  Failed to enable developer extension: {}", e)
+                                    }
+                                }
+                            }
+
+                            cliclack::outro("Tetrate Agent Router Service setup complete! You can now use Goose.")?;
                         }
                         Err(e) => {
                             eprintln!("⚠️  Configuration test failed: {}", e);

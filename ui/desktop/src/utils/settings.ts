@@ -15,7 +15,6 @@ export interface Settings {
   showMenuBarIcon: boolean;
   showDockIcon: boolean;
   schedulingEngine: SchedulingEngine;
-  showQuitConfirmation: boolean;
   enableWakelock: boolean;
 }
 
@@ -30,7 +29,6 @@ const defaultSettings: Settings = {
   showMenuBarIcon: true,
   showDockIcon: true,
   schedulingEngine: 'builtin-cron',
-  showQuitConfirmation: true,
   enableWakelock: false,
 };
 
