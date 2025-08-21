@@ -197,17 +197,18 @@ impl DatabricksProvider {
         })
     }
 
-    fn get_endpoint_path(&self, is_embedding: bool) -> String {
+    fn get_endpoint_path(&self, model_name: &str, is_embedding: bool) -> String {
         if is_embedding {
             "serving-endpoints/text-embedding-3-small/invocations".to_string()
         } else {
-            format!("serving-endpoints/{}/invocations", self.model.model_name)
+            format!("serving-endpoints/{}/invocations", model_name)
         }
     }
 
-    async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
+    async fn post(&self, payload: Value, model_name: Option<&str>) -> Result<Value, ProviderError> {
         let is_embedding = payload.get("input").is_some() && payload.get("messages").is_none();
-        let path = self.get_endpoint_path(is_embedding);
+        let model_to_use = model_name.unwrap_or(&self.model.model_name);
+        let path = self.get_endpoint_path(model_to_use, is_embedding);
 
         let response = self.api_client.response_post(&path, &payload).await?;
         handle_response_openai_compat(response).await
@@ -257,7 +258,9 @@ impl Provider for DatabricksProvider {
             .expect("payload should have model key")
             .remove("model");
 
-        let response = self.with_retry(|| self.post(payload.clone())).await?;
+        let response = self
+            .with_retry(|| self.post(payload.clone(), Some(&model_config.model_name)))
+            .await?;
 
         let message = response_to_message(&response)?;
         let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
@@ -290,7 +293,7 @@ impl Provider for DatabricksProvider {
             .unwrap()
             .insert("stream".to_string(), Value::Bool(true));
 
-        let path = self.get_endpoint_path(false);
+        let path = self.get_endpoint_path(&model_config.model_name, false);
         let response = self
             .with_retry(|| async {
                 let resp = self.api_client.response_post(&path, &payload).await?;
@@ -415,7 +418,7 @@ impl EmbeddingCapable for DatabricksProvider {
             "input": texts,
         });
 
-        let response = self.with_retry(|| self.post(request.clone())).await?;
+        let response = self.with_retry(|| self.post(request.clone(), None)).await?;
 
         let embeddings = response["data"]
             .as_array()
