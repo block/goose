@@ -1,23 +1,53 @@
 import {
   UIResourceRenderer,
-  UIActionResult,
   UIActionResultIntent,
   UIActionResultLink,
   UIActionResultNotification,
   UIActionResultPrompt,
   UIActionResultToolCall,
 } from '@mcp-ui/client';
+import { useState, useEffect } from 'react';
 import { ResourceContent } from '../types/message';
 import { toast } from 'react-toastify';
-
-// TODOS
-// figure out how best to handle the ui-lifecycle-iframe-ready message
-// figure out how best to support size-change messages
 
 interface MCPUIResourceRendererProps {
   content: ResourceContent;
   appendPromptToChat?: (value: string) => void;
 }
+type UISizeChange = {
+  type: 'ui-size-change';
+  payload: {
+    height: number;
+    width: number;
+  };
+};
+
+// Reserved message types from iframe to host
+type UILifecycleIframeReady = {
+  type: 'ui-lifecycle-iframe-ready';
+  payload?: Record<string, unknown>;
+};
+
+type UIRequestData = {
+  type: 'ui-request-data';
+  messageId: string;
+  payload: {
+    requestType: string;
+    params: Record<string, unknown>;
+  };
+};
+
+// We are creating a new type to support all reserved message types that may come from the iframe
+// Not all reserved message types are currently exported by @mcp-ui/client
+type ActionEventsFromIframe =
+  | UIActionResultIntent
+  | UIActionResultLink
+  | UIActionResultNotification
+  | UIActionResultPrompt
+  | UIActionResultToolCall
+  | UISizeChange
+  | UILifecycleIframeReady
+  | UIRequestData;
 
 // More specific result types using discriminated unions
 type UIActionHandlerSuccess<T = unknown> = {
@@ -59,19 +89,62 @@ enum UIActionErrorCode {
   TIMEOUT = 'TIMEOUT',
 }
 
+// toast component
+const ToastComponent = ({
+  messageType,
+  message,
+  isImplemented = true,
+}: {
+  messageType: string;
+  message?: string;
+  isImplemented?: boolean;
+}) => {
+  const title = `MCP-UI ${messageType} message`;
+
+  return (
+    <div className="flex flex-col gap-0 py-2 pr-4">
+      <p className="font-bold">{title}</p>
+      {isImplemented ? (
+        <p>
+          Message received for <span className="font-bold">{message}</span>.
+        </p>
+      ) : (
+        <p>
+          Message received for <span className="font-bold">{message}</span>.
+          <br />
+          {messageType.charAt(0).toUpperCase() + messageType.slice(1)} messages aren't supported
+          yet, refer to console for more details.
+        </p>
+      )}
+    </div>
+  );
+};
+
 export default function MCPUIResourceRenderer({
   content,
   appendPromptToChat,
 }: MCPUIResourceRendererProps) {
-  const handleUIAction = async (actionEvent: UIActionResult): Promise<UIActionHandlerResult> => {
-    console.log('[MCP-UI] Action received:', actionEvent);
+  const [currentThemeValue, setCurrentThemeValue] = useState<string>('light');
 
+  useEffect(() => {
+    const theme = localStorage.getItem('theme') || 'light';
+    setCurrentThemeValue(theme);
+    console.log('[MCP-UI] Current theme value:', theme);
+  }, []);
+
+  const handleUIAction = async (
+    actionEvent: ActionEventsFromIframe
+  ): Promise<UIActionHandlerResult> => {
+    // result to pass back to the MCP-UI
     let result: UIActionHandlerResult;
 
     const handleToolCase = async (
       actionEvent: UIActionResultToolCall
     ): Promise<UIActionHandlerResult> => {
       const { toolName, params } = actionEvent.payload;
+      toast.info(<ToastComponent messageType="tool" message={toolName} isImplemented={false} />, {
+        theme: currentThemeValue,
+      });
       return {
         status: 'error' as const,
         error: {
@@ -175,40 +248,77 @@ export default function MCPUIResourceRenderer({
     ): Promise<UIActionHandlerResult> => {
       const { message } = actionEvent.payload;
 
-      try {
-        const notificationId = `notify-${Date.now()}`;
-        toast.info(message);
-        return {
-          status: 'success' as const,
-          data: {
-            notificationId,
-            displayedAt: new Date().toISOString(),
-            message,
-          },
-        };
-      } catch (error) {
-        return {
-          status: 'error' as const,
-          error: {
-            code: UIActionErrorCode.UNKNOWN_ACTION,
-            message: 'Failed to display notification',
-            details: error instanceof Error ? error.message : error,
-          },
-        };
-      }
+      toast.info(<ToastComponent messageType="notify" message={message} isImplemented={true} />, {
+        theme: currentThemeValue,
+      });
+      return {
+        status: 'success' as const,
+        data: {
+          displayedAt: new Date().toISOString(),
+          message: 'Notification displayed',
+          details: actionEvent.payload,
+        },
+      };
     };
 
     const handleIntentCase = async (
       actionEvent: UIActionResultIntent
     ): Promise<UIActionHandlerResult> => {
-      const { intent, params } = actionEvent.payload;
-
+      toast.info(
+        <ToastComponent
+          messageType="intent"
+          message={actionEvent.payload.intent}
+          isImplemented={false}
+        />,
+        {
+          theme: currentThemeValue,
+        }
+      );
       return {
         status: 'error' as const,
         error: {
           code: UIActionErrorCode.UNSUPPORTED_ACTION,
           message: 'Intent handling is not yet implemented',
-          details: { intent, params },
+          details: actionEvent.payload,
+        },
+      };
+    };
+
+    const handleSizeChangeCase = async (
+      actionEvent: UISizeChange
+    ): Promise<UIActionHandlerResult> => {
+      return {
+        status: 'success' as const,
+        message: 'Size change handled',
+        data: actionEvent.payload,
+      };
+    };
+
+    const handleIframeReadyCase = async (
+      actionEvent: UILifecycleIframeReady
+    ): Promise<UIActionHandlerResult> => {
+      console.log('[MCP-UI] Iframe ready to receive messages');
+      return {
+        status: 'success' as const,
+        message: 'Iframe is ready to receive messages',
+        data: actionEvent.payload,
+      };
+    };
+
+    const handleRequestDataCase = async (
+      actionEvent: UIRequestData
+    ): Promise<UIActionHandlerResult> => {
+      const { messageId, payload } = actionEvent;
+      const { requestType, params } = payload;
+      console.log('[MCP-UI] Data request received:', { messageId, requestType, params });
+      return {
+        status: 'success' as const,
+        message: `Data request received: ${requestType}`,
+        data: {
+          messageId,
+          requestType,
+          params,
+          response: { status: 'acknowledged' },
         },
       };
     };
@@ -235,8 +345,19 @@ export default function MCPUIResourceRenderer({
           result = await handleIntentCase(actionEvent);
           break;
 
+        case 'ui-size-change':
+          result = await handleSizeChangeCase(actionEvent);
+          break;
+
+        case 'ui-lifecycle-iframe-ready':
+          result = await handleIframeReadyCase(actionEvent);
+          break;
+
+        case 'ui-request-data':
+          result = await handleRequestDataCase(actionEvent);
+          break;
+
         default: {
-          // TypeScript exhaustiveness check
           const _exhaustiveCheck: never = actionEvent;
           console.error('Unhandled action type:', _exhaustiveCheck);
           result = {
@@ -261,7 +382,6 @@ export default function MCPUIResourceRenderer({
       };
     }
 
-    // Log result with appropriate level
     if (result.status === 'error') {
       console.error('[MCP-UI] Action failed:', result);
     } else {
@@ -282,7 +402,14 @@ export default function MCPUIResourceRenderer({
               height: true,
               width: false, // set to false to allow for responsive design
             },
-            sandboxPermissions: 'allow-forms',
+            sandboxPermissions: 'allow-forms', // enabled for experimentation, is spread into underlying iframe defaults
+            iframeRenderData: {
+              // iframeRenderData allows us to pass data down to MCP-UIs
+              // MPC-UIs might find stuff like host and theme for conditional rendering
+              // usage of this is experimental, leaving in place for demos
+              host: 'goose',
+              theme: currentThemeValue,
+            },
           }}
         />
       </div>
