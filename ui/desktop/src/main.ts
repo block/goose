@@ -1059,6 +1059,15 @@ ipcMain.handle('directory-chooser', (_event) => {
   return openDirectoryDialog();
 });
 
+// Handle opening URLs in external browser
+ipcMain.handle('open-url', async (_event, url: string) => {
+  try {
+    await shell.openExternal(url);
+  } catch (error) {
+    console.error('Failed to open URL:', error);
+  }
+});
+
 // Handle scheduling engine settings
 ipcMain.handle('get-settings', () => {
   try {
