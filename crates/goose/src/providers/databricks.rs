@@ -37,7 +37,7 @@ const DEFAULT_SCOPES: &[&str] = &["all-apis", "offline_access"];
 const DEFAULT_TIMEOUT_SECS: u64 = 600;
 
 pub const DATABRICKS_DEFAULT_MODEL: &str = "databricks-claude-3-7-sonnet";
-const DATABRICKS_DEFAULT_FAST_MODEL: &str = "claude-3-7-sonnet";
+const DATABRICKS_DEFAULT_FAST_MODEL: &str = "gemini-1-5-flash";
 pub const DATABRICKS_KNOWN_MODELS: &[&str] = &[
     "databricks-meta-llama-3-3-70b-instruct",
     "databricks-meta-llama-3-1-405b-instruct",
