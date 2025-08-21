@@ -1,7 +1,28 @@
 use std::sync::{Arc, RwLock};
 
 use super::{
-    anthropic::AnthropicProvider, azure::AzureProvider, base::{Provider, ProviderMetadata}, bedrock::BedrockProvider, claude_code::ClaudeCodeProvider, cursor_agent::CursorAgentProvider, databricks::DatabricksProvider, gcpvertexai::GcpVertexAIProvider, gemini_cli::GeminiCliProvider, githubcopilot::GithubCopilotProvider, google::GoogleProvider, groq::GroqProvider, lead_worker::LeadWorkerProvider, litellm::LiteLLMProvider, ollama::OllamaProvider, openai::OpenAiProvider, openrouter::OpenRouterProvider, provider_registry::ProviderRegistry, sagemaker_tgi::SageMakerTgiProvider, snowflake::SnowflakeProvider, venice::VeniceProvider, xai::XaiProvider
+    anthropic::AnthropicProvider,
+    azure::AzureProvider,
+    base::{Provider, ProviderMetadata},
+    bedrock::BedrockProvider,
+    claude_code::ClaudeCodeProvider,
+    cursor_agent::CursorAgentProvider,
+    databricks::DatabricksProvider,
+    gcpvertexai::GcpVertexAIProvider,
+    gemini_cli::GeminiCliProvider,
+    githubcopilot::GithubCopilotProvider,
+    google::GoogleProvider,
+    groq::GroqProvider,
+    lead_worker::LeadWorkerProvider,
+    litellm::LiteLLMProvider,
+    ollama::OllamaProvider,
+    openai::OpenAiProvider,
+    openrouter::OpenRouterProvider,
+    provider_registry::ProviderRegistry,
+    sagemaker_tgi::SageMakerTgiProvider,
+    snowflake::SnowflakeProvider,
+    venice::VeniceProvider,
+    xai::XaiProvider,
 };
 use crate::config::custom_providers::{custom_providers_dir, register_custom_providers};
 use crate::model::ModelConfig;
