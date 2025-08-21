@@ -77,10 +77,9 @@ export default function GooseMessage({
       const previousMessage = messageIndex > 0 ? messages[messageIndex - 1] : null;
       if (previousMessage) {
         const prevToolRequests = getToolRequests(previousMessage);
-        const prevText = getTextContent(previousMessage);
         
-        // If previous message is a pure tool call, extend its chain
-        if (prevToolRequests.length > 0 && !prevText.trim()) {
+        // If previous message has tool calls (with or without text), extend its chain
+        if (prevToolRequests.length > 0) {
           // Find if previous message is part of a chain
           const prevChain = chains.find(chain => chain.includes(messageIndex - 1));
           if (prevChain) {
@@ -179,9 +178,14 @@ export default function GooseMessage({
     return null;
   }
 
+  // Determine rendering logic based on chain membership and content
+  const isFirstInChain = messageChain && messageChain[0] === messageIndex;
+  const hasText = displayText.trim().length > 0;
+
   return (
     <div className="group relative w-full">
       <div className="flex flex-col items-start w-full">
+        {/* Regular text content - ALWAYS show if present */}
         {displayText && (
           <div className="flex flex-col w-full">
             <div ref={contentRef} className="w-full">
@@ -206,28 +210,28 @@ export default function GooseMessage({
               </div>
             )}
 
-            {/* Only show timestamp and copy link when not streaming */}
-            <div className="relative flex justify-start">
-              {toolRequests.length === 0 && !isStreaming && (
-                <div className="text-xs font-mono text-text-muted pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
-                  {timestamp}
-                </div>
-              )}
-              {displayText &&
-                message.content.every((content) => content.type === 'text') &&
-                !isStreaming && (
+            {/* Show timestamp for text-only messages */}
+            {toolRequests.length === 0 && (
+              <div className="relative flex justify-start">
+                {!isStreaming && (
+                  <div className="text-xs font-mono text-text-muted pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
+                    {timestamp}
+                  </div>
+                )}
+                {message.content.every((content) => content.type === 'text') && !isStreaming && (
                   <div className="absolute left-0 pt-1">
                     <MessageCopyLink text={displayText} contentRef={contentRef} />
                   </div>
                 )}
-            </div>
+              </div>
+            )}
           </div>
         )}
 
         {/* Tool calls - either as chain or individual */}
         {toolRequests.length > 0 && (
           <>
-            {messageChain && messageChain[0] === messageIndex ? (
+            {isFirstInChain ? (
               // This is the first message in a chain - render the entire chain
               <ToolCallChain
                 messages={messages}

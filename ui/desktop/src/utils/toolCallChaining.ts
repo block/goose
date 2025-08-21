@@ -1,7 +1,7 @@
 import { Message, getToolRequests, getTextContent, getToolResponses } from '../types/message';
 
 /**
- * Simple function to detect consecutive tool call messages that should be chained
+ * Enhanced function to detect tool call chains including mixed content messages
  * @param messages - Array of all messages
  * @returns Array of message indices that should be chained together
  */
@@ -23,18 +23,28 @@ export function identifyConsecutiveToolCalls(messages: Message[]): number[][] {
 
     // This message has tool calls
     if (toolRequests.length > 0) {
-      // If it also has text content, end any current chain and don't start a new one
       if (hasText) {
-        if (currentChain.length > 1) {
-          chains.push([...currentChain]);
+        // Message with text + tools - start a new chain or add to existing
+        if (currentChain.length > 0) {
+          // End current chain and start new one
+          if (currentChain.length > 1) {
+            chains.push([...currentChain]);
+          }
         }
-        currentChain = [];
+        // Start new chain with this mixed content message
+        currentChain = [i];
       } else {
         // Pure tool call message - add to chain
         currentChain.push(i);
       }
+    } else if (hasText) {
+      // Pure text message - end current chain
+      if (currentChain.length > 1) {
+        chains.push([...currentChain]);
+      }
+      currentChain = [];
     } else {
-      // No tool calls and not a tool response - end current chain if it has multiple messages
+      // Empty or other content - end current chain
       if (currentChain.length > 1) {
         chains.push([...currentChain]);
       }
