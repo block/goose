@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
-use tempfile::tempdir;
+use tempfile::{tempdir, TempDir};
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio::sync::Mutex;
@@ -415,12 +415,30 @@ impl ExtensionManager {
         };
 
         let server_info = client.get_info().cloned();
-        self.extensions.lock().await.insert(
+        self.add_client(
             sanitized_name,
-            Extension::new(config, Arc::new(Mutex::new(client)), server_info, temp_dir),
-        );
+            config,
+            Arc::new(Mutex::new(client)),
+            server_info,
+            temp_dir,
+        )
+        .await;
 
         Ok(())
+    }
+
+    pub async fn add_client(
+        &self,
+        name: String,
+        config: ExtensionConfig,
+        client: McpClientBox,
+        info: Option<ServerInfo>,
+        temp_dir: Option<TempDir>,
+    ) {
+        self.extensions
+            .lock()
+            .await
+            .insert(name, Extension::new(config, client, info, temp_dir));
     }
 
     /// Get extensions info
@@ -1031,6 +1049,35 @@ mod tests {
     use serde_json::json;
     use tokio::sync::mpsc;
 
+    impl ExtensionManager {
+        async fn add_mock_extension(&self, name: String, client: McpClientBox) {
+            self.add_mock_extension_with_tools(name, client, vec![])
+                .await;
+        }
+
+        async fn add_mock_extension_with_tools(
+            &self,
+            name: String,
+            client: McpClientBox,
+            available_tools: Vec<String>,
+        ) {
+            let sanitized_name = normalize(name.clone());
+            let config = ExtensionConfig::Builtin {
+                name: name.clone(),
+                display_name: Some(name.clone()),
+                description: None,
+                timeout: None,
+                bundled: None,
+                available_tools,
+            };
+            let extension = Extension::new(config, client, None, None);
+            self.extensions
+                .lock()
+                .await
+                .insert(sanitized_name, extension);
+        }
+    }
+
     struct MockClient {}
 
     #[async_trait::async_trait]
@@ -1128,49 +1175,61 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_get_client_for_tool() {
-        let mut extension_manager = ExtensionManager::new();
+    #[tokio::test]
+    async fn test_get_client_for_tool() {
+        let extension_manager = ExtensionManager::new();
 
-        // Add some mock clients
-        extension_manager.clients.insert(
-            normalize("test_client".to_string()),
-            Arc::new(Mutex::new(Box::new(MockClient {}))),
-        );
+        // Add some mock clients using the helper method
+        extension_manager
+            .add_mock_extension(
+                "test_client".to_string(),
+                Arc::new(Mutex::new(Box::new(MockClient {}))),
+            )
+            .await;
 
-        extension_manager.clients.insert(
-            normalize("__client".to_string()),
-            Arc::new(Mutex::new(Box::new(MockClient {}))),
-        );
+        extension_manager
+            .add_mock_extension(
+                "__client".to_string(),
+                Arc::new(Mutex::new(Box::new(MockClient {}))),
+            )
+            .await;
 
-        extension_manager.clients.insert(
-            normalize("__cli__ent__".to_string()),
-            Arc::new(Mutex::new(Box::new(MockClient {}))),
-        );
+        extension_manager
+            .add_mock_extension(
+                "__cli__ent__".to_string(),
+                Arc::new(Mutex::new(Box::new(MockClient {}))),
+            )
+            .await;
 
-        extension_manager.clients.insert(
-            normalize("client 🚀".to_string()),
-            Arc::new(Mutex::new(Box::new(MockClient {}))),
-        );
+        extension_manager
+            .add_mock_extension(
+                "client 🚀".to_string(),
+                Arc::new(Mutex::new(Box::new(MockClient {}))),
+            )
+            .await;
 
         // Test basic case
         assert!(extension_manager
             .get_client_for_tool("test_client__tool")
+            .await
             .is_some());
 
         // Test leading underscores
         assert!(extension_manager
             .get_client_for_tool("__client__tool")
+            .await
             .is_some());
 
         // Test multiple underscores in client name, and ending with __
         assert!(extension_manager
             .get_client_for_tool("__cli__ent____tool")
+            .await
             .is_some());
 
         // Test unicode in tool name, "client 🚀" should become "client_"
         assert!(extension_manager
             .get_client_for_tool("client___tool")
+            .await
             .is_some());
     }
 
@@ -1178,23 +1237,29 @@ mod tests {
     async fn test_dispatch_tool_call() {
         // test that dispatch_tool_call parses out the sanitized name correctly, and extracts
         // tool_names
-        let mut extension_manager = ExtensionManager::new();
+        let extension_manager = ExtensionManager::new();
 
-        // Add some mock clients
-        extension_manager.clients.insert(
-            normalize("test_client".to_string()),
-            Arc::new(Mutex::new(Box::new(MockClient {}))),
-        );
+        // Add some mock clients using the helper method
+        extension_manager
+            .add_mock_extension(
+                "test_client".to_string(),
+                Arc::new(Mutex::new(Box::new(MockClient {}))),
+            )
+            .await;
 
-        extension_manager.clients.insert(
-            normalize("__cli__ent__".to_string()),
-            Arc::new(Mutex::new(Box::new(MockClient {}))),
-        );
+        extension_manager
+            .add_mock_extension(
+                "__cli__ent__".to_string(),
+                Arc::new(Mutex::new(Box::new(MockClient {}))),
+            )
+            .await;
 
-        extension_manager.clients.insert(
-            normalize("client 🚀".to_string()),
-            Arc::new(Mutex::new(Box::new(MockClient {}))),
-        );
+        extension_manager
+            .add_mock_extension(
+                "client 🚀".to_string(),
+                Arc::new(Mutex::new(Box::new(MockClient {}))),
+            )
+            .await;
 
         // verify a normal tool call
         let tool_call = ToolCall {
@@ -1289,29 +1354,18 @@ mod tests {
 
     #[tokio::test]
     async fn test_tool_availability_filtering() {
-        let mut extension_manager = ExtensionManager::new();
+        let extension_manager = ExtensionManager::new();
 
         // Only "available_tool" should be available to the LLM
         let available_tools = vec!["available_tool".to_string()];
 
-        let config = ExtensionConfig::Builtin {
-            name: "test_extension".to_string(),
-            display_name: Some("Test Extension".to_string()),
-            description: Some("Test extension for available tools".to_string()),
-            timeout: Some(300),
-            bundled: Some(true),
-            available_tools,
-        };
-
-        let sanitized_name = normalize("test_extension".to_string());
         extension_manager
-            .extension_configs
-            .insert(sanitized_name.clone(), config);
-
-        extension_manager.clients.insert(
-            sanitized_name,
-            Arc::new(Mutex::new(Box::new(MockClient {}))),
-        );
+            .add_mock_extension_with_tools(
+                "test_extension".to_string(),
+                Arc::new(Mutex::new(Box::new(MockClient {}))),
+                available_tools,
+            )
+            .await;
 
         let tools = extension_manager.get_prefixed_tools(None).await.unwrap();
 
@@ -1328,26 +1382,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_tool_availability_defaults_to_available() {
-        let mut extension_manager = ExtensionManager::new();
+        let extension_manager = ExtensionManager::new();
 
-        let config = ExtensionConfig::Builtin {
-            name: "test_extension".to_string(),
-            display_name: Some("Test Extension".to_string()),
-            description: Some("Test extension for available tools".to_string()),
-            timeout: Some(300),
-            bundled: Some(true),
-            available_tools: vec![],
-        };
-
-        let sanitized_name = normalize("test_extension".to_string());
         extension_manager
-            .extension_configs
-            .insert(sanitized_name.clone(), config);
-
-        extension_manager.clients.insert(
-            sanitized_name,
-            Arc::new(Mutex::new(Box::new(MockClient {}))),
-        );
+            .add_mock_extension_with_tools(
+                "test_extension".to_string(),
+                Arc::new(Mutex::new(Box::new(MockClient {}))),
+                vec![], // Empty available_tools means all tools are available by default
+            )
+            .await;
 
         let tools = extension_manager.get_prefixed_tools(None).await.unwrap();
 
@@ -1364,28 +1407,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_dispatch_unavailable_tool_returns_error() {
-        let mut extension_manager = ExtensionManager::new();
+        let extension_manager = ExtensionManager::new();
 
         let available_tools = vec!["available_tool".to_string()];
 
-        let config = ExtensionConfig::Builtin {
-            name: "test_extension".to_string(),
-            display_name: Some("Test Extension".to_string()),
-            description: Some("Test extension for tool dispatch".to_string()),
-            timeout: Some(300),
-            bundled: Some(true),
-            available_tools,
-        };
-
-        let sanitized_name = normalize("test_extension".to_string());
         extension_manager
-            .extension_configs
-            .insert(sanitized_name.clone(), config);
-
-        extension_manager.clients.insert(
-            sanitized_name,
-            Arc::new(Mutex::new(Box::new(MockClient {}))),
-        );
+            .add_mock_extension_with_tools(
+                "test_extension".to_string(),
+                Arc::new(Mutex::new(Box::new(MockClient {}))),
+                available_tools,
+            )
+            .await;
 
         // Try to call an unavailable tool
         let unavailable_tool_call = ToolCall {
