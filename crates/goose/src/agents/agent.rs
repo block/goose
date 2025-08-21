@@ -1144,7 +1144,7 @@ impl Agent {
                                         .filter_malicious_tool_calls(
                                             messages.messages(),
                                             &permission_check_result,
-                                            None, // Don't scan system prompt anymore - causes false positives
+                                            None, // Disabled scanning system prompt for now, due to false positives
                                         )
                                         .await?;
 

@@ -101,16 +101,20 @@ impl SecurityManager {
             if message.role == rmcp::model::Role::User {
                 let message_text = message.as_concat_text();
                 if !message_text.trim().is_empty() {
-                    tracing::info!("🔍 Scanning user message {} for dangerous content: '{}'", 
-                        i, 
+                    tracing::info!(
+                        "🔍 Scanning user message {} for dangerous content: '{}'",
+                        i,
                         message_text.chars().take(100).collect::<String>()
                     );
-                    
+
                     let message_result = scanner.scan_for_dangerous_patterns(&message_text).await?;
-                    
+
                     if message_result.is_malicious {
-                        let finding_id = format!("MSG-{}", &uuid::Uuid::new_v4().simple().to_string().to_uppercase()[..8]);
-                        
+                        let finding_id = format!(
+                            "MSG-{}",
+                            &uuid::Uuid::new_v4().simple().to_string().to_uppercase()[..8]
+                        );
+
                         tracing::warn!(
                             confidence = message_result.confidence,
                             explanation = %message_result.explanation,
@@ -120,11 +124,14 @@ impl SecurityManager {
                         );
 
                         let config_threshold = scanner.get_threshold_from_config();
-                        
+
                         results.push(SecurityResult {
                             is_malicious: message_result.is_malicious,
                             confidence: message_result.confidence,
-                            explanation: format!("Dangerous user input detected: {}", message_result.explanation),
+                            explanation: format!(
+                                "Dangerous user input detected: {}",
+                                message_result.explanation
+                            ),
                             should_ask_user: message_result.confidence > config_threshold,
                             finding_id,
                         });
@@ -157,8 +164,11 @@ impl SecurityManager {
 
                 if analysis_result.is_malicious {
                     // Generate a unique finding ID for this security detection
-                    let finding_id = format!("SEC-{}", &uuid::Uuid::new_v4().simple().to_string().to_uppercase()[..8]);
-                    
+                    let finding_id = format!(
+                        "SEC-{}",
+                        &uuid::Uuid::new_v4().simple().to_string().to_uppercase()[..8]
+                    );
+
                     tracing::warn!(
                         tool_name = %tool_call.name,
                         confidence = analysis_result.confidence,
@@ -169,7 +179,7 @@ impl SecurityManager {
 
                     // Get threshold from config - if confidence > threshold, ask user
                     let config_threshold = scanner.get_threshold_from_config();
-                    
+
                     results.push(SecurityResult {
                         is_malicious: analysis_result.is_malicious,
                         confidence: analysis_result.confidence,
@@ -188,7 +198,10 @@ impl SecurityManager {
             }
         }
 
-        tracing::info!("🔍 Security analysis complete - found {} security issues", results.len());
+        tracing::info!(
+            "🔍 Security analysis complete - found {} security issues",
+            results.len()
+        );
         Ok(results)
     }
 
@@ -200,7 +213,10 @@ impl SecurityManager {
 
     /// Scan recipe components for security threats
     /// This should be called when loading/applying recipes
-    pub async fn scan_recipe_components(&self, recipe: &crate::recipe::Recipe) -> Result<Vec<SecurityResult>> {
+    pub async fn scan_recipe_components(
+        &self,
+        recipe: &crate::recipe::Recipe,
+    ) -> Result<Vec<SecurityResult>> {
         let Some(scanner) = &self.scanner else {
             // Security disabled, return empty results
             return Ok(vec![]);
@@ -212,12 +228,15 @@ impl SecurityManager {
         if let Some(prompt) = &recipe.prompt {
             if !prompt.trim().is_empty() {
                 tracing::info!("🔍 Scanning recipe prompt for injection attacks");
-                
+
                 let prompt_result = scanner.scan_with_prompt_injection_model(prompt).await?;
-                
+
                 if prompt_result.is_malicious {
-                    let finding_id = format!("RCP-{}", &uuid::Uuid::new_v4().simple().to_string().to_uppercase()[..8]);
-                    
+                    let finding_id = format!(
+                        "RCP-{}",
+                        &uuid::Uuid::new_v4().simple().to_string().to_uppercase()[..8]
+                    );
+
                     tracing::warn!(
                         confidence = prompt_result.confidence,
                         explanation = %prompt_result.explanation,
@@ -226,11 +245,14 @@ impl SecurityManager {
                     );
 
                     let config_threshold = scanner.get_threshold_from_config();
-                    
+
                     results.push(SecurityResult {
                         is_malicious: prompt_result.is_malicious,
                         confidence: prompt_result.confidence,
-                        explanation: format!("Recipe prompt injection: {}", prompt_result.explanation),
+                        explanation: format!(
+                            "Recipe prompt injection: {}",
+                            prompt_result.explanation
+                        ),
                         should_ask_user: prompt_result.confidence > config_threshold,
                         finding_id,
                     });
@@ -242,13 +264,21 @@ impl SecurityManager {
         if let Some(context_items) = &recipe.context {
             for (i, context_item) in context_items.iter().enumerate() {
                 if !context_item.trim().is_empty() {
-                    tracing::info!("🔍 Scanning recipe context item {} for injection attacks", i);
-                    
-                    let context_result = scanner.scan_with_prompt_injection_model(context_item).await?;
-                    
+                    tracing::info!(
+                        "🔍 Scanning recipe context item {} for injection attacks",
+                        i
+                    );
+
+                    let context_result = scanner
+                        .scan_with_prompt_injection_model(context_item)
+                        .await?;
+
                     if context_result.is_malicious {
-                        let finding_id = format!("RCC-{}", &uuid::Uuid::new_v4().simple().to_string().to_uppercase()[..8]);
-                        
+                        let finding_id = format!(
+                            "RCC-{}",
+                            &uuid::Uuid::new_v4().simple().to_string().to_uppercase()[..8]
+                        );
+
                         tracing::warn!(
                             context_index = i,
                             confidence = context_result.confidence,
@@ -258,11 +288,14 @@ impl SecurityManager {
                         );
 
                         let config_threshold = scanner.get_threshold_from_config();
-                        
+
                         results.push(SecurityResult {
                             is_malicious: context_result.is_malicious,
                             confidence: context_result.confidence,
-                            explanation: format!("Recipe context[{}] injection: {}", i, context_result.explanation),
+                            explanation: format!(
+                                "Recipe context[{}] injection: {}",
+                                i, context_result.explanation
+                            ),
                             should_ask_user: context_result.confidence > config_threshold,
                             finding_id,
                         });
