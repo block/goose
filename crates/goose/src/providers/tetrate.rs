@@ -1,4 +1,4 @@
-use anyhow::{Error, Result};
+use anyhow::Result;
 use async_trait::async_trait;
 use serde_json::Value;
 
@@ -113,23 +113,6 @@ impl TetrateProvider {
     }
 }
 
-fn create_request_based_on_model(
-    provider: &TetrateProvider,
-    system: &str,
-    messages: &[Message],
-    tools: &[Tool],
-) -> anyhow::Result<Value, Error> {
-    let payload = create_request(
-        &provider.model,
-        system,
-        messages,
-        tools,
-        &super::utils::ImageFormat::OpenAi,
-    )?;
-
-    Ok(payload)
-}
-
 #[async_trait]
 impl Provider for TetrateProvider {
     fn metadata() -> ProviderMetadata {
@@ -157,17 +140,24 @@ impl Provider for TetrateProvider {
     }
 
     #[tracing::instrument(
-        skip(self, system, messages, tools),
+        skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        // Create the base payload
-        let payload = create_request_based_on_model(self, system, messages, tools)?;
+        // Create the base payload using the provided model_config
+        let payload = create_request(
+            model_config,
+            system,
+            messages,
+            tools,
+            &super::utils::ImageFormat::OpenAi,
+        )?;
 
         // Make request
         let response = self
@@ -184,7 +174,7 @@ impl Provider for TetrateProvider {
             Usage::default()
         });
         let model = get_model(&response);
-        emit_debug_trace(&self.model, &payload, &response, &usage);
+        emit_debug_trace(model_config, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(model, usage)))
     }
 
