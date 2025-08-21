@@ -1,12 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
   Calendar,
   MessageSquareText,
   Folder,
-  Share2,
   Sparkles,
-  Copy,
-  Check,
   Target,
   LoaderCircle,
   AlertCircle,
@@ -17,21 +14,11 @@ import { toast } from 'react-toastify';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { ScrollArea } from '../ui/scroll-area';
 import { formatMessageTimestamp } from '../../utils/timeUtils';
-import { createSharedSession } from '../../sharedSessions';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '../ui/dialog';
 import ProgressiveMessageList from '../ProgressiveMessageList';
 import { SearchView } from '../conversation/SearchView';
 import { ChatContextManagerProvider } from '../context_management/ChatContextManager';
 import { Message } from '../../types/message';
 import BackButton from '../ui/BackButton';
-import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/Tooltip';
 
 // Helper function to determine if a message is a user message (same as useChatEngine)
 const isUserMessage = (message: Message): boolean => {
@@ -150,74 +137,6 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
   onRetry,
   showActionButtons = true,
 }) => {
-  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
-  const [shareLink, setShareLink] = useState<string>('');
-  const [isSharing, setIsSharing] = useState(false);
-  const [isCopied, setIsCopied] = useState(false);
-  const [canShare, setCanShare] = useState(false);
-
-  useEffect(() => {
-    const savedSessionConfig = localStorage.getItem('session_sharing_config');
-    if (savedSessionConfig) {
-      try {
-        const config = JSON.parse(savedSessionConfig);
-        if (config.enabled && config.baseUrl) {
-          setCanShare(true);
-        }
-      } catch (error) {
-        console.error('Error parsing session sharing config:', error);
-      }
-    }
-  }, []);
-
-  const handleShare = async () => {
-    setIsSharing(true);
-
-    try {
-      const savedSessionConfig = localStorage.getItem('session_sharing_config');
-      if (!savedSessionConfig) {
-        throw new Error('Session sharing is not configured. Please configure it in settings.');
-      }
-
-      const config = JSON.parse(savedSessionConfig);
-      if (!config.enabled || !config.baseUrl) {
-        throw new Error('Session sharing is not enabled or base URL is not configured.');
-      }
-
-      const shareToken = await createSharedSession(
-        config.baseUrl,
-        session.metadata.working_dir,
-        session.messages,
-        session.metadata.description || 'Shared Session',
-        session.metadata.total_tokens
-      );
-
-      const shareableLink = `goose://sessions/${shareToken}`;
-      setShareLink(shareableLink);
-      setIsShareModalOpen(true);
-    } catch (error) {
-      console.error('Error sharing session:', error);
-      toast.error(
-        `Failed to share session: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    } finally {
-      setIsSharing(false);
-    }
-  };
-
-  const handleCopyLink = () => {
-    navigator.clipboard
-      .writeText(shareLink)
-      .then(() => {
-        setIsCopied(true);
-        setTimeout(() => setIsCopied(false), 2000);
-      })
-      .catch((err) => {
-        console.error('Failed to copy link:', err);
-        toast.error('Failed to copy link to clipboard');
-      });
-  };
-
   const handleLaunchInNewWindow = () => {
     if (session) {
       console.log('Launching session in new window:', session.session_id);
@@ -249,136 +168,63 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
 
   // Define action buttons
   const actionButtons = showActionButtons ? (
-    <>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            onClick={handleShare}
-            disabled={!canShare || isSharing}
-            size="sm"
-            variant="outline"
-            className={canShare ? '' : 'cursor-not-allowed opacity-50'}
-          >
-            {isSharing ? (
-              <>
-                <LoaderCircle className="w-4 h-4 mr-2 animate-spin" />
-                Sharing...
-              </>
-            ) : (
-              <>
-                <Share2 className="w-4 h-4" />
-                Share
-              </>
-            )}
-          </Button>
-        </TooltipTrigger>
-        {!canShare ? (
-          <TooltipContent>
-            <p>
-              To enable session sharing, go to <b>Settings</b> {'>'} <b>Session</b> {'>'}{' '}
-              <b>Session Sharing</b>.
-            </p>
-          </TooltipContent>
-        ) : null}
-      </Tooltip>
-      <Button onClick={handleLaunchInNewWindow} size="sm" variant="outline">
-        <Sparkles className="w-4 h-4" />
-        Resume
-      </Button>
-    </>
+    <Button onClick={handleLaunchInNewWindow} size="sm" variant="outline">
+      <Sparkles className="w-4 h-4" />
+      Resume
+    </Button>
   ) : null;
 
   return (
-    <>
-      <MainPanelLayout>
-        <div className="flex-1 flex flex-col min-h-0 px-8">
-          <SessionHeader
-            onBack={onBack}
-            title={session.metadata.description || 'Session Details'}
-            actionButtons={!isLoading ? actionButtons : null}
-          >
-            <div className="flex flex-col">
-              {!isLoading && session.messages.length > 0 ? (
-                <>
-                  <div className="flex items-center text-text-muted text-sm space-x-5 font-mono">
+    <MainPanelLayout>
+      <div className="flex-1 flex flex-col min-h-0 px-8">
+        <SessionHeader
+          onBack={onBack}
+          title={session.metadata.description || 'Session Details'}
+          actionButtons={!isLoading ? actionButtons : null}
+        >
+          <div className="flex flex-col">
+            {!isLoading && session.messages.length > 0 ? (
+              <>
+                <div className="flex items-center text-text-muted text-sm space-x-5 font-mono">
+                  <span className="flex items-center">
+                    <Calendar className="w-4 h-4 mr-1" />
+                    {formatMessageTimestamp(session.messages[0]?.created)}
+                  </span>
+                  <span className="flex items-center">
+                    <MessageSquareText className="w-4 h-4 mr-1" />
+                    {session.metadata.message_count}
+                  </span>
+                  {session.metadata.total_tokens !== null && (
                     <span className="flex items-center">
-                      <Calendar className="w-4 h-4 mr-1" />
-                      {formatMessageTimestamp(session.messages[0]?.created)}
+                      <Target className="w-4 h-4 mr-1" />
+                      {session.metadata.total_tokens.toLocaleString()}
                     </span>
-                    <span className="flex items-center">
-                      <MessageSquareText className="w-4 h-4 mr-1" />
-                      {session.metadata.message_count}
-                    </span>
-                    {session.metadata.total_tokens !== null && (
-                      <span className="flex items-center">
-                        <Target className="w-4 h-4 mr-1" />
-                        {session.metadata.total_tokens.toLocaleString()}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center text-text-muted text-sm mt-1 font-mono">
-                    <span className="flex items-center">
-                      <Folder className="w-4 h-4 mr-1" />
-                      {session.metadata.working_dir}
-                    </span>
-                  </div>
-                </>
-              ) : (
-                <div className="flex items-center text-text-muted text-sm">
-                  <LoaderCircle className="w-4 h-4 mr-2 animate-spin" />
-                  <span>Loading session details...</span>
+                  )}
                 </div>
-              )}
-            </div>
-          </SessionHeader>
-
-          <SessionMessages
-            messages={session.messages}
-            isLoading={isLoading}
-            error={error}
-            onRetry={onRetry}
-          />
-        </div>
-      </MainPanelLayout>
-
-      <Dialog open={isShareModalOpen} onOpenChange={setIsShareModalOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex justify-center items-center gap-2">
-              <Share2 className="w-6 h-6 text-textStandard" />
-              Share Session (beta)
-            </DialogTitle>
-            <DialogDescription>
-              Share this session link to give others a read only view of your goose chat.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="py-4">
-            <div className="relative rounded-full border border-borderSubtle px-3 py-2 flex items-center bg-gray-100 dark:bg-gray-600">
-              <code className="text-sm text-textStandard dark:text-textStandardInverse overflow-x-hidden break-all pr-8 w-full">
-                {shareLink}
-              </code>
-              <Button
-                shape="pill"
-                variant="ghost"
-                className="absolute right-2 top-1/2 -translate-y-1/2"
-                onClick={handleCopyLink}
-                disabled={isCopied}
-              >
-                {isCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                <span className="sr-only">Copy</span>
-              </Button>
-            </div>
+                <div className="flex items-center text-text-muted text-sm mt-1 font-mono">
+                  <span className="flex items-center">
+                    <Folder className="w-4 h-4 mr-1" />
+                    {session.metadata.working_dir}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center text-text-muted text-sm">
+                <LoaderCircle className="w-4 h-4 mr-2 animate-spin" />
+                <span>Loading session details...</span>
+              </div>
+            )}
           </div>
+        </SessionHeader>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsShareModalOpen(false)}>
-              Cancel
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+        <SessionMessages
+          messages={session.messages}
+          isLoading={isLoading}
+          error={error}
+          onRetry={onRetry}
+        />
+      </div>
+    </MainPanelLayout>
   );
 };
 
