@@ -29,6 +29,7 @@ mod retry;
 pub mod sagemaker_tgi;
 pub mod snowflake;
 pub mod testprovider;
+pub mod tetrate;
 pub mod toolshim;
 pub mod usage_estimator;
 pub mod utils;
