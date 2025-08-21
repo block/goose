@@ -15,6 +15,7 @@ Object.defineProperty(window, 'location', {
     search: '',
     href: 'http://localhost:3000',
     origin: 'http://localhost:3000',
+    pathname: '/',
   },
   writable: true,
 });
@@ -196,6 +197,7 @@ describe('App Component - Brand New State', () => {
     vi.clearAllMocks();
     window.location.hash = '';
     window.location.search = '';
+    window.location.pathname = '/';
     window.sessionStorage.clear();
     window.localStorage.clear();
   });
