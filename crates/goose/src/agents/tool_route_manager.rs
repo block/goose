@@ -99,14 +99,14 @@ impl ToolRouteManager {
         let selector_arc = Arc::new(selector);
 
         // First index platform tools
-        ToolRouterIndexManager::index_platform_tools(&selector_arc, &extension_manager).await?;
+        ToolRouterIndexManager::index_platform_tools(&selector_arc, extension_manager).await?;
 
         if reindex_all.unwrap_or(false) {
             let enabled_extensions = extension_manager.list_extensions().await?;
             for extension_name in enabled_extensions {
                 if let Err(e) = ToolRouterIndexManager::update_extension_tools(
                     &selector_arc,
-                    &extension_manager,
+                    extension_manager,
                     &extension_name,
                     "add",
                 )

@@ -890,12 +890,13 @@ impl ExtensionManager {
     ) -> Result<HashMap<String, Vec<Prompt>>, ErrorData> {
         let mut futures = FuturesUnordered::new();
 
-        for extension_name in self.extensions.lock().await.keys().cloned() {
+        let names: Vec<_> = self.extensions.lock().await.keys().cloned().collect();
+        for extension_name in names {
             let token = cancellation_token.clone();
             futures.push(async move {
                 (
                     extension_name.clone(),
-                    self.list_prompts_from_extension(&extension_name.as_str(), token)
+                    self.list_prompts_from_extension(extension_name.as_str(), token)
                         .await,
                 )
             });
