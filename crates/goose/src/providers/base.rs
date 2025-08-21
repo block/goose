@@ -317,21 +317,8 @@ pub trait Provider: Send + Sync {
     where
         Self: Sized;
 
-    /// Internal method that performs completion with a specific model
-    /// This is where providers implement their actual completion logic
-    ///
-    /// # Arguments
-    /// * `model` - The model name to use
-    /// * `system` - The system prompt that guides the model's behavior
-    /// * `messages` - The conversation history as a sequence of messages
-    /// * `tools` - Optional list of tools the model can use
-    ///
-    /// # Returns
-    /// A tuple containing the model's response message and provider usage statistics
-    ///
-    /// # Errors
-    /// ProviderError
-    ///   - It's important to raise ContextLengthExceeded correctly since agent handles it
+    // Internal implementation of complete, used by complete_fast and complete
+    // Providers should override this to implement their actual completion logic
     async fn complete_with_model(
         &self,
         model: &str,
@@ -340,53 +327,28 @@ pub trait Provider: Send + Sync {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError>;
 
-    /// Generate the next message using the configured model and other parameters
-    ///
-    /// # Arguments
-    /// * `system` - The system prompt that guides the model's behavior
-    /// * `messages` - The conversation history as a sequence of messages
-    /// * `tools` - Optional list of tools the model can use
-    ///
-    /// # Returns
-    /// A tuple containing the model's response message and provider usage statistics
-    ///
-    /// # Errors
-    /// ProviderError
-    ///   - It's important to raise ContextLengthExceeded correctly since agent handles it
+
+    // Default implementation: use the provider's configured model
     async fn complete(
         &self,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        // Default implementation: use the provider's configured model
+        
         let model_config = self.get_model_config();
         self.complete_with_model(&model_config.model_name, system, messages, tools)
             .await
     }
 
-    /// Generate the next message using a fast/cheaper model when available
-    ///
-    /// Default implementation just calls regular complete() for providers that don't support fast models
-    ///
-    /// # Arguments
-    /// * `system` - The system prompt that guides the model's behavior
-    /// * `messages` - The conversation history as a sequence of messages
-    /// * `tools` - Optional list of tools the model can use
-    ///
-    /// # Returns
-    /// A tuple containing the model's response message and provider usage statistics
-    ///
-    /// # Errors
-    /// ProviderError
-    ///   - It's important to raise ContextLengthExceeded correctly since agent handles it
+    // Check if a fast model is configured, otherwise fall back to regular model
     async fn complete_fast(
         &self,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        // Check if a fast model is configured, otherwise fall back to regular model
+        
         let model_config = self.get_model_config();
         let model = model_config
             .fast_model
