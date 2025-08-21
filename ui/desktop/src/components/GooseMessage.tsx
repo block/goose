@@ -62,17 +62,46 @@ export default function GooseMessage({
   // Get tool requests from the message
   const toolRequests = getToolRequests(message);
 
-  // Identify tool call chains - only when not streaming to avoid flickering
-  const toolCallChains = useMemo(() => {
-    if (isStreaming) return [];
-    return identifyConsecutiveToolCalls(messages);
-  }, [messages, isStreaming]);
-
   // Get current message index
   const messageIndex = messages.findIndex((msg) => msg.id === message.id);
 
+  // Enhanced chain detection that works during streaming
+  const toolCallChains = useMemo(() => {
+    // Always run chain detection, but handle streaming messages specially
+    const chains = identifyConsecutiveToolCalls(messages);
+    
+    // If this message is streaming and has tool calls but no text, 
+    // check if it should extend an existing chain
+    if (isStreaming && toolRequests.length > 0 && !displayText.trim()) {
+      // Look for an existing chain that this message could extend
+      const previousMessage = messageIndex > 0 ? messages[messageIndex - 1] : null;
+      if (previousMessage) {
+        const prevToolRequests = getToolRequests(previousMessage);
+        const prevText = getTextContent(previousMessage);
+        
+        // If previous message is a pure tool call, extend its chain
+        if (prevToolRequests.length > 0 && !prevText.trim()) {
+          // Find if previous message is part of a chain
+          const prevChain = chains.find(chain => chain.includes(messageIndex - 1));
+          if (prevChain) {
+            // Extend the existing chain to include this streaming message
+            const extendedChains = chains.map(chain => 
+              chain === prevChain ? [...chain, messageIndex] : chain
+            );
+            return extendedChains;
+          } else {
+            // Create a new chain with previous and current message
+            return [...chains, [messageIndex - 1, messageIndex]];
+          }
+        }
+      }
+    }
+    
+    return chains;
+  }, [messages, isStreaming, messageIndex, toolRequests, displayText]);
+
   // Check if this message should be hidden (part of chain but not first)
-  const shouldHide = !isStreaming && shouldHideMessage(messageIndex, toolCallChains);
+  const shouldHide = shouldHideMessage(messageIndex, toolCallChains);
   
   // Get the chain this message belongs to
   const messageChain = getChainForMessage(messageIndex, toolCallChains);
