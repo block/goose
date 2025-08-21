@@ -165,7 +165,7 @@ export class GitHubUpdater {
       const chunks: Uint8Array[] = [];
       let downloadedSize = 0;
 
-      while (true) { // eslint-disable-line no-constant-condition
+      while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
