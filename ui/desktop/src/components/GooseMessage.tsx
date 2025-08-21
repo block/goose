@@ -201,7 +201,6 @@ export default function GooseMessage({
 
   // Determine rendering logic based on chain membership and content
   const isFirstInChain = messageChain && messageChain[0] === messageIndex;
-  const hasText = displayText.trim().length > 0;
 
   return (
     <div className="goose-message flex w-[90%] justify-start min-w-0">
