@@ -106,9 +106,7 @@ pub fn map_http_error_to_provider_error(
             }
         }
         StatusCode::TOO_MANY_REQUESTS => ProviderError::RateLimitExceeded(format!("{:?}", payload)),
-        StatusCode::INTERNAL_SERVER_ERROR | StatusCode::SERVICE_UNAVAILABLE => {
-            ProviderError::ServerError(format!("{:?}", payload))
-        }
+        _ if status.is_server_error() => ProviderError::ServerError(format!("{:?}", payload)),
         _ => ProviderError::RequestFailed(format!("Request failed with status: {}", status)),
     };
 
@@ -258,7 +256,7 @@ pub async fn handle_response_google_compat(response: Response) -> Result<Value, 
         StatusCode::TOO_MANY_REQUESTS => {
             Err(ProviderError::RateLimitExceeded(format!("{:?}", payload)))
         }
-        StatusCode::INTERNAL_SERVER_ERROR | StatusCode::SERVICE_UNAVAILABLE => {
+        _ if final_status.is_server_error() => {
             Err(ProviderError::ServerError(format!("{:?}", payload)))
         }
         _ => {
@@ -926,7 +924,7 @@ mod tests {
     #[test]
     fn test_map_http_error_to_provider_error() {
         let test_cases = vec![
-            // UNAUTHORIZED/FORBIDDEN branch - with payload
+            // UNAUTHORIZED/FORBIDDEN - with payload
             (
                 StatusCode::UNAUTHORIZED,
                 Some(json!({"error": "auth failed"})),
@@ -934,7 +932,7 @@ mod tests {
                     "Authentication failed. Please ensure your API keys are valid and have the required permissions. Status: 401 Unauthorized. Response: Object {\"error\": String(\"auth failed\")}".to_string(),
                 ),
             ),
-            // UNAUTHORIZED/FORBIDDEN branch - without payload
+            // UNAUTHORIZED/FORBIDDEN - without payload
             (
                 StatusCode::FORBIDDEN,
                 None,
@@ -942,7 +940,7 @@ mod tests {
                     "Authentication failed. Please ensure your API keys are valid and have the required permissions. Status: 403 Forbidden".to_string(),
                 ),
             ),
-            // BAD_REQUEST branch - with context_length_exceeded detection
+            // BAD_REQUEST - with context_length_exceeded detection
             (
                 StatusCode::BAD_REQUEST,
                 Some(json!({"error": {"message": "context_length_exceeded"}})),
@@ -950,7 +948,7 @@ mod tests {
                     "{\"error\":{\"message\":\"context_length_exceeded\"}}".to_string(),
                 ),
             ),
-            // BAD_REQUEST branch - with error.message extraction
+            // BAD_REQUEST - with error.message extraction
             (
                 StatusCode::BAD_REQUEST,
                 Some(json!({"error": {"message": "Custom error"}})),
@@ -958,7 +956,7 @@ mod tests {
                     "Request failed with status: 400 Bad Request. Message: Custom error".to_string(),
                 ),
             ),
-            // BAD_REQUEST branch - without payload
+            // BAD_REQUEST - without payload
             (
                 StatusCode::BAD_REQUEST,
                 None,
@@ -966,7 +964,7 @@ mod tests {
                     "Request failed with status: 400 Bad Request. Message: Unknown error".to_string(),
                 ),
             ),
-            // TOO_MANY_REQUESTS branch
+            // TOO_MANY_REQUESTS
             (
                 StatusCode::TOO_MANY_REQUESTS,
                 Some(json!({"retry_after": 60})),
@@ -974,13 +972,19 @@ mod tests {
                     "Some(Object {\"retry_after\": Number(60)})".to_string(),
                 ),
             ),
-            // INTERNAL_SERVER_ERROR/SERVICE_UNAVAILABLE branch
+            // is_server_error() without payload
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 None,
                 ProviderError::ServerError("None".to_string()),
             ),
-            // Default branch - any other status code
+            // is_server_error() with payload
+            (
+                StatusCode::BAD_GATEWAY,
+                Some(json!({"error": "upstream error"})),
+                ProviderError::ServerError("Some(Object {\"error\": String(\"upstream error\")})".to_string()),
+            ),
+            // Default - any other status code
             (
                 StatusCode::IM_A_TEAPOT,
                 Some(json!({"ignored": "payload"})),
