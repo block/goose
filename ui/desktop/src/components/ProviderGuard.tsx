@@ -77,7 +77,7 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
           toastService.configure({ silent: false });
           toastService.success({
             title: 'Success!',
-            msg: `Started goose with ${model} by Tetrate Agent Router Service. You can change the model via the lower right corner.`,
+            msg: `Started goose with ${model} by Tetrate. You can change the model via the dropdown.`,
           });
 
           // Close the modal and mark as having provider
@@ -143,14 +143,14 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
           toastService.configure({ silent: false });
           toastService.success({
             title: 'Success!',
-            msg: `Started goose with ${model} by OpenRouter. You can change the model via the lower right corner.`,
+            msg: `Started goose with ${model} by OpenRouter. You can change the model via the dropdown.`,
           });
 
           // Close the modal and mark as having provider
           setOpenRouterSetupState(null);
           setShowFirstTimeSetup(false);
           setHasProvider(true);
-          
+
           // Navigate to chat after successful setup
           navigate('/', { replace: true });
         } else {
@@ -196,7 +196,6 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
         }
         const ollamaStatus = await checkOllamaStatus();
         setOllamaDetected(ollamaStatus.isRunning);
-
       } catch (error) {
         // On error, assume no provider and redirect to welcome
         console.error('Error checking provider configuration:', error);
@@ -305,55 +304,68 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
                   <div className="origin-bottom-left goose-icon-animation">
                     <Goose className="size-6 sm:size-8" />
                   </div>
-                  <h1 className="text-2xl sm:text-4xl font-light text-left">
-                    Welcome to Goose
-                  </h1>
+                  <h1 className="text-2xl sm:text-4xl font-light text-left">Welcome to Goose</h1>
                 </div>
                 <p className="text-text-muted text-base sm:text-lg mt-4 sm:mt-6">
-                  Since it's your first time here, let's get your set you with a provider so we can make incredible work together.
+                  Since it's your first time here, let's get your set you with a provider so we can
+                  make incredible work together.
                 </p>
               </div>
 
               {/* Setup options - same width container */}
-              <div className="space-y-3 sm:space-y-4">
-                {/* Tetrate Card */}
-                <div 
-                  onClick={handleTetrateSetup}
-                  className="w-full p-4 sm:p-6 bg-background-muted border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group"
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <h3 className="font-medium text-text-standard text-sm sm:text-base">
-                        Tetrate Agent Router Service
-                      </h3>
-                    </div>
-                    <div className="text-text-muted group-hover:text-text-standard transition-colors">
-                      <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                    </div>
-                  </div>
-                  <p className="text-text-muted text-sm sm:text-base">
-                    Enterprise-grade AI routing solution. Provides secure access to multiple AI models with advanced features.
-                  </p>
-                </div>
 
-                {/* Primary OpenRouter Card with subtle shimmer - wrapped for badge positioning */}
+              <div className="space-y-3 sm:space-y-4">
                 <div className="relative">
+                  {/* Tetrate Card */}
                   {/* Recommended badge - positioned relative to wrapper */}
                   <div className="absolute -top-2 -right-2 sm:-top-3 sm:-right-3 z-20">
                     <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-600 text-white rounded-full">
                       Recommended
                     </span>
                   </div>
-                  
-                  <div 
+
+                  <div
+                    onClick={handleTetrateSetup}
+                    className="w-full p-4 sm:p-6 bg-background-muted border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <h3 className="font-medium text-text-standard text-sm sm:text-base">
+                          Automatic setup with Tetrate Agent Router
+                        </h3>
+                      </div>
+                      <div className="text-text-muted group-hover:text-text-standard transition-colors">
+                        <svg
+                          className="w-4 h-4 sm:w-5 sm:h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M9 5l7 7-7 7"
+                          />
+                        </svg>
+                      </div>
+                    </div>
+                    <p className="text-text-muted text-sm sm:text-base">
+                      Get secure access to multiple AI models, start for free. Quick setup with just
+                      a few clicks.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Primary OpenRouter Card with subtle shimmer - wrapped for badge positioning */}
+                <div className="relative">
+                  <div
                     onClick={handleOpenRouterSetup}
                     className="relative w-full p-4 sm:p-6 bg-background-muted border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group overflow-hidden"
                   >
                     {/* Subtle shimmer effect */}
                     <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/8 to-transparent"></div>
-                    
+
                     <div className="relative flex items-start justify-between mb-3">
                       <div className="flex-1">
                         <OpenRouter className="w-5 h-5 sm:w-6 sm:h-6 mb-12 text-text-standard" />
@@ -362,75 +374,108 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
                         </h3>
                       </div>
                       <div className="text-text-muted group-hover:text-text-standard transition-colors">
-                        <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        <svg
+                          className="w-4 h-4 sm:w-5 sm:h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M9 5l7 7-7 7"
+                          />
                         </svg>
                       </div>
                     </div>
                     <p className="relative text-text-muted text-sm sm:text-base">
-                      Get instant access to multiple AI models including GPT-4, Claude, and more. Quick setup with just a few clicks.
+                      Get instant access to multiple AI models including GPT-4, Claude, and more.
+                      Quick setup with just a few clicks.
                     </p>
                   </div>
                 </div>
 
-            {/* Ollama Card - outline style */}
-            <div className="relative">
-              {/* Detected badge - similar to recommended but green */}
-              {ollamaDetected && (
-                <div className="absolute -top-2 -right-2 sm:-top-3 sm:-right-3 z-20">
-                  <span className="inline-block px-2 py-1 text-xs font-medium bg-green-600 text-white rounded-full">
-                    Detected
-                  </span>
-                </div>
-              )}
-              
-              <div 
-                onClick={() => {
-                  setShowFirstTimeSetup(false);
-                  setShowOllamaSetup(true);
-                }}
-                className="w-full p-4 sm:p-6 bg-transparent border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
-                    <Ollama className="w-5 h-5 sm:w-6 sm:h-6 mb-12 text-text-standard" />
-                    <h3 className="font-medium text-text-standard text-sm sm:text-base">
-                      Ollama
-                    </h3>
-                  </div>
-                  <div className="text-text-muted group-hover:text-text-standard transition-colors flex-shrink-0">
-                    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </div>
-                </div>
-                <p className="text-text-muted text-sm sm:text-base">
-                  Run AI models locally on your computer. Completely free and private with no internet required.
-                </p>
-              </div>
-            </div>
+                {/* Ollama Card - outline style */}
+                <div className="relative">
+                  {/* Detected badge - similar to recommended but green */}
+                  {ollamaDetected && (
+                    <div className="absolute -top-2 -right-2 sm:-top-3 sm:-right-3 z-20">
+                      <span className="inline-block px-2 py-1 text-xs font-medium bg-green-600 text-white rounded-full">
+                        Detected
+                      </span>
+                    </div>
+                  )}
 
-                        {/* Other providers Card - outline style */}
-            <div 
-              onClick={() => navigate('/welcome', { replace: true })}
-              className="w-full p-4 sm:p-6 bg-transparent border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group"
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex-1">
-                  <h3 className="font-medium text-text-standard text-sm sm:text-base">
-                    Other providers
-                  </h3>
+                  <div
+                    onClick={() => {
+                      setShowFirstTimeSetup(false);
+                      setShowOllamaSetup(true);
+                    }}
+                    className="w-full p-4 sm:p-6 bg-transparent border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <Ollama className="w-5 h-5 sm:w-6 sm:h-6 mb-12 text-text-standard" />
+                        <h3 className="font-medium text-text-standard text-sm sm:text-base">
+                          Ollama
+                        </h3>
+                      </div>
+                      <div className="text-text-muted group-hover:text-text-standard transition-colors flex-shrink-0">
+                        <svg
+                          className="w-4 h-4 sm:w-5 sm:h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M9 5l7 7-7 7"
+                          />
+                        </svg>
+                      </div>
+                    </div>
+                    <p className="text-text-muted text-sm sm:text-base">
+                      Run AI models locally on your computer. Completely free and private with no
+                      internet required.
+                    </p>
+                  </div>
                 </div>
-                <div className="text-text-muted group-hover:text-text-standard transition-colors">
-                  <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
+
+                {/* Other providers Card - outline style */}
+                <div
+                  onClick={() => navigate('/welcome', { replace: true })}
+                  className="w-full p-4 sm:p-6 bg-transparent border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <h3 className="font-medium text-text-standard text-sm sm:text-base">
+                        Other providers
+                      </h3>
+                    </div>
+                    <div className="text-text-muted group-hover:text-text-standard transition-colors">
+                      <svg
+                        className="w-4 h-4 sm:w-5 sm:h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 5l7 7-7 7"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                  <p className="text-text-muted text-sm sm:text-base">
+                    If you've already signed up for providers like Anthropic, OpenAI etc, you can
+                    enter your own keys.
+                  </p>
                 </div>
-              </div>
-              <p className="text-text-muted text-sm sm:text-base">
-                If you've already signed up for providers like Anthropic, OpenAI etc, you can enter your own keys.
-              </p>
-            </div>
               </div>
             </div>
           </div>
