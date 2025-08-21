@@ -218,9 +218,8 @@ impl Provider for OpenAiProvider {
                 tracing::debug!("Failed to get usage data");
                 Usage::default()
             });
-        let response_model = get_model(&json_response);
         emit_debug_trace(model_config, &payload, &json_response, &usage);
-        Ok((message, ProviderUsage::new(response_model, usage)))
+        Ok((message, ProviderUsage::new(model_config.model_name.clone(), usage)))
     }
 
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
