@@ -606,10 +606,13 @@ pub fn create_request(
         ));
     }
 
-    let is_ox_model =
-        model_config.model_name.starts_with("o") || model_config.model_name.starts_with("gpt-5");
+    let is_ox_model = model_config.model_name.starts_with("o1")
+        || model_config.model_name.starts_with("o2")
+        || model_config.model_name.starts_with("o3")
+        || model_config.model_name.starts_with("o4")
+        || model_config.model_name.starts_with("gpt-5");
 
-    // Only extract reasoning effort for O1/O3 models
+    // Only extract reasoning effort for O-series models
     let (model_name, reasoning_effort) = if is_ox_model {
         let parts: Vec<&str> = model_config.model_name.split('-').collect();
         let last_part = parts.last().unwrap();
