@@ -37,6 +37,7 @@ const DEFAULT_SCOPES: &[&str] = &["all-apis", "offline_access"];
 const DEFAULT_TIMEOUT_SECS: u64 = 600;
 
 pub const DATABRICKS_DEFAULT_MODEL: &str = "databricks-claude-3-7-sonnet";
+const DATABRICKS_DEFAULT_FAST_MODEL: &str = "claude-3-5-haiku";
 pub const DATABRICKS_KNOWN_MODELS: &[&str] = &[
     "databricks-meta-llama-3-3-70b-instruct",
     "databricks-meta-llama-3-1-405b-instruct",
@@ -109,6 +110,7 @@ impl_provider_default!(DatabricksProvider);
 impl DatabricksProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
+        let model = model.with_fast(DATABRICKS_DEFAULT_FAST_MODEL.to_string());
 
         let mut host: Result<String, ConfigError> = config.get_param("DATABRICKS_HOST");
         if host.is_err() {
