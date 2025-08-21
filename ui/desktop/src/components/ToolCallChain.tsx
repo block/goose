@@ -7,7 +7,7 @@ interface ToolCallChainProps {
   messages: Message[];
   chainIndices: number[];
   toolCallNotifications: Map<string, NotificationEvent[]>;
-  toolResponsesMap: Map<string, any>;
+  toolResponsesMap: Map<string, import("../types/message").ToolResponseMessageContent>;
   messageHistoryIndex: number;
   isStreaming?: boolean;
 }
