@@ -17,7 +17,7 @@ When you enable an [extension](/docs/getting-started/using-extensions), you gain
 
 Enabling multiple extensions gives you access to a wider range of tools, but loading a lot of tools into context can be inefficient and confusing for the LLM. It's like having every tool in your workshop spread out on your bench when you only need one or two. 
 
-The intelligent tool selection strategy helps avoid this problem. Instead of loading all tools for every interaction, it loads only the tools needed for your current task. This ensures that only the functionality you need is loaded into context, so you can keep more of your favorite extensions enabled. This provides:
+To manage this more efficiently, you can enable a tool selection strategy. Instead of loading all tools for every interaction, it loads only the tools needed for your current task. This ensures that only the functionality you need is loaded into context, so you can keep more of your favorite extensions enabled. This provides:
 
 - Reduced token consumption
 - Improved LLM performance
