@@ -66,3 +66,5 @@ do_not_version/
 crates/goose/tests/mcp_replays/*errors.txt
 
 .gromastate
+# Nix build output
+result

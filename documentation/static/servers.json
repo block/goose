@@ -235,6 +235,18 @@
     "environmentVariables": []
   },
   {
+    "id": "figma",
+    "name": "Figma",
+    "description": "Convert Figma designs into code and extract design context (requires local setup)",
+    "url": "http://127.0.0.1:3845/mcp",
+    "link": "",
+    "installation_notes": "The Figma desktop app must be running with the MCP server enabled.",
+    "is_builtin": false,
+    "endorsed": true,
+    "type": "streamable-http",
+    "environmentVariables": []
+  },
+  {
     "id": "filesystem-mcp",
     "name": "Filesystem",
     "description": "File system operations and management",

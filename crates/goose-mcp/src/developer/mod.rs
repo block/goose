@@ -389,7 +389,7 @@ impl DeveloperRouter {
                 To use the write command, you must specify `file_text` which will become the new content of the file. Be careful with
                 existing files! This is a full overwrite, so you must include everything - not just sections you are modifying.
                 
-                To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning) 
+                To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning, -1 for end) 
                 and `new_str` (the text to insert).
 
                 To use the edit_file command, you must specify both `old_str` and `new_str` 
@@ -416,7 +416,7 @@ impl DeveloperRouter {
                 unique section of the original file, including any whitespace. Make sure to include enough context that the match is not
                 ambiguous. The entire original string will be replaced with `new_str`.
 
-                To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning) 
+                To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning, -1 for end) 
                 and `new_str` (the text to insert).
             "#}.to_string(), "str_replace")
         };
@@ -446,7 +446,7 @@ impl DeveloperRouter {
                     },
                     "insert_line": {
                         "type": "integer",
-                        "description": "The line number after which to insert the text (0 for beginning of file). This parameter is required when using the insert command."
+                        "description": "The line number after which to insert the text (0 for beginning of file, -1 for end of file). This parameter is required when using the insert command."
                     },
                     "old_str": {"type": "string"},
                     "new_str": {"type": "string"},
@@ -1039,7 +1039,7 @@ impl DeveloperRouter {
                             "Missing 'insert_line' parameter".to_string(),
                             None,
                         )
-                    })? as usize;
+                    })?;
                 let new_str = params
                     .get("new_str")
                     .and_then(|v| v.as_str())
@@ -1442,7 +1442,7 @@ impl DeveloperRouter {
     async fn text_editor_insert(
         &self,
         path: &PathBuf,
-        insert_line: usize,
+        insert_line_spec: i64,
         new_str: &str,
     ) -> Result<Vec<Content>, ErrorData> {
         // Check if file exists
@@ -1471,6 +1471,14 @@ impl DeveloperRouter {
 
         let lines: Vec<&str> = content.lines().collect();
         let total_lines = lines.len();
+
+        // Allow insert_line to be negative
+        let insert_line = if insert_line_spec < 0 {
+            // -1 == end of file, -2 == before the last line, etc.
+            (total_lines as i64 + 1 + insert_line_spec) as usize
+        } else {
+            insert_line_spec as usize
+        };
 
         // Validate insert_line parameter
         if insert_line > total_lines {
@@ -3220,6 +3228,89 @@ mod tests {
                     "command": "insert",
                     "path": file_path_str,
                     "insert_line": 3,
+                    "new_str": "Line 4"
+                }),
+                dummy_sender(),
+            )
+            .await
+            .unwrap();
+
+        let text = insert_result
+            .iter()
+            .find(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::Assistant))
+            })
+            .unwrap()
+            .as_text()
+            .unwrap();
+
+        assert!(text.text.contains("Text has been inserted at line 4"));
+
+        // Verify the file content
+        let view_result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "view",
+                    "path": file_path_str
+                }),
+                dummy_sender(),
+            )
+            .await
+            .unwrap();
+
+        let view_text = view_result
+            .iter()
+            .find(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::User))
+            })
+            .unwrap()
+            .as_text()
+            .unwrap();
+
+        assert!(view_text.text.contains("1: Line 1"));
+        assert!(view_text.text.contains("2: Line 2"));
+        assert!(view_text.text.contains("3: Line 3"));
+        assert!(view_text.text.contains("4: Line 4"));
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_text_editor_insert_at_end_negative() {
+        let router = get_router().await;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_path = temp_dir.path().join("test.txt");
+        let file_path_str = file_path.to_str().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a file with some content
+        let content = "Line 1\nLine 2\nLine 3";
+        router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "write",
+                    "path": file_path_str,
+                    "file_text": content
+                }),
+                dummy_sender(),
+            )
+            .await
+            .unwrap();
+
+        // Insert at the end (after line 3)
+        let insert_result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "insert",
+                    "path": file_path_str,
+                    "insert_line": -1,
                     "new_str": "Line 4"
                 }),
                 dummy_sender(),

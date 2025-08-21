@@ -14,7 +14,7 @@ const GridLayout = memo(function GridLayout({ children }: { children: React.Reac
       className="grid gap-4 [&_*]:z-20 p-1"
       style={{
         gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 200px))',
-        justifyContent: 'start',
+        justifyContent: 'center',
       }}
     >
       {children}

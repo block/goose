@@ -1267,29 +1267,6 @@ ipcMain.handle('open-notifications-settings', async () => {
   }
 });
 
-// Handle quit confirmation setting
-ipcMain.handle('set-quit-confirmation', async (_event, show: boolean) => {
-  try {
-    const settings = loadSettings();
-    settings.showQuitConfirmation = show;
-    saveSettings(settings);
-    return true;
-  } catch (error) {
-    console.error('Error setting quit confirmation:', error);
-    return false;
-  }
-});
-
-ipcMain.handle('get-quit-confirmation-state', () => {
-  try {
-    const settings = loadSettings();
-    return settings.showQuitConfirmation ?? true;
-  } catch (error) {
-    console.error('Error getting quit confirmation state:', error);
-    return true;
-  }
-});
-
 // Handle wakelock setting
 ipcMain.handle('set-wakelock', async (_event, enable: boolean) => {
   try {
@@ -2314,48 +2291,6 @@ app.on('will-quit', async () => {
         error
       );
     }
-  }
-});
-
-// Quit when all windows are closed, except on macOS or if we have a tray icon.
-// Add confirmation dialog when quitting with Cmd+Q (skip in dev mode)
-app.on('before-quit', async (event) => {
-  // Skip confirmation dialog in development mode
-  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    return; // Allow normal quit behavior in dev mode
-  }
-
-  // Check if quit confirmation is enabled in settings
-  const settings = loadSettings();
-  if (!settings.showQuitConfirmation) {
-    return; // Allow normal quit behavior if confirmation is disabled
-  }
-
-  // Prevent the default quit behavior
-  event.preventDefault();
-
-  // Show confirmation dialog
-  try {
-    const result = (await dialog.showMessageBox({
-      type: 'question',
-      buttons: ['Quit', 'Cancel'],
-      defaultId: 1, // Default to Cancel
-      title: 'Confirm Quit',
-      message: 'Are you sure you want to quit Goose?',
-      detail: 'Any unsaved changes may be lost.',
-    })) as unknown as { response: number };
-
-    if (result.response === 0) {
-      // User clicked "Quit"
-      // Set a flag to avoid showing the dialog again
-      app.removeAllListeners('before-quit');
-      // Force quit the app
-      process.nextTick(() => {
-        app.exit(0);
-      });
-    }
-  } catch (error) {
-    console.error('Error showing quit dialog:', error);
   }
 });
 
