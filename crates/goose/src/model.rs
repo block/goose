@@ -253,6 +253,18 @@ impl ModelConfig {
         self
     }
 
+    pub fn with_fast(mut self, fast_model: String) -> Self {
+        self.fast_model = Some(fast_model);
+        self
+    }
+
+    pub fn use_fast_model(mut self) -> Self {
+        if let Some(fast_model) = self.fast_model.clone() {
+            self.model_name = fast_model;
+        }
+        self
+    }
+
     pub fn context_limit(&self) -> usize {
         // If we have an explicit context limit set, use it
         if let Some(limit) = self.context_limit {

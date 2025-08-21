@@ -23,6 +23,7 @@ use crate::providers::retry::ProviderRetry;
 use rmcp::model::Tool;
 
 const ANTHROPIC_DEFAULT_MODEL: &str = "claude-sonnet-4-0";
+const ANTHROPIC_DEFAULT_FAST_MODEL: &str = "claude-3-5-haiku-latest";
 const ANTHROPIC_KNOWN_MODELS: &[&str] = &[
     "claude-sonnet-4-0",
     "claude-sonnet-4-20250514",
@@ -49,9 +50,8 @@ pub struct AnthropicProvider {
 impl_provider_default!(AnthropicProvider);
 
 impl AnthropicProvider {
-    pub fn from_env(mut model: ModelConfig) -> Result<Self> {
-        // Set the default fast model for Anthropic
-        model.fast_model = Some("claude-3-5-haiku-latest".to_string());
+    pub fn from_env(model: ModelConfig) -> Result<Self> {
+        let model = model.with_fast(ANTHROPIC_DEFAULT_FAST_MODEL.to_string());
 
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("ANTHROPIC_API_KEY")?;

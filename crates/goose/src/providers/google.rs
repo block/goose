@@ -14,6 +14,7 @@ use serde_json::Value;
 
 pub const GOOGLE_API_HOST: &str = "https://generativelanguage.googleapis.com";
 pub const GOOGLE_DEFAULT_MODEL: &str = "gemini-2.5-flash";
+pub const GOOGLE_DEFAULT_FAST_MODEL: &str = "gemini-1.5-flash";
 pub const GOOGLE_KNOWN_MODELS: &[&str] = &[
     // Gemini 2.5 models (latest generation)
     "gemini-2.5-pro",
@@ -55,8 +56,7 @@ impl_provider_default!(GoogleProvider);
 
 impl GoogleProvider {
     pub fn from_env(mut model: ModelConfig) -> Result<Self> {
-        // Set the default fast model for Google - using Gemini Flash
-        model.fast_model = Some("gemini-1.5-flash".to_string());
+        let model = model.with_fast(GOOGLE_DEFAULT_FAST_MODEL.to_string());
 
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("GOOGLE_API_KEY")?;

@@ -29,6 +29,7 @@ use crate::providers::formats::openai::response_to_streaming_message;
 use rmcp::model::Tool;
 
 pub const OPEN_AI_DEFAULT_MODEL: &str = "gpt-4o";
+pub const OPEN_AI_DEFAULT_FAST_MODEL: &str = "gpt-4o-mini";
 pub const OPEN_AI_KNOWN_MODELS: &[(&str, usize)] = &[
     ("gpt-4o", 128_000),
     ("gpt-4o-mini", 128_000),
@@ -58,9 +59,8 @@ pub struct OpenAiProvider {
 impl_provider_default!(OpenAiProvider);
 
 impl OpenAiProvider {
-    pub fn from_env(mut model: ModelConfig) -> Result<Self> {
-        // Set the default fast model for OpenAI
-        model.fast_model = Some("gpt-4o-mini".to_string());
+    pub fn from_env(model: ModelConfig) -> Result<Self> {
+        let model = model.with_fast(OPEN_AI_DEFAULT_FAST_MODEL.to_string());
 
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("OPENAI_API_KEY")?;
