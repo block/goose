@@ -95,7 +95,7 @@ impl McpClientTrait for MockClient {
         if let Some(handler) = self.handlers.get(name) {
             match handler(&arguments) {
                 Ok(content) => Ok(CallToolResult {
-                    content: Some(content),
+                    content: content,
                     is_error: None,
                     structured_content: None,
                 }),
