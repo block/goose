@@ -577,23 +577,37 @@ pub fn create_request(
         ));
     }
 
-    let is_ox_model =
-        model_config.model_name.starts_with("o") || model_config.model_name.starts_with("gpt-5");
+    let is_ox_model = model_config.model_name.starts_with("o1")
+        || model_config.model_name.starts_with("o2")
+        || model_config.model_name.starts_with("o3")
+        || model_config.model_name.starts_with("o4")
+        || model_config.model_name.starts_with("gpt-5");
 
-    // Only extract reasoning effort for O1/O3 models
-    let (model_name, reasoning_effort) = if is_ox_model {
-        let parts: Vec<&str> = model_config.model_name.split('-').collect();
-        let last_part = parts.last().unwrap();
+    // Check if reasoning effort should be forced via config
+    let config = crate::config::Config::global();
+    let is_reasoning_model = match config.get_param::<String>("GOOSE_REASONING_EFFORT") {
+        Ok(_) => true,
+        Err(_) => is_ox_model,
+    };
 
-        match *last_part {
-            "low" | "medium" | "high" => {
-                let base_name = parts[..parts.len() - 1].join("-");
-                (base_name, Some(last_part.to_string()))
+    // Only extract reasoning effort for O-series models or when explicitly configured
+    let (model_name, reasoning_effort) = if is_reasoning_model {
+        if let Ok(effort) = config.get_param::<String>("GOOSE_REASONING_EFFORT") {
+            (model_config.model_name.to_string(), Some(effort))
+        } else {
+            let parts: Vec<&str> = model_config.model_name.split('-').collect();
+            let last_part = parts.last().unwrap();
+
+            match *last_part {
+                "low" | "medium" | "high" => {
+                    let base_name = parts[..parts.len() - 1].join("-");
+                    (base_name, Some(last_part.to_string()))
+                }
+                _ => (
+                    model_config.model_name.to_string(),
+                    Some("medium".to_string()),
+                ),
             }
-            _ => (
-                model_config.model_name.to_string(),
-                Some("medium".to_string()),
-            ),
         }
     } else {
         // For non-O family models, use the model name as is and no reasoning effort
@@ -1160,6 +1174,82 @@ mod tests {
 
         for (key, value) in expected.as_object().unwrap() {
             assert_eq!(obj.get(key).unwrap(), value);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_request_with_goose_reasoning_effort_config() -> anyhow::Result<()> {
+        // Create a temporary config for testing
+        let config = crate::config::Config::global();
+
+        // Set the GOOSE_REASONING_EFFORT config parameter
+        config.set_param(
+            "GOOSE_REASONING_EFFORT",
+            serde_json::Value::String("high".to_string()),
+        )?;
+
+        // Test with a non-O model that should now include reasoning_effort due to config
+        let model_config = ModelConfig {
+            model_name: "open-mistral-small-3.1".to_string(),
+            context_limit: Some(4096),
+            temperature: None,
+            max_tokens: Some(1024),
+            toolshim: false,
+            toolshim_model: None,
+        };
+        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+        let obj = request.as_object().unwrap();
+
+        // Should include reasoning_effort because of config override
+        assert_eq!(obj.get("reasoning_effort"), Some(&json!("high")));
+        // Should still use the original model name
+        assert_eq!(obj.get("model"), Some(&json!("open-mistral-small-3.1")));
+        // Should use "developer" role because of config override
+        if let Some(messages) = obj.get("messages").and_then(|m| m.as_array()) {
+            if let Some(system_message) = messages.first() {
+                assert_eq!(system_message.get("role"), Some(&json!("system")));
+            }
+        }
+
+        // Reset the config parameter
+        config.delete("GOOSE_REASONING_EFFORT")?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_request_without_goose_reasoning_effort_config() -> anyhow::Result<()> {
+        // Create a temporary config for testing
+        let config = crate::config::Config::global();
+
+        // Ensure the GOOSE_REASONING_EFFORT config parameter is not set
+        if config.get_param::<String>("GOOSE_REASONING_EFFORT").is_ok() {
+            config.delete("GOOSE_REASONING_EFFORT")?;
+        }
+
+        // Test with a non-O model that should not include reasoning_effort
+        let model_config = ModelConfig {
+            model_name: "open-mistral-small-3.1".to_string(),
+            context_limit: Some(4096),
+            temperature: None,
+            max_tokens: Some(1024),
+            toolshim: false,
+            toolshim_model: None,
+        };
+        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+        let obj = request.as_object().unwrap();
+
+        // Should not include reasoning_effort because config is not set and it's not an O model
+        assert_eq!(obj.get("reasoning_effort"), None);
+        // Should still use the original model name
+        assert_eq!(obj.get("model"), Some(&json!("open-mistral-small-3.1")));
+        // Should use "system" role because it's not an O model and config not set
+        if let Some(messages) = obj.get("messages").and_then(|m| m.as_array()) {
+            if let Some(system_message) = messages.first() {
+                assert_eq!(system_message.get("role"), Some(&json!("system")));
+            }
         }
 
         Ok(())
