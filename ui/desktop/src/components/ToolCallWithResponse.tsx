@@ -1,3 +1,5 @@
+import { ToolIconWithStatus, ToolCallStatus } from './ToolCallStatusIndicator';
+import { getToolCallIcon } from '../utils/toolIconMapping';
 import React, { useEffect, useRef, useState } from 'react';
 import { Button } from './ui/button';
 import { ToolCallArguments, ToolCallArgumentValue } from './ToolCallArguments';
@@ -442,36 +444,44 @@ function ToolCallView({
     // Fallback tool name formatting
     return snakeToTitleCase(toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2));
   };
+  // Map LoadingStatus to ToolCallStatus
+  const getToolCallStatus = (loadingStatus: LoadingStatus): ToolCallStatus => {
+    switch (loadingStatus) {
+      case 'success':
+        return 'success';
+      case 'error':
+        return 'error';
+      case 'loading':
+        return 'loading';
+      default:
+        return 'pending';
+    }
+  };
+
+  const toolCallStatus = getToolCallStatus(loadingStatus);
 
   const toolLabel = (
-    <span className={cn('ml-2', extensionTooltip && 'cursor-pointer hover:opacity-80')}>
-      {getToolLabelContent()}
+    <span className={cn('ml-2 flex items-center gap-2', extensionTooltip && 'cursor-pointer hover:opacity-80')}>
+      <ToolIconWithStatus
+        ToolIcon={getToolCallIcon(toolCall.name)}
+        status={toolCallStatus}
+      />
+      <span>{getToolLabelContent()}</span>
     </span>
   );
-
   return (
     <ToolCallExpandable
       isStartExpanded={isRenderingProgress}
       isForceExpand={isShouldExpand}
       label={
-        <>
-          <div className="w-2 flex items-center justify-center">
-            {loadingStatus === 'loading' ? (
-              <LoaderCircle className="animate-spin text-text-muted" size={3} />
-            ) : (
-              <Dot size={2} loadingStatus={loadingStatus} />
-            )}
-          </div>
-          {extensionTooltip ? (
-            <TooltipWrapper tooltipContent={extensionTooltip} side="top" align="start">
-              {toolLabel}
-            </TooltipWrapper>
-          ) : (
-            toolLabel
-          )}
-        </>
-      }
-    >
+        extensionTooltip ? (
+          <TooltipWrapper tooltipContent={extensionTooltip} side="top" align="start">
+            {toolLabel}
+          </TooltipWrapper>
+        ) : (
+          toolLabel
+        )
+      }    >
       {/* Tool Details */}
       {isToolDetails && (
         <div className="border-t border-borderSubtle">
