@@ -24,12 +24,18 @@ impl PromptInjectionScanner {
         }
     }
 
-    /// Get threshold from config (placeholder for future config integration)
+    /// Get threshold from config
     pub fn get_threshold_from_config(&self) -> f32 {
-        // For Phase 1, use hardcoded threshold
-        // In Phase 2, this will read from configuration
-        // Lower threshold to ensure user is asked for medium-confidence threats
-        0.5 // Changed from self.threshold (0.7) to 0.5 to catch more threats
+        use crate::config::Config;
+        let config = Config::global();
+
+        // Get security config and extract threshold
+        if let Ok(security_value) = config.get_param::<serde_json::Value>("security") {
+            if let Some(threshold) = security_value.get("threshold").and_then(|t| t.as_f64()) {
+                return threshold as f32;
+            }
+        }
+        0.7 // Default threshold
     }
 
     /// Analyze tool call with conversation context

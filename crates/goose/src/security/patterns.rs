@@ -273,13 +273,6 @@ pub const THREAT_PATTERNS: &[ThreatPattern] = &[
         category: ThreatCategory::SystemModification,
     },
     ThreatPattern {
-        name: "whitespace_obfuscation",
-        pattern: r"[\t\r\n\f\v]+[;&|]|[;&|][\t\r\n\f\v]+",
-        description: "Whitespace-based command separation",
-        risk_level: RiskLevel::Low,
-        category: ThreatCategory::CommandInjection,
-    },
-    ThreatPattern {
         name: "unicode_obfuscation",
         pattern: r"\\u[0-9a-fA-F]{4}|\\U[0-9a-fA-F]{8}",
         description: "Unicode character obfuscation",

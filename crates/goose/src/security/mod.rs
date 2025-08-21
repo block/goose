@@ -73,7 +73,6 @@ impl SecurityManager {
     /// Main security check function - called from reply_internal
     /// Uses the proper two-step security analysis process
     /// Scans ALL tools (approved + needs_approval) for security threats
-    /// Also scans user messages for dangerous content
     pub async fn filter_malicious_tool_calls(
         &self,
         messages: &[Message],
@@ -93,54 +92,6 @@ impl SecurityManager {
             permission_check_result.needs_approval.len(),
             messages.len()
         );
-
-        // Scan recent user messages for dangerous content
-        // Look at the last few messages to catch malicious user input
-        let recent_messages = messages.iter().rev().take(3).collect::<Vec<_>>();
-        for (i, message) in recent_messages.iter().enumerate() {
-            if message.role == rmcp::model::Role::User {
-                let message_text = message.as_concat_text();
-                if !message_text.trim().is_empty() {
-                    tracing::info!(
-                        "🔍 Scanning user message {} for dangerous content: '{}'",
-                        i,
-                        message_text.chars().take(100).collect::<String>()
-                    );
-
-                    let message_result = scanner.scan_for_dangerous_patterns(&message_text).await?;
-
-                    if message_result.is_malicious {
-                        let finding_id = format!(
-                            "MSG-{}",
-                            &uuid::Uuid::new_v4().simple().to_string().to_uppercase()[..8]
-                        );
-
-                        tracing::warn!(
-                            confidence = message_result.confidence,
-                            explanation = %message_result.explanation,
-                            finding_id = %finding_id,
-                            message_preview = %message_text.chars().take(50).collect::<String>(),
-                            "🔒 User message contains dangerous content"
-                        );
-
-                        let config_threshold = scanner.get_threshold_from_config();
-
-                        results.push(SecurityResult {
-                            is_malicious: message_result.is_malicious,
-                            confidence: message_result.confidence,
-                            explanation: format!(
-                                "Dangerous user input detected: {}",
-                                message_result.explanation
-                            ),
-                            should_ask_user: message_result.confidence > config_threshold,
-                            finding_id,
-                        });
-                    } else {
-                        tracing::debug!("✅ User message passed security analysis");
-                    }
-                }
-            }
-        }
 
         // Check ALL tools (approved + needs_approval) for potential security issues
         for (i, tool_request) in permission_check_result
