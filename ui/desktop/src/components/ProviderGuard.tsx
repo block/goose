@@ -307,8 +307,8 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
                   <h1 className="text-2xl sm:text-4xl font-light text-left">Welcome to Goose</h1>
                 </div>
                 <p className="text-text-muted text-base sm:text-lg mt-4 sm:mt-6">
-                  Since it's your first time here, let's get your set you with a provider so we can
-                  make incredible work together.
+                  Since it's your first time here, let's get you setup with a provider so we can
+                  make incredible work together. Scroll down to see options.
                 </p>
               </div>
 
