@@ -110,7 +110,6 @@ impl_provider_default!(DatabricksProvider);
 impl DatabricksProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
-        let model = model.with_fast(DATABRICKS_DEFAULT_FAST_MODEL.to_string());
 
         let mut host: Result<String, ConfigError> = config.get_param("DATABRICKS_HOST");
         if host.is_err() {
@@ -139,13 +138,41 @@ impl DatabricksProvider {
         let api_client =
             ApiClient::with_timeout(host, auth_method, Duration::from_secs(DEFAULT_TIMEOUT_SECS))?;
 
-        Ok(Self {
+        // Create the provider without the fast model first
+        let mut provider = Self {
             api_client,
             auth,
-            model,
+            model: model.clone(),
             image_format: ImageFormat::OpenAi,
             retry_config,
-        })
+        };
+
+        // Check if the default fast model exists in the workspace
+        let model_with_fast = tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                if let Ok(Some(models)) = provider.fetch_supported_models().await {
+                    if models.contains(&DATABRICKS_DEFAULT_FAST_MODEL.to_string()) {
+                        tracing::debug!(
+                            "Found {} in Databricks workspace, setting as fast model",
+                            DATABRICKS_DEFAULT_FAST_MODEL
+                        );
+                        model.with_fast(DATABRICKS_DEFAULT_FAST_MODEL.to_string())
+                    } else {
+                        tracing::debug!(
+                            "{} not found in Databricks workspace, not setting fast model",
+                            DATABRICKS_DEFAULT_FAST_MODEL
+                        );
+                        model
+                    }
+                } else {
+                    tracing::debug!("Could not fetch Databricks models, not setting fast model");
+                    model
+                }
+            })
+        });
+
+        provider.model = model_with_fast;
+        Ok(provider)
     }
 
     fn load_retry_config(config: &crate::config::Config) -> RetryConfig {
