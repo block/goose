@@ -151,11 +151,11 @@ pub fn is_showing_thinking() -> bool {
     THINKING.with(|t| t.borrow().is_shown())
 }
 
-pub fn set_thinking_message(s: &String) {
+pub fn set_thinking_message(s: &str) {
     if std::io::stdout().is_terminal() {
         THINKING.with(|t| {
             if let Some(spinner) = t.borrow_mut().spinner.as_mut() {
-                spinner.set_message(s);
+                spinner.set_message(s.to_owned());
             }
         });
     }

@@ -335,6 +335,10 @@ export type Message = {
     content: Array<MessageContent>;
     created?: number;
     id?: string | null;
+    /**
+     * Metadata to indicate the message should keep thinking mode active with an optional message
+     */
+    keepThinking?: string | null;
     role: Role;
 };
 

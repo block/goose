@@ -666,6 +666,32 @@ async fn process_message_streaming(
                         // Log model change
                         tracing::info!("Model changed to {} in {} mode", model, mode);
                     }
+                    Ok(AgentEvent::SystemAlert { message, level: _ }) => {
+                        // Send system alert to web client
+                        let mut sender = sender.lock().await;
+                        let _ = sender
+                            .send(Message::Text(
+                                serde_json::to_string(&WebSocketMessage::Response {
+                                    content: message,
+                                    role: "system".to_string(),
+                                    timestamp: chrono::Utc::now().timestamp_millis(),
+                                })
+                                .unwrap()
+                                .into(),
+                            ))
+                            .await;
+                    }
+                    Ok(AgentEvent::ThinkingUpdate { message }) => {
+                        // Send thinking update to web client
+                        let mut sender = sender.lock().await;
+                        let _ = sender
+                            .send(Message::Text(
+                                serde_json::to_string(&WebSocketMessage::Thinking { message })
+                                    .unwrap()
+                                    .into(),
+                            ))
+                            .await;
+                    }
 
                     Err(e) => {
                         error!("Error in message stream: {}", e);

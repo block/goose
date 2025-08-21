@@ -1246,6 +1246,14 @@ async fn run_scheduled_job_internal(
                             }
                             all_session_messages.push(msg);
                         }
+                        Ok(AgentEvent::SystemAlert { message, level: _ }) => {
+                            // Log system alerts but don't add to session
+                            tracing::info!("[Job {}] System Alert: {}", job.id, message);
+                        }
+                        Ok(AgentEvent::ThinkingUpdate { message }) => {
+                            // Log thinking updates but don't add to session
+                            tracing::debug!("[Job {}] Thinking: {}", job.id, message);
+                        }
                         Ok(AgentEvent::McpNotification(_)) => {
                             // Handle notifications if needed
                         }

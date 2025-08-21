@@ -110,6 +110,7 @@ export interface Message {
   content: MessageContent[];
   display?: boolean;
   sendToLLM?: boolean;
+  keepThinking?: string | null;
 }
 
 // Helper functions to create messages

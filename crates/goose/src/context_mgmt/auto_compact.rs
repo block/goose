@@ -5,7 +5,7 @@ use crate::{
     token_counter::create_async_token_counter,
 };
 use anyhow::Result;
-use tracing::{debug, info};
+use tracing::debug;
 
 /// Result of auto-compaction check
 #[derive(Debug)]
@@ -62,7 +62,7 @@ pub async fn check_compaction_needed(
     let threshold = threshold_override.unwrap_or_else(|| {
         config
             .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
-            .unwrap_or(0.8) // Default to 80%
+            .unwrap_or(0.3) // Default to 30%
     });
 
     let provider = agent.provider().await?;
@@ -158,7 +158,7 @@ pub async fn check_and_compact_messages(
         });
     }
 
-    info!(
+    debug!(
         "Auto-compacting messages (usage: {:.1}%)",
         check_result.usage_ratio * 100.0
     );

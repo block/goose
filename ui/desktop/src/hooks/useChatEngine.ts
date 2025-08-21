@@ -96,6 +96,8 @@ export const useChatEngine = ({
     notifications,
     sessionMetadata,
     setError,
+    systemAlerts,
+    thinkingMessage,
   } = useMessageStream({
     api: getApiUrl('/reply'),
     id: chat.id,
@@ -482,6 +484,10 @@ export const useChatEngine = ({
 
     // Error management
     clearError: () => setError(undefined),
+
+    // Notification data
+    systemAlerts,
+    thinkingMessage,
 
     // New functions for message editing
     onMessageUpdate,

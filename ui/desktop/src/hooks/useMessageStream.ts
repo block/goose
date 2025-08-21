@@ -45,6 +45,8 @@ type MessageEvent =
   | { type: 'Error'; error: string }
   | { type: 'Finish'; reason: string }
   | { type: 'ModelChange'; model: string; mode: string }
+  | { type: 'SystemAlert'; message: string; level: string }
+  | { type: 'ThinkingUpdate'; message: string }
   | NotificationEvent;
 
 export interface UseMessageStreamOptions {
@@ -170,6 +172,12 @@ export interface UseMessageStreamHelpers {
 
   /** Clear error state */
   setError: (error: Error | undefined) => void;
+
+  /** System alerts from the backend */
+  systemAlerts: Array<{ message: string; level: string; timestamp: number }>;
+
+  /** Current thinking message from the backend */
+  thinkingMessage: string | null;
 }
 
 /**
@@ -202,6 +210,10 @@ export function useMessageStream({
     null
   );
   const [sessionMetadata, setSessionMetadata] = useState<SessionMetadata | null>(null);
+  const [systemAlerts, setSystemAlerts] = useState<
+    Array<{ message: string; level: string; timestamp: number }>
+  >([]);
+  const [thinkingMessage, setThinkingMessage] = useState<string | null>(null);
 
   // expose a way to update the body so we can update the session id when CLE occurs
   const updateMessageStreamBody = useCallback((newBody: object) => {
@@ -282,8 +294,15 @@ export function useMessageStream({
 
                 switch (parsedEvent.type) {
                   case 'Message': {
-                    // Transition from waiting to streaming on first message
-                    mutateChatState(ChatState.Streaming);
+                    // Check if this message has keepThinking flag
+                    const hasKeepThinking =
+                      parsedEvent.message.keepThinking !== null &&
+                      parsedEvent.message.keepThinking !== undefined;
+
+                    // Only transition from thinking to streaming if no keepThinking flag
+                    if (!hasKeepThinking && mutateChatState) {
+                      mutateChatState(ChatState.Streaming);
+                    }
 
                     // Create a new message object with the properties preserved or defaulted
                     const newMessage = {
@@ -343,6 +362,25 @@ export function useMessageStream({
                       mode: parsedEvent.mode,
                     };
                     setCurrentModelInfo(modelInfo);
+                    break;
+                  }
+
+                  case 'SystemAlert': {
+                    // Add system alert to state
+                    const alert = {
+                      message: parsedEvent.message,
+                      level: parsedEvent.level,
+                      timestamp: Date.now(),
+                    };
+                    setSystemAlerts((prev) => [...prev, alert]);
+                    console.log(`[System Alert - ${parsedEvent.level}] ${parsedEvent.message}`);
+                    break;
+                  }
+
+                  case 'ThinkingUpdate': {
+                    // Update the thinking message state
+                    setThinkingMessage(parsedEvent.message);
+                    console.log(`[Thinking] ${parsedEvent.message}`);
                     break;
                   }
 
@@ -702,5 +740,7 @@ export function useMessageStream({
     currentModelInfo,
     sessionMetadata,
     setError,
+    systemAlerts,
+    thinkingMessage,
   };
 }

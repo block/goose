@@ -266,6 +266,7 @@ impl Agent {
             role: response.role.clone(),
             created: response.created,
             content: filtered_content,
+            keep_thinking: response.keep_thinking.clone(),
         };
 
         // Categorize tool requests

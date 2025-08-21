@@ -287,6 +287,7 @@ impl ClaudeCodeProvider {
             role: Role::Assistant,
             created: chrono::Utc::now().timestamp(),
             content: message_content,
+            keep_thinking: None,
         };
 
         Ok((response_message, usage))
@@ -438,6 +439,7 @@ impl ClaudeCodeProvider {
             role: Role::Assistant,
             created: chrono::Utc::now().timestamp(),
             content: vec![MessageContent::text(description.clone())],
+            keep_thinking: None,
         };
 
         let usage = Usage::default();

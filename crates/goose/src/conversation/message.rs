@@ -374,6 +374,9 @@ pub struct Message {
     pub created: i64,
     #[serde(deserialize_with = "deserialize_sanitized_content")]
     pub content: Vec<MessageContent>,
+    /// Metadata to indicate the message should keep thinking mode active with an optional message
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub keep_thinking: Option<String>,
 }
 
 impl fmt::Debug for Message {
@@ -400,6 +403,7 @@ impl Message {
             role,
             created,
             content,
+            keep_thinking: None,
         }
     }
     pub fn debug(&self) -> String {
@@ -413,6 +417,7 @@ impl Message {
             role: Role::User,
             created: Utc::now().timestamp(),
             content: Vec::new(),
+            keep_thinking: None,
         }
     }
 
@@ -423,6 +428,7 @@ impl Message {
             role: Role::Assistant,
             created: Utc::now().timestamp(),
             content: Vec::new(),
+            keep_thinking: None,
         }
     }
 
@@ -586,6 +592,14 @@ impl Message {
     /// Add summarization requested to the message
     pub fn with_summarization_requested<S: Into<String>>(self, msg: S) -> Self {
         self.with_content(MessageContent::summarization_requested(msg))
+    }
+
+    /// Set whether this message should keep thinking mode active with an optional custom message
+    /// If a message is provided, thinking mode is enabled with that message.
+    /// Pass an empty string to enable thinking with default message.
+    pub fn with_keep_thinking<S: Into<String>>(mut self, message: S) -> Self {
+        self.keep_thinking = Some(message.into());
+        self
     }
 }
 

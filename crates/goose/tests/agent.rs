@@ -148,6 +148,12 @@ async fn run_truncate_test(
             Ok(AgentEvent::HistoryReplaced(_)) => {
                 // Handle history replacement events if needed
             }
+            Ok(AgentEvent::SystemAlert { .. }) => {
+                // System alert events are informational, just continue
+            }
+            Ok(AgentEvent::ThinkingUpdate { .. }) => {
+                // Thinking update events are informational, just continue
+            }
             Err(e) => {
                 println!("Error: {:?}", e);
                 return Err(e);
@@ -1062,6 +1068,8 @@ mod max_turns_tests {
                 Ok(AgentEvent::McpNotification(_)) => {}
                 Ok(AgentEvent::ModelChange { .. }) => {}
                 Ok(AgentEvent::HistoryReplaced(_)) => {}
+                Ok(AgentEvent::SystemAlert { .. }) => {}
+                Ok(AgentEvent::ThinkingUpdate { .. }) => {}
                 Err(e) => {
                     return Err(e);
                 }

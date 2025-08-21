@@ -147,6 +147,13 @@ enum MessageEvent {
         request_id: String,
         message: ServerNotification,
     },
+    SystemAlert {
+        message: String,
+        level: String,
+    },
+    ThinkingUpdate {
+        message: String,
+    },
     Ping,
 }
 
@@ -297,6 +304,21 @@ async fn reply_handler(
                                 request_id: request_id.clone(),
                                 message: n,
                             }, &tx, &cancel_token).await;
+                        }
+                        Ok(Some(Ok(AgentEvent::SystemAlert { message, level }))) => {
+                            // Send system alert as a special message event that won't be added to history
+                            stream_event(MessageEvent::SystemAlert {
+                                message,
+                                level: match level {
+                                    goose::agents::SystemAlertLevel::Info => "info".to_string(),
+                                    goose::agents::SystemAlertLevel::Warning => "warning".to_string(),
+                                    goose::agents::SystemAlertLevel::Success => "success".to_string(),
+                                }
+                            }, &tx, &cancel_token).await;
+                        }
+                        Ok(Some(Ok(AgentEvent::ThinkingUpdate { message }))) => {
+                            // Send thinking update event to update the loading message
+                            stream_event(MessageEvent::ThinkingUpdate { message }, &tx, &cancel_token).await;
                         }
 
                         Ok(Some(Err(e))) => {

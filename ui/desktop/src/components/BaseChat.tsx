@@ -158,6 +158,8 @@ function BaseChatContent({
     sessionMetadata,
     isUserMessage,
     clearError,
+    systemAlerts,
+    thinkingMessage,
     onMessageUpdate,
   } = useChatEngine({
     chat,
@@ -321,15 +323,12 @@ function BaseChatContent({
   };
   // Callback to handle scroll to bottom from ProgressiveMessageList
   const handleScrollToBottom = useCallback(() => {
-    // Only auto-scroll if user is not actively typing
-    const isUserTyping = document.activeElement?.id === 'dynamic-textarea';
-    if (!isUserTyping) {
-      setTimeout(() => {
-        if (scrollRef.current?.scrollToBottom) {
-          scrollRef.current.scrollToBottom();
-        }
-      }, 100);
-    }
+    // Use requestAnimationFrame to ensure DOM has updated before scrolling
+    requestAnimationFrame(() => {
+      if (scrollRef.current?.scrollToBottom) {
+        scrollRef.current.scrollToBottom();
+      }
+    });
   }, []);
 
   return (
@@ -420,6 +419,7 @@ function BaseChatContent({
                       isUserMessage={isUserMessage}
                       onScrollToBottom={handleScrollToBottom}
                       isStreamingMessage={chatState !== ChatState.Idle}
+                      systemAlerts={systemAlerts}
                       onMessageUpdate={onMessageUpdate}
                     />
                   ) : (
@@ -437,6 +437,7 @@ function BaseChatContent({
                         isUserMessage={isUserMessage}
                         onScrollToBottom={handleScrollToBottom}
                         isStreamingMessage={chatState !== ChatState.Idle}
+                        systemAlerts={systemAlerts}
                         onMessageUpdate={onMessageUpdate}
                       />
                     </SearchView>
@@ -519,7 +520,9 @@ function BaseChatContent({
           {chatState !== ChatState.Idle && (
             <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
               <LoadingGoose
-                message={isLoadingCompaction ? 'summarizing conversation…' : undefined}
+                message={
+                  isLoadingCompaction ? 'summarizing conversation…' : thinkingMessage || undefined
+                }
                 chatState={chatState}
               />
             </div>

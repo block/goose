@@ -2245,6 +2245,11 @@
             "type": "string",
             "nullable": true
           },
+          "keepThinking": {
+            "type": "string",
+            "description": "Metadata to indicate the message should keep thinking mode active with an optional message",
+            "nullable": true
+          },
           "role": {
             "$ref": "#/components/schemas/Role"
           }
