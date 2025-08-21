@@ -62,15 +62,15 @@ To configure your chosen provider or see available options, visit the `Models` t
   <TabItem value="ui" label="Goose Desktop" default>
   **To update your LLM provider and API key:** 
   1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-  2. Click the `Settings` in the sidebar
+  2. Click the `Settings` button on the sidebar
   3. Click the `Models` tab
   4. Click `Configure providers`
-  5. Choose your provider from the list and click `Configure`
+  5. Click your provider in the list
   6. Add your API key and other required configurations, then click `Submit`
 
   **To change your current model:**
   1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-  2. Click the `Settings` in the sidebar
+  2. Click the `Settings` button on the sidebar
   3. Click the `Models` tab
   4. Click `Switch models`
   5. Choose from your configured providers in the dropdown, or select `Use other provider` to configure a new one
@@ -83,7 +83,7 @@ To configure your chosen provider or see available options, visit the `Models` t
 
   **To start over with provider and model configuration:**
   1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-  2. Click the `Settings` in the sidebar
+  2. Click the `Settings` button on the sidebar
   3. Click the `Models` tab
   4. Click `Reset Provider and Model` to clear your current settings and return to the welcome screen
   </TabItem>
@@ -223,7 +223,7 @@ Goose supports using custom OpenAI-compatible endpoints, which is particularly u
     2. Click the `Settings` button on the sidebar
     3. Click the `Models` tab
     4. Click `Configure providers`
-    5. Choose `OpenAI` from the provider list and click `Configure`
+    5. Click `OpenAI` in the provider list
     6. Fill in your configuration details:
        - API Key (required)
        - Host URL (for custom endpoints)
