@@ -113,12 +113,9 @@ impl OpenAiProvider {
     }
 
     pub fn from_custom_config(
-        mut model: ModelConfig,
+        model: ModelConfig,
         config: CustomProviderConfig,
     ) -> Result<Self> {
-        // Set the default fast model for OpenAI
-        model.fast_model = Some("gpt-4o-mini".to_string());
-
         let global_config = crate::config::Config::global();
         let api_key: String = global_config
             .get_secret(&config.api_key_env)
