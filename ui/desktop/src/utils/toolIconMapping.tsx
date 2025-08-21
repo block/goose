@@ -9,7 +9,7 @@ import {
   FilePlus,
   FileText,
   Globe,
-  Harddrive,
+
   Monitor,
   Numbers,
   Save,

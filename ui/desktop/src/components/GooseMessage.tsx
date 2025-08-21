@@ -180,7 +180,6 @@ export default function GooseMessage({
 
   // Determine rendering logic based on chain membership and content
   const isFirstInChain = messageChain && messageChain[0] === messageIndex;
-  const hasText = displayText.trim().length > 0;
 
   return (
     <div className="group relative w-full">
