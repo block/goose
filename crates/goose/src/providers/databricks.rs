@@ -238,21 +238,18 @@ impl Provider for DatabricksProvider {
     }
 
     #[tracing::instrument(
-        skip(self, model, system, messages, tools),
+        skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
     async fn complete_with_model(
         &self,
-        model: &str,
+        model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let mut model_config = self.model.clone();
-        model_config.model_name = model.to_string();
-
         let mut payload =
-            create_request(&model_config, system, messages, tools, &self.image_format)?;
+            create_request(model_config, system, messages, tools, &self.image_format)?;
         payload
             .as_object_mut()
             .expect("payload should have model key")
@@ -266,7 +263,7 @@ impl Provider for DatabricksProvider {
             Usage::default()
         });
         let response_model = get_model(&response);
-        super::utils::emit_debug_trace(&model_config, &payload, &response, &usage);
+        super::utils::emit_debug_trace(&self.model, &payload, &response, &usage);
 
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
@@ -307,8 +304,8 @@ impl Provider for DatabricksProvider {
             .await?;
 
         let stream = response.bytes_stream().map_err(io::Error::other);
-        let model_config = self.model.clone();
 
+        let model = self.model.clone();
         Ok(Box::pin(try_stream! {
             let stream_reader = StreamReader::new(stream);
             let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
@@ -317,7 +314,7 @@ impl Provider for DatabricksProvider {
             pin!(message_stream);
             while let Some(message) = message_stream.next().await {
                 let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-                super::utils::emit_debug_trace(&model_config, &payload, &message, &usage.as_ref().map(|f| f.usage).unwrap_or_default());
+                super::utils::emit_debug_trace(&model, &payload, &message, &usage.as_ref().map(|f| f.usage).unwrap_or_default());
                 yield (message, usage);
             }
         }))

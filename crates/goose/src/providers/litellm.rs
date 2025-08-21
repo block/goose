@@ -163,14 +163,11 @@ impl Provider for LiteLLMProvider {
     #[tracing::instrument(skip_all, name = "provider_complete")]
     async fn complete_with_model(
         &self,
-        model: &str,
+        model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let mut model_config = self.model.clone();
-        model_config.model_name = model.to_string();
-
         let mut payload = super::formats::openai::create_request(
             &model_config,
             system,
@@ -193,7 +190,7 @@ impl Provider for LiteLLMProvider {
         let message = super::formats::openai::response_to_message(&response)?;
         let usage = super::formats::openai::get_usage(&response);
         let response_model = get_model(&response);
-        emit_debug_trace(&model_config, &payload, &response, &usage);
+        emit_debug_trace(model_config, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 

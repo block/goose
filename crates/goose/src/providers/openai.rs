@@ -112,10 +112,7 @@ impl OpenAiProvider {
         })
     }
 
-    pub fn from_custom_config(
-        model: ModelConfig,
-        config: CustomProviderConfig,
-    ) -> Result<Self> {
+    pub fn from_custom_config(model: ModelConfig, config: CustomProviderConfig) -> Result<Self> {
         let global_config = crate::config::Config::global();
         let api_key: String = global_config
             .get_secret(&config.api_key_env)
@@ -199,20 +196,17 @@ impl Provider for OpenAiProvider {
     }
 
     #[tracing::instrument(
-        skip(self, model, system, messages, tools),
+        skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
     async fn complete_with_model(
         &self,
-        model: &str,
+        model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let mut model_config = self.model.clone();
-        model_config.model_name = model.to_string();
-
-        let payload = create_request(&model_config, system, messages, tools, &ImageFormat::OpenAi)?;
+        let payload = create_request(model_config, system, messages, tools, &ImageFormat::OpenAi)?;
 
         let json_response = self.post(&payload).await?;
 
@@ -225,7 +219,7 @@ impl Provider for OpenAiProvider {
                 Usage::default()
             });
         let response_model = get_model(&json_response);
-        emit_debug_trace(&model_config, &payload, &json_response, &usage);
+        emit_debug_trace(model_config, &payload, &json_response, &usage);
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 

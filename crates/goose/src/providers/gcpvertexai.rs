@@ -512,27 +512,24 @@ impl Provider for GcpVertexAIProvider {
     /// * `messages` - Array of previous messages in the conversation
     /// * `tools` - Array of available tools for the model
     #[tracing::instrument(
-        skip(self, model, system, messages, tools),
+        skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
     async fn complete_with_model(
         &self,
-        model: &str,
+        model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let mut model_config = self.model.clone();
-        model_config.model_name = model.to_string();
-
         // Create request and context
-        let (request, context) = create_request(&model_config, system, messages, tools)?;
+        let (request, context) = create_request(model_config, system, messages, tools)?;
 
         // Send request and process response
         let response = self.post(&request, &context).await?;
         let usage = get_usage(&response, &context)?;
 
-        emit_debug_trace(&model_config, &request, &response, &usage);
+        emit_debug_trace(model_config, &request, &response, &usage);
 
         // Convert response to message
         let message = response_to_message(response, context)?;

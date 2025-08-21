@@ -319,19 +319,16 @@ impl Provider for GeminiCliProvider {
     }
 
     #[tracing::instrument(
-        skip(self, model, system, messages, tools),
+        skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
     async fn complete_with_model(
         &self,
-        model: &str,
+        model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let mut model_config = self.model.clone();
-        model_config.model_name = model.to_string();
-
         // Check if this is a session description request (short system prompt asking for 4 words or less)
         if system.contains("four words or less") || system.contains("4 words or less") {
             return self.generate_simple_session_description(messages);
@@ -354,7 +351,7 @@ impl Provider for GeminiCliProvider {
             "usage": usage
         });
 
-        emit_debug_trace(&model_config, &payload, &response, &usage);
+        emit_debug_trace(model_config, &payload, &response, &usage);
 
         Ok((
             message,

@@ -114,7 +114,7 @@ impl Provider for TestProvider {
 
     async fn complete_with_model(
         &self,
-        _model: &str,
+        _model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -191,7 +191,7 @@ mod tests {
 
         async fn complete_with_model(
             &self,
-            _model: &str,
+            _model_config: &ModelConfig,
             _system: &str,
             _messages: &[Message],
             _tools: &[Tool],

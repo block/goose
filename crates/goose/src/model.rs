@@ -258,11 +258,14 @@ impl ModelConfig {
         self
     }
 
-    pub fn use_fast_model(mut self) -> Self {
-        if let Some(fast_model) = self.fast_model.clone() {
-            self.model_name = fast_model;
+    pub fn use_fast_model(&self) -> Self {
+        if let Some(fast_model) = &self.fast_model {
+            let mut config = self.clone();
+            config.model_name = fast_model.clone();
+            config
+        } else {
+            self.clone()
         }
-        self
     }
 
     pub fn context_limit(&self) -> usize {
@@ -272,13 +275,13 @@ impl ModelConfig {
         }
 
         // Otherwise, get the model's default limit
-        let main_limit = Self::get_model_specific_limit(&self.model_name)
-            .unwrap_or(DEFAULT_CONTEXT_LIMIT);
+        let main_limit =
+            Self::get_model_specific_limit(&self.model_name).unwrap_or(DEFAULT_CONTEXT_LIMIT);
 
         // If we have a fast_model, also check its limit and use the minimum
         if let Some(fast_model) = &self.fast_model {
-            let fast_limit = Self::get_model_specific_limit(fast_model)
-                .unwrap_or(DEFAULT_CONTEXT_LIMIT);
+            let fast_limit =
+                Self::get_model_specific_limit(fast_model).unwrap_or(DEFAULT_CONTEXT_LIMIT);
             main_limit.min(fast_limit)
         } else {
             main_limit

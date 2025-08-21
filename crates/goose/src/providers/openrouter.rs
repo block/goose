@@ -238,19 +238,16 @@ impl Provider for OpenRouterProvider {
     }
 
     #[tracing::instrument(
-        skip(self, model, system, messages, tools),
+        skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
     async fn complete_with_model(
         &self,
-        model: &str,
+        model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let mut model_config = self.model.clone();
-        model_config.model_name = model.to_string();
-
         // Create the base payload
         let payload = create_request_based_on_model(self, system, messages, tools)?;
 
@@ -269,7 +266,7 @@ impl Provider for OpenRouterProvider {
             Usage::default()
         });
         let response_model = get_model(&response);
-        emit_debug_trace(&model_config, &payload, &response, &usage);
+        emit_debug_trace(model_config, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 

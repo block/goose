@@ -321,12 +321,11 @@ pub trait Provider: Send + Sync {
     // Providers should override this to implement their actual completion logic
     async fn complete_with_model(
         &self,
-        model: &str,
+        model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError>;
-
 
     // Default implementation: use the provider's configured model
     async fn complete(
@@ -335,9 +334,8 @@ pub trait Provider: Send + Sync {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        
         let model_config = self.get_model_config();
-        self.complete_with_model(&model_config.model_name, system, messages, tools)
+        self.complete_with_model(&model_config, system, messages, tools)
             .await
     }
 
@@ -348,14 +346,9 @@ pub trait Provider: Send + Sync {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        
         let model_config = self.get_model_config();
-        let model = model_config
-            .fast_model
-            .as_deref()
-            .unwrap_or(&model_config.model_name);
-
-        self.complete_with_model(model, system, messages, tools)
+        let fast_config = model_config.use_fast_model();
+        self.complete_with_model(&fast_config, system, messages, tools)
             .await
     }
 

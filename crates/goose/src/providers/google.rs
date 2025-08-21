@@ -55,7 +55,7 @@ pub struct GoogleProvider {
 impl_provider_default!(GoogleProvider);
 
 impl GoogleProvider {
-    pub fn from_env(mut model: ModelConfig) -> Result<Self> {
+    pub fn from_env(model: ModelConfig) -> Result<Self> {
         let model = model.with_fast(GOOGLE_DEFAULT_FAST_MODEL.to_string());
 
         let config = crate::config::Config::global();
@@ -104,27 +104,23 @@ impl Provider for GoogleProvider {
     }
 
     #[tracing::instrument(
-        skip(self, model, system, messages, tools),
+        skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
     async fn complete_with_model(
         &self,
-        model: &str,
+        model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let mut model_config = self.model.clone();
-
-        model_config.model_name = model.to_string();
-
-        let payload = create_request(&model_config, system, messages, tools)?;
+        let payload = create_request(model_config, system, messages, tools)?;
 
         // Make request
         let response = self
             .with_retry(|| async {
                 let payload_clone = payload.clone();
-                self.post(model, &payload_clone).await
+                self.post(&model_config.model_name, &payload_clone).await
             })
             .await?;
 
@@ -135,7 +131,7 @@ impl Provider for GoogleProvider {
             Some(model_version) => model_version.as_str().unwrap_or_default().to_string(),
             None => model_config.model_name.clone(),
         };
-        emit_debug_trace(&model_config, &payload, &response, &usage);
+        emit_debug_trace(model_config, &payload, &response, &usage);
         let provider_usage = ProviderUsage::new(response_model, usage);
         Ok((message, provider_usage))
     }

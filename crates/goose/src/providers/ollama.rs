@@ -165,19 +165,16 @@ impl Provider for OllamaProvider {
     }
 
     #[tracing::instrument(
-        skip(self, model, system, messages, tools),
+        skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
     async fn complete_with_model(
         &self,
-        model: &str,
+        model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let mut model_config = self.model.clone();
-        model_config.model_name = model.to_string();
-
         let config = crate::config::Config::global();
         let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
         let filtered_tools = if goose_mode == "chat" { &[] } else { tools };
@@ -202,7 +199,7 @@ impl Provider for OllamaProvider {
             Usage::default()
         });
         let response_model = get_model(&response);
-        super::utils::emit_debug_trace(&model_config, &payload, &response, &usage);
+        super::utils::emit_debug_trace(model_config, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 
