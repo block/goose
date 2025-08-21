@@ -104,7 +104,7 @@ impl Provider for XaiProvider {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let payload = create_request(
-            &model_config,
+            model_config,
             system,
             messages,
             tools,

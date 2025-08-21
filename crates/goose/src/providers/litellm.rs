@@ -169,7 +169,7 @@ impl Provider for LiteLLMProvider {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let mut payload = super::formats::openai::create_request(
-            &model_config,
+            model_config,
             system,
             messages,
             tools,
