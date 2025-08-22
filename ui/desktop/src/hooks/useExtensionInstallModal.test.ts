@@ -3,7 +3,6 @@ import { renderHook, act } from '@testing-library/react';
 import { useExtensionInstallModal } from './useExtensionInstallModal';
 import { addExtensionFromDeepLink } from '../components/settings/extensions/deeplink';
 
-// Mock electron APIs
 const mockElectron = {
   getConfig: vi.fn(),
   getAllowedExtensions: vi.fn(),

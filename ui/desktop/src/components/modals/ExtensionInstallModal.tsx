@@ -31,9 +31,9 @@ export function ExtensionInstallModal({
   const getConfirmButtonVariant = () => {
     switch (modalType) {
       case 'blocked':
-        return 'outline'; // Single button for blocked, less prominent
+        return 'outline';
       case 'untrusted':
-        return 'destructive'; // Warning style for potentially risky action
+        return 'destructive';
       case 'trusted':
       default:
         return 'default';
@@ -64,12 +64,10 @@ export function ExtensionInstallModal({
 
         <DialogFooter className="pt-4">
           {config.showSingleButton ? (
-            // Single button for blocked extensions
             <Button onClick={onCancel} disabled={isSubmitting} variant={getConfirmButtonVariant()}>
               {config.confirmLabel}
             </Button>
           ) : (
-            // Two buttons for untrusted/trusted extensions
             <>
               <Button variant="outline" onClick={onCancel} disabled={isSubmitting}>
                 {config.cancelLabel}
