@@ -95,8 +95,18 @@ export const initializeApp = async ({
       }
     }
   }
-  window.location.hash = '#/';
-  window.history.replaceState({}, '', '#/');
+
+  // Only redirect to home if we're still on the initial empty hash or root
+  // This prevents redirecting users who have already navigated elsewhere during initialization
+  const currentHash = window.location.hash;
+  const currentPathname = window.location.pathname;
+  const isOnRootRoute =
+    currentPathname === '/' && (!currentHash || currentHash === '#' || currentHash === '#/');
+
+  if (isOnRootRoute) {
+    window.location.hash = '#/';
+    window.history.replaceState({}, '', '#/');
+  }
 };
 
 const initializeForSessionResume = async ({

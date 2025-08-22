@@ -208,6 +208,7 @@ export default function GooseMessage({
                   toolResponse={toolResponsesMap.get(toolRequest.id)}
                   notifications={toolCallNotifications.get(toolRequest.id)}
                   isStreamingMessage={isStreaming}
+                  append={append}
                 />
               </div>
             ))}

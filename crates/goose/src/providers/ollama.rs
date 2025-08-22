@@ -165,11 +165,12 @@ impl Provider for OllamaProvider {
     }
 
     #[tracing::instrument(
-        skip(self, system, messages, tools),
+        skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -197,9 +198,9 @@ impl Provider for OllamaProvider {
             tracing::debug!("Failed to get usage data");
             Usage::default()
         });
-        let model = get_model(&response);
-        super::utils::emit_debug_trace(&self.model, &payload, &response, &usage);
-        Ok((message, ProviderUsage::new(model, usage)))
+        let response_model = get_model(&response);
+        super::utils::emit_debug_trace(model_config, &payload, &response, &usage);
+        Ok((message, ProviderUsage::new(response_model, usage)))
     }
 
     /// Generate a session name based on the conversation history

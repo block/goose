@@ -585,7 +585,7 @@ impl DeveloperRouter {
         let hints_filenames: Vec<String> = std::env::var("CONTEXT_FILE_NAMES")
             .ok()
             .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_else(|| vec![".goosehints".to_string()]);
+            .unwrap_or_else(|| vec!["AGENTS.md".to_string(), ".goosehints".to_string()]);
 
         let mut global_hints_contents = Vec::with_capacity(hints_filenames.len());
         let mut local_hints_contents = Vec::with_capacity(hints_filenames.len());
