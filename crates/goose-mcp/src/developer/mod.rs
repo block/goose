@@ -460,7 +460,7 @@ impl DeveloperRouter {
         let hints_filenames: Vec<String> = std::env::var("CONTEXT_FILE_NAMES")
             .ok()
             .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_else(|| vec![GOOSE_HINTS_FILENAME.to_string()]);
+            .unwrap_or_else(|| vec!["AGENTS.md".to_string(), GOOSE_HINTS_FILENAME.to_string()]);
         let hints = load_hint_files(&cwd, &hints_filenames, &ignore_patterns);
 
         // Return base instructions directly when no hints are found
