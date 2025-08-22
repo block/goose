@@ -395,12 +395,8 @@ function BaseChatContent({
                           <div
                             className="px-3 py-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
                             onClick={async () => {
-                              // Clear the error state first
                               clearError();
 
-                              // Use the same manual compaction function that the "Compact" button in the
-                              // context window alert uses. This properly calls the backend summarization API
-                              // and handles the response correctly.
                               await handleManualCompaction(
                                 messages,
                                 setMessages,
