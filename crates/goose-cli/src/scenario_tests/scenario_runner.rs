@@ -1,4 +1,5 @@
 use dotenvy::dotenv;
+use goose::conversation::Conversation;
 
 use crate::scenario_tests::message_generator::MessageGenerator;
 use crate::scenario_tests::mock_client::weather_client;
@@ -6,7 +7,6 @@ use crate::scenario_tests::provider_configs::{get_provider_configs, ProviderConf
 use crate::session::Session;
 use anyhow::Result;
 use goose::agents::Agent;
-use goose::message::Message;
 use goose::model::ModelConfig;
 use goose::providers::{create, testprovider::TestProvider};
 use std::collections::{HashMap, HashSet};
@@ -18,7 +18,7 @@ pub const SCENARIO_TESTS_DIR: &str = "src/scenario_tests";
 
 #[derive(Debug, Clone)]
 pub struct ScenarioResult {
-    pub messages: Vec<Message>,
+    pub messages: Conversation,
     pub error: Option<String>,
 }
 
@@ -136,6 +136,9 @@ async fn run_provider_scenario_with_validation<F>(
 where
     F: Fn(&ScenarioResult) -> Result<()>,
 {
+    use goose::config::ExtensionConfig;
+    use tokio::sync::Mutex;
+
     if let Ok(path) = dotenv() {
         println!("Loaded environment from {:?}", path);
     }
@@ -193,10 +196,23 @@ where
     let mock_client = weather_client();
 
     let agent = Agent::new();
-    {
-        let mut extension_manager = agent.extension_manager.write().await;
-        extension_manager.add_client("weather_extension".to_string(), Box::new(mock_client));
-    }
+    agent
+        .extension_manager
+        .add_client(
+            "weather_extension".to_string(),
+            ExtensionConfig::Builtin {
+                name: "".to_string(),
+                display_name: None,
+                description: None,
+                timeout: None,
+                bundled: None,
+                available_tools: vec![],
+            },
+            Arc::new(Mutex::new(Box::new(mock_client))),
+            None,
+            None,
+        )
+        .await;
 
     agent
         .update_provider(provider_arc as Arc<dyn goose::providers::base::Provider>)
@@ -214,7 +230,7 @@ where
             break;
         }
     }
-    let updated_messages = session.message_history().to_vec();
+    let updated_messages = session.message_history();
 
     if let Some(ref err_msg) = error {
         if err_msg.contains("No recorded response found") {

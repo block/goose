@@ -10,8 +10,8 @@ use super::utils::{
     emit_debug_trace, get_model, handle_response_google_compat, handle_response_openai_compat,
     is_google_model,
 };
+use crate::conversation::message::Message;
 use crate::impl_provider_default;
-use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
 use rmcp::model::Tool;
@@ -202,6 +202,12 @@ fn create_request_based_on_model(
         payload = update_request_for_anthropic(&payload);
     }
 
+    // Always add transforms: ["middle-out"] for OpenRouter to handle prompts > context size
+    payload
+        .as_object_mut()
+        .unwrap()
+        .insert("transforms".to_string(), json!(["middle-out"]));
+
     Ok(payload)
 }
 
@@ -232,11 +238,12 @@ impl Provider for OpenRouterProvider {
     }
 
     #[tracing::instrument(
-        skip(self, system, messages, tools),
+        skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -258,9 +265,9 @@ impl Provider for OpenRouterProvider {
             tracing::debug!("Failed to get usage data");
             Usage::default()
         });
-        let model = get_model(&response);
-        emit_debug_trace(&self.model, &payload, &response, &usage);
-        Ok((message, ProviderUsage::new(model, usage)))
+        let response_model = get_model(&response);
+        emit_debug_trace(model_config, &payload, &response, &usage);
+        Ok((message, ProviderUsage::new(response_model, usage)))
     }
 
     /// Fetch supported models from OpenRouter API (only models with tool support)

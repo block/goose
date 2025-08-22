@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use rmcp::model::Tool;
 
+use crate::conversation::message::Message;
 use crate::{
-    message::Message,
     providers::base::Provider,
     token_counter::{AsyncTokenCounter, TokenCounter},
 };

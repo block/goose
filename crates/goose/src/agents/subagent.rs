@@ -3,16 +3,17 @@ use crate::{
     agents::extension::ExtensionConfig,
     agents::{extension_manager::ExtensionManager, Agent, TaskConfig},
     config::ExtensionConfigManager,
-    message::{Message, MessageContent, ToolRequest},
     prompt_template::render_global_file,
     providers::errors::ProviderError,
 };
 use anyhow::anyhow;
 use chrono::{DateTime, Utc};
-use mcp_core::handler::ToolError;
 use rmcp::model::Tool;
+use rmcp::model::{ErrorCode, ErrorData};
 use serde::{Deserialize, Serialize};
 // use serde_json::{self};
+use crate::conversation::message::{Message, MessageContent, ToolRequest};
+use crate::conversation::Conversation;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{Mutex, RwLock};
 use tokio_util::sync::CancellationToken;
@@ -41,7 +42,7 @@ pub struct SubAgentProgress {
 /// A specialized agent that can handle specific tasks independently
 pub struct SubAgent {
     pub id: String,
-    pub conversation: Arc<Mutex<Vec<Message>>>,
+    pub conversation: Arc<Mutex<Conversation>>,
     pub status: Arc<RwLock<SubAgentStatus>>,
     pub config: TaskConfig,
     pub turn_count: Arc<Mutex<usize>>,
@@ -56,7 +57,7 @@ impl SubAgent {
         debug!("Creating new subagent with id: {}", task_config.id);
 
         // Create a new extension manager for this subagent
-        let mut extension_manager = ExtensionManager::new();
+        let extension_manager = ExtensionManager::new();
 
         // Add extensions based on task_type:
         // 1. If executing dynamic task (task_type = 'text_instruction'), default to using all enabled extensions
@@ -80,7 +81,7 @@ impl SubAgent {
 
         let subagent = Arc::new(SubAgent {
             id: task_config.id.clone(),
-            conversation: Arc::new(Mutex::new(Vec::new())),
+            conversation: Arc::new(Mutex::new(Conversation::new_unvalidated(Vec::new()))),
             status: Arc::new(RwLock::new(SubAgentStatus::Ready)),
             config: task_config,
             turn_count: Arc::new(Mutex::new(0)),
@@ -107,7 +108,7 @@ impl SubAgent {
         &self,
         message: String,
         task_config: TaskConfig,
-    ) -> Result<Vec<Message>, anyhow::Error> {
+    ) -> Result<Conversation, anyhow::Error> {
         debug!("Processing message for subagent {}", self.id);
 
         // Get provider from task config
@@ -128,7 +129,10 @@ impl SubAgent {
         }
 
         // Get the current conversation for context
-        let mut messages = self.get_conversation().await;
+        let mut messages = {
+            let conversation = self.conversation.lock().await;
+            conversation.clone()
+        };
 
         // Get tools from the subagent's own extension manager
         let tools: Vec<Tool> = self
@@ -156,7 +160,7 @@ impl SubAgent {
             match Agent::generate_response_from_provider(
                 Arc::clone(provider),
                 &system_prompt,
-                &messages,
+                messages.messages(),
                 &tools,
                 &toolshim_tools,
             )
@@ -202,7 +206,11 @@ impl SubAgent {
                                 .await
                             {
                                 Ok(result) => result.result.await,
-                                Err(e) => Err(ToolError::ExecutionError(e.to_string())),
+                                Err(e) => Err(ErrorData::new(
+                                    ErrorCode::INTERNAL_ERROR,
+                                    e.to_string(),
+                                    None,
+                                )),
                             };
 
                             match tool_result {
@@ -216,7 +224,11 @@ impl SubAgent {
                                     // Create a user message with the tool error
                                     let tool_error_message = Message::user().with_tool_response(
                                         request.id.clone(),
-                                        Err(ToolError::ExecutionError(e.to_string())),
+                                        Err(ErrorData::new(
+                                            ErrorCode::INTERNAL_ERROR,
+                                            e.to_string(),
+                                            None,
+                                        )),
                                     );
                                     messages.push(tool_error_message);
                                 }
@@ -262,11 +274,6 @@ impl SubAgent {
     async fn add_message(&self, message: Message) {
         let mut conversation = self.conversation.lock().await;
         conversation.push(message);
-    }
-
-    /// Get the full conversation history
-    async fn get_conversation(&self) -> Vec<Message> {
-        self.conversation.lock().await.clone()
     }
 
     /// Build the system prompt for the subagent using the template

@@ -9,8 +9,8 @@ use super::embedding::EmbeddingCapable;
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
+use crate::conversation::message::Message;
 use crate::impl_provider_default;
-use crate::message::Message;
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
 
@@ -161,14 +161,15 @@ impl Provider for LiteLLMProvider {
     }
 
     #[tracing::instrument(skip_all, name = "provider_complete")]
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let mut payload = super::formats::openai::create_request(
-            &self.model,
+            model_config,
             system,
             messages,
             tools,
@@ -188,9 +189,9 @@ impl Provider for LiteLLMProvider {
 
         let message = super::formats::openai::response_to_message(&response)?;
         let usage = super::formats::openai::get_usage(&response);
-        let model = get_model(&response);
-        emit_debug_trace(&self.model, &payload, &response, &usage);
-        Ok((message, ProviderUsage::new(model, usage)))
+        let response_model = get_model(&response);
+        emit_debug_trace(model_config, &payload, &response, &usage);
+        Ok((message, ProviderUsage::new(response_model, usage)))
     }
 
     fn supports_embeddings(&self) -> bool {

@@ -32,7 +32,7 @@ goose run --recipe trip.yaml
 
 ## Extensions
 
-Goose recipes have a section where you can specify which extensions Goose can use during execution. Goose will only use the ones you specify. 
+Goose recipes have a section where you can specify which [extensions](/docs/guides/recipes/recipe-reference#extensions) Goose can use during execution. Goose will only use the ones you specify. 
 
 Let's say we want to make sure we have good weather during our Europe trip. We can just add a weather extension (this example uses the [weather-mcp-server](https://github.com/TuanKiri/weather-mcp-server) by TuanKiri under the MIT License) to our recipe, modify the prompt a bit and now Goose will check the weather before adding a city to our trip.
 
@@ -53,6 +53,8 @@ extensions:
     args: []
     timeout: 300
     description: "Weather data for trip planning"
+    env_keys:
+      - WEATHER_API_KEY
 ```
 
 ## Parameters

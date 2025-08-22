@@ -56,7 +56,7 @@ import {
   ChatContextManagerProvider,
   useChatContextManager,
 } from './context_management/ChatContextManager';
-import { type View, ViewOptions } from '../App';
+import { View, ViewOptions } from '../utils/navigationUtils';
 import { MainPanelLayout } from './Layout/MainPanelLayout';
 import ChatInput from './ChatInput';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
@@ -143,7 +143,7 @@ function BaseChatContent({
     chatState,
     error,
     setMessages,
-    input: _input,
+    input,
     setInput: _setInput,
     handleSubmit: engineHandleSubmit,
     onStopGoose,
@@ -158,6 +158,7 @@ function BaseChatContent({
     sessionMetadata,
     isUserMessage,
     clearError,
+    onMessageUpdate,
   } = useChatEngine({
     chat,
     setChat,
@@ -199,6 +200,7 @@ function BaseChatContent({
     recipeAccepted,
     handleRecipeAccept,
     handleRecipeCancel,
+    hasSecurityWarnings,
   } = useRecipeManager(messages, location.state);
 
   // Reset recipe usage tracking when recipe changes
@@ -231,7 +233,9 @@ function BaseChatContent({
   useEffect(() => {
     const isProcessingResponse =
       chatState !== ChatState.Idle && chatState !== ChatState.WaitingForUserInput;
-    handleAutoExecution(append, isProcessingResponse);
+    handleAutoExecution(append, isProcessingResponse, () => {
+      setHasStartedUsingRecipe(true);
+    });
   }, [handleAutoExecution, append, chatState]);
 
   // Use shared session continuation
@@ -328,6 +332,21 @@ function BaseChatContent({
     }
   }, []);
 
+  // Listen for global scroll-to-bottom requests (e.g., from MCP UI prompt actions)
+  useEffect(() => {
+    const handleGlobalScrollRequest = () => {
+      // Add a small delay to ensure content has been rendered
+      setTimeout(() => {
+        if (scrollRef.current?.scrollToBottom) {
+          scrollRef.current.scrollToBottom();
+        }
+      }, 200);
+    };
+
+    window.addEventListener('scroll-chat-to-bottom', handleGlobalScrollRequest);
+    return () => window.removeEventListener('scroll-chat-to-bottom', handleGlobalScrollRequest);
+  }, []);
+
   return (
     <div className="h-full flex flex-col min-h-0">
       <MainPanelLayout
@@ -416,6 +435,7 @@ function BaseChatContent({
                       isUserMessage={isUserMessage}
                       onScrollToBottom={handleScrollToBottom}
                       isStreamingMessage={chatState !== ChatState.Idle}
+                      onMessageUpdate={onMessageUpdate}
                     />
                   ) : (
                     // Render messages with SearchView wrapper when search is enabled
@@ -432,6 +452,7 @@ function BaseChatContent({
                         isUserMessage={isUserMessage}
                         onScrollToBottom={handleScrollToBottom}
                         isStreamingMessage={chatState !== ChatState.Idle}
+                        onMessageUpdate={onMessageUpdate}
                       />
                     </SearchView>
                   )}
@@ -528,7 +549,7 @@ function BaseChatContent({
             chatState={chatState}
             onStop={onStopGoose}
             commandHistory={commandHistory}
-            initialValue={_input || ''}
+            initialValue={input || ''}
             setView={setView}
             numTokens={sessionTokenCount}
             inputTokens={sessionInputTokens || localInputTokens}
@@ -568,6 +589,7 @@ function BaseChatContent({
           description: recipeConfig?.description,
           instructions: recipeConfig?.instructions || undefined,
         }}
+        hasSecurityWarnings={hasSecurityWarnings}
       />
 
       {/* Recipe Parameter Modal */}

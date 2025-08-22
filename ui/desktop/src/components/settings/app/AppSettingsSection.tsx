@@ -18,7 +18,6 @@ interface AppSettingsSectionProps {
 export default function AppSettingsSection({ scrollToSection }: AppSettingsSectionProps) {
   const [menuBarIconEnabled, setMenuBarIconEnabled] = useState(true);
   const [dockIconEnabled, setDockIconEnabled] = useState(true);
-  const [quitConfirmationEnabled, setQuitConfirmationEnabled] = useState(true);
   const [wakelockEnabled, setWakelockEnabled] = useState(true);
   const [isMacOS, setIsMacOS] = useState(false);
   const [isDockSwitchDisabled, setIsDockSwitchDisabled] = useState(false);
@@ -91,7 +90,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
       } else {
         setPricingStatus('error');
       }
-    } catch (error) {
+    } catch {
       setPricingStatus('error');
     }
   };
@@ -121,7 +120,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
       } else {
         setPricingStatus('error');
       }
-    } catch (error) {
+    } catch {
       setPricingStatus('error');
     } finally {
       setIsRefreshing(false);
@@ -142,10 +141,6 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
   useEffect(() => {
     window.electron.getMenuBarIconState().then((enabled) => {
       setMenuBarIconEnabled(enabled);
-    });
-
-    window.electron.getQuitConfirmationState().then((enabled) => {
-      setQuitConfirmationEnabled(enabled);
     });
 
     window.electron.getWakelockState().then((enabled) => {
@@ -196,14 +191,6 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
     const success = await window.electron.setDockIcon(newState);
     if (success) {
       setDockIconEnabled(newState);
-    }
-  };
-
-  const handleQuitConfirmationToggle = async () => {
-    const newState = !quitConfirmationEnabled;
-    const success = await window.electron.setQuitConfirmation(newState);
-    if (success) {
-      setQuitConfirmationEnabled(newState);
     }
   };
 
@@ -294,23 +281,6 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
               </div>
             </div>
           )}
-
-          {/* Quit Confirmation */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-text-default text-xs">Quit confirmation</h3>
-              <p className="text-xs text-text-muted max-w-md mt-[2px]">
-                Show confirmation dialog when quitting the app
-              </p>
-            </div>
-            <div className="flex items-center">
-              <Switch
-                checked={quitConfirmationEnabled}
-                onCheckedChange={handleQuitConfirmationToggle}
-                variant="mono"
-              />
-            </div>
-          </div>
 
           {/* Prevent Sleep */}
           <div className="flex items-center justify-between">

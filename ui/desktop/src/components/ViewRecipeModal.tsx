@@ -1,11 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Recipe, generateDeepLink } from '../recipe';
 import { Parameter } from '../recipe/index';
-import { FullExtensionConfig } from '../extensions';
 import { Geese } from './icons/Geese';
 import Copy from './icons/Copy';
 import { Check, Save, Calendar, X } from 'lucide-react';
-import { useConfig } from './ConfigContext';
+import { ExtensionConfig, useConfig } from './ConfigContext';
 import { FixedExtensionEntry } from './ConfigContext';
 import RecipeActivityEditor from './RecipeActivityEditor';
 import RecipeInfoModal from './RecipeInfoModal';
@@ -171,7 +170,7 @@ export default function ViewRecipeModal({ isOpen, onClose, config }: ViewRecipeM
           }
           return cleanExtension;
         })
-        .filter(Boolean) as FullExtensionConfig[],
+        .filter(Boolean) as ExtensionConfig[],
     };
 
     return updatedConfig;

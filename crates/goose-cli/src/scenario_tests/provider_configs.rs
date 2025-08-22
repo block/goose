@@ -75,6 +75,7 @@ static PROVIDER_CONFIGS: LazyLock<Vec<ProviderConfig>> = LazyLock::new(|| {
             "claude-3-5-sonnet",
             Some("No keys available"),
         ),
+        ProviderConfig::simple_skip("cursor-agent", "gpt-5", Some("No keys available")),
         ProviderConfig::simple_skip(
             "databricks",
             "databricks-dbrx-instruct",

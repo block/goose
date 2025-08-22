@@ -18,8 +18,8 @@ use super::retry::ProviderRetry;
 use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
 
 use crate::config::{Config, ConfigError};
+use crate::conversation::message::Message;
 use crate::impl_provider_default;
-use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::base::ConfigKey;
 use rmcp::model::Tool;
@@ -387,7 +387,12 @@ impl Provider for GithubCopilotProvider {
             GITHUB_COPILOT_DEFAULT_MODEL,
             GITHUB_COPILOT_KNOWN_MODELS.to_vec(),
             GITHUB_COPILOT_DOC_URL,
-            vec![ConfigKey::new("GITHUB_COPILOT_TOKEN", true, true, None)],
+            vec![ConfigKey::new_oauth(
+                "GITHUB_COPILOT_TOKEN",
+                true,
+                true,
+                None,
+            )],
         )
     }
 
@@ -396,16 +401,17 @@ impl Provider for GithubCopilotProvider {
     }
 
     #[tracing::instrument(
-        skip(self, system, messages, tools),
+        skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi)?;
+        let payload = create_request(model_config, system, messages, tools, &ImageFormat::OpenAi)?;
 
         // Make request with retry
         let response = self
@@ -421,9 +427,9 @@ impl Provider for GithubCopilotProvider {
             tracing::debug!("Failed to get usage data");
             Usage::default()
         });
-        let model = get_model(&response);
-        emit_debug_trace(&self.model, &payload, &response, &usage);
-        Ok((message, ProviderUsage::new(model, usage)))
+        let response_model = get_model(&response);
+        emit_debug_trace(model_config, &payload, &response, &usage);
+        Ok((message, ProviderUsage::new(response_model, usage)))
     }
 
     /// Fetch supported models from GitHub Copliot; returns Err on failure, Ok(None) if not present
@@ -465,5 +471,34 @@ impl Provider for GithubCopilotProvider {
             .collect();
         models.sort();
         Ok(Some(models))
+    }
+
+    async fn configure_oauth(&self) -> Result<(), ProviderError> {
+        let config = Config::global();
+
+        // Check if token already exists and is valid
+        if config.get_secret::<String>("GITHUB_COPILOT_TOKEN").is_ok() {
+            // Try to refresh API info to validate the token
+            match self.refresh_api_info().await {
+                Ok(_) => return Ok(()), // Token is valid
+                Err(_) => {
+                    // Token is invalid, continue with OAuth flow
+                    tracing::debug!("Existing token is invalid, starting OAuth flow");
+                }
+            }
+        }
+
+        // Start OAuth device code flow
+        let token = self
+            .get_access_token()
+            .await
+            .map_err(|e| ProviderError::Authentication(format!("OAuth flow failed: {}", e)))?;
+
+        // Save the token
+        config
+            .set_secret("GITHUB_COPILOT_TOKEN", Value::String(token))
+            .map_err(|e| ProviderError::ExecutionError(format!("Failed to save token: {}", e)))?;
+
+        Ok(())
     }
 }

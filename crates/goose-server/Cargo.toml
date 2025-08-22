@@ -40,6 +40,7 @@ serde_yaml = "0.9.34"
 utoipa = { version = "4.1", features = ["axum_extras", "chrono"] }
 reqwest = { version = "0.12.9", features = ["json", "rustls-tls", "blocking", "multipart"], default-features = false }
 tokio-util = "0.7.15"
+uuid = { version = "1.11", features = ["v4"] }
 
 [[bin]]
 name = "goosed"

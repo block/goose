@@ -1,11 +1,7 @@
+use crate::conversation::message::Message;
+use crate::conversation::Conversation;
 use crate::{
-    agents::Agent,
-    config::Config,
-    context_mgmt::{
-        common::{SYSTEM_PROMPT_TOKEN_OVERHEAD, TOOLS_TOKEN_OVERHEAD},
-        get_messages_token_counts_async,
-    },
-    message::Message,
+    agents::Agent, config::Config, context_mgmt::get_messages_token_counts_async,
     token_counter::create_async_token_counter,
 };
 use anyhow::Result;
@@ -17,11 +13,10 @@ pub struct AutoCompactResult {
     /// Whether compaction was performed
     pub compacted: bool,
     /// The messages after potential compaction
-    pub messages: Vec<Message>,
-    /// Token count before compaction (if compaction occurred)
-    pub tokens_before: Option<usize>,
-    /// Token count after compaction (if compaction occurred)
-    pub tokens_after: Option<usize>,
+    pub messages: Conversation,
+    /// Provider usage from summarization (if compaction occurred)
+    /// This contains the actual token counts after compaction
+    pub summarization_usage: Option<crate::providers::base::ProviderUsage>,
 }
 
 /// Result of checking if compaction is needed
@@ -67,7 +62,7 @@ pub async fn check_compaction_needed(
     let threshold = threshold_override.unwrap_or_else(|| {
         config
             .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
-            .unwrap_or(0.3) // Default to 30%
+            .unwrap_or(0.8) // Default to 80%
     });
 
     let provider = agent.provider().await?;
@@ -125,47 +120,6 @@ pub async fn check_compaction_needed(
     })
 }
 
-/// Perform compaction on messages
-///
-/// This function performs the actual compaction using the agent's summarization
-/// capabilities. It assumes compaction is needed and should be called after
-/// `check_compaction_needed` confirms it's necessary.
-///
-/// # Arguments
-/// * `agent` - The agent to use for context management
-/// * `messages` - The current message history to compact
-///
-/// # Returns
-/// * Tuple of (compacted_messages, tokens_before, tokens_after)
-pub async fn perform_compaction(
-    agent: &Agent,
-    messages: &[Message],
-) -> Result<(Vec<Message>, usize, usize)> {
-    // Get token counter to measure before/after
-    let token_counter = create_async_token_counter()
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to create token counter: {}", e))?;
-
-    // Calculate tokens before compaction
-    let token_counts_before = get_messages_token_counts_async(&token_counter, messages);
-    let tokens_before: usize = token_counts_before.iter().sum();
-
-    info!("Performing compaction on {} tokens", tokens_before);
-
-    // Perform compaction
-    let (compacted_messages, compacted_token_counts) = agent.summarize_context(messages).await?;
-    let tokens_after: usize = compacted_token_counts.iter().sum();
-
-    info!(
-        "Compaction complete: {} tokens -> {} tokens ({:.1}% reduction)",
-        tokens_before,
-        tokens_after,
-        (1.0 - (tokens_after as f64 / tokens_before as f64)) * 100.0
-    );
-
-    Ok((compacted_messages, tokens_before, tokens_after))
-}
-
 /// Check if messages need compaction and compact them if necessary
 ///
 /// This is a convenience wrapper function that combines checking and compaction.
@@ -199,9 +153,8 @@ pub async fn check_and_compact_messages(
         );
         return Ok(AutoCompactResult {
             compacted: false,
-            messages: messages.to_vec(),
-            tokens_before: None,
-            tokens_after: None,
+            messages: Conversation::new_unvalidated(messages.to_vec()),
+            summarization_usage: None,
         });
     }
 
@@ -224,8 +177,8 @@ pub async fn check_and_compact_messages(
     };
 
     // Perform the compaction on messages excluding the preserved user message
-    let (mut compacted_messages, tokens_before, tokens_after) =
-        perform_compaction(agent, messages_to_compact).await?;
+    let (mut compacted_messages, _, summarization_usage) =
+        agent.summarize_context(messages_to_compact).await?;
 
     // Add back the preserved user message if it exists
     if let Some(user_message) = preserved_user_message {
@@ -235,17 +188,16 @@ pub async fn check_and_compact_messages(
     Ok(AutoCompactResult {
         compacted: true,
         messages: compacted_messages,
-        tokens_before: Some(tokens_before + SYSTEM_PROMPT_TOKEN_OVERHEAD + TOOLS_TOKEN_OVERHEAD),
-        tokens_after: Some(tokens_after + SYSTEM_PROMPT_TOKEN_OVERHEAD + TOOLS_TOKEN_OVERHEAD),
+        summarization_usage,
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::conversation::message::{Message, MessageContent};
     use crate::{
         agents::Agent,
-        message::{Message, MessageContent},
         model::ModelConfig,
         providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage},
         providers::errors::ProviderError,
@@ -269,8 +221,9 @@ mod tests {
             self.model_config.clone()
         }
 
-        async fn complete(
+        async fn complete_with_model(
             &self,
+            _model_config: &ModelConfig,
             _system: &str,
             _messages: &[Message],
             _tools: &[Tool],
@@ -310,7 +263,6 @@ mod tests {
             working_dir: PathBuf::from(working_dir),
             description: "Test session".to_string(),
             schedule_id: Some("test_job".to_string()),
-            project_id: None,
             total_tokens: Some(100),
             input_tokens: Some(50),
             output_tokens: Some(50),
@@ -325,7 +277,7 @@ mod tests {
         let mock_provider = Arc::new(MockProvider {
             model_config: ModelConfig::new("test-model")
                 .unwrap()
-                .with_context_limit(100_000.into()),
+                .with_context_limit(Some(100_000)),
         });
 
         let agent = Agent::new();
@@ -351,7 +303,7 @@ mod tests {
         let mock_provider = Arc::new(MockProvider {
             model_config: ModelConfig::new("test-model")
                 .unwrap()
-                .with_context_limit(100_000.into()),
+                .with_context_limit(Some(100_000)),
         });
 
         let agent = Agent::new();
@@ -375,39 +327,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_perform_compaction() {
-        let mock_provider = Arc::new(MockProvider {
-            model_config: ModelConfig::new("test-model")
-                .unwrap()
-                .with_context_limit(50_000.into()),
-        });
-
-        let agent = Agent::new();
-        let _ = agent.update_provider(mock_provider).await;
-
-        // Create some messages to compact
-        let messages = vec![
-            create_test_message("First message"),
-            create_test_message("Second message"),
-            create_test_message("Third message"),
-        ];
-
-        let (compacted_messages, tokens_before, tokens_after) =
-            perform_compaction(&agent, &messages).await.unwrap();
-
-        assert!(tokens_before > 0);
-        assert!(tokens_after > 0);
-        // Note: The mock provider returns a fixed summary, which might not always be smaller
-        // In real usage, compaction should reduce tokens, but for testing we just verify it works
-        assert!(!compacted_messages.is_empty());
-    }
-
-    #[tokio::test]
     async fn test_auto_compact_disabled() {
         let mock_provider = Arc::new(MockProvider {
             model_config: ModelConfig::new("test-model")
                 .unwrap()
-                .with_context_limit(10_000.into()),
+                .with_context_limit(Some(10_000)),
         });
 
         let agent = Agent::new();
@@ -422,8 +346,7 @@ mod tests {
 
         assert!(!result.compacted);
         assert_eq!(result.messages.len(), messages.len());
-        assert!(result.tokens_before.is_none());
-        assert!(result.tokens_after.is_none());
+        assert!(result.summarization_usage.is_none());
 
         // Test with threshold 1.0 (disabled)
         let result = check_and_compact_messages(&agent, &messages, Some(1.0), None)
@@ -438,7 +361,7 @@ mod tests {
         let mock_provider = Arc::new(MockProvider {
             model_config: ModelConfig::new("test-model")
                 .unwrap()
-                .with_context_limit(100_000.into()), // Increased to ensure overhead doesn't dominate
+                .with_context_limit(Some(100_000)), // Increased to ensure overhead doesn't dominate
         });
 
         let agent = Agent::new();
@@ -498,14 +421,15 @@ mod tests {
         }
 
         assert!(result.compacted);
-        assert!(result.tokens_before.is_some());
-        assert!(result.tokens_after.is_some());
+        assert!(result.summarization_usage.is_some());
 
-        // Should have fewer tokens after compaction
-        if let (Some(before), Some(after)) = (result.tokens_before, result.tokens_after) {
+        // Verify that summarization usage contains token counts
+        if let Some(usage) = &result.summarization_usage {
+            assert!(usage.usage.total_tokens.is_some());
+            let after = usage.usage.total_tokens.unwrap_or(0) as usize;
             assert!(
-                after < before,
-                "Token count should decrease after compaction"
+                after > 0,
+                "Token count after compaction should be greater than 0"
             );
         }
 
@@ -518,7 +442,7 @@ mod tests {
         let mock_provider = Arc::new(MockProvider {
             model_config: ModelConfig::new("test-model")
                 .unwrap()
-                .with_context_limit(30_000.into()), // Smaller context limit to make threshold easier to hit
+                .with_context_limit(Some(30_000)), // Smaller context limit to make threshold easier to hit
         });
 
         let agent = Agent::new();
@@ -552,19 +476,7 @@ mod tests {
 
         // Debug info if not compacted
         if !result.compacted {
-            let provider = agent.provider().await.unwrap();
-            let token_counter = create_async_token_counter().await.unwrap();
-            let token_counts = get_messages_token_counts_async(&token_counter, &messages);
-            let total_tokens: usize = token_counts.iter().sum();
-            let context_limit = provider.get_model_config().context_limit();
-            let usage_ratio = total_tokens as f64 / context_limit as f64;
-
-            eprintln!(
-                "Config test not compacted - tokens: {} / {} ({:.1}%)",
-                total_tokens,
-                context_limit,
-                usage_ratio * 100.0
-            );
+            eprintln!("Test failed - compaction not triggered");
         }
 
         // With such a low threshold (10%), it should compact
@@ -700,8 +612,7 @@ mod tests {
 
         // Should have triggered compaction
         assert!(result.compacted);
-        assert!(result.tokens_before.is_some());
-        assert!(result.tokens_after.is_some());
+        assert!(result.summarization_usage.is_some());
 
         // Verify the compacted messages are returned
         assert!(!result.messages.is_empty());
@@ -740,7 +651,6 @@ mod tests {
             comprehensive_metadata.schedule_id,
             Some("test_job".to_string())
         );
-        assert!(comprehensive_metadata.project_id.is_none());
         assert_eq!(comprehensive_metadata.total_tokens, Some(100));
         assert_eq!(comprehensive_metadata.input_tokens, Some(50));
         assert_eq!(comprehensive_metadata.output_tokens, Some(50));

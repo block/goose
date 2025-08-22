@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
-use goose::message::Message;
+use goose::conversation::{message::Message, Conversation};
 use goose::recipe::Recipe;
 use goose::recipe_deeplink;
 use serde::{Deserialize, Serialize};
@@ -56,6 +56,16 @@ pub struct DecodeRecipeResponse {
     recipe: Recipe,
 }
 
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct ScanRecipeRequest {
+    recipe: Recipe,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ScanRecipeResponse {
+    has_security_warnings: bool,
+}
+
 #[utoipa::path(
     post,
     path = "/recipes/create",
@@ -83,7 +93,9 @@ async fn create_recipe(
         .map_err(|_| (StatusCode::PRECONDITION_FAILED, Json(error_response)))?;
 
     // Create base recipe from agent state and messages
-    let recipe_result = agent.create_recipe(request.messages).await;
+    let recipe_result = agent
+        .create_recipe(Conversation::new_unvalidated(request.messages))
+        .await;
 
     match recipe_result {
         Ok(mut recipe) => {
@@ -162,11 +174,31 @@ async fn decode_recipe(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/recipes/scan",
+    request_body = ScanRecipeRequest,
+    responses(
+        (status = 200, description = "Recipe scanned successfully", body = ScanRecipeResponse),
+    ),
+    tag = "Recipe Management"
+)]
+async fn scan_recipe(
+    Json(request): Json<ScanRecipeRequest>,
+) -> Result<Json<ScanRecipeResponse>, StatusCode> {
+    let has_security_warnings = request.recipe.check_for_security_warnings();
+
+    Ok(Json(ScanRecipeResponse {
+        has_security_warnings,
+    }))
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/recipes/create", post(create_recipe))
         .route("/recipes/encode", post(encode_recipe))
         .route("/recipes/decode", post(decode_recipe))
+        .route("/recipes/scan", post(scan_recipe))
         .with_state(state)
 }
 

@@ -5,18 +5,18 @@ use std::sync::Arc;
 use async_stream::try_stream;
 use futures::stream::StreamExt;
 
-use crate::agents::router_tool_selector::RouterToolSelectionStrategy;
-use crate::message::{Message, MessageContent, ToolRequest};
+use super::super::agents::Agent;
+use crate::conversation::message::{Message, MessageContent, ToolRequest};
+use crate::conversation::Conversation;
 use crate::providers::base::{stream_from_single_message, MessageStream, Provider, ProviderUsage};
 use crate::providers::errors::ProviderError;
 use crate::providers::toolshim::{
     augment_message_with_tool_calls, convert_tool_messages_to_text,
     modify_system_prompt_for_tool_json, OllamaInterpreter,
 };
+
 use crate::session;
 use rmcp::model::Tool;
-
-use super::super::agents::Agent;
 
 async fn toolshim_postprocess(
     response: Message,
@@ -34,24 +34,17 @@ async fn toolshim_postprocess(
 impl Agent {
     /// Prepares tools and system prompt for a provider request
     pub async fn prepare_tools_and_prompt(&self) -> anyhow::Result<(Vec<Tool>, Vec<Tool>, String)> {
-        // Get tool selection strategy from config
-        let tool_selection_strategy = self
-            .tool_route_manager
-            .get_router_tool_selection_strategy()
-            .await;
+        // Get router enabled status
+        let router_enabled = self.tool_route_manager.is_router_enabled().await;
 
         // Get tools from extension manager
-        let mut tools = match tool_selection_strategy {
-            Some(RouterToolSelectionStrategy::Vector) => {
-                self.list_tools_for_router(Some(RouterToolSelectionStrategy::Vector))
-                    .await
-            }
-            Some(RouterToolSelectionStrategy::Llm) => {
-                self.list_tools_for_router(Some(RouterToolSelectionStrategy::Llm))
-                    .await
-            }
-            _ => self.list_tools(None).await,
-        };
+        let mut tools = self.list_tools_for_router().await;
+
+        // If router is disabled and no tools were returned, fall back to regular tools
+        if !router_enabled && tools.is_empty() {
+            tools = self.list_tools(None).await;
+        }
+
         // Add frontend tools
         let frontend_tools = self.frontend_tools.lock().await;
         for frontend_tool in frontend_tools.values() {
@@ -59,8 +52,7 @@ impl Agent {
         }
 
         // Prepare system prompt
-        let extension_manager = self.extension_manager.read().await;
-        let extensions_info = extension_manager.get_extensions_info().await;
+        let extensions_info = self.extension_manager.get_extensions_info().await;
 
         // Get model name from provider
         let provider = self.provider().await?;
@@ -71,9 +63,11 @@ impl Agent {
         let mut system_prompt = prompt_manager.build_system_prompt(
             extensions_info,
             self.frontend_instructions.lock().await.clone(),
-            extension_manager.suggest_disable_extensions_prompt().await,
+            self.extension_manager
+                .suggest_disable_extensions_prompt()
+                .await,
             Some(model_name),
-            tool_selection_strategy,
+            router_enabled,
         );
 
         // Handle toolshim if enabled
@@ -127,12 +121,22 @@ impl Agent {
         let messages_for_provider = if config.toolshim {
             convert_tool_messages_to_text(messages)
         } else {
-            messages.to_vec()
+            Conversation::new_unvalidated(messages.to_vec())
         };
 
         // Call the provider to get a response
-        let (mut response, usage) = provider
-            .complete(system_prompt, &messages_for_provider, tools)
+        let (mut response, mut usage) = provider
+            .complete(system_prompt, messages_for_provider.messages(), tools)
+            .await?;
+
+        // Ensure we have token counts, estimating if necessary
+        usage
+            .ensure_tokens(
+                system_prompt,
+                messages_for_provider.messages(),
+                &response,
+                tools,
+            )
             .await?;
 
         crate::providers::base::set_current_model(&usage.model);
@@ -159,7 +163,7 @@ impl Agent {
         let messages_for_provider = if config.toolshim {
             convert_tool_messages_to_text(messages)
         } else {
-            messages.to_vec()
+            Conversation::new_unvalidated(messages.to_vec())
         };
 
         // Clone owned data to move into the async stream
@@ -170,12 +174,31 @@ impl Agent {
 
         let mut stream = if provider.supports_streaming() {
             provider
-                .stream(system_prompt.as_str(), &messages_for_provider, &tools)
+                .stream(
+                    system_prompt.as_str(),
+                    messages_for_provider.messages(),
+                    &tools,
+                )
                 .await?
         } else {
-            let (message, usage) = provider
-                .complete(system_prompt.as_str(), &messages_for_provider, &tools)
+            let (message, mut usage) = provider
+                .complete(
+                    system_prompt.as_str(),
+                    messages_for_provider.messages(),
+                    &tools,
+                )
                 .await?;
+
+            // Ensure we have token counts for non-streaming case
+            usage
+                .ensure_tokens(
+                    system_prompt.as_str(),
+                    messages_for_provider.messages(),
+                    &message,
+                    &tools,
+                )
+                .await?;
+
             stream_from_single_message(message, usage)
         };
 

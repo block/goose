@@ -20,14 +20,6 @@ crates/goose-mcp/src/computercontroller/mod.rs::xlsx_tool
 crates/goose-mcp/src/computercontroller/pdf_tool.rs::pdf_tool
 crates/goose-mcp/src/developer/mod.rs::bash
 crates/goose-mcp/src/developer/mod.rs::new
-crates/goose-mcp/src/google_drive/google_labels.rs::doit
-crates/goose-mcp/src/google_drive/mod.rs::create_file
-crates/goose-mcp/src/google_drive/mod.rs::docs_tool
-crates/goose-mcp/src/google_drive/mod.rs::new
-crates/goose-mcp/src/google_drive/mod.rs::search_files
-crates/goose-mcp/src/google_drive/mod.rs::sharing
-crates/goose-mcp/src/google_drive/mod.rs::sheets_tool
-crates/goose-mcp/src/google_drive/mod.rs::update_label
 crates/goose-mcp/src/memory/mod.rs::new
 crates/goose-server/src/openapi.rs::convert_typed_schema
 crates/goose-server/src/openapi.rs::convert_typed_schema
