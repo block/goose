@@ -217,6 +217,34 @@ impl ProviderUsage {
     pub fn new(model: String, usage: Usage) -> Self {
         Self { model, usage }
     }
+
+    /// Ensures this ProviderUsage has token counts, estimating them if necessary
+    pub async fn ensure_tokens(
+        &mut self,
+        system_prompt: &str,
+        request_messages: &[Message],
+        response: &Message,
+        tools: &[Tool],
+    ) -> Result<(), ProviderError> {
+        crate::providers::usage_estimator::ensure_usage_tokens(
+            self,
+            system_prompt,
+            request_messages,
+            response,
+            tools,
+        )
+        .await
+        .map_err(|e| ProviderError::ExecutionError(format!("Failed to ensure usage tokens: {}", e)))
+    }
+
+    /// Combine this ProviderUsage with another, adding their token counts
+    /// Uses the model from this ProviderUsage
+    pub fn combine_with(&self, other: &ProviderUsage) -> ProviderUsage {
+        ProviderUsage {
+            model: self.model.clone(),
+            usage: self.usage + other.usage,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, Copy)]
@@ -289,25 +317,40 @@ pub trait Provider: Send + Sync {
     where
         Self: Sized;
 
-    /// Generate the next message using the configured model and other parameters
-    ///
-    /// # Arguments
-    /// * `system` - The system prompt that guides the model's behavior
-    /// * `messages` - The conversation history as a sequence of messages
-    /// * `tools` - Optional list of tools the model can use
-    ///
-    /// # Returns
-    /// A tuple containing the model's response message and provider usage statistics
-    ///
-    /// # Errors
-    /// ProviderError
-    ///   - It's important to raise ContextLengthExceeded correctly since agent handles it
+    // Internal implementation of complete, used by complete_fast and complete
+    // Providers should override this to implement their actual completion logic
+    async fn complete_with_model(
+        &self,
+        model_config: &ModelConfig,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<(Message, ProviderUsage), ProviderError>;
+
+    // Default implementation: use the provider's configured model
     async fn complete(
         &self,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError>;
+    ) -> Result<(Message, ProviderUsage), ProviderError> {
+        let model_config = self.get_model_config();
+        self.complete_with_model(&model_config, system, messages, tools)
+            .await
+    }
+
+    // Check if a fast model is configured, otherwise fall back to regular model
+    async fn complete_fast(
+        &self,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<(Message, ProviderUsage), ProviderError> {
+        let model_config = self.get_model_config();
+        let fast_config = model_config.use_fast_model();
+        self.complete_with_model(&fast_config, system, messages, tools)
+            .await
+    }
 
     /// Get the model config from the provider
     fn get_model_config(&self) -> ModelConfig;
@@ -390,7 +433,7 @@ pub trait Provider: Send + Sync {
         let prompt = self.create_session_name_prompt(&context);
         let message = Message::user().with_text(&prompt);
         let result = self
-            .complete(
+            .complete_fast(
                 "Reply with only a description in four words or less",
                 &[message],
                 &[],

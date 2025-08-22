@@ -30,6 +30,14 @@ For particularly large or complex tasks, consider breaking them into smaller ses
 
 ---
 
+### Preventing Long-Running Commands
+
+If you use Goose CLI and work with web development projects, you may encounter commands that cause Goose to hang indefinitely. Commands like `npm run dev`, `python -m http.server`, or `webpack serve` start development servers that never exit on their own.
+
+You can prevent these issues by customizing your shell to handle these commands differently when Goose runs them. See [Customizing Shell Behavior](/docs/guides/environment-variables#customizing-shell-behavior) for details on using the `GOOSE_TERMINAL` environment variable.
+
+---
+
 ### Context Length Exceeded Error
 
 This error occurs when the input provided to Goose exceeds the maximum token limit of the LLM being used. To resolve this, try breaking down your input into smaller parts. You can also use `.goosehints` as a way to provide goose with detailed context. Refer to the [Using Goosehints Guide][goosehints] for more information.
@@ -179,6 +187,37 @@ Please check extension configuration for {extension name}.
 ... it signals that the extension may not have been installed and you need the package runner in order to do so.
 
 An example is the GitHub extension whose command is `npx -y @modelcontextprotocol/server-github`. You'd need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`.
+
+---
+
+### Node.js Extensions Not Activating on Windows
+
+If you encounter the error `Node.js installer script not found` when trying to activate Node.js-based extensions on Windows, this is likely due to Goose not finding Node.js in the expected system path.
+
+#### Symptoms:
+- Node.js is installed and working (verified with `node -v` and `npm -v`)
+- Other extensions (like Python-based ones) work fine
+- Error occurs specifically when activating Node.js extensions
+
+#### Solution:
+This issue typically occurs when Node.js is installed in a non-standard location. Goose expects to find Node.js in `C:\Program Files\nodejs\`, but it may be installed elsewhere (e.g., `D:\Program Files\nodejs\`).
+
+1. **Check your Node.js installation path:**
+   ```powershell
+   where.exe node
+   ```
+
+2. **If Node.js is not in `C:\Program Files\nodejs\`, create a symbolic link:**
+   - Open PowerShell as Administrator
+   - Create a symbolic link to redirect Goose to your actual Node.js installation:
+   ```powershell
+   mklink /D "C:\Program Files\nodejs" "D:\Program Files\nodejs"
+   ```
+   (Replace `D:\Program Files\nodejs` with your actual Node.js installation path)
+
+3. **Restart Goose** and try activating the extension again.
+
+This creates a symbolic link that allows Goose to find Node.js in the expected location while keeping your actual installation intact.
 
 ---
 

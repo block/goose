@@ -1291,7 +1291,6 @@ async fn run_scheduled_job_internal(
                             working_dir: current_dir.clone(),
                             description: String::new(),
                             schedule_id: Some(job.id.clone()),
-                            project_id: None,
                             message_count: all_session_messages.len(),
                             total_tokens: None,
                             input_tokens: None,
@@ -1391,8 +1390,9 @@ mod tests {
             self.model_config.clone()
         }
 
-        async fn complete(
+        async fn complete_with_model(
             &self,
+            _model_config: &ModelConfig,
             _system: &str,
             _messages: &[Message],
             _tools: &[Tool],

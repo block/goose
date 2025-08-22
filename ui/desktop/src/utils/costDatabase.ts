@@ -201,7 +201,7 @@ export async function fetchAndCachePricing(
       // Model not found in pricing data
       return { costInfo: null, error: 'model_not_found' };
     }
-  } catch (error) {
+  } catch {
     // This is a real API/network error
     return null;
   }
@@ -231,7 +231,7 @@ export async function refreshPricing(): Promise<boolean> {
     });
 
     return response.ok;
-  } catch (error) {
+  } catch {
     return false;
   }
 }

@@ -4,7 +4,6 @@ import {
   App,
   BrowserWindow,
   dialog,
-  Event,
   globalShortcut,
   ipcMain,
   Menu,
@@ -16,7 +15,6 @@ import {
   Tray,
 } from 'electron';
 import { Buffer } from 'node:buffer';
-import { MouseUpEvent } from './types/electron';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import started from 'electron-squirrel-startup';
@@ -74,8 +72,8 @@ async function decodeRecipeMain(deeplink: string, port: number): Promise<Recipe 
       const data = await response.json();
       return data.recipe;
     }
-  } catch (error) {
-    console.error('Failed to decode recipe:', error);
+  } catch {
+    console.error('Failed to decode recipe');
   }
   return null;
 }
@@ -177,8 +175,8 @@ if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
         detached: true,
         stdio: 'ignore',
       });
-    } catch (error) {
-      console.warn('[Main] Could not reset protocol handler:', error);
+    } catch {
+      console.warn('[Main] Could not reset protocol handler');
     }
   }
 } else {
@@ -385,13 +383,17 @@ app.on('open-file', async (event, filePath) => {
   await handleFileOpen(filePath);
 });
 
-// Handle multiple files/folders
-app.on('open-files', async (event: Event, filePaths: string[]) => {
-  event.preventDefault();
-  for (const filePath of filePaths) {
-    await handleFileOpen(filePath);
-  }
-});
+// Handle multiple files/folders (macOS only)
+if (process.platform === 'darwin') {
+  // Use type assertion for non-standard Electron event
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  app.on('open-files' as any, async (event: any, filePaths: string[]) => {
+    event.preventDefault();
+    for (const filePath of filePaths) {
+      await handleFileOpen(filePath);
+    }
+  });
+}
 
 async function handleFileOpen(filePath: string) {
   try {
@@ -419,8 +421,8 @@ async function handleFileOpen(filePath: string) {
       newWindow.focus();
       newWindow.moveTop();
     }
-  } catch (error) {
-    console.error('Failed to handle file open:', error);
+  } catch {
+    console.error('Failed to handle file open');
 
     // Show user-friendly error notification
     new Notification({
@@ -710,7 +712,9 @@ const createChat = async (
   });
 
   // Handle new-window events (alternative approach for external links)
-  mainWindow.webContents.on('new-window', (event, url) => {
+  // Use type assertion for non-standard Electron event
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  mainWindow.webContents.on('new-window' as any, function (event: any, url: string) {
     event.preventDefault();
     shell.openExternal(url);
   });
@@ -733,6 +737,11 @@ const createChat = async (
     queryParams = queryParams
       ? `${queryParams}&view=${encodeURIComponent(viewType)}`
       : `?view=${encodeURIComponent(viewType)}`;
+  }
+
+  // For recipe deeplinks, navigate directly to pair view
+  if (recipe || recipeDeeplink) {
+    queryParams = queryParams ? `${queryParams}&view=pair` : `?view=pair`;
   }
 
   // Increment window counter to track number of windows
@@ -768,7 +777,10 @@ const createChat = async (
     }
   });
 
-  mainWindow.webContents.on('mouse-up', (_event: MouseUpEvent, mouseButton: number) => {
+  // Handle mouse back button (button 3)
+  // Use type assertion for non-standard Electron event
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  mainWindow.webContents.on('mouse-up' as any, function (_event: any, mouseButton: number) {
     // MouseButton 3 is the back button.
     if (mouseButton === 3) {
       mainWindow.webContents.send('mouse-back-button-clicked');
@@ -941,9 +953,7 @@ const buildRecentFilesMenu = () => {
   }));
 };
 
-const openDirectoryDialog = async (
-  replaceWindow: boolean = false
-): Promise<OpenDialogReturnValue> => {
+const openDirectoryDialog = async (): Promise<OpenDialogReturnValue> => {
   // Get the current working directory from the focused window
   let defaultPath: string | undefined;
   const currentWindow = BrowserWindow.getFocusedWindow();
@@ -1015,51 +1025,14 @@ const openDirectoryDialog = async (
       } else if (stats.isFile()) {
         dirToAdd = path.dirname(selectedPath);
       }
-    } catch (error) {
+    } catch {
       console.warn(`Could not stat selected path, using parent directory`);
       dirToAdd = path.dirname(selectedPath); // Fallback to parent directory
     }
 
     addRecentDir(dirToAdd);
-    const currentWindow = BrowserWindow.getFocusedWindow();
-
-    if (replaceWindow && currentWindow) {
-      // Replace current window with new one
-      await createChat(app, undefined, dirToAdd);
-      currentWindow.close();
-    } else {
-      // Update the working directory in the current window's localStorage
-      if (currentWindow) {
-        try {
-          const updateConfigScript = `
-            try {
-              const currentConfig = JSON.parse(localStorage.getItem('gooseConfig') || '{}');
-              const updatedConfig = {
-                ...currentConfig,
-                GOOSE_WORKING_DIR: '${dirToAdd.replace(/'/g, "\\'")}',
-              };
-              localStorage.setItem('gooseConfig', JSON.stringify(updatedConfig));
-              
-              // Trigger a config update event so the UI can refresh
-              window.dispatchEvent(new CustomEvent('goose-config-updated', { 
-                detail: { GOOSE_WORKING_DIR: '${dirToAdd.replace(/'/g, "\\'")}' } 
-              }));
-            } catch (e) {
-              console.error('Failed to update working directory in localStorage:', e);
-            }
-          `;
-          await currentWindow.webContents.executeJavaScript(updateConfigScript);
-          console.log(`Updated working directory to: ${dirToAdd}`);
-        } catch (error) {
-          console.error('Failed to update working directory:', error);
-          // Fallback: create new window
-          await createChat(app, undefined, dirToAdd);
-        }
-      } else {
-        // No current window, create new one
-        await createChat(app, undefined, dirToAdd);
-      }
-    }
+    // Create a new window with the selected directory
+    await createChat(app, undefined, dirToAdd);
   }
   return result;
 };
@@ -1097,9 +1070,20 @@ ipcMain.on('react-ready', () => {
   console.log('[main] React ready - window is prepared for deep links');
 });
 
+// Handle external URL opening
+ipcMain.handle('open-external', async (_event, url: string) => {
+  try {
+    await shell.openExternal(url);
+    return true;
+  } catch (error) {
+    console.error('Error opening external URL:', error);
+    throw error;
+  }
+});
+
 // Handle directory chooser
-ipcMain.handle('directory-chooser', (_event, replace: boolean = false) => {
-  return openDirectoryDialog(replace);
+ipcMain.handle('directory-chooser', (_event) => {
+  return openDirectoryDialog();
 });
 
 // Handle scheduling engine settings
@@ -1171,11 +1155,11 @@ ipcMain.handle('set-dock-icon', async (_event, show: boolean) => {
     saveSettings(settings);
 
     if (show) {
-      await app.dock.show();
+      app.dock?.show();
     } else {
       // Only hide the dock if we have a menu bar icon to maintain accessibility
       if (settings.showMenuBarIcon) {
-        app.dock.hide();
+        app.dock?.hide();
         setTimeout(() => {
           focusWindow();
         }, 50);
@@ -1215,7 +1199,7 @@ ipcMain.handle('open-notifications-settings', async () => {
       try {
         spawn('gnome-control-center', ['notifications']);
         return true;
-      } catch (gnomeError) {
+      } catch {
         console.log('GNOME control center not found, trying other options');
       }
 
@@ -1223,7 +1207,7 @@ ipcMain.handle('open-notifications-settings', async () => {
       try {
         spawn('systemsettings5', ['kcm_notifications']);
         return true;
-      } catch (kdeError) {
+      } catch {
         console.log('KDE systemsettings5 not found, trying other options');
       }
 
@@ -1231,7 +1215,7 @@ ipcMain.handle('open-notifications-settings', async () => {
       try {
         spawn('xfce4-settings-manager', ['--socket-id=notifications']);
         return true;
-      } catch (xfceError) {
+      } catch {
         console.log('XFCE settings manager not found, trying other options');
       }
 
@@ -1239,7 +1223,7 @@ ipcMain.handle('open-notifications-settings', async () => {
       try {
         spawn('gnome-control-center');
         return true;
-      } catch (fallbackError) {
+      } catch {
         console.warn('Could not find a suitable settings application for Linux');
         return false;
       }
@@ -1252,29 +1236,6 @@ ipcMain.handle('open-notifications-settings', async () => {
   } catch (error) {
     console.error('Error opening notification settings:', error);
     return false;
-  }
-});
-
-// Handle quit confirmation setting
-ipcMain.handle('set-quit-confirmation', async (_event, show: boolean) => {
-  try {
-    const settings = loadSettings();
-    settings.showQuitConfirmation = show;
-    saveSettings(settings);
-    return true;
-  } catch (error) {
-    console.error('Error setting quit confirmation:', error);
-    return false;
-  }
-});
-
-ipcMain.handle('get-quit-confirmation-state', () => {
-  try {
-    const settings = loadSettings();
-    return settings.showQuitConfirmation ?? true;
-  } catch (error) {
-    console.error('Error getting quit confirmation state:', error);
-    return true;
   }
 });
 
@@ -1339,6 +1300,7 @@ ipcMain.handle('select-file-or-directory', async (_event, defaultPath?: string) 
       } else {
         dialogOptions.defaultPath = path.dirname(expandedPath);
       }
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (error) {
       // If path doesn't exist, fall back to home directory and log error
       console.error(`Default path does not exist: ${expandedPath}, falling back to home directory`);
@@ -1646,22 +1608,16 @@ ipcMain.handle('read-file', (_event, filePath) => {
   });
 });
 
-ipcMain.handle('write-file', (_event, filePath, content) => {
-  return new Promise((resolve) => {
+ipcMain.handle('write-file', async (_event, filePath, content) => {
+  try {
     // Expand tilde to home directory
     const expandedPath = expandTilde(filePath);
-
-    // Create a write stream to the file
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const fsNode = require('fs'); // Using require for fs in this specific handler from original
-    try {
-      fsNode.writeFileSync(expandedPath, content, { encoding: 'utf8' });
-      resolve(true);
-    } catch (error) {
-      console.error('Error writing to file:', error);
-      resolve(false);
-    }
-  });
+    await fs.writeFile(expandedPath, content, { encoding: 'utf8' });
+    return true;
+  } catch (error) {
+    console.error('Error writing to file:', error);
+    return false;
+  }
 });
 
 // Enhanced file operations
@@ -1807,15 +1763,6 @@ app.whenReady().then(async () => {
     callback({ cancel: false, requestHeaders: details.requestHeaders });
   });
 
-  // Test error feature - only enabled with GOOSE_TEST_ERROR=true
-  if (process.env.GOOSE_TEST_ERROR === 'true') {
-    console.log('Test error feature enabled, will throw error in 5 seconds');
-    setTimeout(() => {
-      console.log('Throwing test error now...');
-      throw new Error('Test error: This is a simulated fatal error after 5 seconds');
-    }, 5000);
-  }
-
   // Create tray if enabled in settings
   const settings = loadSettings();
   if (settings.showMenuBarIcon) {
@@ -1824,7 +1771,7 @@ app.whenReady().then(async () => {
 
   // Handle dock icon visibility (macOS only)
   if (process.platform === 'darwin' && !settings.showDockIcon && settings.showMenuBarIcon) {
-    app.dock.hide();
+    app.dock?.hide();
   }
 
   // Parse command line arguments
@@ -2316,48 +2263,6 @@ app.on('will-quit', async () => {
         error
       );
     }
-  }
-});
-
-// Quit when all windows are closed, except on macOS or if we have a tray icon.
-// Add confirmation dialog when quitting with Cmd+Q (skip in dev mode)
-app.on('before-quit', async (event) => {
-  // Skip confirmation dialog in development mode
-  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    return; // Allow normal quit behavior in dev mode
-  }
-
-  // Check if quit confirmation is enabled in settings
-  const settings = loadSettings();
-  if (!settings.showQuitConfirmation) {
-    return; // Allow normal quit behavior if confirmation is disabled
-  }
-
-  // Prevent the default quit behavior
-  event.preventDefault();
-
-  // Show confirmation dialog
-  try {
-    const result = (await dialog.showMessageBox({
-      type: 'question',
-      buttons: ['Quit', 'Cancel'],
-      defaultId: 1, // Default to Cancel
-      title: 'Confirm Quit',
-      message: 'Are you sure you want to quit Goose?',
-      detail: 'Any unsaved changes may be lost.',
-    })) as unknown as { response: number };
-
-    if (result.response === 0) {
-      // User clicked "Quit"
-      // Set a flag to avoid showing the dialog again
-      app.removeAllListeners('before-quit');
-      // Force quit the app
-      process.nextTick(() => {
-        app.exit(0);
-      });
-    }
-  } catch (error) {
-    console.error('Error showing quit dialog:', error);
   }
 });
 

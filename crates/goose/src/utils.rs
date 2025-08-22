@@ -1,4 +1,25 @@
 use tokio_util::sync::CancellationToken;
+use unicode_normalization::UnicodeNormalization;
+
+/// Check if a character is in the Unicode Tags Block range (U+E0000-U+E007F)
+/// These characters are invisible and can be used for steganographic attacks
+fn is_in_unicode_tag_range(c: char) -> bool {
+    matches!(c, '\u{E0000}'..='\u{E007F}')
+}
+
+pub fn contains_unicode_tags(text: &str) -> bool {
+    text.chars().any(is_in_unicode_tag_range)
+}
+
+/// Sanitize Unicode Tags Block characters from text
+pub fn sanitize_unicode_tags(text: &str) -> String {
+    let normalized: String = text.nfc().collect();
+
+    normalized
+        .chars()
+        .filter(|&c| !is_in_unicode_tag_range(c))
+        .collect()
+}
 
 /// Safely truncate a string at character boundaries, not byte boundaries
 ///
@@ -29,6 +50,56 @@ pub fn is_token_cancelled(cancellation_token: &Option<CancellationToken>) -> boo
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_contains_unicode_tags() {
+        // Test detection of Unicode Tags Block characters
+        assert!(contains_unicode_tags("Hello\u{E0041}world"));
+        assert!(contains_unicode_tags("\u{E0000}"));
+        assert!(contains_unicode_tags("\u{E007F}"));
+        assert!(!contains_unicode_tags("Hello world"));
+        assert!(!contains_unicode_tags("Hello 世界 🌍"));
+        assert!(!contains_unicode_tags(""));
+    }
+
+    #[test]
+    fn test_sanitize_unicode_tags() {
+        // Test that Unicode Tags Block characters are removed
+        let malicious = "Hello\u{E0041}\u{E0042}\u{E0043}world"; // Invisible "ABC"
+        let cleaned = sanitize_unicode_tags(malicious);
+        assert_eq!(cleaned, "Helloworld");
+    }
+
+    #[test]
+    fn test_sanitize_unicode_tags_preserves_legitimate_unicode() {
+        // Test that legitimate Unicode characters are preserved
+        let clean_text = "Hello world 世界 🌍";
+        let cleaned = sanitize_unicode_tags(clean_text);
+        assert_eq!(cleaned, clean_text);
+    }
+
+    #[test]
+    fn test_sanitize_unicode_tags_empty_string() {
+        let empty = "";
+        let cleaned = sanitize_unicode_tags(empty);
+        assert_eq!(cleaned, "");
+    }
+
+    #[test]
+    fn test_sanitize_unicode_tags_only_malicious() {
+        // Test string containing only Unicode Tags characters
+        let only_malicious = "\u{E0041}\u{E0042}\u{E0043}";
+        let cleaned = sanitize_unicode_tags(only_malicious);
+        assert_eq!(cleaned, "");
+    }
+
+    #[test]
+    fn test_sanitize_unicode_tags_mixed_content() {
+        // Test mixed legitimate and malicious Unicode
+        let mixed = "Hello\u{E0041} 世界\u{E0042} 🌍\u{E0043}!";
+        let cleaned = sanitize_unicode_tags(mixed);
+        assert_eq!(cleaned, "Hello 世界 🌍!");
+    }
 
     #[test]
     fn test_safe_truncate_ascii() {

@@ -79,8 +79,6 @@ type ElectronAPI = {
   getSettings: () => Promise<unknown | null>;
   getSecretKey: () => Promise<string>;
   setSchedulingEngine: (engine: string) => Promise<boolean>;
-  setQuitConfirmation: (show: boolean) => Promise<boolean>;
-  getQuitConfirmationState: () => Promise<boolean>;
   setWakelock: (enable: boolean) => Promise<boolean>;
   getWakelockState: () => Promise<boolean>;
   openNotificationsSettings: () => Promise<boolean>;
@@ -98,6 +96,8 @@ type ElectronAPI = {
   // Functions for image pasting
   saveDataUrlToTemp: (dataUrl: string, uniqueId: string) => Promise<SaveDataUrlResponse>;
   deleteTempFile: (filePath: string) => void;
+  // Function for opening external URLs securely
+  openExternal: (url: string) => Promise<void>;
   // Function to serve temp images
   getTempImage: (filePath: string) => Promise<string | null>;
   // Update-related functions
@@ -140,7 +140,7 @@ const electronAPI: ElectronAPI = {
     return config;
   },
   hideWindow: () => ipcRenderer.send('hide-window'),
-  directoryChooser: (replace?: boolean) => ipcRenderer.invoke('directory-chooser', replace),
+  directoryChooser: () => ipcRenderer.invoke('directory-chooser'),
   createChatWindow: (
     query?: string,
     dir?: string,
@@ -177,8 +177,6 @@ const electronAPI: ElectronAPI = {
   getSettings: () => ipcRenderer.invoke('get-settings'),
   getSecretKey: () => ipcRenderer.invoke('get-secret-key'),
   setSchedulingEngine: (engine: string) => ipcRenderer.invoke('set-scheduling-engine', engine),
-  setQuitConfirmation: (show: boolean) => ipcRenderer.invoke('set-quit-confirmation', show),
-  getQuitConfirmationState: () => ipcRenderer.invoke('get-quit-confirmation-state'),
   setWakelock: (enable: boolean) => ipcRenderer.invoke('set-wakelock', enable),
   getWakelockState: () => ipcRenderer.invoke('get-wakelock-state'),
   openNotificationsSettings: () => ipcRenderer.invoke('open-notifications-settings'),
@@ -211,6 +209,9 @@ const electronAPI: ElectronAPI = {
   },
   deleteTempFile: (filePath: string): void => {
     ipcRenderer.send('delete-temp-file', filePath);
+  },
+  openExternal: (url: string): Promise<void> => {
+    return ipcRenderer.invoke('open-external', url);
   },
   getTempImage: (filePath: string): Promise<string | null> => {
     return ipcRenderer.invoke('get-temp-image', filePath);

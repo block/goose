@@ -1,0 +1,8 @@
+{
+  "label": "Rich Interactive Chat",
+  "position": 6,
+  "link": {
+    "type": "doc",
+    "id": "guides/interactive-chat/index"
+  }
+}

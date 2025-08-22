@@ -1,10 +1,10 @@
 # Contribution Guide
 
-Goose is open source! 
+Goose is open source!
 
 We welcome pull requests for general contributions! If you have a larger new feature or any questions on how to develop a fix, we recommend you open an issue before starting.
 
-> [!TIP] 
+> [!TIP]
 > Beyond code, check out [other ways to contribute](#other-ways-to-contribute)
 
 ## Prerequisites
@@ -100,10 +100,12 @@ To fork the repository:
 1. Go to https://github.com/block/goose and click “Fork” (top-right corner).
 2. This creates https://github.com/<your-username>/goose under your GitHub account.
 3. Clone your fork (not the main repo):
+
 ```
 git clone https://github.com/<your-username>/goose.git
 cd goose
 ```
+
 4. Add the main repository as upstream:
 
 ```
@@ -115,6 +117,7 @@ git remote add upstream https://github.com/block/goose.git
 ```
 git checkout -b my-feature-branch
 ```
+
 6. Sync your fork with the main repo:
 
 ```
@@ -126,6 +129,7 @@ git merge upstream/main
 ```
 
 7. Push to your fork. Because you’re the owner of the fork, you have permission to push here.
+
 ```
 git push origin my-feature-branch
 ```
@@ -139,37 +143,36 @@ To ensure a smooth integration of your contributions, it's important that your f
 ### Syncing Your Fork with the Main Repository
 
 1. **Add the Main Repository as a Remote** (Skip if you have already set this up):
-    
-    ```bash
-    git remote add upstream https://github.com/block/goose.git
-    ```
-    
+
+   ```bash
+   git remote add upstream https://github.com/block/goose.git
+   ```
+
 2. **Fetch the Latest Changes from the Main Repository**:
-    
-    ```bash
-    git fetch upstream
-    ```
-    
+
+   ```bash
+   git fetch upstream
+   ```
+
 3. **Checkout Your Development Branch**:
-    
-    ```bash
-    git checkout your-branch-name
-    ```
-    
+
+   ```bash
+   git checkout your-branch-name
+   ```
+
 4. **Merge Changes from the Main Branch into Your Branch**:
-    
-    ```bash
-    git merge upstream/main
-    ```
-    
-    Resolve any conflicts that arise and commit the changes.
-    
+
+   ```bash
+   git merge upstream/main
+   ```
+
+   Resolve any conflicts that arise and commit the changes.
+
 5. **Push the Merged Changes to Your Fork**:
-    
-    ```bash
-    git push origin your-branch-name
-    ```
-    
+
+   ```bash
+   git push origin your-branch-name
+   ```
 
 This process will help you keep your branch aligned with the ongoing changes in the main repository, minimizing integration issues when it comes time to merge!
 
@@ -197,9 +200,8 @@ or `DATABRICKS_HOST`. Refer to the provider details for more info on required ke
 
 ## Enable traces in Goose with [locally hosted Langfuse](https://langfuse.com/docs/deployment/self-host)
 
-- Run `just langfuse-server` to start your local Langfuse server. It requires Docker.
-- Go to http://localhost:3000 and log in with the default email/password output by the shell script (values can also be found in the `.env.langfuse.local` file).
-- Set the environment variables so that rust can connect to the langfuse server
+- Start a local Langfuse using the docs [here](https://langfuse.com/self-hosting/docker-compose). Create an organization and project and create API credentials.
+- Set the environment variables so that Goose can connect to the langfuse server:
 
 ```
 export LANGFUSE_INIT_PROJECT_PUBLIC_KEY=publickey-local
@@ -219,7 +221,7 @@ This project follows the [Conventional Commits](https://www.conventionalcommits.
 
 ## Developer Certificate of Origin
 
-This project requires a [Developer Certificate of Origin](https://en.wikipedia.org/wiki/Developer_Certificate_of_Origin) sign-offs on all commits. This is a statement indicating that you are allowed to make the contribution and that the project has the right to distribute it under its license. When you are ready to commit, use the `--signoff` flag to attach the sign-off to your commit. 
+This project requires a [Developer Certificate of Origin](https://en.wikipedia.org/wiki/Developer_Certificate_of_Origin) sign-offs on all commits. This is a statement indicating that you are allowed to make the contribution and that the project has the right to distribute it under its license. When you are ready to commit, use the `--signoff` flag to attach the sign-off to your commit.
 
 ```
 git commit --signoff ...

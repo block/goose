@@ -15,7 +15,7 @@ import { Input } from '../../../ui/input';
 import { Select } from '../../../ui/Select';
 import { useConfig } from '../../../ConfigContext';
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
-import type { View } from '../../../../App';
+import type { View } from '../../../../utils/navigationUtils';
 import Model, { getProviderMetadata } from '../modelInterface';
 import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
 
@@ -159,11 +159,14 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
 
         // Add the "Custom model" option to each provider group
         formattedModelOptions.forEach((group) => {
-          group.options.push({
-            value: 'custom',
-            label: 'Use custom model',
-            provider: group.options[0]?.provider,
-          });
+          const providerName = group.options[0]?.provider;
+          if (providerName && !providerName.startsWith('custom_')) {
+            group.options.push({
+              value: 'custom',
+              label: 'Use custom model',
+              provider: providerName,
+            });
+          }
         });
 
         setModelOptions(formattedModelOptions);

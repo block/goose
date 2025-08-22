@@ -58,7 +58,7 @@ module.exports = {
       config: {
         arch: process.env.ELECTRON_ARCH === 'x64' ? ['x64'] : ['arm64'],
         options: {
-          icon: process.platform === 'linux' ? 'src/images/icon.png' : 'src/images/icon.ico',
+          icon: 'src/images/icon.ico',
         },
       },
     },
@@ -69,7 +69,11 @@ module.exports = {
         bin: 'Goose',
         maintainer: 'Block, Inc.',
         homepage: 'https://block.github.io/goose/',
-        categories: ['Development']
+        categories: ['Development'],
+        mimeType: ['x-scheme-handler/goose'],
+        options: {
+          icon: 'src/images/icon.png'
+        }
       },
     },
     {
@@ -79,7 +83,10 @@ module.exports = {
         bin: 'Goose',
         maintainer: 'Block, Inc.',
         homepage: 'https://block.github.io/goose/',
-        categories: ['Development']
+        categories: ['Development'],
+        options: {
+          icon: 'src/images/icon.png'
+        }
       },
     },
   ],

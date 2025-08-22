@@ -144,6 +144,7 @@ The `extensions` field allows you to specify which Model Context Protocol (MCP) 
 | `timeout` | Number | Timeout in seconds |
 | `bundled` | Boolean | (Optional) Whether the extension is bundled with Goose |
 | `description` | String | Description of what the extension does |
+| `available_tools` | Array | List of tool names within the extension that will be available. When not specified all will be available |
 
 ### Example Extension Configuration
 
@@ -164,6 +165,8 @@ extensions:
     cmd: uvx
     args:
       - 'mcp_presidio@latest'
+    available_tools:
+      - query_logs
 
   - type: stdio
     name: github-mcp

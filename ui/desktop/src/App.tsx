@@ -3,14 +3,11 @@ import { IpcRendererEvent } from 'electron';
 import { HashRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { openSharedSessionFromDeepLink, type SessionLinksViewOptions } from './sessionLinks';
 import { type SharedSessionDetails } from './sharedSessions';
-import { initializeSystem } from './utils/providerUtils';
-import { initializeCostDatabase } from './utils/costDatabase';
 import { ErrorUI } from './components/ErrorBoundary';
 import { ConfirmationModal } from './components/ui/ConfirmationModal';
 import { ToastContainer } from 'react-toastify';
 import { extractExtensionName } from './components/settings/extensions/utils';
 import { GoosehintsModal } from './components/GoosehintsModal';
-import { type ExtensionConfig } from './extensions';
 import AnnouncementModal from './components/AnnouncementModal';
 import { generateSessionId } from './sessions';
 import ProviderGuard from './components/ProviderGuard';
@@ -29,73 +26,20 @@ import { ChatProvider } from './contexts/ChatContext';
 import { DraftProvider } from './contexts/DraftContext';
 
 import 'react-toastify/dist/ReactToastify.css';
-import { useConfig, MalformedConfigError } from './components/ConfigContext';
+import { useConfig } from './components/ConfigContext';
 import { ModelAndProviderProvider } from './components/ModelAndProviderContext';
 import { addExtensionFromDeepLink as addExtensionFromDeepLinkV2 } from './components/settings/extensions';
-import {
-  backupConfig,
-  initConfig,
-  readAllConfig,
-  recoverConfig,
-  validateConfig,
-} from './api/sdk.gen';
 import PermissionSettingsView from './components/settings/permission/PermissionSetting';
-import { COST_TRACKING_ENABLED } from './updates';
 
 import { type SessionDetails } from './sessions';
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
-// import ProjectsContainer from './components/projects/ProjectsContainer';
 import { Recipe } from './recipe';
 import RecipesView from './components/RecipesView';
 import RecipeEditor from './components/RecipeEditor';
 
-export type View =
-  | 'welcome'
-  | 'chat'
-  | 'pair'
-  | 'settings'
-  | 'extensions'
-  | 'moreModels'
-  | 'configureProviders'
-  | 'configPage'
-  | 'ConfigureProviders'
-  | 'settingsV2'
-  | 'sessions'
-  | 'schedules'
-  | 'sharedSession'
-  | 'loading'
-  | 'recipeEditor'
-  | 'recipes'
-  | 'permission';
-// | 'projects';
-
-export type ViewOptions = {
-  // Settings view options
-  extensionId?: string;
-  showEnvVars?: boolean;
-  deepLinkConfig?: ExtensionConfig;
-
-  // Session view options
-  resumedSession?: SessionDetails;
-  sessionDetails?: SessionDetails;
-  error?: string;
-  shareToken?: string;
-  baseUrl?: string;
-
-  // Recipe editor options
-  config?: unknown;
-
-  // Permission view options
-  parentView?: View;
-
-  // Generic options
-  [key: string]: unknown;
-};
-
-export type ViewConfig = {
-  view: View;
-  viewOptions?: ViewOptions;
-};
+// Import the new modules
+import { createNavigationHandler, View, ViewOptions } from './utils/navigationUtils';
+import { initializeApp } from './utils/appInitialization';
 
 // Route Components
 const HubRouteWrapper = ({
@@ -110,6 +54,7 @@ const HubRouteWrapper = ({
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
 }) => {
   const navigate = useNavigate();
+  const setView = createNavigationHandler(navigate);
 
   return (
     <Hub
@@ -117,46 +62,7 @@ const HubRouteWrapper = ({
       chat={chat}
       setChat={setChat}
       setPairChat={setPairChat}
-      setView={(view: View, options?: ViewOptions) => {
-        // Convert view to route navigation
-        switch (view) {
-          case 'chat':
-            navigate('/');
-            break;
-          case 'pair':
-            navigate('/pair', { state: options });
-            break;
-          case 'settings':
-            navigate('/settings', { state: options });
-            break;
-          case 'sessions':
-            navigate('/sessions');
-            break;
-          case 'schedules':
-            navigate('/schedules');
-            break;
-          case 'recipes':
-            navigate('/recipes');
-            break;
-          case 'permission':
-            navigate('/permission', { state: options });
-            break;
-          case 'ConfigureProviders':
-            navigate('/configure-providers');
-            break;
-          case 'sharedSession':
-            navigate('/shared-session', { state: options });
-            break;
-          case 'recipeEditor':
-            navigate('/recipe-editor', { state: options });
-            break;
-          case 'welcome':
-            navigate('/welcome');
-            break;
-          default:
-            navigate('/');
-        }
-      }}
+      setView={setView}
       setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
     />
   );
@@ -176,6 +82,7 @@ const PairRouteWrapper = ({
   const navigate = useNavigate();
   const location = useLocation();
   const chatRef = useRef(chat);
+  const setView = createNavigationHandler(navigate);
 
   // Keep the ref updated with the current chat state
   useEffect(() => {
@@ -184,7 +91,23 @@ const PairRouteWrapper = ({
 
   // Check if we have a resumed session or recipe config from navigation state
   useEffect(() => {
-    // Only process if we actually have navigation state
+    const appConfig = window.appConfig?.get('recipe');
+    if (appConfig && !chatRef.current.recipeConfig) {
+      const recipe = appConfig as Recipe;
+
+      const updatedChat: ChatType = {
+        ...chatRef.current,
+        recipeConfig: recipe,
+        title: recipe.title || chatRef.current.title,
+        messages: [], // Start fresh for recipe from deeplink
+        messageHistoryIndex: 0,
+      };
+      setChat(updatedChat);
+      setPairChat(updatedChat);
+      return;
+    }
+
+    // Only process navigation state if we actually have it
     if (!location.state) {
       console.log('No navigation state, preserving existing chat state');
       return;
@@ -232,8 +155,6 @@ const PairRouteWrapper = ({
       // Clear the navigation state to prevent reloading on navigation
       window.history.replaceState({}, document.title);
     } else if (recipeConfig && !chatRef.current.recipeConfig) {
-      // Only set recipe config if we don't already have one (e.g., from deeplinks)
-
       const updatedChat: ChatType = {
         ...chatRef.current,
         recipeConfig: recipeConfig,
@@ -254,52 +175,14 @@ const PairRouteWrapper = ({
     }
     // If we have a recipe config but resetChat is false and we already have a recipe,
     // do nothing - just continue with the existing chat state
-  }, [location.state, setChat, setPairChat]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
 
   return (
     <Pair
       chat={chat}
       setChat={setChat}
-      setView={(view: View, options?: ViewOptions) => {
-        // Convert view to route navigation
-        switch (view) {
-          case 'chat':
-            navigate('/');
-            break;
-          case 'pair':
-            navigate('/pair', { state: options });
-            break;
-          case 'settings':
-            navigate('/settings', { state: options });
-            break;
-          case 'sessions':
-            navigate('/sessions');
-            break;
-          case 'schedules':
-            navigate('/schedules');
-            break;
-          case 'recipes':
-            navigate('/recipes');
-            break;
-          case 'permission':
-            navigate('/permission', { state: options });
-            break;
-          case 'ConfigureProviders':
-            navigate('/configure-providers');
-            break;
-          case 'sharedSession':
-            navigate('/shared-session', { state: options });
-            break;
-          case 'recipeEditor':
-            navigate('/recipe-editor', { state: options });
-            break;
-          case 'welcome':
-            navigate('/welcome');
-            break;
-          default:
-            navigate('/');
-        }
-      }}
+      setView={setView}
       setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
     />
   );
@@ -308,105 +191,19 @@ const PairRouteWrapper = ({
 const SettingsRoute = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const setView = createNavigationHandler(navigate);
 
   // Get viewOptions from location.state or history.state
   const viewOptions =
     (location.state as SettingsViewOptions) || (window.history.state as SettingsViewOptions) || {};
-  return (
-    <SettingsView
-      onClose={() => navigate('/')}
-      setView={(view: View, options?: ViewOptions) => {
-        // Convert view to route navigation
-        switch (view) {
-          case 'chat':
-            navigate('/');
-            break;
-          case 'pair':
-            navigate('/pair');
-            break;
-          case 'settings':
-            navigate('/settings', { state: options });
-            break;
-          case 'sessions':
-            navigate('/sessions');
-            break;
-          case 'schedules':
-            navigate('/schedules');
-            break;
-          case 'recipes':
-            navigate('/recipes');
-            break;
-          case 'permission':
-            navigate('/permission', { state: options });
-            break;
-          case 'ConfigureProviders':
-            navigate('/configure-providers');
-            break;
-          case 'sharedSession':
-            navigate('/shared-session', { state: options });
-            break;
-          case 'recipeEditor':
-            navigate('/recipe-editor', { state: options });
-            break;
-          case 'welcome':
-            navigate('/welcome');
-            break;
-          default:
-            navigate('/');
-        }
-      }}
-      viewOptions={viewOptions}
-    />
-  );
+  return <SettingsView onClose={() => navigate('/')} setView={setView} viewOptions={viewOptions} />;
 };
 
 const SessionsRoute = () => {
   const navigate = useNavigate();
+  const setView = createNavigationHandler(navigate);
 
-  return (
-    <SessionsView
-      setView={(view: View, options?: ViewOptions) => {
-        // Convert view to route navigation
-        switch (view) {
-          case 'chat':
-            navigate('/', { state: options });
-            break;
-          case 'pair':
-            navigate('/pair', { state: options });
-            break;
-          case 'settings':
-            navigate('/settings', { state: options });
-            break;
-          case 'sessions':
-            navigate('/sessions');
-            break;
-          case 'schedules':
-            navigate('/schedules');
-            break;
-          case 'recipes':
-            navigate('/recipes');
-            break;
-          case 'permission':
-            navigate('/permission', { state: options });
-            break;
-          case 'ConfigureProviders':
-            navigate('/configure-providers');
-            break;
-          case 'sharedSession':
-            navigate('/shared-session', { state: options });
-            break;
-          case 'recipeEditor':
-            navigate('/recipe-editor', { state: options });
-            break;
-          case 'welcome':
-            navigate('/welcome');
-            break;
-          default:
-            navigate('/');
-        }
-      }}
-    />
-  );
+  return <SessionsView setView={setView} />;
 };
 
 const SchedulesRoute = () => {
@@ -535,6 +332,7 @@ const SharedSessionRouteWrapper = ({
 }) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const setView = createNavigationHandler(navigate);
 
   const historyState = window.history.state;
   const sessionDetails = (location.state?.sessionDetails ||
@@ -552,47 +350,7 @@ const SharedSessionRouteWrapper = ({
         if (shareToken && baseUrl) {
           setIsLoadingSharedSession(true);
           try {
-            await openSharedSessionFromDeepLink(
-              `goose://sessions/${shareToken}`,
-              (view: View, _options?: SessionLinksViewOptions) => {
-                // Convert view to route navigation
-                switch (view) {
-                  case 'chat':
-                    navigate('/', { state: _options });
-                    break;
-                  case 'pair':
-                    navigate('/pair', { state: _options });
-                    break;
-                  case 'settings':
-                    navigate('/settings', { state: _options });
-                    break;
-                  case 'sessions':
-                    navigate('/sessions');
-                    break;
-                  case 'schedules':
-                    navigate('/schedules');
-                    break;
-                  case 'recipes':
-                    navigate('/recipes');
-                    break;
-                  case 'permission':
-                    navigate('/permission', { state: _options });
-                    break;
-                  case 'ConfigureProviders':
-                    navigate('/configure-providers');
-                    break;
-                  case 'sharedSession':
-                    navigate('/shared-session', { state: _options });
-                    break;
-                  case 'recipeEditor':
-                    navigate('/recipe-editor', { state: _options });
-                    break;
-                  default:
-                    navigate('/');
-                }
-              },
-              baseUrl
-            );
+            await openSharedSessionFromDeepLink(`goose://sessions/${shareToken}`, setView, baseUrl);
           } catch (error) {
             console.error('Failed to retry loading shared session:', error);
           } finally {
@@ -637,57 +395,6 @@ const ExtensionsRoute = () => {
   );
 };
 
-// const ProjectsRoute = () => {
-//   const navigate = useNavigate();
-//
-//   const setView = (view: View, viewOptions?: ViewOptions) => {
-//     // Convert view to route navigation
-//     switch (view) {
-//       case 'chat':
-//         navigate('/');
-//         break;
-//       case 'pair':
-//         navigate('/pair', { state: viewOptions });
-//         break;
-//       case 'settings':
-//         navigate('/settings', { state: viewOptions });
-//         break;
-//       case 'sessions':
-//         navigate('/sessions');
-//         break;
-//       case 'schedules':
-//         navigate('/schedules');
-//         break;
-//       case 'recipes':
-//         navigate('/recipes');
-//         break;
-//       case 'permission':
-//         navigate('/permission', { state: viewOptions });
-//         break;
-//       case 'ConfigureProviders':
-//         navigate('/configure-providers');
-//         break;
-//       case 'sharedSession':
-//         navigate('/shared-session', { state: viewOptions });
-//         break;
-//       case 'recipeEditor':
-//         navigate('/recipe-editor', { state: viewOptions });
-//         break;
-//       case 'welcome':
-//         navigate('/welcome');
-//         break;
-//       default:
-//         navigate('/');
-//     }
-//   };
-//
-//   return (
-//     <React.Suspense fallback={<div>Loading projects...</div>}>
-//       <ProjectsContainer setView={setView} />
-//     </React.Suspense>
-//   );
-// };
-
 export default function App() {
   const [fatalError, setFatalError] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
@@ -706,7 +413,7 @@ export default function App() {
     title: 'Pair Chat',
     messages: [],
     messageHistoryIndex: 0,
-    recipeConfig: null, // Initialize with no recipe
+    recipeConfig: null,
   });
 
   const { getExtensions, addExtension, read } = useConfig();
@@ -783,201 +490,24 @@ export default function App() {
     }
     initAttemptedRef.current = true;
 
-    console.log(`Initializing app`);
+    const initialize = async () => {
+      const config = window.electron.getConfig();
+      const provider = (await read('GOOSE_PROVIDER', false)) ?? config.GOOSE_DEFAULT_PROVIDER;
+      const model = (await read('GOOSE_MODEL', false)) ?? config.GOOSE_DEFAULT_MODEL;
 
-    const urlParams = new URLSearchParams(window.location.search);
-    const viewType = urlParams.get('view');
-    const resumeSessionId = urlParams.get('resumeSessionId');
-    const recipeConfig = window.appConfig.get('recipe');
-
-    // Check for session resume first - this takes priority over other navigation
-    if (resumeSessionId) {
-      console.log('Session resume detected, letting useChat hook handle navigation');
-
-      // Even when resuming a session, we need to initialize the system
-      const initializeForSessionResume = async () => {
-        try {
-          await initConfig();
-          await readAllConfig({ throwOnError: true });
-
-          const config = window.electron.getConfig();
-          const provider = (await read('GOOSE_PROVIDER', false)) ?? config.GOOSE_DEFAULT_PROVIDER;
-          const model = (await read('GOOSE_MODEL', false)) ?? config.GOOSE_DEFAULT_MODEL;
-
-          if (provider && model) {
-            await initializeSystem(provider as string, model as string, {
-              getExtensions,
-              addExtension,
-            });
-          } else {
-            throw new Error('No provider/model configured for session resume');
-          }
-        } catch (error) {
-          console.error('Failed to initialize system for session resume:', error);
-          setFatalError(
-            `Failed to initialize system for session resume: ${error instanceof Error ? error.message : 'Unknown error'}`
-          );
-        }
-      };
-
-      initializeForSessionResume();
-      return;
-    }
-
-    if (viewType) {
-      if (viewType === 'recipeEditor' && recipeConfig) {
-        // Handle recipe editor deep link - use hash routing
-        window.location.hash = '#/recipe-editor';
-        window.history.replaceState({ config: recipeConfig }, '', '#/recipe-editor');
-      } else {
-        // Handle other deep links by redirecting to appropriate route
-        const routeMap: Record<string, string> = {
-          chat: '#/',
-          pair: '#/pair',
-          settings: '#/settings',
-          sessions: '#/sessions',
-          schedules: '#/schedules',
-          recipes: '#/recipes',
-          permission: '#/permission',
-          ConfigureProviders: '#/configure-providers',
-          sharedSession: '#/shared-session',
-          recipeEditor: '#/recipe-editor',
-          welcome: '#/welcome',
-        };
-
-        const route = routeMap[viewType];
-        if (route) {
-          window.location.hash = route;
-          window.history.replaceState({}, '', route);
-        }
-      }
-      return;
-    }
-
-    const initializeApp = async () => {
-      try {
-        // Start cost database initialization early (non-blocking) - only if cost tracking is enabled
-        const costDbPromise = COST_TRACKING_ENABLED
-          ? initializeCostDatabase().catch((error) => {
-              console.error('Failed to initialize cost database:', error);
-            })
-          : (() => {
-              console.log('Cost tracking disabled, skipping cost database initialization');
-              return Promise.resolve();
-            })();
-
-        await initConfig();
-
-        try {
-          await readAllConfig({ throwOnError: true });
-        } catch (error) {
-          console.warn('Initial config read failed, attempting recovery:', error);
-
-          const configVersion = localStorage.getItem('configVersion');
-          const shouldMigrateExtensions = !configVersion || parseInt(configVersion, 10) < 3;
-
-          if (shouldMigrateExtensions) {
-            console.log('Performing extension migration...');
-            try {
-              await backupConfig({ throwOnError: true });
-              await initConfig();
-            } catch (migrationError) {
-              console.error('Migration failed:', migrationError);
-              // Continue with recovery attempts
-            }
-          }
-
-          // Try recovery if migration didn't work or wasn't needed
-          console.log('Attempting config recovery...');
-          try {
-            // Try to validate first (faster than recovery)
-            await validateConfig({ throwOnError: true });
-            // If validation passes, try reading again
-            await readAllConfig({ throwOnError: true });
-          } catch (validateError) {
-            console.log('Config validation failed, attempting recovery...');
-            try {
-              await recoverConfig({ throwOnError: true });
-              await readAllConfig({ throwOnError: true });
-            } catch (recoverError) {
-              console.warn('Config recovery failed, reinitializing...');
-              await initConfig();
-            }
-          }
-        }
-
-        const config = window.electron.getConfig();
-        const provider = (await read('GOOSE_PROVIDER', false)) ?? config.GOOSE_DEFAULT_PROVIDER;
-        const model = (await read('GOOSE_MODEL', false)) ?? config.GOOSE_DEFAULT_MODEL;
-
-        if (provider && model) {
-          try {
-            // Initialize system in parallel with cost database (if enabled)
-            const initPromises = [
-              initializeSystem(provider as string, model as string, {
-                getExtensions,
-                addExtension,
-              }),
-            ];
-
-            if (COST_TRACKING_ENABLED) {
-              initPromises.push(costDbPromise);
-            }
-
-            await Promise.all(initPromises);
-
-            const recipeConfig = window.appConfig.get('recipe');
-            if (
-              recipeConfig &&
-              typeof recipeConfig === 'object' &&
-              !window.sessionStorage.getItem('ignoreRecipeConfigChanges')
-            ) {
-              console.log(
-                'Recipe deeplink detected, navigating to pair view with config:',
-                recipeConfig
-              );
-              // Set the recipe config in the pair chat state
-              setPairChat((prevChat) => ({
-                ...prevChat,
-                recipeConfig: recipeConfig as Recipe,
-                title: (recipeConfig as Recipe).title || 'Recipe Chat',
-                messages: [], // Start fresh for recipe
-                messageHistoryIndex: 0,
-              }));
-              // Navigate to pair view with recipe config using hash routing
-              window.location.hash = '#/pair';
-              window.history.replaceState(
-                {
-                  recipeConfig: recipeConfig,
-                  resetChat: true,
-                },
-                '',
-                '#/pair'
-              );
-            } else if (window.sessionStorage.getItem('ignoreRecipeConfigChanges')) {
-              console.log(
-                'Ignoring recipe config changes to prevent navigation conflicts with new window creation'
-              );
-            }
-          } catch (error) {
-            console.error('Error in system initialization:', error);
-            if (error instanceof MalformedConfigError) {
-              throw error;
-            }
-            window.location.hash = '#/';
-            window.history.replaceState({}, '', '#/');
-          }
-        } else {
-          window.location.hash = '#/';
-          window.history.replaceState({}, '', '#/');
-        }
-      } catch (error) {
-        console.error('Fatal error during initialization:', error);
-        setFatalError(error instanceof Error ? error.message : 'Unknown error occurred');
-      }
+      await initializeApp({
+        getExtensions,
+        addExtension,
+        setPairChat,
+        provider: provider as string,
+        model: model as string,
+      });
     };
 
-    initializeApp();
+    initialize().catch((error) => {
+      console.error('Fatal error during initialization:', error);
+      setFatalError(error instanceof Error ? error.message : 'Unknown error occurred');
+    });
   }, [getExtensions, addExtension, read, setPairChat]);
 
   useEffect(() => {
@@ -994,7 +524,7 @@ export default function App() {
 
   // Handle navigation to pair view for recipe deeplinks after router is ready
   useEffect(() => {
-    const recipeConfig = window.appConfig.get('recipe');
+    const recipeConfig = window.appConfig?.get('recipe');
     if (
       recipeConfig &&
       typeof recipeConfig === 'object' &&
@@ -1047,13 +577,29 @@ export default function App() {
     return () => {
       window.electron.off('open-shared-session', handleOpenSharedSession);
     };
-  }, [setSharedSessionError]);
+  }, []);
 
   // Handle recipe decode events from main process
   useEffect(() => {
+    const handleLoadRecipeDeeplink = (_event: IpcRendererEvent, ...args: unknown[]) => {
+      const recipeDeeplink = args[0] as string;
+      const scheduledJobId = args[1] as string | undefined;
+
+      // Store the deeplink info in app config for processing
+      const config = window.electron.getConfig();
+      config.recipeDeeplink = recipeDeeplink;
+      if (scheduledJobId) {
+        config.scheduledJobId = scheduledJobId;
+      }
+
+      // Navigate to pair view to handle the recipe loading
+      if (window.location.hash !== '#/pair') {
+        window.location.hash = '#/pair';
+      }
+    };
+
     const handleRecipeDecoded = (_event: IpcRendererEvent, ...args: unknown[]) => {
       const decodedRecipe = args[0] as Recipe;
-      console.log('[App] Recipe decoded successfully:', decodedRecipe);
 
       // Update the pair chat with the decoded recipe
       setPairChat((prevChat) => ({
@@ -1079,14 +625,16 @@ export default function App() {
       window.location.hash = '#/recipes';
     };
 
+    window.electron.on('load-recipe-deeplink', handleLoadRecipeDeeplink);
     window.electron.on('recipe-decoded', handleRecipeDecoded);
     window.electron.on('recipe-decode-error', handleRecipeDecodeError);
 
     return () => {
+      window.electron.off('load-recipe-deeplink', handleLoadRecipeDeeplink);
       window.electron.off('recipe-decoded', handleRecipeDecoded);
       window.electron.off('recipe-decode-error', handleRecipeDecodeError);
     };
-  }, [setPairChat]);
+  }, [setPairChat, pairChat.id]);
 
   useEffect(() => {
     console.log('Setting up keyboard shortcuts');
@@ -1095,7 +643,7 @@ export default function App() {
       if ((isMac ? event.metaKey : event.ctrlKey) && event.key === 'n') {
         event.preventDefault();
         try {
-          const workingDir = window.appConfig.get('GOOSE_WORKING_DIR');
+          const workingDir = window.appConfig?.get('GOOSE_WORKING_DIR');
           console.log(`Creating new chat window with working dir: ${workingDir}`);
           window.electron.createChatWindow(undefined, workingDir as string);
         } catch (error) {
@@ -1112,8 +660,7 @@ export default function App() {
   // Prevent default drag and drop behavior globally to avoid opening files in new windows
   // but allow our React components to handle drops in designated areas
   useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const preventDefaults = (e: any) => {
+    const preventDefaults = (e: globalThis.DragEvent) => {
       // Only prevent default if we're not over a designated drop zone
       const target = e.target as HTMLElement;
       const isOverDropZone = target.closest('[data-drop-zone="true"]') !== null;
@@ -1124,15 +671,13 @@ export default function App() {
       }
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const handleDragOver = (e: any) => {
+    const handleDragOver = (e: globalThis.DragEvent) => {
       // Always prevent default for dragover to allow dropping
       e.preventDefault();
       e.stopPropagation();
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const handleDrop = (e: any) => {
+    const handleDrop = (e: globalThis.DragEvent) => {
       // Only prevent default if we're not over a designated drop zone
       const target = e.target as HTMLElement;
       const isOverDropZone = target.closest('[data-drop-zone="true"]') !== null;
@@ -1158,10 +703,9 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    console.log('Setting up fatal error handler');
     const handleFatalError = (_event: IpcRendererEvent, ...args: unknown[]) => {
       const errorMessage = args[0] as string;
-      console.error('Encountered a fatal error: ', errorMessage);
+      console.error('Encountered a fatal error:', errorMessage);
       console.error('Is loading session:', isLoadingSession);
       setFatalError(errorMessage);
     };
@@ -1172,7 +716,6 @@ export default function App() {
   }, [isLoadingSession]);
 
   useEffect(() => {
-    console.log('Setting up view change handler');
     const handleSetView = (_event: IpcRendererEvent, ...args: unknown[]) => {
       const newView = args[0] as View;
       const section = args[1] as string | undefined;
@@ -1233,7 +776,7 @@ export default function App() {
           try {
             const allowedCommands = await window.electron.getAllowedExtensions();
             if (allowedCommands && allowedCommands.length > 0) {
-              const isCommandAllowed = allowedCommands.some((allowedCmd) =>
+              const isCommandAllowed = allowedCommands.some((allowedCmd: string) =>
                 command.startsWith(allowedCmd)
               );
               if (!isCommandAllowed) {
@@ -1338,12 +881,13 @@ export default function App() {
     return <ErrorUI error={new Error(fatalError)} />;
   }
 
-  if (isLoadingSession)
+  if (isLoadingSession) {
     return (
       <div className="flex justify-center items-center py-12">
         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-textStandard"></div>
       </div>
     );
+  }
 
   return (
     <DraftProvider>
@@ -1408,7 +952,7 @@ export default function App() {
                         chat={pairChat}
                         setChat={setPairChat}
                         contextKey={`pair-${pairChat.id}`}
-                        key={pairChat.id} // Add key prop to force re-render when chat ID changes
+                        key={pairChat.id}
                       >
                         <PairRouteWrapper
                           chat={pairChat}
@@ -1488,22 +1032,12 @@ export default function App() {
                     </ProviderGuard>
                   }
                 />
-                {/*<Route*/}
-                {/*  path="projects"*/}
-                {/*  element={*/}
-                {/*    <ProviderGuard>*/}
-                {/*      <ChatProvider chat={chat} setChat={setChat}>*/}
-                {/*        <ProjectsRoute />*/}
-                {/*      </ChatProvider>*/}
-                {/*    </ProviderGuard>  */}
-                {/*  }*/}
-                {/*/>*/}
               </Route>
             </Routes>
           </div>
           {isGoosehintsModalOpen && (
             <GoosehintsModal
-              directory={window.appConfig.get('GOOSE_WORKING_DIR') as string}
+              directory={window.appConfig?.get('GOOSE_WORKING_DIR') as string}
               setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
             />
           )}
