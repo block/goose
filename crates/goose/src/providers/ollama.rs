@@ -3,6 +3,7 @@ use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::{get_model, handle_response_openai_compat};
+use crate::config::custom_providers::CustomProviderConfig;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::impl_provider_default;
@@ -30,6 +31,7 @@ pub struct OllamaProvider {
     #[serde(skip)]
     api_client: ApiClient,
     model: ModelConfig,
+    supports_streaming: bool,
 }
 
 impl_provider_default!(OllamaProvider);
@@ -73,7 +75,47 @@ impl OllamaProvider {
         let auth = AuthMethod::Custom(Box::new(NoAuth));
         let api_client = ApiClient::with_timeout(base_url.to_string(), auth, timeout)?;
 
-        Ok(Self { api_client, model })
+        Ok(Self {
+            api_client,
+            model,
+            supports_streaming: true,
+        })
+    }
+
+    pub fn from_custom_config(model: ModelConfig, config: CustomProviderConfig) -> Result<Self> {
+        let timeout = Duration::from_secs(config.timeout_seconds.unwrap_or(OLLAMA_TIMEOUT));
+
+        // Parse and normalize the custom URL
+        let base =
+            if config.base_url.starts_with("http://") || config.base_url.starts_with("https://") {
+                config.base_url.clone()
+            } else {
+                format!("http://{}", config.base_url)
+            };
+
+        let mut base_url = Url::parse(&base)
+            .map_err(|e| anyhow::anyhow!("Invalid base URL '{}': {}", config.base_url, e))?;
+
+        // Set default port if missing and not using standard ports
+        let explicit_default_port =
+            config.base_url.ends_with(":80") || config.base_url.ends_with(":443");
+        let is_https = base_url.scheme() == "https";
+
+        if base_url.port().is_none() && !explicit_default_port && !is_https {
+            base_url
+                .set_port(Some(OLLAMA_DEFAULT_PORT))
+                .map_err(|_| anyhow::anyhow!("Failed to set default port"))?;
+        }
+
+        // No authentication for Ollama
+        let auth = AuthMethod::Custom(Box::new(NoAuth));
+        let api_client = ApiClient::with_timeout(base_url.to_string(), auth, timeout)?;
+
+        Ok(Self {
+            api_client,
+            model,
+            supports_streaming: config.supports_streaming.unwrap_or(true),
+        })
     }
 
     async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
@@ -123,11 +165,12 @@ impl Provider for OllamaProvider {
     }
 
     #[tracing::instrument(
-        skip(self, system, messages, tools),
+        skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -155,9 +198,9 @@ impl Provider for OllamaProvider {
             tracing::debug!("Failed to get usage data");
             Usage::default()
         });
-        let model = get_model(&response);
-        super::utils::emit_debug_trace(&self.model, &payload, &response, &usage);
-        Ok((message, ProviderUsage::new(model, usage)))
+        let response_model = get_model(&response);
+        super::utils::emit_debug_trace(model_config, &payload, &response, &usage);
+        Ok((message, ProviderUsage::new(response_model, usage)))
     }
 
     /// Generate a session name based on the conversation history
@@ -180,6 +223,10 @@ impl Provider for OllamaProvider {
         description = Self::filter_reasoning_tokens(&description);
 
         Ok(safe_truncate(&description, 100))
+    }
+
+    fn supports_streaming(&self) -> bool {
+        self.supports_streaming
     }
 }
 

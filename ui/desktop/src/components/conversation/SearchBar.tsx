@@ -20,7 +20,7 @@ interface SearchBarProps {
     currentIndex: number;
   };
   /** Optional ref for the search input element */
-  inputRef?: React.RefObject<HTMLInputElement | null>;
+  inputRef?: React.RefObject<HTMLInputElement>;
   /** Initial search term */
   initialSearchTerm?: string;
 }

@@ -6,13 +6,14 @@ title: Configure LLM Provider
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import { PanelLeft } from 'lucide-react';
+import { ModelSelectionTip } from '@site/src/components/ModelSelectionTip';
 
 # Supported LLM Providers
 
 Goose is compatible with a wide range of LLM providers, allowing you to choose and integrate your preferred model.
 
 :::tip Model Selection
-Goose relies heavily on tool calling capabilities and currently works best with Anthropic's Claude 3.5 Sonnet and OpenAI's GPT-4o (2024-11-20) model.
+<ModelSelectionTip/>
 [Berkeley Function-Calling Leaderboard][function-calling-leaderboard] can be a good guide for selecting models.
 :::
 
@@ -55,7 +56,7 @@ CLI providers are cost-effective alternatives that use your existing subscriptio
    
 ## Configure Provider
 
-To configure your chosen provider or see available options, run `goose configure` in the CLI or visit the `Settings` page in the Goose Desktop.
+To configure your chosen provider or see available options, visit the `Models` tab in the Goose Desktop or run `goose configure` in the CLI.
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
@@ -63,20 +64,28 @@ To configure your chosen provider or see available options, run `goose configure
   1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
   2. Click the `Settings` button on the sidebar
   3. Click the `Models` tab
-  4. Click `Configure Providers`
-  5. Click `Configure` on the LLM provider to update
-  6. Add additional configurations (API key, host, etc) then press `submit`
+  4. Click `Configure providers`
+  5. Click your provider in the list
+  6. Add your API key and other required configurations, then click `Submit`
 
-  **To change provider model**
+  **To change your current model:**
   1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
   2. Click the `Settings` button on the sidebar
   3. Click the `Models` tab
   4. Click `Switch models`
-  5. Select a Provider from drop down menu
-  6. Select a model from drop down menu
-  7. Press `Select Model`
+  5. Choose from your configured providers in the dropdown, or select `Use other provider` to configure a new one
+  6. Select a model from the available options, or choose `Use custom model` to enter a specific model name
+  7. Click `Select model` to confirm your choice
 
-  You can explore more models by selecting a `provider` name under `Browse by Provider`. A link will appear, directing you to the provider's website. Once you've found the model you want, return to step 6 and paste the model name.
+  :::tip Shortcut
+  For faster access, click your current model name at the bottom of the app and choose `Change Model`.
+  :::
+
+  **To start over with provider and model configuration:**
+  1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+  2. Click the `Settings` button on the sidebar
+  3. Click the `Models` tab
+  4. Click `Reset Provider and Model` to clear your current settings and return to the welcome screen
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
     1. Run the following command: 
@@ -92,8 +101,10 @@ To configure your chosen provider or see available options, run `goose configure
    │
    ◆  What would you like to configure?
    │  ● Configure Providers (Change provider or update credentials)
-   │  ○ Toggle Extensions 
    │  ○ Add Extension 
+   │  ○ Toggle Extensions 
+   │  ○ Remove Extension 
+   │  ○ Goose Settings 
    └  
    ```
    3. Choose a model provider and press Enter.
@@ -106,12 +117,11 @@ To configure your chosen provider or see available options, run `goose configure
    │
    ◆  Which model provider should we use?
    │  ● Anthropic (Claude and other models from Anthropic)
+   │  ○ Azure OpenAI 
+   │  ○ Amazon Bedrock 
+   │  ○ Claude Code 
    │  ○ Databricks 
-   │  ○ Google Gemini 
-   │  ○ Groq 
-   │  ○ Ollama 
-   │  ○ OpenAI 
-   │  ○ OpenRouter 
+   │  ○ ...
    └  
    ```
    4. Enter your API key (and any other configuration details) when prompted.
@@ -126,7 +136,7 @@ To configure your chosen provider or see available options, run `goose configure
    │  Anthropic 
    │
    ◆  Provider Anthropic requires ANTHROPIC_API_KEY, please enter a value
-   │   
+   │  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
    └  
     ```
     5. Enter your desired `ANTHROPIC_HOST` or you can use the default one by hitting the `Enter` key. 
@@ -141,9 +151,9 @@ To configure your chosen provider or see available options, run `goose configure
     ◇  Model fetch complete
     │
     ◇  Enter a model from that provider:
-    │  claude-3-5-sonnet-latest (default)
+    │  claude-sonnet-4-0 (default)
     │
-    ◓  Checking your configuration...                                                                                       
+    ◓  Checking your configuration...
     └  Configuration saved successfully
 ```
   </TabItem>
@@ -211,15 +221,15 @@ Goose supports using custom OpenAI-compatible endpoints, which is particularly u
   <TabItem value="ui" label="Goose Desktop" default>
     1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
     2. Click the `Settings` button on the sidebar
-    3. Next to `Models`, click the `browse` link
-    4. Click the `configure` link in the upper right corner
-    5. Press the `+` button next to OpenAI
+    3. Click the `Models` tab
+    4. Click `Configure providers`
+    5. Click `OpenAI` in the provider list
     6. Fill in your configuration details:
        - API Key (required)
        - Host URL (for custom endpoints)
        - Organization ID (for usage tracking)
        - Project (for resource management)
-    7. Press `submit`
+    7. Click `Submit`
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
     1. Run `goose configure`

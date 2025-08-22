@@ -4,7 +4,7 @@ import { fetchSessions, updateSessionMetadata, type Session } from '../../sessio
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
-import { View, ViewOptions } from '../../App';
+import { View, ViewOptions } from '../../utils/navigationUtils';
 import { formatMessageTimestamp } from '../../utils/timeUtils';
 import { SearchView } from '../conversation/SearchView';
 import { SearchHighlighter } from '../../utils/searchHighlighter';

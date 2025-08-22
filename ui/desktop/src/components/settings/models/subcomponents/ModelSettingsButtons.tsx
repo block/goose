@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button } from '../../../ui/button';
 import { AddModelModal } from './AddModelModal';
-import type { View } from '../../../../App';
+import type { View } from '../../../../utils/navigationUtils';
 import { shouldShowPredefinedModels } from '../predefinedModelsUtils';
 
 interface ConfigureModelButtonsProps {

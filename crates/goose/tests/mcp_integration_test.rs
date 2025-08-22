@@ -126,7 +126,7 @@ async fn test_replayed_session(
         available_tools: vec![],
     };
 
-    let mut extension_manager = ExtensionManager::new();
+    let extension_manager = ExtensionManager::new();
 
     let result = extension_manager.add_extension(extension_config).await;
     assert!(result.is_ok(), "Failed to add extension: {:?}", result);

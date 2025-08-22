@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.4.0"
+    "version": "1.5.0"
   },
   "paths": {
     "/agent/add_sub_recipes": {
@@ -268,6 +268,78 @@
                 }
               }
             }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/config/custom-providers": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "create_custom_provider",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCustomProviderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Custom provider created successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/config/custom-providers/{id}": {
+      "delete": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "remove_custom_provider",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Custom provider removed successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Provider not found"
           },
           "500": {
             "description": "Internal server error"
@@ -776,6 +848,36 @@
           },
           "400": {
             "description": "Bad request"
+          }
+        }
+      }
+    },
+    "/recipes/scan": {
+      "post": {
+        "tags": [
+          "Recipe Management"
+        ],
+        "operationId": "scan_recipe",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScanRecipeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Recipe scanned successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanRecipeResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -1436,6 +1538,40 @@
               "minimum": 0
             },
             "description": "Token counts for each processed message"
+          }
+        }
+      },
+      "CreateCustomProviderRequest": {
+        "type": "object",
+        "required": [
+          "provider_type",
+          "display_name",
+          "api_url",
+          "api_key",
+          "models"
+        ],
+        "properties": {
+          "api_key": {
+            "type": "string"
+          },
+          "api_url": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "provider_type": {
+            "type": "string"
+          },
+          "supports_streaming": {
+            "type": "boolean",
+            "nullable": true
           }
         }
       },
@@ -2792,6 +2928,28 @@
         "properties": {
           "session_id": {
             "type": "string"
+          }
+        }
+      },
+      "ScanRecipeRequest": {
+        "type": "object",
+        "required": [
+          "recipe"
+        ],
+        "properties": {
+          "recipe": {
+            "$ref": "#/components/schemas/Recipe"
+          }
+        }
+      },
+      "ScanRecipeResponse": {
+        "type": "object",
+        "required": [
+          "has_security_warnings"
+        ],
+        "properties": {
+          "has_security_warnings": {
+            "type": "boolean"
           }
         }
       },

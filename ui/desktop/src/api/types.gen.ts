@@ -98,6 +98,15 @@ export type ContextManageResponse = {
     tokenCounts: Array<number>;
 };
 
+export type CreateCustomProviderRequest = {
+    api_key: string;
+    api_url: string;
+    display_name: string;
+    models: Array<string>;
+    provider_type: string;
+    supports_streaming?: boolean | null;
+};
+
 export type CreateRecipeRequest = {
     activities?: Array<string> | null;
     author?: AuthorRequest | null;
@@ -588,6 +597,14 @@ export type RunNowResponse = {
     session_id: string;
 };
 
+export type ScanRecipeRequest = {
+    recipe: Recipe;
+};
+
+export type ScanRecipeResponse = {
+    has_security_warnings: boolean;
+};
+
 export type ScheduledJob = {
     cron: string;
     current_session_id?: string | null;
@@ -1039,6 +1056,62 @@ export type BackupConfigResponses = {
 
 export type BackupConfigResponse = BackupConfigResponses[keyof BackupConfigResponses];
 
+export type CreateCustomProviderData = {
+    body: CreateCustomProviderRequest;
+    path?: never;
+    query?: never;
+    url: '/config/custom-providers';
+};
+
+export type CreateCustomProviderErrors = {
+    /**
+     * Invalid request
+     */
+    400: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type CreateCustomProviderResponses = {
+    /**
+     * Custom provider created successfully
+     */
+    200: string;
+};
+
+export type CreateCustomProviderResponse = CreateCustomProviderResponses[keyof CreateCustomProviderResponses];
+
+export type RemoveCustomProviderData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/config/custom-providers/{id}';
+};
+
+export type RemoveCustomProviderErrors = {
+    /**
+     * Provider not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type RemoveCustomProviderResponses = {
+    /**
+     * Custom provider removed successfully
+     */
+    200: string;
+};
+
+export type RemoveCustomProviderResponse = RemoveCustomProviderResponses[keyof RemoveCustomProviderResponses];
+
 export type GetExtensionsData = {
     body?: never;
     path?: never;
@@ -1433,6 +1506,22 @@ export type EncodeRecipeResponses = {
 };
 
 export type EncodeRecipeResponse2 = EncodeRecipeResponses[keyof EncodeRecipeResponses];
+
+export type ScanRecipeData = {
+    body: ScanRecipeRequest;
+    path?: never;
+    query?: never;
+    url: '/recipes/scan';
+};
+
+export type ScanRecipeResponses = {
+    /**
+     * Recipe scanned successfully
+     */
+    200: ScanRecipeResponse;
+};
+
+export type ScanRecipeResponse2 = ScanRecipeResponses[keyof ScanRecipeResponses];
 
 export type CreateScheduleData = {
     body: CreateScheduleRequest;

@@ -1,7 +1,7 @@
 {
   "name": "goose-app",
   "productName": "Goose",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Goose App",
   "engines": {
     "node": "^22.17.1"
@@ -41,7 +41,7 @@
   "dependencies": {
     "@ai-sdk/openai": "^2.0.14",
     "@ai-sdk/ui-utils": "^1.2.11",
-    "@mcp-ui/client": "~5.6.2",
+    "@mcp-ui/client": "^5.9.0",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-dialog": "^1.1.15",
@@ -78,6 +78,7 @@
     "react-select": "^5.10.2",
     "react-syntax-highlighter": "^15.6.1",
     "react-toastify": "^11.0.5",
+    "remark-breaks": "^4.0.0",
     "remark-gfm": "^4.0.1",
     "split-type": "^0.3.4",
     "swr": "^2.3.6",
@@ -139,6 +140,10 @@
   },
   "keywords": [],
   "license": "Apache-2.0",
+  "overrides": {
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
   "lint-staged": {
     "src/**/*.{ts,tsx}": [
       "bash -c 'npm run typecheck'",

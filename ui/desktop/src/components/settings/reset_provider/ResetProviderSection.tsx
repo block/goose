@@ -1,7 +1,7 @@
 import { Button } from '../../ui/button';
 import { RefreshCw } from 'lucide-react';
 import { useConfig } from '../../ConfigContext';
-import { View, ViewOptions } from '../../../App';
+import { View, ViewOptions } from '../../../utils/navigationUtils';
 
 interface ResetProviderSectionProps {
   setView: (view: View, viewOptions?: ViewOptions) => void;

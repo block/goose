@@ -18,6 +18,7 @@ interface RecipeWarningModalProps {
     description?: string;
     instructions?: string;
   };
+  hasSecurityWarnings?: boolean;
 }
 
 export function RecipeWarningModal({
@@ -25,17 +26,38 @@ export function RecipeWarningModal({
   onConfirm,
   onCancel,
   recipeDetails,
+  hasSecurityWarnings = false,
 }: RecipeWarningModalProps) {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onCancel()}>
       <DialogContent className="sm:max-w-[80vw] max-h-[80vh] flex flex-col p-0">
         <DialogHeader className="flex-shrink-0 p-6 pb-0">
-          <DialogTitle>⚠️ New Recipe Warning</DialogTitle>
+          <DialogTitle>
+            {hasSecurityWarnings ? '⚠️ Security Warning' : '⚠️ New Recipe Warning'}
+          </DialogTitle>
           <DialogDescription>
-            You are about to execute a recipe that you haven't run before. Only proceed if you trust
-            the source of this recipe.
+            {!hasSecurityWarnings &&
+              "You are about to execute a recipe that you haven't run before. "}
+            Only proceed if you trust the source of this recipe.
           </DialogDescription>
         </DialogHeader>
+
+        {hasSecurityWarnings && (
+          <div className="px-6">
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+              <div className="flex items-start">
+                <div className="ml-3">
+                  <div className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
+                    <p>
+                      This recipe contains hidden characters that will be ignored for your safety,
+                      as they could be used for malicious purposes.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto p-6 pt-4">
           <div className="bg-background-muted p-4 rounded-lg">
