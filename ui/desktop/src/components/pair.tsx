@@ -121,47 +121,6 @@ export default function Pair({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state, hasProcessedInitialInput, initialMessage]);
 
-  // Auto-submit the initial message after it's been set and component is ready
-  useEffect(() => {
-    if (shouldAutoSubmit && initialMessage) {
-      // Wait for the component to be fully rendered
-      const timer = setTimeout(() => {
-        // Try to trigger form submission programmatically
-        const textarea = document.querySelector(
-          'textarea[data-testid="chat-input"]'
-        ) as HTMLTextAreaElement;
-        const form = textarea?.closest('form');
-
-        if (textarea && form) {
-          // Set the textarea value
-          textarea.value = initialMessage;
-          // eslint-disable-next-line no-undef
-          textarea.dispatchEvent(new Event('input', { bubbles: true }));
-
-          // Focus the textarea
-          textarea.focus();
-
-          // Simulate Enter key press to trigger submission
-          const enterEvent = new KeyboardEvent('keydown', {
-            key: 'Enter',
-            code: 'Enter',
-            keyCode: 13,
-            which: 13,
-            bubbles: true,
-          });
-          textarea.dispatchEvent(enterEvent);
-
-          setShouldAutoSubmit(false);
-        }
-      }, 500); // Give more time for the component to fully mount
-
-      return () => clearTimeout(timer);
-    }
-
-    // Return undefined when condition is not met
-    return undefined;
-  }, [shouldAutoSubmit, initialMessage]);
-
   // Custom message submit handler
   const handleMessageSubmit = (message: string) => {
     // This is called after a message is submitted
@@ -186,27 +145,20 @@ export default function Pair({
     initialValue,
   };
 
-  // Custom content before messages
-  const renderBeforeMessages = () => {
-    return <div>{/* Any Pair-specific content before messages can go here */}</div>;
-  };
-
   return (
-    <>
-      <BaseChat
-        chat={chat}
-        setChat={setChat}
-        setView={setView}
-        setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-        enableLocalStorage={true} // Enable local storage for Pair mode
-        onMessageSubmit={handleMessageSubmit}
-        onMessageStreamFinish={handleMessageStreamFinish}
-        renderBeforeMessages={renderBeforeMessages}
-        customChatInputProps={customChatInputProps}
-        contentClassName={cn('pr-1 pb-10', (isMobile || sidebarState === 'collapsed') && 'pt-11')} // Use dynamic content class with mobile margin and sidebar state
-        showPopularTopics={!isTransitioningFromHub} // Don't show popular topics while transitioning from Hub
-        suppressEmptyState={isTransitioningFromHub} // Suppress all empty state content while transitioning from Hub
-      />
-    </>
+    <BaseChat
+      chat={chat}
+      autoSubmit={shouldAutoSubmit}
+      setChat={setChat}
+      setView={setView}
+      setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+      enableLocalStorage={true} // Enable local storage for Pair mode
+      onMessageSubmit={handleMessageSubmit}
+      onMessageStreamFinish={handleMessageStreamFinish}
+      customChatInputProps={customChatInputProps}
+      contentClassName={cn('pr-1 pb-10', (isMobile || sidebarState === 'collapsed') && 'pt-11')} // Use dynamic content class with mobile margin and sidebar state
+      showPopularTopics={!isTransitioningFromHub} // Don't show popular topics while transitioning from Hub
+      suppressEmptyState={isTransitioningFromHub} // Suppress all empty state content while transitioning from Hub
+    />
   );
 }

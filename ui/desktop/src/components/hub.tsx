@@ -85,6 +85,7 @@ export default function Hub({
 
         <ChatInput
           handleSubmit={handleSubmit}
+          autoSubmit={false}
           chatState={ChatState.Idle}
           onStop={() => {}}
           commandHistory={[]}

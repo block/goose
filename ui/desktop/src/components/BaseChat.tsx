@@ -93,6 +93,7 @@ interface BaseChatProps {
   disableSearch?: boolean; // Disable search functionality (for Hub)
   showPopularTopics?: boolean; // Show popular chat topics in empty state (for Pair)
   suppressEmptyState?: boolean; // Suppress empty state content (for transitions)
+  autoSubmit?: boolean;
 }
 
 function BaseChatContent({
@@ -112,6 +113,7 @@ function BaseChatContent({
   disableSearch = false,
   showPopularTopics = false,
   suppressEmptyState = false,
+  autoSubmit = false,
 }: BaseChatProps) {
   const location = useLocation();
   const scrollRef = useRef<ScrollAreaHandle>(null);
@@ -538,6 +540,7 @@ function BaseChatContent({
             recipeConfig={recipeConfig}
             recipeAccepted={recipeAccepted}
             initialPrompt={initialPrompt}
+            autoSubmit={autoSubmit}
             {...customChatInputProps}
           />
         </div>
