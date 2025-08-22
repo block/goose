@@ -355,10 +355,10 @@ impl AutoVisualiserRouter {
                 {
                   "labels": ["North America", "Europe", "Asia", "Africa"],
                   "matrix": [
-                    [0, 15, 25, 8],   // North America to others
-                    [18, 0, 20, 12],  // Europe to others
-                    [22, 18, 0, 15],  // Asia to others
-                    [5, 10, 18, 0]    // Africa to others
+                    [0, 15, 25, 8],
+                    [18, 0, 20, 12],
+                    [22, 18, 0, 15],
+                    [5, 10, 18, 0]
                   ]
                 }
             "#},
@@ -614,9 +614,9 @@ impl AutoVisualiserRouter {
         })?;
 
         // Load all resources at compile time using include_str!
-        const TEMPLATE: &str = include_str!("sankey_template.html");
-        const D3_MIN: &str = include_str!("d3.min.js");
-        const D3_SANKEY: &str = include_str!("d3.sankey.min.js");
+        const TEMPLATE: &str = include_str!("templates/sankey_template.html");
+        const D3_MIN: &str = include_str!("templates/assets/d3.min.js");
+        const D3_SANKEY: &str = include_str!("templates/assets/d3.sankey.min.js");
 
         // Replace all placeholders with actual content
         let html_content = TEMPLATE
@@ -660,8 +660,8 @@ impl AutoVisualiserRouter {
         })?;
 
         // Load all resources at compile time using include_str!
-        const TEMPLATE: &str = include_str!("radar_template.html");
-        const CHART_MIN: &str = include_str!("chart.min.js");
+        const TEMPLATE: &str = include_str!("templates/radar_template.html");
+        const CHART_MIN: &str = include_str!("templates/assets/chart.min.js");
 
         // Replace all placeholders with actual content
         let html_content = TEMPLATE
@@ -704,8 +704,8 @@ impl AutoVisualiserRouter {
         })?;
 
         // Load all resources at compile time using include_str!
-        const TEMPLATE: &str = include_str!("treemap_template.html");
-        const D3_MIN: &str = include_str!("d3.min.js");
+        const TEMPLATE: &str = include_str!("templates/treemap_template.html");
+        const D3_MIN: &str = include_str!("templates/assets/d3.min.js");
 
         // Replace all placeholders with actual content
         let html_content = TEMPLATE
@@ -748,8 +748,8 @@ impl AutoVisualiserRouter {
         })?;
 
         // Load all resources at compile time using include_str!
-        const TEMPLATE: &str = include_str!("chord_template.html");
-        const D3_MIN: &str = include_str!("d3.min.js");
+        const TEMPLATE: &str = include_str!("templates/chord_template.html");
+        const D3_MIN: &str = include_str!("templates/assets/d3.min.js");
 
         // Replace all placeholders with actual content
         let html_content = TEMPLATE
@@ -792,8 +792,8 @@ impl AutoVisualiserRouter {
         })?;
 
         // Load all resources at compile time using include_str!
-        const TEMPLATE: &str = include_str!("donut_template.html");
-        const CHART_MIN: &str = include_str!("chart.min.js");
+        const TEMPLATE: &str = include_str!("templates/donut_template.html");
+        const CHART_MIN: &str = include_str!("templates/assets/chart.min.js");
 
         // Replace all placeholders with actual content
         let html_content = TEMPLATE
@@ -846,10 +846,10 @@ impl AutoVisualiserRouter {
         })?;
 
         // Load all resources at compile time using include_str!
-        const TEMPLATE: &str = include_str!("map_template.html");
-        const LEAFLET_JS: &str = include_str!("leaflet.min.js");
-        const LEAFLET_CSS: &str = include_str!("leaflet.min.css");
-        const MARKERCLUSTER_JS: &str = include_str!("leaflet.markercluster.min.js");
+        const TEMPLATE: &str = include_str!("templates/map_template.html");
+        const LEAFLET_JS: &str = include_str!("templates/assets/leaflet.min.js");
+        const LEAFLET_CSS: &str = include_str!("templates/assets/leaflet.min.css");
+        const MARKERCLUSTER_JS: &str = include_str!("templates/assets/leaflet.markercluster.min.js");
 
         // Replace all placeholders with actual content
         let html_content = TEMPLATE
@@ -896,8 +896,8 @@ impl AutoVisualiserRouter {
         })?;
 
         // Load all resources at compile time using include_str!
-        const TEMPLATE: &str = include_str!("chart_template.html");
-        const CHART_MIN: &str = include_str!("chart.min.js");
+        const TEMPLATE: &str = include_str!("templates/chart_template.html");
+        const CHART_MIN: &str = include_str!("templates/assets/chart.min.js");
 
         // Replace all placeholders with actual content
         let html_content = TEMPLATE
