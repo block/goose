@@ -77,7 +77,7 @@ export const useExtensionInstallModal = (
       case 'blocked':
         return {
           title: 'Extension Installation Blocked',
-          message: `⛔️ BLOCKED: This extension command is not in the allowed list. Installation is blocked by your administrator.\n\nExtension: ${name}\nCommand: ${command || remoteUrl}\n\nContact your administrator to request approval for this extension.`,
+          message: `\n\nThis extension command is not in the allowed list and its installation is blocked.\n\nExtension: ${name}\nCommand: ${command || remoteUrl}\n\nContact your administrator to request approval for this extension.`,
           confirmLabel: 'OK',
           cancelLabel: '',
           showSingleButton: true,
@@ -85,11 +85,11 @@ export const useExtensionInstallModal = (
         };
 
       case 'untrusted': {
-        const securityMessage = `⚠️ WARNING: This extension command is not in the allowed list. Installing extensions from untrusted sources may pose security risks. Please contact an admin if you are unsure or want to allow this extension.`;
+        const securityMessage = `\n\nThis extension command is not in the allowed list and will be able to access your conversations and provide additional functionality.\n\nInstalling extensions from untrusted sources may pose security risks.`;
 
         return {
           title: 'Install Untrusted Extension?',
-          message: `${securityMessage}\n\nExtension: ${name}\n${remoteUrl ? `URL: ${remoteUrl}` : `Command: ${command}`}\n\nThis extension will be able to access your conversations and provide additional functionality.`,
+          message: `${securityMessage}\n\nExtension: ${name}\n${remoteUrl ? `URL: ${remoteUrl}` : `Command: ${command}`}\n\nContact your administrator if you are unsure about this.`,
           confirmLabel: 'Install Anyway',
           cancelLabel: 'Cancel',
           showSingleButton: false,
