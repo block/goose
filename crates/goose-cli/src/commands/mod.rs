@@ -1,6 +1,5 @@
 pub mod bench;
 pub mod configure;
-pub mod configure_settings;
 pub mod info;
 pub mod mcp;
 pub mod recipe;

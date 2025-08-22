@@ -344,14 +344,6 @@ impl ExtensionManager {
                     .to_string();
                 let command = Command::new(cmd).configure(|command| {
                     command.arg("mcp").arg(name);
-
-                    // pass configuration to the developer extension
-                    if name == "developer" {
-                        let config = crate::config::Config::global();
-                        if let Ok(nested_enabled) = config.get_param::<bool>("NESTED_GOOSE_HINTS") {
-                            command.env("NESTED_GOOSE_HINTS", nested_enabled.to_string());
-                        }
-                    }
                 });
                 let client = child_process_client(command, timeout).await?;
                 Box::new(client)
