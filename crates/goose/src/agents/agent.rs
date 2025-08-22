@@ -1364,12 +1364,19 @@ impl Agent {
     }
 
     pub async fn create_recipe(&self, mut messages: Conversation) -> Result<Recipe> {
+        tracing::info!("Starting recipe creation with {} messages", messages.len());
+
         let extensions_info = self.extension_manager.get_extensions_info().await;
+        tracing::debug!("Retrieved {} extensions info", extensions_info.len());
 
         // Get model name from provider
-        let provider = self.provider().await?;
+        let provider = self.provider().await.map_err(|e| {
+            tracing::error!("Failed to get provider for recipe creation: {}", e);
+            e
+        })?;
         let model_config = provider.get_model_config();
         let model_name = &model_config.model_name;
+        tracing::debug!("Using model: {}", model_name);
 
         let prompt_manager = self.prompt_manager.lock().await;
         let system_prompt = prompt_manager.build_system_prompt(
@@ -1381,22 +1388,51 @@ impl Agent {
             Some(model_name),
             false,
         );
+        tracing::debug!(
+            "Built system prompt with {} characters",
+            system_prompt.len()
+        );
 
         let recipe_prompt = prompt_manager.get_recipe_prompt().await;
-        let tools = self.extension_manager.get_prefixed_tools(None).await?;
+        let tools = self
+            .extension_manager
+            .get_prefixed_tools(None)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to get tools for recipe creation: {}", e);
+                e
+            })?;
+        tracing::debug!("Retrieved {} tools for recipe creation", tools.len());
 
         messages.push(Message::user().with_text(recipe_prompt));
+        tracing::debug!(
+            "Added recipe prompt to messages, total messages: {}",
+            messages.len()
+        );
 
+        tracing::info!("Calling provider to generate recipe content");
         let (result, _usage) = self
             .provider
             .lock()
             .await
             .as_ref()
-            .unwrap()
+            .ok_or_else(|| {
+                let error = anyhow!("Provider not available during recipe creation");
+                tracing::error!("{}", error);
+                error
+            })?
             .complete(&system_prompt, messages.messages(), &tools)
-            .await?;
+            .await
+            .map_err(|e| {
+                tracing::error!("Provider completion failed during recipe creation: {}", e);
+                e
+            })?;
 
         let content = result.as_concat_text();
+        tracing::debug!(
+            "Provider returned content with {} characters",
+            content.len()
+        );
 
         // the response may be contained in ```json ```, strip that before parsing json
         let re = Regex::new(r"(?s)```[^\n]*\n(.*?)\n```").unwrap();
@@ -1406,10 +1442,17 @@ impl Agent {
             .unwrap_or(&content)
             .trim()
             .to_string();
+        tracing::debug!(
+            "Cleaned content for parsing: {}",
+            &clean_content[..std::cmp::min(200, clean_content.len())]
+        );
 
         // try to parse json response from the LLM
+        tracing::debug!("Attempting to parse recipe content as JSON");
         let (instructions, activities) =
             if let Ok(json_content) = serde_json::from_str::<Value>(&clean_content) {
+                tracing::debug!("Successfully parsed JSON content");
+
                 let instructions = json_content
                     .get("instructions")
                     .ok_or_else(|| anyhow!("Missing 'instructions' in json response"))?
@@ -1432,6 +1475,7 @@ impl Agent {
 
                 (instructions, activities)
             } else {
+                tracing::warn!("Failed to parse JSON, falling back to string parsing");
                 // If we can't get valid JSON, try string parsing
                 // Use split_once to get the content after "Instructions:".
                 let after_instructions = content
@@ -1491,6 +1535,12 @@ impl Agent {
             temperature: Some(model_config.temperature.unwrap_or(0.0)),
         };
 
+        tracing::debug!(
+            "Building recipe with {} activities and {} extensions",
+            activities.len(),
+            extension_configs.len()
+        );
+
         let recipe = Recipe::builder()
             .title("Custom recipe from chat")
             .description("a custom recipe instance from this chat session")
@@ -1500,8 +1550,12 @@ impl Agent {
             .settings(settings)
             .author(author)
             .build()
-            .expect("valid recipe");
+            .map_err(|e| {
+                tracing::error!("Failed to build recipe: {}", e);
+                anyhow!("Recipe build failed: {}", e)
+            })?;
 
+        tracing::info!("Recipe creation completed successfully");
         Ok(recipe)
     }
 }
