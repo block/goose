@@ -24,21 +24,16 @@ pub struct SecurityResult {
 
 impl SecurityManager {
     pub fn new() -> Self {
-        println!("🔒 SecurityManager::new() called - checking if security should be enabled");
-
         // Initialize scanner based on config
         let should_enable = Self::should_enable_security();
-        println!("🔒 Security enabled check result: {}", should_enable);
 
         let scanner = match should_enable {
             true => {
-                println!("🔒 Initializing security scanner");
-                tracing::info!("🔒 Initializing security scanner");
+                tracing::info!("Security scanner initialized and enabled");
                 Some(PromptInjectionScanner::new())
             }
             false => {
-                println!("🔓 Security scanning disabled");
-                tracing::info!("🔓 Security scanning disabled");
+                tracing::debug!("Security scanning disabled via configuration");
                 None
             }
         };
@@ -59,11 +54,11 @@ impl SecurityManager {
             .and_then(|security_config| security_config.get("enabled")?.as_bool())
             .unwrap_or(false);
 
-        println!(
-            "🔒 Config check - security config result: {:?}",
-            config.get_param::<serde_json::Value>("security")
+        tracing::debug!(
+            security_config = ?config.get_param::<serde_json::Value>("security"),
+            enabled = result,
+            "Security configuration check completed"
         );
-        println!("🔒 Final security enabled result: {}", result);
 
         result
     }
