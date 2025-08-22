@@ -28,13 +28,7 @@ pub async fn run_server(name: &str) -> Result<()> {
     tracing::info!("Starting MCP server");
 
     let router: Option<Box<dyn BoundedService>> = match name {
-        "developer" => {
-            // TODO: Future integration with rmcp DeveloperServer
-            // The rmcp DeveloperServer provides better tools (text_editor, screen_capture, list_windows)
-            // but requires an adapter to work with the existing BoundedService infrastructure
-            // For now, fall back to the old DeveloperRouter
-            Some(Box::new(RouterService(DeveloperRouter::new())))
-        }
+        "developer" => Some(Box::new(RouterService(DeveloperRouter::new()))),
         "computercontroller" => Some(Box::new(RouterService(ComputerControllerRouter::new()))),
         "autovisualiser" => Some(Box::new(RouterService(AutoVisualiserRouter::new()))),
         "memory" => Some(Box::new(RouterService(MemoryRouter::new()))),
