@@ -10,7 +10,7 @@ static FILE_REFERENCE_REGEX: Lazy<regex::Regex> = Lazy::new(|| {
         .expect("Invalid file reference regex pattern")
 });
 
-const MAX_DEPTH: usize = 3;
+const MAX_DEPTH: usize = 6;
 
 fn sanitize_reference_path(
     reference: &Path,
@@ -347,8 +347,8 @@ mod tests {
             let import_boundary = temp_dir.path();
             let ignore_patterns = create_ignore_patterns(import_boundary);
             let mut visited = HashSet::new();
-            for i in 1..=5 {
-                let content = if i < 5 {
+            for i in 1..=7 {
+                let content = if i < 7 {
                     format!("Level {} content\n@level{}.md", i, i + 1)
                 } else {
                     format!("Level {} content", i)
@@ -363,13 +363,14 @@ mod tests {
                 0,
                 &ignore_patterns,
             );
-            // Should contain up to level 3 (MAX_DEPTH = 3)
             assert!(expanded.contains("Level 1 content"));
             assert!(expanded.contains("Level 2 content"));
             assert!(expanded.contains("Level 3 content"));
-            // Should not contain level 4 or 5 due to depth limit
-            assert!(!expanded.contains("Level 4 content"));
-            assert!(!expanded.contains("Level 5 content"));
+            assert!(expanded.contains("Level 4 content"));
+            assert!(expanded.contains("Level 5 content"));
+            assert!(expanded.contains("Level 6 content"));
+
+            assert!(!expanded.contains("Level 7 content"));
         }
 
         #[test]
