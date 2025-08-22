@@ -54,32 +54,21 @@ impl Agent {
         permission_manager: &'a mut PermissionManager,
         message_tool_response: Arc<Mutex<Message>>,
         cancellation_token: Option<CancellationToken>,
-        security_results: &'a [crate::security::SecurityResult],
+        inspection_results: &'a [crate::tool_inspection::InspectionResult],
     ) -> BoxStream<'a, anyhow::Result<Message>> {
         try_stream! {
-            for (i, request) in tool_requests.iter().enumerate() {
+            for (_i, request) in tool_requests.iter().enumerate() {
                 if let Ok(tool_call) = request.tool_call.clone() {
-                    // Find the corresponding security result for this tool request
-                    let security_message = if let Some(security_result) = security_results.get(i) {
-                        if security_result.is_malicious {
-                            Some(format!(
-                                "🔒 Security Alert: This tool call has been flagged as potentially dangerous.\n\
-                                Confidence: {:.1}%\n\
-                                Explanation: {}\n\
-                                \n\
-                                Command: {} with arguments:\n{}",
-                                security_result.confidence * 100.0,
-                                security_result.explanation,
-                                tool_call.name,
-                                serde_json::to_string_pretty(&tool_call.arguments)
-                                    .unwrap_or_else(|_| "<<invalid json>>".to_string())
-                            ))
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    };
+                    // Find the corresponding inspection result for this tool request
+                    let security_message = inspection_results.iter()
+                        .find(|result| result.tool_request_id == request.id)
+                        .and_then(|result| {
+                            if let crate::tool_inspection::InspectionAction::RequireApproval(Some(message)) = &result.action {
+                                Some(message.clone())
+                            } else {
+                                None
+                            }
+                        });
 
                     let confirmation = Message::user().with_tool_confirmation_request(
                         request.id.clone(),

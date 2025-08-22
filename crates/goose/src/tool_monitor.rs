@@ -1,5 +1,11 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Arc;
+use anyhow::Result;
+use async_trait::async_trait;
+use crate::tool_inspection::{ToolInspector, InspectionResult, InspectionAction};
+use crate::conversation::message::{Message, ToolRequest};
+use crate::providers::base::Provider;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolCall {
@@ -70,5 +76,59 @@ impl ToolMonitor {
         self.last_call = None;
         self.repeat_count = 0;
         self.call_counts.clear();
+    }
+}
+
+#[async_trait]
+impl ToolInspector for ToolMonitor {
+    fn name(&self) -> &'static str {
+        "repetition_monitor"
+    }
+
+    async fn inspect(
+        &self,
+        tool_requests: &[ToolRequest],
+        _messages: &[Message],
+        _provider: Option<Arc<dyn Provider>>,
+    ) -> Result<Vec<InspectionResult>> {
+        let mut results = Vec::new();
+        
+        for tool_request in tool_requests {
+            if let Ok(tool_call) = &tool_request.tool_call {
+                let tool_call_info = ToolCall::new(tool_call.name.clone(), tool_call.arguments.clone());
+                
+                // Create a temporary clone to check without modifying state
+                let mut temp_monitor = ToolMonitor::new(self.max_repetitions);
+                temp_monitor.last_call = self.last_call.clone();
+                temp_monitor.repeat_count = self.repeat_count;
+                temp_monitor.call_counts = self.call_counts.clone();
+                
+                if !temp_monitor.check_tool_call(tool_call_info) {
+                    results.push(InspectionResult {
+                        tool_request_id: tool_request.id.clone(),
+                        action: InspectionAction::Deny,
+                        reason: format!("Tool '{}' has exceeded maximum repetitions", tool_call.name),
+                        confidence: 1.0,
+                        inspector_name: "repetition_monitor".to_string(),
+                        finding_id: Some("REP-001".to_string()),
+                    });
+                } else {
+                    results.push(InspectionResult {
+                        tool_request_id: tool_request.id.clone(),
+                        action: InspectionAction::Allow,
+                        reason: "Tool repetition within limits".to_string(),
+                        confidence: 1.0,
+                        inspector_name: "repetition_monitor".to_string(),
+                        finding_id: None,
+                    });
+                }
+            }
+        }
+        
+        Ok(results)
+    }
+
+    fn priority(&self) -> u32 {
+        150 // Medium priority - runs after security
     }
 }

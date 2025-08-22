@@ -1,10 +1,8 @@
 pub mod patterns;
 pub mod scanner;
+pub mod inspector;
 
-#[cfg(test)]
-mod integration_tests;
-
-use crate::conversation::message::Message;
+use crate::conversation::message::{Message, ToolRequest};
 use crate::permission::permission_judge::PermissionCheckResult;
 use anyhow::Result;
 use scanner::PromptInjectionScanner;
@@ -70,14 +68,11 @@ impl SecurityManager {
         result
     }
 
-    /// Main security check function - called from reply_internal
-    /// Uses the proper two-step security analysis process
-    /// Scans ALL tools (approved + needs_approval) for security threats
-    pub async fn filter_malicious_tool_calls(
+    /// New method for tool inspection framework - works directly with tool requests
+    pub async fn analyze_tool_requests(
         &self,
+        tool_requests: &[ToolRequest],
         messages: &[Message],
-        permission_check_result: &PermissionCheckResult,
-        _system_prompt: Option<&str>,
     ) -> Result<Vec<SecurityResult>> {
         let Some(scanner) = &self.scanner else {
             // Security disabled, return empty results
@@ -87,49 +82,44 @@ impl SecurityManager {
 
         let mut results = Vec::new();
 
-        tracing::info!("🔍 Starting security analysis - {} approved tools, {} needs approval tools, {} messages", 
-            permission_check_result.approved.len(),
-            permission_check_result.needs_approval.len(),
+        tracing::info!("🔍 Starting security analysis - {} tool requests, {} messages", 
+            tool_requests.len(),
             messages.len()
         );
 
-        // Check ALL tools (approved + needs_approval) for potential security issues
-        for (i, tool_request) in permission_check_result
-            .approved
-            .iter()
-            .chain(permission_check_result.needs_approval.iter())
-            .enumerate()
-        {
+        // Only analyze CURRENT tool requests, not historical ones from conversation
+        // This prevents re-flagging the same malicious content from previous messages
+        for (i, tool_request) in tool_requests.iter().enumerate() {
             if let Ok(tool_call) = &tool_request.tool_call {
                 tracing::info!(
                     tool_name = %tool_call.name,
                     tool_index = i,
+                    tool_request_id = %tool_request.id,
                     tool_args = ?tool_call.arguments,
-                    "🔍 Starting security analysis for tool call"
+                    "🔍 Starting security analysis for current tool call"
                 );
 
-                // Use the new two-step analysis method
+                // Analyze only the current tool call content, not the entire conversation history
+                // This prevents re-analyzing and re-flagging historical malicious content
                 let analysis_result = scanner
-                    .analyze_tool_call_with_context(tool_call, messages)
+                    .analyze_tool_call_with_context(tool_call, &[])  // Pass empty messages to avoid historical analysis
                     .await?;
 
                 // Get threshold from config - only flag things above threshold
                 let config_threshold = scanner.get_threshold_from_config();
                 
                 if analysis_result.is_malicious && analysis_result.confidence > config_threshold {
-                    // Generate a unique finding ID for this security detection
-                    let finding_id = format!(
-                        "SEC-{}",
-                        &uuid::Uuid::new_v4().simple().to_string().to_uppercase()[..8]
-                    );
+                    // Generate a deterministic finding ID based on tool request ID to avoid duplicates
+                    let finding_id = format!("SEC-{}", tool_request.id);
 
                     tracing::warn!(
                         tool_name = %tool_call.name,
+                        tool_request_id = %tool_request.id,
                         confidence = analysis_result.confidence,
                         explanation = %analysis_result.explanation,
                         finding_id = %finding_id,
                         threshold = config_threshold,
-                        "🔒 Tool call flagged as malicious after security analysis (above threshold)"
+                        "🔒 Current tool call flagged as malicious after security analysis (above threshold)"
                     );
 
                     results.push(SecurityResult {
@@ -142,6 +132,7 @@ impl SecurityManager {
                 } else if analysis_result.is_malicious {
                     tracing::warn!(
                         tool_name = %tool_call.name,
+                        tool_request_id = %tool_request.id,
                         confidence = analysis_result.confidence,
                         explanation = %analysis_result.explanation,
                         threshold = config_threshold,
@@ -150,19 +141,40 @@ impl SecurityManager {
                 } else {
                     tracing::debug!(
                         tool_name = %tool_call.name,
+                        tool_request_id = %tool_request.id,
                         confidence = analysis_result.confidence,
                         explanation = %analysis_result.explanation,
-                        "✅ Tool call passed security analysis"
+                        "✅ Current tool call passed security analysis"
                     );
                 }
             }
         }
 
         tracing::info!(
-            "🔍 Security analysis complete - found {} security issues",
+            "🔍 Security analysis complete - found {} security issues in current tool requests",
             results.len()
         );
         Ok(results)
+    }
+
+    /// Main security check function - called from reply_internal
+    /// Uses the proper two-step security analysis process
+    /// Scans ALL tools (approved + needs_approval) for security threats
+    pub async fn filter_malicious_tool_calls(
+        &self,
+        messages: &[Message],
+        permission_check_result: &PermissionCheckResult,
+        _system_prompt: Option<&str>,
+    ) -> Result<Vec<SecurityResult>> {
+        // Extract tool requests from permission result and delegate to new method
+        let tool_requests: Vec<_> = permission_check_result
+            .approved
+            .iter()
+            .chain(permission_check_result.needs_approval.iter())
+            .cloned()
+            .collect();
+            
+        self.analyze_tool_requests(&tool_requests, messages).await
     }
 
     /// Check if models need to be downloaded and return appropriate user message

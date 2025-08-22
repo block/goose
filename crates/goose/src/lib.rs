@@ -16,6 +16,7 @@ pub mod security;
 pub mod session;
 pub mod temporal_scheduler;
 pub mod token_counter;
+pub mod tool_inspection;
 pub mod tool_monitor;
 pub mod tracing;
 pub mod utils;

@@ -40,9 +40,10 @@ use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
 use crate::scheduler_trait::SchedulerTrait;
-use crate::security::SecurityManager;
+use crate::security::inspector::SecurityInspector;
 use crate::session;
 use crate::session::extension_data::ExtensionState;
+use crate::tool_inspection::{apply_inspection_results_to_permissions, ToolInspectionManager};
 use crate::tool_monitor::{ToolCall, ToolMonitor};
 use crate::utils::is_token_cancelled;
 use mcp_core::ToolResult;
@@ -104,7 +105,7 @@ pub struct Agent {
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
     pub(super) retry_manager: RetryManager,
     pub(super) todo_list: Arc<Mutex<String>>,
-    pub(super) security_manager: SecurityManager,
+    pub(super) tool_inspection_manager: ToolInspectionManager,
 }
 
 #[derive(Clone, Debug)]
@@ -164,6 +165,15 @@ impl Agent {
         let tool_monitor = Arc::new(Mutex::new(None));
         let retry_manager = RetryManager::with_tool_monitor(tool_monitor.clone());
 
+        // Initialize tool inspection manager with default inspectors
+        let mut tool_inspection_manager = ToolInspectionManager::new();
+        
+        // Add security inspector
+        tool_inspection_manager.add_inspector(Box::new(SecurityInspector::new()));
+        
+        // Add repetition inspector (will be configured later via configure_tool_monitor)
+        tool_inspection_manager.add_inspector(Box::new(ToolMonitor::new(None)));
+
         Self {
             provider: Mutex::new(None),
             extension_manager: ExtensionManager::new(),
@@ -182,7 +192,7 @@ impl Agent {
             scheduler_service: Mutex::new(None),
             retry_manager,
             todo_list: Arc::new(Mutex::new(String::new())),
-            security_manager: SecurityManager::new(),
+            tool_inspection_manager,
         }
     }
 
@@ -1139,21 +1149,21 @@ impl Agent {
                                             self.provider().await?,
                                         ).await;
 
-                                    // Phase 1: Security scanning with pattern matching
-                                    let security_results = self.security_manager
-                                        .filter_malicious_tool_calls(
+                                    // Run all tool inspectors (security, repetition, etc.)
+                                    let inspection_results = self.tool_inspection_manager
+                                        .inspect_tools(
+                                            &remaining_requests,
                                             messages.messages(),
-                                            &permission_check_result,
-                                            None, // Disabled scanning system prompt for now, due to false positives
+                                            Some(self.provider().await?),
                                         )
                                         .await?;
 
-                                    // Apply security results to permission check results
-                                    if !security_results.is_empty() {
-                                        permission_check_result = self.apply_security_results_to_permissions(
+                                    // Apply inspection results to permission check results
+                                    if !inspection_results.is_empty() {
+                                        permission_check_result = apply_inspection_results_to_permissions(
                                             permission_check_result,
-                                            &security_results,
-                                        ).await;
+                                            &inspection_results,
+                                        );
                                     }
 
                                     let mut tool_futures = self.handle_approved_and_denied_tools(
@@ -1172,7 +1182,7 @@ impl Agent {
                                         &mut permission_manager,
                                         message_tool_response.clone(),
                                         cancel_token.clone(),
-                                        &security_results,
+                                        &inspection_results,
                                     );
 
                                     while let Some(msg) = tool_approval_stream.try_next().await? {
@@ -1297,85 +1307,6 @@ impl Agent {
                 .get_param("GOOSE_MODE")
                 .unwrap_or_else(|_| "auto".to_string()),
         }
-    }
-
-    /// Apply security scan results to permission check results
-    /// This integrates security scanning with the existing tool approval system
-    async fn apply_security_results_to_permissions(
-        &self,
-        mut permission_result: PermissionCheckResult,
-        security_results: &[crate::security::SecurityResult],
-    ) -> PermissionCheckResult {
-        if security_results.is_empty() {
-            return permission_result;
-        }
-
-        // Create a map of tool requests by ID for easy lookup
-        let mut all_requests: std::collections::HashMap<String, ToolRequest> =
-            std::collections::HashMap::new();
-
-        // Collect all tool requests
-        for req in &permission_result.approved {
-            all_requests.insert(req.id.clone(), req.clone());
-        }
-        for req in &permission_result.needs_approval {
-            all_requests.insert(req.id.clone(), req.clone());
-        }
-        for req in &permission_result.denied {
-            all_requests.insert(req.id.clone(), req.clone());
-        }
-
-        // Collect the combined requests first to avoid borrowing issues
-        let combined_requests: Vec<ToolRequest> = permission_result
-            .approved
-            .iter()
-            .chain(permission_result.needs_approval.iter())
-            .cloned()
-            .collect();
-
-        // Process security results
-        for (i, security_result) in security_results.iter().enumerate() {
-            if !security_result.is_malicious {
-                continue;
-            }
-
-            // Find the corresponding tool request by index
-            if let Some(tool_request) = combined_requests.get(i) {
-                let request_id = &tool_request.id;
-
-                tracing::warn!(
-                    tool_request_id = %request_id,
-                    confidence = security_result.confidence,
-                    explanation = %security_result.explanation,
-                    finding_id = %security_result.finding_id,
-                    "🔒 Security threat detected - modifying tool approval status"
-                );
-
-                // Remove from approved if present
-                permission_result
-                    .approved
-                    .retain(|req| req.id != *request_id);
-
-                if security_result.should_ask_user {
-                    // Confidence above threshold - ask user for approval
-                    if let Some(request) = all_requests.get(request_id) {
-                        // Only add if not already in needs_approval
-                        if !permission_result
-                            .needs_approval
-                            .iter()
-                            .any(|req| req.id == *request_id)
-                        {
-                            permission_result.needs_approval.push(request.clone());
-                        }
-                    }
-                }
-                // Note: If should_ask_user is false (confidence below threshold), 
-                // we don't move the tool anywhere - it stays in its current category
-                // (approved or needs_approval) and processes normally
-            }
-        }
-
-        permission_result
     }
 
     /// Extend the system prompt with one line of additional instruction
