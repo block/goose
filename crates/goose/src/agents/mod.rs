@@ -1,5 +1,5 @@
 mod agent;
-mod autopilot;
+mod autopilot_flexible;
 mod context;
 pub mod extension;
 pub mod extension_manager;

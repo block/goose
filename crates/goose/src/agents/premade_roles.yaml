@@ -1,0 +1,129 @@
+# Pre-made AutoPilot roles with default configurations
+# These can be overridden by user config
+
+roles:
+  # Deep reasoning and analysis
+  - role: "deep-thinker"
+    provider: "openai"
+    model: "o1-preview"
+    rules:
+      triggers:
+        keywords: ["think", "reason", "analyze", "explain why", "how does", "what if"]
+        match_type: "any"
+        complexity_threshold: "high"
+        source: "human"  # Only trigger on human messages
+      cooldown_turns: 3
+      priority: 10
+
+  # Code debugging and error recovery
+  - role: "debugger"
+    provider: "anthropic"
+    model: "claude-3-5-sonnet-20241022"
+    rules:
+      triggers:
+        keywords: ["error", "bug", "broken", "failed", "exception", "traceback"]
+        match_type: "any"
+        on_failure: true
+        source: "any"  # Can trigger on both human and machine failures
+      cooldown_turns: 2
+      max_invocations: 5
+      priority: 15  # High priority for error handling
+
+  # Code implementation specialist
+  - role: "coder"
+    provider: "anthropic"
+    model: "claude-3-5-sonnet-20241022"
+    rules:
+      triggers:
+        keywords: ["implement", "code", "function", "class", "refactor", "optimize"]
+        match_type: "any"
+        after_tool_use: true
+        source: "human"
+      cooldown_turns: 2
+      priority: 8
+
+  # Verification and review
+  - role: "reviewer"
+    provider: "openai"
+    model: "gpt-4o"
+    rules:
+      triggers:
+        keywords: ["check", "verify", "review", "validate", "test", "correct"]
+        match_type: "any"
+        consecutive_tools: 4  # After many changes
+        source: "human"
+      cooldown_turns: 10
+      max_invocations: 3
+      priority: 6
+
+  # Help and guidance specialist
+  - role: "helper"
+    provider: "anthropic"
+    model: "claude-3-5-haiku-20241022"
+    rules:
+      triggers:
+        keywords: ["help", "assist", "guide", "explain", "teach", "how to"]
+        match_type: "any"
+        source: "human"
+      cooldown_turns: 5
+      priority: 5
+
+  # Math and calculations
+  - role: "mathematician"
+    provider: "openai"
+    model: "o1-mini"
+    rules:
+      triggers:
+        keywords: ["calculate", "solve", "equation", "math", "formula", "compute"]
+        match_type: "any"
+        complexity_threshold: "medium"
+        source: "human"
+      cooldown_turns: 1
+      priority: 7
+
+  # Creative brainstorming
+  - role: "creative"
+    provider: "openai"
+    model: "gpt-4o"
+    rules:
+      triggers:
+        keywords: ["idea", "brainstorm", "creative", "innovate", "design", "imagine"]
+        match_type: "any"
+        source: "human"
+      cooldown_turns: 5
+      priority: 4
+
+  # Quick responses for simple queries
+  - role: "quick-responder"
+    provider: "anthropic"
+    model: "claude-3-5-haiku-20241022"
+    rules:
+      triggers:
+        complexity_threshold: "low"
+        source: "human"
+      cooldown_turns: 0
+      priority: 2
+
+  # Research and fact-checking
+  - role: "researcher"
+    provider: "openai"
+    model: "gpt-4o"
+    rules:
+      triggers:
+        keywords: ["research", "find", "search", "lookup", "fact", "source", "reference"]
+        match_type: "any"
+        source: "human"
+      cooldown_turns: 3
+      priority: 6
+
+  # System recovery after multiple failures
+  - role: "recovery-specialist"
+    provider: "openai"
+    model: "o1-preview"
+    rules:
+      triggers:
+        consecutive_failures: 2  # After 2 consecutive tool failures
+        source: "machine"  # Only triggers on machine-generated failures
+      cooldown_turns: 10
+      max_invocations: 2
+      priority: 20  # Very high priority
