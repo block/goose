@@ -16,6 +16,43 @@ use rmcp::model::{
 };
 use rmcp::object;
 
+/// Validates that the data parameter is a proper JSON value and not a string
+fn validate_data_param(params: &Value, allow_array: bool) -> Result<Value, ErrorData> {
+    let data_value = params.get("data").ok_or_else(|| {
+        ErrorData::new(
+            ErrorCode::INVALID_PARAMS,
+            "Missing 'data' parameter".to_string(),
+            None,
+        )
+    })?;
+    
+    if data_value.is_string() {
+        return Err(ErrorData::new(
+            ErrorCode::INVALID_PARAMS,
+            "The 'data' parameter must be a JSON object, not a JSON string. Please provide valid JSON without comments.".to_string(),
+            None,
+        ));
+    }
+    
+    if allow_array {
+        if !data_value.is_object() && !data_value.is_array() {
+            return Err(ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "The 'data' parameter must be a JSON object or array.".to_string(),
+                None,
+            ));
+        }
+    } else if !data_value.is_object() {
+        return Err(ErrorData::new(
+            ErrorCode::INVALID_PARAMS,
+            "The 'data' parameter must be a JSON object.".to_string(),
+            None,
+        ));
+    }
+    
+    Ok(data_value.clone())
+}
+
 /// An extension for automatic data visualization and UI generation
 #[derive(Clone)]
 pub struct AutoVisualiserRouter {
@@ -577,19 +614,7 @@ impl AutoVisualiserRouter {
     }
 
     async fn render_sankey(&self, params: Value) -> Result<Vec<Content>, ErrorData> {
-        // Extract the data from parameters
-        let data = params.get("data").ok_or_else(|| {
-            ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                "Missing 'data' parameter".to_string(),
-                None,
-            )
-        })?;
-
-        // Load all resources at compile time using include_str!
-        const TEMPLATE: &str = include_str!("sankey_template.html");
-        const D3_MIN: &str = include_str!("d3.min.js");
-        const D3_SANKEY: &str = include_str!("d3.sankey.min.js");
+        let data = validate_data_param(&params, false)?;
 
         // Convert the data to JSON string
         let data_json = serde_json::to_string(&data).map_err(|e| {
@@ -599,6 +624,11 @@ impl AutoVisualiserRouter {
                 None,
             )
         })?;
+
+        // Load all resources at compile time using include_str!
+        const TEMPLATE: &str = include_str!("sankey_template.html");
+        const D3_MIN: &str = include_str!("d3.min.js");
+        const D3_SANKEY: &str = include_str!("d3.sankey.min.js");
 
         // Replace all placeholders with actual content
         let html_content = TEMPLATE
@@ -630,18 +660,7 @@ impl AutoVisualiserRouter {
     }
 
     async fn render_radar(&self, params: Value) -> Result<Vec<Content>, ErrorData> {
-        // Extract the data from parameters
-        let data = params.get("data").ok_or_else(|| {
-            ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                "Missing 'data' parameter".to_string(),
-                None,
-            )
-        })?;
-
-        // Load all resources at compile time using include_str!
-        const TEMPLATE: &str = include_str!("radar_template.html");
-        const CHART_MIN: &str = include_str!("chart.min.js");
+        let data = validate_data_param(&params, false)?;
 
         // Convert the data to JSON string
         let data_json = serde_json::to_string(&data).map_err(|e| {
@@ -651,6 +670,10 @@ impl AutoVisualiserRouter {
                 None,
             )
         })?;
+
+        // Load all resources at compile time using include_str!
+        const TEMPLATE: &str = include_str!("radar_template.html");
+        const CHART_MIN: &str = include_str!("chart.min.js");
 
         // Replace all placeholders with actual content
         let html_content = TEMPLATE
@@ -681,18 +704,7 @@ impl AutoVisualiserRouter {
     }
 
     async fn render_treemap(&self, params: Value) -> Result<Vec<Content>, ErrorData> {
-        // Extract the data from parameters
-        let data = params.get("data").ok_or_else(|| {
-            ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                "Missing 'data' parameter".to_string(),
-                None,
-            )
-        })?;
-
-        // Load all resources at compile time using include_str!
-        const TEMPLATE: &str = include_str!("treemap_template.html");
-        const D3_MIN: &str = include_str!("d3.min.js");
+        let data = validate_data_param(&params, false)?;
 
         // Convert the data to JSON string
         let data_json = serde_json::to_string(&data).map_err(|e| {
@@ -702,6 +714,10 @@ impl AutoVisualiserRouter {
                 None,
             )
         })?;
+
+        // Load all resources at compile time using include_str!
+        const TEMPLATE: &str = include_str!("treemap_template.html");
+        const D3_MIN: &str = include_str!("d3.min.js");
 
         // Replace all placeholders with actual content
         let html_content = TEMPLATE
@@ -732,18 +748,7 @@ impl AutoVisualiserRouter {
     }
 
     async fn render_chord(&self, params: Value) -> Result<Vec<Content>, ErrorData> {
-        // Extract the data from parameters
-        let data = params.get("data").ok_or_else(|| {
-            ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                "Missing 'data' parameter".to_string(),
-                None,
-            )
-        })?;
-
-        // Load all resources at compile time using include_str!
-        const TEMPLATE: &str = include_str!("chord_template.html");
-        const D3_MIN: &str = include_str!("d3.min.js");
+        let data = validate_data_param(&params, false)?;
 
         // Convert the data to JSON string
         let data_json = serde_json::to_string(&data).map_err(|e| {
@@ -753,6 +758,10 @@ impl AutoVisualiserRouter {
                 None,
             )
         })?;
+
+        // Load all resources at compile time using include_str!
+        const TEMPLATE: &str = include_str!("chord_template.html");
+        const D3_MIN: &str = include_str!("d3.min.js");
 
         // Replace all placeholders with actual content
         let html_content = TEMPLATE
@@ -783,18 +792,7 @@ impl AutoVisualiserRouter {
     }
 
     async fn render_donut(&self, params: Value) -> Result<Vec<Content>, ErrorData> {
-        // Extract the data from parameters
-        let data = params.get("data").ok_or_else(|| {
-            ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                "Missing 'data' parameter".to_string(),
-                None,
-            )
-        })?;
-
-        // Load all resources at compile time using include_str!
-        const TEMPLATE: &str = include_str!("donut_template.html");
-        const CHART_MIN: &str = include_str!("chart.min.js");
+        let data = validate_data_param(&params, true)?; // true because donut accepts arrays
 
         // Convert the data to JSON string
         let data_json = serde_json::to_string(&data).map_err(|e| {
@@ -804,6 +802,10 @@ impl AutoVisualiserRouter {
                 None,
             )
         })?;
+
+        // Load all resources at compile time using include_str!
+        const TEMPLATE: &str = include_str!("donut_template.html");
+        const CHART_MIN: &str = include_str!("chart.min.js");
 
         // Replace all placeholders with actual content
         let html_content = TEMPLATE
@@ -834,21 +836,8 @@ impl AutoVisualiserRouter {
     }
 
     async fn render_map(&self, params: Value) -> Result<Vec<Content>, ErrorData> {
-        // Extract the data from parameters
-        let data = params.get("data").ok_or_else(|| {
-            ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                "Missing 'data' parameter".to_string(),
-                None,
-            )
-        })?;
-
-        // Load all resources at compile time using include_str!
-        const TEMPLATE: &str = include_str!("map_template.html");
-        const LEAFLET_JS: &str = include_str!("leaflet.min.js");
-        const LEAFLET_CSS: &str = include_str!("leaflet.min.css");
-        const MARKERCLUSTER_JS: &str = include_str!("leaflet.markercluster.min.js");
-
+        let data = validate_data_param(&params, false)?;
+        
         // Extract title and subtitle from data if provided
         let title = data
             .get("title")
@@ -867,6 +856,12 @@ impl AutoVisualiserRouter {
                 None,
             )
         })?;
+
+        // Load all resources at compile time using include_str!
+        const TEMPLATE: &str = include_str!("map_template.html");
+        const LEAFLET_JS: &str = include_str!("leaflet.min.js");
+        const LEAFLET_CSS: &str = include_str!("leaflet.min.css");
+        const MARKERCLUSTER_JS: &str = include_str!("leaflet.markercluster.min.js");
 
         // Replace all placeholders with actual content
         let html_content = TEMPLATE
@@ -901,18 +896,7 @@ impl AutoVisualiserRouter {
     }
 
     async fn show_chart(&self, params: Value) -> Result<Vec<Content>, ErrorData> {
-        // Extract the data from parameters
-        let data = params.get("data").ok_or_else(|| {
-            ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                "Missing 'data' parameter".to_string(),
-                None,
-            )
-        })?;
-
-        // Load all resources at compile time using include_str!
-        const TEMPLATE: &str = include_str!("chart_template.html");
-        const CHART_MIN: &str = include_str!("chart.min.js");
+        let data = validate_data_param(&params, false)?;
 
         // Convert the data to JSON string
         let data_json = serde_json::to_string(&data).map_err(|e| {
@@ -922,6 +906,10 @@ impl AutoVisualiserRouter {
                 None,
             )
         })?;
+
+        // Load all resources at compile time using include_str!
+        const TEMPLATE: &str = include_str!("chart_template.html");
+        const CHART_MIN: &str = include_str!("chart.min.js");
 
         // Replace all placeholders with actual content
         let html_content = TEMPLATE
@@ -1033,5 +1021,143 @@ impl Router for AutoVisualiserRouter {
                 prompt_name
             )))
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_validate_data_param_rejects_string() {
+        // Test that a string value for data is rejected
+        let params = json!({
+            "data": "{\"labels\": [\"A\", \"B\"], \"matrix\": [[0, 1], [1, 0]]}"
+        });
+        
+        let result = validate_data_param(&params, false);
+        assert!(result.is_err());
+        
+        let err = result.unwrap_err();
+        assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
+        assert!(err.message.contains("must be a JSON object, not a JSON string"));
+        assert!(err.message.contains("without comments"));
+    }
+
+    #[test]
+    fn test_validate_data_param_accepts_object() {
+        // Test that a proper object is accepted
+        let params = json!({
+            "data": {
+                "labels": ["A", "B"],
+                "matrix": [[0, 1], [1, 0]]
+            }
+        });
+        
+        let result = validate_data_param(&params, false);
+        assert!(result.is_ok());
+        
+        let data = result.unwrap();
+        assert!(data.is_object());
+        assert_eq!(data["labels"][0], "A");
+    }
+
+    #[test]
+    fn test_validate_data_param_rejects_array_when_not_allowed() {
+        // Test that an array is rejected when allow_array is false
+        let params = json!({
+            "data": [
+                {"label": "A", "value": 10},
+                {"label": "B", "value": 20}
+            ]
+        });
+        
+        let result = validate_data_param(&params, false);
+        assert!(result.is_err());
+        
+        let err = result.unwrap_err();
+        assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
+        assert!(err.message.contains("must be a JSON object"));
+    }
+
+    #[test]
+    fn test_validate_data_param_accepts_array_when_allowed() {
+        // Test that an array is accepted when allow_array is true
+        let params = json!({
+            "data": [
+                {"label": "A", "value": 10},
+                {"label": "B", "value": 20}
+            ]
+        });
+        
+        let result = validate_data_param(&params, true);
+        assert!(result.is_ok());
+        
+        let data = result.unwrap();
+        assert!(data.is_array());
+        assert_eq!(data[0]["label"], "A");
+    }
+
+    #[test]
+    fn test_validate_data_param_missing_data() {
+        // Test that missing data parameter is rejected
+        let params = json!({
+            "other": "value"
+        });
+        
+        let result = validate_data_param(&params, false);
+        assert!(result.is_err());
+        
+        let err = result.unwrap_err();
+        assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
+        assert!(err.message.contains("Missing 'data' parameter"));
+    }
+
+    #[test]
+    fn test_validate_data_param_rejects_primitive_values() {
+        // Test that primitive values (number, boolean) are rejected
+        let params_number = json!({
+            "data": 42
+        });
+        
+        let result = validate_data_param(&params_number, false);
+        assert!(result.is_err());
+        
+        let params_bool = json!({
+            "data": true
+        });
+        
+        let result = validate_data_param(&params_bool, false);
+        assert!(result.is_err());
+        
+        let params_null = json!({
+            "data": null
+        });
+        
+        let result = validate_data_param(&params_null, false);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_data_param_with_json_containing_comments_as_string() {
+        // Test that JSON with comments passed as a string is rejected
+        let params = json!({
+            "data": r#"{
+                "labels": ["A", "B"],
+                "matrix": [
+                    [0, 1],  // This is a comment
+                    [1, 0]   /* Another comment */
+                ]
+            }"#
+        });
+        
+        let result = validate_data_param(&params, false);
+        assert!(result.is_err());
+        
+        let err = result.unwrap_err();
+        assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
+        assert!(err.message.contains("not a JSON string"));
+        assert!(err.message.contains("without comments"));
     }
 }
