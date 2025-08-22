@@ -76,6 +76,18 @@ pub struct TriggerRules {
     #[serde(default)]
     pub consecutive_failures: Option<usize>,
     
+    /// Trigger after N consecutive machine messages (no human input)
+    #[serde(default)]
+    pub machine_messages_without_human: Option<usize>,
+    
+    /// Trigger after N total tool calls since last human message
+    #[serde(default)]
+    pub tools_since_human: Option<usize>,
+    
+    /// Trigger after N messages since last human input
+    #[serde(default)]
+    pub messages_since_human: Option<usize>,
+    
     /// Complexity analysis threshold
     #[serde(default)]
     pub complexity_threshold: Option<ComplexityLevel>,
@@ -385,6 +397,59 @@ impl AutoPilot {
         count
     }
     
+    /// Count messages since last human input
+    fn count_messages_since_human(&self, conversation: &Conversation) -> usize {
+        let messages = conversation.messages();
+        let mut count = 0;
+        
+        // Work backwards counting messages until we find a User message
+        for msg in messages.iter().rev() {
+            if msg.role == rmcp::model::Role::User {
+                break;
+            }
+            count += 1;
+        }
+        
+        count
+    }
+    
+    /// Count tool calls since last human message
+    fn count_tools_since_human(&self, conversation: &Conversation) -> usize {
+        let messages = conversation.messages();
+        let mut tool_count = 0;
+        
+        // Work backwards counting tool requests until we find a User message
+        for msg in messages.iter().rev() {
+            if msg.role == rmcp::model::Role::User {
+                break;
+            }
+            
+            // Count tool requests in this message
+            tool_count += msg.content.iter()
+                .filter(|content| matches!(content, MessageContent::ToolRequest(_)))
+                .count();
+        }
+        
+        tool_count
+    }
+    
+    /// Count consecutive machine messages (assistant messages without human interruption)
+    fn count_machine_messages_without_human(&self, conversation: &Conversation) -> usize {
+        let messages = conversation.messages();
+        let mut count = 0;
+        
+        // Work backwards counting assistant messages until we find a user message
+        for msg in messages.iter().rev() {
+            match msg.role {
+                rmcp::model::Role::User => break,
+                rmcp::model::Role::Assistant => count += 1,
+                _ => {} // Skip other roles
+            }
+        }
+        
+        count
+    }
+    
     /// Check if there was a recent tool failure
     fn check_recent_failure(&self, conversation: &Conversation) -> bool {
         // Look for actual tool failures in recent messages
@@ -485,6 +550,27 @@ impl AutoPilot {
         // Check consecutive tools trigger
         if let Some(threshold) = triggers.consecutive_tools {
             if self.count_consecutive_tools(conversation) >= threshold {
+                triggered = true;
+            }
+        }
+        
+        // Check machine messages without human trigger
+        if let Some(threshold) = triggers.machine_messages_without_human {
+            if self.count_machine_messages_without_human(conversation) >= threshold {
+                triggered = true;
+            }
+        }
+        
+        // Check tools since human trigger
+        if let Some(threshold) = triggers.tools_since_human {
+            if self.count_tools_since_human(conversation) >= threshold {
+                triggered = true;
+            }
+        }
+        
+        // Check messages since human trigger
+        if let Some(threshold) = triggers.messages_since_human {
+            if self.count_messages_since_human(conversation) >= threshold {
                 triggered = true;
             }
         }
@@ -958,6 +1044,9 @@ mod tests {
                 after_tool_use: false,
                 consecutive_tools: None,
                 consecutive_failures: None,
+                machine_messages_without_human: None,
+                tools_since_human: None,
+                messages_since_human: None,
                 complexity_threshold: None,
                 source: TriggerSource::Any,
             }

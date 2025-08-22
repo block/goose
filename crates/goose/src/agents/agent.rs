@@ -1014,6 +1014,13 @@ impl Agent {
                             "quick-responder" => "quick responses",
                             "researcher" => "research and fact-checking",
                             "recovery-specialist" => "error recovery",
+                            "work-reviewer" => "reviewing recent work",
+                            "progress-checker" => "checking progress",
+                            "intensive-work-monitor" => "monitoring intensive work",
+                            "autonomous-supervisor" => "supervising autonomous work",
+                            "periodic-reviewer" => "periodic review",
+                            "oracle" => "deep reasoning (oracle)",
+                            "second-opinion" => "second opinion",
                             _ => &role,
                         };
                         format!("🚀 AutoPilot: Switching to {} mode ({})", friendly_role, model)

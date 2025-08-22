@@ -109,6 +109,34 @@ roles:
       max_invocations: 2
       priority: 20  # Very high priority
   
+  # Autonomous work reviewer - kicks in after lots of machine work
+  - role: "work-reviewer"
+    rules:
+      triggers:
+        tools_since_human: 5  # After 5+ tools used since last human input
+        source: "machine"  # Only when machine is active
+      cooldown_turns: 8
+      priority: 12
+      
+  # Progress checker - ensures the machine isn't going off track
+  - role: "progress-checker"
+    rules:
+      triggers:
+        machine_messages_without_human: 4  # After 4+ consecutive machine messages
+        source: "machine"
+      cooldown_turns: 5
+      priority: 11
+      
+  # Intensive work monitor - for when lots of tool use is happening
+  - role: "intensive-work-monitor"
+    rules:
+      triggers:
+        consecutive_tools: 3  # 3+ tools in a row
+        messages_since_human: 6  # AND been working for 6+ messages
+        source: "machine"
+      cooldown_turns: 10
+      priority: 14
+  
   # Original autopilot roles for backward compatibility
   - role: "oracle"
     rules:
