@@ -461,7 +461,7 @@ function ToolCallView({
   const toolCallStatus = getToolCallStatus(loadingStatus);
 
   const toolLabel = (
-    <span className={cn('ml-2 flex items-center gap-2', extensionTooltip && 'cursor-pointer hover:opacity-80')}>
+    <span className={cn('flex items-center gap-2', extensionTooltip && 'cursor-pointer hover:opacity-80')}>
       <ToolIconWithStatus
         ToolIcon={getToolCallIcon(toolCall.name)}
         status={toolCallStatus}
