@@ -74,10 +74,8 @@ impl AutoVisualiserRouter {
         Tool::new(
             "render_sankey",
             indoc! {r#"
-                Renders a Sankey diagram visualization from flow data.
-                Returns an interactive HTML visualization using D3.js.
-                
-                The data should contain:
+                show a Sankey diagram from flow data               
+                The data must contain:
                 - nodes: Array of objects with 'name' and optional 'category' properties
                 - links: Array of objects with 'source', 'target', and 'value' properties
                 
@@ -134,10 +132,9 @@ impl AutoVisualiserRouter {
         Tool::new(
             "render_radar",
             indoc! {r#"
-                Renders a radar chart (spider chart) visualization for multi-dimensional data comparison.
-                Returns an interactive HTML visualization using Chart.js.
+                show a radar chart (spider chart) for multi-dimensional data comparison             
                 
-                The data should contain:
+                The data must contain:
                 - labels: Array of strings representing the dimensions/axes
                 - datasets: Array of dataset objects with 'label' and 'data' properties
                 
@@ -195,7 +192,7 @@ impl AutoVisualiserRouter {
         Tool::new(
             "render_donut",
             indoc! {r#"
-                Renders donut or pie charts for categorical data visualization.
+                show pie or donut charts for categorical data visualization
                 Supports single or multiple charts in a grid layout.
                 
                 Each chart should contain:
@@ -297,8 +294,7 @@ impl AutoVisualiserRouter {
         Tool::new(
             "render_treemap",
             indoc! {r#"
-                Renders a treemap visualization for hierarchical data with proportional area representation.
-                Returns an interactive HTML visualization using D3.js.
+                show a treemap visualization for hierarchical data with proportional area representation as boxes
                 
                 The data should be a hierarchical structure with:
                 - name: Name of the node (required)
@@ -349,10 +345,9 @@ impl AutoVisualiserRouter {
         Tool::new(
             "render_chord",
             indoc! {r#"
-                Renders a chord diagram visualization for showing relationships and flows between entities.
-                Returns an interactive HTML visualization using D3.js.
+                Show a chord diagram visualization for showing relationships and flows between entities.
                 
-                The data should contain:
+                The data must contain:
                 - labels: Array of strings representing the entities
                 - matrix: 2D array of numbers representing flows (matrix[i][j] = flow from i to j)
                 
@@ -397,10 +392,9 @@ impl AutoVisualiserRouter {
         Tool::new(
             "render_map",
             indoc! {r#"
-                Renders an interactive map visualization with location markers using Leaflet.
-                Returns an interactive HTML visualization with clustering support.
+                show an interactive map visualization with location markers using Leaflet.
                 
-                The data should contain:
+                The data must contain:
                 - markers: Array of objects with 'lat', 'lng', and optional properties
                 - title: Optional title for the map (default: "Interactive Map")
                 - subtitle: Optional subtitle (default: "Geographic data visualization")
@@ -479,7 +473,7 @@ impl AutoVisualiserRouter {
         Tool::new(
             "show_chart",
             indoc! {r#"
-                Renders interactive line, scatter, or bar charts using Chart.js.
+                show interactive line, scatter, or bar charts
                 
                 Required: type ('line', 'scatter', or 'bar'), datasets array
                 Optional: labels, title, subtitle, xAxisLabel, yAxisLabel, options
@@ -577,8 +571,9 @@ impl AutoVisualiserRouter {
         let _ = std::fs::create_dir_all(&cache_dir);
 
         let instructions = formatdoc! {r#"
-            The AutoVisualiser extension provides tools for automatic data visualization
-            and UI generation using MCP UI resources.
+            This extension provides tools for automatic data visualization
+            Use these tools when you are presenting data to the user which could be complemented by a visual expression
+            Choose the most appropriate chart type based on the data you have and can provide
 
             ## Available Tools:
             - **render_sankey**: Creates interactive Sankey diagrams from flow data
@@ -588,14 +583,7 @@ impl AutoVisualiserRouter {
             - **render_chord**: Creates interactive chord diagrams for relationship/flow visualization
             - **render_map**: Creates interactive map visualizations with location markers
             - **show_chart**: Creates interactive line, scatter, or bar charts for data visualization
-
-            ## Purpose:
-            This extension is designed to help generate dynamic visualizations and UI
-            components that can be displayed in MCP-compatible interfaces.
-
-            ## Cache Directory:
-            Temporary files are stored in: {}
-        "#, cache_dir.display()};
+        "#};
 
         Self {
             tools: vec![
@@ -1028,6 +1016,7 @@ impl Router for AutoVisualiserRouter {
 mod tests {
     use super::*;
     use serde_json::json;
+    use rmcp::model::RawContent;
 
     #[test]
     fn test_validate_data_param_rejects_string() {
@@ -1159,5 +1148,193 @@ mod tests {
         assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
         assert!(err.message.contains("not a JSON string"));
         assert!(err.message.contains("without comments"));
+    }
+
+    #[tokio::test]
+    async fn test_render_sankey() {
+        let router = AutoVisualiserRouter::new();
+        let params = json!({
+            "data": {
+                "nodes": [{"name": "A"}, {"name": "B"}],
+                "links": [{"source": "A", "target": "B", "value": 10}]
+            }
+        });
+        
+        let result = router.render_sankey(params).await;
+        assert!(result.is_ok());
+        let content = result.unwrap();
+        assert_eq!(content.len(), 1);
+
+        // Check the audience is set to User
+        assert!(content[0].audience().is_some());
+        assert_eq!(content[0].audience().unwrap(), &vec![Role::User]);
+
+        // Check it's a resource with HTML content
+        // Content is Annotated<RawContent>, deref to get RawContent
+        if let RawContent::Resource(resource) = &**&content[0] {
+            if let ResourceContents::BlobResourceContents { uri, mime_type, .. } = &resource.resource {
+                assert_eq!(uri, "ui://sankey/diagram");
+                assert_eq!(mime_type.as_ref().unwrap(), "text/html");
+            } else {
+                panic!("Expected BlobResourceContents");
+            }
+        } else {
+            panic!("Expected Resource content");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_render_radar() {
+        let router = AutoVisualiserRouter::new();
+        let params = json!({
+            "data": {
+                "categories": ["Speed", "Power", "Agility"],
+                "series": [
+                    {"label": "Player 1", "data": [80, 90, 85]}
+                ]
+            }
+        });
+        
+        let result = router.render_radar(params).await;
+        assert!(result.is_ok());
+        let content = result.unwrap();
+        assert_eq!(content.len(), 1);
+        
+        // Check the audience is set to User
+        assert!(content[0].audience().is_some());
+        assert_eq!(content[0].audience().unwrap(), &vec![Role::User]);
+
+        // Check it's a resource with HTML content
+        // Content is Annotated<RawContent>, deref to get RawContent
+        if let RawContent::Resource(resource) = &**&content[0] {
+            if let ResourceContents::BlobResourceContents { uri, mime_type, blob } = &resource.resource {
+                assert_eq!(uri, "ui://radar/chart");
+                assert_eq!(mime_type.as_ref().unwrap(), "text/html");
+                assert!(!blob.is_empty(), "HTML content should not be empty");
+            } else {
+                panic!("Expected BlobResourceContents");
+            }
+        } else {
+            panic!("Expected Resource content");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_render_donut() {
+        let router = AutoVisualiserRouter::new();
+        let params = json!({
+            "data": {
+                "labels": ["A", "B", "C"],
+                "values": [30, 40, 30]
+            }
+        });
+        
+        let result = router.render_donut(params).await;
+        assert!(result.is_ok());
+        let content = result.unwrap();
+        assert_eq!(content.len(), 1);
+        
+        // Check the audience is set to User
+        assert!(content[0].audience().is_some());
+        assert_eq!(content[0].audience().unwrap(), &vec![Role::User]);
+    }
+
+    #[tokio::test]
+    async fn test_render_treemap() {
+        let router = AutoVisualiserRouter::new();
+        let params = json!({
+            "data": {
+                "name": "root",
+                "children": [
+                    {"name": "A", "value": 100},
+                    {"name": "B", "value": 200}
+                ]
+            }
+        });
+        
+        let result = router.render_treemap(params).await;
+        assert!(result.is_ok());
+        let content = result.unwrap();
+        assert_eq!(content.len(), 1);
+        
+        // Check the audience is set to User
+        assert!(content[0].audience().is_some());
+        assert_eq!(content[0].audience().unwrap(), &vec![Role::User]);
+    }
+
+    #[tokio::test]
+    async fn test_render_chord() {
+        let router = AutoVisualiserRouter::new();
+        let params = json!({
+            "data": {
+                "labels": ["A", "B", "C"],
+                "matrix": [[0, 10, 5], [10, 0, 15], [5, 15, 0]]
+            }
+        });
+        
+        let result = router.render_chord(params).await;
+        assert!(result.is_ok());
+        let content = result.unwrap();
+        assert_eq!(content.len(), 1);
+        
+        // Check the audience is set to User
+        assert!(content[0].audience().is_some());
+        assert_eq!(content[0].audience().unwrap(), &vec![Role::User]);
+    }
+
+    #[tokio::test]
+    async fn test_render_map() {
+        let router = AutoVisualiserRouter::new();
+        let params = json!({
+            "data": {
+                "features": [
+                    {
+                        "type": "Feature",
+                        "geometry": {"type": "Point", "coordinates": [0, 0]},
+                        "properties": {"name": "Origin"}
+                    }
+                ]
+            }
+        });
+        
+        let result = router.render_map(params).await;
+        assert!(result.is_ok());
+        let content = result.unwrap();
+        assert_eq!(content.len(), 1);
+        
+        // Check the audience is set to User
+        assert!(content[0].audience().is_some());
+        assert_eq!(content[0].audience().unwrap(), &vec![Role::User]);
+    }
+
+    #[tokio::test]
+    async fn test_show_chart() {
+        let router = AutoVisualiserRouter::new();
+        // show_chart expects data to be an object, not an array
+        let params = json!({
+            "data": {
+                "datasets": [
+                    {
+                        "label": "Test Data",
+                        "data": [
+                            {"x": 1, "y": 2},
+                            {"x": 2, "y": 4}
+                        ]
+                    }
+                ]
+            }
+        });
+        
+        let result = router.show_chart(params).await;
+        if let Err(e) = &result {
+            eprintln!("Error in test_show_chart: {:?}", e);
+        }
+        assert!(result.is_ok());
+        let content = result.unwrap();
+        assert_eq!(content.len(), 1);
+        
+        // Check the audience is set to User
+        assert!(content[0].audience().is_some());
+        assert_eq!(content[0].audience().unwrap(), &vec![Role::User]);
     }
 }
