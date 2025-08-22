@@ -3,6 +3,7 @@ mod goose_hints;
 mod lang;
 mod shell;
 
+pub mod rmcp_developer;
 use anyhow::Result;
 use base64::Engine;
 use etcetera::{choose_app_strategy, AppStrategy};

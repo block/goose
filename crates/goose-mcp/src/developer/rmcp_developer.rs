@@ -5,12 +5,20 @@ use rmcp::{
     tool, tool_handler, tool_router, ServerHandler,
 };
 use serde::{Deserialize, Serialize};
-use std::{future::Future, io::Cursor, path::{Path, PathBuf}, fs::File, io::Read, collections::HashMap, sync::{Arc, Mutex}};
+use std::{future::Future, io::Cursor, path::{Path, PathBuf}, fs::File, io::Read, collections::HashMap, sync::{Arc, Mutex}, process::Stdio};
 use base64::Engine;
 use xcap::{Monitor, Window};
 use indoc::formatdoc;
+use ignore::gitignore::{Gitignore, GitignoreBuilder};
+use mcp_core::protocol::{InitializeResult, Implementation, ServerCapabilities};
+use mcp_server::router::{Router, CapabilitiesBuilder};
+use tokio::{
+    io::{AsyncBufReadExt, BufReader},
+    process::Command,
+};
+use tokio_stream::{wrappers::SplitStream, StreamExt as _};
 
-use super::shell::{expand_path, is_absolute_path, normalize_line_endings};
+use super::shell::{expand_path, is_absolute_path, normalize_line_endings, get_shell_config};
 use super::lang::get_language_identifier;
 
 /// Parameters for the screen_capture tool
@@ -52,11 +60,26 @@ pub struct TextEditorParams {
     pub insert_line: Option<i64>,
 }
 
+/// Parameters for the shell tool
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct ShellParams {
+    /// The command string to execute in the shell
+    pub command: String,
+}
+
+/// Parameters for the image_processor tool
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct ImageProcessorParams {
+    /// Absolute path to the image file to process
+    pub path: String,
+}
+
 /// Developer MCP Server using official RMCP SDK
 #[derive(Debug, Clone)]
 pub struct DeveloperServer {
     tool_router: ToolRouter<Self>,
     file_history: Arc<Mutex<HashMap<PathBuf, Vec<String>>>>,
+    ignore_patterns: Gitignore,
 }
 
 impl Default for DeveloperServer {
@@ -71,9 +94,39 @@ impl ServerHandler for DeveloperServer {}
 #[tool_router(router = tool_router)]
 impl DeveloperServer {
     pub fn new() -> Self {
+        // Build ignore patterns (simplified version for this tool)
+        let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        let mut builder = GitignoreBuilder::new(&cwd);
+        
+        // Check for local .gooseignore
+        let local_ignore_path = cwd.join(".gooseignore");
+        let mut has_ignore_file = false;
+        
+        if local_ignore_path.is_file() {
+            let _ = builder.add(local_ignore_path);
+            has_ignore_file = true;
+        } else {
+            // Fallback to .gitignore
+            let gitignore_path = cwd.join(".gitignore");
+            if gitignore_path.is_file() {
+                let _ = builder.add(gitignore_path);
+                has_ignore_file = true;
+            }
+        }
+        
+        // Add default patterns if no ignore files found
+        if !has_ignore_file {
+            let _ = builder.add_line(None, "**/.env");
+            let _ = builder.add_line(None, "**/.env.*");
+            let _ = builder.add_line(None, "**/secrets.*");
+        }
+        
+        let ignore_patterns = builder.build().expect("Failed to build ignore patterns");
+        
         Self {
             tool_router: Self::tool_router(),
             file_history: Arc::new(Mutex::new(HashMap::new())),
+            ignore_patterns,
         }
     }
 
@@ -304,6 +357,250 @@ impl DeveloperServer {
                 None,
             )),
         }
+    }
+
+    /// Execute a command in the shell.
+    /// 
+    /// This will return the output and error concatenated into a single string, as
+    /// you would see from running on the command line. There will also be an indication
+    /// of if the command succeeded or failed.
+    /// 
+    /// Avoid commands that produce a large amount of output, and consider piping those outputs to files.
+    /// If you need to run a long lived command, background it - e.g. `uvicorn main:app &` so that
+    /// this tool does not run indefinitely.
+    #[tool(
+        name = "shell",
+        description = "Execute a command in the shell. Returns output and error concatenated. Avoid commands with large output, use background commands for long-running processes."
+    )]
+    pub async fn shell(
+        &self,
+        params: Parameters<ShellParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let params = params.0;
+        let command = &params.command;
+
+        // Check if command might access ignored files and return early if it does
+        let cmd_parts: Vec<&str> = command.split_whitespace().collect();
+        for arg in &cmd_parts[1..] {
+            // Skip command flags
+            if arg.starts_with('-') {
+                continue;
+            }
+            // Skip invalid paths
+            let path = Path::new(arg);
+            if !path.exists() {
+                continue;
+            }
+
+            if self.is_ignored(path) {
+                return Err(ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!(
+                        "The command attempts to access '{}' which is restricted by .gooseignore",
+                        arg
+                    ),
+                    None,
+                ));
+            }
+        }
+
+        // Get platform-specific shell configuration
+        let shell_config = get_shell_config();
+
+        // Execute the command using platform-specific shell
+        let mut child = Command::new(&shell_config.executable)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .stdin(Stdio::null())
+            .kill_on_drop(true)
+            .env("GOOSE_TERMINAL", "1")
+            .args(&shell_config.args)
+            .arg(command)
+            .spawn()
+            .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
+
+        let stdout = BufReader::new(child.stdout.take().unwrap());
+        let stderr = BufReader::new(child.stderr.take().unwrap());
+
+        let output_task = tokio::spawn(async move {
+            let mut combined_output = String::new();
+
+            // We have the individual two streams above, now merge them into one unified stream of
+            // an enum. ref https://blog.yoshuawuyts.com/futures-concurrency-3
+            let stdout = SplitStream::new(stdout.split(b'\n')).map(|v| ("stdout", v));
+            let stderr = SplitStream::new(stderr.split(b'\n')).map(|v| ("stderr", v));
+            let mut merged = stdout.merge(stderr);
+
+            while let Some((_, line)) = merged.next().await {
+                let mut line = line?;
+                // Re-add this as clients expect it
+                line.push(b'\n');
+                // Here we always convert to UTF-8 so agents don't have to deal with corrupted output
+                let line = String::from_utf8_lossy(&line);
+
+                combined_output.push_str(&line);
+            }
+            Ok::<_, std::io::Error>(combined_output)
+        });
+
+        // Wait for the command to complete and get output
+        child
+            .wait()
+            .await
+            .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
+
+        let output_str = match output_task.await {
+            Ok(result) => result
+                .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?,
+            Err(e) => {
+                return Err(ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    e.to_string(),
+                    None,
+                ))
+            }
+        };
+
+        // Check the character count of the output
+        const MAX_CHAR_COUNT: usize = 400_000; // 409600 chars = 400KB
+        let char_count = output_str.chars().count();
+        if char_count > MAX_CHAR_COUNT {
+            return Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, format!(
+                    "Shell output from command '{}' has too many characters ({}). Maximum character count is {}.",
+                    command,
+                    char_count,
+                    MAX_CHAR_COUNT
+                ), None));
+        }
+
+        let (final_output, user_output) = self.process_shell_output(&output_str)?;
+
+        Ok(CallToolResult::success(vec![
+            Content::text(final_output).with_audience(vec![Role::Assistant]),
+            Content::text(user_output)
+                .with_audience(vec![Role::User])
+                .with_priority(0.0),
+        ]))
+    }
+
+    /// Process an image file from disk. 
+    /// 
+    /// The image will be:
+    /// 1. Resized if larger than max width while maintaining aspect ratio
+    /// 2. Converted to PNG format
+    /// 3. Returned as base64 encoded data
+    /// 
+    /// This allows processing image files for use in the conversation.
+    #[tool(
+        name = "image_processor",
+        description = "Process an image file from disk. Resizes if needed, converts to PNG, and returns as base64 data."
+    )]
+    pub async fn image_processor(
+        &self,
+        params: Parameters<ImageProcessorParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let params = params.0;
+        let path_str = &params.path;
+
+        let path = {
+            let p = self.resolve_path(path_str)?;
+            if cfg!(target_os = "macos") {
+                self.normalize_mac_screenshot_path(&p)
+            } else {
+                p
+            }
+        };
+
+        // Check if file is ignored before proceeding
+        if self.is_ignored(&path) {
+            return Err(ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!(
+                    "Access to '{}' is restricted by .gooseignore",
+                    path.display()
+                ),
+                None,
+            ));
+        }
+
+        // Check if file exists
+        if !path.exists() {
+            return Err(ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("File '{}' does not exist", path.display()),
+                None,
+            ));
+        }
+
+        // Check file size (10MB limit for image files)
+        const MAX_FILE_SIZE: u64 = 10 * 1024 * 1024; // 10MB in bytes
+        let file_size = std::fs::metadata(&path)
+            .map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Failed to get file metadata: {}", e),
+                    None,
+                )
+            })?
+            .len();
+
+        if file_size > MAX_FILE_SIZE {
+            return Err(ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!(
+                    "File '{}' is too large ({:.2}MB). Maximum size is 10MB.",
+                    path.display(),
+                    file_size as f64 / (1024.0 * 1024.0)
+                ),
+                None,
+            ));
+        }
+
+        // Open and decode the image
+        let image = xcap::image::open(&path).map_err(|e| {
+            ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to open image file: {}", e),
+                None,
+            )
+        })?;
+
+        // Resize if necessary (same logic as screen_capture)
+        let mut processed_image = image;
+        let max_width = 768;
+        if processed_image.width() > max_width {
+            let scale = max_width as f32 / processed_image.width() as f32;
+            let new_height = (processed_image.height() as f32 * scale) as u32;
+            processed_image = xcap::image::DynamicImage::ImageRgba8(xcap::image::imageops::resize(
+                &processed_image,
+                max_width,
+                new_height,
+                xcap::image::imageops::FilterType::Lanczos3,
+            ));
+        }
+
+        // Convert to PNG and encode as base64
+        let mut bytes: Vec<u8> = Vec::new();
+        processed_image
+            .write_to(&mut Cursor::new(&mut bytes), xcap::image::ImageFormat::Png)
+            .map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Failed to write image buffer: {}", e),
+                    None,
+                )
+            })?;
+
+        let data = base64::prelude::BASE64_STANDARD.encode(bytes);
+
+        Ok(CallToolResult::success(vec![
+            Content::text(format!(
+                "Successfully processed image from {}",
+                path.display()
+            ))
+            .with_audience(vec![Role::Assistant]),
+            Content::image(data, "image/png").with_priority(0.0),
+        ]))
     }
 
     // Helper method to resolve and validate file paths
@@ -801,6 +1098,104 @@ impl DeveloperServer {
 
         Ok(())
     }
+
+    // Helper method to check if a path should be ignored
+    fn is_ignored(&self, path: &Path) -> bool {
+        self.ignore_patterns.matched(path, false).is_ignore()
+    }
+
+    // Helper function to handle Mac screenshot filenames that contain U+202F (narrow no-break space)
+    fn normalize_mac_screenshot_path(&self, path: &Path) -> PathBuf {
+        // Only process if the path has a filename
+        if let Some(filename) = path.file_name().and_then(|f| f.to_str()) {
+            // Check if this matches Mac screenshot pattern:
+            // "Screenshot YYYY-MM-DD at H.MM.SS AM/PM.png"
+            if let Some(captures) = regex::Regex::new(r"^Screenshot \d{4}-\d{2}-\d{2} at \d{1,2}\.\d{2}\.\d{2} (AM|PM|am|pm)(?: \(\d+\))?\.png$")
+                .ok()
+                .and_then(|re| re.captures(filename))
+            {
+                // Get the AM/PM part
+                let meridian = captures.get(1).unwrap().as_str();
+
+                // Find the last space before AM/PM and replace it with U+202F
+                let space_pos = filename.rfind(meridian)
+                    .map(|pos| filename[..pos].trim_end().len())
+                    .unwrap_or(0);
+
+                if space_pos > 0 {
+                    let parent = path.parent().unwrap_or(Path::new(""));
+                    let new_filename = format!(
+                        "{}{}{}",
+                        &filename[..space_pos],
+                        '\u{202F}',
+                        &filename[space_pos+1..]
+                    );
+                    let new_path = parent.join(new_filename);
+
+                    return new_path;
+                }
+            }
+        }
+
+        // Return the original path if it doesn't match or couldn't be processed
+        path.to_path_buf()
+    }
+
+    // shell output can be large, this will help manage that
+    fn process_shell_output(&self, output_str: &str) -> Result<(String, String), ErrorData> {
+        let lines: Vec<&str> = output_str.lines().collect();
+        let line_count = lines.len();
+
+        let start = lines.len().saturating_sub(100);
+        let last_100_lines_str = lines[start..].join("\n");
+
+        let final_output = if line_count > 100 {
+            let tmp_file = tempfile::NamedTempFile::new().map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Failed to create temporary file: {}", e),
+                    None,
+                )
+            })?;
+
+            std::fs::write(tmp_file.path(), output_str).map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Failed to write to temporary file: {}", e),
+                    None,
+                )
+            })?;
+
+            let (_, path) = tmp_file.keep().map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Failed to persist temporary file: {}", e),
+                    None,
+                )
+            })?;
+
+            format!(
+                "private note: output was {} lines and we are only showing the most recent lines, remainder of lines in {} do not show tmp file to user, that file can be searched if extra context needed to fulfill request. truncated output: \n{}",
+                line_count,
+                path.display(),
+                last_100_lines_str
+            )
+        } else {
+            output_str.to_string()
+        };
+
+        let user_output = if line_count > 100 {
+            format!(
+                "NOTE: Output was {} lines, showing only the last 100 lines.\n\n{}",
+                line_count,
+                last_100_lines_str
+            )
+        } else {
+            output_str.to_string()
+        };
+
+        Ok((final_output, user_output))
+    }
 }
 
 #[cfg(test)]
@@ -858,12 +1253,14 @@ mod tests {
         
         // Test that we can get tools from the router
         let tools = server.tool_router.list_all();
-        assert_eq!(tools.len(), 3); // Now has list_windows, screen_capture, and text_editor
+        assert_eq!(tools.len(), 5); // Now has list_windows, screen_capture, text_editor, shell, and image_processor
         
         // Find the tools by name
         let list_windows_tool = tools.iter().find(|t| t.name == "list_windows").unwrap();
         let screen_capture_tool = tools.iter().find(|t| t.name == "screen_capture").unwrap();
         let text_editor_tool = tools.iter().find(|t| t.name == "text_editor").unwrap();
+        let shell_tool = tools.iter().find(|t| t.name == "shell").unwrap();
+        let image_processor_tool = tools.iter().find(|t| t.name == "image_processor").unwrap();
         
         // Verify list_windows tool
         assert!(list_windows_tool.description.as_ref().unwrap().contains("window"));
@@ -878,6 +1275,14 @@ mod tests {
         assert!(text_editor_tool.description.as_ref().unwrap().contains("text editing"));
         assert!(text_editor_tool.description.as_ref().unwrap().contains("view"));
         assert!(text_editor_tool.description.as_ref().unwrap().contains("write"));
+        
+        // Verify shell tool
+        assert!(shell_tool.description.as_ref().unwrap().contains("shell"));
+        assert!(shell_tool.description.as_ref().unwrap().contains("command"));
+        
+        // Verify image_processor tool
+        assert!(image_processor_tool.description.as_ref().unwrap().contains("image"));
+        assert!(image_processor_tool.description.as_ref().unwrap().contains("PNG"));
     }
 
     #[tokio::test]
