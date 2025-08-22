@@ -8,6 +8,7 @@ use crate::config::Config;
 use crate::conversation::message::MessageContent;
 use crate::conversation::Conversation;
 use crate::providers;
+use crate::providers::base::Provider;
 use rmcp::model::Content;
 use rmcp::ErrorData;
 
@@ -110,12 +111,28 @@ pub struct ModelConfig {
     pub provider: String,
     pub model: String,
     pub role: String,
+    #[serde(default)]
+    pub rules: Option<Rules>,  // Optional - can inherit from premade
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct PremadeRole {
+    pub role: String,
     pub rules: Rules,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 struct PremadeRoles {
-    roles: Vec<ModelConfig>,
+    roles: Vec<PremadeRole>,
+}
+
+// Complete model config with rules (after merging)
+#[derive(Debug, Clone)]
+struct CompleteModelConfig {
+    pub provider: String,
+    pub model: String,
+    pub role: String,
+    pub rules: Rules,
 }
 
 /// Tracks the state of a specific model's usage
@@ -136,7 +153,7 @@ impl Default for ModelState {
 
 /// AutoPilot manages automatic model switching based on conversation context
 pub struct AutoPilot {
-    model_configs: Vec<ModelConfig>,
+    model_configs: Vec<CompleteModelConfig>,
     model_states: HashMap<String, ModelState>,
     original_provider: Option<Arc<dyn crate::providers::base::Provider>>,
     switch_active: bool,
@@ -144,50 +161,68 @@ pub struct AutoPilot {
 }
 
 impl AutoPilot {
-    /// Load pre-made roles from embedded YAML
-    fn load_premade_roles() -> Vec<ModelConfig> {
+    /// Load pre-made role rules from embedded YAML
+    fn load_premade_rules() -> HashMap<String, Rules> {
         match serde_yaml::from_str::<PremadeRoles>(PREMADE_ROLES_YAML) {
             Ok(premade) => {
-                debug!("Loaded {} pre-made roles", premade.roles.len());
+                debug!("Loaded {} pre-made role rules", premade.roles.len());
                 premade.roles
+                    .into_iter()
+                    .map(|r| (r.role, r.rules))
+                    .collect()
             }
             Err(e) => {
                 warn!("Failed to load pre-made roles: {}", e);
-                Vec::new()
+                HashMap::new()
             }
         }
     }
     
-    /// Merge user configs with pre-made roles
-    /// User configs override pre-made roles with the same role name
-    fn merge_configs(premade: Vec<ModelConfig>, user: Vec<ModelConfig>) -> Vec<ModelConfig> {
-        let mut configs = HashMap::new();
+    /// Merge user configs with pre-made rules
+    /// User must provide provider and model, but rules are optional (inherit from premade)
+    fn merge_configs(premade_rules: HashMap<String, Rules>, user_configs: Vec<ModelConfig>) -> Vec<CompleteModelConfig> {
+        let mut complete_configs = Vec::new();
         
-        // Start with pre-made roles
-        for config in premade {
-            configs.insert(config.role.clone(), config);
+        for user_config in user_configs {
+            // Get the rules - either from user config or premade
+            let rules = if let Some(user_rules) = user_config.rules {
+                // User provided custom rules for this role
+                user_rules
+            } else if let Some(premade_rules) = premade_rules.get(&user_config.role) {
+                // Use premade rules for this role
+                premade_rules.clone()
+            } else {
+                // No premade rules and no user rules - skip this config
+                warn!(
+                    "No rules found for role '{}' - neither in user config nor premade. Skipping.",
+                    user_config.role
+                );
+                continue;
+            };
+            
+            complete_configs.push(CompleteModelConfig {
+                provider: user_config.provider,
+                model: user_config.model,
+                role: user_config.role,
+                rules,
+            });
         }
         
-        // Override with user configs
-        for config in user {
-            configs.insert(config.role.clone(), config);
-        }
-        
-        configs.into_values().collect()
+        complete_configs
     }
     
     /// Create a new AutoPilot instance, loading model configurations from config
     pub fn new() -> Self {
         let config = Config::global();
         
-        // Load pre-made roles
-        let premade_roles = Self::load_premade_roles();
+        // Load pre-made role rules
+        let premade_rules = Self::load_premade_rules();
         
         // Try to load user models configuration from config.yaml
         let user_models: Vec<ModelConfig> = config.get_param("models").unwrap_or_else(|_| Vec::new());
         
-        // Merge configs (user overrides pre-made)
-        let models = Self::merge_configs(premade_roles, user_models);
+        // Merge configs - user provides provider/model, rules come from premade or user override
+        let models = Self::merge_configs(premade_rules, user_models);
         
         let mut model_states = HashMap::new();
         for model in &models {
@@ -198,12 +233,12 @@ impl AutoPilot {
             info!("AutoPilot initialized with {} model configurations", models.len());
             for model in &models {
                 debug!(
-                    "Model '{}': {}/{} (priority: {})",
+                    "Role '{}': {}/{} (priority: {})",
                     model.role, model.provider, model.model, model.rules.priority
                 );
             }
         } else {
-            debug!("AutoPilot: No model configurations found");
+            debug!("AutoPilot: No model configurations found in config");
         }
         
         Self {
@@ -372,7 +407,7 @@ impl AutoPilot {
     /// Evaluate if a model's rules are satisfied
     fn evaluate_rules(
         &self,
-        model: &ModelConfig,
+        model: &CompleteModelConfig,
         conversation: &Conversation,
         current_turn: usize,
     ) -> bool {
@@ -483,20 +518,22 @@ impl AutoPilot {
     }
     
     /// Check if a model switch should occur based on the conversation
+    /// Returns Some((provider, role, model)) if a switch should happen, None otherwise
     pub async fn check_for_switch(
         &mut self,
         conversation: &Conversation,
         current_provider: Arc<dyn crate::providers::base::Provider>,
-    ) -> Result<Option<Arc<dyn crate::providers::base::Provider>>> {
+    ) -> Result<Option<(Arc<dyn crate::providers::base::Provider>, String, String)>> {
         debug!("AutoPilot: Checking conversation for model switch");
         
         // If we already switched, check if we should switch back
         if self.switch_active {
             debug!("AutoPilot: Switching back to original provider");
             self.switch_active = false;
-            self.current_role = None;
+            let prev_role = self.current_role.take();
             if let Some(original) = self.original_provider.take() {
-                return Ok(Some(original));
+                let original_model = original.get_active_model_name();
+                return Ok(Some((original, prev_role.unwrap_or_else(|| "original".to_string()), original_model)));
             }
             return Ok(None);
         }
@@ -504,7 +541,7 @@ impl AutoPilot {
         let current_turn = self.count_turns(conversation);
         
         // Evaluate all models and find the best match
-        let mut candidates: Vec<(&ModelConfig, i32)> = Vec::new();
+        let mut candidates: Vec<(&CompleteModelConfig, i32)> = Vec::new();
         
         for model in &self.model_configs {
             if self.evaluate_rules(model, conversation, current_turn) {
@@ -515,10 +552,10 @@ impl AutoPilot {
         // Sort by priority (highest first)
         candidates.sort_by_key(|(_, priority)| -priority);
         
-        if let Some((best_model, _)) = candidates.first() {
+        if let Some((best_model, priority)) = candidates.first() {
             info!(
-                "AutoPilot: Switching to '{}' model ({}/{})",
-                best_model.role, best_model.provider, best_model.model
+                "AutoPilot: Switching to '{}' role with {} model {} (priority: {})",
+                best_model.role, best_model.provider, best_model.model, priority
             );
             
             // Update state
@@ -534,7 +571,7 @@ impl AutoPilot {
             let model = crate::model::ModelConfig::new_or_fail(&best_model.model);
             let new_provider = providers::create(&best_model.provider, model)?;
             
-            return Ok(Some(new_provider));
+            return Ok(Some((new_provider, best_model.role.clone(), best_model.model.clone())));
         }
         
         Ok(None)
@@ -561,9 +598,9 @@ mod tests {
     use rmcp::ErrorData;
     use std::borrow::Cow;
     
-    fn create_test_configs() -> Vec<ModelConfig> {
+    fn create_test_configs() -> Vec<CompleteModelConfig> {
         vec![
-            ModelConfig {
+            CompleteModelConfig {
                 provider: "openai".to_string(),
                 model: "o1-preview".to_string(),
                 role: "thinker".to_string(),
@@ -583,7 +620,7 @@ mod tests {
                     priority: 10,
                 },
             },
-            ModelConfig {
+            CompleteModelConfig {
                 provider: "anthropic".to_string(),
                 model: "claude-3-5-sonnet".to_string(),
                 role: "helper".to_string(),
@@ -603,7 +640,7 @@ mod tests {
                     priority: 5,
                 },
             },
-            ModelConfig {
+            CompleteModelConfig {
                 provider: "openai".to_string(),
                 model: "gpt-4o".to_string(),
                 role: "recovery".to_string(),
@@ -799,52 +836,66 @@ mod tests {
     }
     
     #[test]
-    fn test_premade_roles_loading() {
-        // This tests that pre-made roles can be loaded
-        let premade = AutoPilot::load_premade_roles();
+    fn test_premade_rules_loading() {
+        // This tests that pre-made role rules can be loaded
+        let premade = AutoPilot::load_premade_rules();
         assert!(!premade.is_empty());
         
         // Check that specific roles exist
-        let role_names: Vec<String> = premade.iter().map(|r| r.role.clone()).collect();
-        assert!(role_names.contains(&"deep-thinker".to_string()));
-        assert!(role_names.contains(&"debugger".to_string()));
-        assert!(role_names.contains(&"coder".to_string()));
+        assert!(premade.contains_key("deep-thinker"));
+        assert!(premade.contains_key("debugger"));
+        assert!(premade.contains_key("coder"));
+        assert!(premade.contains_key("oracle")); // Backward compatibility
+        assert!(premade.contains_key("second-opinion")); // Backward compatibility
     }
     
     #[test]
     fn test_config_merging() {
-        let premade = vec![
-            ModelConfig {
-                provider: "openai".to_string(),
-                model: "gpt-4".to_string(),
-                role: "helper".to_string(),
-                rules: Rules {
-                    triggers: TriggerRules::default(),
-                    cooldown_turns: 5,
-                    max_invocations: None,
-                    priority: 5,
-                },
+        let mut premade_rules = HashMap::new();
+        premade_rules.insert(
+            "helper".to_string(),
+            Rules {
+                triggers: TriggerRules::default(),
+                cooldown_turns: 5,
+                max_invocations: None,
+                priority: 5,
             },
-        ];
+        );
         
-        let user = vec![
+        // User config with custom rules
+        let user_with_rules = vec![
             ModelConfig {
                 provider: "anthropic".to_string(),
                 model: "claude".to_string(),
-                role: "helper".to_string(), // Same role, should override
-                rules: Rules {
+                role: "helper".to_string(),
+                rules: Some(Rules {
                     triggers: TriggerRules::default(),
                     cooldown_turns: 3,
                     max_invocations: None,
                     priority: 10,
-                },
+                }),
             },
         ];
         
-        let merged = AutoPilot::merge_configs(premade, user);
+        let merged = AutoPilot::merge_configs(premade_rules.clone(), user_with_rules);
         assert_eq!(merged.len(), 1);
-        assert_eq!(merged[0].provider, "anthropic"); // User config wins
-        assert_eq!(merged[0].rules.priority, 10); // User priority
+        assert_eq!(merged[0].provider, "anthropic");
+        assert_eq!(merged[0].rules.priority, 10); // User rules override
+        
+        // User config without rules (inherit from premade)
+        let user_without_rules = vec![
+            ModelConfig {
+                provider: "openai".to_string(),
+                model: "gpt-4".to_string(),
+                role: "helper".to_string(),
+                rules: None, // No rules, should inherit from premade
+            },
+        ];
+        
+        let merged = AutoPilot::merge_configs(premade_rules, user_without_rules);
+        assert_eq!(merged.len(), 1);
+        assert_eq!(merged[0].provider, "openai");
+        assert_eq!(merged[0].rules.priority, 5); // Inherited from premade
     }
     
     #[test]

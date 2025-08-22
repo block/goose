@@ -1,11 +1,10 @@
-# Pre-made AutoPilot roles with default configurations
-# These can be overridden by user config
+# Pre-made AutoPilot roles with default rules
+# These define the default behaviors for common roles
+# Users must specify the provider and model in their config.yaml
 
 roles:
   # Deep reasoning and analysis
   - role: "deep-thinker"
-    provider: "openai"
-    model: "o1-preview"
     rules:
       triggers:
         keywords: ["think", "reason", "analyze", "explain why", "how does", "what if"]
@@ -17,8 +16,6 @@ roles:
 
   # Code debugging and error recovery
   - role: "debugger"
-    provider: "anthropic"
-    model: "claude-3-5-sonnet-20241022"
     rules:
       triggers:
         keywords: ["error", "bug", "broken", "failed", "exception", "traceback"]
@@ -31,8 +28,6 @@ roles:
 
   # Code implementation specialist
   - role: "coder"
-    provider: "anthropic"
-    model: "claude-3-5-sonnet-20241022"
     rules:
       triggers:
         keywords: ["implement", "code", "function", "class", "refactor", "optimize"]
@@ -44,8 +39,6 @@ roles:
 
   # Verification and review
   - role: "reviewer"
-    provider: "openai"
-    model: "gpt-4o"
     rules:
       triggers:
         keywords: ["check", "verify", "review", "validate", "test", "correct"]
@@ -58,8 +51,6 @@ roles:
 
   # Help and guidance specialist
   - role: "helper"
-    provider: "anthropic"
-    model: "claude-3-5-haiku-20241022"
     rules:
       triggers:
         keywords: ["help", "assist", "guide", "explain", "teach", "how to"]
@@ -70,8 +61,6 @@ roles:
 
   # Math and calculations
   - role: "mathematician"
-    provider: "openai"
-    model: "o1-mini"
     rules:
       triggers:
         keywords: ["calculate", "solve", "equation", "math", "formula", "compute"]
@@ -83,8 +72,6 @@ roles:
 
   # Creative brainstorming
   - role: "creative"
-    provider: "openai"
-    model: "gpt-4o"
     rules:
       triggers:
         keywords: ["idea", "brainstorm", "creative", "innovate", "design", "imagine"]
@@ -95,8 +82,6 @@ roles:
 
   # Quick responses for simple queries
   - role: "quick-responder"
-    provider: "anthropic"
-    model: "claude-3-5-haiku-20241022"
     rules:
       triggers:
         complexity_threshold: "low"
@@ -106,8 +91,6 @@ roles:
 
   # Research and fact-checking
   - role: "researcher"
-    provider: "openai"
-    model: "gpt-4o"
     rules:
       triggers:
         keywords: ["research", "find", "search", "lookup", "fact", "source", "reference"]
@@ -118,8 +101,6 @@ roles:
 
   # System recovery after multiple failures
   - role: "recovery-specialist"
-    provider: "openai"
-    model: "o1-preview"
     rules:
       triggers:
         consecutive_failures: 2  # After 2 consecutive tool failures
@@ -127,3 +108,23 @@ roles:
       cooldown_turns: 10
       max_invocations: 2
       priority: 20  # Very high priority
+  
+  # Original autopilot roles for backward compatibility
+  - role: "oracle"
+    rules:
+      triggers:
+        keywords: ["think"]
+        match_type: "any"
+        source: "human"
+      cooldown_turns: 0
+      priority: 10
+      
+  - role: "second-opinion"
+    rules:
+      triggers:
+        keywords: ["help"]
+        match_type: "any"
+        after_tool_use: true
+        source: "human"
+      cooldown_turns: 5
+      priority: 5

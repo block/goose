@@ -1,0 +1,40 @@
+# Example user configuration for AutoPilot
+# Users only need to specify provider and model for each role they want to use
+# Rules are automatically inherited from premade_roles.yaml
+
+models:
+  # Use the "oracle" role (backward compatible with original autopilot)
+  - provider: "openai"
+    model: "o1-preview"
+    role: "oracle"
+    # Rules inherited: triggers on "think", cooldown: 0, priority: 10
+
+  # Use the "second-opinion" role (backward compatible)
+  - provider: "anthropic"
+    model: "claude-3-5-sonnet-20241022"
+    role: "second-opinion"
+    # Rules inherited: triggers on "help", after_tool_use, cooldown: 5, priority: 5
+
+  # Use the debugger role with a specific model
+  - provider: "openai"
+    model: "gpt-4o"
+    role: "debugger"
+    # Rules inherited: triggers on errors/failures, priority: 15
+
+  # Use the deep-thinker role
+  - provider: "openai"
+    model: "o1-mini"
+    role: "deep-thinker"
+    # Rules inherited: complex reasoning triggers, priority: 10
+
+  # Override rules for a specific role
+  - provider: "anthropic"
+    model: "claude-3-5-haiku-20241022"
+    role: "helper"
+    rules:  # Custom rules override the premade ones
+      triggers:
+        keywords: ["help", "please", "could you"]
+        match_type: "any"
+        source: "human"
+      cooldown_turns: 2  # Shorter cooldown than default
+      priority: 8  # Higher priority than default
