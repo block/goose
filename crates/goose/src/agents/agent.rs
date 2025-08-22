@@ -58,9 +58,7 @@ use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::subagent_task_config::TaskConfig;
 use crate::agents::todo_tools::{
-    // todo_read_tool, todo_write_tool, // TODO: Re-enable after next release
-    TODO_READ_TOOL_NAME,
-    TODO_WRITE_TOOL_NAME,
+    todo_read_tool, todo_write_tool, TODO_READ_TOOL_NAME, TODO_WRITE_TOOL_NAME,
 };
 use crate::conversation::message::{Message, ToolRequest};
 
@@ -103,7 +101,6 @@ pub struct Agent {
     pub(super) tool_route_manager: ToolRouteManager,
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
     pub(super) retry_manager: RetryManager,
-    pub(super) todo_list: Arc<Mutex<String>>,
 }
 
 #[derive(Clone, Debug)]
@@ -155,15 +152,6 @@ where
 }
 
 impl Agent {
-    const DEFAULT_TODO_MAX_CHARS: usize = 50_000;
-
-    fn get_todo_max_chars() -> usize {
-        std::env::var("GOOSE_TODO_MAX_CHARS")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(Self::DEFAULT_TODO_MAX_CHARS)
-    }
-
     pub fn new() -> Self {
         // Create channels with buffer size 32 (adjust if needed)
         let (confirm_tx, confirm_rx) = mpsc::channel(32);
@@ -189,7 +177,6 @@ impl Agent {
             tool_route_manager: ToolRouteManager::new(),
             scheduler_service: Mutex::new(None),
             retry_manager,
-            todo_list: Arc::new(Mutex::new(String::new())),
         }
     }
 
@@ -292,6 +279,7 @@ impl Agent {
         permission_check_result: &PermissionCheckResult,
         message_tool_response: Arc<Mutex<Message>>,
         cancel_token: Option<tokio_util::sync::CancellationToken>,
+        session: &Option<SessionConfig>,
     ) -> Result<Vec<(String, ToolStream)>> {
         let mut tool_futures: Vec<(String, ToolStream)> = Vec::new();
 
@@ -299,7 +287,12 @@ impl Agent {
         for request in &permission_check_result.approved {
             if let Ok(tool_call) = request.tool_call.clone() {
                 let (req_id, tool_result) = self
-                    .dispatch_tool_call(tool_call, request.id.clone(), cancel_token.clone())
+                    .dispatch_tool_call(
+                        tool_call,
+                        request.id.clone(),
+                        cancel_token.clone(),
+                        session,
+                    )
                     .await;
 
                 tool_futures.push((
@@ -379,6 +372,7 @@ impl Agent {
         tool_call: mcp_core::tool::ToolCall,
         request_id: String,
         cancellation_token: Option<CancellationToken>,
+        session: &Option<SessionConfig>,
     ) -> (String, Result<ToolCallResult, ErrorData>) {
         // Check if this tool call should be allowed based on repetition monitoring
         if let Some(monitor) = self.tool_monitor.lock().await.as_mut() {
@@ -491,7 +485,21 @@ impl Agent {
             )))
         } else if tool_call.name == TODO_READ_TOOL_NAME {
             // Handle task planner read tool
-            let todo_content = self.todo_list.lock().await.clone();
+            let session_file_path = if let Some(session_config) = session {
+                session::storage::get_path(session_config.id.clone()).ok()
+            } else {
+                None
+            };
+
+            let todo_content = if let Some(path) = session_file_path {
+                session::storage::read_metadata(&path)
+                    .ok()
+                    .and_then(|m| m.todo_content)
+                    .unwrap_or_default()
+            } else {
+                String::new()
+            };
+
             ToolCallResult::from(Ok(vec![Content::text(todo_content)]))
         } else if tool_call.name == TODO_WRITE_TOOL_NAME {
             // Handle task planner write tool
@@ -502,34 +510,66 @@ impl Agent {
                 .unwrap_or("")
                 .to_string();
 
-            // Acquire lock first to prevent race condition
-            let mut todo_list = self.todo_list.lock().await;
-
             // Character limit validation
             let char_count = content.chars().count();
-            let max_chars = Self::get_todo_max_chars();
+            let max_chars = std::env::var("GOOSE_TODO_MAX_CHARS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(50_000);
 
-            // Simple validation - reject if over limit (0 means unlimited)
             if max_chars > 0 && char_count > max_chars {
-                return (
-                    request_id,
-                    Ok(ToolCallResult::from(Err(ErrorData::new(
+                ToolCallResult::from(Err(ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!(
+                        "Todo list too large: {} chars (max: {})",
+                        char_count, max_chars
+                    ),
+                    None,
+                )))
+            } else if let Some(session_config) = session {
+                // Update session metadata with new TODO content
+                match session::storage::get_path(session_config.id.clone()) {
+                    Ok(path) => match session::storage::read_metadata(&path) {
+                        Ok(mut metadata) => {
+                            metadata.todo_content = Some(content);
+                            let path_clone = path.clone();
+                            let metadata_clone = metadata.clone();
+                            let update_result = tokio::task::spawn(async move {
+                                session::storage::update_metadata(&path_clone, &metadata_clone)
+                                    .await
+                            })
+                            .await;
+
+                            match update_result {
+                                Ok(Ok(_)) => ToolCallResult::from(Ok(vec![Content::text(
+                                    format!("Updated ({} chars)", char_count),
+                                )])),
+                                _ => ToolCallResult::from(Err(ErrorData::new(
+                                    ErrorCode::INTERNAL_ERROR,
+                                    "Failed to update session metadata".to_string(),
+                                    None,
+                                ))),
+                            }
+                        }
+                        Err(_) => ToolCallResult::from(Err(ErrorData::new(
+                            ErrorCode::INTERNAL_ERROR,
+                            "Failed to read session metadata".to_string(),
+                            None,
+                        ))),
+                    },
+                    Err(_) => ToolCallResult::from(Err(ErrorData::new(
                         ErrorCode::INTERNAL_ERROR,
-                        format!(
-                            "Todo list too large: {} chars (max: {})",
-                            char_count, max_chars
-                        ),
+                        "Failed to get session path".to_string(),
                         None,
-                    )))),
-                );
+                    ))),
+                }
+            } else {
+                ToolCallResult::from(Err(ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    "TODO tools require an active session to persist data".to_string(),
+                    None,
+                )))
             }
-
-            *todo_list = content;
-
-            ToolCallResult::from(Ok(vec![Content::text(format!(
-                "Updated ({} chars)",
-                char_count
-            ))]))
         } else if tool_call.name == ROUTER_LLM_SEARCH_TOOL_NAME {
             match self
                 .tool_route_manager
@@ -756,8 +796,7 @@ impl Agent {
             ]);
 
             // Add task planner tools
-            // TODO: Re-enable after next release
-            // prefixed_tools.extend([todo_read_tool(), todo_write_tool()]);
+            prefixed_tools.extend([todo_read_tool(), todo_write_tool()]);
 
             // Dynamic task tool
             prefixed_tools.push(create_dynamic_task_tool());
@@ -1090,7 +1129,8 @@ impl Agent {
                                     let mut tool_futures = self.handle_approved_and_denied_tools(
                                         &permission_check_result,
                                         message_tool_response.clone(),
-                                        cancel_token.clone()
+                                        cancel_token.clone(),
+                                        &session
                                     ).await?;
 
                                     let tool_futures_arc = Arc::new(Mutex::new(tool_futures));
@@ -1508,7 +1548,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore] // TODO: Re-enable after next release when TODO tools are re-enabled
     async fn test_todo_tools_integration() -> Result<()> {
         let agent = Agent::new();
 
@@ -1520,10 +1559,6 @@ mod tests {
 
         assert!(todo_read.is_some(), "TODO read tool should be present");
         assert!(todo_write.is_some(), "TODO write tool should be present");
-
-        // Test todo_list initialization
-        let todo_content = agent.todo_list.lock().await;
-        assert_eq!(*todo_content, "", "TODO list should be initially empty");
 
         Ok(())
     }

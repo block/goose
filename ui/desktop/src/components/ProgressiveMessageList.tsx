@@ -30,7 +30,6 @@ interface ProgressiveMessageListProps {
   append?: (value: string) => void; // Make optional
   appendMessage?: (message: Message) => void; // Make optional
   isUserMessage: (message: Message) => boolean;
-  onScrollToBottom?: () => void;
   batchSize?: number;
   batchDelay?: number;
   showLoadingThreshold?: number; // Only show loading if more than X messages
@@ -47,7 +46,6 @@ export default function ProgressiveMessageList({
   append = () => {},
   appendMessage = () => {},
   isUserMessage,
-  onScrollToBottom,
   batchSize = 20,
   batchDelay = 20,
   showLoadingThreshold = 50,
@@ -99,10 +97,6 @@ export default function ProgressiveMessageList({
 
         if (nextCount >= messages.length) {
           setIsLoading(false);
-          // Trigger scroll to bottom
-          window.setTimeout(() => {
-            onScrollToBottom?.();
-          }, 100);
         } else {
           // Schedule next batch
           timeoutRef.current = window.setTimeout(loadNextBatch, batchDelay);
@@ -121,14 +115,7 @@ export default function ProgressiveMessageList({
         timeoutRef.current = null;
       }
     };
-  }, [
-    messages.length,
-    batchSize,
-    batchDelay,
-    showLoadingThreshold,
-    onScrollToBottom,
-    renderedCount,
-  ]);
+  }, [messages.length, batchSize, batchDelay, showLoadingThreshold, renderedCount]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -203,9 +190,6 @@ export default function ProgressiveMessageList({
                     chatId={chat.id}
                     workingDir={window.appConfig.get('GOOSE_WORKING_DIR') as string}
                     contextType={getContextHandlerType!(message)}
-                    onSummaryComplete={() => {
-                      window.setTimeout(() => onScrollToBottom?.(), 100);
-                    }}
                   />
                 ) : (
                   !hasOnlyToolResponses(message) && (
@@ -222,9 +206,6 @@ export default function ProgressiveMessageList({
                     chatId={chat.id}
                     workingDir={window.appConfig.get('GOOSE_WORKING_DIR') as string}
                     contextType={getContextHandlerType!(message)}
-                    onSummaryComplete={() => {
-                      window.setTimeout(() => onScrollToBottom?.(), 100);
-                    }}
                   />
                 ) : (
                   <GooseMessage
@@ -265,7 +246,6 @@ export default function ProgressiveMessageList({
     onMessageUpdate,
     hasContextHandlerContent,
     getContextHandlerType,
-    onScrollToBottom,
   ]);
 
   return (

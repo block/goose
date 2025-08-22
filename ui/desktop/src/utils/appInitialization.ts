@@ -181,7 +181,7 @@ const handleViewTypeDeepLink = (viewType: string, recipeConfig: unknown) => {
       recipes: '#/recipes',
       permission: '#/permission',
       ConfigureProviders: '#/configure-providers',
-      sharedSession: '#/shared-session',
+
       recipeEditor: '#/recipe-editor',
       welcome: '#/welcome',
     };

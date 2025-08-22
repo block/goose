@@ -699,6 +699,10 @@ export type SessionMetadata = {
      */
     schedule_id?: string | null;
     /**
+     * Session-scoped TODO list content
+     */
+    todo_content?: string | null;
+    /**
      * The total number of tokens used in the session. Retrieved from the provider's last usage.
      */
     total_tokens?: number | null;

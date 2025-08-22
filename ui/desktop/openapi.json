@@ -3186,6 +3186,11 @@
             "description": "ID of the schedule that triggered this session, if any",
             "nullable": true
           },
+          "todo_content": {
+            "type": "string",
+            "description": "Session-scoped TODO list content",
+            "nullable": true
+          },
           "total_tokens": {
             "type": "integer",
             "format": "int32",
