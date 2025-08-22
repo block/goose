@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { Switch } from '../../ui/switch';
-import { Label } from '../../ui/label';
 import { useConfig } from '../../ConfigContext';
 
 export function HintsSection() {
@@ -32,9 +31,9 @@ export function HintsSection() {
     <div className="space-y-4  ml-2">
       <div className="flex items-center justify-between">
         <div className="space-y-1">
-          <Label htmlFor="nested-hints" className="text-sm font-medium">
+          <label htmlFor="nested-hints" className="text-sm font-medium">
             Nested Hint Files Loading (eg: .goosehints)
-          </Label>
+          </label>
           <p className="text-xs text-textSubtle mr-2">
             When enabled, loads hint files from current directory upwards to project root (.git) or
             current directory if no .git directory found. <br />
