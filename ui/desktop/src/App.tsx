@@ -359,6 +359,7 @@ export default function App() {
   const [extensionConfirmTitle, setExtensionConfirmTitle] = useState<string>('');
   const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [isGoosehintsModalOpen, setIsGoosehintsModalOpen] = useState(false);
+  const [agentWaitingMessage, setAgentWaitingMessage] = useState<string | null>(null);
 
   // Add separate state for pair chat to maintain its own conversation
   const [pairChat, setPairChat] = useState<ChatType>({
@@ -449,16 +450,19 @@ export default function App() {
         getExtensions,
         addExtension,
         setPairChat,
+        setMessage: setAgentWaitingMessage,
         provider: provider as string,
         model: model as string,
       });
     };
 
-    initialize().catch((error) => {
-      console.error('Fatal error during initialization:', error);
-      setFatalError(error instanceof Error ? error.message : 'Unknown error occurred');
-    });
-  }, [getExtensions, addExtension, read, setPairChat]);
+    initialize()
+      .then(() => setAgentWaitingMessage(null))
+      .catch((error) => {
+        console.error('Fatal error during initialization:', error);
+        setFatalError(error instanceof Error ? error.message : 'Unknown error occurred');
+      });
+  }, [getExtensions, addExtension, read, setPairChat, setAgentWaitingMessage]);
 
   useEffect(() => {
     console.log('Sending reactReady signal to Electron');
@@ -838,7 +842,12 @@ export default function App() {
               <Route
                 path="/"
                 element={
-                  <ChatProvider chat={chat} setChat={setChat} contextKey="hub">
+                  <ChatProvider
+                    chat={chat}
+                    setChat={setChat}
+                    contextKey="hub"
+                    agentWaitingMessage={agentWaitingMessage}
+                  >
                     <AppLayout setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
                   </ChatProvider>
                 }
@@ -864,6 +873,7 @@ export default function App() {
                         chat={pairChat}
                         setChat={setPairChat}
                         contextKey={`pair-${pairChat.id}`}
+                        agentWaitingMessage={agentWaitingMessage}
                         key={pairChat.id}
                       >
                         <PairRouteWrapper

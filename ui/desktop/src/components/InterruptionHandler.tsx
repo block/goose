@@ -60,28 +60,28 @@ export const InterruptionHandler: React.FC<InterruptionHandlerProps> = ({
           bg: 'bg-red-50 dark:bg-red-950/20',
           border: 'border-red-200 dark:border-red-800/50',
           text: 'text-red-800 dark:text-red-200',
-          accent: 'text-red-600 dark:text-red-400'
+          accent: 'text-red-600 dark:text-red-400',
         };
       case 'pause':
         return {
           bg: 'bg-amber-50 dark:bg-amber-950/20',
           border: 'border-amber-200 dark:border-amber-800/50',
           text: 'text-amber-800 dark:text-amber-200',
-          accent: 'text-amber-600 dark:text-amber-400'
+          accent: 'text-amber-600 dark:text-amber-400',
         };
       case 'redirect':
         return {
           bg: 'bg-blue-50 dark:bg-blue-950/20',
           border: 'border-blue-200 dark:border-blue-800/50',
           text: 'text-blue-800 dark:text-blue-200',
-          accent: 'text-blue-600 dark:text-blue-400'
+          accent: 'text-blue-600 dark:text-blue-400',
         };
       default:
         return {
           bg: 'bg-orange-50 dark:bg-orange-950/20',
           border: 'border-orange-200 dark:border-orange-800/50',
           text: 'text-orange-800 dark:text-orange-200',
-          accent: 'text-orange-600 dark:text-orange-400'
+          accent: 'text-orange-600 dark:text-orange-400',
         };
     }
   };
@@ -98,33 +98,43 @@ export const InterruptionHandler: React.FC<InterruptionHandlerProps> = ({
 
   const getActionTitle = () => {
     switch (match.keyword.action) {
-      case 'stop': return 'Stop Processing';
-      case 'pause': return 'Pause Processing';
-      case 'redirect': return 'Redirect Processing';
-      default: return 'Interrupt Processing';
+      case 'stop':
+        return 'Stop Processing';
+      case 'pause':
+        return 'Pause Processing';
+      case 'redirect':
+        return 'Redirect Processing';
+      default:
+        return 'Interrupt Processing';
     }
   };
 
   const getActionDescription = () => {
     switch (match.keyword.action) {
-      case 'stop': 
+      case 'stop':
         return 'This will immediately stop the current processing and clear any queued messages.';
-      case 'pause': 
+      case 'pause':
         return 'This will pause the current processing. Queued messages will be preserved.';
-      case 'redirect': 
+      case 'redirect':
         return 'This will stop current processing and redirect to a new task.';
-      default: 
+      default:
         return 'This will interrupt the current processing.';
     }
   };
 
   return (
-    <div className={`fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 ${className}`}>
-      <div className={`w-full max-w-md mx-auto transition-all duration-300 ease-out ${
-        isVisible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
-      }`}>
+    <div
+      className={`fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 ${className}`}
+    >
+      <div
+        className={`w-full max-w-md mx-auto transition-all duration-300 ease-out ${
+          isVisible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
+        }`}
+      >
         {/* Main card */}
-        <div className={`rounded-xl border shadow-2xl backdrop-blur-xl ${colors.bg} ${colors.border}`}>
+        <div
+          className={`rounded-xl border shadow-2xl backdrop-blur-xl ${colors.bg} ${colors.border}`}
+        >
           {/* Header */}
           <div className="p-6 border-b border-current/10">
             <div className="flex items-start gap-4">
@@ -132,14 +142,12 @@ export const InterruptionHandler: React.FC<InterruptionHandlerProps> = ({
                 {getIcon()}
               </div>
               <div className="flex-1">
-                <h3 className={`text-lg font-semibold ${colors.text}`}>
-                  {getActionTitle()}
-                </h3>
-                <p className={`text-sm mt-1 ${colors.accent}`}>
-                  Detected: "{match.matchedText}"
-                </p>
+                <h3 className={`text-lg font-semibold ${colors.text}`}>{getActionTitle()}</h3>
+                <p className={`text-sm mt-1 ${colors.accent}`}>Detected: "{match.matchedText}"</p>
               </div>
-              <div className={`text-xs px-2 py-1 rounded-full bg-white/30 dark:bg-black/20 ${colors.text}`}>
+              <div
+                className={`text-xs px-2 py-1 rounded-full bg-white/30 dark:bg-black/20 ${colors.text}`}
+              >
                 {Math.round(match.confidence * 100)}% confident
               </div>
             </div>
@@ -149,9 +157,7 @@ export const InterruptionHandler: React.FC<InterruptionHandlerProps> = ({
           <div className="p-6">
             <div className="flex items-start gap-3 mb-4">
               <AlertCircle className={`w-4 h-4 mt-0.5 flex-shrink-0 ${colors.accent}`} />
-              <p className={`text-sm leading-relaxed ${colors.text}`}>
-                {getActionDescription()}
-              </p>
+              <p className={`text-sm leading-relaxed ${colors.text}`}>{getActionDescription()}</p>
             </div>
 
             {/* Redirect input */}
@@ -178,10 +184,13 @@ export const InterruptionHandler: React.FC<InterruptionHandlerProps> = ({
                 <span className={colors.text}>{Math.round(match.confidence * 100)}%</span>
               </div>
               <div className="w-full bg-white/30 dark:bg-black/20 rounded-full h-2">
-                <div 
+                <div
                   className={`h-2 rounded-full transition-all duration-500 ${
-                    match.confidence > 0.8 ? 'bg-green-500' : 
-                    match.confidence > 0.6 ? 'bg-amber-500' : 'bg-red-500'
+                    match.confidence > 0.8
+                      ? 'bg-green-500'
+                      : match.confidence > 0.6
+                        ? 'bg-amber-500'
+                        : 'bg-red-500'
                   }`}
                   style={{ width: `${match.confidence * 100}%` }}
                 />
@@ -204,7 +213,11 @@ export const InterruptionHandler: React.FC<InterruptionHandlerProps> = ({
               className={`flex-1 bg-white/80 hover:bg-white dark:bg-white/10 dark:hover:bg-white/20 ${colors.text} font-medium shadow-md hover:shadow-lg transition-all duration-200`}
             >
               <Zap className="w-4 h-4 mr-2" />
-              {showRedirectInput ? 'Redirect' : match.keyword.action === 'stop' ? 'Stop' : 'Confirm'}
+              {showRedirectInput
+                ? 'Redirect'
+                : match.keyword.action === 'stop'
+                  ? 'Stop'
+                  : 'Confirm'}
             </Button>
           </div>
         </div>

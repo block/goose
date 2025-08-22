@@ -136,6 +136,7 @@ export default function ChatInput({
   // Draft functionality - get chat context and global draft context
   // We need to handle the case where ChatInput is used without ChatProvider (e.g., in Hub)
   const chatContext = useChatContext(); // This should always be available now
+  const agentIsReady = chatContext === null || chatContext.agentWaitingMessage === null;
   const draftLoadedRef = useRef(false);
 
   // Debug logging for draft context
@@ -1060,6 +1061,7 @@ export default function ChatInput({
       const canSubmit =
         !isLoading &&
         !isLoadingCompaction &&
+        agentIsReady &&
         (displayValue.trim() ||
           pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
           allDroppedFiles.some((file) => !file.error && !file.isLoading));
@@ -1074,6 +1076,7 @@ export default function ChatInput({
     const canSubmit =
       !isLoading &&
       !isLoadingCompaction &&
+      agentIsReady &&
       (displayValue.trim() ||
         pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
         allDroppedFiles.some((file) => !file.error && !file.isLoading));
@@ -1337,46 +1340,56 @@ export default function ChatInput({
               <Stop />
             </Button>
           ) : (
-            <Button
-              type="submit"
-              size="sm"
-              shape="round"
-              variant="outline"
-              disabled={
-                !hasSubmittableContent ||
-                isAnyImageLoading ||
-                isAnyDroppedFileLoading ||
-                isRecording ||
-                isTranscribing ||
-                isLoadingCompaction
-              }
-              className={`rounded-full px-10 py-2 flex items-center gap-2 ${
-                !hasSubmittableContent ||
-                isAnyImageLoading ||
-                isAnyDroppedFileLoading ||
-                isRecording ||
-                isTranscribing ||
-                isLoadingCompaction
-                  ? 'bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600'
-                  : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600 hover:cursor-pointer'
-              }`}
-              title={
-                isLoadingCompaction
-                  ? 'Summarizing conversation...'
-                  : isAnyImageLoading
-                    ? 'Waiting for images to save...'
-                    : isAnyDroppedFileLoading
-                      ? 'Processing dropped files...'
-                      : isRecording
-                        ? 'Recording...'
-                        : isTranscribing
-                          ? 'Transcribing...'
-                          : 'Send'
-              }
-            >
-              <Send className="w-4 h-4" />
-              <span className="text-sm">Send</span>
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    shape="round"
+                    variant="outline"
+                    disabled={
+                      !hasSubmittableContent ||
+                      isAnyImageLoading ||
+                      isAnyDroppedFileLoading ||
+                      isRecording ||
+                      isTranscribing ||
+                      isLoadingCompaction ||
+                      !agentIsReady
+                    }
+                    className={`rounded-full px-10 py-2 flex items-center gap-2 ${
+                      !hasSubmittableContent ||
+                      isAnyImageLoading ||
+                      isAnyDroppedFileLoading ||
+                      isRecording ||
+                      isTranscribing ||
+                      isLoadingCompaction ||
+                      !agentIsReady
+                        ? 'bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600'
+                        : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600 hover:cursor-pointer'
+                    }`}
+                  >
+                    <Send className="w-4 h-4" />
+                    <span className="text-sm">Send</span>
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>
+                  {isLoadingCompaction
+                    ? 'Summarizing conversation...'
+                    : isAnyImageLoading
+                      ? 'Waiting for images to save...'
+                      : isAnyDroppedFileLoading
+                        ? 'Processing dropped files...'
+                        : isRecording
+                          ? 'Recording...'
+                          : isTranscribing
+                            ? 'Transcribing...'
+                            : (chatContext?.agentWaitingMessage ?? 'Send')}
+                </p>
+              </TooltipContent>
+            </Tooltip>
           )}
 
           {/* Recording/transcribing status indicator - positioned above the button row */}

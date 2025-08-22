@@ -15,32 +15,32 @@ export const INTERRUPTION_KEYWORDS: InterruptionKeyword[] = [
     keyword: 'stop',
     variations: ['stop', 'halt', 'cease', 'quit', 'end', 'abort', 'cancel'],
     priority: 'high',
-    action: 'stop'
+    action: 'stop',
   },
   {
     keyword: 'wait',
     variations: ['wait', 'hold', 'pause', 'hold on', 'wait up', 'hold up'],
-    priority: 'high', 
-    action: 'pause'
+    priority: 'high',
+    action: 'pause',
   },
   {
     keyword: 'no',
     variations: ['no', 'nope', 'nah', 'wrong', 'incorrect', 'not right'],
     priority: 'medium',
-    action: 'stop'
+    action: 'stop',
   },
   {
     keyword: 'actually',
     variations: ['actually', 'instead', 'rather', 'better idea', 'change of plans'],
     priority: 'medium',
-    action: 'redirect'
+    action: 'redirect',
   },
   {
     keyword: 'nevermind',
     variations: ['nevermind', 'never mind', 'forget it', 'ignore that', 'disregard'],
     priority: 'medium',
-    action: 'stop'
-  }
+    action: 'stop',
+  },
 ];
 
 export interface InterruptionMatch {
@@ -59,7 +59,7 @@ export function detectInterruption(input: string): InterruptionMatch | null {
   }
 
   const normalizedInput = input.toLowerCase().trim();
-  
+
   // Check for exact matches first (highest confidence)
   for (const keyword of INTERRUPTION_KEYWORDS) {
     for (const variation of keyword.variations) {
@@ -68,7 +68,7 @@ export function detectInterruption(input: string): InterruptionMatch | null {
           keyword,
           matchedText: variation,
           confidence: 1.0,
-          shouldInterrupt: true
+          shouldInterrupt: true,
         };
       }
     }
@@ -77,12 +77,15 @@ export function detectInterruption(input: string): InterruptionMatch | null {
   // Check for matches at the beginning of input (high confidence)
   for (const keyword of INTERRUPTION_KEYWORDS) {
     for (const variation of keyword.variations) {
-      if (normalizedInput.startsWith(variation + ' ') || normalizedInput.startsWith(variation + ',')) {
+      if (
+        normalizedInput.startsWith(variation + ' ') ||
+        normalizedInput.startsWith(variation + ',')
+      ) {
         return {
           keyword,
           matchedText: variation,
           confidence: 0.9,
-          shouldInterrupt: true
+          shouldInterrupt: true,
         };
       }
     }
@@ -97,7 +100,7 @@ export function detectInterruption(input: string): InterruptionMatch | null {
             keyword,
             matchedText: variation,
             confidence: 0.7,
-            shouldInterrupt: keyword.priority === 'high'
+            shouldInterrupt: keyword.priority === 'high',
           };
         }
       }
