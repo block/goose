@@ -37,8 +37,8 @@ Goose supports two types of hint files:
 
 You can use both global and local hints at the same time. When both exist, Goose will consider both your global preferences and project-specific requirements. If the instructions in your local hints file conflict with your global preferences, Goose will prioritize the local hints.
 
-:::tip Custom Context File
-You can [customize context file names](#custom-context-files) using the `CONTEXT_FILE_NAMES` environment variable.
+:::tip Custom Context Files
+You can use other agent rule files with Goose by using the [`CONTEXT_FILE_NAMES` environment variable](#custom-context-files).
 :::
 
 <Tabs groupId="interface">
@@ -143,12 +143,15 @@ Here's how it works:
 
 ### Configuration
 
-Set the `CONTEXT_FILE_NAMES` environment variable to a JSON array of filenames. If not set, it defaults to `[".goosehints"]`.
+Set the `CONTEXT_FILE_NAMES` environment variable to a JSON array of filenames. The default is `[".goosehints"]`.
 
 ```bash
 # Single custom file
 export CONTEXT_FILE_NAMES='["AGENTS.md"]'
 
-# Multiple files (loaded in order)
+# Project toolchain files
+export CONTEXT_FILE_NAMES='[".cursorrules", "AGENTS.md"]'
+
+# Multiple files
 export CONTEXT_FILE_NAMES='["CLAUDE.md", ".goosehints", "project_rules.txt"]'
 ```

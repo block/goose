@@ -19,9 +19,6 @@
  * the Hub creates a brand new chat session in the Pair view.
  */
 
-import { useState } from 'react';
-import FlappyGoose from './FlappyGoose';
-
 import { SessionInsights } from './sessions/SessionsInsights';
 import ChatInput from './ChatInput';
 import { generateSessionId } from '../sessions';
@@ -47,8 +44,6 @@ export default function Hub({
   setView: (view: View, viewOptions?: ViewOptions) => void;
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
 }) {
-  const [showGame, setShowGame] = useState(false);
-
   // Handle chat input submission - create new chat and navigate to pair
   const handleSubmit = (e: React.FormEvent) => {
     const customEvent = e as unknown as CustomEvent;
@@ -106,8 +101,6 @@ export default function Hub({
           sessionCosts={undefined}
           setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
         />
-
-        {showGame && <FlappyGoose onClose={() => setShowGame(false)} />}
       </div>
     </ChatContextManagerProvider>
   );

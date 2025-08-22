@@ -57,7 +57,7 @@ impl SubAgent {
         debug!("Creating new subagent with id: {}", task_config.id);
 
         // Create a new extension manager for this subagent
-        let mut extension_manager = ExtensionManager::new();
+        let extension_manager = ExtensionManager::new();
 
         // Add extensions based on task_type:
         // 1. If executing dynamic task (task_type = 'text_instruction'), default to using all enabled extensions

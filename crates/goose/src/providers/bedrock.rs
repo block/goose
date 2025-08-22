@@ -152,16 +152,17 @@ impl Provider for BedrockProvider {
     }
 
     #[tracing::instrument(
-        skip(self, system, messages, tools),
+        skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let model_name = &self.model.model_name;
+        let model_name = model_config.model_name.clone();
 
         let (bedrock_message, bedrock_usage) = self
             .with_retry(|| self.converse(system, messages, tools))

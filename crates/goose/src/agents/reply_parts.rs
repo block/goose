@@ -52,8 +52,7 @@ impl Agent {
         }
 
         // Prepare system prompt
-        let extension_manager = self.extension_manager.read().await;
-        let extensions_info = extension_manager.get_extensions_info().await;
+        let extensions_info = self.extension_manager.get_extensions_info().await;
 
         // Get model name from provider
         let provider = self.provider().await?;
@@ -64,7 +63,9 @@ impl Agent {
         let mut system_prompt = prompt_manager.build_system_prompt(
             extensions_info,
             self.frontend_instructions.lock().await.clone(),
-            extension_manager.suggest_disable_extensions_prompt().await,
+            self.extension_manager
+                .suggest_disable_extensions_prompt()
+                .await,
             Some(model_name),
             router_enabled,
         );
