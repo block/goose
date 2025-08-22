@@ -27,15 +27,12 @@ impl SecurityManager {
         // Initialize scanner based on config
         let should_enable = Self::should_enable_security();
 
-        let scanner = match should_enable {
-            true => {
-                tracing::info!("Security scanner initialized and enabled");
-                Some(PromptInjectionScanner::new())
-            }
-            false => {
-                tracing::debug!("Security scanning disabled via configuration");
-                None
-            }
+        let scanner = if should_enable {
+            tracing::info!("Security scanner initialized and enabled");
+            Some(PromptInjectionScanner::new())
+        } else {
+            tracing::debug!("Security scanning disabled via configuration");
+            None
         };
 
         Self { scanner }
