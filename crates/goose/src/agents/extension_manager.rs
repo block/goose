@@ -345,8 +345,8 @@ impl ExtensionManager {
                 let command = Command::new(cmd).configure(|command| {
                     command.arg("mcp").arg(name);
 
-                // pass configuration to the developer extension
-                if name == "developer" {
+                    // pass configuration to the developer extension
+                    if name == "developer" {
                         let config = crate::config::Config::global();
                         if let Ok(nested_enabled) = config.get_param::<bool>("NESTED_GOOSE_HINTS") {
                             command.env("NESTED_GOOSE_HINTS", nested_enabled.to_string());

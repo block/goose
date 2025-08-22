@@ -33,7 +33,6 @@ use mcp_core::{
 
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
-use once_cell::sync::Lazy;
 
 use rmcp::model::{
     Content, ErrorCode, ErrorData, JsonRpcMessage, JsonRpcNotification, JsonRpcVersion2_0,

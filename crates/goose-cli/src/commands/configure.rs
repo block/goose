@@ -25,7 +25,6 @@ use std::collections::HashMap;
 use std::error::Error;
 
 use crate::commands::configure_settings::configure_nested_hints_dialog;
-use crate::recipes::github_recipe::GOOSE_RECIPE_GITHUB_REPO_CONFIG_KEY;
 
 // useful for light themes where there is no dicernible colour contrast between
 // cursor-selected and cursor-unselected items.
