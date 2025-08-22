@@ -29,6 +29,7 @@ import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
 import { Recipe } from '../recipe';
 import MessageQueue from './MessageQueue';
 import { detectInterruption } from '../utils/interruptionDetector';
+import { RecipeSelector } from './RecipeSelector';
 
 interface QueuedMessage {
   id: string;
@@ -1560,6 +1561,17 @@ export default function ChatInput({
               <TooltipContent>Configure goosehints</TooltipContent>
             </Tooltip>
           </div>
+          <div className="w-px h-4 bg-border-default mx-2" />
+          <RecipeSelector
+            onSelectRecipe={(recipe) => {
+              // Set the recipe prompt as the input value
+              if (recipe.prompt) {
+                setDisplayValue(recipe.prompt);
+                setValue(recipe.prompt);
+                textAreaRef.current?.focus();
+              }
+            }}
+          />
         </div>
 
         <MentionPopover

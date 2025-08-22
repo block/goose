@@ -8,6 +8,8 @@ import type {
   CreateRecipeRequest as ApiCreateRecipeRequest,
   CreateRecipeResponse as ApiCreateRecipeResponse,
   RecipeParameter,
+  RecipeParameterInputType,
+  RecipeParameterRequirement,
   Message as ApiMessage,
   Role,
   MessageContent,
@@ -16,6 +18,7 @@ import type { Message as FrontendMessage } from '../types/message';
 
 // Re-export OpenAPI types with frontend-specific additions
 export type Parameter = RecipeParameter;
+export { RecipeParameter, RecipeParameterInputType, RecipeParameterRequirement };
 export type Recipe = import('../api').Recipe & {
   // TODO: Separate these from the raw recipe type
   // Properties added for scheduled execution
