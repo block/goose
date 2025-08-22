@@ -14,6 +14,7 @@ interface InitializationDependencies {
   getExtensions?: (b: boolean) => Promise<FixedExtensionEntry[]>;
   addExtension?: (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>;
   setPairChat: (chat: ChatType | ((prev: ChatType) => ChatType)) => void;
+  setMessage: (message: string | null) => void;
   provider: string;
   model: string;
 }
@@ -22,6 +23,7 @@ export const initializeApp = async ({
   getExtensions,
   addExtension,
   setPairChat,
+  setMessage,
   provider,
   model,
 }: InitializationDependencies) => {
@@ -87,6 +89,7 @@ export const initializeApp = async ({
         initPromises.push(costDbPromise);
       }
 
+      setMessage('starting extensions...');
       await Promise.all(initPromises);
     } catch (error) {
       console.error('Error in system initialization:', error);
