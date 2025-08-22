@@ -119,7 +119,7 @@ function BaseChatContent({
   const [hasStartedUsingRecipe, setHasStartedUsingRecipe] = React.useState(false);
   const [currentRecipeTitle, setCurrentRecipeTitle] = React.useState<string | null>(null);
 
-  const { isCompacting } = useContextManager();
+  const { isCompacting, handleManualCompaction } = useContextManager();
 
   // Use shared chat engine
   const {
@@ -383,67 +383,54 @@ function BaseChatContent({
                     </SearchView>
                   )}
 
-                  {error &&
-                    !(error as Error & { isTokenLimitError?: boolean }).isTokenLimitError && (
-                      <>
-                        <div className="flex flex-col items-center justify-center p-4">
-                          <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-3 rounded-lg mb-2">
-                            {error.message || 'Honk! Goose experienced an error while responding'}
+                  {error && (
+                    <>
+                      <div className="flex flex-col items-center justify-center p-4">
+                        <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-3 rounded-lg mb-2">
+                          {error.message || 'Honk! Goose experienced an error while responding'}
+                        </div>
+
+                        {/* Action buttons for all errors including token limit errors */}
+                        <div className="flex gap-2 mt-2">
+                          <div
+                            className="px-3 py-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
+                            onClick={async () => {
+                              // Clear the error state first
+                              clearError();
+
+                              // Use the same manual compaction function that the "Compact" button in the
+                              // context window alert uses. This properly calls the backend summarization API
+                              // and handles the response correctly.
+                              await handleManualCompaction(
+                                messages,
+                                setMessages,
+                                append,
+                                undefined, // clearAlerts - not needed here since we don't have alerts to clear
+                                setAncestorMessages
+                              );
+                            }}
+                          >
+                            Summarize Conversation
                           </div>
-
-                          {/* Action buttons for non-token-limit errors */}
-                          <div className="flex gap-2 mt-2">
-                            <div
-                              className="px-3 py-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
-                              onClick={async () => {
-                                // Create a contextLengthExceeded message similar to token limit errors
-                                const contextMessage: Message = {
-                                  id: `context-${Date.now()}`,
-                                  role: 'assistant',
-                                  created: Math.floor(Date.now() / 1000),
-                                  content: [
-                                    {
-                                      type: 'contextLengthExceeded',
-                                      msg: 'Summarization requested due to error. Creating summary to help resolve the issue.',
-                                    },
-                                  ],
-                                  display: true,
-                                  sendToLLM: false,
-                                };
-
-                                // Add the context message to trigger ContextHandler
-                                const updatedMessages = [...messages, contextMessage];
-                                setMessages(updatedMessages);
-
-                                // Clear the error state since we're handling it with summarization
-                                clearError();
-                              }}
-                            >
-                              Summarize Conversation
-                            </div>
-                            <div
-                              className="px-3 py-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
-                              onClick={async () => {
-                                // Find the last user message
-                                const lastUserMessage = messages.reduceRight(
-                                  (found, m) => found || (m.role === 'user' ? m : null),
-                                  null as Message | null
-                                );
-                                if (lastUserMessage) {
-                                  append(lastUserMessage);
-                                }
-                              }}
-                            >
-                              Retry Last Message
-                            </div>
+                          <div
+                            className="px-3 py-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
+                            onClick={async () => {
+                              // Find the last user message
+                              const lastUserMessage = messages.reduceRight(
+                                (found, m) => found || (m.role === 'user' ? m : null),
+                                null as Message | null
+                              );
+                              if (lastUserMessage) {
+                                append(lastUserMessage);
+                              }
+                            }}
+                          >
+                            Retry Last Message
                           </div>
                         </div>
-                      </>
-                    )}
-
-                  {/* Token limit errors should be handled by ContextHandler, not shown here */}
-                  {error &&
-                    (error as Error & { isTokenLimitError?: boolean }).isTokenLimitError && <></>}
+                      </div>
+                    </>
+                  )}
                   <div className="block h-8" />
                 </>
               ) : showPopularTopics ? (
