@@ -60,6 +60,23 @@ impl Provider for MockProvider {
         ))
     }
 
+    async fn complete_with_model(
+        &self,
+        _model_config: &ModelConfig,
+        _system: &str,
+        _messages: &[Message],
+        _tools: &[Tool],
+    ) -> Result<(Message, ProviderUsage), ProviderError> {
+        // Return a simple mock response
+        Ok((
+            Message::assistant().with_text("Mock response"),
+            ProviderUsage::new(
+                "mock-model".to_string(),
+                Usage::new(Some(10), Some(20), Some(30)),
+            ),
+        ))
+    }
+
     fn get_model_config(&self) -> ModelConfig {
         self.model_config.clone()
     }
