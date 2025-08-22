@@ -51,7 +51,7 @@ There may be (but not always) some tools mentioned in the instructions which you
 `;
 
 // Helper function to substitute parameters in text
-const substituteParameters = (text: string, params: Record<string, string>): string => {
+export const substituteParameters = (text: string, params: Record<string, string>): string => {
   let substitutedText = text;
 
   for (const key in params) {

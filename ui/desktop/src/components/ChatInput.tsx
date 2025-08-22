@@ -288,17 +288,34 @@ export default function ChatInput({
     setHasUserTyped(false);
   }, [initialValue]); // Keep only initialValue as a dependency
 
+  // Track if we've already set the recipe prompt to avoid re-setting it
+  const hasSetRecipePromptRef = useRef(false);
+
   // Handle recipe prompt updates
   useEffect(() => {
-    // If recipe is accepted and we have an initial prompt, and no messages yet, set the prompt
-    if (recipeAccepted && initialPrompt && messages.length === 0 && !displayValue.trim()) {
+    // If recipe is accepted and we have an initial prompt, and no messages yet, and we haven't set it before
+    if (
+      recipeAccepted &&
+      initialPrompt &&
+      messages.length === 0 &&
+      !hasSetRecipePromptRef.current
+    ) {
       setDisplayValue(initialPrompt);
       setValue(initialPrompt);
+      hasSetRecipePromptRef.current = true;
       setTimeout(() => {
         textAreaRef.current?.focus();
       }, 0);
     }
-  }, [recipeAccepted, initialPrompt, messages.length, displayValue]);
+    // we don't need hasSetRecipePromptRef in the dependency array because it is a ref that persists across renders
+  }, [recipeAccepted, initialPrompt, messages.length]);
+
+  // Reset the recipe prompt flag when the recipe changes or messages are added
+  useEffect(() => {
+    if (messages.length > 0 || !recipeAccepted || !initialPrompt) {
+      hasSetRecipePromptRef.current = false;
+    }
+  }, [recipeAccepted, initialPrompt, messages.length]);
 
   // Draft functionality - load draft if no initial value or recipe
   useEffect(() => {
