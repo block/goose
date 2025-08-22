@@ -25,7 +25,7 @@ fn validate_data_param(params: &Value, allow_array: bool) -> Result<Value, Error
             None,
         )
     })?;
-    
+
     if data_value.is_string() {
         return Err(ErrorData::new(
             ErrorCode::INVALID_PARAMS,
@@ -33,7 +33,7 @@ fn validate_data_param(params: &Value, allow_array: bool) -> Result<Value, Error
             None,
         ));
     }
-    
+
     if allow_array {
         if !data_value.is_object() && !data_value.is_array() {
             return Err(ErrorData::new(
@@ -49,7 +49,7 @@ fn validate_data_param(params: &Value, allow_array: bool) -> Result<Value, Error
             None,
         ));
     }
-    
+
     Ok(data_value.clone())
 }
 
@@ -825,7 +825,7 @@ impl AutoVisualiserRouter {
 
     async fn render_map(&self, params: Value) -> Result<Vec<Content>, ErrorData> {
         let data = validate_data_param(&params, false)?;
-        
+
         // Extract title and subtitle from data if provided
         let title = data
             .get("title")
@@ -849,7 +849,8 @@ impl AutoVisualiserRouter {
         const TEMPLATE: &str = include_str!("templates/map_template.html");
         const LEAFLET_JS: &str = include_str!("templates/assets/leaflet.min.js");
         const LEAFLET_CSS: &str = include_str!("templates/assets/leaflet.min.css");
-        const MARKERCLUSTER_JS: &str = include_str!("templates/assets/leaflet.markercluster.min.js");
+        const MARKERCLUSTER_JS: &str =
+            include_str!("templates/assets/leaflet.markercluster.min.js");
 
         // Replace all placeholders with actual content
         let html_content = TEMPLATE
@@ -1015,8 +1016,8 @@ impl Router for AutoVisualiserRouter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
     use rmcp::model::RawContent;
+    use serde_json::json;
 
     #[test]
     fn test_validate_data_param_rejects_string() {
@@ -1024,13 +1025,15 @@ mod tests {
         let params = json!({
             "data": "{\"labels\": [\"A\", \"B\"], \"matrix\": [[0, 1], [1, 0]]}"
         });
-        
+
         let result = validate_data_param(&params, false);
         assert!(result.is_err());
-        
+
         let err = result.unwrap_err();
         assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
-        assert!(err.message.contains("must be a JSON object, not a JSON string"));
+        assert!(err
+            .message
+            .contains("must be a JSON object, not a JSON string"));
         assert!(err.message.contains("without comments"));
     }
 
@@ -1043,10 +1046,10 @@ mod tests {
                 "matrix": [[0, 1], [1, 0]]
             }
         });
-        
+
         let result = validate_data_param(&params, false);
         assert!(result.is_ok());
-        
+
         let data = result.unwrap();
         assert!(data.is_object());
         assert_eq!(data["labels"][0], "A");
@@ -1061,10 +1064,10 @@ mod tests {
                 {"label": "B", "value": 20}
             ]
         });
-        
+
         let result = validate_data_param(&params, false);
         assert!(result.is_err());
-        
+
         let err = result.unwrap_err();
         assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
         assert!(err.message.contains("must be a JSON object"));
@@ -1079,10 +1082,10 @@ mod tests {
                 {"label": "B", "value": 20}
             ]
         });
-        
+
         let result = validate_data_param(&params, true);
         assert!(result.is_ok());
-        
+
         let data = result.unwrap();
         assert!(data.is_array());
         assert_eq!(data[0]["label"], "A");
@@ -1094,10 +1097,10 @@ mod tests {
         let params = json!({
             "other": "value"
         });
-        
+
         let result = validate_data_param(&params, false);
         assert!(result.is_err());
-        
+
         let err = result.unwrap_err();
         assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
         assert!(err.message.contains("Missing 'data' parameter"));
@@ -1109,21 +1112,21 @@ mod tests {
         let params_number = json!({
             "data": 42
         });
-        
+
         let result = validate_data_param(&params_number, false);
         assert!(result.is_err());
-        
+
         let params_bool = json!({
             "data": true
         });
-        
+
         let result = validate_data_param(&params_bool, false);
         assert!(result.is_err());
-        
+
         let params_null = json!({
             "data": null
         });
-        
+
         let result = validate_data_param(&params_null, false);
         assert!(result.is_err());
     }
@@ -1140,10 +1143,10 @@ mod tests {
                 ]
             }"#
         });
-        
+
         let result = validate_data_param(&params, false);
         assert!(result.is_err());
-        
+
         let err = result.unwrap_err();
         assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
         assert!(err.message.contains("not a JSON string"));
@@ -1159,7 +1162,7 @@ mod tests {
                 "links": [{"source": "A", "target": "B", "value": 10}]
             }
         });
-        
+
         let result = router.render_sankey(params).await;
         assert!(result.is_ok());
         let content = result.unwrap();
@@ -1172,7 +1175,9 @@ mod tests {
         // Check it's a resource with HTML content
         // Content is Annotated<RawContent>, deref to get RawContent
         if let RawContent::Resource(resource) = &**&content[0] {
-            if let ResourceContents::BlobResourceContents { uri, mime_type, .. } = &resource.resource {
+            if let ResourceContents::BlobResourceContents { uri, mime_type, .. } =
+                &resource.resource
+            {
                 assert_eq!(uri, "ui://sankey/diagram");
                 assert_eq!(mime_type.as_ref().unwrap(), "text/html");
             } else {
@@ -1194,12 +1199,12 @@ mod tests {
                 ]
             }
         });
-        
+
         let result = router.render_radar(params).await;
         assert!(result.is_ok());
         let content = result.unwrap();
         assert_eq!(content.len(), 1);
-        
+
         // Check the audience is set to User
         assert!(content[0].audience().is_some());
         assert_eq!(content[0].audience().unwrap(), &vec![Role::User]);
@@ -1207,7 +1212,12 @@ mod tests {
         // Check it's a resource with HTML content
         // Content is Annotated<RawContent>, deref to get RawContent
         if let RawContent::Resource(resource) = &**&content[0] {
-            if let ResourceContents::BlobResourceContents { uri, mime_type, blob } = &resource.resource {
+            if let ResourceContents::BlobResourceContents {
+                uri,
+                mime_type,
+                blob,
+            } = &resource.resource
+            {
                 assert_eq!(uri, "ui://radar/chart");
                 assert_eq!(mime_type.as_ref().unwrap(), "text/html");
                 assert!(!blob.is_empty(), "HTML content should not be empty");
@@ -1228,12 +1238,12 @@ mod tests {
                 "values": [30, 40, 30]
             }
         });
-        
+
         let result = router.render_donut(params).await;
         assert!(result.is_ok());
         let content = result.unwrap();
         assert_eq!(content.len(), 1);
-        
+
         // Check the audience is set to User
         assert!(content[0].audience().is_some());
         assert_eq!(content[0].audience().unwrap(), &vec![Role::User]);
@@ -1251,12 +1261,12 @@ mod tests {
                 ]
             }
         });
-        
+
         let result = router.render_treemap(params).await;
         assert!(result.is_ok());
         let content = result.unwrap();
         assert_eq!(content.len(), 1);
-        
+
         // Check the audience is set to User
         assert!(content[0].audience().is_some());
         assert_eq!(content[0].audience().unwrap(), &vec![Role::User]);
@@ -1271,12 +1281,12 @@ mod tests {
                 "matrix": [[0, 10, 5], [10, 0, 15], [5, 15, 0]]
             }
         });
-        
+
         let result = router.render_chord(params).await;
         assert!(result.is_ok());
         let content = result.unwrap();
         assert_eq!(content.len(), 1);
-        
+
         // Check the audience is set to User
         assert!(content[0].audience().is_some());
         assert_eq!(content[0].audience().unwrap(), &vec![Role::User]);
@@ -1296,12 +1306,12 @@ mod tests {
                 ]
             }
         });
-        
+
         let result = router.render_map(params).await;
         assert!(result.is_ok());
         let content = result.unwrap();
         assert_eq!(content.len(), 1);
-        
+
         // Check the audience is set to User
         assert!(content[0].audience().is_some());
         assert_eq!(content[0].audience().unwrap(), &vec![Role::User]);
@@ -1324,7 +1334,7 @@ mod tests {
                 ]
             }
         });
-        
+
         let result = router.show_chart(params).await;
         if let Err(e) = &result {
             eprintln!("Error in test_show_chart: {:?}", e);
@@ -1332,7 +1342,7 @@ mod tests {
         assert!(result.is_ok());
         let content = result.unwrap();
         assert_eq!(content.len(), 1);
-        
+
         // Check the audience is set to User
         assert!(content[0].audience().is_some());
         assert_eq!(content[0].audience().unwrap(), &vec![Role::User]);
