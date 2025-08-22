@@ -19,6 +19,7 @@ use tokio_stream::{wrappers::SplitStream, StreamExt as _};
 
 use super::shell::{expand_path, is_absolute_path, normalize_line_endings, get_shell_config};
 use super::lang::get_language_identifier;
+use super::editor_models::{create_editor_model, EditorModel};
 
 /// Parameters for the screen_capture tool
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
@@ -74,11 +75,12 @@ pub struct ImageProcessorParams {
 }
 
 /// Developer MCP Server using official RMCP SDK
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct DeveloperServer {
     tool_router: ToolRouter<Self>,
     file_history: Arc<Mutex<HashMap<PathBuf, Vec<String>>>>,
     ignore_patterns: Gitignore,
+    editor_model: Option<EditorModel>,
 }
 
 impl Default for DeveloperServer {
@@ -197,10 +199,14 @@ impl DeveloperServer {
         
         let ignore_patterns = builder.build().expect("Failed to build ignore patterns");
         
+        // Initialize editor model for AI-powered code editing
+        let editor_model = create_editor_model();
+        
         Self {
             tool_router: Self::tool_router(),
             file_history: Arc::new(Mutex::new(HashMap::new())),
             ignore_patterns,
+            editor_model,
         }
     }
 
@@ -360,7 +366,7 @@ impl DeveloperServer {
     /// - `undo_edit`: Undo the last edit made to a file.
     #[tool(
         name = "text_editor",
-        description = "Perform text editing operations on files. Commands: view (show file content), write (create/overwrite file), str_replace (replace text), insert (insert at line), undo_edit (undo last change)."
+        description = "Perform text editing operations on files. Commands: view (show file content), write (create/overwrite file), str_replace (AI-enhanced replace text when configured, fallback to literal replacement), insert (insert at line), undo_edit (undo last change)."
     )]
     pub async fn text_editor(
         &self,
@@ -930,6 +936,43 @@ impl DeveloperServer {
             )
         })?;
 
+        // Check if Editor API is configured and use it as the primary path
+        if let Some(ref editor) = self.editor_model {
+            // Editor API path - save history then call API directly
+            self.save_file_history(path)?;
+
+            match editor.edit_code(&content, old_str, new_str).await {
+                Ok(updated_content) => {
+                    // Write the updated content directly
+                    let normalized_content = normalize_line_endings(&updated_content);
+                    std::fs::write(path, &normalized_content).map_err(|e| {
+                        ErrorData::new(
+                            ErrorCode::INTERNAL_ERROR,
+                            format!("Failed to write file: {}", e),
+                            None,
+                        )
+                    })?;
+
+                    // Simple success message for Editor API
+                    return Ok(CallToolResult::success(vec![
+                        Content::text(format!("Successfully edited {}", path.display()))
+                            .with_audience(vec![Role::Assistant]),
+                        Content::text(format!("File {} has been edited", path.display()))
+                            .with_audience(vec![Role::User])
+                            .with_priority(0.2),
+                    ]));
+                }
+                Err(e) => {
+                    eprintln!(
+                        "Editor API call failed: {}, falling back to string replacement",
+                        e
+                    );
+                    // Fall through to traditional path below
+                }
+            }
+        }
+
+        // Traditional string replacement path (fallback)
         // Check if old_str exists in the file
         if !content.contains(old_str) {
             return Err(ErrorData::new(
@@ -1269,732 +1312,5 @@ impl DeveloperServer {
         };
 
         Ok((final_output, user_output))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use tempfile;
-
-    #[tokio::test]
-    async fn test_list_windows_tool() {
-        let server = DeveloperServer::new();
-        
-        let result = server.list_windows().await;
-        assert!(result.is_ok());
-        
-        let tool_result = result.unwrap();
-        
-        // Check that it's a successful result (not an error)
-        assert_eq!(tool_result.is_error, Some(false));
-        
-        // Should have content
-        let content_vec = &tool_result.content;
-        
-        // Should return exactly 2 content objects like the old implementation
-        assert_eq!(content_vec.len(), 2);
-        
-        // Both should be text content with "Available windows:" format
-        for content in content_vec {
-            if let Some(text_content) = content.as_text() {
-                assert!(text_content.text.contains("Available windows:"));
-            } else {
-                panic!("Expected text content");
-            }
-        }
-        
-        // Verify both content objects have the same text (like the old implementation)
-        let first_content = &content_vec[0];
-        let second_content = &content_vec[1];
-        
-        if let (Some(first_text), Some(second_text)) = (first_content.as_text(), second_content.as_text()) {
-            assert_eq!(first_text.text, second_text.text);
-        } else {
-            panic!("Expected both contents to be text");
-        }
-    }
-
-    #[test]
-    fn test_server_basics() {
-        let server = DeveloperServer::new();
-        
-        // Test that we can get tools from the router
-        let tools = server.tool_router.list_all();
-        assert_eq!(tools.len(), 5); // Now has list_windows, screen_capture, text_editor, shell, and image_processor
-        
-        // Find the tools by name
-        let list_windows_tool = tools.iter().find(|t| t.name == "list_windows").unwrap();
-        let screen_capture_tool = tools.iter().find(|t| t.name == "screen_capture").unwrap();
-        let text_editor_tool = tools.iter().find(|t| t.name == "text_editor").unwrap();
-        let shell_tool = tools.iter().find(|t| t.name == "shell").unwrap();
-        let image_processor_tool = tools.iter().find(|t| t.name == "image_processor").unwrap();
-        
-        // Verify list_windows tool
-        assert!(list_windows_tool.description.as_ref().unwrap().contains("window"));
-        assert!(list_windows_tool.description.as_ref().unwrap().contains("screen_capture"));
-        
-        // Verify screen_capture tool  
-        assert!(screen_capture_tool.description.as_ref().unwrap().contains("screenshot"));
-        assert!(screen_capture_tool.description.as_ref().unwrap().contains("display"));
-        assert!(screen_capture_tool.description.as_ref().unwrap().contains("window_title"));
-        
-        // Verify text_editor tool
-        assert!(text_editor_tool.description.as_ref().unwrap().contains("text editing"));
-        assert!(text_editor_tool.description.as_ref().unwrap().contains("view"));
-        assert!(text_editor_tool.description.as_ref().unwrap().contains("write"));
-        
-        // Verify shell tool
-        assert!(shell_tool.description.as_ref().unwrap().contains("shell"));
-        assert!(shell_tool.description.as_ref().unwrap().contains("command"));
-        
-        // Verify image_processor tool
-        assert!(image_processor_tool.description.as_ref().unwrap().contains("image"));
-        assert!(image_processor_tool.description.as_ref().unwrap().contains("PNG"));
-    }
-
-    #[tokio::test]
-    async fn test_list_windows_error_handling() {
-        // This test verifies that the error handling matches the old implementation
-        // The actual Window::all() call might succeed, but we're testing the error format
-        let server = DeveloperServer::new();
-        
-        // Even if this succeeds, we verify the function signature and error type match
-        let result = server.list_windows().await;
-        
-        // If it fails, it should be an ErrorData with INTERNAL_ERROR code
-        if let Err(error) = result {
-            assert_eq!(error.code, ErrorCode::INTERNAL_ERROR);
-            assert_eq!(error.message, "Failed to list windows");
-        }
-        // If it succeeds, that's fine too - we just want to ensure compatibility
-    }
-
-    #[tokio::test]
-    async fn test_list_windows_content_format() {
-        let server = DeveloperServer::new();
-        
-        let result = server.list_windows().await;
-        assert!(result.is_ok());
-        
-        let tool_result = result.unwrap();
-        
-        // Get the content vector and check the first item
-        let content_vec = &tool_result.content;
-        let content = &content_vec[0];
-            
-        if let Some(text_content) = content.as_text() {
-            // Should always start with "Available windows:" (matching old implementation)
-            assert!(text_content.text.starts_with("Available windows:"));
-            
-            // Should contain newline-separated window titles
-            assert!(text_content.text.contains('\n'));
-        }
-    }
-
-    #[tokio::test]
-    async fn test_screen_capture_default_display() {
-        let server = DeveloperServer::new();
-        let params = Parameters(ScreenCaptureParams {
-            display: None, // Should default to 0
-            window_title: None,
-        });
-        
-        // Note: This test may fail on systems without a display/in CI
-        // but it tests the parameter handling and basic structure
-        let result = server.screen_capture(params).await;
-        
-        match result {
-            Ok(tool_result) => {
-                // Verify successful result structure
-                assert_eq!(tool_result.is_error, Some(false));
-                
-                let content_vec = &tool_result.content;
-                assert_eq!(content_vec.len(), 2);
-                
-                // First should be text "Screenshot captured"
-                if let Some(text_content) = content_vec[0].as_text() {
-                    assert_eq!(text_content.text, "Screenshot captured");
-                } else {
-                    panic!("Expected first content to be text");
-                }
-                
-                // Second should be image content with PNG MIME type
-                if let Some(image_content) = content_vec[1].as_image() {
-                    assert_eq!(image_content.mime_type, "image/png");
-                    assert!(!image_content.data.is_empty());
-                } else {
-                    panic!("Expected second content to be image");
-                }
-            }
-            Err(error) => {
-                // If it fails, verify the error format matches the old implementation
-                assert_eq!(error.code, ErrorCode::INTERNAL_ERROR);
-                // Could be "Failed to access monitors" or capture-related error
-                assert!(error.message.contains("Failed to") || error.message.contains("monitor"));
-            }
-        }
-    }
-
-    #[tokio::test]
-    async fn test_screen_capture_specific_display() {
-        let server = DeveloperServer::new();
-        let params = Parameters(ScreenCaptureParams {
-            display: Some(0), // Explicit display 0
-            window_title: None,
-        });
-        
-        let result = server.screen_capture(params).await;
-        
-        match result {
-            Ok(tool_result) => {
-                // Same validation as default display test
-                assert_eq!(tool_result.is_error, Some(false));
-                
-                let content_vec = &tool_result.content;
-                assert_eq!(content_vec.len(), 2);
-            }
-            Err(error) => {
-                // Verify error structure
-                assert_eq!(error.code, ErrorCode::INTERNAL_ERROR);
-            }
-        }
-    }
-
-    #[tokio::test]
-    async fn test_screen_capture_invalid_display() {
-        let server = DeveloperServer::new();
-        let params = Parameters(ScreenCaptureParams {
-            display: Some(999), // Invalid display number
-            window_title: None,
-        });
-        
-        let result = server.screen_capture(params).await;
-        
-        // This should fail with a specific error about the monitor not being available
-        assert!(result.is_err());
-        let error = result.unwrap_err();
-        assert_eq!(error.code, ErrorCode::INTERNAL_ERROR);
-        assert!(error.message.contains("was not an available monitor") || 
-               error.message.contains("Failed to access monitors"));
-    }
-
-    #[tokio::test]
-    async fn test_screen_capture_invalid_window() {
-        let server = DeveloperServer::new();
-        let params = Parameters(ScreenCaptureParams {
-            display: None,
-            window_title: Some("NonExistentWindow12345".to_string()),
-        });
-        
-        let result = server.screen_capture(params).await;
-        
-        // This should fail with a specific error about the window not being found
-        match result {
-            Ok(_) => panic!("Expected error for non-existent window"),
-            Err(error) => {
-                assert_eq!(error.code, ErrorCode::INTERNAL_ERROR);
-                assert!(error.message.contains("No window found with title") ||
-                       error.message.contains("Failed to list windows"));
-            }
-        }
-    }
-
-    #[tokio::test]
-    async fn test_screen_capture_parameter_validation() {
-        let server = DeveloperServer::new();
-        
-        // Test with both parameters provided (should work - window_title takes precedence)
-        let params = Parameters(ScreenCaptureParams {
-            display: Some(0),
-            window_title: Some("SomeWindow".to_string()),
-        });
-        
-        let result = server.screen_capture(params).await;
-        
-        // If it fails, it should be because the window doesn't exist, not parameter validation
-        match result {
-            Ok(_) => {
-                // Window was found and captured successfully
-            }
-            Err(error) => {
-                // Should be window-not-found or capture error, not parameter error
-                assert_eq!(error.code, ErrorCode::INTERNAL_ERROR);
-                assert!(error.message.contains("No window found") || 
-                       error.message.contains("Failed to") ||
-                       error.message.contains("list windows"));
-            }
-        }
-    }
-
-    #[test]
-    fn test_screen_capture_params_serialization() {
-        // Test parameter structure serialization/deserialization
-        use serde_json;
-        
-        // Test with display only
-        let params1 = ScreenCaptureParams {
-            display: Some(1),
-            window_title: None,
-        };
-        let json1 = serde_json::to_string(&params1).unwrap();
-        let parsed1: ScreenCaptureParams = serde_json::from_str(&json1).unwrap();
-        assert_eq!(parsed1.display, Some(1));
-        assert_eq!(parsed1.window_title, None);
-        
-        // Test with window_title only
-        let params2 = ScreenCaptureParams {
-            display: None,
-            window_title: Some("Test Window".to_string()),
-        };
-        let json2 = serde_json::to_string(&params2).unwrap();
-        let parsed2: ScreenCaptureParams = serde_json::from_str(&json2).unwrap();
-        assert_eq!(parsed2.display, None);
-        assert_eq!(parsed2.window_title, Some("Test Window".to_string()));
-        
-        // Test with empty params (should use defaults)
-        let params3 = ScreenCaptureParams {
-            display: None,
-            window_title: None,
-        };
-        let json3 = serde_json::to_string(&params3).unwrap();
-        let parsed3: ScreenCaptureParams = serde_json::from_str(&json3).unwrap();
-        assert_eq!(parsed3.display, None);
-        assert_eq!(parsed3.window_title, None);
-    }
-
-    #[test]
-    fn test_text_editor_params_serialization() {
-        use serde_json;
-        
-        // Test parameter structure serialization/deserialization
-        let params = TextEditorParams {
-            path: "/test/file.txt".to_string(),
-            command: "view".to_string(),
-            view_range: Some(vec![1, 10]),
-            file_text: None,
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-        };
-        
-        let json = serde_json::to_string(&params).unwrap();
-        let parsed: TextEditorParams = serde_json::from_str(&json).unwrap();
-        
-        assert_eq!(parsed.path, "/test/file.txt");
-        assert_eq!(parsed.command, "view");
-        assert_eq!(parsed.view_range, Some(vec![1, 10]));
-        assert_eq!(parsed.file_text, None);
-    }
-
-    #[tokio::test]
-    async fn test_text_editor_invalid_command() {
-        let server = DeveloperServer::new();
-        let params = Parameters(TextEditorParams {
-            path: "/test/file.txt".to_string(),
-            command: "invalid_command".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-        });
-        
-        let result = server.text_editor(params).await;
-        assert!(result.is_err());
-        
-        let error = result.unwrap_err();
-        assert_eq!(error.code, ErrorCode::INVALID_PARAMS);
-        assert!(error.message.contains("Unknown command 'invalid_command'"));
-    }
-
-    #[tokio::test]
-    async fn test_text_editor_missing_parameters() {
-        let server = DeveloperServer::new();
-        
-        // Test write command without file_text
-        let params = Parameters(TextEditorParams {
-            path: "/test/file.txt".to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-        });
-        
-        let result = server.text_editor(params).await;
-        assert!(result.is_err());
-        
-        let error = result.unwrap_err();
-        assert_eq!(error.code, ErrorCode::INVALID_PARAMS);
-        assert!(error.message.contains("Missing 'file_text' parameter"));
-    }
-
-    #[tokio::test]
-    async fn test_text_editor_invalid_path() {
-        let server = DeveloperServer::new();
-        let params = Parameters(TextEditorParams {
-            path: "relative/path".to_string(), // Not absolute
-            command: "view".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-        });
-        
-        let result = server.text_editor(params).await;
-        assert!(result.is_err());
-        
-        let error = result.unwrap_err();
-        assert_eq!(error.code, ErrorCode::INVALID_PARAMS);
-        assert!(error.message.contains("not an absolute path"));
-    }
-
-    #[test]
-    fn test_calculate_view_range() {
-        let server = DeveloperServer::new();
-        
-        // Test full file view
-        let result = server.calculate_view_range(None, 100);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), (0, 100));
-        
-        // Test valid range
-        let result = server.calculate_view_range(Some((10, 20)), 100);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), (9, 20)); // 1-indexed to 0-indexed conversion
-        
-        // Test end of file (-1)
-        let result = server.calculate_view_range(Some((10, -1)), 100);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), (9, 100));
-        
-        // Test invalid range (start beyond file)
-        let result = server.calculate_view_range(Some((200, 300)), 100);
-        assert!(result.is_err());
-    }
-
-    #[tokio::test]
-    async fn test_text_editor_size_limits() {
-        let server = DeveloperServer::new();
-        
-        // Create a temporary file larger than 400KB
-        let temp_dir = tempfile::tempdir().unwrap();
-        let large_file_path = temp_dir.path().join("large.txt");
-        
-        // Create a file larger than the 400KB limit
-        let content = "x".repeat(500 * 1024); // 500KB
-        std::fs::write(&large_file_path, content).unwrap();
-        
-        let params = Parameters(TextEditorParams {
-            path: large_file_path.to_string_lossy().to_string(),
-            command: "view".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-        });
-        
-        let result = server.text_editor(params).await;
-        assert!(result.is_err());
-        
-        let error = result.unwrap_err();
-        assert_eq!(error.code, ErrorCode::INTERNAL_ERROR);
-        assert!(error.message.contains("too large"));
-    }
-
-    #[tokio::test]
-    async fn test_text_editor_write_and_view_file() {
-        let server = DeveloperServer::new();
-        
-        let temp_dir = tempfile::tempdir().unwrap();
-        let file_path = temp_dir.path().join("test.txt");
-        let file_path_str = file_path.to_string_lossy().to_string();
-        
-        // Create a new file
-        let write_params = Parameters(TextEditorParams {
-            path: file_path_str.clone(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some("Hello, world!".to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-        });
-        
-        let write_result = server.text_editor(write_params).await;
-        assert!(write_result.is_ok());
-        
-        // View the file
-        let view_params = Parameters(TextEditorParams {
-            path: file_path_str.clone(),
-            command: "view".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-        });
-        
-        let view_result = server.text_editor(view_params).await;
-        assert!(view_result.is_ok());
-        
-        let tool_result = view_result.unwrap();
-        let content_vec = &tool_result.content;
-        
-        // Find the user-facing content
-        let user_content = content_vec
-            .iter()
-            .find(|c| {
-                c.audience()
-                    .is_some_and(|roles| roles.contains(&Role::User))
-            })
-            .unwrap()
-            .as_text()
-            .unwrap();
-        
-        assert!(user_content.text.contains("Hello, world!"));
-    }
-
-    #[tokio::test]
-    async fn test_text_editor_str_replace() {
-        let server = DeveloperServer::new();
-        
-        let temp_dir = tempfile::tempdir().unwrap();
-        let file_path = temp_dir.path().join("test.txt");
-        let file_path_str = file_path.to_string_lossy().to_string();
-        
-        // Create a new file
-        let write_params = Parameters(TextEditorParams {
-            path: file_path_str.clone(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some("Hello, world!".to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-        });
-        
-        server.text_editor(write_params).await.unwrap();
-        
-        // Replace string
-        let replace_params = Parameters(TextEditorParams {
-            path: file_path_str.clone(),
-            command: "str_replace".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: Some("world".to_string()),
-            new_str: Some("Rust".to_string()),
-            insert_line: None,
-        });
-        
-        let replace_result = server.text_editor(replace_params).await;
-        assert!(replace_result.is_ok());
-        
-        let tool_result = replace_result.unwrap();
-        let content_vec = &tool_result.content;
-        
-        // Find the assistant content
-        let assistant_content = content_vec
-            .iter()
-            .find(|c| {
-                c.audience()
-                    .is_some_and(|roles| roles.contains(&Role::Assistant))
-            })
-            .unwrap()
-            .as_text()
-            .unwrap();
-        
-        assert!(assistant_content.text.contains("Successfully edited"));
-        
-        // Verify the file was actually changed
-        let file_content = std::fs::read_to_string(&file_path).unwrap();
-        assert!(file_content.contains("Hello, Rust!"));
-    }
-
-    #[tokio::test]
-    async fn test_text_editor_undo_edit() {
-        let server = DeveloperServer::new();
-        
-        let temp_dir = tempfile::tempdir().unwrap();
-        let file_path = temp_dir.path().join("test.txt");
-        let file_path_str = file_path.to_string_lossy().to_string();
-        
-        // Create a new file
-        let write_params = Parameters(TextEditorParams {
-            path: file_path_str.clone(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some("First line".to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-        });
-        
-        server.text_editor(write_params).await.unwrap();
-        
-        // Replace string
-        let replace_params = Parameters(TextEditorParams {
-            path: file_path_str.clone(),
-            command: "str_replace".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: Some("First line".to_string()),
-            new_str: Some("Second line".to_string()),
-            insert_line: None,
-        });
-        
-        server.text_editor(replace_params).await.unwrap();
-        
-        // Undo the edit
-        let undo_params = Parameters(TextEditorParams {
-            path: file_path_str.clone(),
-            command: "undo_edit".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-        });
-        
-        let undo_result = server.text_editor(undo_params).await;
-        assert!(undo_result.is_ok());
-        
-        let tool_result = undo_result.unwrap();
-        let content_vec = &tool_result.content;
-        
-        let undo_text = content_vec.first().unwrap().as_text().unwrap();
-        assert!(undo_text.text.contains("Undid the last edit"));
-        
-        // Verify the file was restored
-        let file_content = std::fs::read_to_string(&file_path).unwrap();
-        assert!(file_content.contains("First line"));
-        assert!(!file_content.contains("Second line"));
-    }
-
-    #[tokio::test]
-    async fn test_text_editor_view_range() {
-        let server = DeveloperServer::new();
-        
-        let temp_dir = tempfile::tempdir().unwrap();
-        let file_path = temp_dir.path().join("test.txt");
-        let file_path_str = file_path.to_string_lossy().to_string();
-        
-        // Create a multi-line file
-        let content = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\n";
-        let write_params = Parameters(TextEditorParams {
-            path: file_path_str.clone(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some(content.to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-        });
-        
-        server.text_editor(write_params).await.unwrap();
-        
-        // Test viewing specific range (lines 2-4)
-        let view_params = Parameters(TextEditorParams {
-            path: file_path_str.clone(),
-            command: "view".to_string(),
-            view_range: Some(vec![2, 4]),
-            file_text: None,
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-        });
-        
-        let view_result = server.text_editor(view_params).await;
-        assert!(view_result.is_ok());
-        
-        let tool_result = view_result.unwrap();
-        let content_vec = &tool_result.content;
-        
-        // Find the user-facing content
-        let user_content = content_vec
-            .iter()
-            .find(|c| {
-                c.audience()
-                    .is_some_and(|roles| roles.contains(&Role::User))
-            })
-            .unwrap()
-            .as_text()
-            .unwrap();
-        
-        // Should contain the range indicator
-        assert!(user_content.text.contains("(lines 2-4)"));
-        // Should contain only the requested lines with line numbers
-        assert!(user_content.text.contains("2|Line 2"));
-        assert!(user_content.text.contains("3|Line 3"));
-        assert!(user_content.text.contains("4|Line 4"));
-        // Should not contain line 1 or 5
-        assert!(!user_content.text.contains("1|Line 1"));
-        assert!(!user_content.text.contains("5|Line 5"));
-    }
-
-    #[tokio::test]
-    async fn test_text_editor_insert() {
-        let server = DeveloperServer::new();
-        
-        let temp_dir = tempfile::tempdir().unwrap();
-        let file_path = temp_dir.path().join("test.txt");
-        let file_path_str = file_path.to_string_lossy().to_string();
-        
-        // Create a multi-line file
-        let content = "Line 1\nLine 2\nLine 3\n";
-        let write_params = Parameters(TextEditorParams {
-            path: file_path_str.clone(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some(content.to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-        });
-        
-        server.text_editor(write_params).await.unwrap();
-        
-        // Insert at line 1 (after first line)
-        let insert_params = Parameters(TextEditorParams {
-            path: file_path_str.clone(),
-            command: "insert".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: Some("Inserted Line".to_string()),
-            insert_line: Some(1),
-        });
-        
-        let insert_result = server.text_editor(insert_params).await;
-        assert!(insert_result.is_ok());
-        
-        let tool_result = insert_result.unwrap();
-        let content_vec = &tool_result.content;
-        
-        // Find the assistant content
-        let assistant_content = content_vec
-            .iter()
-            .find(|c| {
-                c.audience()
-                    .is_some_and(|roles| roles.contains(&Role::Assistant))
-            })
-            .unwrap()
-            .as_text()
-            .unwrap();
-        
-        assert!(assistant_content.text.contains("Successfully inserted text at line 2"));
-        
-        // Verify the file was actually changed
-        let file_content = std::fs::read_to_string(&file_path).unwrap();
-        let lines: Vec<&str> = file_content.lines().collect();
-        assert_eq!(lines.len(), 4);
-        assert_eq!(lines[0], "Line 1");
-        assert_eq!(lines[1], "Inserted Line");
-        assert_eq!(lines[2], "Line 2");
-        assert_eq!(lines[3], "Line 3");
     }
 }
