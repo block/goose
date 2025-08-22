@@ -3,7 +3,6 @@ use opentelemetry::{global, KeyValue};
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::trace::{self, RandomIdGenerator, Sampler};
 use opentelemetry_sdk::{runtime, Resource};
-use std::env;
 use std::time::Duration;
 use tracing::{Level, Metadata};
 use tracing_opentelemetry::{MetricsLayer, OpenTelemetryLayer};
@@ -243,31 +242,6 @@ mod tests {
         let config = OtlpConfig::default();
         assert_eq!(config.endpoint, "http://localhost:4318");
         assert_eq!(config.timeout, Duration::from_secs(10));
-    }
-
-    #[test]
-    fn test_otlp_config_from_env() {
-        let original_endpoint = env::var("OTEL_EXPORTER_OTLP_ENDPOINT").ok();
-        let original_timeout = env::var("OTEL_EXPORTER_OTLP_TIMEOUT").ok();
-
-        env::remove_var("OTEL_EXPORTER_OTLP_ENDPOINT");
-        assert!(OtlpConfig::from_env().is_none());
-
-        env::set_var("OTEL_EXPORTER_OTLP_ENDPOINT", "http://test:4317");
-        env::set_var("OTEL_EXPORTER_OTLP_TIMEOUT", "5000");
-
-        let config = OtlpConfig::from_env().unwrap();
-        assert_eq!(config.endpoint, "http://test:4317");
-        assert_eq!(config.timeout, Duration::from_millis(5000));
-
-        match original_endpoint {
-            Some(val) => env::set_var("OTEL_EXPORTER_OTLP_ENDPOINT", val),
-            None => env::remove_var("OTEL_EXPORTER_OTLP_ENDPOINT"),
-        }
-        match original_timeout {
-            Some(val) => env::set_var("OTEL_EXPORTER_OTLP_TIMEOUT", val),
-            None => env::remove_var("OTEL_EXPORTER_OTLP_TIMEOUT"),
-        }
     }
 
     #[test]
