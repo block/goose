@@ -42,7 +42,7 @@ async fn test_todo_write_and_read() {
     };
 
     let (_, write_result) = agent
-        .dispatch_tool_call(write_call, "test-write-1".to_string(), None)
+        .dispatch_tool_call(write_call, "test-write-1".to_string(), None, None)
         .await;
     assert!(write_result.is_ok(), "Write should succeed");
 
@@ -53,7 +53,7 @@ async fn test_todo_write_and_read() {
     };
 
     let (_, read_result) = agent
-        .dispatch_tool_call(read_call, "test-read-1".to_string(), None)
+        .dispatch_tool_call(read_call, "test-read-1".to_string(), None, None)
         .await;
     assert!(read_result.is_ok(), "Read should succeed");
 
@@ -83,7 +83,7 @@ async fn test_todo_empty_initially() {
     };
 
     let (_, read_result) = agent
-        .dispatch_tool_call(read_call, "test-read-empty".to_string(), None)
+        .dispatch_tool_call(read_call, "test-read-empty".to_string(), None, None)
         .await;
     assert!(read_result.is_ok(), "Read should succeed even when empty");
 
@@ -115,7 +115,7 @@ async fn test_todo_overwrite() {
         }),
     };
     let (_, write_result1) = agent
-        .dispatch_tool_call(write_call1, "test-write-1".to_string(), None)
+        .dispatch_tool_call(write_call1, "test-write-1".to_string(), None, None)
         .await;
     assert!(write_result1.is_ok(), "First write should succeed");
 
@@ -127,7 +127,7 @@ async fn test_todo_overwrite() {
         }),
     };
     let (_, write_result2) = agent
-        .dispatch_tool_call(write_call2, "test-write-2".to_string(), None)
+        .dispatch_tool_call(write_call2, "test-write-2".to_string(), None, None)
         .await;
     assert!(write_result2.is_ok(), "Second write should succeed");
 
@@ -138,7 +138,7 @@ async fn test_todo_overwrite() {
     };
 
     let (_, read_result) = agent
-        .dispatch_tool_call(read_call, "test-read-2".to_string(), None)
+        .dispatch_tool_call(read_call, "test-read-2".to_string(), None, None)
         .await;
 
     if let Ok(result) = read_result {
@@ -172,7 +172,7 @@ async fn test_todo_concurrent_access() {
                 }),
             };
             agent_clone
-                .dispatch_tool_call(write_call, format!("concurrent-{}", i), None)
+                .dispatch_tool_call(write_call, format!("concurrent-{}", i), None, None)
                 .await
         });
         handles.push(handle);
@@ -190,7 +190,7 @@ async fn test_todo_concurrent_access() {
     };
 
     let (_, read_result) = agent
-        .dispatch_tool_call(read_call, "final-read".to_string(), None)
+        .dispatch_tool_call(read_call, "final-read".to_string(), None, None)
         .await;
 
     if let Ok(result) = read_result {
@@ -227,7 +227,7 @@ async fn test_todo_large_content() {
     };
 
     let (_, write_result) = agent
-        .dispatch_tool_call(write_call, "large-write".to_string(), None)
+        .dispatch_tool_call(write_call, "large-write".to_string(), None, None)
         .await;
 
     // Should fail because it exceeds the 50,000 character limit
@@ -258,7 +258,7 @@ async fn test_todo_large_content() {
     };
 
     let (_, write_result) = agent
-        .dispatch_tool_call(write_call, "valid-write".to_string(), None)
+        .dispatch_tool_call(write_call, "valid-write".to_string(), None, None)
         .await;
     assert!(write_result.is_ok(), "Should handle content within limit");
 
@@ -269,7 +269,7 @@ async fn test_todo_large_content() {
     };
 
     let (_, read_result) = agent
-        .dispatch_tool_call(read_call, "valid-read".to_string(), None)
+        .dispatch_tool_call(read_call, "valid-read".to_string(), None, None)
         .await;
 
     if let Ok(result) = read_result {
@@ -305,7 +305,7 @@ async fn test_todo_unicode_content() {
     };
 
     let (_, write_result) = agent
-        .dispatch_tool_call(write_call, "unicode-write".to_string(), None)
+        .dispatch_tool_call(write_call, "unicode-write".to_string(), None, None)
         .await;
     assert!(write_result.is_ok(), "Write should succeed");
 
@@ -315,7 +315,7 @@ async fn test_todo_unicode_content() {
     };
 
     let (_, read_result) = agent
-        .dispatch_tool_call(read_call, "unicode-read".to_string(), None)
+        .dispatch_tool_call(read_call, "unicode-read".to_string(), None, None)
         .await;
 
     if let Ok(result) = read_result {
@@ -349,7 +349,7 @@ async fn test_todo_character_limit_enforcement() {
     };
 
     let (_, result) = agent
-        .dispatch_tool_call(write_call, "test-limit".to_string(), None)
+        .dispatch_tool_call(write_call, "test-limit".to_string(), None, None)
         .await;
 
     // Should fail with error
@@ -395,7 +395,7 @@ async fn test_todo_character_count_in_write_response() {
     };
 
     let (_, result) = agent
-        .dispatch_tool_call(write_call, "test-count".to_string(), None)
+        .dispatch_tool_call(write_call, "test-count".to_string(), None, None)
         .await;
 
     assert!(result.is_ok());
@@ -424,7 +424,7 @@ async fn test_todo_read_returns_clean_content() {
     };
 
     let (_, write_result) = agent
-        .dispatch_tool_call(write_call, "test-write".to_string(), None)
+        .dispatch_tool_call(write_call, "test-write".to_string(), None, None)
         .await;
     assert!(write_result.is_ok(), "Write should succeed");
 
@@ -435,7 +435,7 @@ async fn test_todo_read_returns_clean_content() {
     };
 
     let (_, result) = agent
-        .dispatch_tool_call(read_call, "test-read".to_string(), None)
+        .dispatch_tool_call(read_call, "test-read".to_string(), None, None)
         .await;
 
     assert!(result.is_ok());
@@ -469,7 +469,7 @@ async fn test_todo_unlimited_with_zero_limit() {
     };
 
     let (_, result) = agent
-        .dispatch_tool_call(write_call, "test-unlimited".to_string(), None)
+        .dispatch_tool_call(write_call, "test-unlimited".to_string(), None, None)
         .await;
 
     // Should succeed
@@ -497,7 +497,7 @@ async fn test_todo_unicode_character_counting() {
     };
 
     let (_, result) = agent
-        .dispatch_tool_call(write_call, "test-unicode".to_string(), None)
+        .dispatch_tool_call(write_call, "test-unicode".to_string(), None, None)
         .await;
 
     // Should fail as it's 11 chars

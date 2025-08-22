@@ -1510,8 +1510,19 @@ impl Session {
         match self.get_metadata() {
             Ok(metadata) => {
                 let total_tokens = metadata.total_tokens.unwrap_or(0) as usize;
+                let subagent_tokens = metadata
+                    .accumulated_total_tokens_subagent_only
+                    .map(|t| t as usize);
+                let total_session_tokens = metadata
+                    .accumulated_total_tokens_with_subagents
+                    .map(|t| t as usize);
 
-                output::display_context_usage(total_tokens, context_limit);
+                output::display_context_usage(
+                    total_tokens,
+                    context_limit,
+                    subagent_tokens,
+                    total_session_tokens,
+                );
 
                 if show_cost {
                     let input_tokens = metadata.input_tokens.unwrap_or(0) as usize;
@@ -1526,7 +1537,7 @@ impl Session {
                 }
             }
             Err(_) => {
-                output::display_context_usage(0, context_limit);
+                output::display_context_usage(0, context_limit, None, None);
             }
         }
 

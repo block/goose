@@ -1,3 +1,4 @@
+use crate::agents::types::SessionConfig;
 use crate::providers::base::Provider;
 use std::env;
 use std::fmt;
@@ -16,6 +17,7 @@ pub struct TaskConfig {
     pub id: String,
     pub provider: Option<Arc<dyn Provider>>,
     pub max_turns: Option<usize>,
+    pub session_config: Option<SessionConfig>,
 }
 
 impl fmt::Debug for TaskConfig {
@@ -24,6 +26,7 @@ impl fmt::Debug for TaskConfig {
             .field("id", &self.id)
             .field("provider", &"<dyn Provider>")
             .field("max_turns", &self.max_turns)
+            .field("session_config", &self.session_config)
             .finish()
     }
 }
@@ -40,6 +43,25 @@ impl TaskConfig {
                     .and_then(|val| val.parse::<usize>().ok())
                     .unwrap_or(DEFAULT_SUBAGENT_MAX_TURNS),
             ),
+            session_config: None,
+        }
+    }
+
+    /// Create a new TaskConfig with session config for token tracking
+    pub fn new_with_session(
+        provider: Option<Arc<dyn Provider>>,
+        session_config: Option<SessionConfig>,
+    ) -> Self {
+        Self {
+            id: Uuid::new_v4().to_string(),
+            provider,
+            max_turns: Some(
+                env::var(GOOSE_SUBAGENT_MAX_TURNS_ENV_VAR)
+                    .ok()
+                    .and_then(|val| val.parse::<usize>().ok())
+                    .unwrap_or(DEFAULT_SUBAGENT_MAX_TURNS),
+            ),
+            session_config,
         }
     }
 

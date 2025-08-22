@@ -724,7 +724,12 @@ pub fn display_greeting() {
 }
 
 /// Display context window usage with both current and session totals
-pub fn display_context_usage(total_tokens: usize, context_limit: usize) {
+pub fn display_context_usage(
+    total_tokens: usize,
+    context_limit: usize,
+    subagent_tokens: Option<usize>,
+    total_session_tokens: Option<usize>,
+) {
     use console::style;
 
     if context_limit == 0 {
@@ -760,6 +765,22 @@ pub fn display_context_usage(total_tokens: usize, context_limit: usize) {
         "Context: {} {}% ({}/{} tokens)",
         colored_dots, percentage, total_tokens, context_limit
     );
+
+    // Display subagent token information if available
+    if let (Some(subagent_tokens), Some(total_session_tokens)) =
+        (subagent_tokens, total_session_tokens)
+    {
+        if subagent_tokens > 0 && total_session_tokens > 0 {
+            let subagent_percentage =
+                ((subagent_tokens as f64 / total_session_tokens as f64) * 100.0).round() as usize;
+            println!(
+                "Session: {} subagent tokens ({}% of {} total session tokens)",
+                style(subagent_tokens.to_string()).cyan(),
+                style(subagent_percentage.to_string()).cyan(),
+                total_session_tokens
+            );
+        }
+    }
 }
 
 fn normalize_model_name(model: &str) -> String {

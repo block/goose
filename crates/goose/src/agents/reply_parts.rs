@@ -325,6 +325,12 @@ impl Agent {
             usage.usage.output_tokens,
         );
 
+        // Update combined totals: accumulated_total_tokens_with_subagents = accumulated_total_tokens + accumulated_total_tokens_subagent_only
+        metadata.accumulated_total_tokens_with_subagents = accumulate(
+            metadata.accumulated_total_tokens,
+            metadata.accumulated_total_tokens_subagent_only,
+        );
+
         session::storage::update_metadata(&session_file_path, &metadata).await?;
 
         Ok(())

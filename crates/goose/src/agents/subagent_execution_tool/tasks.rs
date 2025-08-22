@@ -8,7 +8,6 @@ use tokio_util::sync::CancellationToken;
 use crate::agents::subagent_execution_tool::task_execution_tracker::TaskExecutionTracker;
 use crate::agents::subagent_execution_tool::task_types::{Task, TaskResult, TaskStatus};
 use crate::agents::subagent_execution_tool::utils::strip_ansi_codes;
-use crate::agents::subagent_handler::run_complete_subagent_task;
 use crate::agents::subagent_task_config::TaskConfig;
 
 pub async fn process_task(
@@ -89,7 +88,11 @@ async fn handle_text_instruction_task(
     task_execution_tracker.start_task(&task.id).await;
 
     let result = tokio::select! {
-        result = run_complete_subagent_task(text_instruction.to_string(), task_config) => result,
+        result = crate::agents::subagent_handler::run_complete_subagent_task_with_session(
+            text_instruction.to_string(),
+            task_config.clone(),
+            task_config.session_config.clone()
+        ) => result,
         _ = cancellation_token.cancelled() => {
             return Err("Task cancelled".to_string());
         }

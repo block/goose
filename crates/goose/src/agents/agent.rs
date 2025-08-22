@@ -292,6 +292,7 @@ impl Agent {
         permission_check_result: &PermissionCheckResult,
         message_tool_response: Arc<Mutex<Message>>,
         cancel_token: Option<tokio_util::sync::CancellationToken>,
+        session_config: Option<&SessionConfig>,
     ) -> Result<Vec<(String, ToolStream)>> {
         let mut tool_futures: Vec<(String, ToolStream)> = Vec::new();
 
@@ -299,7 +300,12 @@ impl Agent {
         for request in &permission_check_result.approved {
             if let Ok(tool_call) = request.tool_call.clone() {
                 let (req_id, tool_result) = self
-                    .dispatch_tool_call(tool_call, request.id.clone(), cancel_token.clone())
+                    .dispatch_tool_call(
+                        tool_call,
+                        request.id.clone(),
+                        cancel_token.clone(),
+                        session_config,
+                    )
                     .await;
 
                 tool_futures.push((
@@ -379,6 +385,7 @@ impl Agent {
         tool_call: mcp_core::tool::ToolCall,
         request_id: String,
         cancellation_token: Option<CancellationToken>,
+        session_config: Option<&SessionConfig>,
     ) -> (String, Result<ToolCallResult, ErrorData>) {
         // Check if this tool call should be allowed based on repetition monitoring
         if let Some(monitor) = self.tool_monitor.lock().await.as_mut() {
@@ -451,7 +458,7 @@ impl Agent {
         } else if tool_call.name == SUBAGENT_EXECUTE_TASK_TOOL_NAME {
             let provider = self.provider().await.ok();
 
-            let task_config = TaskConfig::new(provider);
+            let task_config = TaskConfig::new_with_session(provider, session_config.cloned());
             subagent_execute_task_tool::run_tasks(
                 tool_call.arguments.clone(),
                 task_config,
@@ -1090,7 +1097,8 @@ impl Agent {
                                     let mut tool_futures = self.handle_approved_and_denied_tools(
                                         &permission_check_result,
                                         message_tool_response.clone(),
-                                        cancel_token.clone()
+                                        cancel_token.clone(),
+                                        session.as_ref()
                                     ).await?;
 
                                     let tool_futures_arc = Arc::new(Mutex::new(tool_futures));
@@ -1102,6 +1110,7 @@ impl Agent {
                                         &mut permission_manager,
                                         message_tool_response.clone(),
                                         cancel_token.clone(),
+                                        session.as_ref(),
                                     );
 
                                     while let Some(msg) = tool_approval_stream.try_next().await? {

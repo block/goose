@@ -1,5 +1,6 @@
 use crate::agents::subagent::SubAgent;
 use crate::agents::subagent_task_config::TaskConfig;
+use crate::agents::types::SessionConfig;
 use anyhow::Result;
 use rmcp::model::{ErrorCode, ErrorData};
 
@@ -7,6 +8,15 @@ use rmcp::model::{ErrorCode, ErrorData};
 pub async fn run_complete_subagent_task(
     text_instruction: String,
     task_config: TaskConfig,
+) -> Result<String, anyhow::Error> {
+    run_complete_subagent_task_with_session(text_instruction, task_config, None).await
+}
+
+/// Standalone function to run a complete subagent task with optional session tracking
+pub async fn run_complete_subagent_task_with_session(
+    text_instruction: String,
+    task_config: TaskConfig,
+    session_config: Option<SessionConfig>,
 ) -> Result<String, anyhow::Error> {
     // Create the subagent with the parent agent's provider
     let subagent = SubAgent::new(task_config.clone()).await.map_err(|e| {
@@ -19,7 +29,7 @@ pub async fn run_complete_subagent_task(
 
     // Execute the subagent task
     let messages = subagent
-        .reply_subagent(text_instruction, task_config)
+        .reply_subagent(text_instruction, task_config, session_config)
         .await?;
 
     // Extract all text content from all messages

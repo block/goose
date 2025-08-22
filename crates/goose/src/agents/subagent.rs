@@ -108,6 +108,7 @@ impl SubAgent {
         &self,
         message: String,
         task_config: TaskConfig,
+        session_config: Option<crate::agents::types::SessionConfig>,
     ) -> Result<Conversation, anyhow::Error> {
         debug!("Processing message for subagent {}", self.id);
 
@@ -166,7 +167,7 @@ impl SubAgent {
             )
             .await
             {
-                Ok((response, _usage)) => {
+                Ok((response, usage)) => {
                     // Process any tool calls in the response
                     let tool_requests: Vec<ToolRequest> = response
                         .content
@@ -185,6 +186,19 @@ impl SubAgent {
                         self.add_message(response.clone()).await;
                         messages.push(response.clone());
 
+                        // Track subagent token usage if session config is provided
+                        if let Some(ref session_config) = session_config {
+                            if let Err(e) =
+                                crate::session::storage::update_session_metrics_subagent(
+                                    session_config,
+                                    &usage,
+                                )
+                                .await
+                            {
+                                debug!("Failed to update subagent token metrics: {}", e);
+                            }
+                        }
+
                         // Set status back to ready
                         self.set_status(SubAgentStatus::Completed("Completed!".to_string()))
                             .await;
@@ -193,6 +207,18 @@ impl SubAgent {
 
                     // Add the assistant message with tool calls to the conversation
                     messages.push(response.clone());
+
+                    // Track subagent token usage for intermediate responses if session config is provided
+                    if let Some(ref session_config) = session_config {
+                        if let Err(e) = crate::session::storage::update_session_metrics_subagent(
+                            session_config,
+                            &usage,
+                        )
+                        .await
+                        {
+                            debug!("Failed to update subagent token metrics: {}", e);
+                        }
+                    }
 
                     // Process each tool request and create user response messages
                     for request in &tool_requests {
