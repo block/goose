@@ -484,7 +484,7 @@ impl Agent {
                 None,
             )))
         } else if tool_call.name == TODO_READ_TOOL_NAME {
-            // Handle task planner read tool - session-scoped
+            // Handle task planner read tool
             let session_file_path = if let Some(session_config) = session {
                 session::storage::get_path(session_config.id.clone()).ok()
             } else {
@@ -502,7 +502,7 @@ impl Agent {
 
             ToolCallResult::from(Ok(vec![Content::text(todo_content)]))
         } else if tool_call.name == TODO_WRITE_TOOL_NAME {
-            // Handle task planner write tool - session-scoped
+            // Handle task planner write tool
             let content = tool_call
                 .arguments
                 .get("content")
