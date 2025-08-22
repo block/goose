@@ -27,7 +27,6 @@ import { COST_TRACKING_ENABLED } from '../updates';
 import { CostTracker } from './bottom_menu/CostTracker';
 import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
 import { Recipe } from '../recipe';
-import { QueueStorage } from '../utils/queueStorage';
 import MessageQueue from './MessageQueue';
 import { detectInterruption } from '../utils/interruptionDetector';
 
@@ -117,32 +116,11 @@ export default function ChatInput({
   const isLoading = chatState !== ChatState.Idle;
   const wasLoadingRef = useRef(isLoading);
 
-  // Queue functionality - initialize from storage
-  const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>(() => {
-    // Load queue from storage on component mount
-    return QueueStorage.loadQueue();
-  });
-  const queuePausedRef = useRef(
-    (() => {
-      // Load pause state from storage
-      try {
-        const stored = window.sessionStorage.getItem('goose-queue-paused');
-        return stored ? JSON.parse(stored) : false;
-      } catch {
-        return false;
-      }
-    })()
-  );
+  // Queue functionality - ephemeral, only exists in memory for this chat instance
+  const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
+  const queuePausedRef = useRef(false);
   const editingMessageIdRef = useRef<string | null>(null);
-  const [lastInterruption, setLastInterruption] = useState<string | null>(() => {
-    // Load interruption state from storage
-    try {
-      const stored = window.sessionStorage.getItem('goose-queue-interruption');
-      return stored ? JSON.parse(stored) : null;
-    } catch {
-      return null;
-    }
-  });
+  const [lastInterruption, setLastInterruption] = useState<string | null>(null);
 
   const { alerts, addAlert, clearAlerts } = useAlerts();
   const dropdownRef: React.RefObject<HTMLDivElement> = useRef<HTMLDivElement>(
@@ -164,11 +142,6 @@ export default function ChatInput({
   useEffect(() => {
     // Debug logging removed - draft functionality is working correctly
   }, [chatContext?.contextKey, chatContext?.draft, chatContext]);
-
-  // Save queue to storage whenever it changes
-  useEffect(() => {
-    QueueStorage.saveQueue(queuedMessages);
-  }, [queuedMessages]);
 
   // Save queue state (paused/interrupted) to storage
   useEffect(() => {
@@ -1131,29 +1104,25 @@ export default function ChatInput({
   const isAnyImageLoading = pastedImages.some((img) => img.isLoading);
   const isAnyDroppedFileLoading = allDroppedFiles.some((file) => file.isLoading);
 
-  // Queue management functions
+  // Queue management functions - no storage persistence, only in-memory
   const handleRemoveQueuedMessage = (messageId: string) => {
     setQueuedMessages((prev) => prev.filter((msg) => msg.id !== messageId));
-    QueueStorage.removeMessage(messageId);
   };
 
   const handleClearQueue = () => {
     setQueuedMessages([]);
     queuePausedRef.current = false;
     setLastInterruption(null);
-    QueueStorage.clearQueue();
   };
 
   const handleReorderMessages = (reorderedMessages: QueuedMessage[]) => {
     setQueuedMessages(reorderedMessages);
-    QueueStorage.reorderQueue(reorderedMessages);
   };
 
   const handleEditMessage = (messageId: string, newContent: string) => {
     setQueuedMessages((prev) =>
       prev.map((msg) => (msg.id === messageId ? { ...msg, content: newContent } : msg))
     );
-    QueueStorage.updateMessage(messageId, newContent);
   };
 
   const handleStopAndSend = (messageId: string) => {
