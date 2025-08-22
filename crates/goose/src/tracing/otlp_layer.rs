@@ -31,47 +31,24 @@ impl Default for OtlpConfig {
 }
 
 impl OtlpConfig {
-    pub fn from_env() -> Option<Self> {
-        // First check environment variable
-        if let Ok(endpoint) = env::var("OTEL_EXPORTER_OTLP_ENDPOINT") {
-            let mut config = Self {
-                endpoint,
-                timeout: Duration::from_secs(10),
-            };
-
-            if let Ok(timeout_str) = env::var("OTEL_EXPORTER_OTLP_TIMEOUT") {
-                if let Ok(timeout_ms) = timeout_str.parse::<u64>() {
-                    config.timeout = Duration::from_millis(timeout_ms);
-                }
-            }
-
-            Some(config)
-        } else {
-            None
-        }
-    }
-
     pub fn from_config() -> Option<Self> {
-        // Try to get from Goose config system (which also checks env vars)
+        // Try to get from Goose config system (which checks env vars first, then config file)
         let config = crate::config::Config::global();
         
-        // Try to get the endpoint from config
-        if let Ok(endpoint) = config.get_param::<String>("otel_exporter_otlp_endpoint") {
-            let mut otlp_config = Self {
-                endpoint,
-                timeout: Duration::from_secs(10),
-            };
+        // Try to get the endpoint from config (checks OTEL_EXPORTER_OTLP_ENDPOINT env var first)
+        let endpoint = config.get_param::<String>("otel_exporter_otlp_endpoint").ok()?;
+        
+        let mut otlp_config = Self {
+            endpoint,
+            timeout: Duration::from_secs(10),
+        };
 
-            // Try to get timeout from config
-            if let Ok(timeout_ms) = config.get_param::<u64>("otel_exporter_otlp_timeout") {
-                otlp_config.timeout = Duration::from_millis(timeout_ms);
-            }
-
-            Some(otlp_config)
-        } else {
-            // Fall back to checking env directly
-            Self::from_env()
+        // Try to get timeout from config (checks OTEL_EXPORTER_OTLP_TIMEOUT env var first)
+        if let Ok(timeout_ms) = config.get_param::<u64>("otel_exporter_otlp_timeout") {
+            otlp_config.timeout = Duration::from_millis(timeout_ms);
         }
+
+        Some(otlp_config)
     }
 }
 
