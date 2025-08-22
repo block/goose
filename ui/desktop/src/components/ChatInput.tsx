@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useMemo } from 'react';
+import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import { FolderKey, ScrollText } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
 import { Button } from './ui/button';
@@ -84,6 +84,7 @@ interface ChatInputProps {
   recipeConfig?: Recipe | null;
   recipeAccepted?: boolean;
   initialPrompt?: string;
+  autoSubmit: boolean;
 }
 
 export default function ChatInput({
@@ -106,6 +107,7 @@ export default function ChatInput({
   recipeConfig,
   recipeAccepted,
   initialPrompt,
+  autoSubmit = false,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -358,6 +360,7 @@ export default function ChatInput({
   const [hasUserTyped, setHasUserTyped] = useState(false);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const timeoutRefsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  const [didAutoSubmit, setDidAutoSubmit] = useState<boolean>(false);
 
   // Use shared file drop hook for ChatInput
   const {
@@ -368,7 +371,10 @@ export default function ChatInput({
   } = useFileDrop();
 
   // Merge local dropped files with parent dropped files
-  const allDroppedFiles = [...droppedFiles, ...localDroppedFiles];
+  const allDroppedFiles = useMemo(
+    () => [...droppedFiles, ...localDroppedFiles],
+    [droppedFiles, localDroppedFiles]
+  );
 
   const handleRemoveDroppedFile = (idToRemove: string) => {
     // Remove from local dropped files
@@ -937,69 +943,89 @@ export default function ChatInput({
     return true; // Return true if message was queued
   };
 
-  const performSubmit = () => {
-    const validPastedImageFilesPaths = pastedImages
-      .filter((img) => img.filePath && !img.error && !img.isLoading)
-      .map((img) => img.filePath as string);
+  const performSubmit = useCallback(
+    (text?: string) => {
+      const validPastedImageFilesPaths = pastedImages
+        .filter((img) => img.filePath && !img.error && !img.isLoading)
+        .map((img) => img.filePath as string);
+      // Get paths from all dropped files (both parent and local)
+      const droppedFilePaths = allDroppedFiles
+        .filter((file) => !file.error && !file.isLoading)
+        .map((file) => file.path);
 
-    // Get paths from all dropped files (both parent and local)
-    const droppedFilePaths = allDroppedFiles
-      .filter((file) => !file.error && !file.isLoading)
-      .map((file) => file.path);
+      let textToSend = text ?? displayValue.trim();
 
-    let textToSend = displayValue.trim();
+      // Combine pasted images and dropped files
+      const allFilePaths = [...validPastedImageFilesPaths, ...droppedFilePaths];
+      if (allFilePaths.length > 0) {
+        const pathsString = allFilePaths.join(' ');
+        textToSend = textToSend ? `${textToSend} ${pathsString}` : pathsString;
+      }
 
-    // Combine pasted images and dropped files
-    const allFilePaths = [...validPastedImageFilesPaths, ...droppedFilePaths];
-    if (allFilePaths.length > 0) {
-      const pathsString = allFilePaths.join(' ');
-      textToSend = textToSend ? `${textToSend} ${pathsString}` : pathsString;
+      if (textToSend) {
+        if (displayValue.trim()) {
+          LocalMessageStorage.addMessage(displayValue);
+        } else if (allFilePaths.length > 0) {
+          LocalMessageStorage.addMessage(allFilePaths.join(' '));
+        }
+
+        handleSubmit(
+          new CustomEvent('submit', { detail: { value: textToSend } }) as unknown as React.FormEvent
+        );
+
+        // Auto-resume queue after sending a NON-interruption message (if it was paused due to interruption)
+        if (
+          queuePausedRef.current &&
+          lastInterruption &&
+          textToSend &&
+          !detectInterruption(textToSend)
+        ) {
+          queuePausedRef.current = false;
+          setLastInterruption(null);
+        }
+
+        setDisplayValue('');
+        setValue('');
+        setPastedImages([]);
+        setHistoryIndex(-1);
+        setSavedInput('');
+        setIsInGlobalHistory(false);
+        setHasUserTyped(false);
+
+        // Clear draft when message is sent
+        if (chatContext && chatContext.clearDraft) {
+          chatContext.clearDraft();
+        }
+
+        // Clear both parent and local dropped files after processing
+        if (onFilesProcessed && droppedFiles.length > 0) {
+          onFilesProcessed();
+        }
+        if (localDroppedFiles.length > 0) {
+          setLocalDroppedFiles([]);
+        }
+      }
+    },
+    [
+      allDroppedFiles,
+      chatContext,
+      displayValue,
+      droppedFiles.length,
+      handleSubmit,
+      lastInterruption,
+      localDroppedFiles.length,
+      onFilesProcessed,
+      pastedImages,
+      setLocalDroppedFiles,
+    ]
+  );
+
+  useEffect(() => {
+    if (!!autoSubmit && !didAutoSubmit) {
+      setDidAutoSubmit(true);
+      performSubmit(initialValue);
     }
-
-    if (textToSend) {
-      if (displayValue.trim()) {
-        LocalMessageStorage.addMessage(displayValue);
-      } else if (allFilePaths.length > 0) {
-        LocalMessageStorage.addMessage(allFilePaths.join(' '));
-      }
-
-      handleSubmit(
-        new CustomEvent('submit', { detail: { value: textToSend } }) as unknown as React.FormEvent
-      );
-
-      // Auto-resume queue after sending a NON-interruption message (if it was paused due to interruption)
-      if (
-        queuePausedRef.current &&
-        lastInterruption &&
-        textToSend &&
-        !detectInterruption(textToSend)
-      ) {
-        queuePausedRef.current = false;
-        setLastInterruption(null);
-      }
-
-      setDisplayValue('');
-      setValue('');
-      setPastedImages([]);
-      setHistoryIndex(-1);
-      setSavedInput('');
-      setIsInGlobalHistory(false);
-      setHasUserTyped(false);
-
-      // Clear draft when message is sent
-      if (chatContext && chatContext.clearDraft) {
-        chatContext.clearDraft();
-      }
-
-      // Clear both parent and local dropped files after processing
-      if (onFilesProcessed && droppedFiles.length > 0) {
-        onFilesProcessed();
-      }
-      if (localDroppedFiles.length > 0) {
-        setLocalDroppedFiles([]);
-      }
-    }
-  };
+  }, [autoSubmit, didAutoSubmit, initialValue, performSubmit]);
 
   const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // If mention popover is open, handle arrow keys and enter
