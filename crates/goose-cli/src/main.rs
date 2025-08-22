@@ -10,11 +10,11 @@ async fn main() -> Result<()> {
     let result = cli().await;
 
     // Only wait for telemetry flush if OTLP is configured (check both env and config)
-    let should_wait = std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").is_ok() || 
-        goose::config::Config::global()
+    let should_wait = std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").is_ok()
+        || goose::config::Config::global()
             .get_param::<String>("otel_exporter_otlp_endpoint")
             .is_ok();
-    
+
     if should_wait {
         // Use a shorter, dynamic wait with max timeout
         let max_wait = tokio::time::Duration::from_millis(500);
