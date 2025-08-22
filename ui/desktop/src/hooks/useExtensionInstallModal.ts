@@ -11,7 +11,6 @@ import {
   ExtensionInstallResult,
 } from '../types/extension';
 
-// Helper functions extracted from App.tsx
 function extractCommand(link: string): string {
   const url = new URL(link);
   const cmd = url.searchParams.get('cmd') || 'Unknown Command';
@@ -39,31 +38,32 @@ export const useExtensionInstallModal = (
 
   const determineModalType = async (
     command: string,
-    remoteUrl: string | null
+    _remoteUrl: string | null
   ): Promise<ModalType> => {
-    // Remote URLs are always treated as untrusted (for now)
-    if (remoteUrl) {
-      return 'untrusted';
-    }
-
     try {
       const config = window.electron.getConfig();
-      const STRICT_ALLOWLIST = config.GOOSE_ALLOWLIST_WARNING !== true;
+      const ALLOWLIST_WARNING_MODE = config.GOOSE_ALLOWLIST_WARNING === true;
+
+      // If warning mode is enabled, always show warning but allow installation
+      if (ALLOWLIST_WARNING_MODE) {
+        return 'untrusted';
+      }
 
       const allowedCommands = await window.electron.getAllowedExtensions();
-      if (allowedCommands && allowedCommands.length > 0) {
-        const isCommandAllowed = allowedCommands.some((allowedCmd: string) =>
-          command.startsWith(allowedCmd)
-        );
 
-        if (!isCommandAllowed) {
-          return STRICT_ALLOWLIST ? 'blocked' : 'untrusted';
-        }
+      // If no allowlist configured
+      if (!allowedCommands || allowedCommands.length === 0) {
+        return 'trusted';
       }
-      return 'trusted';
+
+      const isCommandAllowed = allowedCommands.some((allowedCmd: string) =>
+        command.startsWith(allowedCmd)
+      );
+
+      return isCommandAllowed ? 'trusted' : 'blocked';
     } catch (error) {
       console.error('Error checking allowlist:', error);
-      return 'trusted'; // Default to trusted if we can't check
+      return 'trusted';
     }
   };
 
@@ -77,7 +77,7 @@ export const useExtensionInstallModal = (
       case 'blocked':
         return {
           title: 'Extension Installation Blocked',
-          message: `This extension cannot be installed because it is not on your organization's approved list.\n\nExtension: ${name}\nCommand: ${command || remoteUrl}\n\nContact your administrator to request approval for this extension.`,
+          message: `⛔️ BLOCKED: This extension command is not in the allowed list. Installation is blocked by your administrator.\n\nExtension: ${name}\nCommand: ${command || remoteUrl}\n\nContact your administrator to request approval for this extension.`,
           confirmLabel: 'OK',
           cancelLabel: '',
           showSingleButton: true,
@@ -85,13 +85,11 @@ export const useExtensionInstallModal = (
         };
 
       case 'untrusted': {
-        const securityMessage = remoteUrl
-          ? `This extension connects to a remote service and is not on your organization's approved list.`
-          : `This extension is not on your organization's approved list and may pose security risks.`;
+        const securityMessage = `⚠️ WARNING: This extension command is not in the allowed list. Installing extensions from untrusted sources may pose security risks. Please contact an admin if you are unsure or want to allow this extension.`;
 
         return {
           title: 'Install Untrusted Extension?',
-          message: `${securityMessage}\n\nExtension: ${name}\n${remoteUrl ? `URL: ${remoteUrl}` : `Command: ${command}`}\n\nThis extension will be able to access your conversations and provide additional functionality.\n\nOnly install if you trust the source. Contact your administrator if unsure.`,
+          message: `${securityMessage}\n\nExtension: ${name}\n${remoteUrl ? `URL: ${remoteUrl}` : `Command: ${command}`}\n\nThis extension will be able to access your conversations and provide additional functionality.`,
           confirmLabel: 'Install Anyway',
           cancelLabel: 'Cancel',
           showSingleButton: false,
@@ -137,7 +135,6 @@ export const useExtensionInstallModal = (
         error: null,
       });
 
-      // Set pending link for installation (null if blocked)
       setPendingLink(modalType === 'blocked' ? null : link);
 
       window.electron.logInfo(`Extension modal opened: ${modalType} for ${extName}`);
@@ -171,13 +168,10 @@ export const useExtensionInstallModal = (
     try {
       console.log(`Confirming installation of extension from: ${pendingLink}`);
 
-      // Close modal immediately
       dismissModal();
 
-      // Process the extension installation using existing deep link handler
       if (addExtension) {
         await addExtensionFromDeepLink(pendingLink, addExtension, () => {
-          // Navigation callback - for now just log
           console.log('Extension installation completed, navigating to extensions');
         });
       } else {
@@ -204,7 +198,6 @@ export const useExtensionInstallModal = (
     return generateModalConfig(modalState.modalType, modalState.extensionInfo);
   };
 
-  // Set up electron event listener
   useEffect(() => {
     console.log('Setting up extension install modal handler');
 
