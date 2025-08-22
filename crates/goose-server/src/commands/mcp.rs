@@ -1,9 +1,8 @@
 use anyhow::{anyhow, Result};
-use goose_mcp::{
-    AutoVisualiserRouter, ComputerControllerRouter, DeveloperRouter, MemoryRouter, TutorialRouter,
-};
+use goose_mcp::{AutoVisualiserRouter, ComputerControllerRouter, DeveloperRouter, DeveloperServer, MemoryRouter, TutorialRouter};
 use mcp_server::router::RouterService;
 use mcp_server::{BoundedService, ByteTransport, Server};
+use rmcp::{transport::stdio, ServiceExt};
 use tokio::io::{stdin, stdout};
 
 pub async fn run(name: &str) -> Result<()> {
@@ -16,6 +15,15 @@ pub async fn run(name: &str) -> Result<()> {
     }
 
     tracing::info!("Starting MCP server");
+
+    if name == "rmcp_developer" {
+        let service = DeveloperServer::new().serve(stdio()).await.inspect_err(|e| {
+            tracing::error!("serving error: {:?}", e);
+        })?;
+    
+        service.waiting().await?;
+        return Ok(());
+    }
     let router: Option<Box<dyn BoundedService>> = match name {
         "developer" => Some(Box::new(RouterService(DeveloperRouter::new()))),
         "computercontroller" => Some(Box::new(RouterService(ComputerControllerRouter::new()))),

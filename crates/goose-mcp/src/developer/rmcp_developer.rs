@@ -158,7 +158,7 @@ impl ServerHandler for DeveloperServer {
         };
 
         ServerInfo {
-            capabilities: ServerCapabilities::default(),
+            capabilities: ServerCapabilities::builder().enable_tools().build(),
             instructions: Some(instructions),
             ..Default::default()
         }
