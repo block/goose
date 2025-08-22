@@ -942,13 +942,17 @@ impl Session {
                             if let Some(MessageContent::ToolConfirmationRequest(confirmation)) = message.content.first() {
                                 output::hide_thinking();
 
+                                // Display security message if present
+                                if let Some(security_message) = &confirmation.prompt {
+                                    println!("\n{}", security_message);
+                                }
+
                                 // Format the confirmation prompt
                                 let prompt = "Goose would like to call the above tool, do you allow?".to_string();
 
                                 // Get confirmation from user
                                 let permission_result = cliclack::select(prompt)
-                                    .item(Permission::AllowOnce, "Allow", "Allow the tool call once")
-                                    .item(Permission::AlwaysAllow, "Always Allow", "Always allow the tool call")
+                                    .item(Permission::AllowOnce, "Allow Once", "Allow the tool call once")
                                     .item(Permission::DenyOnce, "Deny", "Deny the tool call")
                                     .item(Permission::Cancel, "Cancel", "Cancel the AI response and tool call")
                                     .interact();

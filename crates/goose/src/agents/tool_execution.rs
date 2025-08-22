@@ -54,15 +54,27 @@ impl Agent {
         permission_manager: &'a mut PermissionManager,
         message_tool_response: Arc<Mutex<Message>>,
         cancellation_token: Option<CancellationToken>,
+        inspection_results: &'a [crate::tool_inspection::InspectionResult],
     ) -> BoxStream<'a, anyhow::Result<Message>> {
         try_stream! {
-            for request in tool_requests {
+            for (_i, request) in tool_requests.iter().enumerate() {
                 if let Ok(tool_call) = request.tool_call.clone() {
+                    // Find the corresponding inspection result for this tool request
+                    let security_message = inspection_results.iter()
+                        .find(|result| result.tool_request_id == request.id)
+                        .and_then(|result| {
+                            if let crate::tool_inspection::InspectionAction::RequireApproval(Some(message)) = &result.action {
+                                Some(message.clone())
+                            } else {
+                                None
+                            }
+                        });
+
                     let confirmation = Message::user().with_tool_confirmation_request(
                         request.id.clone(),
                         tool_call.name.clone(),
                         tool_call.arguments.clone(),
-                        Some("Goose would like to call the above tool. Allow? (y/n):".to_string()),
+                        security_message,
                     );
                     yield confirmation;
 

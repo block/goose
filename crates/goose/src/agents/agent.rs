@@ -40,7 +40,9 @@ use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
 use crate::scheduler_trait::SchedulerTrait;
+use crate::security::inspector::SecurityInspector;
 use crate::session;
+use crate::tool_inspection::{apply_inspection_results_to_permissions, ToolInspectionManager};
 use crate::tool_monitor::{ToolCall, ToolMonitor};
 use crate::utils::is_token_cancelled;
 use mcp_core::ToolResult;
@@ -104,6 +106,7 @@ pub struct Agent {
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
     pub(super) retry_manager: RetryManager,
     pub(super) todo_list: Arc<Mutex<String>>,
+    pub(super) tool_inspection_manager: ToolInspectionManager,
 }
 
 #[derive(Clone, Debug)]
@@ -172,6 +175,15 @@ impl Agent {
         let tool_monitor = Arc::new(Mutex::new(None));
         let retry_manager = RetryManager::with_tool_monitor(tool_monitor.clone());
 
+        // Initialize tool inspection manager with default inspectors
+        let mut tool_inspection_manager = ToolInspectionManager::new();
+        
+        // Add security inspector
+        tool_inspection_manager.add_inspector(Box::new(SecurityInspector::new()));
+        
+        // Add repetition inspector (will be configured later via configure_tool_monitor)
+        tool_inspection_manager.add_inspector(Box::new(ToolMonitor::new(None)));
+
         Self {
             provider: Mutex::new(None),
             extension_manager: ExtensionManager::new(),
@@ -190,6 +202,7 @@ impl Agent {
             scheduler_service: Mutex::new(None),
             retry_manager,
             todo_list: Arc::new(Mutex::new(String::new())),
+            tool_inspection_manager,
         }
     }
 
@@ -1077,7 +1090,7 @@ impl Agent {
                                     }
                                 } else {
                                     let mut permission_manager = PermissionManager::default();
-                                    let (permission_check_result, enable_extension_request_ids) =
+                                    let (mut permission_check_result, enable_extension_request_ids) =
                                         check_tool_permissions(
                                             &remaining_requests,
                                             &mode,
@@ -1086,6 +1099,23 @@ impl Agent {
                                             &mut permission_manager,
                                             self.provider().await?,
                                         ).await;
+
+                                    // Run all tool inspectors (security, repetition, etc.)
+                                    let inspection_results = self.tool_inspection_manager
+                                        .inspect_tools(
+                                            &remaining_requests,
+                                            messages.messages(),
+                                            Some(self.provider().await?),
+                                        )
+                                        .await?;
+
+                                    // Apply inspection results to permission check results
+                                    if !inspection_results.is_empty() {
+                                        permission_check_result = apply_inspection_results_to_permissions(
+                                            permission_check_result,
+                                            &inspection_results,
+                                        );
+                                    }
 
                                     let mut tool_futures = self.handle_approved_and_denied_tools(
                                         &permission_check_result,
@@ -1102,6 +1132,7 @@ impl Agent {
                                         &mut permission_manager,
                                         message_tool_response.clone(),
                                         cancel_token.clone(),
+                                        &inspection_results,
                                     );
 
                                     while let Some(msg) = tool_approval_stream.try_next().await? {

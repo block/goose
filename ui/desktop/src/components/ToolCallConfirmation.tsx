@@ -5,7 +5,6 @@ import { ChevronRight } from 'lucide-react';
 import { confirmPermission } from '../api';
 import { Button } from './ui/button';
 
-const ALWAYS_ALLOW = 'always_allow';
 const ALLOW_ONCE = 'allow_once';
 const DENY = 'deny';
 
@@ -25,6 +24,7 @@ interface ToolConfirmationProps {
   isClicked: boolean;
   toolConfirmationId: string;
   toolName: string;
+  prompt?: string;
 }
 
 export default function ToolConfirmation({
@@ -32,6 +32,7 @@ export default function ToolConfirmation({
   isClicked,
   toolConfirmationId,
   toolName,
+  prompt,
 }: ToolConfirmationProps) {
   // Check if we have a stored state for this tool confirmation
   const storedState = toolConfirmationState.get(toolConfirmationId);
@@ -73,9 +74,7 @@ export default function ToolConfirmation({
     const newStatus = action;
     let newActionDisplay = '';
 
-    if (action === ALWAYS_ALLOW) {
-      newActionDisplay = 'always allowed';
-    } else if (action === ALLOW_ONCE) {
+    if (action === ALLOW_ONCE) {
       newActionDisplay = 'allowed once';
     } else {
       newActionDisplay = 'denied';
@@ -120,24 +119,19 @@ export default function ToolConfirmation({
     </div>
   ) : (
     <>
+      {/* Display security message if present */}
+      {prompt && (
+        <div className="goose-message-content bg-yellow-50 border border-yellow-200 rounded-2xl px-4 py-2 mb-2 text-textStandard">
+          {prompt}
+        </div>
+      )}
+
       <div className="goose-message-content bg-background-muted rounded-2xl px-4 py-2 rounded-b-none text-textStandard">
         Goose would like to call the above tool. Allow?
       </div>
       {clicked ? (
         <div className="goose-message-tool bg-background-default border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-2 pb-2 flex items-center justify-between">
           <div className="flex items-center">
-            {status === 'always_allow' && (
-              <svg
-                className="w-5 h-5 text-gray-500"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
-            )}
             {status === 'allow_once' && (
               <svg
                 className="w-5 h-5 text-gray-500"
@@ -188,9 +182,6 @@ export default function ToolConfirmation({
         </div>
       ) : (
         <div className="goose-message-tool bg-background-default border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-2 pb-2 flex gap-2 items-center">
-          <Button className="rounded-full" onClick={() => handleButtonClick(ALWAYS_ALLOW)}>
-            Always Allow
-          </Button>
           <Button
             className="rounded-full"
             variant="secondary"
