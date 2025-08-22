@@ -1,6 +1,6 @@
 use rmcp::{
     handler::server::{router::tool::ToolRouter, tool::Parameters},
-    model::{Content, Role, CallToolResult, ErrorData, ErrorCode},
+    model::{Content, Role, CallToolResult, ErrorData, ErrorCode, ServerInfo, ServerCapabilities},
     schemars::JsonSchema,
     tool, tool_handler, tool_router, ServerHandler,
 };
@@ -10,8 +10,7 @@ use base64::Engine;
 use xcap::{Monitor, Window};
 use indoc::formatdoc;
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
-use mcp_core::protocol::{InitializeResult, Implementation, ServerCapabilities};
-use mcp_server::router::{Router, CapabilitiesBuilder};
+
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
     process::Command,
@@ -89,7 +88,82 @@ impl Default for DeveloperServer {
 }
 
 #[tool_handler(router = self.tool_router)]
-impl ServerHandler for DeveloperServer {}
+impl ServerHandler for DeveloperServer {
+    fn get_info(&self) -> ServerInfo {
+        // Get base instructions and working directory
+        let cwd = std::env::current_dir().expect("should have a current working dir");
+        let os = std::env::consts::OS;
+
+        let base_instructions = match os {
+            "windows" => formatdoc! {r#"
+                The developer extension gives you the capabilities to edit code files and run shell commands,
+                and can be used to solve a wide range of problems.
+
+                You can use the shell tool to run Windows commands (PowerShell or CMD).
+                When using paths, you can use either backslashes or forward slashes.
+
+                Use the shell tool as needed to locate files or interact with the project.
+
+                Your windows/screen tools can be used for visual debugging. You should not use these tools unless
+                prompted to, but you can mention they are available if they are relevant.
+
+                operating system: {os}
+                current directory: {cwd}
+
+                "#,
+                os=os,
+                cwd=cwd.to_string_lossy(),
+            },
+            _ => formatdoc! {r#"
+                The developer extension gives you the capabilities to edit code files and run shell commands,
+                and can be used to solve a wide range of problems.
+
+            You can use the shell tool to run any command that would work on the relevant operating system.
+            Use the shell tool as needed to locate files or interact with the project.
+
+            Your windows/screen tools can be used for visual debugging. You should not use these tools unless
+            prompted to, but you can mention they are available if they are relevant.
+
+            operating system: {os}
+            current directory: {cwd}
+
+                "#,
+                os=os,
+                cwd=cwd.to_string_lossy(),
+            },
+        };
+
+        let hints_filenames: Vec<String> = std::env::var("CONTEXT_FILE_NAMES")
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_else(|| vec!["AGENTS.md".to_string(), ".goosehints".to_string()]);
+
+        let mut hints = String::new();
+        for filename in hints_filenames {
+            let hints_path = cwd.join(&filename);
+            if hints_path.exists() && hints_path.is_file() {
+                if let Ok(content) = std::fs::read_to_string(&hints_path) {
+                    if !content.trim().is_empty() {
+                        hints.push_str(&format!("\n{filename}:\n{content}\n"));
+                    }
+                }
+            }
+        }
+
+        // Return base instructions directly when no hints are found
+        let instructions = if hints.is_empty() {
+            base_instructions
+        } else {
+            format!("{base_instructions}\n{hints}")
+        };
+
+        ServerInfo {
+            capabilities: ServerCapabilities::default(),
+            instructions: Some(instructions),
+            ..Default::default()
+        }
+    }
+}
 
 #[tool_router(router = tool_router)]
 impl DeveloperServer {
@@ -1215,20 +1289,14 @@ mod tests {
         // Check that it's a successful result (not an error)
         assert_eq!(tool_result.is_error, Some(false));
         
-        // Verify that validation passes
-        assert!(tool_result.validate().is_ok());
-        
-        // Should have content (not structured_content)
-        assert!(tool_result.content.is_some());
-        assert!(tool_result.structured_content.is_none());
-        
-        let content_vec = tool_result.content.unwrap();
+        // Should have content
+        let content_vec = &tool_result.content;
         
         // Should return exactly 2 content objects like the old implementation
         assert_eq!(content_vec.len(), 2);
         
         // Both should be text content with "Available windows:" format
-        for content in &content_vec {
+        for content in content_vec {
             if let Some(text_content) = content.as_text() {
                 assert!(text_content.text.contains("Available windows:"));
             } else {
@@ -1312,18 +1380,15 @@ mod tests {
         let tool_result = result.unwrap();
         
         // Get the content vector and check the first item
-        if let Some(content_vec) = &tool_result.content {
-            let content = &content_vec[0];
+        let content_vec = &tool_result.content;
+        let content = &content_vec[0];
             
-            if let Some(text_content) = content.as_text() {
-                // Should always start with "Available windows:" (matching old implementation)
-                assert!(text_content.text.starts_with("Available windows:"));
-                
-                // Should contain newline-separated window titles
-                assert!(text_content.text.contains('\n'));
-            }
-        } else {
-            panic!("Expected content to be present");
+        if let Some(text_content) = content.as_text() {
+            // Should always start with "Available windows:" (matching old implementation)
+            assert!(text_content.text.starts_with("Available windows:"));
+            
+            // Should contain newline-separated window titles
+            assert!(text_content.text.contains('\n'));
         }
     }
 
@@ -1343,10 +1408,8 @@ mod tests {
             Ok(tool_result) => {
                 // Verify successful result structure
                 assert_eq!(tool_result.is_error, Some(false));
-                assert!(tool_result.validate().is_ok());
-                assert!(tool_result.content.is_some());
                 
-                let content_vec = tool_result.content.unwrap();
+                let content_vec = &tool_result.content;
                 assert_eq!(content_vec.len(), 2);
                 
                 // First should be text "Screenshot captured"
@@ -1387,9 +1450,8 @@ mod tests {
             Ok(tool_result) => {
                 // Same validation as default display test
                 assert_eq!(tool_result.is_error, Some(false));
-                assert!(tool_result.validate().is_ok());
                 
-                let content_vec = tool_result.content.unwrap();
+                let content_vec = &tool_result.content;
                 assert_eq!(content_vec.len(), 2);
             }
             Err(error) => {
@@ -1681,8 +1743,7 @@ mod tests {
         assert!(view_result.is_ok());
         
         let tool_result = view_result.unwrap();
-        assert!(tool_result.content.is_some());
-        let content_vec = tool_result.content.unwrap();
+        let content_vec = &tool_result.content;
         
         // Find the user-facing content
         let user_content = content_vec
@@ -1734,8 +1795,7 @@ mod tests {
         assert!(replace_result.is_ok());
         
         let tool_result = replace_result.unwrap();
-        assert!(tool_result.content.is_some());
-        let content_vec = tool_result.content.unwrap();
+        let content_vec = &tool_result.content;
         
         // Find the assistant content
         let assistant_content = content_vec
@@ -1804,8 +1864,7 @@ mod tests {
         assert!(undo_result.is_ok());
         
         let tool_result = undo_result.unwrap();
-        assert!(tool_result.content.is_some());
-        let content_vec = tool_result.content.unwrap();
+        let content_vec = &tool_result.content;
         
         let undo_text = content_vec.first().unwrap().as_text().unwrap();
         assert!(undo_text.text.contains("Undid the last edit"));
@@ -1853,8 +1912,7 @@ mod tests {
         assert!(view_result.is_ok());
         
         let tool_result = view_result.unwrap();
-        assert!(tool_result.content.is_some());
-        let content_vec = tool_result.content.unwrap();
+        let content_vec = &tool_result.content;
         
         // Find the user-facing content
         let user_content = content_vec
@@ -1915,8 +1973,7 @@ mod tests {
         assert!(insert_result.is_ok());
         
         let tool_result = insert_result.unwrap();
-        assert!(tool_result.content.is_some());
-        let content_vec = tool_result.content.unwrap();
+        let content_vec = &tool_result.content;
         
         // Find the assistant content
         let assistant_content = content_vec
