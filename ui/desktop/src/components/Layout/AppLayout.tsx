@@ -54,9 +54,7 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
       case 'ConfigureProviders':
         navigate('/configure-providers');
         break;
-      case 'sharedSession':
-        navigate('/shared-session', { state: viewOptions });
-        break;
+
       case 'recipeEditor':
         navigate('/recipe-editor', { state: viewOptions });
         break;
