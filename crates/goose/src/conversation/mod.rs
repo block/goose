@@ -65,6 +65,10 @@ impl Conversation {
         self.0.last()
     }
 
+    pub fn last_mut(&mut self) -> Option<&mut Message> {
+        self.0.last_mut()
+    }
+
     pub fn first(&self) -> Option<&Message> {
         self.0.first()
     }
