@@ -1,5 +1,5 @@
 ---
-title: Using Goose in "Headless" Mode for Automation
+title: Using Goose in Headless Mode for Automation
 description: Goose Headless Mode
 ---
 
