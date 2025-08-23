@@ -8,39 +8,28 @@ use crate::config::Config;
 use crate::conversation::message::MessageContent;
 use crate::conversation::Conversation;
 use crate::providers;
-use crate::providers::base::Provider;
-use rmcp::model::Content;
-use rmcp::ErrorData;
 
 // Embedded YAML content for pre-made roles
 const PREMADE_ROLES_YAML: &str = include_str!("premade_roles.yaml");
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MatchType {
+    #[default]
     Any,
     All,
 }
 
-impl Default for MatchType {
-    fn default() -> Self {
-        MatchType::Any
-    }
-}
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TriggerSource {
     Human,   // Only trigger on human messages
     Machine, // Only trigger on machine-generated events
+    #[default]
     Any,     // Trigger on either
 }
 
-impl Default for TriggerSource {
-    fn default() -> Self {
-        TriggerSource::Any
-    }
-}
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -443,7 +432,6 @@ impl AutoPilot {
             match msg.role {
                 rmcp::model::Role::User => break,
                 rmcp::model::Role::Assistant => count += 1,
-                _ => {} // Skip other roles
             }
         }
         
@@ -700,6 +688,9 @@ mod tests {
                         consecutive_failures: None,
                         complexity_threshold: None,
                         source: TriggerSource::Human,
+                        machine_messages_without_human: None,
+                        tools_since_human: None,
+                        messages_since_human: None,
                     },
                     cooldown_turns: 0,
                     max_invocations: None,
@@ -720,6 +711,9 @@ mod tests {
                         consecutive_failures: None,
                         complexity_threshold: None,
                         source: TriggerSource::Any,
+                        machine_messages_without_human: None,
+                        tools_since_human: None,
+                        messages_since_human: None,
                     },
                     cooldown_turns: 5,
                     max_invocations: Some(3),
@@ -740,7 +734,9 @@ mod tests {
                         consecutive_failures: Some(2),
                         complexity_threshold: None,
                         source: TriggerSource::Machine,
-                    },
+                        machine_messages_without_human: None,
+                        tools_since_human: None,
+                        messages_since_human: None,                    },
                     cooldown_turns: 10,
                     max_invocations: Some(1),
                     priority: 20,
@@ -854,10 +850,11 @@ mod tests {
         assert!(!autopilot.check_source(&human_conversation, &TriggerSource::Machine));
         
         // Assistant message as last - should match Machine source filter  
-        let machine_conversation = Conversation::new(vec![
+        // Use new_unvalidated since a conversation ending with assistant is technically invalid
+        let machine_conversation = Conversation::new_unvalidated(vec![
             Message::user().with_text("test"),
             Message::assistant().with_text("response"),
-        ]).unwrap();
+        ]);
         assert!(autopilot.check_source(&machine_conversation, &TriggerSource::Machine));
     }
     
@@ -915,7 +912,7 @@ mod tests {
             Message::assistant().with_text("I'll try"),
         ];
         
-        let conversation = Conversation::new(messages).unwrap();
+        let conversation = Conversation::new_unvalidated(messages);
         
         // Should detect 0 failures in this simple conversation
         assert_eq!(autopilot.count_consecutive_failures(&conversation), 0);
@@ -1008,7 +1005,7 @@ mod tests {
             Message::assistant().with_text("The tool failed"),
         ];
         
-        let conversation = Conversation::new(messages).unwrap();
+        let conversation = Conversation::new_unvalidated(messages);
         assert!(autopilot.check_recent_failure(&conversation));
         
         // Test with successful tool response
@@ -1021,7 +1018,7 @@ mod tests {
             Message::assistant().with_text("The tool succeeded"),
         ];
         
-        let success_conversation = Conversation::new(success_messages).unwrap();
+        let success_conversation = Conversation::new_unvalidated(success_messages);
         assert!(!autopilot.check_recent_failure(&success_conversation));
         
         // Create a conversation without tool failures
@@ -1030,7 +1027,7 @@ mod tests {
             Message::assistant().with_text("Let me help"),
         ];
         
-        let conversation = Conversation::new(messages).unwrap();
+        let conversation = Conversation::new_unvalidated(messages);
         // Should not detect any failures
         assert!(!autopilot.check_recent_failure(&conversation));
     }
