@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { IpcRendererEvent } from 'electron';
 import { HashRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { ErrorUI } from './components/ErrorBoundary';
-import { ConfirmationModal } from './components/ui/ConfirmationModal';
+import { ExtensionInstallModal } from './components/modals/ExtensionInstallModal';
+import { useExtensionInstallModal } from './hooks/useExtensionInstallModal';
 import { ToastContainer } from 'react-toastify';
-import { extractExtensionName } from './components/settings/extensions/utils';
 import { GoosehintsModal } from './components/GoosehintsModal';
 import AnnouncementModal from './components/AnnouncementModal';
 import { generateSessionId } from './sessions';
@@ -25,7 +25,6 @@ import { DraftProvider } from './contexts/DraftContext';
 import 'react-toastify/dist/ReactToastify.css';
 import { useConfig } from './components/ConfigContext';
 import { ModelAndProviderProvider } from './components/ModelAndProviderContext';
-import { addExtensionFromDeepLink as addExtensionFromDeepLinkV2 } from './components/settings/extensions';
 import PermissionSettingsView from './components/settings/permission/PermissionSetting';
 
 import { type SessionDetails } from './sessions';
@@ -352,11 +351,6 @@ const ExtensionsRoute = () => {
 
 export default function App() {
   const [fatalError, setFatalError] = useState<string | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [pendingLink, setPendingLink] = useState<string | null>(null);
-  const [modalMessage, setModalMessage] = useState<string>('');
-  const [extensionConfirmLabel, setExtensionConfirmLabel] = useState<string>('');
-  const [extensionConfirmTitle, setExtensionConfirmTitle] = useState<string>('');
   const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [isGoosehintsModalOpen, setIsGoosehintsModalOpen] = useState(false);
   const [agentWaitingMessage, setAgentWaitingMessage] = useState<string | null>(null);
@@ -372,6 +366,8 @@ export default function App() {
 
   const { getExtensions, addExtension, read } = useConfig();
   const initAttemptedRef = useRef(false);
+  const { modalState, modalConfig, dismissModal, confirmInstall } =
+    useExtensionInstallModal(addExtension);
 
   // Create a setView function for useChat hook - we'll use window.history instead of navigate
   const setView = (view: View, viewOptions: ViewOptions = {}) => {
@@ -421,18 +417,6 @@ export default function App() {
   };
 
   const { chat, setChat } = useChat({ setIsLoadingSession, setView, setPairChat });
-
-  function extractCommand(link: string): string {
-    const url = new URL(link);
-    const cmd = url.searchParams.get('cmd') || 'Unknown Command';
-    const args = url.searchParams.getAll('arg').map(decodeURIComponent);
-    return `${cmd} ${args.join(' ')}`.trim();
-  }
-
-  function extractRemoteUrl(link: string): string | null {
-    const url = new URL(link);
-    return url.searchParams.get('url');
-  }
 
   useEffect(() => {
     if (initAttemptedRef.current) {
@@ -667,84 +651,6 @@ export default function App() {
     return () => window.electron.off('set-view', handleSetView);
   }, []);
 
-  const config = window.electron.getConfig();
-  const STRICT_ALLOWLIST = config.GOOSE_ALLOWLIST_WARNING !== true;
-
-  useEffect(() => {
-    console.log('Setting up extension handler');
-    const handleAddExtension = async (_event: IpcRendererEvent, ...args: unknown[]) => {
-      const link = args[0] as string;
-      try {
-        console.log(`Received add-extension event with link: ${link}`);
-        const command = extractCommand(link);
-        const remoteUrl = extractRemoteUrl(link);
-        const extName = extractExtensionName(link);
-        window.electron.logInfo(`Adding extension from deep link ${link}`);
-        setPendingLink(link);
-        let warningMessage = '';
-        let label = 'OK';
-        let title = 'Confirm Extension Installation';
-        let isBlocked = false;
-        let useDetailedMessage = false;
-        if (remoteUrl) {
-          useDetailedMessage = true;
-        } else {
-          try {
-            const allowedCommands = await window.electron.getAllowedExtensions();
-            if (allowedCommands && allowedCommands.length > 0) {
-              const isCommandAllowed = allowedCommands.some((allowedCmd: string) =>
-                command.startsWith(allowedCmd)
-              );
-              if (!isCommandAllowed) {
-                useDetailedMessage = true;
-                title = '⛔️ Untrusted Extension ⛔️';
-                if (STRICT_ALLOWLIST) {
-                  isBlocked = true;
-                  label = 'Extension Blocked';
-                  warningMessage =
-                    '\n\n⛔️ BLOCKED: This extension command is not in the allowed list. ' +
-                    'Installation is blocked by your administrator. ' +
-                    'Please contact your administrator if you need this extension.';
-                } else {
-                  label = 'Override and install';
-                  warningMessage =
-                    '\n\n⚠️ WARNING: This extension command is not in the allowed list. ' +
-                    'Installing extensions from untrusted sources may pose security risks. ' +
-                    'Please contact an admin if you are unsure or want to allow this extension.';
-                }
-              }
-            }
-          } catch (error) {
-            console.error('Error checking allowlist:', error);
-          }
-        }
-        if (useDetailedMessage) {
-          const detailedMessage = remoteUrl
-            ? `You are about to install the ${extName} extension which connects to:\n\n${remoteUrl}\n\nThis extension will be able to access your conversations and provide additional functionality.`
-            : `You are about to install the ${extName} extension which runs the command:\n\n${command}\n\nThis extension will be able to access your conversations and provide additional functionality.`;
-          setModalMessage(`${detailedMessage}${warningMessage}`);
-        } else {
-          const messageDetails = `Command: ${command}`;
-          setModalMessage(
-            `Are you sure you want to install the ${extName} extension?\n\n${messageDetails}`
-          );
-        }
-        setExtensionConfirmLabel(label);
-        setExtensionConfirmTitle(title);
-        if (isBlocked) {
-          setPendingLink(null);
-        }
-        setModalVisible(true);
-      } catch (error) {
-        console.error('Error handling add-extension event:', error);
-      }
-    };
-    window.electron.on('add-extension', handleAddExtension);
-    return () => {
-      window.electron.off('add-extension', handleAddExtension);
-    };
-  }, [STRICT_ALLOWLIST]);
-
   useEffect(() => {
     const handleFocusInput = (_event: IpcRendererEvent, ..._args: unknown[]) => {
       const inputField = document.querySelector('input[type="text"], textarea') as HTMLInputElement;
@@ -758,39 +664,13 @@ export default function App() {
     };
   }, []);
 
-  const handleConfirm = async () => {
-    if (pendingLink) {
-      console.log(`Confirming installation of extension from: ${pendingLink}`);
-      setModalVisible(false);
-      try {
-        await addExtensionFromDeepLinkV2(pendingLink, addExtension, (view: string, options) => {
-          console.log('Extension deep link handler called with view:', view, 'options:', options);
-          switch (view) {
-            case 'settings':
-              window.location.hash = '#/extensions';
-              // Store the config for the extensions route
-              window.history.replaceState(options, '', '#/extensions');
-              break;
-            default:
-              window.location.hash = `#/${view}`;
-          }
-        });
-        console.log('Extension installation successful');
-      } catch (error) {
-        console.error('Failed to add extension:', error);
-      } finally {
-        setPendingLink(null);
-      }
+  const handleExtensionConfirm = async () => {
+    const result = await confirmInstall();
+    if (result.success) {
+      console.log('Extension installation completed successfully');
     } else {
-      console.log('Extension installation blocked by allowlist restrictions');
-      setModalVisible(false);
+      console.error('Extension installation failed:', result.error);
     }
-  };
-
-  const handleCancel = () => {
-    console.log('Cancelled extension installation.');
-    setModalVisible(false);
-    setPendingLink(null);
   };
 
   if (fatalError) {
@@ -824,16 +704,14 @@ export default function App() {
             closeOnClick
             pauseOnHover
           />
-          {modalVisible && (
-            <ConfirmationModal
-              isOpen={modalVisible}
-              message={modalMessage}
-              confirmLabel={extensionConfirmLabel}
-              title={extensionConfirmTitle}
-              onConfirm={handleConfirm}
-              onCancel={handleCancel}
-            />
-          )}
+          <ExtensionInstallModal
+            isOpen={modalState.isOpen}
+            modalType={modalState.modalType}
+            config={modalConfig}
+            onConfirm={handleExtensionConfirm}
+            onCancel={dismissModal}
+            isSubmitting={modalState.isPending}
+          />
           <div className="relative w-screen h-screen overflow-hidden bg-background-muted flex flex-col">
             <div className="titlebar-drag-region" />
             <Routes>
