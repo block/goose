@@ -324,15 +324,20 @@ pub async fn create_dynamic_task(
         }
     }
 
-    let execution_mode = params.get("execution_mode")
+    let execution_mode = params
+        .get("execution_mode")
         .and_then(|v| v.as_str())
         .map(|s| match s {
             "sequential" => ExecutionMode::Sequential,
             "parallel" => ExecutionMode::Parallel,
-            _ => ExecutionMode::Parallel
+            _ => ExecutionMode::Parallel,
         })
         .unwrap_or_else(|| {
-            if tasks.len() > 1 { ExecutionMode::Parallel } else { ExecutionMode::Sequential }
+            if tasks.len() > 1 {
+                ExecutionMode::Parallel
+            } else {
+                ExecutionMode::Sequential
+            }
         });
 
     let task_execution_payload = create_task_execution_payload(tasks.clone(), execution_mode);

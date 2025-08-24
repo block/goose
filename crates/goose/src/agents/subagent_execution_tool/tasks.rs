@@ -48,22 +48,12 @@ async fn get_task_result(
 ) -> Result<Value, String> {
     match task.task_type.as_str() {
         "text_instruction" => {
-            handle_text_instruction_task(
-                task,
-                task_execution_tracker,
-                task_config,
-                cancellation_token,
-            )
-            .await
+            handle_text_instruction_task(task, task_config, cancellation_token)
+                .await
         }
         "inline_recipe" => {
-            handle_inline_recipe_task(
-                task,
-                task_execution_tracker,
-                task_config,
-                cancellation_token,
-            )
-            .await
+            handle_inline_recipe_task(task, task_config, cancellation_token)
+                .await
         }
         "sub_recipe" => {
             let (command, output_identifier) = build_command(&task)?;
@@ -88,15 +78,12 @@ async fn get_task_result(
 
 async fn handle_text_instruction_task(
     task: Task,
-    task_execution_tracker: Arc<TaskExecutionTracker>,
     task_config: TaskConfig,
     cancellation_token: CancellationToken,
 ) -> Result<Value, String> {
     let text_instruction = task
         .get_text_instruction()
         .ok_or_else(|| format!("Task {}: Missing text_instruction", task.id))?;
-
-    task_execution_tracker.start_task(&task.id).await;
 
     let result = tokio::select! {
         result = run_complete_subagent_task(text_instruction.to_string(), task_config) => result,
@@ -117,7 +104,6 @@ async fn handle_text_instruction_task(
 
 async fn handle_inline_recipe_task(
     task: Task,
-    task_execution_tracker: Arc<TaskExecutionTracker>,
     mut task_config: TaskConfig,
     cancellation_token: CancellationToken,
 ) -> Result<Value, String> {
@@ -139,8 +125,6 @@ async fn handle_inline_recipe_task(
         .unwrap_or(false);
 
     task_config.extensions = recipe.extensions.clone();
-
-    task_execution_tracker.start_task(&task.id).await;
 
     let instruction = recipe
         .instructions
@@ -189,7 +173,6 @@ fn build_command(task: &Task) -> Result<(Command, String), String> {
         }
         (cmd, format!("sub-recipe {}", sub_recipe_name))
     } else {
-
         return Err("Text instruction tasks are handled separately".to_string());
     };
 
