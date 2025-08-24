@@ -2757,7 +2757,6 @@ dependencies = [
  "goose",
  "goose-mcp",
  "http 1.2.0",
- "log",
  "mcp-core",
  "mcp-server",
  "reqwest 0.12.23",

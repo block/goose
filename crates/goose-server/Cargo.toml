@@ -41,7 +41,6 @@ utoipa = { version = "4.1", features = ["axum_extras", "chrono"] }
 reqwest = { version = "0.12.9", features = ["json", "rustls-tls", "blocking", "multipart"], default-features = false }
 tokio-util = "0.7.15"
 uuid = { version = "1.11", features = ["v4"] }
-log = "0.4.26"
 
 [[bin]]
 name = "goosed"
