@@ -54,15 +54,15 @@ impl ProviderRegistry {
         F: Fn(ModelConfig) -> Result<P> + Send + Sync + 'static,
     {
         let base_metadata = P::metadata();
-        let custom_metadata = ProviderMetadata {
-            name: custom_name.clone(),
-            display_name,
-            description,
-            default_model,
+        let custom_metadata = ProviderMetadata::with_models(
+            &custom_name.clone(),
+            &display_name,
+            &description,
+            &default_model,
             known_models,
-            model_doc_link: base_metadata.model_doc_link,
-            config_keys: base_metadata.config_keys,
-        };
+            &base_metadata.model_doc_link,
+            base_metadata.config_keys,
+        );
 
         self.entries.insert(
             custom_name,

@@ -7,6 +7,7 @@ use axum::{
     Json, Router,
 };
 use etcetera::{choose_app_strategy, AppStrategy};
+use futures::future::join_all;
 use goose::config::APP_STRATEGY;
 use goose::config::{Config, ConfigError};
 use goose::config::{ExtensionConfigManager, ExtensionEntry};
@@ -15,7 +16,7 @@ use goose::providers::base::ProviderMetadata;
 use goose::providers::pricing::{
     get_all_pricing, get_model_pricing, parse_model_id, refresh_pricing,
 };
-use goose::providers::providers as get_providers;
+use goose::providers::{create, providers as get_providers};
 use goose::{agents::ExtensionConfig, config::permission::PermissionLevel};
 use http::{HeaderMap, StatusCode};
 use serde::{Deserialize, Serialize};
@@ -370,18 +371,48 @@ pub async fn providers(
         }
     }
 
-    let providers_response: Vec<ProviderDetails> = providers_metadata
-        .into_iter()
-        .map(|metadata| {
-            let is_configured = check_provider_configured(&metadata);
-
-            ProviderDetails {
-                name: metadata.name.clone(),
-                metadata,
-                is_configured,
+    let futures = providers_metadata.into_iter().map(|metadata| async move {
+        let is_configured = check_provider_configured(&metadata);
+        let result: Vec<String> = if is_configured {
+            let temp_model_config = ModelConfig::new_or_fail(&metadata.default_model);
+            if let Ok(provider) = create(&metadata.name, temp_model_config) {
+                provider
+                    .fetch_supported_models()
+                    .await
+                    .unwrap_or_default()
+                    .unwrap_or_default()
+            } else {
+                metadata
+                    .known_models
+                    .iter()
+                    .map(|info| info.name.clone())
+                    .collect()
             }
-        })
-        .collect();
+        } else {
+            metadata
+                .known_models
+                .iter()
+                .map(|info| info.name.clone())
+                .collect()
+        };
+
+        ProviderDetails {
+            name: metadata.name.clone(),
+            metadata: ProviderMetadata::new(
+                &metadata.name,
+                &metadata.display_name,
+                &metadata.description,
+                &metadata.default_model,
+                // adapt ProviderMetadata::new to accept Vec<&str> OR change it to Vec<String>
+                result.iter().map(|s| s.as_str()).collect(),
+                &metadata.model_doc_link,
+                metadata.config_keys,
+            ),
+            is_configured,
+        }
+    });
+
+    let providers_response: Vec<ProviderDetails> = join_all(futures).await;
 
     Ok(Json(providers_response))
 }

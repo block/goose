@@ -2,16 +2,18 @@ use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
-use super::utils::{get_model, handle_response_openai_compat};
+use super::utils::{get_model, handle_response_openai_compat, map_http_error_to_provider_error};
 use crate::config::custom_providers::CustomProviderConfig;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::impl_provider_default;
 use crate::model::ModelConfig;
+use crate::providers::embedding::{EmbeddingCapable, EmbeddingRequest, EmbeddingResponse};
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
 use crate::utils::safe_truncate;
 use anyhow::Result;
 use async_trait::async_trait;
+use axum::http::StatusCode;
 use regex::Regex;
 use rmcp::model::Tool;
 use serde_json::Value;
@@ -228,6 +230,48 @@ impl Provider for OllamaProvider {
     fn supports_streaming(&self) -> bool {
         self.supports_streaming
     }
+
+    fn supports_embeddings(&self) -> bool {
+        true
+    }
+
+    async fn create_embeddings(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, ProviderError> {
+        EmbeddingCapable::create_embeddings(self, texts)
+            .await
+            .map_err(|e| ProviderError::ExecutionError(e.to_string()))
+    }
+
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+        let response = self.api_client.api_get("api/tags").await?;
+
+        if response.status != StatusCode::OK {
+            return Err(map_http_error_to_provider_error(
+                response.status,
+                response.payload,
+            ));
+        }
+
+        let json = response.payload.unwrap_or_default();
+        let arr = match json.get("models").and_then(|v| v.as_array()) {
+            Some(arr) => arr,
+            None => return Ok(None),
+        };
+
+        let mut models: Vec<String> = arr
+            .iter()
+            .filter_map(|m| {
+                if let Some(s) = m.as_str() {
+                    Some(s.to_string())
+                } else if let Some(obj) = m.as_object() {
+                    obj.get("name").and_then(|v| v.as_str()).map(str::to_string)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        models.sort();
+        Ok(Some(models))
+    }
 }
 
 impl OllamaProvider {
@@ -271,5 +315,48 @@ impl OllamaProvider {
             .join(" ");
 
         filtered
+    }
+}
+
+#[async_trait]
+impl EmbeddingCapable for OllamaProvider {
+    async fn create_embeddings(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>> {
+        if texts.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let embedding_model = std::env::var("GOOSE_EMBEDDING_MODEL")
+            .unwrap_or_else(|_| "nomic-embed-text".to_string());
+
+        let request = EmbeddingRequest {
+            input: texts,
+            model: embedding_model,
+        };
+
+        let response = self
+            .api_client
+            .api_post("api/embeddings", &serde_json::to_value(request)?)
+            .await?;
+
+        if response.status != StatusCode::OK {
+            let error_text = response
+                .payload
+                .as_ref()
+                .and_then(|p| p.as_str())
+                .unwrap_or("Unknown error");
+            return Err(anyhow::anyhow!("Embedding API error: {}", error_text));
+        }
+
+        let embedding_response: EmbeddingResponse = serde_json::from_value(
+            response
+                .payload
+                .ok_or_else(|| anyhow::anyhow!("Empty response body"))?,
+        )?;
+
+        Ok(embedding_response
+            .data
+            .into_iter()
+            .map(|d| d.embedding)
+            .collect())
     }
 }

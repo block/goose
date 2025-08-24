@@ -9,7 +9,7 @@ use tokio::process::Command;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
-use super::utils::emit_debug_trace;
+use super::utils::{emit_debug_trace};
 use crate::config::Config;
 use crate::conversation::message::{Message, MessageContent};
 use crate::impl_provider_default;
@@ -512,6 +512,14 @@ impl Provider for ClaudeCodeProvider {
             message,
             ProviderUsage::new(model_config.model_name.clone(), usage),
         ))
+    }
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+        let mut models: Vec<String> = CLAUDE_CODE_KNOWN_MODELS
+            .iter()
+            .map(|model| model.to_string())
+            .collect();
+        models.sort();
+        Ok(Some(models))
     }
 }
 
