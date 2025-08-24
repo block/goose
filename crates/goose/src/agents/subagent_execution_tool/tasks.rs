@@ -46,32 +46,46 @@ async fn get_task_result(
     task_config: TaskConfig,
     cancellation_token: CancellationToken,
 ) -> Result<Value, String> {
-    if task.task_type == "text_instruction" {
-        // Handle text_instruction tasks using subagent system
-        handle_text_instruction_task(
-            task,
-            task_execution_tracker,
-            task_config,
-            cancellation_token,
-        )
-        .await
-    } else {
-        // Handle sub_recipe tasks using command execution
-        let (command, output_identifier) = build_command(&task)?;
-        let (stdout_output, stderr_output, success) = run_command(
-            command,
-            &output_identifier,
-            &task.id,
-            task_execution_tracker,
-            cancellation_token,
-        )
-        .await?;
-
-        if success {
-            process_output(stdout_output)
-        } else {
-            Err(format!("Command failed:\n{}", &stderr_output))
+    match task.task_type.as_str() {
+        "text_instruction" => {
+            // Handle text_instruction tasks using subagent system
+            handle_text_instruction_task(
+                task,
+                task_execution_tracker,
+                task_config,
+                cancellation_token,
+            )
+            .await
         }
+        "inline_recipe" => {
+            // Handle inline recipe tasks
+            handle_inline_recipe_task(
+                task,
+                task_execution_tracker,
+                task_config,
+                cancellation_token,
+            )
+            .await
+        }
+        "sub_recipe" => {
+            // Handle sub_recipe tasks using command execution
+            let (command, output_identifier) = build_command(&task)?;
+            let (stdout_output, stderr_output, success) = run_command(
+                command,
+                &output_identifier,
+                &task.id,
+                task_execution_tracker,
+                cancellation_token,
+            )
+            .await?;
+
+            if success {
+                process_output(stdout_output)
+            } else {
+                Err(format!("Command failed:\n{}", &stderr_output))
+            }
+        }
+        _ => Err(format!("Unknown task type: {}", task.task_type)),
     }
 }
 
@@ -100,6 +114,51 @@ async fn handle_text_instruction_task(
         })),
         Err(e) => {
             let error_msg = format!("Subagent execution failed: {}", e);
+            Err(error_msg)
+        }
+    }
+}
+
+async fn handle_inline_recipe_task(
+    task: Task,
+    task_execution_tracker: Arc<TaskExecutionTracker>,
+    task_config: TaskConfig,
+    cancellation_token: CancellationToken,
+) -> Result<Value, String> {
+    use crate::recipe::Recipe;
+
+    // Extract recipe from payload
+    let recipe_value = task
+        .payload
+        .get("recipe")
+        .ok_or_else(|| "Missing recipe in inline_recipe task payload".to_string())?;
+
+    let recipe: Recipe = serde_json::from_value(recipe_value.clone())
+        .map_err(|e| format!("Invalid recipe in payload: {}", e))?;
+
+    // Start tracking
+    task_execution_tracker.start_task(&task.id).await;
+
+    // Get instruction from recipe
+    let instruction = recipe
+        .instructions
+        .or(recipe.prompt)
+        .ok_or_else(|| "No instructions or prompt in recipe".to_string())?;
+
+    // Execute using the same subagent system as text_instruction
+    let result = tokio::select! {
+        result = run_complete_subagent_task(instruction, task_config) => result,
+        _ = cancellation_token.cancelled() => {
+            return Err("Task cancelled".to_string());
+        }
+    };
+
+    match result {
+        Ok(result_text) => Ok(serde_json::json!({
+            "result": result_text
+        })),
+        Err(e) => {
+            let error_msg = format!("Inline recipe execution failed: {}", e);
             Err(error_msg)
         }
     }
