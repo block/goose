@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useMemo } from 'react';
+import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import { FolderKey, ScrollText } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
 import { Button } from './ui/button';
@@ -84,6 +84,7 @@ interface ChatInputProps {
   recipeConfig?: Recipe | null;
   recipeAccepted?: boolean;
   initialPrompt?: string;
+  autoSubmit: boolean;
 }
 
 export default function ChatInput({
@@ -106,6 +107,7 @@ export default function ChatInput({
   recipeConfig,
   recipeAccepted,
   initialPrompt,
+  autoSubmit = false,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -136,6 +138,7 @@ export default function ChatInput({
   // Draft functionality - get chat context and global draft context
   // We need to handle the case where ChatInput is used without ChatProvider (e.g., in Hub)
   const chatContext = useChatContext(); // This should always be available now
+  const agentIsReady = chatContext === null || chatContext.agentWaitingMessage === null;
   const draftLoadedRef = useRef(false);
 
   // Debug logging for draft context
@@ -288,17 +291,34 @@ export default function ChatInput({
     setHasUserTyped(false);
   }, [initialValue]); // Keep only initialValue as a dependency
 
+  // Track if we've already set the recipe prompt to avoid re-setting it
+  const hasSetRecipePromptRef = useRef(false);
+
   // Handle recipe prompt updates
   useEffect(() => {
-    // If recipe is accepted and we have an initial prompt, and no messages yet, set the prompt
-    if (recipeAccepted && initialPrompt && messages.length === 0 && !displayValue.trim()) {
+    // If recipe is accepted and we have an initial prompt, and no messages yet, and we haven't set it before
+    if (
+      recipeAccepted &&
+      initialPrompt &&
+      messages.length === 0 &&
+      !hasSetRecipePromptRef.current
+    ) {
       setDisplayValue(initialPrompt);
       setValue(initialPrompt);
+      hasSetRecipePromptRef.current = true;
       setTimeout(() => {
         textAreaRef.current?.focus();
       }, 0);
     }
-  }, [recipeAccepted, initialPrompt, messages.length, displayValue]);
+    // we don't need hasSetRecipePromptRef in the dependency array because it is a ref that persists across renders
+  }, [recipeAccepted, initialPrompt, messages.length]);
+
+  // Reset the recipe prompt flag when the recipe changes or messages are added
+  useEffect(() => {
+    if (messages.length > 0 || !recipeAccepted || !initialPrompt) {
+      hasSetRecipePromptRef.current = false;
+    }
+  }, [recipeAccepted, initialPrompt, messages.length]);
 
   // Draft functionality - load draft if no initial value or recipe
   useEffect(() => {
@@ -340,6 +360,7 @@ export default function ChatInput({
   const [hasUserTyped, setHasUserTyped] = useState(false);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const timeoutRefsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  const [didAutoSubmit, setDidAutoSubmit] = useState<boolean>(false);
 
   // Use shared file drop hook for ChatInput
   const {
@@ -350,7 +371,10 @@ export default function ChatInput({
   } = useFileDrop();
 
   // Merge local dropped files with parent dropped files
-  const allDroppedFiles = [...droppedFiles, ...localDroppedFiles];
+  const allDroppedFiles = useMemo(
+    () => [...droppedFiles, ...localDroppedFiles],
+    [droppedFiles, localDroppedFiles]
+  );
 
   const handleRemoveDroppedFile = (idToRemove: string) => {
     // Remove from local dropped files
@@ -919,69 +943,89 @@ export default function ChatInput({
     return true; // Return true if message was queued
   };
 
-  const performSubmit = () => {
-    const validPastedImageFilesPaths = pastedImages
-      .filter((img) => img.filePath && !img.error && !img.isLoading)
-      .map((img) => img.filePath as string);
+  const performSubmit = useCallback(
+    (text?: string) => {
+      const validPastedImageFilesPaths = pastedImages
+        .filter((img) => img.filePath && !img.error && !img.isLoading)
+        .map((img) => img.filePath as string);
+      // Get paths from all dropped files (both parent and local)
+      const droppedFilePaths = allDroppedFiles
+        .filter((file) => !file.error && !file.isLoading)
+        .map((file) => file.path);
 
-    // Get paths from all dropped files (both parent and local)
-    const droppedFilePaths = allDroppedFiles
-      .filter((file) => !file.error && !file.isLoading)
-      .map((file) => file.path);
+      let textToSend = text ?? displayValue.trim();
 
-    let textToSend = displayValue.trim();
+      // Combine pasted images and dropped files
+      const allFilePaths = [...validPastedImageFilesPaths, ...droppedFilePaths];
+      if (allFilePaths.length > 0) {
+        const pathsString = allFilePaths.join(' ');
+        textToSend = textToSend ? `${textToSend} ${pathsString}` : pathsString;
+      }
 
-    // Combine pasted images and dropped files
-    const allFilePaths = [...validPastedImageFilesPaths, ...droppedFilePaths];
-    if (allFilePaths.length > 0) {
-      const pathsString = allFilePaths.join(' ');
-      textToSend = textToSend ? `${textToSend} ${pathsString}` : pathsString;
+      if (textToSend) {
+        if (displayValue.trim()) {
+          LocalMessageStorage.addMessage(displayValue);
+        } else if (allFilePaths.length > 0) {
+          LocalMessageStorage.addMessage(allFilePaths.join(' '));
+        }
+
+        handleSubmit(
+          new CustomEvent('submit', { detail: { value: textToSend } }) as unknown as React.FormEvent
+        );
+
+        // Auto-resume queue after sending a NON-interruption message (if it was paused due to interruption)
+        if (
+          queuePausedRef.current &&
+          lastInterruption &&
+          textToSend &&
+          !detectInterruption(textToSend)
+        ) {
+          queuePausedRef.current = false;
+          setLastInterruption(null);
+        }
+
+        setDisplayValue('');
+        setValue('');
+        setPastedImages([]);
+        setHistoryIndex(-1);
+        setSavedInput('');
+        setIsInGlobalHistory(false);
+        setHasUserTyped(false);
+
+        // Clear draft when message is sent
+        if (chatContext && chatContext.clearDraft) {
+          chatContext.clearDraft();
+        }
+
+        // Clear both parent and local dropped files after processing
+        if (onFilesProcessed && droppedFiles.length > 0) {
+          onFilesProcessed();
+        }
+        if (localDroppedFiles.length > 0) {
+          setLocalDroppedFiles([]);
+        }
+      }
+    },
+    [
+      allDroppedFiles,
+      chatContext,
+      displayValue,
+      droppedFiles.length,
+      handleSubmit,
+      lastInterruption,
+      localDroppedFiles.length,
+      onFilesProcessed,
+      pastedImages,
+      setLocalDroppedFiles,
+    ]
+  );
+
+  useEffect(() => {
+    if (!!autoSubmit && !didAutoSubmit) {
+      setDidAutoSubmit(true);
+      performSubmit(initialValue);
     }
-
-    if (textToSend) {
-      if (displayValue.trim()) {
-        LocalMessageStorage.addMessage(displayValue);
-      } else if (allFilePaths.length > 0) {
-        LocalMessageStorage.addMessage(allFilePaths.join(' '));
-      }
-
-      handleSubmit(
-        new CustomEvent('submit', { detail: { value: textToSend } }) as unknown as React.FormEvent
-      );
-
-      // Auto-resume queue after sending a NON-interruption message (if it was paused due to interruption)
-      if (
-        queuePausedRef.current &&
-        lastInterruption &&
-        textToSend &&
-        !detectInterruption(textToSend)
-      ) {
-        queuePausedRef.current = false;
-        setLastInterruption(null);
-      }
-
-      setDisplayValue('');
-      setValue('');
-      setPastedImages([]);
-      setHistoryIndex(-1);
-      setSavedInput('');
-      setIsInGlobalHistory(false);
-      setHasUserTyped(false);
-
-      // Clear draft when message is sent
-      if (chatContext && chatContext.clearDraft) {
-        chatContext.clearDraft();
-      }
-
-      // Clear both parent and local dropped files after processing
-      if (onFilesProcessed && droppedFiles.length > 0) {
-        onFilesProcessed();
-      }
-      if (localDroppedFiles.length > 0) {
-        setLocalDroppedFiles([]);
-      }
-    }
-  };
+  }, [autoSubmit, didAutoSubmit, initialValue, performSubmit]);
 
   const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // If mention popover is open, handle arrow keys and enter
@@ -1043,6 +1087,7 @@ export default function ChatInput({
       const canSubmit =
         !isLoading &&
         !isLoadingCompaction &&
+        agentIsReady &&
         (displayValue.trim() ||
           pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
           allDroppedFiles.some((file) => !file.error && !file.isLoading));
@@ -1057,6 +1102,7 @@ export default function ChatInput({
     const canSubmit =
       !isLoading &&
       !isLoadingCompaction &&
+      agentIsReady &&
       (displayValue.trim() ||
         pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
         allDroppedFiles.some((file) => !file.error && !file.isLoading));
@@ -1320,46 +1366,56 @@ export default function ChatInput({
               <Stop />
             </Button>
           ) : (
-            <Button
-              type="submit"
-              size="sm"
-              shape="round"
-              variant="outline"
-              disabled={
-                !hasSubmittableContent ||
-                isAnyImageLoading ||
-                isAnyDroppedFileLoading ||
-                isRecording ||
-                isTranscribing ||
-                isLoadingCompaction
-              }
-              className={`rounded-full px-10 py-2 flex items-center gap-2 ${
-                !hasSubmittableContent ||
-                isAnyImageLoading ||
-                isAnyDroppedFileLoading ||
-                isRecording ||
-                isTranscribing ||
-                isLoadingCompaction
-                  ? 'bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600'
-                  : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600 hover:cursor-pointer'
-              }`}
-              title={
-                isLoadingCompaction
-                  ? 'Summarizing conversation...'
-                  : isAnyImageLoading
-                    ? 'Waiting for images to save...'
-                    : isAnyDroppedFileLoading
-                      ? 'Processing dropped files...'
-                      : isRecording
-                        ? 'Recording...'
-                        : isTranscribing
-                          ? 'Transcribing...'
-                          : 'Send'
-              }
-            >
-              <Send className="w-4 h-4" />
-              <span className="text-sm">Send</span>
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    shape="round"
+                    variant="outline"
+                    disabled={
+                      !hasSubmittableContent ||
+                      isAnyImageLoading ||
+                      isAnyDroppedFileLoading ||
+                      isRecording ||
+                      isTranscribing ||
+                      isLoadingCompaction ||
+                      !agentIsReady
+                    }
+                    className={`rounded-full px-10 py-2 flex items-center gap-2 ${
+                      !hasSubmittableContent ||
+                      isAnyImageLoading ||
+                      isAnyDroppedFileLoading ||
+                      isRecording ||
+                      isTranscribing ||
+                      isLoadingCompaction ||
+                      !agentIsReady
+                        ? 'bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600'
+                        : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600 hover:cursor-pointer'
+                    }`}
+                  >
+                    <Send className="w-4 h-4" />
+                    <span className="text-sm">Send</span>
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>
+                  {isLoadingCompaction
+                    ? 'Summarizing conversation...'
+                    : isAnyImageLoading
+                      ? 'Waiting for images to save...'
+                      : isAnyDroppedFileLoading
+                        ? 'Processing dropped files...'
+                        : isRecording
+                          ? 'Recording...'
+                          : isTranscribing
+                            ? 'Transcribing...'
+                            : (chatContext?.agentWaitingMessage ?? 'Send')}
+                </p>
+              </TooltipContent>
+            </Tooltip>
           )}
 
           {/* Recording/transcribing status indicator - positioned above the button row */}
