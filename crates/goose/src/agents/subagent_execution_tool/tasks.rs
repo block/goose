@@ -48,7 +48,6 @@ async fn get_task_result(
 ) -> Result<Value, String> {
     match task.task_type.as_str() {
         "text_instruction" => {
-            // Handle text_instruction tasks using subagent system
             handle_text_instruction_task(
                 task,
                 task_execution_tracker,
@@ -58,7 +57,6 @@ async fn get_task_result(
             .await
         }
         "inline_recipe" => {
-            // Handle inline recipe tasks
             handle_inline_recipe_task(
                 task,
                 task_execution_tracker,
@@ -68,7 +66,6 @@ async fn get_task_result(
             .await
         }
         "sub_recipe" => {
-            // Handle sub_recipe tasks using command execution
             let (command, output_identifier) = build_command(&task)?;
             let (stdout_output, stderr_output, success) = run_command(
                 command,
@@ -99,7 +96,6 @@ async fn handle_text_instruction_task(
         .get_text_instruction()
         .ok_or_else(|| format!("Task {}: Missing text_instruction", task.id))?;
 
-    // Start tracking the task
     task_execution_tracker.start_task(&task.id).await;
 
     let result = tokio::select! {
@@ -128,7 +124,6 @@ async fn handle_inline_recipe_task(
     use crate::agents::subagent_handler::run_complete_subagent_task_with_options;
     use crate::recipe::Recipe;
 
-    // Extract recipe from payload
     let recipe_value = task
         .payload
         .get("recipe")
@@ -137,26 +132,20 @@ async fn handle_inline_recipe_task(
     let recipe: Recipe = serde_json::from_value(recipe_value.clone())
         .map_err(|e| format!("Invalid recipe in payload: {}", e))?;
 
-    // Extract return_last_only flag from payload
     let return_last_only = task
         .payload
         .get("return_last_only")
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
-    // Set extensions in task_config from recipe
     task_config.extensions = recipe.extensions.clone();
 
-    // Start tracking
     task_execution_tracker.start_task(&task.id).await;
 
-    // Get instruction from recipe
     let instruction = recipe
         .instructions
         .or(recipe.prompt)
         .ok_or_else(|| "No instructions or prompt in recipe".to_string())?;
-
-    // Execute using the same subagent system as text_instruction with output options
     let result = tokio::select! {
         result = run_complete_subagent_task_with_options(instruction, task_config, return_last_only) => result,
         _ = cancellation_token.cancelled() => {
@@ -200,8 +189,7 @@ fn build_command(task: &Task) -> Result<(Command, String), String> {
         }
         (cmd, format!("sub-recipe {}", sub_recipe_name))
     } else {
-        // This branch should not be reached for text_instruction tasks anymore
-        // as they are handled in handle_text_instruction_task
+
         return Err("Text instruction tasks are handled separately".to_string());
     };
 
@@ -244,7 +232,7 @@ async fn run_command(
             if let Err(e) = child.kill().await {
                 tracing::warn!("Failed to kill child process: {}", e);
             }
-            // Abort the output reading tasks
+
             stdout_task.abort();
             stderr_task.abort();
             return Err("Command cancelled".to_string());
