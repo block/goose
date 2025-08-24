@@ -19,7 +19,7 @@ pub const DYNAMIC_TASK_TOOL_NAME_PREFIX: &str = "dynamic_task__create_task";
 pub fn create_dynamic_task_tool() -> Tool {
     Tool::new(
         DYNAMIC_TASK_TOOL_NAME_PREFIX.to_string(),
-        "Create tasks with instructions or prompt. Optional: title, description, extensions, settings, retry, response schema, context, activities. Arrays for multiple tasks.".to_string(),
+        "Create tasks with instructions or prompt. For simple tasks, only include the instructions field. Specify extensions as an array of shortnames (the prefixes for your tools are these names) to optimize efficiency or security. Optional: title, description, extensions, settings, retry, response schema, context, activities. Arrays for multiple tasks.".to_string(),
         object!({
             "type": "object",
             "properties": {
@@ -68,7 +68,10 @@ pub fn create_dynamic_task_tool() -> Tool {
     })
 }
 
-pub(crate) fn task_params_to_inline_recipe(task_param: &Value) -> Result<Recipe> {
+pub(crate) fn task_params_to_inline_recipe(
+    task_param: &Value,
+    loaded_extensions: &[String],
+) -> Result<Recipe> {
     // Extract core fields
     let instructions = task_param.get("instructions").and_then(|v| v.as_str());
     let prompt = task_param.get("prompt").and_then(|v| v.as_str());
@@ -107,9 +110,47 @@ pub(crate) fn task_params_to_inline_recipe(task_param: &Value) -> Result<Recipe>
 
     // Handle optional fields with proper deserialization
     if let Some(extensions) = task_param.get("extensions") {
+        // First try to deserialize as ExtensionConfig array
         if let Ok(ext_configs) = serde_json::from_value::<Vec<ExtensionConfig>>(extensions.clone())
         {
             builder = builder.extensions(ext_configs);
+        } else if let Some(arr) = extensions.as_array() {
+            // Try to handle mixed array of strings and objects
+            let mut converted_extensions = Vec::new();
+
+            for ext in arr {
+                if let Some(name_str) = ext.as_str() {
+                    // This is a shortname - check if it's loaded
+                    if loaded_extensions.contains(&name_str.to_string()) {
+                        // Create a builtin extension config for the shortname
+                        // We use builtin as the default type since we can't determine the actual type
+                        // The actual extension is already loaded, so this is just for the recipe
+                        converted_extensions.push(ExtensionConfig::Builtin {
+                            name: name_str.to_string(),
+                            display_name: None,
+                            description: None,
+                            timeout: None,
+                            bundled: None,
+                            available_tools: vec![],
+                        });
+                    } else {
+                        // Extension not loaded, skip it with a warning
+                        tracing::warn!(
+                            "Extension '{}' specified but not loaded, skipping",
+                            name_str
+                        );
+                    }
+                } else if let Ok(ext_config) =
+                    serde_json::from_value::<ExtensionConfig>(ext.clone())
+                {
+                    // This is already a full extension config
+                    converted_extensions.push(ext_config);
+                }
+            }
+
+            if !converted_extensions.is_empty() {
+                builder = builder.extensions(converted_extensions);
+            }
         }
     }
 
@@ -185,7 +226,11 @@ fn create_task_execution_payload(tasks: Vec<Task>, execution_mode: ExecutionMode
     })
 }
 
-pub async fn create_dynamic_task(params: Value, tasks_manager: &TasksManager) -> ToolCallResult {
+pub async fn create_dynamic_task(
+    params: Value,
+    tasks_manager: &TasksManager,
+    loaded_extensions: Vec<String>,
+) -> ToolCallResult {
     let task_params_array = extract_task_parameters(&params);
 
     if task_params_array.is_empty() {
@@ -223,7 +268,7 @@ pub async fn create_dynamic_task(params: Value, tasks_manager: &TasksManager) ->
             tasks.push(task);
         } else {
             // New inline recipe path
-            match task_params_to_inline_recipe(task_param) {
+            match task_params_to_inline_recipe(task_param, &loaded_extensions) {
                 Ok(recipe) => {
                     let recipe_json = match serde_json::to_value(&recipe) {
                         Ok(json) => json,
