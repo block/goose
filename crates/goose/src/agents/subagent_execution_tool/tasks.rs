@@ -122,9 +122,10 @@ async fn handle_text_instruction_task(
 async fn handle_inline_recipe_task(
     task: Task,
     task_execution_tracker: Arc<TaskExecutionTracker>,
-    task_config: TaskConfig,
+    mut task_config: TaskConfig,
     cancellation_token: CancellationToken,
 ) -> Result<Value, String> {
+    use crate::agents::subagent_handler::run_complete_subagent_task_with_options;
     use crate::recipe::Recipe;
 
     // Extract recipe from payload
@@ -136,6 +137,16 @@ async fn handle_inline_recipe_task(
     let recipe: Recipe = serde_json::from_value(recipe_value.clone())
         .map_err(|e| format!("Invalid recipe in payload: {}", e))?;
 
+    // Extract return_last_only flag from payload
+    let return_last_only = task
+        .payload
+        .get("return_last_only")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    // Set extensions in task_config from recipe
+    task_config.extensions = recipe.extensions.clone();
+
     // Start tracking
     task_execution_tracker.start_task(&task.id).await;
 
@@ -145,9 +156,9 @@ async fn handle_inline_recipe_task(
         .or(recipe.prompt)
         .ok_or_else(|| "No instructions or prompt in recipe".to_string())?;
 
-    // Execute using the same subagent system as text_instruction
+    // Execute using the same subagent system as text_instruction with output options
     let result = tokio::select! {
-        result = run_complete_subagent_task(instruction, task_config) => result,
+        result = run_complete_subagent_task_with_options(instruction, task_config, return_last_only) => result,
         _ = cancellation_token.cancelled() => {
             return Err("Task cancelled".to_string());
         }

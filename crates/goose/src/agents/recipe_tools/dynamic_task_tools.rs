@@ -19,7 +19,7 @@ pub const DYNAMIC_TASK_TOOL_NAME_PREFIX: &str = "dynamic_task__create_task";
 pub fn create_dynamic_task_tool() -> Tool {
     Tool::new(
         DYNAMIC_TASK_TOOL_NAME_PREFIX.to_string(),
-        "Create tasks with instructions or prompt. For simple tasks, only include the instructions field. Specify extensions as an array of shortnames (the prefixes for your tools are these names) to optimize efficiency or security. Optional: title, description, extensions, settings, retry, response schema, context, activities. Arrays for multiple tasks.".to_string(),
+        "Create tasks with instructions or prompt. For simple tasks, only include the instructions field. Extensions control: omit field = use all current extensions; empty array [] = no extensions; array with names = only those extensions. Specify extensions as shortnames (the prefixes for your tools). Specify return_last_only as true and have your subagent summarize its work in its last message to conserve your own context. Optional: title, description, extensions, settings, retry, response schema, context, activities. Arrays for multiple tasks.".to_string(),
         object!({
             "type": "object",
             "properties": {
@@ -47,7 +47,11 @@ pub fn create_dynamic_task_tool() -> Tool {
                             "response": {"type": "object"},
                             "retry": {"type": "object"},
                             "context": {"type": "array"},
-                            "activities": {"type": "array"}
+                            "activities": {"type": "array"},
+                            "return_last_only": {
+                                "type": "boolean",
+                                "description": "If true, return only the last message from the subagent (default: false, returns full conversation)"
+                            }
                         },
                         "anyOf": [
                             {"required": ["instructions"]},
@@ -68,24 +72,69 @@ pub fn create_dynamic_task_tool() -> Tool {
     })
 }
 
+fn process_extensions(
+    extensions: &Value,
+    loaded_extensions: &[String],
+) -> Option<Vec<ExtensionConfig>> {
+    // First try to deserialize as ExtensionConfig array
+    if let Ok(ext_configs) = serde_json::from_value::<Vec<ExtensionConfig>>(extensions.clone()) {
+        return Some(ext_configs);
+    }
+
+    // Try to handle mixed array of strings and objects
+    if let Some(arr) = extensions.as_array() {
+        // If the array is empty, return an empty Vec (not None)
+        // This is important: empty array means "no extensions"
+        if arr.is_empty() {
+            return Some(Vec::new());
+        }
+
+        let mut converted_extensions = Vec::new();
+
+        for ext in arr {
+            if let Some(name_str) = ext.as_str() {
+                // This is a shortname - check if it's loaded
+                if loaded_extensions.contains(&name_str.to_string()) {
+                    converted_extensions.push(ExtensionConfig::Builtin {
+                        name: name_str.to_string(),
+                        display_name: None,
+                        description: None,
+                        timeout: None,
+                        bundled: None,
+                        available_tools: vec![],
+                    });
+                } else {
+                    tracing::warn!(
+                        "Extension '{}' specified but not loaded, skipping",
+                        name_str
+                    );
+                }
+            } else if let Ok(ext_config) = serde_json::from_value::<ExtensionConfig>(ext.clone()) {
+                converted_extensions.push(ext_config);
+            }
+        }
+
+        // Return the converted extensions even if empty
+        // (empty means user explicitly wants no extensions)
+        return Some(converted_extensions);
+    }
+    None
+}
+
 pub(crate) fn task_params_to_inline_recipe(
     task_param: &Value,
     loaded_extensions: &[String],
 ) -> Result<Recipe> {
-    // Extract core fields
+    // Extract and validate core fields
     let instructions = task_param.get("instructions").and_then(|v| v.as_str());
     let prompt = task_param.get("prompt").and_then(|v| v.as_str());
 
-    // Validate at least one is present
     if instructions.is_none() && prompt.is_none() {
         return Err(anyhow!("Either 'instructions' or 'prompt' is required"));
     }
 
     // Build recipe with auto-generated defaults
-    let mut builder = Recipe::builder();
-
-    // Auto-generate required fields
-    builder = builder
+    let mut builder = Recipe::builder()
         .version("1.0.0")
         .title(
             task_param
@@ -108,52 +157,14 @@ pub(crate) fn task_params_to_inline_recipe(
         builder = builder.prompt(p);
     }
 
-    // Handle optional fields with proper deserialization
+    // Handle extensions
     if let Some(extensions) = task_param.get("extensions") {
-        // First try to deserialize as ExtensionConfig array
-        if let Ok(ext_configs) = serde_json::from_value::<Vec<ExtensionConfig>>(extensions.clone())
-        {
+        if let Some(ext_configs) = process_extensions(extensions, loaded_extensions) {
             builder = builder.extensions(ext_configs);
-        } else if let Some(arr) = extensions.as_array() {
-            // Try to handle mixed array of strings and objects
-            let mut converted_extensions = Vec::new();
-
-            for ext in arr {
-                if let Some(name_str) = ext.as_str() {
-                    // This is a shortname - check if it's loaded
-                    if loaded_extensions.contains(&name_str.to_string()) {
-                        // Create a builtin extension config for the shortname
-                        // We use builtin as the default type since we can't determine the actual type
-                        // The actual extension is already loaded, so this is just for the recipe
-                        converted_extensions.push(ExtensionConfig::Builtin {
-                            name: name_str.to_string(),
-                            display_name: None,
-                            description: None,
-                            timeout: None,
-                            bundled: None,
-                            available_tools: vec![],
-                        });
-                    } else {
-                        // Extension not loaded, skip it with a warning
-                        tracing::warn!(
-                            "Extension '{}' specified but not loaded, skipping",
-                            name_str
-                        );
-                    }
-                } else if let Ok(ext_config) =
-                    serde_json::from_value::<ExtensionConfig>(ext.clone())
-                {
-                    // This is already a full extension config
-                    converted_extensions.push(ext_config);
-                }
-            }
-
-            if !converted_extensions.is_empty() {
-                builder = builder.extensions(converted_extensions);
-            }
         }
     }
 
+    // Handle other optional fields
     if let Some(settings) = task_param.get("settings") {
         if let Ok(settings_obj) = serde_json::from_value::<Settings>(settings.clone()) {
             builder = builder.settings(settings_obj);
@@ -281,11 +292,18 @@ pub async fn create_dynamic_task(
                         }
                     };
 
+                    // Extract return_last_only flag if present
+                    let return_last_only = task_param
+                        .get("return_last_only")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
+
                     let task = Task {
                         id: uuid::Uuid::new_v4().to_string(),
                         task_type: "inline_recipe".to_string(),
                         payload: json!({
-                            "recipe": recipe_json
+                            "recipe": recipe_json,
+                            "return_last_only": return_last_only
                         }),
                     };
                     tasks.push(task);

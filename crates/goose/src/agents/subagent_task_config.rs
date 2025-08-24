@@ -16,6 +16,7 @@ pub struct TaskConfig {
     pub id: String,
     pub provider: Option<Arc<dyn Provider>>,
     pub max_turns: Option<usize>,
+    pub extensions: Option<Vec<crate::agents::extension::ExtensionConfig>>,
 }
 
 impl fmt::Debug for TaskConfig {
@@ -24,6 +25,7 @@ impl fmt::Debug for TaskConfig {
             .field("id", &self.id)
             .field("provider", &"<dyn Provider>")
             .field("max_turns", &self.max_turns)
+            .field("extensions", &self.extensions)
             .finish()
     }
 }
@@ -40,6 +42,7 @@ impl TaskConfig {
                     .and_then(|val| val.parse::<usize>().ok())
                     .unwrap_or(DEFAULT_SUBAGENT_MAX_TURNS),
             ),
+            extensions: None,
         }
     }
 
