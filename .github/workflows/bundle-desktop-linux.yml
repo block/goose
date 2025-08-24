@@ -7,14 +7,14 @@ on:
   workflow_call:
     inputs:
       version:
-        description: 'Version to set for the build'
+        description: "Version to set for the build"
         required: false
         default: ""
         type: string
       ref:
         type: string
         required: false
-        default: ''
+        default: ""
 
 name: "Bundle Desktop (Linux)"
 
@@ -84,8 +84,27 @@ jobs:
           echo "CARGO_HOME=$CARGO_HOME" >> $GITHUB_ENV
           echo "RUSTUP_HOME=$RUSTUP_HOME" >> $GITHUB_ENV
 
+      # Install arm64 tooling
+      - name: Install arm64 tooling
+        run: |
+          sudo apt-get install -y \
+            gcc-aarch64-linux-gnu \
+            g++-aarch64-linux-gnu
+
+          rustup target add aarch64-unknown-linux-gnu
+
+          mkdir -p ~/.cargo
+          cat >> ~/.cargo/config.toml << EOF
+          [target.aarch64-unknown-linux-gnu]
+          linker = "aarch64-linux-gnu-gcc"
+          EOF
+
       - name: Install cross
         run: source ./bin/activate-hermit && cargo install cross --git https://github.com/cross-rs/cross
+
+      # Add arm64 target
+      - name: Add arm64 target
+        run: rustup target add aarch64-unknown-linux-gnu
 
       - name: Cache Cargo artifacts
         uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
@@ -102,7 +121,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # pin@v5
         with:
-          go-version: '1.21'
+          go-version: "1.21"
 
       - name: Build temporal-service
         run: |
@@ -152,18 +171,27 @@ jobs:
           # Verify installation
           ls -la node_modules/.bin/ | head -5
 
-      - name: Build Linux packages
+      # Build Electron app with Linux makers (.deb and .rpm) for x64
+      - name: Build Linux packages (x64)
         run: |
           source ./bin/activate-hermit
           cd ui/desktop
-          echo "Building Linux packages (.deb and .rpm)..."
-          
-          # Build both .deb and .rpm packages
+          echo "Building Linux packages (.deb and .rpm) for x64..."
           npm run make -- --platform=linux --arch=x64
-          
-          echo "Build completed. Checking output..."
-          ls -la out/
-          find out/ -name "*.deb" -o -name "*.rpm" | head -10
+
+      # 15a) build linux packages - arm64
+      - name: Build Linux packages (arm64)
+        run: |
+          cd ui/desktop
+          echo "Building Linux packages (.deb and .rpm) for arm64..."
+
+          cd ../..
+          cargo build --release --target aarch64-unknown-linux-gnu -p goose-server
+          cp target/aarch64-unknown-linux-gnu/release/goosed ui/desktop/src/bin/
+
+          # build packages
+          cd ui/desktop
+          ELECTRON_ARCH=arm64 npm run make -- --platform=linux --arch=arm64
 
       - name: List generated files
         run: |
@@ -176,18 +204,24 @@ jobs:
           echo "=== File sizes ==="
           find ui/desktop/out/ -name "*.deb" -o -name "*.rpm" -exec ls -lh {} \;
 
-      - name: Upload .deb package
+      # Upload .deb packages (both x64 and arm64)
+      - name: Upload .deb packages
         uses: actions/upload-artifact@v4
         with:
-          name: Goose-linux-x64-deb
-          path: ui/desktop/out/make/deb/x64/*.deb
+          name: Goose-linux-deb
+          path: |
+            ui/desktop/out/make/deb/x64/*.deb
+            ui/desktop/out/make/deb/arm64/*.deb
           if-no-files-found: error
 
-      - name: Upload .rpm package
+      # Upload .rpm packages (both x64 and arm64)
+      - name: Upload .rpm packages
         uses: actions/upload-artifact@v4
         with:
-          name: Goose-linux-x64-rpm
-          path: ui/desktop/out/make/rpm/x64/*.rpm
+          name: Goose-linux-rpm
+          path: |
+            ui/desktop/out/make/rpm/x64/*.rpm
+            ui/desktop/out/make/rpm/arm64/*.rpm
           if-no-files-found: error
 
       - name: Upload combined Linux packages
