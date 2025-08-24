@@ -48,13 +48,9 @@ async fn get_task_result(
 ) -> Result<Value, String> {
     match task.task_type.as_str() {
         "text_instruction" => {
-            handle_text_instruction_task(task, task_config, cancellation_token)
-                .await
+            handle_text_instruction_task(task, task_config, cancellation_token).await
         }
-        "inline_recipe" => {
-            handle_inline_recipe_task(task, task_config, cancellation_token)
-                .await
-        }
+        "inline_recipe" => handle_inline_recipe_task(task, task_config, cancellation_token).await,
         "sub_recipe" => {
             let (command, output_identifier) = build_command(&task)?;
             let (stdout_output, stderr_output, success) = run_command(
