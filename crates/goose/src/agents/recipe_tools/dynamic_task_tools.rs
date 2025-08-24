@@ -121,7 +121,7 @@ fn process_extensions(
     None
 }
 
-pub(crate) fn task_params_to_inline_recipe(
+pub fn task_params_to_inline_recipe(
     task_param: &Value,
     loaded_extensions: &[String],
 ) -> Result<Recipe> {
