@@ -20,7 +20,7 @@
   {
     "id": "autovisualiser",
     "name": "Auto Visualiser",
-    "description": "Data visualization and UI generation tools",
+    "description": "Automatically see your data with this UI generation extension.",
     "enabled": false,
     "type": "builtin",
     "env_keys": [],

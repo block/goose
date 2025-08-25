@@ -750,7 +750,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
             let extension = cliclack::select("Which built-in extension would you like to enable?")
                 .item(
                     "autovisualiser",
-                    "Auto Visualiser",
+                    "Auto Visualizer",
                     "Data visualization and UI generation tools",
                 )
                 .item(

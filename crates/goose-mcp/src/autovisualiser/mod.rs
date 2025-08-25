@@ -574,6 +574,8 @@ impl AutoVisualiserRouter {
             This extension provides tools for automatic data visualization
             Use these tools when you are presenting data to the user which could be complemented by a visual expression
             Choose the most appropriate chart type based on the data you have and can provide
+            It is important you match the data format as appropriate with the chart type you have chosen
+            The user may specify a type of chart or you can pick one of the most appopriate that you can shape the data to
 
             ## Available Tools:
             - **render_sankey**: Creates interactive Sankey diagrams from flow data
