@@ -692,81 +692,30 @@ impl AutoPilot {
     #[allow(clippy::type_complexity)]
     fn should_switch_from_current(
         &self,
-        conversation: &Conversation,
+        _conversation: &Conversation,
         current_turn: usize,
     ) -> Result<Option<(Arc<dyn crate::providers::base::Provider>, String, String)>> {
-        // Strategy: Check if the current switched model's trigger conditions are still met
-        // If not, or if a higher priority model should take over, switch accordingly
+        // Strategy: Stay in the current role until its cooldown period has elapsed
+        // This ensures the specialized model gets to complete its work
 
-        // Find the currently active model config
         let current_role = self.current_role.as_ref().unwrap();
         let current_model = self.model_configs.iter().find(|m| &m.role == current_role);
+        let current_state = &self.model_states[current_role];
 
-        if let Some(current_model) = current_model {
-            // Check if the current model's rules are still satisfied
-            let still_triggered = self.evaluate_rules(current_model, conversation, current_turn);
+        if let (Some(current_model), Some(last_invoked_turn)) = (current_model, current_state.last_invoked_turn) {
+            let turns_since_invoked = current_turn.saturating_sub(last_invoked_turn);
+            
+            debug!("AutoPilot: Current model '{}' invoked at turn {}, current turn {}, turns since: {}, cooldown: {}", 
+                   current_role, last_invoked_turn, current_turn, turns_since_invoked, current_model.rules.cooldown_turns);
 
-            if !still_triggered {
-                debug!("AutoPilot: Current model '{}' rules no longer satisfied, switching back to original", current_role);
-                if let Some(original) = &self.original_provider {
-                    let original_model = original.get_active_model_name();
-                    return Ok(Some((
-                        Arc::clone(original),
-                        "original".to_string(),
-                        original_model,
-                    )));
-                }
+            // If we're still within the cooldown period, stay with current model
+            if turns_since_invoked < current_model.rules.cooldown_turns {
+                debug!("AutoPilot: Still within cooldown period for '{}', staying", current_role);
+                return Ok(None);
             }
 
-            // Check if there's a higher priority model that should take over
-            for model in &self.model_configs {
-                if model.role != *current_role
-                    && model.rules.priority > current_model.rules.priority
-                    && self.evaluate_rules(model, conversation, current_turn)
-                {
-                    debug!("AutoPilot: Higher priority model '{}' (priority {}) should take over from '{}' (priority {})", 
-                           model.role, model.rules.priority, current_role, current_model.rules.priority);
-
-                    // Create new provider for the higher priority model
-                    let model_config = crate::model::ModelConfig::new_or_fail(&model.model);
-                    let new_provider = providers::create(&model.provider, model_config)?;
-
-                    return Ok(Some((
-                        new_provider,
-                        model.role.clone(),
-                        model.model.clone(),
-                    )));
-                }
-            }
-        }
-
-        // Additional safety checks:
-
-        // 1. If there's a new human message and we're in a machine-triggered role,
-        //    switch back to let human-triggered roles take precedence
-        let last_msg = conversation.messages().last();
-        if let Some(msg) = last_msg {
-            if msg.role == rmcp::model::Role::User {
-                if let Some(current_model) = current_model {
-                    if matches!(current_model.rules.triggers.source, TriggerSource::Machine) {
-                        debug!("AutoPilot: New human message with machine-triggered role '{}', switching back", current_role);
-                        if let Some(original) = &self.original_provider {
-                            let original_model = original.get_active_model_name();
-                            return Ok(Some((
-                                Arc::clone(original),
-                                "original".to_string(),
-                                original_model,
-                            )));
-                        }
-                    }
-                }
-            }
-        }
-
-        // 2. Prevent infinite loops - if we've been switched for too many turns
-        let machine_messages = self.count_machine_messages_without_human(conversation);
-        if machine_messages > 10 {
-            debug!("AutoPilot: Too many machine messages without human input ({}), forcing switch back", machine_messages);
+            // Cooldown period has elapsed, switch back to original
+            debug!("AutoPilot: Cooldown period elapsed for '{}', switching back to original", current_role);
             if let Some(original) = &self.original_provider {
                 let original_model = original.get_active_model_name();
                 return Ok(Some((
@@ -777,7 +726,17 @@ impl AutoPilot {
             }
         }
 
-        // Stay with the current specialized model
+        // Fallback: if we can't determine the state, switch back to original
+        debug!("AutoPilot: Unable to determine current model state, switching back to original");
+        if let Some(original) = &self.original_provider {
+            let original_model = original.get_active_model_name();
+            return Ok(Some((
+                Arc::clone(original),
+                "original".to_string(),
+                original_model,
+            )));
+        }
+
         Ok(None)
     }
 
