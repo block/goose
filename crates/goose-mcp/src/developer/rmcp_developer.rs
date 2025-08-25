@@ -1,16 +1,25 @@
+use base64::Engine;
+use ignore::gitignore::{Gitignore, GitignoreBuilder};
+use indoc::formatdoc;
+use once_cell::sync::Lazy;
 use rmcp::{
     handler::server::{router::tool::ToolRouter, tool::Parameters},
-    model::{Content, Role, CallToolResult, ErrorData, ErrorCode, ServerInfo, ServerCapabilities},
+    model::{CallToolResult, Content, ErrorCode, ErrorData, Role, ServerCapabilities, ServerInfo},
     schemars::JsonSchema,
     tool, tool_handler, tool_router, ServerHandler,
 };
 use serde::{Deserialize, Serialize};
-use std::{future::Future, io::Cursor, path::{Path, PathBuf}, fs::File, io::Read, collections::{HashMap, HashSet}, sync::{Arc, Mutex}, process::Stdio};
-use base64::Engine;
+use std::{
+    collections::{HashMap, HashSet},
+    fs::File,
+    future::Future,
+    io::Cursor,
+    io::Read,
+    path::{Path, PathBuf},
+    process::Stdio,
+    sync::{Arc, Mutex},
+};
 use xcap::{Monitor, Window};
-use indoc::formatdoc;
-use ignore::gitignore::{Gitignore, GitignoreBuilder};
-use once_cell::sync::Lazy;
 
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
@@ -18,9 +27,9 @@ use tokio::{
 };
 use tokio_stream::{wrappers::SplitStream, StreamExt as _};
 
-use super::shell::{expand_path, is_absolute_path, normalize_line_endings, get_shell_config};
-use super::lang::get_language_identifier;
 use super::editor_models::{create_editor_model, EditorModel};
+use super::lang::get_language_identifier;
+use super::shell::{expand_path, get_shell_config, is_absolute_path, normalize_line_endings};
 
 /// Regex pattern to match file references (@-mentions) in text
 static FILE_REFERENCE_REGEX: Lazy<regex::Regex> = Lazy::new(|| {
@@ -205,8 +214,8 @@ pub struct ScreenCaptureParams {
     /// The display number to capture (0 is main display)
     #[serde(default)]
     pub display: Option<u64>,
-    
-    /// Optional: the exact title of the window to capture. 
+
+    /// Optional: the exact title of the window to capture.
     /// Use the list_windows tool to find the available windows.
     pub window_title: Option<String>,
 }
@@ -216,24 +225,24 @@ pub struct ScreenCaptureParams {
 pub struct TextEditorParams {
     /// Absolute path to file or directory, e.g. `/repo/file.py` or `/repo`.
     pub path: String,
-    
+
     /// The operation to perform. Allowed options are: `view`, `write`, `str_replace`, `insert`, `undo_edit`.
     pub command: String,
-    
-    /// Optional array of two integers specifying the start and end line numbers to view. 
-    /// Line numbers are 1-indexed, and -1 for the end line means read to the end of the file. 
+
+    /// Optional array of two integers specifying the start and end line numbers to view.
+    /// Line numbers are 1-indexed, and -1 for the end line means read to the end of the file.
     /// This parameter only applies when viewing files, not directories.
     pub view_range: Option<Vec<i64>>,
-    
+
     /// The content to write to the file. Required for `write` command.
     pub file_text: Option<String>,
-    
+
     /// The old string to replace. Required for `str_replace` command.
     pub old_str: Option<String>,
-    
+
     /// The new string to replace with. Required for `str_replace` and `insert` commands.
     pub new_str: Option<String>,
-    
+
     /// The line number after which to insert text (0 for beginning). Required for `insert` command.
     pub insert_line: Option<i64>,
 }
@@ -320,11 +329,11 @@ impl ServerHandler for DeveloperServer {
 
         // Build ignore patterns for file reference processing
         let mut builder = GitignoreBuilder::new(&cwd);
-        
+
         // Check for local .gooseignore
         let local_ignore_path = cwd.join(".gooseignore");
         let mut has_ignore_file = false;
-        
+
         if local_ignore_path.is_file() {
             let _ = builder.add(local_ignore_path);
             has_ignore_file = true;
@@ -336,23 +345,23 @@ impl ServerHandler for DeveloperServer {
                 has_ignore_file = true;
             }
         }
-        
+
         // Add default patterns if no ignore files found
         if !has_ignore_file {
             let _ = builder.add_line(None, "**/.env");
             let _ = builder.add_line(None, "**/.env.*");
             let _ = builder.add_line(None, "**/secrets.*");
         }
-        
+
         let ignore_patterns = builder.build().expect("Failed to build ignore patterns");
 
         // Process hints with file reference expansion
         let mut hints = String::new();
-        
+
         // First, check for global hints
         let global_config_dir = PathBuf::from(shellexpand::tilde("~/.config/goose").to_string());
         let mut global_hints_contents = Vec::new();
-        
+
         let global_hints_path = global_config_dir.join(".goosehints");
         if global_hints_path.exists() && global_hints_path.is_file() {
             if let Ok(content) = std::fs::read_to_string(&global_hints_path) {
@@ -381,7 +390,7 @@ impl ServerHandler for DeveloperServer {
 
         // Then process local hints
         let mut local_hints_contents = Vec::new();
-        
+
         for filename in hints_filenames {
             let hints_path = cwd.join(&filename);
             if hints_path.exists() && hints_path.is_file() {
@@ -428,11 +437,11 @@ impl DeveloperServer {
         // Build ignore patterns (simplified version for this tool)
         let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
         let mut builder = GitignoreBuilder::new(&cwd);
-        
+
         // Check for local .gooseignore
         let local_ignore_path = cwd.join(".gooseignore");
         let mut has_ignore_file = false;
-        
+
         if local_ignore_path.is_file() {
             let _ = builder.add(local_ignore_path);
             has_ignore_file = true;
@@ -444,19 +453,19 @@ impl DeveloperServer {
                 has_ignore_file = true;
             }
         }
-        
+
         // Add default patterns if no ignore files found
         if !has_ignore_file {
             let _ = builder.add_line(None, "**/.env");
             let _ = builder.add_line(None, "**/.env.*");
             let _ = builder.add_line(None, "**/secrets.*");
         }
-        
+
         let ignore_patterns = builder.build().expect("Failed to build ignore patterns");
-        
+
         // Initialize editor model for AI-powered code editing
         let editor_model = create_editor_model();
-        
+
         Self {
             tool_router: Self::tool_router(),
             file_history: Arc::new(Mutex::new(HashMap::new())),
@@ -469,7 +478,7 @@ impl DeveloperServer {
     /// Returns a list of window titles that can be used with the window_title parameter
     /// of the screen_capture tool.
     #[tool(
-        name = "list_windows", 
+        name = "list_windows",
         description = "List all available window titles that can be used with screen_capture. Returns a list of window titles that can be used with the window_title parameter of the screen_capture tool."
     )]
     pub async fn list_windows(&self) -> Result<CallToolResult, ErrorData> {
@@ -481,16 +490,13 @@ impl DeveloperServer {
             )
         })?;
 
-        let window_titles: Vec<String> = windows
-            .into_iter()
-            .map(|w| w.title().to_string())
-            .collect();
+        let window_titles: Vec<String> =
+            windows.into_iter().map(|w| w.title().to_string()).collect();
 
         let content_text = format!("Available windows:\n{}", window_titles.join("\n"));
 
         Ok(CallToolResult::success(vec![
-            Content::text(content_text.clone())
-                .with_audience(vec![Role::Assistant]),
+            Content::text(content_text.clone()).with_audience(vec![Role::Assistant]),
             Content::text(content_text)
                 .with_audience(vec![Role::User])
                 .with_priority(0.0),
@@ -552,7 +558,7 @@ impl DeveloperServer {
                     None,
                 )
             })?;
-            
+
             let monitor = monitors.get(display).ok_or_else(|| {
                 ErrorData::new(
                     ErrorCode::INTERNAL_ERROR,
@@ -604,15 +610,13 @@ impl DeveloperServer {
         // Return two Content objects like the old implementation:
         // one text for Assistant, one image with priority 0.0
         Ok(CallToolResult::success(vec![
-            Content::text("Screenshot captured")
-                .with_audience(vec![Role::Assistant]),
-            Content::image(data, "image/png")
-                .with_priority(0.0),
+            Content::text("Screenshot captured").with_audience(vec![Role::Assistant]),
+            Content::image(data, "image/png").with_priority(0.0),
         ]))
     }
 
     /// Perform text editing operations on files.
-    /// 
+    ///
     /// The `command` parameter specifies the operation to perform. Allowed options are:
     /// - `view`: View the content of a file.
     /// - `write`: Create or overwrite a file with the given content
@@ -707,11 +711,11 @@ impl DeveloperServer {
     }
 
     /// Execute a command in the shell.
-    /// 
+    ///
     /// This will return the output and error concatenated into a single string, as
     /// you would see from running on the command line. There will also be an indication
     /// of if the command succeeded or failed.
-    /// 
+    ///
     /// Avoid commands that produce a large amount of output, and consider piping those outputs to files.
     /// If you need to run a long lived command, background it - e.g. `uvicorn main:app &` so that
     /// this tool does not run indefinitely.
@@ -732,10 +736,12 @@ impl DeveloperServer {
             // Empty command, just return empty output
             return Ok(CallToolResult::success(vec![
                 Content::text("").with_audience(vec![Role::Assistant]),
-                Content::text("").with_audience(vec![Role::User]).with_priority(0.0),
+                Content::text("")
+                    .with_audience(vec![Role::User])
+                    .with_priority(0.0),
             ]));
         }
-        
+
         for arg in &cmd_parts[1..] {
             // Skip command flags
             if arg.starts_with('-') {
@@ -838,13 +844,13 @@ impl DeveloperServer {
         ]))
     }
 
-    /// Process an image file from disk. 
-    /// 
+    /// Process an image file from disk.
+    ///
     /// The image will be:
     /// 1. Resized if larger than max width while maintaining aspect ratio
     /// 2. Converted to PNG format
     /// 3. Returned as base64 encoded data
-    /// 
+    ///
     /// This allows processing image files for use in the conversation.
     #[tool(
         name = "image_processor",
@@ -1010,7 +1016,10 @@ impl DeveloperServer {
             if start_idx >= end_idx && end_idx != 0 {
                 return Err(ErrorData::new(
                     ErrorCode::INVALID_PARAMS,
-                    format!("Start line {} must be less than end line {}", start_line, end_line),
+                    format!(
+                        "Start line {} must be less than end line {}",
+                        start_line, end_line
+                    ),
                     None,
                 ));
             }
@@ -1419,8 +1428,12 @@ impl DeveloperServer {
         let snippet = snippet_lines.join("\n");
 
         Ok(CallToolResult::success(vec![
-            Content::text(format!("Successfully inserted text at line {} in {}", insertion_line, path.display()))
-                .with_audience(vec![Role::Assistant]),
+            Content::text(format!(
+                "Successfully inserted text at line {} in {}",
+                insertion_line,
+                path.display()
+            ))
+            .with_audience(vec![Role::Assistant]),
             Content::text(formatdoc! {
                 r#"
                 ### {path} (around line {line})
@@ -1450,7 +1463,9 @@ impl DeveloperServer {
                         None,
                     )
                 })?;
-                Ok(CallToolResult::success(vec![Content::text("Undid the last edit")]))
+                Ok(CallToolResult::success(vec![Content::text(
+                    "Undid the last edit",
+                )]))
             } else {
                 Err(ErrorData::new(
                     ErrorCode::INVALID_PARAMS,
@@ -1579,8 +1594,7 @@ impl DeveloperServer {
         let user_output = if line_count > 100 {
             format!(
                 "NOTE: Output was {} lines, showing only the last 100 lines.\n\n{}",
-                line_count,
-                last_100_lines_str
+                line_count, last_100_lines_str
             )
         } else {
             output_str.to_string()
@@ -1607,8 +1621,10 @@ mod tests {
     fn test_global_goosehints() {
         // Note: This test checks if ~/.config/goose/.goosehints exists and includes it in instructions
         // Since RMCP version uses get_info() instead of instructions(), we test that method
-        let global_hints_path = PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints").to_string());
-        let global_hints_bak_path = PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints.bak").to_string());
+        let global_hints_path =
+            PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints").to_string());
+        let global_hints_bak_path =
+            PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints.bak").to_string());
         let mut globalhints_existed = false;
 
         if global_hints_path.is_file() {
@@ -1674,14 +1690,14 @@ mod tests {
         std::env::set_current_dir(&temp_dir).unwrap();
 
         let server = create_test_server();
-        
+
         // This should fail because the command parameter is missing
         // We can't directly test this with RMCP because parameters are typed,
         // but we can test with an empty command
         let params = Parameters(ShellParams {
             command: String::new(),
         });
-        
+
         let result = server.shell(params).await;
         // Empty command should still work, just return empty output
         assert!(result.is_ok());
@@ -1761,7 +1777,8 @@ mod tests {
         let view_result = server.text_editor(view_params).await.unwrap();
 
         assert!(!view_result.content.is_empty());
-        let user_content = view_result.content
+        let user_content = view_result
+            .content
             .iter()
             .find(|c| {
                 c.audience()
@@ -1809,7 +1826,8 @@ mod tests {
 
         let replace_result = server.text_editor(replace_params).await.unwrap();
 
-        let assistant_content = replace_result.content
+        let assistant_content = replace_result
+            .content
             .iter()
             .find(|c| {
                 c.audience()
@@ -1851,7 +1869,7 @@ mod tests {
 
         let result = server.text_editor(view_params).await;
         assert!(result.is_err());
-        
+
         let error = result.err().unwrap();
         assert_eq!(error.code, ErrorCode::INTERNAL_ERROR);
         assert!(error.message.contains("too large"));
@@ -1909,12 +1927,13 @@ mod tests {
         });
 
         let undo_result = server.text_editor(undo_params).await.unwrap();
-        
+
         // Verify undo worked
         let content = fs::read_to_string(&file_path).unwrap();
         assert!(content.contains("Original content"));
-        
-        let undo_content = undo_result.content
+
+        let undo_content = undo_result
+            .content
             .iter()
             .find(|c| c.as_text().is_some())
             .unwrap()
@@ -2093,7 +2112,8 @@ mod tests {
         let server = create_test_server();
 
         // Create a multi-line file
-        let content = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8\nLine 9\nLine 10";
+        let content =
+            "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8\nLine 9\nLine 10";
         let write_params = Parameters(TextEditorParams {
             path: file_path_str.to_string(),
             command: "write".to_string(),
@@ -2119,7 +2139,8 @@ mod tests {
 
         let view_result = server.text_editor(view_params).await.unwrap();
 
-        let text = view_result.content
+        let text = view_result
+            .content
             .iter()
             .find(|c| {
                 c.audience()
@@ -2177,7 +2198,8 @@ mod tests {
 
         let view_result = server.text_editor(view_params).await.unwrap();
 
-        let text = view_result.content
+        let text = view_result
+            .content
             .iter()
             .find(|c| {
                 c.audience()
@@ -2234,7 +2256,8 @@ mod tests {
 
         let insert_result = server.text_editor(insert_params).await.unwrap();
 
-        let text = insert_result.content
+        let text = insert_result
+            .content
             .iter()
             .find(|c| {
                 c.audience()
@@ -2288,7 +2311,8 @@ mod tests {
 
         let insert_result = server.text_editor(insert_params).await.unwrap();
 
-        let text = insert_result.content
+        let text = insert_result
+            .content
             .iter()
             .find(|c| {
                 c.audience()
@@ -2366,7 +2390,9 @@ mod tests {
         assert!(result.0.contains("truncated output:"));
 
         // Check that user output shows truncation notice
-        assert!(result.1.contains("NOTE: Output was 150 lines, showing only the last 100 lines"));
+        assert!(result
+            .1
+            .contains("NOTE: Output was 150 lines, showing only the last 100 lines"));
 
         // Verify it shows the last 100 lines (use exact line matching to avoid substring matches)
         assert!(result.1.contains("Line 51\n"));
@@ -2704,7 +2730,10 @@ Additional instructions here.
         let absolute_path = Path::new("/etc/passwd");
         let result = sanitize_reference_path(absolute_path, base_path);
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err().kind(), std::io::ErrorKind::PermissionDenied);
+        assert_eq!(
+            result.unwrap_err().kind(),
+            std::io::ErrorKind::PermissionDenied
+        );
 
         // Test path traversal attempt (should be rejected)
         let traversal_path = Path::new("../../../etc/passwd");
