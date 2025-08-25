@@ -1,5 +1,6 @@
 use goose::agents::Agent;
 use goose::scheduler_trait::SchedulerTrait;
+use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -10,6 +11,7 @@ pub struct AppState {
     agent: Option<AgentRef>,
     pub secret_key: String,
     pub scheduler: Arc<Mutex<Option<Arc<dyn SchedulerTrait>>>>,
+    pub session_counter: Arc<AtomicUsize>,
 }
 
 impl AppState {
@@ -18,6 +20,7 @@ impl AppState {
             agent: Some(agent.clone()),
             secret_key,
             scheduler: Arc::new(Mutex::new(None)),
+            session_counter: Arc::new(AtomicUsize::new(0)),
         })
     }
 

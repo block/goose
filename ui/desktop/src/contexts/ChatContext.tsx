@@ -4,6 +4,7 @@ import { generateSessionId } from '../sessions';
 import { Recipe } from '../recipe';
 import { useDraftContext } from './DraftContext';
 
+// TODO(Douwe): We should not need this anymore
 export const DEFAULT_CHAT_TITLE = 'New Chat';
 
 interface ChatContextType {
@@ -57,7 +58,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
   const resetChat = () => {
     const newSessionId = generateSessionId();
     setChat({
-      id: newSessionId,
+      sessionId: newSessionId,
       title: DEFAULT_CHAT_TITLE,
       messages: [],
       messageHistoryIndex: 0,

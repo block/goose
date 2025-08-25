@@ -54,7 +54,7 @@ export const useSessionContinuation = ({
       shouldCreateNewSessionAfterMessage.current = false;
 
       console.log('Creating new session, preserving recipe config:', {
-        oldSessionId: chat.id,
+        oldSessionId: chat.sessionId,
         newSessionId,
         currentRecipeConfig: chat.recipeConfig,
         recipeTitle: chat.recipeConfig?.title,
@@ -63,8 +63,8 @@ export const useSessionContinuation = ({
       // Update the session ID in the chat object while preserving recipe config
       setChat({
         ...chat,
-        id: newSessionId!,
-        title: `Continued from ${chat.id}`,
+        sessionId: newSessionId!,
+        title: `Continued from ${chat.sessionId}`,
         messageHistoryIndex: 0, // Reset since messages were already reset
         // Explicitly preserve the recipe config
         recipeConfig: chat.recipeConfig,

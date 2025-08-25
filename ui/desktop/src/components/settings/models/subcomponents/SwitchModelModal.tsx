@@ -19,11 +19,12 @@ import type { View } from '../../../../utils/navigationUtils';
 import Model, { getProviderMetadata } from '../modelInterface';
 import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
 
-type AddModelModalProps = {
+type SwitchModelModalProps = {
+  sessionId: string | null;
   onClose: () => void;
   setView: (view: View) => void;
 };
-export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
+export const SwitchModelModal = ({ sessionId, onClose, setView }: SwitchModelModalProps) => {
   const { getProviders, read } = useConfig();
   const { changeModel } = useModelAndProvider();
   const [providerOptions, setProviderOptions] = useState<{ value: string; label: string }[]>([]);
@@ -92,7 +93,7 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
         modelObj = { name: model, provider: provider, subtext: providerDisplayName } as Model;
       }
 
-      await changeModel(modelObj);
+      await changeModel(sessionId, modelObj);
       onClose();
     }
   };

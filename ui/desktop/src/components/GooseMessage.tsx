@@ -22,6 +22,7 @@ import { NotificationEvent } from '../hooks/useMessageStream';
 interface GooseMessageProps {
   // messages up to this index are presumed to be "history" from a resumed session, this is used to track older tool confirmation requests
   // anything before this index should not render any buttons, but anything after should
+  sessionId: string;
   messageHistoryIndex: number;
   message: Message;
   messages: Message[];
@@ -33,6 +34,7 @@ interface GooseMessageProps {
 }
 
 export default function GooseMessage({
+  sessionId,
   messageHistoryIndex,
   message,
   metadata,
@@ -220,6 +222,7 @@ export default function GooseMessage({
 
         {hasToolConfirmation && (
           <ToolCallConfirmation
+            sessionId={sessionId}
             isCancelledMessage={messageIndex == messageHistoryIndex - 1}
             isClicked={messageIndex < messageHistoryIndex}
             toolConfirmationId={toolConfirmationContent.id}

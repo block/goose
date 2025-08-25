@@ -129,7 +129,7 @@ async fn get_session_history(
     let messages = match session::read_messages(&session_path) {
         Ok(messages) => messages,
         Err(e) => {
-            tracing::error!("Failed to read session messages: {:?}", e);
+            error!("Failed to read session messages: {:?}", e);
             return Err(StatusCode::NOT_FOUND);
         }
     };

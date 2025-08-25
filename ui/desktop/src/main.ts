@@ -590,7 +590,7 @@ const createChat = async (
       additionalArguments: [
         JSON.stringify({
           ...appConfig, // Use the potentially updated appConfig
-          GOOSE_PORT: port, // Ensure this specific window gets the correct port
+          GOOSE_PORT: port,
           GOOSE_WORKING_DIR: working_dir,
           REQUEST_DIR: dir,
 
@@ -613,7 +613,6 @@ const createChat = async (
   // renders in english right now, this feels like the correct set of language codes
   // for the moment.
   //
-  // TODO: Load language codes from a setting if we ever have i18n/l10n
   mainWindow.webContents.session.setSpellCheckerLanguages(['en-US', 'en-GB']);
   mainWindow.webContents.on('context-menu', (_event, params) => {
     const menu = new Menu();

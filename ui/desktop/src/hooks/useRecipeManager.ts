@@ -3,6 +3,7 @@ import { createRecipe, Recipe, scanRecipe } from '../recipe';
 import { Message, createUserMessage } from '../types/message';
 import { updateSystemPromptWithParameters, substituteParameters } from '../utils/providerUtils';
 import { useChatContext } from '../contexts/ChatContext';
+import { ChatType } from '../types/chat';
 
 interface LocationState {
   recipeConfig?: Recipe;
@@ -10,7 +11,7 @@ interface LocationState {
   reset?: boolean;
 }
 
-export const useRecipeManager = (messages: Message[], locationState?: LocationState) => {
+export const useRecipeManager = (chat: ChatType, locationState?: LocationState) => {
   const [isGeneratingRecipe, setIsGeneratingRecipe] = useState(false);
   const [isParameterModalOpen, setIsParameterModalOpen] = useState(false);
   const [readyForAutoUserPrompt, setReadyForAutoUserPrompt] = useState(false);
@@ -21,6 +22,7 @@ export const useRecipeManager = (messages: Message[], locationState?: LocationSt
 
   // Get chat context to access persisted recipe and parameters
   const chatContext = useChatContext();
+  const messages = chat.messages;
 
   // Use a ref to capture the current messages for the event handler
   const messagesRef = useRef(messages);
@@ -147,7 +149,11 @@ export const useRecipeManager = (messages: Message[], locationState?: LocationSt
 
     // Update the system prompt with parameter-substituted instructions
     try {
-      await updateSystemPromptWithParameters(inputValues, recipeConfig || undefined);
+      await updateSystemPromptWithParameters(
+        chat.sessionId,
+        inputValues,
+        recipeConfig || undefined
+      );
     } catch (error) {
       console.error('Failed to update system prompt with parameters:', error);
     }

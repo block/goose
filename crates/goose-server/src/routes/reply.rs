@@ -26,7 +26,6 @@ use serde_json::json;
 use serde_json::Value;
 use std::{
     convert::Infallible,
-    path::PathBuf,
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
@@ -89,8 +88,6 @@ fn track_tool_telemetry(content: &MessageContent, all_messages: &[Message]) {
 struct ChatRequest {
     messages: Vec<Message>,
     session_id: Option<String>,
-    session_working_dir: String,
-    scheduled_job_id: Option<String>,
 }
 
 pub struct SseResponse {
@@ -188,11 +185,11 @@ async fn reply_handler(
     let cancel_token = CancellationToken::new();
 
     let messages = Conversation::new_unvalidated(request.messages);
-    let session_working_dir = request.session_working_dir.clone();
 
-    let session_id = request
-        .session_id
-        .unwrap_or_else(session::generate_session_id);
+    let session_id = request.session_id.ok_or_else(|| {
+        tracing::error!("session_id is required but was not provided");
+        StatusCode::BAD_REQUEST
+    })?;
 
     let task_cancel = cancel_token.clone();
     let task_tx = tx.clone();
@@ -213,10 +210,43 @@ async fn reply_handler(
             }
         };
 
+        // Load session metadata to get the working directory and other config
+        let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
+            Ok(path) => path,
+            Err(e) => {
+                tracing::error!("Failed to get session path for {}: {}", session_id, e);
+                let _ = stream_event(
+                    MessageEvent::Error {
+                        error: format!("Failed to get session path: {}", e),
+                    },
+                    &task_tx,
+                    &cancel_token,
+                )
+                .await;
+                return;
+            }
+        };
+
+        let session_metadata = match session::read_metadata(&session_path) {
+            Ok(metadata) => metadata,
+            Err(e) => {
+                tracing::error!("Failed to read session metadata for {}: {}", session_id, e);
+                let _ = stream_event(
+                    MessageEvent::Error {
+                        error: format!("Failed to read session metadata: {}", e),
+                    },
+                    &task_tx,
+                    &cancel_token,
+                )
+                .await;
+                return;
+            }
+        };
+
         let session_config = SessionConfig {
             id: session::Identifier::Name(session_id.clone()),
-            working_dir: PathBuf::from(&session_working_dir),
-            schedule_id: request.scheduled_job_id.clone(),
+            working_dir: session_metadata.working_dir.clone(),
+            schedule_id: session_metadata.schedule_id.clone(),
             execution_mode: None,
             max_turns: None,
             retry_config: None,
@@ -225,7 +255,7 @@ async fn reply_handler(
         let mut stream = match agent
             .reply(
                 messages.clone(),
-                Some(session_config),
+                Some(session_config.clone()),
                 Some(task_cancel.clone()),
             )
             .await
@@ -329,12 +359,13 @@ async fn reply_handler(
                 let provider = Arc::clone(&provider);
                 let session_path_clone = session_path.to_path_buf();
                 let all_messages_clone = all_messages.clone();
+                let working_dir = session_config.working_dir.clone();
                 tokio::spawn(async move {
                     if let Err(e) = session::persist_messages(
                         &session_path_clone,
                         &all_messages_clone,
                         Some(provider),
-                        Some(PathBuf::from(&session_working_dir)),
+                        Some(working_dir),
                     )
                     .await
                     {
@@ -343,7 +374,6 @@ async fn reply_handler(
                 });
             }
         }
-
         let session_duration = session_start.elapsed();
 
         if let Ok(metadata) = session::read_metadata(&session_path) {
@@ -414,6 +444,8 @@ pub struct PermissionConfirmationRequest {
     #[serde(default = "default_principal_type")]
     principal_type: PrincipalType,
     action: String,
+    #[allow(dead_code)]
+    session_id: String,
 }
 
 fn default_principal_type() -> PrincipalType {
@@ -465,6 +497,8 @@ pub async fn confirm_permission(
 struct ToolResultRequest {
     id: String,
     result: ToolResult<Vec<Content>>,
+    #[allow(dead_code)]
+    session_id: String,
 }
 
 async fn submit_tool_result(
@@ -583,8 +617,6 @@ mod tests {
                     serde_json::to_string(&ChatRequest {
                         messages: vec![Message::user().with_text("test message")],
                         session_id: Some("test-session".to_string()),
-                        session_working_dir: "test-working-dir".to_string(),
-                        scheduled_job_id: None,
                     })
                     .unwrap(),
                 ))

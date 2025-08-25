@@ -42,7 +42,7 @@
  * while remaining flexible enough to support different UI contexts (Hub vs Pair).
  */
 
-import React, { useEffect, useContext, createContext, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { SearchView } from './conversation/SearchView';
 import { AgentHeader } from './AgentHeader';
@@ -69,19 +69,18 @@ import { useFileDrop } from '../hooks/useFileDrop';
 import { useCostTracking } from '../hooks/useCostTracking';
 import { Message } from '../types/message';
 import { ChatState } from '../types/chatState';
+import { ChatType } from '../types/chat';
+import { useToolCount } from './alerts/useToolCount';
 
 // Context for sharing current model info
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
 export const useCurrentModelInfo = () => useContext(CurrentModelContext);
-
-import { ChatType } from '../types/chat';
 
 interface BaseChatProps {
   chat: ChatType;
   setChat: (chat: ChatType) => void;
   setView: (view: View, viewOptions?: ViewOptions) => void;
   setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
-  enableLocalStorage?: boolean;
   onMessageStreamFinish?: () => void;
   onMessageSubmit?: (message: string) => void; // Callback after message is submitted
   renderHeader?: () => React.ReactNode;
@@ -101,7 +100,6 @@ function BaseChatContent({
   setChat,
   setView,
   setIsGoosehintsModalOpen,
-  enableLocalStorage = false,
   onMessageStreamFinish,
   onMessageSubmit,
   renderHeader,
@@ -146,7 +144,6 @@ function BaseChatContent({
     error,
     setMessages,
     input,
-    setInput: _setInput,
     handleSubmit: engineHandleSubmit,
     onStopGoose,
     sessionTokenCount,
@@ -177,7 +174,6 @@ function BaseChatContent({
       // Create new session after message is sent if needed
       createNewSessionIfNeeded();
     },
-    enableLocalStorage,
   });
 
   // Use shared recipe manager
@@ -196,7 +192,7 @@ function BaseChatContent({
     handleRecipeAccept,
     handleRecipeCancel,
     hasSecurityWarnings,
-  } = useRecipeManager(messages, location.state);
+  } = useRecipeManager(chat, location.state);
 
   // Reset recipe usage tracking when recipe changes
   useEffect(() => {
@@ -301,6 +297,8 @@ function BaseChatContent({
     }
   };
 
+  const toolCount = useToolCount(chat.sessionId);
+
   // Wrapper for append that tracks recipe usage
   const appendWithTracking = (text: string | Message) => {
     // Mark that user has started using the recipe when they use append
@@ -376,10 +374,9 @@ function BaseChatContent({
               // Check if we should show splash instead of messages
               (() => {
                 // Show splash if we have a recipe and user hasn't started using it yet, and recipe has been accepted
-                const shouldShowSplash =
-                  recipeConfig && recipeAccepted && !hasStartedUsingRecipe && !suppressEmptyState;
-
-                return shouldShowSplash;
+                return (
+                  recipeConfig && recipeAccepted && !hasStartedUsingRecipe && !suppressEmptyState
+                );
               })() ? (
                 <>
                   {/* Show RecipeActivities when we have a recipe config and user hasn't started using it */}
@@ -480,7 +477,7 @@ function BaseChatContent({
                                   null as Message | null
                                 );
                                 if (lastUserMessage) {
-                                  append(lastUserMessage);
+                                  await append(lastUserMessage);
                                 }
                               }}
                             >
@@ -521,6 +518,7 @@ function BaseChatContent({
           className={`relative z-10 ${disableAnimation ? '' : 'animate-[fadein_400ms_ease-in_forwards]'}`}
         >
           <ChatInput
+            sessionId={chat.sessionId}
             handleSubmit={handleSubmit}
             chatState={chatState}
             onStop={onStopGoose}
@@ -540,6 +538,7 @@ function BaseChatContent({
             recipeConfig={recipeConfig}
             recipeAccepted={recipeAccepted}
             initialPrompt={initialPrompt}
+            toolCount={toolCount || 0}
             autoSubmit={autoSubmit}
             {...customChatInputProps}
           />

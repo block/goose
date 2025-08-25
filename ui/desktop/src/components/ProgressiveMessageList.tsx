@@ -14,7 +14,7 @@
  * - Configurable batch size and delay
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Message } from '../types/message';
 import GooseMessage from './GooseMessage';
 import UserMessage from './UserMessage';
@@ -22,10 +22,11 @@ import { ContextHandler } from './context_management/ContextHandler';
 import { useChatContextManager } from './context_management/ChatContextManager';
 import { NotificationEvent } from '../hooks/useMessageStream';
 import LoadingGoose from './LoadingGoose';
+import { ChatType } from '../types/chat';
 
 interface ProgressiveMessageListProps {
   messages: Message[];
-  chat?: { id: string; messageHistoryIndex: number }; // Make optional for session history
+  chat?: Pick<ChatType, 'sessionId' | 'messageHistoryIndex'>;
   toolCallNotifications?: Map<string, NotificationEvent[]>; // Make optional
   append?: (value: string) => void; // Make optional
   appendMessage?: (message: Message) => void; // Make optional
@@ -157,8 +158,7 @@ export default function ProgressiveMessageList({
   // Render messages up to the current rendered count
   const renderMessages = useCallback(() => {
     const messagesToRender = messages.slice(0, renderedCount);
-
-    const renderedMessages = messagesToRender
+    return messagesToRender
       .map((message, index) => {
         // Use custom render function if provided
         if (renderMessage) {
@@ -175,7 +175,7 @@ export default function ProgressiveMessageList({
 
         const isUser = isUserMessage(message);
 
-        const result = (
+        return (
           <div
             key={message.id && `${message.id}-${message.content.length}`}
             className={`relative ${index === 0 ? 'mt-0' : 'mt-4'} ${isUser ? 'user' : 'assistant'}`}
@@ -187,7 +187,7 @@ export default function ProgressiveMessageList({
                   <ContextHandler
                     messages={messages}
                     messageId={message.id ?? message.created.toString()}
-                    chatId={chat.id}
+                    chatId={chat.sessionId}
                     workingDir={window.appConfig.get('GOOSE_WORKING_DIR') as string}
                     contextType={getContextHandlerType!(message)}
                   />
@@ -203,12 +203,13 @@ export default function ProgressiveMessageList({
                   <ContextHandler
                     messages={messages}
                     messageId={message.id ?? message.created.toString()}
-                    chatId={chat.id}
+                    chatId={chat.sessionId}
                     workingDir={window.appConfig.get('GOOSE_WORKING_DIR') as string}
                     contextType={getContextHandlerType!(message)}
                   />
                 ) : (
                   <GooseMessage
+                    sessionId={chat.sessionId}
                     messageHistoryIndex={chat.messageHistoryIndex}
                     message={message}
                     messages={messages}
@@ -227,12 +228,8 @@ export default function ProgressiveMessageList({
             )}
           </div>
         );
-
-        return result;
       })
-      .filter(Boolean); // Filter out null values
-
-    return renderedMessages;
+      .filter(Boolean);
   }, [
     messages,
     renderedCount,

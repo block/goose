@@ -1,5 +1,6 @@
 use super::utils::verify_secret_key;
 use crate::state::AppState;
+use axum::response::IntoResponse;
 use axum::{
     extract::{Query, State},
     http::{HeaderMap, StatusCode},
@@ -7,20 +8,30 @@ use axum::{
     Json, Router,
 };
 use goose::config::PermissionManager;
+use goose::conversation::message::Message;
+use goose::conversation::Conversation;
 use goose::model::ModelConfig;
 use goose::providers::create;
 use goose::recipe::Response;
+use goose::session;
+use goose::session::storage::save_messages_with_metadata;
+use goose::session::SessionMetadata;
 use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
 };
 use goose::{config::Config, recipe::SubRecipe};
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use tracing::error;
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct ExtendPromptRequest {
     extension: String,
+    #[allow(dead_code)]
+    session_id: String,
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
@@ -31,6 +42,8 @@ pub struct ExtendPromptResponse {
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct AddSubRecipesRequest {
     sub_recipes: Vec<SubRecipe>,
+    #[allow(dead_code)]
+    session_id: String,
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
@@ -42,21 +55,142 @@ pub struct AddSubRecipesResponse {
 pub struct UpdateProviderRequest {
     provider: String,
     model: Option<String>,
+    #[allow(dead_code)]
+    session_id: String,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct SessionConfigRequest {
     response: Option<Response>,
+    #[allow(dead_code)]
+    session_id: String,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct GetToolsQuery {
     extension_name: Option<String>,
+    #[allow(dead_code)]
+    session_id: String,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct UpdateRouterToolSelectorRequest {
+    #[allow(dead_code)]
+    session_id: String,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct StartAgentRequest {
+    working_dir: String,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct ResumeAgentRequest {
+    session_id: String,
+}
+
+// This is the same as SessionHistoryResponse
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct StartAgentResponse {
+    session_id: String,
+    metadata: SessionMetadata,
+    messages: Vec<Message>,
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct ErrorResponse {
     error: String,
+}
+
+#[utoipa::path(
+    post,
+    path = "/agent/start",
+    request_body = StartAgentRequest,
+    responses(
+        (status = 200, description = "Agent started successfully", body = StartAgentResponse),
+        (status = 400, description = "Bad request - invalid working directory"),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+async fn start_agent(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(payload): Json<StartAgentRequest>,
+) -> Result<Json<StartAgentResponse>, (StatusCode, Json<ErrorResponse>)> {
+    verify_secret_key(&headers, &state).map_err(|_| {
+        (
+            StatusCode::UNAUTHORIZED,
+            Json(ErrorResponse {
+                error: "Unauthorized - Invalid or missing API key".to_string(),
+            }),
+        )
+    })?;
+
+    let session_id = session::generate_session_id();
+    let counter = state.session_counter.fetch_add(1, Ordering::SeqCst) + 1;
+
+    let metadata = SessionMetadata {
+        working_dir: PathBuf::from(&payload.working_dir),
+        description: format!("New session {}", counter),
+        schedule_id: None,
+        message_count: 0,
+        total_tokens: Some(0),
+        input_tokens: Some(0),
+        output_tokens: Some(0),
+        accumulated_total_tokens: Some(0),
+        accumulated_input_tokens: Some(0),
+        accumulated_output_tokens: Some(0),
+        todo_content: None,
+    };
+
+    let conversation = Conversation::empty();
+    Ok(Json(StartAgentResponse {
+        session_id,
+        metadata,
+        messages: conversation.messages().clone(),
+    }))
+}
+
+#[utoipa::path(
+    post,
+    path = "/agent/resume",
+    request_body = ResumeAgentRequest,
+    responses(
+        (status = 200, description = "Agent started successfully", body = StartAgentResponse),
+        (status = 400, description = "Bad request - invalid working directory"),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+async fn resume_agent(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(payload): Json<ResumeAgentRequest>,
+) -> Result<Json<StartAgentResponse>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
+    let session_path =
+        match session::get_path(session::Identifier::Name(payload.session_id.clone())) {
+            Ok(path) => path,
+            Err(_) => return Err(StatusCode::BAD_REQUEST),
+        };
+
+    let metadata = session::read_metadata(&session_path).map_err(|_| StatusCode::NOT_FOUND)?;
+
+    let conversation = match session::read_messages(&session_path) {
+        Ok(messages) => messages,
+        Err(e) => {
+            error!("Failed to read session messages: {:?}", e);
+            return Err(StatusCode::NOT_FOUND);
+        }
+    };
+
+    Ok(Json(StartAgentResponse {
+        session_id: payload.session_id.clone(),
+        metadata,
+        messages: conversation.messages().clone(),
+    }))
 }
 
 #[utoipa::path(
@@ -113,7 +247,8 @@ async fn extend_prompt(
     get,
     path = "/agent/tools",
     params(
-        ("extension_name" = Option<String>, Query, description = "Optional extension name to filter tools")
+        ("extension_name" = Option<String>, Query, description = "Optional extension name to filter tools"),
+        ("session_id" = String, Query, description = "Required session ID to scope tools to a specific session")
     ),
     responses(
         (status = 200, description = "Tools retrieved successfully", body = Vec<ToolInfo>),
@@ -186,13 +321,13 @@ async fn update_agent_provider(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(payload): Json<UpdateProviderRequest>,
-) -> Result<StatusCode, StatusCode> {
-    verify_secret_key(&headers, &state)?;
+) -> Result<StatusCode, impl IntoResponse> {
+    verify_secret_key(&headers, &state).map_err(|e| (e, String::new()))?;
 
     let agent = state
         .get_agent()
         .await
-        .map_err(|_e| StatusCode::PRECONDITION_FAILED)?;
+        .map_err(|_e| (StatusCode::PRECONDITION_FAILED, String::new()))?;
 
     let config = Config::global();
     let model = match payload
@@ -200,17 +335,27 @@ async fn update_agent_provider(
         .or_else(|| config.get_param("GOOSE_MODEL").ok())
     {
         Some(m) => m,
-        None => return Err(StatusCode::BAD_REQUEST),
+        None => return Err((StatusCode::BAD_REQUEST, "No model specified".to_string())),
     };
 
-    let model_config = ModelConfig::new(&model).map_err(|_| StatusCode::BAD_REQUEST)?;
+    let model_config = ModelConfig::new(&model).map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            format!("Invalid model config: {}", e),
+        )
+    })?;
 
-    let new_provider =
-        create(&payload.provider, model_config).map_err(|_| StatusCode::BAD_REQUEST)?;
+    let new_provider = create(&payload.provider, model_config).map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            format!("Failed to create provider: {}", e),
+        )
+    })?;
+
     agent
         .update_provider(new_provider)
         .await
-        .map_err(|_e| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|_e| (StatusCode::INTERNAL_SERVER_ERROR, String::new()))?;
 
     Ok(StatusCode::OK)
 }
@@ -218,6 +363,7 @@ async fn update_agent_provider(
 #[utoipa::path(
     post,
     path = "/agent/update_router_tool_selector",
+    request_body = UpdateRouterToolSelectorRequest,
     responses(
         (status = 200, description = "Tool selection strategy updated successfully", body = String),
         (status = 401, description = "Unauthorized - invalid secret key"),
@@ -228,6 +374,7 @@ async fn update_agent_provider(
 async fn update_router_tool_selector(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
+    Json(_payload): Json<UpdateRouterToolSelectorRequest>,
 ) -> Result<Json<String>, Json<ErrorResponse>> {
     verify_secret_key(&headers, &state).map_err(|_| {
         Json(ErrorResponse {
@@ -300,6 +447,8 @@ async fn update_session_config(
 
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
+        .route("/agent/start", post(start_agent))
+        .route("/agent/resume", post(resume_agent))
         .route("/agent/prompt", post(extend_prompt))
         .route("/agent/tools", get(get_tools))
         .route("/agent/update_provider", post(update_agent_provider))

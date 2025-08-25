@@ -387,6 +387,7 @@ pub fn list_sessions() -> Result<Vec<(String, PathBuf)>> {
 }
 
 /// Generate a session ID using timestamp format (yyyymmdd_hhmmss)
+/// TODO(Douwe): make this actually be unique
 pub fn generate_session_id() -> String {
     Local::now().format("%Y%m%d_%H%M%S").to_string()
 }
@@ -1146,7 +1147,7 @@ pub async fn persist_messages_with_schedule_id(
 pub fn save_messages_with_metadata(
     session_file: &Path,
     metadata: &SessionMetadata,
-    messages: &Conversation,
+    conversation: &Conversation,
 ) -> Result<()> {
     use fs2::FileExt;
 
@@ -1154,10 +1155,10 @@ pub fn save_messages_with_metadata(
     let secure_path = get_path(Identifier::Path(session_file.to_path_buf()))?;
 
     // Security check: message count limit
-    if messages.len() > MAX_MESSAGE_COUNT {
+    if conversation.len() > MAX_MESSAGE_COUNT {
         tracing::warn!(
             "Message count exceeds limit during save: {}",
-            messages.len()
+            conversation.len()
         );
         return Err(anyhow::anyhow!("Too many messages to save"));
     }
@@ -1214,7 +1215,7 @@ pub fn save_messages_with_metadata(
         writeln!(writer)?;
 
         // Write all messages with progress tracking
-        for (i, message) in messages.iter().enumerate() {
+        for (i, message) in conversation.iter().enumerate() {
             serde_json::to_writer(&mut writer, &message).map_err(|e| {
                 tracing::error!("Failed to serialize message {}: {}", i, e);
                 anyhow::anyhow!("Failed to write session message")

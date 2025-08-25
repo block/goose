@@ -13,7 +13,6 @@ import { DirSwitcher } from './bottom_menu/DirSwitcher';
 import ModelsBottomBar from './settings/models/bottom_bar/ModelsBottomBar';
 import { BottomMenuModeSelection } from './bottom_menu/BottomMenuModeSelection';
 import { AlertType, useAlerts } from './alerts';
-import { useToolCount } from './alerts/useToolCount';
 import { useConfig } from './ConfigContext';
 import { useModelAndProvider } from './ModelAndProviderContext';
 import { useWhisper } from '../hooks/useWhisper';
@@ -59,6 +58,7 @@ interface ModelLimit {
 }
 
 interface ChatInputProps {
+  sessionId: string | null;
   handleSubmit: (e: React.FormEvent) => void;
   chatState: ChatState;
   onStop?: () => void;
@@ -84,10 +84,12 @@ interface ChatInputProps {
   recipeConfig?: Recipe | null;
   recipeAccepted?: boolean;
   initialPrompt?: string;
+  toolCount: number;
   autoSubmit: boolean;
 }
 
 export default function ChatInput({
+  sessionId,
   handleSubmit,
   chatState = ChatState.Idle,
   onStop,
@@ -107,6 +109,7 @@ export default function ChatInput({
   recipeConfig,
   recipeAccepted,
   initialPrompt,
+  toolCount,
   autoSubmit = false,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
@@ -128,7 +131,6 @@ export default function ChatInput({
   const dropdownRef: React.RefObject<HTMLDivElement> = useRef<HTMLDivElement>(
     null
   ) as React.RefObject<HTMLDivElement>;
-  const toolCount = useToolCount();
   const { isLoadingCompaction, handleManualCompaction } = useChatContextManager();
   const { getProviders, read } = useConfig();
   const { getCurrentModelAndProvider, currentModel, currentProvider } = useModelAndProvider();
@@ -943,6 +945,14 @@ export default function ChatInput({
     return true; // Return true if message was queued
   };
 
+  const canSubmit =
+    !isLoading &&
+    !isLoadingCompaction &&
+    agentIsReady &&
+    (displayValue.trim() ||
+      pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
+      allDroppedFiles.some((file) => !file.error && !file.isLoading));
+
   const performSubmit = useCallback(
     (text?: string) => {
       const validPastedImageFilesPaths = pastedImages
@@ -1084,13 +1094,6 @@ export default function ChatInput({
         return;
       }
 
-      const canSubmit =
-        !isLoading &&
-        !isLoadingCompaction &&
-        agentIsReady &&
-        (displayValue.trim() ||
-          pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
-          allDroppedFiles.some((file) => !file.error && !file.isLoading));
       if (canSubmit) {
         performSubmit();
       }
@@ -1590,6 +1593,7 @@ export default function ChatInput({
           <Tooltip>
             <div>
               <ModelsBottomBar
+                sessionId={sessionId}
                 dropdownRef={dropdownRef}
                 setView={setView}
                 alerts={alerts}
