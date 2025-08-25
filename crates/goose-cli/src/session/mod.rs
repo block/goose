@@ -300,8 +300,9 @@ impl Session {
     /// * `builtin_name` - Name of the builtin extension(s), comma separated
     pub async fn add_builtin(&mut self, builtin_name: String) -> Result<()> {
         for name in builtin_name.split(',') {
+            let extension_name = name.trim().to_string();
             let config = ExtensionConfig::Builtin {
-                name: name.trim().to_string(),
+                name: extension_name,
                 display_name: None,
                 // TODO: should set a timeout
                 timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),

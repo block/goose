@@ -348,6 +348,27 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     let extensions_to_run: Vec<_> = if let Some(extensions) = session_config.extensions_override {
         agent.disable_router_for_recipe().await;
         extensions.into_iter().collect()
+    } else if session_config.resume {
+        if let Some(session_file) = session_file.as_ref() {
+            match session::read_metadata(session_file) {
+                Ok(metadata) if metadata.enabled_extensions.is_some() => {
+                    metadata.enabled_extensions.unwrap().into_iter().collect()
+                }
+                _ => ExtensionConfigManager::get_all()
+                    .expect("should load extensions")
+                    .into_iter()
+                    .filter(|ext| ext.enabled)
+                    .map(|ext| ext.config)
+                    .collect(),
+            }
+        } else {
+            ExtensionConfigManager::get_all()
+                .expect("should load extensions")
+                .into_iter()
+                .filter(|ext| ext.enabled)
+                .map(|ext| ext.config)
+                .collect()
+        }
     } else {
         ExtensionConfigManager::get_all()
             .expect("should load extensions")
@@ -432,7 +453,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         session_config.retry_config.clone(),
     );
 
-    // Add extensions if provided
+    // Add CLI extensions if provided and track their source
     for extension_str in session_config.extensions {
         if let Err(e) = session.add_extension(extension_str.clone()).await {
             eprintln!(
@@ -583,6 +604,23 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         let override_prompt =
             std::fs::read_to_string(path).expect("Failed to read system prompt file");
         session.agent.override_system_prompt(override_prompt).await;
+    }
+
+    // Save all extension configurations for session resume (after all extensions are added)
+    if let Some(session_file) = &session_file {
+        let all_extension_configs = session.agent.get_extension_configs().await;
+        if !all_extension_configs.is_empty() {
+            if let Err(e) =
+                goose::session::update_metadata_with_extensions(session_file, all_extension_configs)
+                    .await
+            {
+                tracing::error!("Failed to persist extension configuration: {}", e);
+                if !session_config.quiet {
+                    println!("Warning: Extension configuration could not be saved. Session resume may not work correctly.");
+                }
+                // Non-fatal: continue session even if we can't persist extensions
+            }
+        }
     }
 
     // Display session information unless in quiet mode

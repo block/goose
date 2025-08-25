@@ -856,6 +856,10 @@ impl Agent {
             .expect("Failed to list extensions")
     }
 
+    pub async fn get_extension_configs(&self) -> Vec<ExtensionConfig> {
+        self.extension_manager.get_extension_configs().await
+    }
+
     /// Handle a confirmation response for a tool request
     pub async fn handle_confirmation(
         &self,

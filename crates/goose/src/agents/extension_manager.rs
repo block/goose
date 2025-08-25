@@ -500,6 +500,15 @@ impl ExtensionManager {
         Ok(self.extensions.lock().await.keys().cloned().collect())
     }
 
+    pub async fn get_extension_configs(&self) -> Vec<ExtensionConfig> {
+        self.extensions
+            .lock()
+            .await
+            .values()
+            .map(|ext| ext.config.clone())
+            .collect()
+    }
+
     /// Get all tools from all clients with proper prefixing
     pub async fn get_prefixed_tools(
         &self,

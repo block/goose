@@ -5,6 +5,7 @@
 // - Backup creation
 // Additional debug logging can be added if needed for troubleshooting.
 
+use crate::config::ExtensionConfig;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::providers::base::Provider;
@@ -66,6 +67,8 @@ pub struct SessionMetadata {
     pub accumulated_output_tokens: Option<i32>,
     /// Session-scoped TODO list content
     pub todo_content: Option<String>,
+    /// Extensions that were active in this session
+    pub enabled_extensions: Option<Vec<ExtensionConfig>>,
 }
 
 // Custom deserializer to handle old sessions without working_dir and todo_content
@@ -87,6 +90,7 @@ impl<'de> Deserialize<'de> for SessionMetadata {
             accumulated_output_tokens: Option<i32>,
             working_dir: Option<PathBuf>,
             todo_content: Option<String>, // For backward compatibility
+            enabled_extensions: Option<Vec<ExtensionConfig>>, // For backward compatibility
         }
 
         let helper = Helper::deserialize(deserializer)?;
@@ -109,6 +113,7 @@ impl<'de> Deserialize<'de> for SessionMetadata {
             accumulated_output_tokens: helper.accumulated_output_tokens,
             working_dir,
             todo_content: helper.todo_content,
+            enabled_extensions: helper.enabled_extensions,
         })
     }
 }
@@ -134,6 +139,7 @@ impl SessionMetadata {
             accumulated_input_tokens: None,
             accumulated_output_tokens: None,
             todo_content: None,
+            enabled_extensions: None,
         }
     }
 }
@@ -1343,6 +1349,26 @@ pub async fn update_metadata(session_file: &Path, metadata: &SessionMetadata) ->
 
     // Rewrite the file with the new metadata and existing messages
     save_messages_with_metadata(&secure_path, metadata, &messages)
+}
+
+/// Update session metadata with current extension state
+///
+/// This reads the current metadata, updates the extensions, and rewrites the session file.
+pub async fn update_metadata_with_extensions(
+    session_file: &Path,
+    extension_records: Vec<ExtensionConfig>,
+) -> Result<()> {
+    // Validate the path for security
+    let secure_path = get_path(Identifier::Path(session_file.to_path_buf()))?;
+
+    // Read current metadata
+    let mut metadata = read_metadata(&secure_path)?;
+
+    // Update the extensions
+    metadata.enabled_extensions = Some(extension_records);
+
+    // Update the metadata in the file
+    update_metadata(&secure_path, &metadata).await
 }
 
 #[cfg(test)]

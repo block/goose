@@ -270,6 +270,7 @@ mod tests {
             accumulated_input_tokens: Some(50),
             accumulated_output_tokens: Some(50),
             todo_content: None,
+            enabled_extensions: None,
         }
     }
 
