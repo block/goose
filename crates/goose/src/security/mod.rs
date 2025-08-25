@@ -1,16 +1,20 @@
+pub mod inspector;
 pub mod patterns;
 pub mod scanner;
-pub mod inspector;
 
 use crate::conversation::message::{Message, ToolRequest};
 use crate::permission::permission_judge::PermissionCheckResult;
 use anyhow::Result;
 use scanner::PromptInjectionScanner;
+use std::collections::{hash_map::DefaultHasher, HashSet};
+use std::hash::{Hash, Hasher};
+use std::sync::{Arc, Mutex};
 
 /// Simple security manager for the POC
 /// Focuses on tool call analysis with conversation context
 pub struct SecurityManager {
     scanner: Option<PromptInjectionScanner>,
+    flagged_findings: Arc<Mutex<HashSet<String>>>,
 }
 
 #[derive(Debug, Clone)]
@@ -20,6 +24,7 @@ pub struct SecurityResult {
     pub explanation: String,
     pub should_ask_user: bool,
     pub finding_id: String,
+    pub tool_request_id: String,
 }
 
 impl SecurityManager {
@@ -35,7 +40,10 @@ impl SecurityManager {
             None
         };
 
-        Self { scanner }
+        Self { 
+            scanner,
+            flagged_findings: Arc::new(Mutex::new(HashSet::new())),
+        }
     }
 
     /// Check if security should be enabled based on config
@@ -74,7 +82,8 @@ impl SecurityManager {
 
         let mut results = Vec::new();
 
-        tracing::info!("🔍 Starting security analysis - {} tool requests, {} messages", 
+        tracing::info!(
+            "🔍 Starting security analysis - {} tool requests, {} messages",
             tool_requests.len(),
             messages.len()
         );
@@ -94,15 +103,40 @@ impl SecurityManager {
                 // Analyze only the current tool call content, not the entire conversation history
                 // This prevents re-analyzing and re-flagging historical malicious content
                 let analysis_result = scanner
-                    .analyze_tool_call_with_context(tool_call, &[])  // Pass empty messages to avoid historical analysis
+                    .analyze_tool_call_with_context(tool_call, &[]) // Pass empty messages to avoid historical analysis
                     .await?;
 
                 // Get threshold from config - only flag things above threshold
                 let config_threshold = scanner.get_threshold_from_config();
-                
+
                 if analysis_result.is_malicious && analysis_result.confidence > config_threshold {
-                    // Generate a deterministic finding ID based on tool request ID to avoid duplicates
-                    let finding_id = format!("SEC-{}", tool_request.id);
+                    // Generate a unique finding ID based on normalized tool call content
+                    // This ensures the same malicious content always gets the same finding ID
+                    // regardless of JSON formatting or tool request ID variations
+                    let normalized_content = format!("{}:{}", 
+                        tool_call.name,
+                        serde_json::to_string(&tool_call.arguments).unwrap_or_default()
+                    );
+                    let mut hasher = DefaultHasher::new();
+                    normalized_content.hash(&mut hasher);
+                    let content_hash = hasher.finish();
+                    let finding_id = format!("SEC-{:016x}", content_hash);
+
+                    // Check if we've already flagged this exact finding before
+                    let mut flagged_set = self.flagged_findings.lock().unwrap();
+                    if flagged_set.contains(&finding_id) {
+                        tracing::debug!(
+                            tool_name = %tool_call.name,
+                            tool_request_id = %tool_request.id,
+                            finding_id = %finding_id,
+                            "🔄 Skipping already flagged security finding - preventing re-flagging"
+                        );
+                        continue;
+                    }
+
+                    // Mark this finding as flagged
+                    flagged_set.insert(finding_id.clone());
+                    drop(flagged_set); // Release the lock
 
                     tracing::warn!(
                         tool_name = %tool_call.name,
@@ -119,7 +153,8 @@ impl SecurityManager {
                         confidence: analysis_result.confidence,
                         explanation: analysis_result.explanation,
                         should_ask_user: true, // Always ask user for threats above threshold
-                        finding_id: tool_request.id.clone(), // Use tool_request_id for matching
+                        finding_id,
+                        tool_request_id: tool_request.id.clone(),
                     });
                 } else if analysis_result.is_malicious {
                     tracing::warn!(
@@ -165,7 +200,7 @@ impl SecurityManager {
             .chain(permission_check_result.needs_approval.iter())
             .cloned()
             .collect();
-            
+
         self.analyze_tool_requests(&tool_requests, messages).await
     }
 
@@ -174,8 +209,6 @@ impl SecurityManager {
         // Phase 1: No ML models needed, pattern matching is instant
         None
     }
-
-
 }
 
 impl Default for SecurityManager {

@@ -69,7 +69,8 @@ impl ToolInspectionManager {
     pub fn add_inspector(&mut self, inspector: Box<dyn ToolInspector>) {
         self.inspectors.push(inspector);
         // Sort by priority (highest first)
-        self.inspectors.sort_by(|a, b| b.priority().cmp(&a.priority()));
+        self.inspectors
+            .sort_by(|a, b| b.priority().cmp(&a.priority()));
     }
 
     /// Run all inspectors on the tool requests
@@ -92,7 +93,10 @@ impl ToolInspectionManager {
                 "Running tool inspector"
             );
 
-            match inspector.inspect(tool_requests, messages, provider.clone()).await {
+            match inspector
+                .inspect(tool_requests, messages, provider.clone())
+                .await
+            {
                 Ok(results) => {
                     tracing::debug!(
                         inspector_name = inspector.name(),
@@ -168,21 +172,35 @@ pub fn apply_inspection_results_to_permissions(
         match result.action {
             InspectionAction::Deny => {
                 // Remove from approved and needs_approval, add to denied
-                permission_result.approved.retain(|req| req.id != *request_id);
-                permission_result.needs_approval.retain(|req| req.id != *request_id);
-                
+                permission_result
+                    .approved
+                    .retain(|req| req.id != *request_id);
+                permission_result
+                    .needs_approval
+                    .retain(|req| req.id != *request_id);
+
                 if let Some(request) = all_requests.get(request_id) {
-                    if !permission_result.denied.iter().any(|req| req.id == *request_id) {
+                    if !permission_result
+                        .denied
+                        .iter()
+                        .any(|req| req.id == *request_id)
+                    {
                         permission_result.denied.push(request.clone());
                     }
                 }
             }
             InspectionAction::RequireApproval(_) => {
                 // Remove from approved, add to needs_approval if not already there
-                permission_result.approved.retain(|req| req.id != *request_id);
-                
+                permission_result
+                    .approved
+                    .retain(|req| req.id != *request_id);
+
                 if let Some(request) = all_requests.get(request_id) {
-                    if !permission_result.needs_approval.iter().any(|req| req.id == *request_id) {
+                    if !permission_result
+                        .needs_approval
+                        .iter()
+                        .any(|req| req.id == *request_id)
+                    {
                         permission_result.needs_approval.push(request.clone());
                     }
                 }
@@ -229,7 +247,7 @@ mod tests {
     #[tokio::test]
     async fn test_inspection_manager() {
         let mut manager = ToolInspectionManager::new();
-        
+
         let inspector = MockInspector {
             name: "test_inspector",
             results: vec![InspectionResult {
@@ -252,7 +270,10 @@ mod tests {
             }),
         }];
 
-        let results = manager.inspect_tools(&tool_requests, &[], None).await.unwrap();
+        let results = manager
+            .inspect_tools(&tool_requests, &[], None)
+            .await
+            .unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].action, InspectionAction::Deny);
     }
@@ -282,10 +303,8 @@ mod tests {
             finding_id: Some("TEST-001".to_string()),
         }];
 
-        let updated_result = apply_inspection_results_to_permissions(
-            permission_result,
-            &inspection_results,
-        );
+        let updated_result =
+            apply_inspection_results_to_permissions(permission_result, &inspection_results);
 
         assert_eq!(updated_result.approved.len(), 0);
         assert_eq!(updated_result.denied.len(), 1);

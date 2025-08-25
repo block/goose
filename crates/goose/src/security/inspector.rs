@@ -73,14 +73,17 @@ impl ToolInspector for SecurityInspector {
             .analyze_tool_requests(tool_requests, messages)
             .await?;
 
-        let mut inspection_results = Vec::new();
-
-        // Convert each security result to an inspection result
-        // SecurityResult.finding_id is actually the tool_request_id we need
-        for security_result in security_results {
-            let inspection_result = self.convert_security_result(&security_result, security_result.finding_id.clone());
-            inspection_results.push(inspection_result);
-        }
+        // Convert security results to inspection results
+        // The SecurityManager already handles the correlation between tool requests and results
+        let inspection_results = security_results
+            .into_iter()
+            .map(|security_result| {
+                // Extract the tool request ID from the security result's context
+                // The SecurityManager should provide this information
+                let tool_request_id = security_result.tool_request_id.clone();
+                self.convert_security_result(&security_result, tool_request_id)
+            })
+            .collect();
 
         Ok(inspection_results)
     }
@@ -89,7 +92,7 @@ impl ToolInspector for SecurityInspector {
         // Check if security is enabled in config
         use crate::config::Config;
         let config = Config::global();
-        
+
         config
             .get_param::<serde_json::Value>("security")
             .ok()
@@ -119,7 +122,7 @@ mod tests {
     #[tokio::test]
     async fn test_security_inspector() {
         let inspector = SecurityInspector::new();
-        
+
         // Test with a potentially dangerous tool call
         let tool_requests = vec![ToolRequest {
             id: "test_req".to_string(),
@@ -130,18 +133,25 @@ mod tests {
         }];
 
         let results = inspector.inspect(&tool_requests, &[], None).await.unwrap();
-        
+
         // Results depend on whether security is enabled in config
         if inspector.is_enabled() {
             // If security is enabled, should detect the dangerous command
-            assert!(results.len() >= 1, "Security inspector should detect dangerous command when enabled");
+            assert!(
+                results.len() >= 1,
+                "Security inspector should detect dangerous command when enabled"
+            );
             if !results.is_empty() {
                 assert_eq!(results[0].inspector_name, "security");
                 assert!(results[0].confidence > 0.0);
             }
         } else {
             // If security is disabled, should return no results
-            assert_eq!(results.len(), 0, "Security inspector should return no results when disabled");
+            assert_eq!(
+                results.len(),
+                0,
+                "Security inspector should return no results when disabled"
+            );
         }
     }
 
