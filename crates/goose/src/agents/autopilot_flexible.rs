@@ -135,19 +135,10 @@ struct CompleteModelConfig {
 }
 
 /// Tracks the state of a specific model's usage
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 struct ModelState {
     last_invoked_turn: Option<usize>,
     invocation_count: usize,
-}
-
-impl Default for ModelState {
-    fn default() -> Self {
-        Self {
-            last_invoked_turn: None,
-            invocation_count: 0,
-        }
-    }
 }
 
 /// AutoPilot manages automatic model switching based on conversation context
@@ -618,23 +609,43 @@ impl AutoPilot {
     ) -> Result<Option<(Arc<dyn crate::providers::base::Provider>, String, String)>> {
         debug!("AutoPilot: Checking conversation for model switch");
 
-        // If we already switched, check if we should switch back
+        let current_turn = self.count_turns(conversation);
+
+        // If we already switched, evaluate if we should switch to a different model
+        // (including potentially switching back to original)
         if self.switch_active {
-            debug!("AutoPilot: Switching back to original provider");
-            self.switch_active = false;
-            let prev_role = self.current_role.take();
-            if let Some(original) = self.original_provider.take() {
-                let original_model = original.get_active_model_name();
-                return Ok(Some((
-                    original,
-                    prev_role.unwrap_or_else(|| "original".to_string()),
-                    original_model,
-                )));
+            debug!(
+                "AutoPilot: Currently switched to '{}', evaluating alternatives",
+                self.current_role.as_deref().unwrap_or("unknown")
+            );
+
+            // Check if any other model (including potentially switching back) should take over
+            let should_switch = self.should_switch_from_current(conversation, current_turn);
+
+            if let Some((new_provider, new_role, new_model)) = should_switch? {
+                debug!(
+                    "AutoPilot: Switching from '{}' to '{}'",
+                    self.current_role.as_deref().unwrap_or("unknown"),
+                    new_role
+                );
+
+                // If switching back to original
+                if new_role == "original" {
+                    self.switch_active = false;
+                    self.current_role = None;
+                    self.original_provider = None;
+                } else {
+                    // Switching to a different specialized model
+                    self.current_role = Some(new_role.clone());
+                    // Keep the original_provider for potential future switch back
+                }
+
+                return Ok(Some((new_provider, new_role, new_model)));
             }
+
+            // Stay with current switched model
             return Ok(None);
         }
-
-        let current_turn = self.count_turns(conversation);
 
         // Evaluate all models and find the best match
         let mut candidates: Vec<(&CompleteModelConfig, i32)> = Vec::new();
@@ -674,6 +685,99 @@ impl AutoPilot {
             )));
         }
 
+        Ok(None)
+    }
+
+    /// Determine if we should switch from the current model to another (including back to original)
+    #[allow(clippy::type_complexity)]
+    fn should_switch_from_current(
+        &self,
+        conversation: &Conversation,
+        current_turn: usize,
+    ) -> Result<Option<(Arc<dyn crate::providers::base::Provider>, String, String)>> {
+        // Strategy: Check if the current switched model's trigger conditions are still met
+        // If not, or if a higher priority model should take over, switch accordingly
+
+        // Find the currently active model config
+        let current_role = self.current_role.as_ref().unwrap();
+        let current_model = self.model_configs.iter().find(|m| &m.role == current_role);
+
+        if let Some(current_model) = current_model {
+            // Check if the current model's rules are still satisfied
+            let still_triggered = self.evaluate_rules(current_model, conversation, current_turn);
+
+            if !still_triggered {
+                debug!("AutoPilot: Current model '{}' rules no longer satisfied, switching back to original", current_role);
+                if let Some(original) = &self.original_provider {
+                    let original_model = original.get_active_model_name();
+                    return Ok(Some((
+                        Arc::clone(original),
+                        "original".to_string(),
+                        original_model,
+                    )));
+                }
+            }
+
+            // Check if there's a higher priority model that should take over
+            for model in &self.model_configs {
+                if model.role != *current_role
+                    && model.rules.priority > current_model.rules.priority
+                    && self.evaluate_rules(model, conversation, current_turn)
+                {
+                    debug!("AutoPilot: Higher priority model '{}' (priority {}) should take over from '{}' (priority {})", 
+                           model.role, model.rules.priority, current_role, current_model.rules.priority);
+
+                    // Create new provider for the higher priority model
+                    let model_config = crate::model::ModelConfig::new_or_fail(&model.model);
+                    let new_provider = providers::create(&model.provider, model_config)?;
+
+                    return Ok(Some((
+                        new_provider,
+                        model.role.clone(),
+                        model.model.clone(),
+                    )));
+                }
+            }
+        }
+
+        // Additional safety checks:
+
+        // 1. If there's a new human message and we're in a machine-triggered role,
+        //    switch back to let human-triggered roles take precedence
+        let last_msg = conversation.messages().last();
+        if let Some(msg) = last_msg {
+            if msg.role == rmcp::model::Role::User {
+                if let Some(current_model) = current_model {
+                    if matches!(current_model.rules.triggers.source, TriggerSource::Machine) {
+                        debug!("AutoPilot: New human message with machine-triggered role '{}', switching back", current_role);
+                        if let Some(original) = &self.original_provider {
+                            let original_model = original.get_active_model_name();
+                            return Ok(Some((
+                                Arc::clone(original),
+                                "original".to_string(),
+                                original_model,
+                            )));
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Prevent infinite loops - if we've been switched for too many turns
+        let machine_messages = self.count_machine_messages_without_human(conversation);
+        if machine_messages > 10 {
+            debug!("AutoPilot: Too many machine messages without human input ({}), forcing switch back", machine_messages);
+            if let Some(original) = &self.original_provider {
+                let original_model = original.get_active_model_name();
+                return Ok(Some((
+                    Arc::clone(original),
+                    "original".to_string(),
+                    original_model,
+                )));
+            }
+        }
+
+        // Stay with the current specialized model
         Ok(None)
     }
 
