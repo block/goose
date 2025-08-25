@@ -93,6 +93,8 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
   useEffect(() => {
     if (alerts.length > 0) {
       setShouldShowIndicator(true);
+    } else {
+      setShouldShowIndicator(false);
     }
   }, [alerts.length]);
 
@@ -145,6 +147,27 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
+
+  // Listen for custom event to hide the popover
+  useEffect(() => {
+    const handleHidePopover = () => {
+      if (isOpen) {
+        setIsOpen(false);
+        setWasAutoShown(false);
+        setIsHovered(false);
+        // Clear any pending hide timer
+        if (hideTimerRef.current) {
+          clearTimeout(hideTimerRef.current);
+          hideTimerRef.current = null;
+        }
+      }
+    };
+
+    window.addEventListener('hide-alert-popover', handleHidePopover);
+    return () => {
+      window.removeEventListener('hide-alert-popover', handleHidePopover);
     };
   }, [isOpen]);
 

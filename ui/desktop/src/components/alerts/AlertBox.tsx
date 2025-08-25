@@ -12,6 +12,7 @@ const alertIcons: Record<AlertType, React.ReactNode> = {
 interface AlertBoxProps {
   alert: Alert;
   className?: string;
+  compactButtonEnabled?: boolean;
 }
 
 const alertStyles: Record<AlertType, string> = {
@@ -60,17 +61,23 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
                 : alert.progress!.total}
             </span>
           </div>
-          {alert.showSummarizeButton && alert.onSummarize && (
+          {alert.showCompactButton && alert.onCompact && (
             <button
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                alert.onSummarize!();
+                alert.onCompact!();
               }}
-              className="flex items-center gap-1.5 text-[11px] hover:opacity-80 cursor-pointer outline-none mt-1"
+              disabled={alert.compactButtonDisabled}
+              className={cn(
+                'flex items-center gap-1.5 text-[11px] outline-none mt-1',
+                alert.compactButtonDisabled
+                  ? 'opacity-50 cursor-not-allowed'
+                  : 'hover:opacity-80 cursor-pointer'
+              )}
             >
-              {alert.summarizeIcon}
-              <span>Summarize now</span>
+              {alert.compactIcon}
+              <span>Compact now</span>
             </button>
           )}
         </div>
