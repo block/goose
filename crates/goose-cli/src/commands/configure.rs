@@ -32,6 +32,7 @@ fn get_display_name(extension_id: &str) -> String {
     match extension_id {
         "developer" => "Developer Tools".to_string(),
         "computercontroller" => "Computer Controller".to_string(),
+        "autovisualiser" => "Auto Visualiser".to_string(),
         "memory" => "Memory".to_string(),
         "tutorial" => "Tutorial".to_string(),
         "jetbrains" => "JetBrains".to_string(),
@@ -747,6 +748,11 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
         // TODO we'll want a place to collect all these options, maybe just an enum in goose-mcp
         "built-in" => {
             let extension = cliclack::select("Which built-in extension would you like to enable?")
+                .item(
+                    "autovisualiser",
+                    "Auto Visualizer",
+                    "Data visualization and UI generation tools",
+                )
                 .item(
                     "computercontroller",
                     "Computer Controller",
