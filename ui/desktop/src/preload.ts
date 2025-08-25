@@ -113,6 +113,8 @@ type ElectronAPI = {
   hasAcceptedRecipeBefore: (recipeConfig: Recipe) => Promise<boolean>;
   recordRecipeHash: (recipeConfig: Recipe) => Promise<boolean>;
   openDirectoryInExplorer: (directoryPath: string) => Promise<boolean>;
+  // Sidecar sizing
+  setSidecarOpen?: (isOpen: boolean) => void;
 };
 
 type AppConfigAPI = {
@@ -244,6 +246,9 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke('record-recipe-hash', recipeConfig),
   openDirectoryInExplorer: (directoryPath: string) =>
     ipcRenderer.invoke('open-directory-in-explorer', directoryPath),
+  setSidecarOpen: (isOpen: boolean) => {
+    ipcRenderer.send('sidecar-toggled', isOpen);
+  },
 };
 
 const appConfigAPI: AppConfigAPI = {
