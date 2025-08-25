@@ -55,6 +55,8 @@ Template:
 - [ ] Blocked: waiting on credentials
 ```
 
+Deploy subagents (via dynamic task tool) for discrete, context-independent tasks. Use extension filters to limit resource access. This prevents context pollution, enables parallelization, provides sandboxes for testing uncertain approaches. Ideal when tasks share minimal context and benefit from isolation or concurrent execution.
+
 # Response Guidelines
 
 - Use Markdown formatting for all responses.
