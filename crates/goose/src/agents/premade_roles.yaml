@@ -11,7 +11,7 @@ roles:
         match_type: "any"
         complexity_threshold: "high"
         source: "human"  # Only trigger on human messages
-      cooldown_turns: 3
+      active_turns: 3
       priority: 10
 
   # Code debugging and error recovery
@@ -22,8 +22,7 @@ roles:
         match_type: "any"
         on_failure: true
         source: "any"  # Can trigger on both human and machine failures
-      cooldown_turns: 2
-      max_invocations: 5
+      active_turns: 2
       priority: 15  # High priority for error handling
 
   # Code implementation specialist
@@ -34,7 +33,7 @@ roles:
         match_type: "any"
         after_tool_use: true
         source: "human"
-      cooldown_turns: 2
+      active_turns: 2
       priority: 8
 
   # Verification and review
@@ -43,10 +42,9 @@ roles:
       triggers:
         keywords: ["check", "verify", "review", "validate", "test", "correct"]
         match_type: "any"
-        consecutive_tools: 4  # After many changes
-        source: "human"
-      cooldown_turns: 10
-      max_invocations: 3
+        consecutive_tools: 12  # After many changes
+        source: "any"  # Can be triggered by human request OR after lots of tool use
+      active_turns: 2
       priority: 6
 
   # Help and guidance specialist
@@ -56,7 +54,7 @@ roles:
         keywords: ["help", "assist", "guide", "explain", "teach", "how to"]
         match_type: "any"
         source: "human"
-      cooldown_turns: 5
+      active_turns: 5
       priority: 5
 
   # Math and calculations
@@ -67,7 +65,7 @@ roles:
         match_type: "any"
         complexity_threshold: "medium"
         source: "human"
-      cooldown_turns: 1
+      active_turns: 1
       priority: 7
 
   # Creative brainstorming
@@ -77,7 +75,7 @@ roles:
         keywords: ["idea", "brainstorm", "creative", "innovate", "design", "imagine"]
         match_type: "any"
         source: "human"
-      cooldown_turns: 5
+      active_turns: 5
       priority: 4
 
   # Quick responses for simple queries
@@ -86,7 +84,7 @@ roles:
       triggers:
         complexity_threshold: "low"
         source: "human"
-      cooldown_turns: 0
+      active_turns: 0
       priority: 2
 
   # Research and fact-checking
@@ -96,7 +94,7 @@ roles:
         keywords: ["research", "find", "search", "lookup", "fact", "source", "reference"]
         match_type: "any"
         source: "human"
-      cooldown_turns: 3
+      active_turns: 3
       priority: 6
 
   # System recovery after multiple failures
@@ -105,8 +103,7 @@ roles:
       triggers:
         consecutive_failures: 2  # After 2 consecutive tool failures
         source: "machine"  # Only triggers on machine-generated failures
-      cooldown_turns: 10
-      max_invocations: 2
+      active_turns: 10
       priority: 20  # Very high priority
   
   # Autonomous work reviewer - kicks in after lots of machine work
@@ -115,7 +112,7 @@ roles:
       triggers:
         tools_since_human: 5  # After 5+ tools used since last human input
         source: "machine"  # Only when machine is active
-      cooldown_turns: 8
+      active_turns: 8
       priority: 12
       
   # Progress checker - ensures the machine isn't going off track
@@ -124,7 +121,7 @@ roles:
       triggers:
         machine_messages_without_human: 4  # After 4+ consecutive machine messages
         source: "machine"
-      cooldown_turns: 5
+      active_turns: 5
       priority: 11
       
   # Intensive work monitor - for when lots of tool use is happening
@@ -134,7 +131,7 @@ roles:
         consecutive_tools: 3  # 3+ tools in a row
         messages_since_human: 6  # AND been working for 6+ messages
         source: "machine"
-      cooldown_turns: 10
+      active_turns: 10
       priority: 14
   
   # Original autopilot roles for backward compatibility
@@ -144,7 +141,7 @@ roles:
         keywords: ["think"]
         match_type: "any"
         source: "human"
-      cooldown_turns: 0
+      active_turns: 0
       priority: 10
       
   - role: "second-opinion"
@@ -154,5 +151,5 @@ roles:
         match_type: "any"
         after_tool_use: true
         source: "human"
-      cooldown_turns: 5
+      active_turns: 5
       priority: 5

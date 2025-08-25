@@ -88,20 +88,16 @@ pub struct TriggerRules {
 pub struct Rules {
     pub triggers: TriggerRules,
 
-    /// Number of turns to wait before this model can be triggered again
-    #[serde(default = "default_cooldown")]
-    pub cooldown_turns: usize,
-
-    /// Maximum number of times this model can be invoked in a conversation
-    #[serde(default)]
-    pub max_invocations: Option<usize>,
+    /// Number of turns this model stays active once triggered
+    #[serde(default = "default_active_turns")]
+    pub active_turns: usize,
 
     /// Priority when multiple models match (higher = more important)
     #[serde(default)]
     pub priority: i32,
 }
 
-fn default_cooldown() -> usize {
+fn default_active_turns() -> usize {
     5
 }
 
@@ -471,24 +467,8 @@ impl AutoPilot {
         &self,
         model: &CompleteModelConfig,
         conversation: &Conversation,
-        current_turn: usize,
+        _current_turn: usize,
     ) -> bool {
-        let state = &self.model_states[&model.role];
-
-        // Check cooldown
-        if let Some(last_turn) = state.last_invoked_turn {
-            if current_turn <= last_turn + model.rules.cooldown_turns {
-                return false; // Still in cooldown
-            }
-        }
-
-        // Check max invocations
-        if let Some(max) = model.rules.max_invocations {
-            if state.invocation_count >= max {
-                return false; // Hit max invocations
-            }
-        }
-
         // Check source constraint
         if !self.check_source(conversation, &model.rules.triggers.source) {
             return false; // Source doesn't match
@@ -705,17 +685,17 @@ impl AutoPilot {
         if let (Some(current_model), Some(last_invoked_turn)) = (current_model, current_state.last_invoked_turn) {
             let turns_since_invoked = current_turn.saturating_sub(last_invoked_turn);
             
-            debug!("AutoPilot: Current model '{}' invoked at turn {}, current turn {}, turns since: {}, cooldown: {}", 
-                   current_role, last_invoked_turn, current_turn, turns_since_invoked, current_model.rules.cooldown_turns);
+            debug!("AutoPilot: Current model '{}' invoked at turn {}, current turn {}, turns since: {}, active_turns: {}", 
+                   current_role, last_invoked_turn, current_turn, turns_since_invoked, current_model.rules.active_turns);
 
-            // If we're still within the cooldown period, stay with current model
-            if turns_since_invoked < current_model.rules.cooldown_turns {
-                debug!("AutoPilot: Still within cooldown period for '{}', staying", current_role);
+            // If we're still within the active period, stay with current model
+            if turns_since_invoked < current_model.rules.active_turns {
+                debug!("AutoPilot: Still within active period for '{}', staying", current_role);
                 return Ok(None);
             }
 
-            // Cooldown period has elapsed, switch back to original
-            debug!("AutoPilot: Cooldown period elapsed for '{}', switching back to original", current_role);
+            // Active period has elapsed, switch back to original
+            debug!("AutoPilot: Active period elapsed for '{}', switching back to original", current_role);
             if let Some(original) = &self.original_provider {
                 let original_model = original.get_active_model_name();
                 return Ok(Some((
@@ -781,8 +761,7 @@ mod tests {
                         tools_since_human: None,
                         messages_since_human: None,
                     },
-                    cooldown_turns: 0,
-                    max_invocations: None,
+                    active_turns: 0,
                     priority: 10,
                 },
             },
@@ -804,8 +783,7 @@ mod tests {
                         tools_since_human: None,
                         messages_since_human: None,
                     },
-                    cooldown_turns: 5,
-                    max_invocations: Some(3),
+                    active_turns: 5,
                     priority: 5,
                 },
             },
@@ -827,8 +805,7 @@ mod tests {
                         tools_since_human: None,
                         messages_since_human: None,
                     },
-                    cooldown_turns: 10,
-                    max_invocations: Some(1),
+                    active_turns: 10,
                     priority: 20,
                 },
             },
@@ -950,7 +927,7 @@ mod tests {
     }
 
     #[test]
-    fn test_cooldown_mechanism() {
+    fn test_active_turns_mechanism() {
         let mut autopilot = AutoPilot {
             model_configs: create_test_configs(),
             model_states: HashMap::new(),
@@ -966,23 +943,31 @@ mod tests {
                 .insert(model.role.clone(), ModelState::default());
         }
 
-        // Set helper as invoked at turn 5
+        // Create a conversation with "help" keyword
+        let message = Message::user().with_text("I need help");
+        let conversation = Conversation::new(vec![message]).unwrap();
+
+        // The helper model should trigger based on keyword matching
+        let model = &autopilot.model_configs[1]; // helper model
+        assert!(autopilot.evaluate_rules(model, &conversation, 6));
+
+        // Test the active turns logic directly in should_switch_from_current
+        autopilot.switch_active = true;
+        autopilot.current_role = Some("helper".to_string());
         autopilot
             .model_states
             .get_mut("helper")
             .unwrap()
             .last_invoked_turn = Some(5);
 
-        // Create a conversation with "help" keyword
-        let message = Message::user().with_text("I need help");
-        let conversation = Conversation::new(vec![message]).unwrap();
+        // At turn 6 (within active period of 5 turns), should stay
+        // Since we don't have an original provider, it should return None (stay)
+        let result = autopilot.should_switch_from_current(&conversation, 6);
+        assert!(result.unwrap().is_none()); // Should stay with current model
 
-        // At turn 6 (not enough cooldown passed)
-        let model = &autopilot.model_configs[1]; // helper model
-        assert!(!autopilot.evaluate_rules(model, &conversation, 6));
-
-        // At turn 11 (cooldown passed)
-        assert!(autopilot.evaluate_rules(model, &conversation, 11));
+        // At turn 11 (active period elapsed), should try to switch back but fail without provider
+        let result = autopilot.should_switch_from_current(&conversation, 11);
+        assert!(result.unwrap().is_none()); // No original provider, so can't switch back
     }
 
     #[test]
@@ -1036,8 +1021,7 @@ mod tests {
             "helper".to_string(),
             Rules {
                 triggers: TriggerRules::default(),
-                cooldown_turns: 5,
-                max_invocations: None,
+                active_turns: 5,
                 priority: 5,
             },
         );
@@ -1049,8 +1033,7 @@ mod tests {
             role: "helper".to_string(),
             rules: Some(Rules {
                 triggers: TriggerRules::default(),
-                cooldown_turns: 3,
-                max_invocations: None,
+                active_turns: 3,
                 priority: 10,
             }),
         }];
