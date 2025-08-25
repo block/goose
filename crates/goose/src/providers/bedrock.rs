@@ -30,7 +30,7 @@ pub const BEDROCK_KNOWN_MODELS: &[&str] = &[
     "anthropic.claude-3-7-sonnet-20250219-v1:0",
     "anthropic.claude-sonnet-4-20250514-v1:0",
     "anthropic.claude-opus-4-20250514-v1:0",
-    "anthropic.claude-opus-4-1-20250805-v1:0"
+    "anthropic.claude-opus-4-1-20250805-v1:0",
 ];
 
 pub const BEDROCK_DEFAULT_MAX_RETRIES: usize = 6;
