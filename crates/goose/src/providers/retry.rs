@@ -114,4 +114,9 @@ pub trait ProviderRetry {
     }
 }
 
-impl<P: Provider> ProviderRetry for P {}
+// Let specific providers define their retry config if desired
+impl<P: Provider> ProviderRetry for P {
+    fn retry_config(&self) -> RetryConfig {
+        Provider::retry_config(self)
+    }
+}
