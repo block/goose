@@ -78,7 +78,7 @@ impl OllamaProvider {
         Ok(Self {
             api_client,
             model,
-            supports_streaming: true,
+            supports_streaming: false,
         })
     }
 
