@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { IpcRendererEvent } from 'electron';
 import { HashRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { ErrorUI } from './components/ErrorBoundary';
-import { ExtensionInstallModal } from './components/modals/ExtensionInstallModal';
+import { ExtensionInstallModal } from './components/ExtensionInstallModal';
 import { ToastContainer } from 'react-toastify';
 import { GoosehintsModal } from './components/GoosehintsModal';
 import AnnouncementModal from './components/AnnouncementModal';

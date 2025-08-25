@@ -3,9 +3,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import { ExtensionInstallModal } from './ExtensionInstallModal';
-import { addExtensionFromDeepLink } from '../settings/extensions/deeplink';
+import { addExtensionFromDeepLink } from './settings/extensions/deeplink';
 
-vi.mock('../settings/extensions/deeplink', () => ({
+vi.mock('./settings/extensions/deeplink', () => ({
   addExtensionFromDeepLink: vi.fn(),
 }));
 

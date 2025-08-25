@@ -7,11 +7,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '../ui/dialog';
-import { Button } from '../ui/button';
-import { extractExtensionName } from '../settings/extensions/utils';
-import { addExtensionFromDeepLink } from '../settings/extensions/deeplink';
-import type { ExtensionConfig } from '../../api/types.gen';
+} from './ui/dialog';
+import { Button } from './ui/button';
+import { extractExtensionName } from './settings/extensions/utils';
+import { addExtensionFromDeepLink } from './settings/extensions/deeplink';
+import type { ExtensionConfig } from '../api/types.gen';
 
 type ModalType = 'blocked' | 'untrusted' | 'trusted';
 
