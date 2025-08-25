@@ -53,6 +53,7 @@ use tokio::sync::{mpsc, Mutex};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument};
 
+use super::autopilot_flexible::AutoPilot;
 use super::final_output_tool::FinalOutputTool;
 use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
@@ -101,6 +102,7 @@ pub struct Agent {
     pub(super) tool_route_manager: ToolRouteManager,
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
     pub(super) retry_manager: RetryManager,
+    pub(super) autopilot: Mutex<AutoPilot>,
 }
 
 #[derive(Clone, Debug)]
@@ -177,6 +179,7 @@ impl Agent {
             tool_route_manager: ToolRouteManager::new(),
             scheduler_service: Mutex::new(None),
             retry_manager,
+            autopilot: Mutex::new(AutoPilot::new()),
         }
     }
 
@@ -1021,6 +1024,49 @@ impl Agent {
                     ));
                     break;
                 }
+
+                // Check if autopilot should switch models
+                let mut autopilot = self.autopilot.lock().await;
+                if let Some((new_provider, role, model)) = autopilot.check_for_switch(&messages, self.provider().await?).await? {
+                    debug!("AutoPilot switching to {} role with model {}", role, model);
+                    self.update_provider(new_provider).await?;
+
+                    // Emit a ModelChange event to notify the client
+                    yield AgentEvent::ModelChange {
+                        model: model.clone(),
+                        mode: format!("autopilot:{}", role),
+                    };
+
+                    // Also add a message to the conversation to make it visible
+                    let switch_msg = if role == "original" {
+                        format!("🔄 Switching back to original model: {}", model)
+                    } else {
+                        // Make the role names more user-friendly
+                        let friendly_role = match role.as_str() {
+                            "deep-thinker" => "deep thinking and analysis",
+                            "debugger" => "error debugging",
+                            "coder" => "code implementation",
+                            "reviewer" => "code review",
+                            "helper" => "general assistance",
+                            "mathematician" => "mathematical calculations",
+                            "creative" => "creative brainstorming",
+                            "quick-responder" => "quick responses",
+                            "researcher" => "research and fact-checking",
+                            "recovery-specialist" => "error recovery",
+                            "work-reviewer" => "reviewing recent work",
+                            "progress-checker" => "checking progress",
+                            "intensive-work-monitor" => "monitoring intensive work",
+                            "autonomous-supervisor" => "supervising autonomous work",
+                            "periodic-reviewer" => "periodic review",
+                            "oracle" => "deep reasoning (oracle)",
+                            "second-opinion" => "second opinion",
+                            _ => &role,
+                        };
+                        format!("🚀 AutoPilot: Switching to {} mode ({})", friendly_role, model)
+                    };
+                    yield AgentEvent::Message(Message::assistant().with_text(switch_msg));
+                }
+                drop(autopilot); // Release the lock
 
                 let mut stream = Self::stream_response_from_provider(
                     self.provider().await?,
