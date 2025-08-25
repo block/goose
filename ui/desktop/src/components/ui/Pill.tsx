@@ -22,11 +22,13 @@ export function Pill({
   disabled = false,
   animated = false,
 }: PillProps) {
-  const baseStyles = 'inline-flex items-center justify-center rounded-full transition-all duration-300 ease-out font-medium';
-  
+  const baseStyles =
+    'inline-flex items-center justify-center rounded-full transition-all duration-300 ease-out font-medium';
+
   const variants = {
     default: 'bg-background border border-border hover:bg-muted/50',
-    glass: 'bg-white/10 dark:bg-black/10 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-lg shadow-black/5 dark:shadow-black/20 hover:bg-white/15 dark:hover:bg-black/15 hover:shadow-xl',
+    glass:
+      'bg-white/10 dark:bg-black/10 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-lg shadow-black/5 dark:shadow-black/20 hover:bg-white/15 dark:hover:bg-black/15 hover:shadow-xl',
     solid: 'bg-background border border-border shadow-md hover:shadow-lg hover:scale-105',
     gradient: 'bg-gradient-to-r shadow-lg hover:shadow-xl hover:scale-105 border-0',
     glow: 'shadow-lg hover:shadow-xl hover:scale-105 border-0',
@@ -54,9 +56,11 @@ export function Pill({
       glass: 'text-red-700 dark:text-red-300 hover:text-red-800 dark:hover:text-red-200',
     },
     purple: {
-      gradient: 'from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white',
+      gradient:
+        'from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white',
       glow: 'bg-purple-500 hover:bg-purple-600 text-white shadow-purple-500/25 hover:shadow-purple-500/40',
-      glass: 'text-purple-700 dark:text-purple-300 hover:text-purple-800 dark:hover:text-purple-200',
+      glass:
+        'text-purple-700 dark:text-purple-300 hover:text-purple-800 dark:hover:text-purple-200',
     },
     slate: {
       gradient: 'from-slate-500 to-slate-600 hover:from-slate-600 hover:to-slate-700 text-white',
@@ -73,20 +77,21 @@ export function Pill({
   };
 
   const animatedStyles = animated ? 'animate-pulse' : '';
-  
-  const disabledStyles = disabled 
-    ? 'opacity-50 cursor-not-allowed pointer-events-none' 
-    : onClick 
-      ? 'cursor-pointer hover:scale-105 active:scale-95' 
+
+  const disabledStyles = disabled
+    ? 'opacity-50 cursor-not-allowed pointer-events-none'
+    : onClick
+      ? 'cursor-pointer hover:scale-105 active:scale-95'
       : '';
 
-  const colorStyles = variant === 'gradient' 
-    ? colors[color].gradient 
-    : variant === 'glow' 
-      ? colors[color].glow
-      : variant === 'glass'
-        ? colors[color].glass
-        : '';
+  const colorStyles =
+    variant === 'gradient'
+      ? colors[color].gradient
+      : variant === 'glow'
+        ? colors[color].glow
+        : variant === 'glass'
+          ? colors[color].glass
+          : '';
 
   return (
     <div

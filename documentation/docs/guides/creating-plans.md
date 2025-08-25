@@ -4,6 +4,9 @@ title: Creating Plans Before Working
 sidebar_label: Creating Plans
 ---
 
+import Card from '@site/src/components/Card';
+import styles from '@site/src/components/Card/styles.module.css';
+
 Starting a project without a clear plan is like building a house without a blueprint. It can lead to:
 
 * Confusion about what to do
@@ -315,3 +318,13 @@ To enter planning mode, type `/plan`.  Optionally, you can append your plan desc
 ( O)> /endplan
 ```
 
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>📚 Featured Tutorial</h2>
+  <div className={styles.cardGrid}>
+    <Card 
+      title="Planning Complex Tasks"
+      description="Learn how to use the Plan feature to break down complex tasks into manageable, executable steps."
+      link="/docs/tutorials/plan-feature-devcontainer-setup"
+    />
+  </div>
+</div>
