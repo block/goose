@@ -30,6 +30,7 @@ mod test_get_task_name {
                     "recipe_path": "/path/to/recipe"
                 }
             }),
+            extension_filter: None,
         };
 
         let task_info = create_task_info_with_defaults(sub_recipe_task, TaskStatus::Pending);
@@ -43,6 +44,7 @@ mod test_get_task_name {
             id: "task_2".to_string(),
             task_type: "text_instruction".to_string(),
             payload: json!({"text_instruction": "do something"}),
+            extension_filter: None,
         };
 
         let task_info = create_task_info_with_defaults(text_task, TaskStatus::Pending);
@@ -61,6 +63,7 @@ mod test_get_task_name {
                     // missing "name" field
                 }
             }),
+            extension_filter: None,
         };
 
         let task_info = create_task_info_with_defaults(malformed_task, TaskStatus::Pending);
@@ -74,6 +77,7 @@ mod test_get_task_name {
             id: "task_4".to_string(),
             task_type: "sub_recipe".to_string(),
             payload: json!({}), // missing "sub_recipe" field
+            extension_filter: None,
         };
 
         let task_info = create_task_info_with_defaults(malformed_task, TaskStatus::Pending);
@@ -90,6 +94,7 @@ mod count_by_status {
             id: id.to_string(),
             task_type: "test".to_string(),
             payload: json!({}),
+            extension_filter: None,
         };
         create_task_info_with_defaults(task, status)
     }

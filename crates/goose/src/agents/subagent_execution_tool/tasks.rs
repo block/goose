@@ -78,12 +78,15 @@ async fn get_task_result(
 async fn handle_text_instruction_task(
     task: Task,
     task_execution_tracker: Arc<TaskExecutionTracker>,
-    task_config: TaskConfig,
+    mut task_config: TaskConfig,
     cancellation_token: CancellationToken,
 ) -> Result<Value, String> {
     let text_instruction = task
         .get_text_instruction()
         .ok_or_else(|| format!("Task {}: Missing text_instruction", task.id))?;
+
+    // Pass extension filter to task config
+    task_config.extension_filter = task.extension_filter.clone();
 
     // Start tracking the task
     task_execution_tracker.start_task(&task.id).await;

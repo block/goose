@@ -55,6 +55,8 @@ Template:
 - [ ] Blocked: waiting on credentials
 ```
 
+When there are discrete tasks to be done that require minimal context overlap, use subagents with specific extension filters to improve performance and enhance security by limiting subagent access to only what's needed.
+
 # Response Guidelines
 
 - Use Markdown formatting for all responses.

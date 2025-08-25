@@ -1,3 +1,4 @@
+use crate::agents::subagent_execution_tool::task_types::ExtensionFilter;
 use crate::providers::base::Provider;
 use std::env;
 use std::fmt;
@@ -16,6 +17,7 @@ pub struct TaskConfig {
     pub id: String,
     pub provider: Option<Arc<dyn Provider>>,
     pub max_turns: Option<usize>,
+    pub extension_filter: Option<ExtensionFilter>,
 }
 
 impl fmt::Debug for TaskConfig {
@@ -40,6 +42,7 @@ impl TaskConfig {
                     .and_then(|val| val.parse::<usize>().ok())
                     .unwrap_or(DEFAULT_SUBAGENT_MAX_TURNS),
             ),
+            extension_filter: None,
         }
     }
 

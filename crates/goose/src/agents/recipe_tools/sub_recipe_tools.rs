@@ -69,6 +69,7 @@ fn create_tasks_from_params(
                 id: uuid::Uuid::new_v4().to_string(),
                 task_type: "sub_recipe".to_string(),
                 payload,
+                extension_filter: None,
             }
         })
         .collect();

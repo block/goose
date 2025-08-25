@@ -3,7 +3,10 @@
 // Handles creation of tasks dynamically without sub-recipes
 // =======================================
 use crate::agents::subagent_execution_tool::tasks_manager::TasksManager;
-use crate::agents::subagent_execution_tool::{lib::ExecutionMode, task_types::Task};
+use crate::agents::subagent_execution_tool::{
+    lib::ExecutionMode,
+    task_types::{ExtensionFilter, Task},
+};
 use crate::agents::tool_execution::ToolCallResult;
 use rmcp::model::{Content, ErrorCode, ErrorData, Tool, ToolAnnotations};
 use rmcp::object;
@@ -55,6 +58,23 @@ pub fn create_dynamic_task_tool() -> Tool {
                         },
                         "required": ["text_instruction"]
                     }
+                },
+                "extension_filter": {
+                    "type": "object",
+                    "description": "Optional: Optimize performance by loading only required extensions. Use normalized names (lowercase, special chars as '_').",
+                    "properties": {
+                        "mode": {
+                            "type": "string",
+                            "enum": ["include", "exclude", "none"],
+                            "description": "include: load only listed extensions, exclude: load all except listed, none: no extensions"
+                        },
+                        "extensions": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Normalized extension names (e.g., 'slack', 'github', 'developer')"
+                        }
+                    },
+                    "required": ["mode"]
                 }
             }
         })
@@ -75,7 +95,10 @@ fn extract_task_parameters(params: &Value) -> Vec<Value> {
         .unwrap_or_default()
 }
 
-fn create_text_instruction_tasks_from_params(task_params: &[Value]) -> Vec<Task> {
+fn create_text_instruction_tasks_from_params(
+    task_params: &[Value],
+    extension_filter: Option<ExtensionFilter>,
+) -> Vec<Task> {
     task_params
         .iter()
         .map(|task_param| {
@@ -93,6 +116,7 @@ fn create_text_instruction_tasks_from_params(task_params: &[Value]) -> Vec<Task>
                 id: uuid::Uuid::new_v4().to_string(),
                 task_type: "text_instruction".to_string(),
                 payload,
+                extension_filter: extension_filter.clone(),
             }
         })
         .collect()
@@ -100,14 +124,30 @@ fn create_text_instruction_tasks_from_params(task_params: &[Value]) -> Vec<Task>
 
 fn create_task_execution_payload(tasks: Vec<Task>, execution_mode: ExecutionMode) -> Value {
     let task_ids: Vec<String> = tasks.iter().map(|task| task.id.clone()).collect();
-    json!({
+
+    // Include extension_filter in the output if it exists
+    let extension_filter = tasks.first().and_then(|t| t.extension_filter.as_ref());
+
+    let mut payload = json!({
         "task_ids": task_ids,
         "execution_mode": execution_mode
-    })
+    });
+
+    if let Some(filter) = extension_filter {
+        payload.as_object_mut().unwrap().insert(
+            "extension_filter".to_string(),
+            serde_json::to_value(filter).unwrap_or(Value::Null),
+        );
+    }
+
+    payload
 }
 
 pub async fn create_dynamic_task(params: Value, tasks_manager: &TasksManager) -> ToolCallResult {
     let task_params_array = extract_task_parameters(&params);
+    let extension_filter = params
+        .get("extension_filter")
+        .and_then(|v| serde_json::from_value::<ExtensionFilter>(v.clone()).ok());
 
     if task_params_array.is_empty() {
         return ToolCallResult::from(Err(ErrorData {
@@ -117,7 +157,7 @@ pub async fn create_dynamic_task(params: Value, tasks_manager: &TasksManager) ->
         }));
     }
 
-    let tasks = create_text_instruction_tasks_from_params(&task_params_array);
+    let tasks = create_text_instruction_tasks_from_params(&task_params_array, extension_filter);
 
     // Use parallel execution if there are multiple tasks, sequential for single task
     let execution_mode = if tasks.len() > 1 {

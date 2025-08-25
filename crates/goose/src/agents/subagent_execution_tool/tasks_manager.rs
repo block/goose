@@ -68,6 +68,7 @@ mod tests {
                     "recipe_path": "/test/path"
                 }
             }),
+            extension_filter: None,
         }
     }
 

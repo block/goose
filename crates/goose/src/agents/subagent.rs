@@ -1,3 +1,4 @@
+use crate::agents::subagent_execution_tool::task_types::ExtensionFilter;
 use crate::agents::subagent_task_config::DEFAULT_SUBAGENT_MAX_TURNS;
 use crate::{
     agents::extension::ExtensionConfig,
@@ -61,18 +62,70 @@ impl SubAgent {
 
         // Add extensions based on task_type:
         // 1. If executing dynamic task (task_type = 'text_instruction'), default to using all enabled extensions
+        //    unless extension_filter is specified
         // 2. (TODO) If executing a sub-recipe task, only use recipe extensions
-
-        // Get all enabled extensions from config
-        let enabled_extensions = ExtensionConfigManager::get_all()
+        let all_enabled_extensions: Vec<ExtensionConfig> = ExtensionConfigManager::get_all()
             .unwrap_or_default()
             .into_iter()
             .filter(|ext| ext.enabled)
             .map(|ext| ext.config)
-            .collect::<Vec<ExtensionConfig>>();
+            .collect();
 
-        // Add enabled extensions to the subagent's extension manager
-        for extension in enabled_extensions {
+        let extensions_to_load = match &task_config.extension_filter {
+            Some(ExtensionFilter::Include { extensions }) => {
+                // Validate that all requested extensions exist
+                let available_names: Vec<String> = all_enabled_extensions
+                    .iter()
+                    .map(|ext| crate::agents::extension_manager::normalize(ext.name()))
+                    .collect();
+
+                let invalid_names: Vec<String> = extensions
+                    .iter()
+                    .filter(|name| {
+                        let normalized =
+                            crate::agents::extension_manager::normalize(name.to_string());
+                        !available_names.contains(&normalized)
+                    })
+                    .cloned()
+                    .collect();
+
+                if !invalid_names.is_empty() {
+                    return Err(anyhow!(
+                        "Invalid extension names: {}. Available extensions have normalized names: {}",
+                        invalid_names.join(", "),
+                        available_names.join(", ")
+                    ));
+                }
+
+                // Filter to only the requested extensions
+                all_enabled_extensions
+                    .into_iter()
+                    .filter(|ext| {
+                        let normalized_name =
+                            crate::agents::extension_manager::normalize(ext.name());
+                        extensions.iter().any(|requested| {
+                            crate::agents::extension_manager::normalize(requested.to_string())
+                                == normalized_name
+                        })
+                    })
+                    .collect()
+            }
+            Some(ExtensionFilter::Exclude { extensions }) => all_enabled_extensions
+                .into_iter()
+                .filter(|ext| {
+                    let normalized_name = crate::agents::extension_manager::normalize(ext.name());
+                    !extensions.iter().any(|excluded| {
+                        crate::agents::extension_manager::normalize(excluded.to_string())
+                            == normalized_name
+                    })
+                })
+                .collect(),
+            Some(ExtensionFilter::None) => vec![],
+            None => all_enabled_extensions,
+        };
+
+        // Add filtered extensions to the subagent's extension manager
+        for extension in extensions_to_load {
             if let Err(e) = extension_manager.add_extension(extension).await {
                 debug!("Failed to add extension to subagent: {}", e);
                 // Continue with other extensions even if one fails

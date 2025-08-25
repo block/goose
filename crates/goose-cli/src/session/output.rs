@@ -450,6 +450,28 @@ fn render_dynamic_task_request(call: &ToolCall, debug: bool) {
         }
     }
 
+    // Print extension_filter if present
+    if let Some(extension_filter) = call.arguments.get("extension_filter") {
+        if let Some(filter_obj) = extension_filter.as_object() {
+            println!("{}:", style("extension_filter").dim());
+
+            // Print mode
+            if let Some(Value::String(mode)) = filter_obj.get("mode") {
+                println!("    {}: {}", style("mode").dim(), style(mode).green());
+            }
+
+            // Print extensions array if present
+            if let Some(Value::Array(extensions)) = filter_obj.get("extensions") {
+                println!("    {}:", style("extensions").dim());
+                for ext in extensions {
+                    if let Value::String(ext_name) = ext {
+                        println!("        - {}", style(ext_name).green());
+                    }
+                }
+            }
+        }
+    }
+
     println!();
 }
 
