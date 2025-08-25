@@ -1275,9 +1275,13 @@ export type GetProviderModelsData = {
 
 export type GetProviderModelsErrors = {
     /**
-     * Unknown provider or provider not configured
+     * Unknown provider, provider not configured, or authentication error
      */
     400: unknown;
+    /**
+     * Rate limit exceeded
+     */
+    429: unknown;
     /**
      * Internal server error
      */

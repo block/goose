@@ -385,7 +385,7 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
                       setIsCustomModel(false);
                     }
                   }}
-                  placeholder="Provider"
+                  placeholder="Provider, type to search"
                   isClearable
                 />
                 {attemptedSubmit && validationErrors.provider && (

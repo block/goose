@@ -394,7 +394,8 @@ pub async fn providers(
     ),
     responses(
         (status = 200, description = "Models fetched successfully", body = [String]),
-        (status = 400, description = "Unknown provider or provider not configured"),
+        (status = 400, description = "Unknown provider, provider not configured, or authentication error"),
+        (status = 429, description = "Rate limit exceeded"),
         (status = 500, description = "Internal server error")
     )
 )]
@@ -421,7 +422,27 @@ pub async fn get_provider_models(
     match provider.fetch_supported_models().await {
         Ok(Some(models)) => Ok(Json(models)),
         Ok(None) => Ok(Json(Vec::new())),
-        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+        Err(provider_error) => {
+            use goose::providers::errors::ProviderError;
+            let status_code = match provider_error {
+                // Permanent misconfigurations - client should fix configuration
+                ProviderError::Authentication(_) => StatusCode::BAD_REQUEST,
+                ProviderError::UsageError(_) => StatusCode::BAD_REQUEST,
+
+                // Transient errors - client should retry later
+                ProviderError::RateLimitExceeded(_) => StatusCode::TOO_MANY_REQUESTS,
+
+                // All other errors - internal server error
+                _ => StatusCode::INTERNAL_SERVER_ERROR,
+            };
+
+            tracing::warn!(
+                "Provider {} failed to fetch models: {}",
+                name,
+                provider_error
+            );
+            Err(status_code)
+        }
     }
 }
 
@@ -903,12 +924,17 @@ mod tests {
         let result =
             get_provider_models(State(test_state), headers, Path("openai".to_string())).await;
 
-        // The response should be INTERNAL_SERVER_ERROR since the API key is invalid
+        // The response should be BAD_REQUEST since the API key is invalid (authentication error)
         assert!(
             result.is_err(),
             "Expected error response from OpenAI provider with invalid key"
         );
-        assert_eq!(result.unwrap_err(), StatusCode::INTERNAL_SERVER_ERROR);
+        let status_code = result.unwrap_err();
+
+        assert!(status_code == StatusCode::BAD_REQUEST,
+            "Expected BAD_REQUEST (authentication error) or INTERNAL_SERVER_ERROR (other errors), got: {}",
+            status_code
+        );
 
         std::env::remove_var("OPENAI_API_KEY");
     }

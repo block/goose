@@ -554,7 +554,10 @@
             }
           },
           "400": {
-            "description": "Unknown provider or provider not configured"
+            "description": "Unknown provider, provider not configured, or authentication error"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
           },
           "500": {
             "description": "Internal server error"
