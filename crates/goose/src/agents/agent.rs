@@ -1030,13 +1030,13 @@ impl Agent {
                 if let Some((new_provider, role, model)) = autopilot.check_for_switch(&messages, self.provider().await?).await? {
                     debug!("AutoPilot switching to {} role with model {}", role, model);
                     self.update_provider(new_provider).await?;
-                    
+
                     // Emit a ModelChange event to notify the client
                     yield AgentEvent::ModelChange {
                         model: model.clone(),
                         mode: format!("autopilot:{}", role),
                     };
-                    
+
                     // Also add a message to the conversation to make it visible
                     let switch_msg = if role == "original" {
                         format!("🔄 Switching back to original model: {}", model)
