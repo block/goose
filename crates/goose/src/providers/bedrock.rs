@@ -2,9 +2,7 @@ use std::collections::HashMap;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
-use super::retry::{
-    ProviderRetry, RetryConfig,
-};
+use super::retry::{ProviderRetry, RetryConfig};
 use crate::conversation::message::Message;
 use crate::impl_provider_default;
 use crate::model::ModelConfig;
