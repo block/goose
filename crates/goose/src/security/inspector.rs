@@ -75,12 +75,11 @@ impl ToolInspector for SecurityInspector {
 
         let mut inspection_results = Vec::new();
 
-        // Match security results with tool requests by index
-        for (i, security_result) in security_results.iter().enumerate() {
-            if let Some(tool_request) = tool_requests.get(i) {
-                let inspection_result = self.convert_security_result(security_result, tool_request.id.clone());
-                inspection_results.push(inspection_result);
-            }
+        // Convert each security result to an inspection result
+        // SecurityResult.finding_id is actually the tool_request_id we need
+        for security_result in security_results {
+            let inspection_result = self.convert_security_result(&security_result, security_result.finding_id.clone());
+            inspection_results.push(inspection_result);
         }
 
         Ok(inspection_results)

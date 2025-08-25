@@ -953,6 +953,7 @@ impl Session {
                                 // Get confirmation from user
                                 let permission_result = cliclack::select(prompt)
                                     .item(Permission::AllowOnce, "Allow Once", "Allow the tool call once")
+                                    .item(Permission::AlwaysAllow, "Always Allow", "Always allow the tool call")
                                     .item(Permission::DenyOnce, "Deny", "Deny the tool call")
                                     .item(Permission::Cancel, "Cancel", "Cancel the AI response and tool call")
                                     .interact();
