@@ -10,7 +10,7 @@ import { toastService } from '../toasts';
 import { OllamaSetup } from './OllamaSetup';
 import { checkOllamaStatus } from '../utils/ollamaDetection';
 import { Goose } from './icons/Goose';
-import { OpenRouter, Ollama } from './icons';
+import { OpenRouter, Ollama, Tetrate } from './icons';
 
 interface ProviderGuardProps {
   children: React.ReactNode;
@@ -330,8 +330,9 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
                   >
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
+                        <Tetrate className="w-5 h-5 sm:w-6 sm:h-6 mb-12 text-text-standard" />
                         <h3 className="font-medium text-text-standard text-sm sm:text-base">
-                          Automatic setup with Tetrate Agent Router
+                        Try for free using Tetrate
                         </h3>
                       </div>
                       <div className="text-text-muted group-hover:text-text-standard transition-colors">
@@ -361,10 +362,8 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
                 <div className="relative">
                   <div
                     onClick={handleOpenRouterSetup}
-                    className="relative w-full p-4 sm:p-6 bg-background-muted border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group overflow-hidden"
+                    className="relative w-full p-4 sm:p-6 bg-transparent border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group"
                   >
-                    {/* Subtle shimmer effect */}
-                    <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/8 to-transparent"></div>
 
                     <div className="relative flex items-start justify-between mb-3">
                       <div className="flex-1">
