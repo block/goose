@@ -130,7 +130,9 @@ async fn get_tools(
     verify_secret_key(&headers, &state)?;
 
     let config = Config::global();
-    let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
+    let goose_mode = config
+        .get_param("GOOSE_MODE")
+        .unwrap_or("smart_approve".to_string());
     let agent = state
         .get_agent()
         .await

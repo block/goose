@@ -1264,7 +1264,7 @@ impl Agent {
             Some("background") => "auto".to_string(),
             _ => config
                 .get_param("GOOSE_MODE")
-                .unwrap_or_else(|_| "auto".to_string()),
+                .unwrap_or_else(|_| "smart_approve".to_string()),
         }
     }
 

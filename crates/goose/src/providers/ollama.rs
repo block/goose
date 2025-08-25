@@ -176,7 +176,9 @@ impl Provider for OllamaProvider {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let config = crate::config::Config::global();
-        let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
+        let goose_mode = config
+            .get_param("GOOSE_MODE")
+            .unwrap_or("smart_approve".to_string());
         let filtered_tools = if goose_mode == "chat" { &[] } else { tools };
 
         let payload = create_request(

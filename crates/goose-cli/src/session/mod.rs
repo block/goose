@@ -854,8 +854,9 @@ impl Session {
                     self.run_mode = RunMode::Normal;
                     // set goose mode: auto if that isn't already the case
                     let config = Config::global();
-                    let curr_goose_mode =
-                        config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
+                    let curr_goose_mode = config
+                        .get_param("GOOSE_MODE")
+                        .unwrap_or("smart_approve".to_string());
                     if curr_goose_mode != "auto" {
                         config
                             .set_param("GOOSE_MODE", Value::String("auto".to_string()))
