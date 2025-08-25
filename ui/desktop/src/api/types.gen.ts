@@ -1261,6 +1261,42 @@ export type ProvidersResponses = {
 
 export type ProvidersResponse2 = ProvidersResponses[keyof ProvidersResponses];
 
+export type GetProviderModelsData = {
+    body?: never;
+    path: {
+        /**
+         * Provider name (e.g., openai)
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/config/providers/{name}/models';
+};
+
+export type GetProviderModelsErrors = {
+    /**
+     * Unknown provider, provider not configured, or authentication error
+     */
+    400: unknown;
+    /**
+     * Rate limit exceeded
+     */
+    429: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type GetProviderModelsResponses = {
+    /**
+     * Models fetched successfully
+     */
+    200: Array<string>;
+};
+
+export type GetProviderModelsResponse = GetProviderModelsResponses[keyof GetProviderModelsResponses];
+
 export type ReadConfigData = {
     body: ConfigKeyQuery;
     path?: never;

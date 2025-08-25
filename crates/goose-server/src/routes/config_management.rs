@@ -2,7 +2,7 @@ use super::utils::verify_secret_key;
 use crate::routes::utils::check_provider_configured;
 use crate::state::AppState;
 use axum::{
-    extract::State,
+    extract::{Path, State},
     routing::{delete, get, post},
     Json, Router,
 };
@@ -384,6 +384,66 @@ pub async fn providers(
         .collect();
 
     Ok(Json(providers_response))
+}
+
+#[utoipa::path(
+    get,
+    path = "/config/providers/{name}/models",
+    params(
+        ("name" = String, Path, description = "Provider name (e.g., openai)")
+    ),
+    responses(
+        (status = 200, description = "Models fetched successfully", body = [String]),
+        (status = 400, description = "Unknown provider, provider not configured, or authentication error"),
+        (status = 429, description = "Rate limit exceeded"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn get_provider_models(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(name): Path<String>,
+) -> Result<Json<Vec<String>>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
+    let all = get_providers();
+    let Some(metadata) = all.into_iter().find(|m| m.name == name) else {
+        return Err(StatusCode::BAD_REQUEST);
+    };
+    if !check_provider_configured(&metadata) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let model_config =
+        ModelConfig::new(&metadata.default_model).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let provider = goose::providers::create(&name, model_config)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    match provider.fetch_supported_models().await {
+        Ok(Some(models)) => Ok(Json(models)),
+        Ok(None) => Ok(Json(Vec::new())),
+        Err(provider_error) => {
+            use goose::providers::errors::ProviderError;
+            let status_code = match provider_error {
+                // Permanent misconfigurations - client should fix configuration
+                ProviderError::Authentication(_) => StatusCode::BAD_REQUEST,
+                ProviderError::UsageError(_) => StatusCode::BAD_REQUEST,
+
+                // Transient errors - client should retry later
+                ProviderError::RateLimitExceeded(_) => StatusCode::TOO_MANY_REQUESTS,
+
+                // All other errors - internal server error
+                _ => StatusCode::INTERNAL_SERVER_ERROR,
+            };
+
+            tracing::warn!(
+                "Provider {} failed to fetch models: {}",
+                name,
+                provider_error
+            );
+            Err(status_code)
+        }
+    }
 }
 
 #[derive(Serialize, ToSchema)]
@@ -771,6 +831,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/extensions", post(add_extension))
         .route("/config/extensions/{name}", delete(remove_extension))
         .route("/config/providers", get(providers))
+        .route("/config/providers/{name}/models", get(get_provider_models))
         .route("/config/pricing", post(get_pricing))
         .route("/config/init", post(init_config))
         .route("/config/backup", post(backup_config))
@@ -790,8 +851,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
 mod tests {
     use super::*;
 
-    #[tokio::test]
-    async fn test_read_model_limits() {
+    async fn create_test_state() -> Arc<AppState> {
         let test_state = AppState::new(
             Arc::new(goose::agents::Agent::default()),
             "test".to_string(),
@@ -805,6 +865,12 @@ mod tests {
             .await
             .unwrap();
         test_state.set_scheduler(sched).await;
+        test_state
+    }
+
+    #[tokio::test]
+    async fn test_read_model_limits() {
+        let test_state = create_test_state().await;
         let mut headers = HeaderMap::new();
         headers.insert("X-Secret-Key", "test".parse().unwrap());
 
@@ -828,5 +894,48 @@ mod tests {
         let gpt4_limit = limits.iter().find(|l| l.pattern == "gpt-4o");
         assert!(gpt4_limit.is_some());
         assert_eq!(gpt4_limit.unwrap().context_limit, 128_000);
+    }
+
+    #[tokio::test]
+    async fn test_get_provider_models_unknown_provider() {
+        let test_state = create_test_state().await;
+        let mut headers = HeaderMap::new();
+        headers.insert("X-Secret-Key", "test".parse().unwrap());
+
+        let result = get_provider_models(
+            State(test_state),
+            headers,
+            Path("unknown_provider".to_string()),
+        )
+        .await;
+
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn test_get_provider_models_openai_configured() {
+        std::env::set_var("OPENAI_API_KEY", "test-key");
+
+        let test_state = create_test_state().await;
+        let mut headers = HeaderMap::new();
+        headers.insert("X-Secret-Key", "test".parse().unwrap());
+
+        let result =
+            get_provider_models(State(test_state), headers, Path("openai".to_string())).await;
+
+        // The response should be BAD_REQUEST since the API key is invalid (authentication error)
+        assert!(
+            result.is_err(),
+            "Expected error response from OpenAI provider with invalid key"
+        );
+        let status_code = result.unwrap_err();
+
+        assert!(status_code == StatusCode::BAD_REQUEST,
+            "Expected BAD_REQUEST (authentication error) or INTERNAL_SERVER_ERROR (other errors), got: {}",
+            status_code
+        );
+
+        std::env::remove_var("OPENAI_API_KEY");
     }
 }
