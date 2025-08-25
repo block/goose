@@ -27,6 +27,7 @@ pub mod pricing;
 pub mod provider_registry;
 mod retry;
 pub mod sagemaker_tgi;
+pub mod sapaicore;
 pub mod snowflake;
 pub mod testprovider;
 pub mod tetrate;
