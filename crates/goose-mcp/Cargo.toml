@@ -64,6 +64,7 @@ glob = "0.3"
 [dev-dependencies]
 serial_test = "3.0.0"
 sysinfo = "0.32.1"
+temp-env = "0.3.6"
 
 [features]
 utoipa = ["dep:utoipa"]
