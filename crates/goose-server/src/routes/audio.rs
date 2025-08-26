@@ -42,31 +42,8 @@ struct WhisperResponse {
     text: String,
 }
 
-/// Transcribe audio using OpenAI's Whisper API
-///
-/// # Request
-/// - `audio`: Base64 encoded audio data
-/// - `mime_type`: MIME type of the audio (e.g., "audio/webm", "audio/wav")
-///
-/// # Response
-/// - `text`: Transcribed text from the audio
-///
-/// # Errors
-/// - 401: Unauthorized (missing or invalid X-Secret-Key header)
-/// - 412: Precondition Failed (OpenAI API key not configured)
-/// - 400: Bad Request (invalid base64 audio data)
-/// - 413: Payload Too Large (audio file exceeds 25MB limit)
-/// - 415: Unsupported Media Type (unsupported audio format)
-/// - 502: Bad Gateway (OpenAI API error)
-/// - 503: Service Unavailable (network error)
-async fn transcribe_handler(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-    Json(request): Json<TranscribeRequest>,
-) -> Result<Json<TranscribeResponse>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
-    // Validate input first before checking API key configuration
+/// Validate audio input and return decoded bytes and file extension
+fn validate_audio_input(request: &TranscribeRequest) -> Result<(Vec<u8>, &'static str), StatusCode> {
     // Decode the base64 audio data
     let audio_bytes = BASE64
         .decode(&request.audio)
@@ -94,14 +71,18 @@ async fn transcribe_handler(
         _ => return Err(StatusCode::UNSUPPORTED_MEDIA_TYPE),
     };
 
-    // Get the OpenAI API key from config (after input validation)
+    Ok((audio_bytes, file_extension))
+}
+
+/// Get OpenAI configuration (API key and host)
+fn get_openai_config() -> Result<(String, String), StatusCode> {
     let config = goose::config::Config::global();
+    
     let api_key: String = config.get_secret("OPENAI_API_KEY").map_err(|e| {
         tracing::error!("Failed to get OpenAI API key: {:?}", e);
         StatusCode::PRECONDITION_FAILED
     })?;
 
-    // Get the OpenAI host from config (with default)
     let openai_host = match config.get("OPENAI_HOST", false) {
         Ok(value) => value
             .as_str()
@@ -110,18 +91,29 @@ async fn transcribe_handler(
         Err(_) => "https://api.openai.com".to_string(),
     };
 
+    Ok((api_key, openai_host))
+}
+
+/// Send transcription request to OpenAI Whisper API
+async fn send_openai_request(
+    audio_bytes: Vec<u8>,
+    file_extension: &str,
+    mime_type: &str,
+    api_key: &str,
+    openai_host: &str,
+) -> Result<WhisperResponse, StatusCode> {
     tracing::info!("Using OpenAI host: {}", openai_host);
     tracing::info!(
         "Audio file size: {} bytes, extension: {}, mime_type: {}",
         audio_bytes.len(),
         file_extension,
-        request.mime_type
+        mime_type
     );
 
     // Create a multipart form with the audio file
     let part = reqwest::multipart::Part::bytes(audio_bytes)
         .file_name(format!("audio.{}", file_extension))
-        .mime_str(&request.mime_type)
+        .mime_str(mime_type)
         .map_err(|e| {
             tracing::error!("Failed to create multipart part: {:?}", e);
             StatusCode::INTERNAL_SERVER_ERROR
@@ -193,6 +185,44 @@ async fn transcribe_handler(
         tracing::error!("Failed to parse OpenAI response: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
+
+    Ok(whisper_response)
+}
+
+/// Transcribe audio using OpenAI's Whisper API
+///
+/// # Request
+/// - `audio`: Base64 encoded audio data
+/// - `mime_type`: MIME type of the audio (e.g., "audio/webm", "audio/wav")
+///
+/// # Response
+/// - `text`: Transcribed text from the audio
+///
+/// # Errors
+/// - 401: Unauthorized (missing or invalid X-Secret-Key header)
+/// - 412: Precondition Failed (OpenAI API key not configured)
+/// - 400: Bad Request (invalid base64 audio data)
+/// - 413: Payload Too Large (audio file exceeds 25MB limit)
+/// - 415: Unsupported Media Type (unsupported audio format)
+/// - 502: Bad Gateway (OpenAI API error)
+/// - 503: Service Unavailable (network error)
+async fn transcribe_handler(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(request): Json<TranscribeRequest>,
+) -> Result<Json<TranscribeResponse>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
+    let (audio_bytes, file_extension) = validate_audio_input(&request)?;
+    let (api_key, openai_host) = get_openai_config()?;
+    
+    let whisper_response = send_openai_request(
+        audio_bytes,
+        file_extension,
+        &request.mime_type,
+        &api_key,
+        &openai_host,
+    ).await?;
 
     Ok(Json(TranscribeResponse {
         text: whisper_response.text,
