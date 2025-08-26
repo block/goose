@@ -563,18 +563,16 @@ impl AutoPilot {
                 .and_then(|content| content.as_text())
             {
                 let complexity = Self::analyze_complexity(text);
-                let matches = match (threshold, complexity) {
-                    (ComplexityLevel::Low, ComplexityLevel::Medium) => true,
-                    (ComplexityLevel::Low, ComplexityLevel::High) => true,
-                    (ComplexityLevel::Medium, ComplexityLevel::Medium) => true,
-                    (ComplexityLevel::Medium, ComplexityLevel::High) => true,
-                    (ComplexityLevel::High, ComplexityLevel::High) => true,
-                    _ => false,
-                };
 
-                if matches {
-                    triggered = true;
-                }
+                matches!(
+                    (threshold, complexity),
+                    (ComplexityLevel::Low, ComplexityLevel::Medium)
+                        | (ComplexityLevel::Low, ComplexityLevel::High)
+                        | (ComplexityLevel::Medium, ComplexityLevel::Medium)
+                        | (ComplexityLevel::Medium, ComplexityLevel::High)
+                        | (ComplexityLevel::High, ComplexityLevel::High)
+                );
+                            
             }
         }
 
