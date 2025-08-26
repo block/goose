@@ -256,7 +256,7 @@ describe('ContextManager', () => {
         vi.advanceTimersByTime(150);
       });
 
-      // Should append the continuation message (index 2)
+      // Should append the continuation message (index 2) for auto-compaction
       expect(mockAppend).toHaveBeenCalledTimes(1);
       expect(mockAppend).toHaveBeenCalledWith(mockContinuationMessage);
     });
@@ -462,14 +462,13 @@ describe('ContextManager', () => {
         mockContinuationMessage,
       ]);
 
-      // Fast-forward timers to trigger the append call
+      // Fast-forward timers to check if append would be called
       act(() => {
         vi.advanceTimersByTime(150);
       });
 
-      // Should append the continuation message
-      expect(mockAppend).toHaveBeenCalledTimes(1);
-      expect(mockAppend).toHaveBeenCalledWith(mockContinuationMessage);
+      // Should NOT append the continuation message for manual compaction
+      expect(mockAppend).not.toHaveBeenCalled();
     });
 
     it('should work without append function', async () => {
@@ -498,6 +497,95 @@ describe('ContextManager', () => {
 
       expect(mockManageContextFromBackend).toHaveBeenCalled();
       // Should not throw error when append is undefined
+
+      // Fast-forward timers to check if append would be called
+      act(() => {
+        vi.advanceTimersByTime(150);
+      });
+
+      // No append function provided, so no calls should be made
+      expect(mockAppend).not.toHaveBeenCalled();
+    });
+
+    it('should not auto-continue conversation for manual compaction even with append function', async () => {
+      mockManageContextFromBackend.mockResolvedValue({
+        messages: [
+          {
+            role: 'assistant',
+            content: [
+              { type: 'summarizationRequested', msg: 'Conversation compacted and summarized' },
+            ],
+          },
+          {
+            role: 'assistant',
+            content: [{ type: 'text', text: 'Manual summary content' }],
+          },
+          {
+            role: 'assistant',
+            content: [
+              {
+                type: 'text',
+                text: 'The previous message contains a summary that was prepared because a context limit was reached. Do not mention that you read a summary or that conversation summarization occurred Just continue the conversation naturally based on the summarized context',
+              },
+            ],
+          },
+        ],
+        tokenCounts: [8, 100, 50],
+      });
+
+      const mockCompactionMarker: Message = {
+        id: 'marker-1',
+        role: 'assistant',
+        created: 3000,
+        content: [{ type: 'summarizationRequested', msg: 'Conversation compacted and summarized' }],
+        display: true,
+        sendToLLM: false,
+      };
+
+      const mockContinuationMessage: Message = {
+        id: 'continuation-1',
+        role: 'assistant',
+        created: 3000,
+        content: [
+          {
+            type: 'text',
+            text: 'The previous message contains a summary that was prepared because a context limit was reached. Do not mention that you read a summary or that conversation summarization occurred Just continue the conversation naturally based on the summarized context',
+          },
+        ],
+        display: false,
+        sendToLLM: true,
+      };
+
+      mockConvertApiMessageToFrontendMessage
+        .mockReturnValueOnce(mockCompactionMarker)
+        .mockReturnValueOnce(mockSummaryMessage)
+        .mockReturnValueOnce(mockContinuationMessage);
+
+      const { result } = renderContextManager();
+
+      await act(async () => {
+        await result.current.handleManualCompaction(
+          mockMessages,
+          mockSetMessages,
+          mockAppend, // Provide append function
+          mockSetAncestorMessages
+        );
+      });
+
+      // Verify all three messages are set
+      expect(mockSetMessages).toHaveBeenCalledWith([
+        mockCompactionMarker,
+        mockSummaryMessage,
+        mockContinuationMessage,
+      ]);
+
+      // Fast-forward timers to check if append would be called
+      act(() => {
+        vi.advanceTimersByTime(150);
+      });
+
+      // Should NOT auto-continue for manual compaction, even with append function
+      expect(mockAppend).not.toHaveBeenCalled();
     });
   });
 

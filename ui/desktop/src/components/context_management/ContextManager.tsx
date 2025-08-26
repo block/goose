@@ -39,7 +39,7 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
       messages: Message[],
       setMessages: (messages: Message[]) => void,
       append: (message: Message) => void,
-      _isManual: boolean = false,
+      isManual: boolean = false,
       setAncestorMessages?: (messages: Message[]) => void
     ) => {
       setIsCompacting(true);
@@ -80,13 +80,17 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
         // Replace messages with the server-provided messages
         setMessages(convertedMessages);
 
-        // Automatically submit the continuation message to continue the conversation
-        // This should be the third message (index 2) which contains the "I ran into a context length exceeded error..." text
-        const continuationMessage = convertedMessages[2];
-        if (continuationMessage) {
-          setTimeout(() => {
-            append(continuationMessage);
-          }, 100);
+        // Only automatically submit the continuation message for auto-compaction (context limit reached)
+        // Manual compaction should just compact without continuing the conversation
+        if (!isManual) {
+          // Automatically submit the continuation message to continue the conversation
+          // This should be the third message (index 2) which contains the "I ran into a context length exceeded error..." text
+          const continuationMessage = convertedMessages[2];
+          if (continuationMessage) {
+            setTimeout(() => {
+              append(continuationMessage);
+            }, 100);
+          }
         }
 
         setIsCompacting(false);
