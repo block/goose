@@ -355,6 +355,7 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
 #[derive(OpenApi)]
 #[openapi(
     paths(
+        super::routes::health::status,
         super::routes::config_management::backup_config,
         super::routes::config_management::recover_config,
         super::routes::config_management::validate_config,

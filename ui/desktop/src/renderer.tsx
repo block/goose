@@ -6,10 +6,7 @@ import {
   RequireClientInitialization,
 } from './contexts/ClientInitializationContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { patchConsoleLogging } from './utils';
 import SuspenseLoader from './suspense-loader';
-
-patchConsoleLogging();
 
 const App = lazy(() => import('./App'));
 

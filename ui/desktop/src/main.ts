@@ -610,7 +610,7 @@ const createChat = async (
       contextIsolation: true,
       additionalArguments: [
         JSON.stringify({
-          ...appConfig, // Use the potentially updated appConfig
+          ...appConfig,
           GOOSE_PORT: port,
           GOOSE_WORKING_DIR: working_dir,
           REQUEST_DIR: dir,

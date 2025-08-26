@@ -5,7 +5,7 @@ use axum::{
     response::Response,
 };
 
-pub async fn layer_fn(
+pub async fn check_token(
     State(state): State<String>,
     request: Request,
     next: Next,
