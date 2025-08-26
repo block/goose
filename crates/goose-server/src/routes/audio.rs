@@ -209,7 +209,7 @@ async fn transcribe_elevenlabs_handler(
     let config = goose::config::Config::global();
 
     // First try to get it as a secret
-    let api_key: String = match config.get_secret("ELEVENLABS_API_KEY") {
+    let api_key: String = match config.get_secret::<String>("ELEVENLABS_API_KEY") {
         Ok(key) => key,
         Err(_) => {
             // Try to get it as non-secret (for backward compatibility)
@@ -217,7 +217,6 @@ async fn transcribe_elevenlabs_handler(
                 Ok(value) => {
                     match value.as_str() {
                         Some(key_str) => {
-                            tracing::info!("Migrating ElevenLabs API key to secret storage");
                             let key = key_str.to_string();
                             // Migrate to secret storage
                             if let Err(e) = config.set(
@@ -228,17 +227,25 @@ async fn transcribe_elevenlabs_handler(
                                 tracing::error!("Failed to migrate ElevenLabs API key: {:?}", e);
                             }
                             // Delete the non-secret version
-                            let _ = config.delete("ELEVENLABS_API_KEY");
+                            if let Err(e) = config.delete("ELEVENLABS_API_KEY") {
+                                tracing::warn!(
+                                    "Failed to delete non-secret ElevenLabs API key: {:?}",
+                                    e
+                                );
+                            }
                             key
                         }
                         None => {
-                            tracing::error!("ElevenLabs API key is not a string");
+                            tracing::error!(
+                                "ElevenLabs API key is not a string, found: {:?}",
+                                value
+                            );
                             return Err(StatusCode::PRECONDITION_FAILED);
                         }
                     }
                 }
-                Err(e) => {
-                    tracing::error!("Failed to get ElevenLabs API key from config: {:?}", e);
+                Err(_) => {
+                    tracing::error!("No ElevenLabs API key found in configuration");
                     return Err(StatusCode::PRECONDITION_FAILED);
                 }
             }
@@ -286,8 +293,9 @@ async fn transcribe_elevenlabs_handler(
         })?;
 
     if !response.status().is_success() {
+        let status = response.status();
         let error_text = response.text().await.unwrap_or_default();
-        tracing::error!("ElevenLabs API error: {}", error_text);
+        tracing::error!("ElevenLabs API error (status: {}): {}", status, error_text);
 
         // Check for specific error codes
         if error_text.contains("Unauthorized") || error_text.contains("Invalid API key") {
@@ -330,16 +338,13 @@ async fn check_dictation_config(
     let config = goose::config::Config::global();
 
     // Check if ElevenLabs API key is configured
-    let has_elevenlabs = config
-        .get_secret::<String>("ELEVENLABS_API_KEY")
-        .map(|_| true)
-        .unwrap_or_else(|_| {
+    let has_elevenlabs = match config.get_secret::<String>("ELEVENLABS_API_KEY") {
+        Ok(_) => true,
+        Err(_) => {
             // Check non-secret for backward compatibility
-            config
-                .get("ELEVENLABS_API_KEY", false)
-                .map(|_| true)
-                .unwrap_or(false)
-        });
+            config.get("ELEVENLABS_API_KEY", false).is_ok()
+        }
+    };
 
     Ok(Json(serde_json::json!({
         "elevenlabs": has_elevenlabs

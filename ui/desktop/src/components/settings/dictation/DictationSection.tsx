@@ -27,25 +27,30 @@ export default function DictationSection() {
   useEffect(() => {
     const loadSettings = async () => {
       const savedSettings = localStorage.getItem(DICTATION_SETTINGS_KEY);
+      let loadedSettings: DictationSettings;
+
       if (savedSettings) {
         const parsed = JSON.parse(savedSettings);
-        setSettings(parsed);
-        setShowElevenLabsKey(parsed.provider === 'elevenlabs');
+        loadedSettings = parsed;
+        console.log('Loaded dictation settings from localStorage:', parsed);
       } else {
-        // Default settings
-        const defaultSettings: DictationSettings = {
-          enabled: true,
-          provider: 'openai',
+        // Default settings - don't force OpenAI as default
+        loadedSettings = {
+          enabled: false,
+          provider: null,
         };
-        setSettings(defaultSettings);
-        localStorage.setItem(DICTATION_SETTINGS_KEY, JSON.stringify(defaultSettings));
+        console.log('Using default dictation settings (no saved settings found):', loadedSettings);
       }
+
+      setSettings(loadedSettings);
+      setShowElevenLabsKey(loadedSettings.provider === 'elevenlabs');
 
       // Load ElevenLabs API key from storage
       setIsLoadingKey(true);
       try {
         // Try reading as secret - will return true if exists
         const keyExists = await read(ELEVENLABS_API_KEY, true);
+        console.log('ElevenLabs API key exists in secure storage:', keyExists);
         if (keyExists === true) {
           setHasElevenLabsKey(true);
           // Don't set the actual key since we can't read secrets
@@ -109,6 +114,7 @@ export default function DictationSection() {
   };
 
   const saveSettings = (newSettings: DictationSettings) => {
+    console.log('Saving dictation settings to localStorage:', newSettings);
     setSettings(newSettings);
     localStorage.setItem(DICTATION_SETTINGS_KEY, JSON.stringify(newSettings));
   };
@@ -130,18 +136,26 @@ export default function DictationSection() {
   const handleElevenLabsKeyChange = (key: string) => {
     setElevenLabsApiKey(key);
     elevenLabsApiKeyRef.current = key;
+    // If user starts typing, they're updating the key
+    if (key.length > 0) {
+      setHasElevenLabsKey(false); // Hide "configured" while typing
+    }
   };
 
   const saveElevenLabsKey = async () => {
     // Save to secure storage
     try {
       if (elevenLabsApiKey.trim()) {
+        console.log('Saving ElevenLabs API key to secure storage...');
         await upsert(ELEVENLABS_API_KEY, elevenLabsApiKey, true);
         setHasElevenLabsKey(true);
+        console.log('ElevenLabs API key saved successfully');
       } else {
         // If key is empty, remove it from storage
+        console.log('Removing ElevenLabs API key from secure storage...');
         await upsert(ELEVENLABS_API_KEY, null, true);
         setHasElevenLabsKey(false);
+        console.log('ElevenLabs API key removed successfully');
       }
     } catch (error) {
       console.error('Error saving ElevenLabs API key:', error);
