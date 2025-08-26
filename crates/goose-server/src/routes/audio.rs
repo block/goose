@@ -96,9 +96,10 @@ async fn transcribe_handler(
 
     // Get the OpenAI API key from config (after input validation)
     let config = goose::config::Config::global();
-    let api_key: String = config
-        .get_secret("OPENAI_API_KEY")
-        .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
+    let api_key: String = config.get_secret("OPENAI_API_KEY").map_err(|e| {
+        tracing::error!("Failed to get OpenAI API key: {:?}", e);
+        StatusCode::PRECONDITION_FAILED
+    })?;
 
     // Get the OpenAI host from config (with default)
     let openai_host = match config.get("OPENAI_HOST", false) {
@@ -109,18 +110,29 @@ async fn transcribe_handler(
         Err(_) => "https://api.openai.com".to_string(),
     };
 
-    tracing::debug!("Using OpenAI host: {}", openai_host);
+    tracing::info!("Using OpenAI host: {}", openai_host);
+    tracing::info!(
+        "Audio file size: {} bytes, extension: {}, mime_type: {}",
+        audio_bytes.len(),
+        file_extension,
+        request.mime_type
+    );
 
     // Create a multipart form with the audio file
     let part = reqwest::multipart::Part::bytes(audio_bytes)
         .file_name(format!("audio.{}", file_extension))
         .mime_str(&request.mime_type)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| {
+            tracing::error!("Failed to create multipart part: {:?}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
     let form = reqwest::multipart::Form::new()
         .part("file", part)
         .text("model", "whisper-1")
         .text("response_format", "json");
+
+    tracing::info!("Created multipart form for OpenAI Whisper API");
 
     // Make request to OpenAI Whisper API
     let client = Client::builder()
@@ -130,6 +142,11 @@ async fn transcribe_handler(
             tracing::error!("Failed to create HTTP client: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
+
+    tracing::info!(
+        "Sending request to OpenAI: {}/v1/audio/transcriptions",
+        openai_host
+    );
 
     let response = client
         .post(format!("{}/v1/audio/transcriptions", openai_host))
@@ -150,9 +167,25 @@ async fn transcribe_handler(
             }
         })?;
 
+    tracing::info!(
+        "Received response from OpenAI with status: {}",
+        response.status()
+    );
+
     if !response.status().is_success() {
+        let status = response.status();
         let error_text = response.text().await.unwrap_or_default();
-        tracing::error!("OpenAI API error: {}", error_text);
+        tracing::error!("OpenAI API error (status: {}): {}", status, error_text);
+
+        // Check for specific error codes
+        if status == 401 {
+            tracing::error!("OpenAI API key appears to be invalid or unauthorized");
+            return Err(StatusCode::UNAUTHORIZED);
+        } else if status == 429 {
+            tracing::error!("OpenAI API quota or rate limit exceeded");
+            return Err(StatusCode::TOO_MANY_REQUESTS);
+        }
+
         return Err(StatusCode::BAD_GATEWAY);
     }
 

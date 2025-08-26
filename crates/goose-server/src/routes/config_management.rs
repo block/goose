@@ -167,7 +167,7 @@ pub async fn read_config(
     }
 
     let config = Config::global();
-    
+
     let response_value = match config.get(&query.key, query.is_secret) {
         Ok(value) => {
             if query.is_secret {
