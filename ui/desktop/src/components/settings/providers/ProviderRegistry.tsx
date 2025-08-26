@@ -253,4 +253,24 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
       ],
     },
   },
+  {
+    name: 'Tetrate Agent Router Service',
+    details: {
+      id: 'tetrate_agent_router_service',
+      name: 'Tetrate Agent Router Service',
+      description:
+        'Unified router for AI models including Claude, Gemini, GPT, and open-weight models',
+      parameters: [
+        {
+          name: 'TETRATE_API_KEY',
+          is_secret: true,
+        },
+        {
+          name: 'TETRATE_HOST',
+          is_secret: false,
+          default: 'https://api.router.tetrate.ai',
+        },
+      ],
+    },
+  },
 ];
