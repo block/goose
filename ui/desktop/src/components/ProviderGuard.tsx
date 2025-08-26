@@ -396,6 +396,39 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
                   </div>
                 </div>
 
+                {/* Other providers Card - outline style */}
+                <div
+                  onClick={() => navigate('/welcome', { replace: true })}
+                  className="w-full p-4 sm:p-6 bg-transparent border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <h3 className="font-medium text-text-standard text-sm sm:text-base">
+                        Other providers
+                      </h3>
+                    </div>
+                    <div className="text-text-muted group-hover:text-text-standard transition-colors">
+                      <svg
+                        className="w-4 h-4 sm:w-5 sm:h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 5l7 7-7 7"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                  <p className="text-text-muted text-sm sm:text-base">
+                    If you've already signed up for providers like Anthropic, OpenAI etc, you can
+                    enter your own keys.
+                  </p>
+                </div>
+
                 {/* Ollama Card - outline style */}
                 <div className="relative">
                   {/* Detected badge - similar to recommended but green */}
@@ -438,43 +471,10 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
                       </div>
                     </div>
                     <p className="text-text-muted text-sm sm:text-base">
-                      Run AI models locally on your computer. Completely free and private with no
-                      internet required.
+                      Advanced: Run AI models locally on your computer. Completely free and private
+                      with no internet required. (Does require significant hardware)
                     </p>
                   </div>
-                </div>
-
-                {/* Other providers Card - outline style */}
-                <div
-                  onClick={() => navigate('/welcome', { replace: true })}
-                  className="w-full p-4 sm:p-6 bg-transparent border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group"
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <h3 className="font-medium text-text-standard text-sm sm:text-base">
-                        Other providers
-                      </h3>
-                    </div>
-                    <div className="text-text-muted group-hover:text-text-standard transition-colors">
-                      <svg
-                        className="w-4 h-4 sm:w-5 sm:h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 5l7 7-7 7"
-                        />
-                      </svg>
-                    </div>
-                  </div>
-                  <p className="text-text-muted text-sm sm:text-base">
-                    If you've already signed up for providers like Anthropic, OpenAI etc, you can
-                    enter your own keys.
-                  </p>
                 </div>
               </div>
             </div>
