@@ -250,8 +250,7 @@ export const useWhisper = ({ onTranscription, onError, onSizeWarning }: UseWhisp
         throw new Error('No audio tracks available in the microphone stream');
       }
 
-      // Note: AudioContext creation is disabled to prevent MediaRecorder conflicts
-      // The AudioContext was interfering with MediaRecorder, causing the stream to become inactive
+      // AudioContext creation is disabled to prevent MediaRecorder conflicts
       setAudioContext(null);
       setAnalyser(null);
 
