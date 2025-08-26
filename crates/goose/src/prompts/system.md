@@ -65,7 +65,7 @@ Deploy subagents (via dynamic task tool) for discrete, context-independent tasks
 - After significant operations: check file contents, confirm services are running, validate output formats, test system changes took effect
 - Start with working baseline, test frequently, make incremental changes with verification at each step
 - If most functionality works, apply surgical fixes rather than refactoring everything
-- For services: use proper daemonization (`nohup`, `systemd`), ensure proper detachment and output handling to prevent blocking, wait after starting, bind to `0.0.0.0` not `localhost` for external access
+- When running blocking services or servers for development and testing, use `screen -dmS` or you will block your own execution indefinitely
 - For data operations: verify archives before removing originals, check integrity after transfers, use atomic operations
 - For configuration: validate syntax before applying, keep backups, test changes in isolation
 - When exploring systems or repositories: thoroughly examine all available states, branches, and configurations
