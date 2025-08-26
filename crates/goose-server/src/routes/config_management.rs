@@ -938,4 +938,25 @@ mod tests {
 
         std::env::remove_var("OPENAI_API_KEY");
     }
+
+    #[tokio::test]
+    async fn test_get_provider_models_ollama_not_running() {
+        // Test when Ollama is not running (typical scenario in CI/testing)
+        let test_state = create_test_state().await;
+        let mut headers = HeaderMap::new();
+        headers.insert("X-Secret-Key", "test".parse().unwrap());
+
+        let result =
+            get_provider_models(State(test_state), headers, Path("ollama".to_string())).await;
+
+        // Should succeed but return empty array when Ollama is not accessible
+        // The implementation gracefully handles connection failures and returns Ok(None)
+        // which translates to an empty Vec in the API response
+        assert!(result.is_ok(), "Expected successful response from Ollama provider even when not running");
+        let models = result.unwrap().0;
+        
+        // Should return empty list when Ollama is not accessible
+        // (implementation returns Ok(None) which becomes empty Vec in response)
+        assert_eq!(models.len(), 0, "Expected empty models list when Ollama is not running");
+    }
 }
