@@ -572,7 +572,6 @@ impl AutoPilot {
                         | (ComplexityLevel::Medium, ComplexityLevel::High)
                         | (ComplexityLevel::High, ComplexityLevel::High)
                 );
-                            
             }
         }
 
@@ -620,7 +619,7 @@ impl AutoPilot {
             return Ok(None);
         }
 
-        // Evaluate all models to use based on the rules 
+        // Evaluate all models to use based on the rules
         // Get candidates and find the best match, if any, to switch to
         let mut candidates: Vec<(&CompleteModelConfig, i32)> = Vec::new();
 
@@ -629,7 +628,7 @@ impl AutoPilot {
                 candidates.push((model, model.rules.priority));
             }
         }
-        
+
         candidates.sort_by_key(|(_, priority)| -priority);
 
         if let Some((best_model, priority)) = candidates.first() {
