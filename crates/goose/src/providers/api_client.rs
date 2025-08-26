@@ -300,9 +300,9 @@ impl ApiClient {
         let mut base_url =
             Url::parse(&self.host).map_err(|e| anyhow::anyhow!("Invalid base URL: {}", e))?;
 
-        if !base_url.path().is_empty() && base_url.path() != "/" && !base_url.path().ends_with('/')
-        {
-            base_url.set_path(&format!("{}/", base_url.path()));
+        let base_path = base_url.path();
+        if !base_path.is_empty() && base_path != "/" && !base_path.ends_with('/') {
+            base_url.set_path(&format!("{}/", base_path));
         }
 
         base_url
