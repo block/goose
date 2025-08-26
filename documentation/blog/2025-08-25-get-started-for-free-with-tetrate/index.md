@@ -1,5 +1,5 @@
 ---
-title: "Get Started with Goose Using Tetrate's Agent Router Service"
+title: "Your First Goose Experience Is On Us"
 description: Get $10 in credits and access to popular AI models
 authors: 
     - mic
