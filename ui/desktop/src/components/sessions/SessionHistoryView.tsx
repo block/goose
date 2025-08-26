@@ -32,6 +32,7 @@ import { ContextManagerProvider } from '../context_management/ContextManager';
 import { Message } from '../../types/message';
 import BackButton from '../ui/BackButton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/Tooltip';
+import { openSessionInNewWindow } from '../../utils/sessionBranch';
 
 // Helper function to determine if a message is a user message (same as useChatEngine)
 const isUserMessage = (message: Message): boolean => {
@@ -79,7 +80,10 @@ const SessionMessages: React.FC<{
   isLoading: boolean;
   error: string | null;
   onRetry: () => void;
-}> = ({ messages, isLoading, error, onRetry }) => {
+  sessionId: string;
+  onBranchFromMessage?: (messageId: string) => void;
+  onSessionClick?: (sessionId: string) => void;
+}> = ({ messages, isLoading, error, onRetry, sessionId, onBranchFromMessage, onSessionClick }) => {
   // Filter messages for display (same as BaseChat)
   const filteredMessages = filterMessagesForDisplay(messages);
 
@@ -109,7 +113,7 @@ const SessionMessages: React.FC<{
                   <ProgressiveMessageList
                     messages={filteredMessages}
                     chat={{
-                      sessionId: 'session-preview',
+                      sessionId: sessionId,
                       messageHistoryIndex: filteredMessages.length,
                     }}
                     toolCallNotifications={new Map()}
@@ -122,6 +126,8 @@ const SessionMessages: React.FC<{
                     batchSize={15} // Same as BaseChat default
                     batchDelay={30} // Same as BaseChat default
                     showLoadingThreshold={30} // Same as BaseChat default
+                    onBranchFromMessage={onBranchFromMessage}
+                    onSessionClick={onSessionClick}
                   />
                 </SearchView>
               </div>
@@ -152,6 +158,68 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
   const [isSharing, setIsSharing] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [canShare, setCanShare] = useState(false);
+  const [currentSession, setCurrentSession] = useState(session);
+
+  // Update current session when prop changes
+  useEffect(() => {
+    setCurrentSession(session);
+  }, [session]);
+
+  // Branching handlers
+  const handleBranchFromMessage = async (messageId: string) => {
+    try {
+      const messageIndex = currentSession.messages.findIndex((msg) => msg.id === messageId);
+      if (messageIndex === -1) {
+        toast.error('Message not found for branching');
+        return;
+      }
+
+      // Import branching utilities dynamically to avoid circular dependencies
+      const { createSessionBranch, openSessionInNewWindow, fetchSessionDetails } = await import(
+        '../../utils/sessionBranch'
+      );
+
+      // Create the branch
+      const branchSessionId = await createSessionBranch(
+        currentSession.sessionId,
+        messageIndex,
+        `Branch from message ${messageIndex + 1}`
+      );
+
+      // Open the new branch in a new window
+      openSessionInNewWindow(branchSessionId);
+      toast.success('Session branched successfully!');
+
+      // Refresh the current session to show updated branching metadata
+      try {
+        const updatedSessionDetails = await fetchSessionDetails(currentSession.sessionId);
+        if (updatedSessionDetails && updatedSessionDetails.messages) {
+          // Import the conversion function to convert API messages to frontend messages
+          const { convertApiMessageToFrontendMessage } = await import('../context_management');
+          const convertedMessages = updatedSessionDetails.messages.map((apiMessage) =>
+            convertApiMessageToFrontendMessage(apiMessage, true, true)
+          );
+
+          // Update the current session state with the new messages
+          setCurrentSession({
+            ...currentSession,
+            messages: convertedMessages,
+          });
+        }
+      } catch (refreshError) {
+        console.warn('Failed to refresh session after branching:', refreshError);
+        // Non-critical error - branching still worked, just UI won't update immediately
+      }
+    } catch (error) {
+      console.error('Failed to branch session:', error);
+      toast.error('Failed to branch session');
+    }
+  };
+
+  const handleSessionClick = (sessionId: string) => {
+    // Navigate to the clicked session (for branching navigation)
+    openSessionInNewWindow(sessionId);
+  };
 
   useEffect(() => {
     const savedSessionConfig = localStorage.getItem('session_sharing_config');
@@ -183,10 +251,10 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
 
       const shareToken = await createSharedSession(
         config.baseUrl,
-        session.metadata.working_dir,
-        session.messages,
-        session.metadata.description || 'Shared Session',
-        session.metadata.total_tokens || 0
+        currentSession.metadata.working_dir,
+        currentSession.messages,
+        currentSession.metadata.description || 'Shared Session',
+        currentSession.metadata.total_tokens || 0
       );
 
       const shareableLink = `goose://sessions/${shareToken}`;
@@ -217,7 +285,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
 
   const handleLaunchInNewWindow = () => {
     try {
-      resumeSession(session);
+      resumeSession(currentSession);
     } catch (error) {
       toast.error(`Could not launch session: ${error instanceof Error ? error.message : error}`);
     }
@@ -270,32 +338,32 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
         <div className="flex-1 flex flex-col min-h-0 px-8">
           <SessionHeader
             onBack={onBack}
-            title={session.metadata.description || 'Session Details'}
+            title={currentSession.metadata.description || 'Session Details'}
             actionButtons={!isLoading ? actionButtons : null}
           >
             <div className="flex flex-col">
-              {!isLoading && session.messages.length > 0 ? (
+              {!isLoading && currentSession.messages.length > 0 ? (
                 <>
                   <div className="flex items-center text-text-muted text-sm space-x-5 font-mono">
                     <span className="flex items-center">
                       <Calendar className="w-4 h-4 mr-1" />
-                      {formatMessageTimestamp(session.messages[0]?.created)}
+                      {formatMessageTimestamp(currentSession.messages[0]?.created)}
                     </span>
                     <span className="flex items-center">
                       <MessageSquareText className="w-4 h-4 mr-1" />
-                      {session.metadata.message_count}
+                      {currentSession.metadata.message_count}
                     </span>
-                    {session.metadata.total_tokens !== null && (
+                    {currentSession.metadata.total_tokens !== null && (
                       <span className="flex items-center">
                         <Target className="w-4 h-4 mr-1" />
-                        {(session.metadata.total_tokens || 0).toLocaleString()}
+                        {(currentSession.metadata.total_tokens || 0).toLocaleString()}
                       </span>
                     )}
                   </div>
                   <div className="flex items-center text-text-muted text-sm mt-1 font-mono">
                     <span className="flex items-center">
                       <Folder className="w-4 h-4 mr-1" />
-                      {session.metadata.working_dir}
+                      {currentSession.metadata.working_dir}
                     </span>
                   </div>
                 </>
@@ -309,10 +377,13 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
           </SessionHeader>
 
           <SessionMessages
-            messages={session.messages}
+            messages={currentSession.messages}
             isLoading={isLoading}
             error={error}
             onRetry={onRetry}
+            sessionId={currentSession.sessionId}
+            onBranchFromMessage={handleBranchFromMessage}
+            onSessionClick={handleSessionClick}
           />
         </div>
       </MainPanelLayout>
