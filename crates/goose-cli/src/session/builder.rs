@@ -453,20 +453,16 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         session_config.retry_config.clone(),
     );
 
-    // Add CLI extensions if provided and track their source
+    // Add stdio extensions if provided
     for extension_str in session_config.extensions {
         if let Err(e) = session.add_extension(extension_str.clone()).await {
             eprintln!(
                 "{}",
                 style(format!(
-                    "Warning: Failed to start extension '{}': {}",
+                    "Warning: Failed to start stdio extension '{}' ({}), continuing without it",
                     extension_str, e
                 ))
                 .yellow()
-            );
-            eprintln!(
-                "{}",
-                style(format!("Continuing without extension '{}'", extension_str)).yellow()
             );
 
             // Offer debugging help
@@ -489,16 +485,8 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             eprintln!(
                 "{}",
                 style(format!(
-                    "Warning: Failed to start remote extension '{}': {}",
+                    "Warning: Failed to start remote extension '{}' ({}), continuing without it",
                     extension_str, e
-                ))
-                .yellow()
-            );
-            eprintln!(
-                "{}",
-                style(format!(
-                    "Continuing without remote extension '{}'",
-                    extension_str
                 ))
                 .yellow()
             );
@@ -526,16 +514,8 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             eprintln!(
                 "{}",
                 style(format!(
-                    "Warning: Failed to start streamable HTTP extension '{}': {}",
+                    "Warning: Failed to start streamable HTTP extension '{}' ({}), continuing without it",
                     extension_str, e
-                ))
-                .yellow()
-            );
-            eprintln!(
-                "{}",
-                style(format!(
-                    "Continuing without streamable HTTP extension '{}'",
-                    extension_str
                 ))
                 .yellow()
             );
@@ -560,16 +540,8 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             eprintln!(
                 "{}",
                 style(format!(
-                    "Warning: Failed to start builtin extension '{}': {}",
+                    "Warning: Failed to start builtin extension '{}' ({}), continuing without it",
                     builtin, e
-                ))
-                .yellow()
-            );
-            eprintln!(
-                "{}",
-                style(format!(
-                    "Continuing without builtin extension '{}'",
-                    builtin
                 ))
                 .yellow()
             );
