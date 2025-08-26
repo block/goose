@@ -13,7 +13,7 @@ interface LeadWorkerSettingsProps {
 }
 
 export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps) {
-  const { read, upsert, getProviders, remove } = useConfig();
+  const { read, upsert, getProviders, getProviderModels, remove } = useConfig();
   const { currentModel } = useModelAndProvider();
   const [leadModel, setLeadModel] = useState<string>('');
   const [workerModel, setWorkerModel] = useState<string>('');
@@ -96,21 +96,48 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
             });
           });
         } else {
-          // Fallback to provider-based models
+          // Fetch models with dynamic discovery and static fallback
           const providers = await getProviders(false);
           const activeProviders = providers.filter((p) => p.is_configured);
 
-          activeProviders.forEach(({ metadata, name }) => {
-            if (metadata.known_models) {
-              metadata.known_models.forEach((model) => {
-                options.push({
-                  value: model.name,
-                  label: `${model.name} (${metadata.display_name})`,
-                  provider: name,
+          // Fetch models for all active providers with dynamic discovery
+          for (const provider of activeProviders) {
+            try {
+              // Try dynamic discovery first
+              let models = await getProviderModels(provider.name);
+
+              // Fallback to static known_models if dynamic returns empty
+              if ((!models || models.length === 0) && provider.metadata.known_models?.length) {
+                models = provider.metadata.known_models.map((m) => m.name);
+              }
+
+              // Add models to options
+              if (models && models.length > 0) {
+                models.forEach((modelName) => {
+                  options.push({
+                    value: modelName,
+                    label: `${modelName} (${provider.metadata.display_name})`,
+                    provider: provider.name,
+                  });
                 });
-              });
+              }
+            } catch (error) {
+              // If dynamic fetch fails, use static fallback
+              console.warn(
+                `Failed to fetch models for ${provider.name}, using static fallback:`,
+                error
+              );
+              if (provider.metadata.known_models) {
+                provider.metadata.known_models.forEach((model) => {
+                  options.push({
+                    value: model.name,
+                    label: `${model.name} (${provider.metadata.display_name})`,
+                    provider: provider.name,
+                  });
+                });
+              }
             }
-          });
+          }
         }
 
         setModelOptions(options);
@@ -122,7 +149,7 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
     };
 
     loadConfig();
-  }, [read, getProviders, currentModel, isOpen]);
+  }, [read, getProviders, getProviderModels, currentModel, isOpen]);
 
   const handleSave = async () => {
     try {
