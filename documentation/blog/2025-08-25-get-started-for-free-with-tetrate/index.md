@@ -6,7 +6,11 @@ authors:
     - rizel
 ---
 
-# Get Started with Goose immediatley with Tetrate's Agent Router Service
+Let's be honest: while Goose is completely free to use, the reality is that most performant LLMs aren't. You want to experience that agentic goodness without breaking the bank or jumping through hoops. We've been thinking about how to make that first step easier for newcomers to AI development.
+
+That's why we're thrilled about our newest provider integration: Tetrate's Agent Router Service. From August 27th through October 2nd, new Goose users can get $10 in credits to explore any model on the Tetrate platform.
+
+<!--truncate-->
 
 If you are brand new to Goose, or start with a fresh install, you will notice a new getting started experience: 
 
@@ -15,8 +19,6 @@ If you are brand new to Goose, or start with a fresh install, you will notice a 
 You can click on the Tetrate Agent router service and then quickly create an account, and Tetrate will give you $10 in credits to get started with immediately. 
 
 ![startup](startup.png)
-
-<!--truncate-->
 
 For Goose users, this means:
 - **Simple setup** in a few clicks
