@@ -10,10 +10,8 @@ use rmcp::{
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
-    fs::File,
     future::Future,
     io::Cursor,
-    io::Read,
     path::{Path, PathBuf},
     process::Stdio,
     sync::{Arc, Mutex},
@@ -28,8 +26,10 @@ use tokio_stream::{wrappers::SplitStream, StreamExt as _};
 
 use super::editor_models::{create_editor_model, EditorModel};
 use super::goose_hints::load_hints::{load_hint_files, GOOSE_HINTS_FILENAME};
-use super::lang::get_language_identifier;
-use super::shell::{expand_path, get_shell_config, is_absolute_path, normalize_line_endings};
+use super::shell::{expand_path, get_shell_config, is_absolute_path};
+use super::text_editor::{
+    text_editor_insert, text_editor_replace, text_editor_undo, text_editor_view, text_editor_write,
+};
 
 /// Parameters for the screen_capture tool
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
@@ -364,7 +364,8 @@ impl DeveloperServer {
                         None
                     }
                 });
-                self.text_editor_view(&path, view_range).await
+                let content = text_editor_view(&path, view_range).await?;
+                Ok(CallToolResult::success(content))
             }
             "write" => {
                 let file_text = params.file_text.ok_or_else(|| {
@@ -374,7 +375,8 @@ impl DeveloperServer {
                         None,
                     )
                 })?;
-                self.text_editor_write(&path, &file_text).await
+                let content = text_editor_write(&path, &file_text).await?;
+                Ok(CallToolResult::success(content))
             }
             "str_replace" => {
                 let old_str = params.old_str.ok_or_else(|| {
@@ -391,7 +393,15 @@ impl DeveloperServer {
                         None,
                     )
                 })?;
-                self.text_editor_replace(&path, &old_str, &new_str).await
+                let content = text_editor_replace(
+                    &path,
+                    &old_str,
+                    &new_str,
+                    &self.editor_model,
+                    &self.file_history,
+                )
+                .await?;
+                Ok(CallToolResult::success(content))
             }
             "insert" => {
                 let insert_line = params.insert_line.ok_or_else(|| {
@@ -408,9 +418,15 @@ impl DeveloperServer {
                         None,
                     )
                 })?;
-                self.text_editor_insert(&path, insert_line, &new_str).await
+                let content =
+                    text_editor_insert(&path, insert_line as i64, &new_str, &self.file_history)
+                        .await?;
+                Ok(CallToolResult::success(content))
             }
-            "undo_edit" => self.text_editor_undo(&path).await,
+            "undo_edit" => {
+                let content = text_editor_undo(&path, &self.file_history).await?;
+                Ok(CallToolResult::success(content))
+            }
             _ => Err(ErrorData::new(
                 ErrorCode::INVALID_PARAMS,
                 format!("Unknown command '{}'", params.command),
@@ -695,526 +711,6 @@ impl DeveloperServer {
         }
     }
 
-    // Helper method to validate and calculate view range indices
-    fn calculate_view_range(
-        &self,
-        view_range: Option<(usize, i64)>,
-        total_lines: usize,
-    ) -> Result<(usize, usize), ErrorData> {
-        if let Some((start_line, end_line)) = view_range {
-            // Convert 1-indexed line numbers to 0-indexed
-            let start_idx = if start_line > 0 { start_line - 1 } else { 0 };
-            let end_idx = if end_line == -1 {
-                total_lines
-            } else {
-                std::cmp::min(end_line as usize, total_lines)
-            };
-
-            // Validate range
-            if start_idx > total_lines {
-                return Err(ErrorData::new(
-                    ErrorCode::INVALID_PARAMS,
-                    format!(
-                        "Start line {} is beyond the end of the file (total lines: {})",
-                        start_line, total_lines
-                    ),
-                    None,
-                ));
-            }
-
-            if start_idx >= end_idx && end_idx != 0 {
-                return Err(ErrorData::new(
-                    ErrorCode::INVALID_PARAMS,
-                    format!(
-                        "Start line {} must be less than end line {}",
-                        start_line, end_line
-                    ),
-                    None,
-                ));
-            }
-
-            Ok((start_idx, end_idx))
-        } else {
-            Ok((0, total_lines))
-        }
-    }
-
-    async fn text_editor_view(
-        &self,
-        path: &PathBuf,
-        view_range: Option<(usize, i64)>,
-    ) -> Result<CallToolResult, ErrorData> {
-        if !path.is_file() {
-            return Err(ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!(
-                    "The path '{}' does not exist or is not a file.",
-                    path.display()
-                ),
-                None,
-            ));
-        }
-
-        const MAX_FILE_SIZE: u64 = 400 * 1024; // 400KB
-
-        let f = File::open(path).map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!("Failed to open file: {}", e),
-                None,
-            )
-        })?;
-
-        let file_size = f
-            .metadata()
-            .map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to get file metadata: {}", e),
-                    None,
-                )
-            })?
-            .len();
-
-        if file_size > MAX_FILE_SIZE {
-            return Err(ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!(
-                "File '{}' is too large ({:.2}KB). Maximum size is 400KB to prevent memory issues.",
-                path.display(),
-                file_size as f64 / 1024.0
-            ),
-                None,
-            ));
-        }
-
-        // Ensure we never read over that limit even if the file is being concurrently mutated
-        let mut f = f.take(MAX_FILE_SIZE);
-        let mut content = String::new();
-        f.read_to_string(&mut content).map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!("Failed to read file: {}", e),
-                None,
-            )
-        })?;
-
-        let lines: Vec<&str> = content.lines().collect();
-        let total_lines = lines.len();
-
-        let (start_idx, end_idx) = self.calculate_view_range(view_range, total_lines)?;
-
-        let selected_content = if start_idx == 0 && end_idx >= total_lines {
-            // Show entire file
-            content.clone()
-        } else {
-            // Show selected lines
-            let selected_lines: Vec<String> = lines
-                .iter()
-                .skip(start_idx)
-                .take(end_idx - start_idx)
-                .enumerate()
-                .map(|(i, line)| format!("{:6}|{}", start_idx + i + 1, line))
-                .collect();
-
-            selected_lines.join("\n")
-        };
-
-        let language = get_language_identifier(path);
-        let display_content = if view_range.is_some() {
-            formatdoc! {"
-                ### {path} (lines {start}-{end})
-                ```{language}
-                {content}
-                ```
-                ",
-                path=path.display(),
-                start=view_range.unwrap().0,
-                end=if view_range.unwrap().1 == -1 { "end".to_string() } else { view_range.unwrap().1.to_string() },
-                language=language,
-                content=selected_content,
-            }
-        } else {
-            formatdoc! {"
-                ### {path}
-                ```{language}
-                {content}
-                ```
-                ",
-                path=path.display(),
-                language=language,
-                content=selected_content,
-            }
-        };
-
-        Ok(CallToolResult::success(vec![
-            Content::text(format!("Viewing {}", path.display()))
-                .with_audience(vec![Role::Assistant]),
-            Content::text(display_content)
-                .with_audience(vec![Role::User])
-                .with_priority(0.0),
-        ]))
-    }
-
-    async fn text_editor_write(
-        &self,
-        path: &PathBuf,
-        file_text: &str,
-    ) -> Result<CallToolResult, ErrorData> {
-        // Normalize line endings based on platform
-        let mut normalized_text = normalize_line_endings(file_text);
-
-        // Ensure the text ends with a newline
-        if !normalized_text.ends_with('\n') {
-            normalized_text.push('\n');
-        }
-
-        // Write to the file
-        std::fs::write(path, &normalized_text).map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!("Failed to write file: {}", e),
-                None,
-            )
-        })?;
-
-        // Try to detect the language from the file extension
-        let language = get_language_identifier(path);
-
-        // The assistant output does not show the file again because the content is already in the tool request
-        // but we do show it to the user here, using the final written content
-        Ok(CallToolResult::success(vec![
-            Content::text(format!("Successfully wrote to {}", path.display()))
-                .with_audience(vec![Role::Assistant]),
-            Content::text(formatdoc! {
-                r#"
-                ### {path}
-                ```{language}
-                {content}
-                ```
-                "#,
-                path=path.display(),
-                language=language,
-                content=&normalized_text
-            })
-            .with_audience(vec![Role::User])
-            .with_priority(0.2),
-        ]))
-    }
-
-    async fn text_editor_replace(
-        &self,
-        path: &PathBuf,
-        old_str: &str,
-        new_str: &str,
-    ) -> Result<CallToolResult, ErrorData> {
-        // Check if file exists
-        if !path.exists() {
-            return Err(ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                format!(
-                    "File '{}' does not exist, you can write a new file with the `write` command",
-                    path.display()
-                ),
-                None,
-            ));
-        }
-
-        // Read content
-        let content = std::fs::read_to_string(path).map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!("Failed to read file: {}", e),
-                None,
-            )
-        })?;
-
-        // Check if Editor API is configured and use it as the primary path
-        if let Some(ref editor) = self.editor_model {
-            // Editor API path - save history then call API directly
-            self.save_file_history(path)?;
-
-            match editor.edit_code(&content, old_str, new_str).await {
-                Ok(updated_content) => {
-                    // Write the updated content directly
-                    let normalized_content = normalize_line_endings(&updated_content);
-                    std::fs::write(path, &normalized_content).map_err(|e| {
-                        ErrorData::new(
-                            ErrorCode::INTERNAL_ERROR,
-                            format!("Failed to write file: {}", e),
-                            None,
-                        )
-                    })?;
-
-                    // Simple success message for Editor API
-                    return Ok(CallToolResult::success(vec![
-                        Content::text(format!("Successfully edited {}", path.display()))
-                            .with_audience(vec![Role::Assistant]),
-                        Content::text(format!("File {} has been edited", path.display()))
-                            .with_audience(vec![Role::User])
-                            .with_priority(0.2),
-                    ]));
-                }
-                Err(e) => {
-                    eprintln!(
-                        "Editor API call failed: {}, falling back to string replacement",
-                        e
-                    );
-                    // Fall through to traditional path below
-                }
-            }
-        }
-
-        // Traditional string replacement path (fallback)
-        // Check if old_str exists in the file
-        if !content.contains(old_str) {
-            return Err(ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                format!("The old_str '{}' was not found in the file.", old_str),
-                None,
-            ));
-        }
-
-        // Save history for undo
-        self.save_file_history(path)?;
-
-        let new_content = content.replace(old_str, new_str);
-        let normalized_content = normalize_line_endings(&new_content);
-        std::fs::write(path, &normalized_content).map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!("Failed to write file: {}", e),
-                None,
-            )
-        })?;
-
-        // Try to detect the language from the file extension
-        let language = get_language_identifier(path);
-
-        // Show a snippet of the changed content with context
-        const SNIPPET_LINES: usize = 4;
-
-        // Count newlines before the replacement to find the line number
-        let replacement_line = content
-            .split(old_str)
-            .next()
-            .expect("should split on already matched content")
-            .matches('\n')
-            .count()
-            + 1;
-
-        // Get lines around the replacement for context
-        let lines: Vec<&str> = normalized_content.lines().collect();
-        let start_line = replacement_line.saturating_sub(SNIPPET_LINES);
-        let end_line = std::cmp::min(replacement_line + SNIPPET_LINES, lines.len());
-
-        let snippet_lines: Vec<String> = lines
-            .iter()
-            .skip(start_line.saturating_sub(1))
-            .take(end_line - start_line.saturating_sub(1))
-            .enumerate()
-            .map(|(i, line)| format!("{:6}|{}", start_line + i, line))
-            .collect();
-
-        let snippet = snippet_lines.join("\n");
-
-        Ok(CallToolResult::success(vec![
-            Content::text(format!("Successfully edited {}", path.display()))
-                .with_audience(vec![Role::Assistant]),
-            Content::text(formatdoc! {
-                r#"
-                ### {path} (around line {line})
-                ```{language}
-                {snippet}
-                ```
-                "#,
-                path=path.display(),
-                line=replacement_line,
-                language=language,
-                snippet=snippet,
-            })
-            .with_audience(vec![Role::User])
-            .with_priority(0.2),
-        ]))
-    }
-
-    async fn text_editor_insert(
-        &self,
-        path: &PathBuf,
-        insert_line: usize,
-        new_str: &str,
-    ) -> Result<CallToolResult, ErrorData> {
-        // Check if file exists
-        if !path.exists() {
-            return Err(ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                format!(
-                    "File '{}' does not exist, you can write a new file with the `write` command",
-                    path.display()
-                ),
-                None,
-            ));
-        }
-
-        // Read content
-        let content = std::fs::read_to_string(path).map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!("Failed to read file: {}", e),
-                None,
-            )
-        })?;
-
-        // Save history for undo
-        self.save_file_history(path)?;
-
-        let lines: Vec<&str> = content.lines().collect();
-        let total_lines = lines.len();
-
-        // Validate insert_line parameter
-        if insert_line > total_lines {
-            return Err(ErrorData::new(ErrorCode::INVALID_PARAMS, format!(
-                "Insert line {} is beyond the end of the file (total lines: {}). Use 0 to insert at the beginning or {} to insert at the end.",
-                insert_line, total_lines, total_lines
-            ), None));
-        }
-
-        // Create new content with inserted text
-        let mut new_lines = Vec::new();
-
-        // Add lines before the insertion point
-        for (i, line) in lines.iter().enumerate() {
-            if i == insert_line {
-                // Insert the new text at this position
-                new_lines.push(new_str.to_string());
-            }
-            new_lines.push(line.to_string());
-        }
-
-        // If inserting at the end, add the new text at the end
-        if insert_line == total_lines {
-            new_lines.push(new_str.to_string());
-        }
-
-        let new_content = new_lines.join("\n");
-        let normalized_content = normalize_line_endings(&new_content);
-
-        // Ensure the file ends with a newline
-        let final_content = if !normalized_content.ends_with('\n') {
-            format!("{}\n", normalized_content)
-        } else {
-            normalized_content
-        };
-
-        std::fs::write(path, &final_content).map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!("Failed to write file: {}", e),
-                None,
-            )
-        })?;
-
-        // Try to detect the language from the file extension
-        let language = get_language_identifier(path);
-
-        // Show a snippet of the inserted content with context
-        const SNIPPET_LINES: usize = 4;
-        let insertion_line = insert_line + 1; // Convert to 1-indexed for display
-
-        // Calculate start and end lines for the snippet
-        let start_line = insertion_line.saturating_sub(SNIPPET_LINES);
-        let end_line = std::cmp::min(insertion_line + SNIPPET_LINES, new_lines.len());
-
-        // Get the relevant lines for our snippet with line numbers
-        let snippet_lines: Vec<String> = new_lines
-            .iter()
-            .skip(start_line.saturating_sub(1))
-            .take(end_line - start_line.saturating_sub(1))
-            .enumerate()
-            .map(|(i, line)| format!("{:6}|{}", start_line + i, line))
-            .collect();
-
-        let snippet = snippet_lines.join("\n");
-
-        Ok(CallToolResult::success(vec![
-            Content::text(format!(
-                "Successfully inserted text at line {} in {}",
-                insertion_line,
-                path.display()
-            ))
-            .with_audience(vec![Role::Assistant]),
-            Content::text(formatdoc! {
-                r#"
-                ### {path} (around line {line})
-                ```{language}
-                {snippet}
-                ```
-                "#,
-                path=path.display(),
-                line=insertion_line,
-                language=language,
-                snippet=snippet,
-            })
-            .with_audience(vec![Role::User])
-            .with_priority(0.2),
-        ]))
-    }
-
-    async fn text_editor_undo(&self, path: &PathBuf) -> Result<CallToolResult, ErrorData> {
-        let mut history = self.file_history.lock().unwrap();
-        if let Some(contents) = history.get_mut(path) {
-            if let Some(previous_content) = contents.pop() {
-                // Write previous content back to file
-                std::fs::write(path, previous_content).map_err(|e| {
-                    ErrorData::new(
-                        ErrorCode::INTERNAL_ERROR,
-                        format!("Failed to write file: {}", e),
-                        None,
-                    )
-                })?;
-                Ok(CallToolResult::success(vec![Content::text(
-                    "Undid the last edit",
-                )]))
-            } else {
-                Err(ErrorData::new(
-                    ErrorCode::INVALID_PARAMS,
-                    "No edit history available to undo".to_string(),
-                    None,
-                ))
-            }
-        } else {
-            Err(ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                "No edit history available to undo".to_string(),
-                None,
-            ))
-        }
-    }
-
-    fn save_file_history(&self, path: &PathBuf) -> Result<(), ErrorData> {
-        let mut history = self.file_history.lock().unwrap();
-        let content = if path.exists() {
-            std::fs::read_to_string(path).map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to read file: {}", e),
-                    None,
-                )
-            })?
-        } else {
-            String::new()
-        };
-
-        // Keep only the last 10 versions to prevent memory issues
-        let entries = history.entry(path.clone()).or_insert_with(Vec::new);
-        entries.push(content);
-        if entries.len() > 10 {
-            entries.remove(0);
-        }
-
-        Ok(())
-    }
-
     // Helper method to build ignore patterns from .gooseignore or .gitignore files
     fn build_ignore_patterns(cwd: &PathBuf) -> Gitignore {
         let mut builder = GitignoreBuilder::new(cwd);
@@ -1348,7 +844,7 @@ mod tests {
     use super::*;
     use rmcp::handler::server::tool::Parameters;
     use serial_test::serial;
-    use std::{fs};
+    use std::fs;
     use tempfile::TempDir;
 
     fn create_test_server() -> DeveloperServer {
@@ -1576,7 +1072,10 @@ mod tests {
             .as_text()
             .unwrap();
 
-        assert!(assistant_content.text.contains("Successfully edited"));
+        assert!(
+            assistant_content.text.contains("The file")
+                && assistant_content.text.contains("has been edited")
+        );
 
         // Verify the file contents changed
         let content = fs::read_to_string(&file_path).unwrap();
@@ -1890,14 +1389,14 @@ mod tests {
             .unwrap();
 
         // Should contain lines 3-6 with line numbers
-        assert!(text.text.contains("3|Line 3"));
-        assert!(text.text.contains("4|Line 4"));
-        assert!(text.text.contains("5|Line 5"));
-        assert!(text.text.contains("6|Line 6"));
+        assert!(text.text.contains("3: Line 3"));
+        assert!(text.text.contains("4: Line 4"));
+        assert!(text.text.contains("5: Line 5"));
+        assert!(text.text.contains("6: Line 6"));
         assert!(text.text.contains("(lines 3-6)"));
         // Should not contain other lines
-        assert!(!text.text.contains("1|Line 1"));
-        assert!(!text.text.contains("7|Line 7"));
+        assert!(!text.text.contains("1: Line 1"));
+        assert!(!text.text.contains("7: Line 7"));
     }
 
     #[tokio::test]
@@ -1949,13 +1448,13 @@ mod tests {
             .unwrap();
 
         // Should contain lines 3-5
-        assert!(text.text.contains("3|Line 3"));
-        assert!(text.text.contains("4|Line 4"));
-        assert!(text.text.contains("5|Line 5"));
+        assert!(text.text.contains("3: Line 3"));
+        assert!(text.text.contains("4: Line 4"));
+        assert!(text.text.contains("5: Line 5"));
         assert!(text.text.contains("(lines 3-end)"));
         // Should not contain lines 1-2
-        assert!(!text.text.contains("1|Line 1"));
-        assert!(!text.text.contains("2|Line 2"));
+        assert!(!text.text.contains("1: Line 1"));
+        assert!(!text.text.contains("2: Line 2"));
     }
 
     #[tokio::test]
@@ -2006,7 +1505,7 @@ mod tests {
             .as_text()
             .unwrap();
 
-        assert!(text.text.contains("Successfully inserted text at line 1"));
+        assert!(text.text.contains("Text has been inserted at line 1"));
 
         // Verify the file content by reading it directly
         let file_content = fs::read_to_string(&file_path).unwrap();
@@ -2061,7 +1560,7 @@ mod tests {
             .as_text()
             .unwrap();
 
-        assert!(text.text.contains("Successfully inserted text at line 3"));
+        assert!(text.text.contains("Text has been inserted at line 3"));
 
         // Verify the file content by reading it directly
         let file_content = fs::read_to_string(&file_path).unwrap();
@@ -2315,5 +1814,4 @@ Additional instructions here.
         assert!(instructions.contains("--- Content from"));
         assert!(instructions.contains("--- End of"));
     }
-
 }
