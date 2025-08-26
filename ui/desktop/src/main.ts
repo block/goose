@@ -661,22 +661,28 @@ const createChat = async (
       (function() {
         function setConfig() {
           try {
-            if (window.localStorage) {
+            if (document.readyState === 'complete' && window.localStorage) {
               localStorage.setItem('gooseConfig', '${configStr}');
               return true;
             }
           } catch (e) {
-            console.warn('localStorage access failed:', e);
+            console.warn('[Renderer] localStorage access failed:', e);
           }
           return false;
         }
 
-        if (!setConfig()) {
-          setTimeout(() => {
+        // If document is already complete, try immediately
+        if (document.readyState === 'complete') {
+          if (!setConfig()) {
+            console.error('[Renderer] Failed to set localStorage config despite document being ready');
+          }
+        } else {
+          // Wait for document to be fully ready
+          document.addEventListener('DOMContentLoaded', () => {
             if (!setConfig()) {
-              console.error('Failed to set localStorage after retry - continuing without localStorage config');
+              console.error('[Renderer] Failed to set localStorage config after DOMContentLoaded');
             }
-          }, 100);
+          });
         }
       })();
     `
