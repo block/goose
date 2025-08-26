@@ -4,7 +4,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::conversation::message::{Message, ToolRequest};
+use crate::permission::permission_judge::PermissionCheckResult;
 use crate::providers::base::Provider;
+
+
 
 /// Result of inspecting a tool call
 #[derive(Debug, Clone)]
@@ -69,8 +72,7 @@ impl ToolInspectionManager {
     pub fn add_inspector(&mut self, inspector: Box<dyn ToolInspector>) {
         self.inspectors.push(inspector);
         // Sort by priority (highest first)
-        self.inspectors
-            .sort_by(|a, b| b.priority().cmp(&a.priority()));
+        self.inspectors.sort_by_key(|b| std::cmp::Reverse(b.priority()));
     }
 
     /// Run all inspectors on the tool requests
@@ -131,12 +133,14 @@ impl Default for ToolInspectionManager {
     }
 }
 
+
+
 /// Apply inspection results to permission check results
 /// This is the generic permission-mixing logic that works for all inspector types
 pub fn apply_inspection_results_to_permissions(
-    mut permission_result: crate::permission::permission_judge::PermissionCheckResult,
+    mut permission_result: PermissionCheckResult,
     inspection_results: &[InspectionResult],
-) -> crate::permission::permission_judge::PermissionCheckResult {
+) -> PermissionCheckResult {
     if inspection_results.is_empty() {
         return permission_result;
     }
@@ -219,7 +223,6 @@ pub fn apply_inspection_results_to_permissions(
 mod tests {
     use super::*;
     use crate::conversation::message::ToolRequest;
-    use crate::permission::permission_judge::PermissionCheckResult;
     use mcp_core::ToolCall;
     use serde_json::json;
 

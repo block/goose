@@ -57,7 +57,7 @@ impl Agent {
         inspection_results: &'a [crate::tool_inspection::InspectionResult],
     ) -> BoxStream<'a, anyhow::Result<Message>> {
         try_stream! {
-            for (_i, request) in tool_requests.iter().enumerate() {
+            for request in tool_requests.iter() {
                 if let Ok(tool_call) = request.tool_call.clone() {
                     // Find the corresponding inspection result for this tool request
                     let security_message = inspection_results.iter()
