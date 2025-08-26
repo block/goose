@@ -2,11 +2,9 @@
 ///
 /// This module provides endpoints for audio transcription using OpenAI's Whisper API.
 /// The OpenAI API key must be configured in the backend for this to work.
-use super::utils::verify_secret_key;
 use crate::state::AppState;
 use axum::{
-    extract::State,
-    http::{HeaderMap, StatusCode},
+    http::StatusCode,
     routing::{get, post},
     Json, Router,
 };
@@ -237,12 +235,8 @@ async fn transcribe_handler(
 /// Uses ElevenLabs' speech-to-text endpoint for transcription.
 /// Requires an ElevenLabs API key with speech-to-text access.
 async fn transcribe_elevenlabs_handler(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Json(request): Json<TranscribeElevenLabsRequest>,
 ) -> Result<Json<TranscribeResponse>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
     let (audio_bytes, file_extension) = validate_audio_input(&request.audio, &request.mime_type)?;
 
     // Get the ElevenLabs API key from config (after input validation)
@@ -369,12 +363,7 @@ async fn transcribe_elevenlabs_handler(
 /// Check if dictation providers are configured
 ///
 /// Returns configuration status for dictation providers
-async fn check_dictation_config(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-) -> Result<Json<serde_json::Value>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
+async fn check_dictation_config() -> Result<Json<serde_json::Value>, StatusCode> {
     let config = goose::config::Config::global();
 
     // Check if ElevenLabs API key is configured
@@ -410,10 +399,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_transcribe_endpoint_requires_auth() {
-        let state = AppState::new(
-            Arc::new(goose::agents::Agent::new()),
-            "test-secret".to_string(),
-        );
+        let state = AppState::new(Arc::new(goose::agents::Agent::new())).await;
         let app = routes(state);
 
         // Test without auth header
@@ -436,10 +422,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_transcribe_endpoint_validates_size() {
-        let state = AppState::new(
-            Arc::new(goose::agents::Agent::new()),
-            "test-secret".to_string(),
-        );
+        let state = AppState::new(Arc::new(goose::agents::Agent::new())).await;
         let app = routes(state);
 
         // Create a large base64 string (simulating > 25MB audio)
@@ -465,10 +448,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_transcribe_endpoint_validates_mime_type() {
-        let state = AppState::new(
-            Arc::new(goose::agents::Agent::new()),
-            "test-secret".to_string(),
-        );
+        let state = AppState::new(Arc::new(goose::agents::Agent::new())).await;
         let app = routes(state);
 
         let request = Request::builder()
@@ -494,10 +474,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_transcribe_endpoint_handles_invalid_base64() {
-        let state = AppState::new(
-            Arc::new(goose::agents::Agent::new()),
-            "test-secret".to_string(),
-        );
+        let state = AppState::new(Arc::new(goose::agents::Agent::new())).await;
         let app = routes(state);
 
         let request = Request::builder()
