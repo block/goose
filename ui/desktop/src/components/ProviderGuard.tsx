@@ -472,7 +472,7 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
                     </div>
                     <p className="text-text-muted text-sm sm:text-base">
                       Advanced: Run AI models locally on your computer. Completely free and private
-                      with no internet required. (does require significant hardware)
+                      with no internet required. (Does require significant hardware)
                     </p>
                   </div>
                 </div>
