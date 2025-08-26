@@ -41,6 +41,7 @@ use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::session;
+use crate::session::tool_state::ToolState;
 use crate::tool_monitor::{ToolCall, ToolMonitor};
 use crate::utils::is_token_cancelled;
 use mcp_core::ToolResult;
@@ -494,7 +495,11 @@ impl Agent {
             let todo_content = if let Some(path) = session_file_path {
                 session::storage::read_metadata(&path)
                     .ok()
-                    .and_then(|m| m.todo_content)
+                    .and_then(|m| {
+                        // Get from new session_data format
+                        session::TodoState::from_session_data(&m.session_data)
+                            .map(|state| state.content)
+                    })
                     .unwrap_or_default()
             } else {
                 String::new()
@@ -531,7 +536,10 @@ impl Agent {
                 match session::storage::get_path(session_config.id.clone()) {
                     Ok(path) => match session::storage::read_metadata(&path) {
                         Ok(mut metadata) => {
-                            metadata.todo_content = Some(content);
+                            // Use the new session_data format
+                            let todo_state = session::TodoState::new(content);
+                            todo_state.to_session_data(&mut metadata.session_data).ok();
+
                             let path_clone = path.clone();
                             let metadata_clone = metadata.clone();
                             let update_result = tokio::task::spawn(async move {
