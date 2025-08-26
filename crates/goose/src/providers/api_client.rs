@@ -297,8 +297,14 @@ impl ApiClient {
 
     fn build_url(&self, path: &str) -> Result<url::Url> {
         use url::Url;
-        let base_url =
+        let mut base_url =
             Url::parse(&self.host).map_err(|e| anyhow::anyhow!("Invalid base URL: {}", e))?;
+
+        if !base_url.path().is_empty() && base_url.path() != "/" && !base_url.path().ends_with('/')
+        {
+            base_url.set_path(&format!("{}/", base_url.path()));
+        }
+
         base_url
             .join(path)
             .map_err(|e| anyhow::anyhow!("Failed to construct URL: {}", e))
