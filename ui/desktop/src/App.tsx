@@ -284,6 +284,12 @@ export default function App() {
     useExtensionInstallModal(addExtension);
 
   useEffect(() => {
+    (async () => {
+      await loadCurrentChat({ setAgentWaitingMessage });
+    })();
+  }, [loadCurrentChat, setAgentWaitingMessage]);
+
+  useEffect(() => {
     console.log('Sending reactReady signal to Electron');
     try {
       window.electron.reactReady();
