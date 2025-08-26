@@ -478,7 +478,7 @@ You can turn your current Goose session into a reusable recipe that includes the
 </Tabs>
 
 :::info Privacy & Isolation
-Each recipient gets their own private session when using your shared recipe - no data is shared between users and your original session remains unaffected.
+Each recipient gets their own private session when using your shared recipe. No data is shared between users, and your original session and recipe remain unaffected.
 :::
 
 ## Schedule Recipe
