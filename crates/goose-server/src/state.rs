@@ -9,16 +9,14 @@ pub type AgentRef = Arc<Agent>;
 #[derive(Clone)]
 pub struct AppState {
     agent: Option<AgentRef>,
-    pub secret_key: String,
     pub scheduler: Arc<Mutex<Option<Arc<dyn SchedulerTrait>>>>,
     pub session_counter: Arc<AtomicUsize>,
 }
 
 impl AppState {
-    pub async fn new(agent: AgentRef, secret_key: String) -> Arc<AppState> {
+    pub async fn new(agent: AgentRef) -> Arc<AppState> {
         Arc::new(Self {
             agent: Some(agent.clone()),
-            secret_key,
             scheduler: Arc::new(Mutex::new(None)),
             session_counter: Arc::new(AtomicUsize::new(0)),
         })

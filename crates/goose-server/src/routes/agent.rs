@@ -1,9 +1,8 @@
-use super::utils::verify_secret_key;
 use crate::state::AppState;
 use axum::response::IntoResponse;
 use axum::{
     extract::{Query, State},
-    http::{HeaderMap, StatusCode},
+    http::StatusCode,
     routing::{get, post},
     Json, Router,
 };
@@ -14,7 +13,6 @@ use goose::model::ModelConfig;
 use goose::providers::create;
 use goose::recipe::Response;
 use goose::session;
-use goose::session::storage::save_messages_with_metadata;
 use goose::session::SessionMetadata;
 use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
@@ -115,18 +113,8 @@ pub struct ErrorResponse {
 )]
 async fn start_agent(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Json(payload): Json<StartAgentRequest>,
 ) -> Result<Json<StartAgentResponse>, (StatusCode, Json<ErrorResponse>)> {
-    verify_secret_key(&headers, &state).map_err(|_| {
-        (
-            StatusCode::UNAUTHORIZED,
-            Json(ErrorResponse {
-                error: "Unauthorized - Invalid or missing API key".to_string(),
-            }),
-        )
-    })?;
-
     let session_id = session::generate_session_id();
     let counter = state.session_counter.fetch_add(1, Ordering::SeqCst) + 1;
 
@@ -164,12 +152,8 @@ async fn start_agent(
     )
 )]
 async fn resume_agent(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Json(payload): Json<ResumeAgentRequest>,
 ) -> Result<Json<StartAgentResponse>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
     let session_path =
         match session::get_path(session::Identifier::Name(payload.session_id.clone())) {
             Ok(path) => path,
@@ -205,11 +189,8 @@ async fn resume_agent(
 )]
 async fn add_sub_recipes(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Json(payload): Json<AddSubRecipesRequest>,
 ) -> Result<Json<AddSubRecipesResponse>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
     let agent = state
         .get_agent()
         .await
@@ -230,11 +211,8 @@ async fn add_sub_recipes(
 )]
 async fn extend_prompt(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Json(payload): Json<ExtendPromptRequest>,
 ) -> Result<Json<ExtendPromptResponse>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
     let agent = state
         .get_agent()
         .await
@@ -259,11 +237,8 @@ async fn extend_prompt(
 )]
 async fn get_tools(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Query(query): Query<GetToolsQuery>,
 ) -> Result<Json<Vec<ToolInfo>>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
     let config = Config::global();
     let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
     let agent = state
@@ -319,11 +294,8 @@ async fn get_tools(
 )]
 async fn update_agent_provider(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Json(payload): Json<UpdateProviderRequest>,
 ) -> Result<StatusCode, impl IntoResponse> {
-    verify_secret_key(&headers, &state).map_err(|e| (e, String::new()))?;
-
     let agent = state
         .get_agent()
         .await
@@ -373,15 +345,8 @@ async fn update_agent_provider(
 )]
 async fn update_router_tool_selector(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Json(_payload): Json<UpdateRouterToolSelectorRequest>,
 ) -> Result<Json<String>, Json<ErrorResponse>> {
-    verify_secret_key(&headers, &state).map_err(|_| {
-        Json(ErrorResponse {
-            error: "Unauthorized - Invalid or missing API key".to_string(),
-        })
-    })?;
-
     let agent = state.get_agent().await.map_err(|e| {
         tracing::error!("Failed to get agent: {}", e);
         Json(ErrorResponse {
@@ -417,15 +382,8 @@ async fn update_router_tool_selector(
 )]
 async fn update_session_config(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Json(payload): Json<SessionConfigRequest>,
 ) -> Result<Json<String>, Json<ErrorResponse>> {
-    verify_secret_key(&headers, &state).map_err(|_| {
-        Json(ErrorResponse {
-            error: "Unauthorized - Invalid or missing API key".to_string(),
-        })
-    })?;
-
     let agent = state.get_agent().await.map_err(|e| {
         tracing::error!("Failed to get agent: {}", e);
         Json(ErrorResponse {

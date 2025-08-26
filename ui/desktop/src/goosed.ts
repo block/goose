@@ -25,25 +25,24 @@ export const findAvailablePort = (): Promise<number> => {
 
 // Goose process manager. Take in the app, port, and directory to start goosed in.
 // Check if goosed server is ready by polling the status endpoint
-const checkServerStatus = async (
-  port: number,
-  maxAttempts?: number,
-  interval: number = 100
-): Promise<boolean> => {
-  if (maxAttempts === undefined) {
-    const isTemporalEnabled = process.env.GOOSE_SCHEDULER_TYPE === 'temporal';
-    maxAttempts = isTemporalEnabled ? 200 : 80;
-    log.info(
-      `Using ${maxAttempts} max attempts (temporal scheduling: ${isTemporalEnabled ? 'enabled' : 'disabled'})`
-    );
-  }
+const checkServerStatus = async (port: number, secret: string): Promise<boolean> => {
+  const isTemporalEnabled = process.env.GOOSE_SCHEDULER_TYPE === 'temporal';
+  const maxAttempts = isTemporalEnabled ? 200 : 80;
+  const interval = 100;
+  log.info(
+    `Using ${maxAttempts} max attempts (temporal scheduling: ${isTemporalEnabled ? 'enabled' : 'disabled'})`
+  );
 
   const statusUrl = `http://127.0.0.1:${port}/status`;
   log.info(`Checking server status at ${statusUrl}`);
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      const response = await fetch(statusUrl);
+      const response = await fetch(statusUrl, {
+        headers: {
+          'X-Secret-Key': secret,
+        },
+      });
       if (response.ok) {
         log.info(`Server is ready after ${attempt} attempts`);
         return true;
@@ -65,7 +64,7 @@ const connectToExternalBackend = async (
 ): Promise<[number, string, ChildProcess]> => {
   log.info(`Using external goosed backend on port ${port}`);
 
-  const isReady = await checkServerStatus(port);
+  const isReady = await checkServerStatus(port, 'test');
   if (!isReady) {
     throw new Error(`External goosed server not accessible on port ${port}`);
   }
@@ -267,7 +266,7 @@ export const startGoosed = async (
   });
 
   // Wait for the server to be ready
-  const isReady = await checkServerStatus(port);
+  const isReady = await checkServerStatus(port, serverSecret);
   log.info(`Goosed isReady ${isReady}`);
 
   const try_kill_goose = () => {

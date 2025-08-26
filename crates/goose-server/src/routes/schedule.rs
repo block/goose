@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use axum::{
     extract::{Path, Query, State},
-    http::{HeaderMap, StatusCode},
+    http::StatusCode,
     routing::{delete, get, post, put},
     Json, Router,
 };
@@ -10,7 +10,6 @@ use serde::{Deserialize, Serialize};
 
 use chrono::NaiveDateTime;
 
-use crate::routes::utils::verify_secret_key;
 use crate::state::AppState;
 use goose::scheduler::ScheduledJob;
 
@@ -104,10 +103,8 @@ fn parse_session_name_to_iso(session_name: &str) -> String {
 #[axum::debug_handler]
 async fn create_schedule(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Json(req): Json<CreateScheduleRequest>,
 ) -> Result<Json<ScheduledJob>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
     let scheduler = state
         .scheduler()
         .await
@@ -156,9 +153,7 @@ async fn create_schedule(
 #[axum::debug_handler]
 async fn list_schedules(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
 ) -> Result<Json<ListSchedulesResponse>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
     let scheduler = state
         .scheduler()
         .await
@@ -188,10 +183,8 @@ async fn list_schedules(
 #[axum::debug_handler]
 async fn delete_schedule(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
-    verify_secret_key(&headers, &state)?;
     let scheduler = state
         .scheduler()
         .await
@@ -222,10 +215,8 @@ async fn delete_schedule(
 #[axum::debug_handler]
 async fn run_now_handler(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<RunNowResponse>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
     let scheduler = state
         .scheduler()
         .await
@@ -272,11 +263,9 @@ async fn run_now_handler(
 #[axum::debug_handler]
 async fn sessions_handler(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,                    // Added this line
     Path(schedule_id_param): Path<String>, // Renamed to avoid confusion with session_id
     Query(query_params): Query<SessionsQuery>,
 ) -> Result<Json<Vec<SessionDisplayInfo>>, StatusCode> {
-    verify_secret_key(&headers, &state)?; // Added this line
     let scheduler = state
         .scheduler()
         .await
@@ -334,10 +323,8 @@ async fn sessions_handler(
 #[axum::debug_handler]
 async fn pause_schedule(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
-    verify_secret_key(&headers, &state)?;
     let scheduler = state
         .scheduler()
         .await
@@ -370,10 +357,8 @@ async fn pause_schedule(
 #[axum::debug_handler]
 async fn unpause_schedule(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
-    verify_secret_key(&headers, &state)?;
     let scheduler = state
         .scheduler()
         .await
@@ -407,11 +392,9 @@ async fn unpause_schedule(
 #[axum::debug_handler]
 async fn update_schedule(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Path(id): Path<String>,
     Json(req): Json<UpdateScheduleRequest>,
 ) -> Result<Json<ScheduledJob>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
     let scheduler = state
         .scheduler()
         .await
@@ -454,10 +437,8 @@ async fn update_schedule(
 #[axum::debug_handler]
 pub async fn kill_running_job(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<KillJobResponse>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
     let scheduler = state
         .scheduler()
         .await
@@ -493,10 +474,8 @@ pub async fn kill_running_job(
 #[axum::debug_handler]
 pub async fn inspect_running_job(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<InspectJobResponse>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
     let scheduler = state
         .scheduler()
         .await

@@ -1,8 +1,6 @@
-use super::utils::verify_secret_key;
 use crate::routes::utils::check_provider_configured;
 use crate::state::AppState;
 use axum::{
-    extract::State,
     routing::{delete, get, post},
     Json, Router,
 };
@@ -17,7 +15,7 @@ use goose::providers::pricing::{
 };
 use goose::providers::providers as get_providers;
 use goose::{agents::ExtensionConfig, config::permission::PermissionLevel};
-use http::{HeaderMap, StatusCode};
+use http::StatusCode;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serde_yaml;
@@ -97,12 +95,8 @@ pub struct CreateCustomProviderRequest {
     )
 )]
 pub async fn upsert_config(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Json(query): Json<UpsertConfigQuery>,
 ) -> Result<Json<Value>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
     let config = Config::global();
     let result = config.set(&query.key, query.value, query.is_secret);
 
@@ -122,13 +116,7 @@ pub async fn upsert_config(
         (status = 500, description = "Internal server error")
     )
 )]
-pub async fn remove_config(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-    Json(query): Json<ConfigKeyQuery>,
-) -> Result<Json<String>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
+pub async fn remove_config(Json(query): Json<ConfigKeyQuery>) -> Result<Json<String>, StatusCode> {
     let config = Config::global();
 
     let result = if query.is_secret {
@@ -152,13 +140,7 @@ pub async fn remove_config(
         (status = 500, description = "Unable to get the configuration value"),
     )
 )]
-pub async fn read_config(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-    Json(query): Json<ConfigKeyQuery>,
-) -> Result<Json<Value>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
+pub async fn read_config(Json(query): Json<ConfigKeyQuery>) -> Result<Json<Value>, StatusCode> {
     if query.key == "model-limits" {
         let limits = ModelConfig::get_all_model_limits();
         return Ok(Json(
@@ -195,12 +177,7 @@ pub async fn read_config(
         (status = 500, description = "Internal server error")
     )
 )]
-pub async fn get_extensions(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-) -> Result<Json<ExtensionResponse>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
+pub async fn get_extensions() -> Result<Json<ExtensionResponse>, StatusCode> {
     match ExtensionConfigManager::get_all() {
         Ok(extensions) => Ok(Json(ExtensionResponse { extensions })),
         Err(err) => {
@@ -228,12 +205,8 @@ pub async fn get_extensions(
     )
 )]
 pub async fn add_extension(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Json(extension_query): Json<ExtensionQuery>,
 ) -> Result<Json<String>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
     let extensions =
         ExtensionConfigManager::get_all().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let key = goose::config::extensions::name_to_key(&extension_query.name);
@@ -265,12 +238,8 @@ pub async fn add_extension(
     )
 )]
 pub async fn remove_extension(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     axum::extract::Path(name): axum::extract::Path<String>,
 ) -> Result<Json<String>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
     let key = goose::config::extensions::name_to_key(&name);
     match ExtensionConfigManager::remove(&key) {
         Ok(_) => Ok(Json(format!("Removed extension {}", name))),
@@ -285,12 +254,7 @@ pub async fn remove_extension(
         (status = 200, description = "All configuration values retrieved successfully", body = ConfigResponse)
     )
 )]
-pub async fn read_all_config(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-) -> Result<Json<ConfigResponse>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
+pub async fn read_all_config() -> Result<Json<ConfigResponse>, StatusCode> {
     let config = Config::global();
 
     let values = config
@@ -307,12 +271,7 @@ pub async fn read_all_config(
         (status = 200, description = "All configuration values retrieved successfully", body = [ProviderDetails])
     )
 )]
-pub async fn providers(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-) -> Result<Json<Vec<ProviderDetails>>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
+pub async fn providers() -> Result<Json<Vec<ProviderDetails>>, StatusCode> {
     let mut providers_metadata = get_providers();
 
     let custom_providers_dir = goose::config::custom_providers::custom_providers_dir();
@@ -417,12 +376,8 @@ pub struct PricingQuery {
     )
 )]
 pub async fn get_pricing(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Json(query): Json<PricingQuery>,
 ) -> Result<Json<PricingResponse>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
     let configured_only = query.configured_only.unwrap_or(true);
 
     // If refresh requested (configured_only = false), refresh the cache
@@ -515,12 +470,7 @@ pub async fn get_pricing(
         (status = 500, description = "Internal server error")
     )
 )]
-pub async fn init_config(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-) -> Result<Json<String>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
+pub async fn init_config() -> Result<Json<String>, StatusCode> {
     let config = Config::global();
 
     if config.exists() {
@@ -549,12 +499,8 @@ pub async fn init_config(
     )
 )]
 pub async fn upsert_permissions(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Json(query): Json<UpsertPermissionsQuery>,
 ) -> Result<Json<String>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
     let mut permission_manager = goose::config::PermissionManager::default();
 
     for tool_permission in &query.tool_permissions {
@@ -575,12 +521,7 @@ pub async fn upsert_permissions(
         (status = 500, description = "Internal server error")
     )
 )]
-pub async fn backup_config(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-) -> Result<Json<String>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
+pub async fn backup_config() -> Result<Json<String>, StatusCode> {
     let config_dir = choose_app_strategy(APP_STRATEGY.clone())
         .expect("goose requires a home dir")
         .config_dir();
@@ -613,12 +554,7 @@ pub async fn backup_config(
         (status = 500, description = "Internal server error")
     )
 )]
-pub async fn recover_config(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-) -> Result<Json<String>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
+pub async fn recover_config() -> Result<Json<String>, StatusCode> {
     let config = Config::global();
 
     // Force a reload which will trigger recovery if needed
@@ -650,12 +586,7 @@ pub async fn recover_config(
         (status = 422, description = "Config file is corrupted")
     )
 )]
-pub async fn validate_config(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-) -> Result<Json<String>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
+pub async fn validate_config() -> Result<Json<String>, StatusCode> {
     let config_dir = choose_app_strategy(APP_STRATEGY.clone())
         .expect("goose requires a home dir")
         .config_dir();
@@ -688,12 +619,7 @@ pub async fn validate_config(
         (status = 200, description = "Current model retrieved successfully", body = String),
     )
 )]
-pub async fn get_current_model(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-) -> Result<Json<Value>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
+pub async fn get_current_model() -> Result<Json<Value>, StatusCode> {
     let current_model = goose::providers::base::get_current_model();
 
     Ok(Json(serde_json::json!({
@@ -712,12 +638,8 @@ pub async fn get_current_model(
     )
 )]
 pub async fn create_custom_provider(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Json(request): Json<CreateCustomProviderRequest>,
 ) -> Result<Json<String>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
     let config = goose::config::custom_providers::CustomProviderConfig::create_and_save(
         &request.provider_type,
         request.display_name,
@@ -745,12 +667,8 @@ pub async fn create_custom_provider(
     )
 )]
 pub async fn remove_custom_provider(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> Result<Json<String>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
     goose::config::custom_providers::CustomProviderConfig::remove(&id)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -788,15 +706,13 @@ pub fn routes(state: Arc<AppState>) -> Router {
 
 #[cfg(test)]
 mod tests {
+    use http::HeaderMap;
+
     use super::*;
 
     #[tokio::test]
     async fn test_read_model_limits() {
-        let test_state = AppState::new(
-            Arc::new(goose::agents::Agent::default()),
-            "test".to_string(),
-        )
-        .await;
+        let test_state = AppState::new(Arc::new(goose::agents::Agent::default())).await;
         let sched_storage_path = choose_app_strategy(APP_STRATEGY.clone())
             .unwrap()
             .data_dir()
@@ -808,14 +724,10 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert("X-Secret-Key", "test".parse().unwrap());
 
-        let result = read_config(
-            State(test_state),
-            headers,
-            Json(ConfigKeyQuery {
-                key: "model-limits".to_string(),
-                is_secret: false,
-            }),
-        )
+        let result = read_config(Json(ConfigKeyQuery {
+            key: "model-limits".to_string(),
+            is_secret: false,
+        }))
         .await;
 
         assert!(result.is_ok());
