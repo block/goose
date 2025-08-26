@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -34,7 +34,7 @@ use crate::agents::types::{FrontendTool, ToolResultReceiver};
 use crate::config::{Config, ExtensionConfigManager, PermissionManager};
 use crate::context_mgmt::auto_compact;
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
-use crate::permission::permission_judge::{check_tool_permissions, PermissionCheckResult};
+use crate::permission::permission_judge::PermissionCheckResult;
 use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
@@ -44,7 +44,7 @@ use crate::security::inspector::SecurityInspector;
 use crate::session;
 use crate::session::extension_data::ExtensionState;
 use crate::tool_inspection::{apply_inspection_results_to_permissions, ToolInspectionManager};
-use crate::tool_monitor::{ToolCall, ToolMonitor};
+use crate::tool_monitor::{ToolMonitor};
 use crate::utils::is_token_cancelled;
 use mcp_core::ToolResult;
 use regex::Regex;
@@ -82,8 +82,6 @@ pub struct ToolCategorizeResult {
     pub frontend_requests: Vec<ToolRequest>,
     pub remaining_requests: Vec<ToolRequest>,
     pub filtered_response: Message,
-    pub readonly_tools: HashSet<String>,
-    pub regular_tools: HashSet<String>,
 }
 
 /// The main goose Agent
@@ -100,7 +98,7 @@ pub struct Agent {
     pub(super) confirmation_rx: Mutex<mpsc::Receiver<(String, PermissionConfirmation)>>,
     pub(super) tool_result_tx: mpsc::Sender<(String, ToolResult<Vec<Content>>)>,
     pub(super) tool_result_rx: ToolResultReceiver,
-    pub(super) tool_monitor: Arc<Mutex<Option<ToolMonitor>>>,
+
     pub(super) tool_route_manager: ToolRouteManager,
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
     pub(super) retry_manager: RetryManager,
@@ -162,18 +160,6 @@ impl Agent {
         let (confirm_tx, confirm_rx) = mpsc::channel(32);
         let (tool_tx, tool_rx) = mpsc::channel(32);
 
-        let tool_monitor = Arc::new(Mutex::new(None));
-        let retry_manager = RetryManager::with_tool_monitor(tool_monitor.clone());
-
-        // Initialize tool inspection manager with default inspectors
-        let mut tool_inspection_manager = ToolInspectionManager::new();
-        
-        // Add security inspector
-        tool_inspection_manager.add_inspector(Box::new(SecurityInspector::new()));
-        
-        // Add repetition inspector (will be configured later via configure_tool_monitor)
-        tool_inspection_manager.add_inspector(Box::new(ToolMonitor::new(None)));
-
         Self {
             provider: Mutex::new(None),
             extension_manager: ExtensionManager::new(),
@@ -187,18 +173,31 @@ impl Agent {
             confirmation_rx: Mutex::new(confirm_rx),
             tool_result_tx: tool_tx,
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
-            tool_monitor,
             tool_route_manager: ToolRouteManager::new(),
             scheduler_service: Mutex::new(None),
-            retry_manager,
+            retry_manager: RetryManager::new(),
             todo_list: Arc::new(Mutex::new(String::new())),
-            tool_inspection_manager,
+            tool_inspection_manager: Self::create_default_tool_inspection_manager(),
         }
     }
 
-    pub async fn configure_tool_monitor(&self, max_repetitions: Option<u32>) {
-        let mut tool_monitor = self.tool_monitor.lock().await;
-        *tool_monitor = Some(ToolMonitor::new(max_repetitions));
+    /// Create a tool inspection manager with default inspectors
+    fn create_default_tool_inspection_manager() -> ToolInspectionManager {
+        let mut tool_inspection_manager = ToolInspectionManager::new();
+        
+        // Add security inspector (highest priority - runs first)
+        tool_inspection_manager.add_inspector(Box::new(SecurityInspector::new()));
+        
+        // Add tool monitor (handles both repetition and permissions)
+        tool_inspection_manager.add_inspector(Box::new(ToolMonitor::new(None)));
+
+        tool_inspection_manager
+    }
+
+    pub async fn configure_tool_monitor(&self, _max_repetitions: Option<u32>) {
+        // This method is now deprecated - tool monitoring is handled through the inspection manager
+        // We keep it for backward compatibility but it doesn't do anything
+        tracing::warn!("configure_tool_monitor is deprecated - tool monitoring is now handled through the inspection manager");
     }
 
     /// Reset the retry attempts counter to 0
@@ -273,10 +272,8 @@ impl Agent {
     async fn categorize_tools(
         &self,
         response: &Message,
-        tools: &[rmcp::model::Tool],
+        _tools: &[rmcp::model::Tool],
     ) -> ToolCategorizeResult {
-        let (readonly_tools, regular_tools) = Self::categorize_tools_by_annotation(tools);
-
         // Categorize tool requests
         let (frontend_requests, remaining_requests, filtered_response) =
             self.categorize_tool_requests(response).await;
@@ -285,8 +282,6 @@ impl Agent {
             frontend_requests,
             remaining_requests,
             filtered_response,
-            readonly_tools,
-            regular_tools,
         }
     }
 
@@ -390,22 +385,6 @@ impl Agent {
         cancellation_token: Option<CancellationToken>,
         session: &Option<SessionConfig>,
     ) -> (String, Result<ToolCallResult, ErrorData>) {
-        // Check if this tool call should be allowed based on repetition monitoring
-        if let Some(monitor) = self.tool_monitor.lock().await.as_mut() {
-            let tool_call_info = ToolCall::new(tool_call.name.clone(), tool_call.arguments.clone());
-
-            if !monitor.check_tool_call(tool_call_info) {
-                return (
-                    request_id,
-                    Err(ErrorData::new(
-                        ErrorCode::INTERNAL_ERROR,
-                        "Tool call rejected: exceeded maximum allowed repetitions".to_string(),
-                        None,
-                    )),
-                );
-            }
-        }
-
         if tool_call.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME {
             let result = self
                 .handle_schedule_management(tool_call.arguments, request_id.clone())
@@ -1098,8 +1077,6 @@ impl Agent {
                                     frontend_requests,
                                     remaining_requests,
                                     filtered_response,
-                                    readonly_tools,
-                                    regular_tools,
                                 } = self.categorize_tools(&response, &tools).await;
                                 let requests_to_record: Vec<ToolRequest> = frontend_requests.iter().chain(remaining_requests.iter()).cloned().collect();
                                 self.tool_route_manager
@@ -1138,18 +1115,7 @@ impl Agent {
                                         );
                                     }
                                 } else {
-                                    let mut permission_manager = PermissionManager::default();
-                                    let (mut permission_check_result, enable_extension_request_ids) =
-                                        check_tool_permissions(
-                                            &remaining_requests,
-                                            &mode,
-                                            readonly_tools.clone(),
-                                            regular_tools.clone(),
-                                            &mut permission_manager,
-                                            self.provider().await?,
-                                        ).await;
-
-                                    // Run all tool inspectors (security, repetition, etc.)
+                                    // Run all tool inspectors (security, repetition, permission, etc.)
                                     let inspection_results = self.tool_inspection_manager
                                         .inspect_tools(
                                             &remaining_requests,
@@ -1157,6 +1123,25 @@ impl Agent {
                                             Some(self.provider().await?),
                                         )
                                         .await?;
+
+                                    // Apply inspection results to create permission check result
+                                    let mut permission_check_result = PermissionCheckResult {
+                                        approved: vec![],
+                                        needs_approval: vec![],
+                                        denied: vec![],
+                                    };
+
+                                    // Track extension requests for special handling
+                                    let mut enable_extension_request_ids = vec![];
+                                    for request in &remaining_requests {
+                                        if let Ok(tool_call) = &request.tool_call {
+                                            if tool_call.name == PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME {
+                                                enable_extension_request_ids.push(request.id.clone());
+                                            }
+                                        }
+                                        // Start with all requests needing approval by default
+                                        permission_check_result.needs_approval.push(request.clone());
+                                    }
 
                                     // Apply inspection results to permission check results
                                     if !inspection_results.is_empty() {
@@ -1176,6 +1161,7 @@ impl Agent {
                                     let tool_futures_arc = Arc::new(Mutex::new(tool_futures));
 
                                     // Process tools requiring approval
+                                    let mut permission_manager = PermissionManager::default();
                                     let mut tool_approval_stream = self.handle_approval_tool_requests(
                                         &permission_check_result.needs_approval,
                                         tool_futures_arc.clone(),
@@ -1654,6 +1640,20 @@ mod tests {
 
         assert!(todo_read.is_some(), "TODO read tool should be present");
         assert!(todo_write.is_some(), "TODO write tool should be present");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_tool_inspection_manager_has_tool_monitor() -> Result<()> {
+        let agent = Agent::new();
+        
+        // Verify that the tool inspection manager has the tool monitor
+        let inspector_names = agent.tool_inspection_manager.inspector_names();
+        
+        assert!(inspector_names.contains(&"tool_monitor"), 
+                "Tool inspection manager should contain tool_monitor inspector");
+        assert!(inspector_names.contains(&"security"), 
+                "Tool inspection manager should contain security inspector");
 
         Ok(())
     }
