@@ -3,6 +3,8 @@
  * for direct serialization between client and server
  */
 
+import { BranchingMetadata } from '../api/types.gen';
+
 export type Role = 'user' | 'assistant';
 
 export interface TextContent {
@@ -110,6 +112,7 @@ export interface Message {
   content: MessageContent[];
   display?: boolean;
   sendToLLM?: boolean;
+  branchingMetadata?: BranchingMetadata | null;
 }
 
 // Helper functions to create messages

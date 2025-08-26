@@ -38,6 +38,9 @@ interface ProgressiveMessageListProps {
   renderMessage?: (message: Message, index: number) => React.ReactNode | null;
   isStreamingMessage?: boolean; // Whether messages are currently being streamed
   onMessageUpdate?: (messageId: string, newContent: string) => void;
+  // Branching callbacks
+  onBranchFromMessage?: (messageId: string) => void;
+  onSessionClick?: (sessionId: string) => void;
 }
 
 export default function ProgressiveMessageList({
@@ -53,6 +56,8 @@ export default function ProgressiveMessageList({
   renderMessage, // Custom render function
   isStreamingMessage = false, // Whether messages are currently being streamed
   onMessageUpdate,
+  onBranchFromMessage,
+  onSessionClick,
 }: ProgressiveMessageListProps) {
   const [renderedCount, setRenderedCount] = useState(() => {
     // Initialize with either all messages (if small) or first batch (if large)
@@ -182,7 +187,12 @@ export default function ProgressiveMessageList({
                   <CompactionMarker message={message} />
                 ) : (
                   !hasOnlyToolResponses(message) && (
-                    <UserMessage message={message} onMessageUpdate={onMessageUpdate} />
+                    <UserMessage
+                      message={message}
+                      onMessageUpdate={onMessageUpdate}
+                      onBranchFromMessage={onBranchFromMessage}
+                      onSessionClick={onSessionClick}
+                    />
                   )
                 )}
               </>
@@ -205,6 +215,8 @@ export default function ProgressiveMessageList({
                       index === messagesToRender.length - 1 &&
                       message.role === 'assistant'
                     }
+                    onBranchFromMessage={onBranchFromMessage}
+                    onSessionClick={onSessionClick}
                   />
                 )}
               </>
@@ -225,6 +237,8 @@ export default function ProgressiveMessageList({
     isStreamingMessage,
     onMessageUpdate,
     hasCompactionMarker,
+    onBranchFromMessage,
+    onSessionClick,
   ]);
 
   return (

@@ -219,6 +219,7 @@ impl CursorAgentProvider {
                             role: Role::Assistant,
                             created: chrono::Utc::now().timestamp(),
                             content: message_content,
+                            branching_metadata: None,
                         };
 
                         let usage = Usage::default();
@@ -238,6 +239,7 @@ impl CursorAgentProvider {
             role: Role::Assistant,
             created: chrono::Utc::now().timestamp(),
             content: message_content,
+            branching_metadata: None,
         };
         let usage = Usage::default();
 
@@ -371,6 +373,7 @@ impl CursorAgentProvider {
             role: Role::Assistant,
             created: chrono::Utc::now().timestamp(),
             content: vec![MessageContent::text(description.clone())],
+            branching_metadata: None,
         };
 
         let usage = Usage::default();

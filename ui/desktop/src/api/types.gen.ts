@@ -41,6 +41,24 @@ export type BranchReference = {
     sessionId: string;
 };
 
+export type BranchSessionRequest = {
+    /**
+     * Optional description for the new branch
+     */
+    description?: string | null;
+    /**
+     * Index of the message to branch from (inclusive)
+     */
+    messageIndex: number;
+};
+
+export type BranchSessionResponse = {
+    /**
+     * ID of the newly created branch session
+     */
+    branchSessionId: string;
+};
+
 /**
  * Indicates where a branch originated from
  */
@@ -67,7 +85,7 @@ export type BranchingMetadata = {
     /**
      * Sessions that were branched from this message
      */
-    branchesCreated?: Array<BranchReference> | null;
+    branchesCreated?: Array<BranchReference>;
 };
 
 /**
@@ -915,6 +933,13 @@ export type UpdateRouterToolSelectorRequest = {
 
 export type UpdateScheduleRequest = {
     cron: string;
+};
+
+export type UpdateSessionMetadataRequest = {
+    /**
+     * Updated description (name) for the session (max 200 characters)
+     */
+    description: string;
 };
 
 export type UpsertConfigQuery = {
@@ -2140,6 +2165,84 @@ export type GetSessionHistoryResponses = {
 };
 
 export type GetSessionHistoryResponse = GetSessionHistoryResponses[keyof GetSessionHistoryResponses];
+
+export type BranchSessionData = {
+    body: BranchSessionRequest;
+    path: {
+        /**
+         * Unique identifier for the session to branch from
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/branch';
+};
+
+export type BranchSessionErrors = {
+    /**
+     * Bad request - Invalid message index or description too long
+     */
+    400: unknown;
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type BranchSessionResponses = {
+    /**
+     * Session branched successfully
+     */
+    200: BranchSessionResponse;
+};
+
+export type BranchSessionResponse2 = BranchSessionResponses[keyof BranchSessionResponses];
+
+export type UpdateSessionMetadataData = {
+    body: UpdateSessionMetadataRequest;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/metadata';
+};
+
+export type UpdateSessionMetadataErrors = {
+    /**
+     * Bad request - Description too long (max 200 characters)
+     */
+    400: unknown;
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type UpdateSessionMetadataResponses = {
+    /**
+     * Session metadata updated successfully
+     */
+    200: unknown;
+};
 
 export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});
