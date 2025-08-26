@@ -1,15 +1,47 @@
 import { useState, useCallback, useEffect } from 'react';
 import { IpcRendererEvent } from 'electron';
-import { extractExtensionName } from '../components/settings/extensions/utils';
-import { addExtensionFromDeepLink } from '../components/settings/extensions/deeplink';
-import type { ExtensionConfig } from '../api/types.gen';
 import {
-  ExtensionModalState,
-  ExtensionInfo,
-  ModalType,
-  ExtensionModalConfig,
-  ExtensionInstallResult,
-} from '../types/extension';
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from './ui/dialog';
+import { Button } from './ui/button';
+import { extractExtensionName } from './settings/extensions/utils';
+import { addExtensionFromDeepLink } from './settings/extensions/deeplink';
+import type { ExtensionConfig } from '../api/types.gen';
+
+type ModalType = 'blocked' | 'untrusted' | 'trusted';
+
+interface ExtensionInfo {
+  name: string;
+  command?: string;
+  remoteUrl?: string;
+  link: string;
+}
+
+interface ExtensionModalState {
+  isOpen: boolean;
+  modalType: ModalType;
+  extensionInfo: ExtensionInfo | null;
+  isPending: boolean;
+  error: string | null;
+}
+
+interface ExtensionModalConfig {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  cancelLabel: string;
+  showSingleButton: boolean;
+  isBlocked: boolean;
+}
+
+interface ExtensionInstallModalProps {
+  addExtension?: (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>;
+}
 
 function extractCommand(link: string): string {
   const url = new URL(link);
@@ -23,9 +55,7 @@ function extractRemoteUrl(link: string): string | null {
   return url.searchParams.get('url');
 }
 
-export const useExtensionInstallModal = (
-  addExtension?: (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>
-) => {
+export function ExtensionInstallModal({ addExtension }: ExtensionInstallModalProps) {
   const [modalState, setModalState] = useState<ExtensionModalState>({
     isOpen: false,
     modalType: 'trusted',
@@ -44,14 +74,12 @@ export const useExtensionInstallModal = (
       const config = window.electron.getConfig();
       const ALLOWLIST_WARNING_MODE = config.GOOSE_ALLOWLIST_WARNING === true;
 
-      // If warning mode is enabled, always show warning but allow installation
       if (ALLOWLIST_WARNING_MODE) {
         return 'untrusted';
       }
 
       const allowedCommands = await window.electron.getAllowedExtensions();
 
-      // If no allowlist configured
       if (!allowedCommands || allowedCommands.length === 0) {
         return 'trusted';
       }
@@ -158,9 +186,9 @@ export const useExtensionInstallModal = (
     setPendingLink(null);
   }, []);
 
-  const confirmInstall = useCallback(async (): Promise<ExtensionInstallResult> => {
+  const confirmInstall = useCallback(async (): Promise<void> => {
     if (!pendingLink) {
-      return { success: false, error: 'No pending extension to install' };
+      return;
     }
 
     setModalState((prev) => ({ ...prev, isPending: true }));
@@ -168,17 +196,16 @@ export const useExtensionInstallModal = (
     try {
       console.log(`Confirming installation of extension from: ${pendingLink}`);
 
-      dismissModal();
-
       if (addExtension) {
         await addExtensionFromDeepLink(pendingLink, addExtension, () => {
           console.log('Extension installation completed, navigating to extensions');
         });
       } else {
-        throw new Error('addExtension function not provided to hook');
+        throw new Error('addExtension function not provided to component');
       }
 
-      return { success: true };
+      // Only dismiss modal after successful installation
+      dismissModal();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Installation failed';
       console.error('Extension installation failed:', error);
@@ -188,15 +215,8 @@ export const useExtensionInstallModal = (
         error: errorMessage,
         isPending: false,
       }));
-
-      return { success: false, error: errorMessage };
     }
   }, [pendingLink, dismissModal, addExtension]);
-
-  const getModalConfig = (): ExtensionModalConfig | null => {
-    if (!modalState.extensionInfo) return null;
-    return generateModalConfig(modalState.modalType, modalState.extensionInfo);
-  };
 
   useEffect(() => {
     console.log('Setting up extension install modal handler');
@@ -213,11 +233,73 @@ export const useExtensionInstallModal = (
     };
   }, [handleExtensionRequest]);
 
-  return {
-    modalState,
-    modalConfig: getModalConfig(),
-    handleExtensionRequest,
-    dismissModal,
-    confirmInstall,
+  const getModalConfig = (): ExtensionModalConfig | null => {
+    if (!modalState.extensionInfo) return null;
+    return generateModalConfig(modalState.modalType, modalState.extensionInfo);
   };
-};
+
+  const config = getModalConfig();
+  if (!config) return null;
+
+  const getConfirmButtonVariant = () => {
+    switch (modalState.modalType) {
+      case 'blocked':
+        return 'outline';
+      case 'untrusted':
+        return 'destructive';
+      case 'trusted':
+      default:
+        return 'default';
+    }
+  };
+
+  const getTitleClassName = () => {
+    switch (modalState.modalType) {
+      case 'blocked':
+        return 'text-red-600 dark:text-red-400';
+      case 'untrusted':
+        return 'text-yellow-600 dark:text-yellow-400';
+      case 'trusted':
+      default:
+        return '';
+    }
+  };
+
+  return (
+    <Dialog open={modalState.isOpen} onOpenChange={(open) => !open && dismissModal()}>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle className={getTitleClassName()}>{config.title}</DialogTitle>
+          <DialogDescription className="whitespace-pre-wrap text-left">
+            {config.message}
+          </DialogDescription>
+        </DialogHeader>
+
+        <DialogFooter className="pt-4">
+          {config.showSingleButton ? (
+            <Button
+              onClick={dismissModal}
+              disabled={modalState.isPending}
+              variant={getConfirmButtonVariant()}
+            >
+              {config.confirmLabel}
+            </Button>
+          ) : (
+            <>
+              <Button variant="outline" onClick={dismissModal} disabled={modalState.isPending}>
+                {config.cancelLabel}
+              </Button>
+              <Button
+                onClick={confirmInstall}
+                disabled={modalState.isPending}
+                variant={getConfirmButtonVariant()}
+              >
+                {modalState.isPending ? 'Installing...' : config.confirmLabel}
+              </Button>
+            </>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
