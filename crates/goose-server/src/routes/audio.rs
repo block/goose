@@ -43,7 +43,9 @@ struct WhisperResponse {
 }
 
 /// Validate audio input and return decoded bytes and file extension
-fn validate_audio_input(request: &TranscribeRequest) -> Result<(Vec<u8>, &'static str), StatusCode> {
+fn validate_audio_input(
+    request: &TranscribeRequest,
+) -> Result<(Vec<u8>, &'static str), StatusCode> {
     // Decode the base64 audio data
     let audio_bytes = BASE64
         .decode(&request.audio)
@@ -77,7 +79,7 @@ fn validate_audio_input(request: &TranscribeRequest) -> Result<(Vec<u8>, &'stati
 /// Get OpenAI configuration (API key and host)
 fn get_openai_config() -> Result<(String, String), StatusCode> {
     let config = goose::config::Config::global();
-    
+
     let api_key: String = config.get_secret("OPENAI_API_KEY").map_err(|e| {
         tracing::error!("Failed to get OpenAI API key: {:?}", e);
         StatusCode::PRECONDITION_FAILED
@@ -215,14 +217,15 @@ async fn transcribe_handler(
 
     let (audio_bytes, file_extension) = validate_audio_input(&request)?;
     let (api_key, openai_host) = get_openai_config()?;
-    
+
     let whisper_response = send_openai_request(
         audio_bytes,
         file_extension,
         &request.mime_type,
         &api_key,
         &openai_host,
-    ).await?;
+    )
+    .await?;
 
     Ok(Json(TranscribeResponse {
         text: whisper_response.text,
