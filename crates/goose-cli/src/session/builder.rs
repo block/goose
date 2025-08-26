@@ -354,28 +354,13 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
                 Ok(metadata) if metadata.enabled_extensions.is_some() => {
                     metadata.enabled_extensions.unwrap().into_iter().collect()
                 }
-                _ => ExtensionConfigManager::get_all()
-                    .expect("should load extensions")
-                    .into_iter()
-                    .filter(|ext| ext.enabled)
-                    .map(|ext| ext.config)
-                    .collect(),
+                _ => ExtensionConfigManager::get_enabled().expect("should load extensions"),
             }
         } else {
-            ExtensionConfigManager::get_all()
-                .expect("should load extensions")
-                .into_iter()
-                .filter(|ext| ext.enabled)
-                .map(|ext| ext.config)
-                .collect()
+            ExtensionConfigManager::get_enabled().expect("should load extensions")
         }
     } else {
-        ExtensionConfigManager::get_all()
-            .expect("should load extensions")
-            .into_iter()
-            .filter(|ext| ext.enabled)
-            .map(|ext| ext.config)
-            .collect()
+        ExtensionConfigManager::get_enabled().expect("should load extensions")
     };
 
     let mut set = JoinSet::new();

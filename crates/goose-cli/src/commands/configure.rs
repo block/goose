@@ -1427,11 +1427,10 @@ pub fn toggle_experiments_dialog() -> Result<(), Box<dyn Error>> {
 }
 
 pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
-    let mut extensions: Vec<String> = ExtensionConfigManager::get_all()
+    let mut extensions: Vec<String> = ExtensionConfigManager::get_enabled()
         .unwrap_or_default()
         .into_iter()
-        .filter(|ext| ext.enabled)
-        .map(|ext| ext.config.name().clone())
+        .map(|ext| ext.name().clone())
         .collect();
     extensions.push("platform".to_string());
 

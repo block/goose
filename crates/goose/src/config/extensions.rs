@@ -85,4 +85,12 @@ impl ExtensionConfigManager {
         let extensions = Self::get_extensions_map()?;
         Ok(extensions.get(key).map(|e| e.enabled).unwrap_or(false))
     }
+
+    pub fn get_enabled() -> Result<Vec<ExtensionConfig>> {
+        Ok(Self::get_all()?
+            .into_iter()
+            .filter(|ext| ext.enabled)
+            .map(|ext| ext.config)
+            .collect())
+    }
 }

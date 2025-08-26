@@ -1512,12 +1512,7 @@ impl Agent {
                 (instructions, activities)
             };
 
-        let extensions = ExtensionConfigManager::get_all().unwrap_or_default();
-        let extension_configs: Vec<_> = extensions
-            .iter()
-            .filter(|e| e.enabled)
-            .map(|e| e.config.clone())
-            .collect();
+        let extension_configs = ExtensionConfigManager::get_enabled().unwrap_or_default();
 
         let author = Author {
             contact: std::env::var("USER")
