@@ -6,6 +6,7 @@ import { Select } from '../../../ui/Select';
 import { Input } from '../../../ui/input';
 import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../ui/dialog';
+import { getModelOptionsForProvider } from '../modelInterface';
 
 interface LeadWorkerSettingsProps {
   isOpen: boolean;
@@ -102,41 +103,14 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
 
           // Fetch models for all active providers with dynamic discovery
           for (const provider of activeProviders) {
-            try {
-              // Try dynamic discovery first
-              let models = await getProviderModels(provider.name);
-
-              // Fallback to static known_models if dynamic returns empty
-              if ((!models || models.length === 0) && provider.metadata.known_models?.length) {
-                models = provider.metadata.known_models.map((m) => m.name);
-              }
-
-              // Add models to options
-              if (models && models.length > 0) {
-                models.forEach((modelName) => {
-                  options.push({
-                    value: modelName,
-                    label: `${modelName} (${provider.metadata.display_name})`,
-                    provider: provider.name,
-                  });
-                });
-              }
-            } catch (error) {
-              // If dynamic fetch fails, use static fallback
-              console.warn(
-                `Failed to fetch models for ${provider.name}, using static fallback:`,
-                error
-              );
-              if (provider.metadata.known_models) {
-                provider.metadata.known_models.forEach((model) => {
-                  options.push({
-                    value: model.name,
-                    label: `${model.name} (${provider.metadata.display_name})`,
-                    provider: provider.name,
-                  });
-                });
-              }
-            }
+            const providerOptions = await getModelOptionsForProvider(provider, getProviderModels);
+            providerOptions.forEach((option) => {
+              options.push({
+                value: option.value,
+                label: `${option.value} (${provider.metadata.display_name})`,
+                provider: option.provider,
+              });
+            });
           }
         }
 
