@@ -564,10 +564,11 @@ impl AutoPilot {
             {
                 let complexity = Self::analyze_complexity(text);
                 let matches = match (threshold, complexity) {
-                    (ComplexityLevel::Low, ComplexityLevel::Low) => true,
-                    (ComplexityLevel::Medium, ComplexityLevel::Low)
-                    | (ComplexityLevel::Medium, ComplexityLevel::Medium) => true,
-                    (ComplexityLevel::High, _) => true, // High threshold matches all
+                    (ComplexityLevel::Low, ComplexityLevel::Medium) => true,
+                    (ComplexityLevel::Low, ComplexityLevel::High) => true,
+                    (ComplexityLevel::Medium, ComplexityLevel::Medium) => true,
+                    (ComplexityLevel::Medium, ComplexityLevel::High) => true,
+                    (ComplexityLevel::High, ComplexityLevel::High) => true,
                     _ => false,
                 };
 
@@ -640,7 +641,7 @@ impl AutoPilot {
         candidates.sort_by_key(|(_, priority)| -priority);
 
         if let Some((best_model, priority)) = candidates.first() {
-            info!(
+            debug!(
                 "AutoPilot: Switching to '{}' role with {} model {} (priority: {})",
                 best_model.role, best_model.provider, best_model.model, priority
             );
@@ -682,20 +683,28 @@ impl AutoPilot {
         let current_model = self.model_configs.iter().find(|m| &m.role == current_role);
         let current_state = &self.model_states[current_role];
 
-        if let (Some(current_model), Some(last_invoked_turn)) = (current_model, current_state.last_invoked_turn) {
+        if let (Some(current_model), Some(last_invoked_turn)) =
+            (current_model, current_state.last_invoked_turn)
+        {
             let turns_since_invoked = current_turn.saturating_sub(last_invoked_turn);
-            
+
             debug!("AutoPilot: Current model '{}' invoked at turn {}, current turn {}, turns since: {}, active_turns: {}", 
                    current_role, last_invoked_turn, current_turn, turns_since_invoked, current_model.rules.active_turns);
 
             // If we're still within the active period, stay with current model
             if turns_since_invoked < current_model.rules.active_turns {
-                debug!("AutoPilot: Still within active period for '{}', staying", current_role);
+                debug!(
+                    "AutoPilot: Still within active period for '{}', staying",
+                    current_role
+                );
                 return Ok(None);
             }
 
             // Active period has elapsed, switch back to original
-            debug!("AutoPilot: Active period elapsed for '{}', switching back to original", current_role);
+            debug!(
+                "AutoPilot: Active period elapsed for '{}', switching back to original",
+                current_role
+            );
             if let Some(original) = &self.original_provider {
                 let original_model = original.get_active_model_name();
                 return Ok(Some((
@@ -829,6 +838,32 @@ mod tests {
             "Just do it",
             &keywords,
             &MatchType::Any
+        ));
+    }
+
+    #[test]
+    fn test_complexity() {
+        // check we get low complexity
+        assert!(matches!(
+            AutoPilot::analyze_complexity("Hello"),
+            ComplexityLevel::Low
+        ));
+
+        let complex_text = "I need help understanding this extremely complex distributed system architecture. \
+                          How does the authentication and authorization flow work across multiple microservices? \
+                          What are the security implications of our current design? Can you explain the database schema in detail? \
+                          Also, I'm seeing various errors in the production logs and need to debug the API endpoints systematically. \
+                          The performance seems significantly degraded and I'm wondering if we need to optimize the database queries. \
+                          Additionally, there are concerns about scalability and high availability. \
+                          Can you review the caching strategy and suggest improvements? \
+                          We also need to consider the disaster recovery plan and backup procedures. \
+                          What monitoring and alerting mechanisms should we implement? \
+                          How can we ensure data consistency across services? \
+                          Please provide detailed recommendations for each area.";
+
+        assert!(matches!(
+            AutoPilot::analyze_complexity(complex_text),
+            ComplexityLevel::High
         ));
     }
 
