@@ -1028,46 +1028,15 @@ impl Agent {
                 // Check if autopilot should switch models
                 let mut autopilot = self.autopilot.lock().await;
                 if let Some((new_provider, role, model)) = autopilot.check_for_switch(&messages, self.provider().await?).await? {
-                    println!("---> here debugging {}", role);
                     debug!("AutoPilot switching to {} role with model {}", role, model);
                     self.update_provider(new_provider).await?;
 
-                    // Emit a ModelChange event to notify the client
                     yield AgentEvent::ModelChange {
                         model: model.clone(),
                         mode: format!("autopilot:{}", role),
                     };
-
-                    // Also add a message to the conversation to make it visible
-                    let switch_msg = if role == "original" {
-                        format!("🔄 Switching back to original model: {}", model)
-                    } else {
-                        // Make the role names more user-friendly
-                        let friendly_role = match role.as_str() {
-                            "deep-thinker" => "deep thinking and analysis",
-                            "debugger" => "error debugging",
-                            "coder" => "code implementation",
-                            "reviewer" => "code review",
-                            "helper" => "general assistance",
-                            "mathematician" => "mathematical calculations",
-                            "creative" => "creative brainstorming",
-                            "quick-responder" => "quick responses",
-                            "researcher" => "research and fact-checking",
-                            "recovery-specialist" => "error recovery",
-                            "work-reviewer" => "reviewing recent work",
-                            "progress-checker" => "checking progress",
-                            "intensive-work-monitor" => "monitoring intensive work",
-                            "autonomous-supervisor" => "supervising autonomous work",
-                            "periodic-reviewer" => "periodic review",
-                            "oracle" => "deep reasoning (oracle)",
-                            "second-opinion" => "second opinion",
-                            _ => &role,
-                        };
-                        format!("🚀 AutoPilot: Switching to {} mode ({})", friendly_role, model)
-                    };
-                    yield AgentEvent::Message(Message::assistant().with_text(switch_msg));
                 }
-                drop(autopilot); // Release the lock
+                drop(autopilot);
 
                 let mut stream = Self::stream_response_from_provider(
                     self.provider().await?,

@@ -2,7 +2,7 @@ use anyhow::Result;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::{debug, info, warn};
+use tracing::{debug, warn};
 
 use crate::config::Config;
 use crate::conversation::message::MessageContent;
@@ -221,7 +221,7 @@ impl AutoPilot {
         }
 
         if !models.is_empty() {
-            info!(
+            debug!(
                 "AutoPilot initialized with {} model configurations",
                 models.len()
             );
@@ -591,14 +591,13 @@ impl AutoPilot {
         let current_turn = self.count_turns(conversation);
 
         // If we already switched, evaluate if we should switch to a different model
-        // (including potentially switching back to original)
+        // (including potentially switching back to original eg when turns are done)
         if self.switch_active {
             debug!(
                 "AutoPilot: Currently switched to '{}', evaluating alternatives",
                 self.current_role.as_deref().unwrap_or("unknown")
             );
 
-            // Check if any other model (including potentially switching back) should take over
             let should_switch = self.should_switch_from_current(conversation, current_turn);
 
             if let Some((new_provider, new_role, new_model)) = should_switch? {
@@ -608,25 +607,21 @@ impl AutoPilot {
                     new_role
                 );
 
-                // If switching back to original
                 if new_role == "original" {
                     self.switch_active = false;
                     self.current_role = None;
                     self.original_provider = None;
                 } else {
-                    // Switching to a different specialized model
                     self.current_role = Some(new_role.clone());
-                    // Keep the original_provider for potential future switch back
                 }
 
                 return Ok(Some((new_provider, new_role, new_model)));
             }
-
-            // Stay with current switched model
             return Ok(None);
         }
 
-        // Evaluate all models and find the best match
+        // Evaluate all models to use based on the rules 
+        // Get candidates and find the best match, if any, to switch to
         let mut candidates: Vec<(&CompleteModelConfig, i32)> = Vec::new();
 
         for model in &self.model_configs {
@@ -634,8 +629,7 @@ impl AutoPilot {
                 candidates.push((model, model.rules.priority));
             }
         }
-
-        // Sort by priority (highest first)
+        
         candidates.sort_by_key(|(_, priority)| -priority);
 
         if let Some((best_model, priority)) = candidates.first() {
@@ -644,12 +638,10 @@ impl AutoPilot {
                 best_model.role, best_model.provider, best_model.model, priority
             );
 
-            // Update state
             let state = self.model_states.get_mut(&best_model.role).unwrap();
             state.last_invoked_turn = Some(current_turn);
             state.invocation_count += 1;
 
-            // Create and switch to the new provider
             self.original_provider = Some(current_provider);
             self.switch_active = true;
             self.current_role = Some(best_model.role.clone());
