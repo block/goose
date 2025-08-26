@@ -1,6 +1,6 @@
 ---
 title: "Your First Goose Experience Is On Us"
-description: Get $10 in credits and access to popular AI models
+description: New Goose users receive $10 in Tetrate Agent Router credits for instant access to multiple models including GPT-5 and Sonnet-4.
 authors: 
     - mic
     - rizel
@@ -61,12 +61,12 @@ Thanks again for Tetrate for supporting open source!
 *Have questions about setting up with Goose? Join our [community discussions](https://github.com/block/goose/discussions) or check out our [documentation](https://block.github.io/goose/docs/) for more detailed setup guides.*
 
 <head>
-  <meta property="og:title" content="Get Started with Goose Using Tetrate's Agent Router Service" />
+  <meta property="og:title" content="Your First Goose Experience Is On Us" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/08/25/get-started-for-free-with-tetrate" />
-  <meta property="og:description" content="Start using Goose today with Tetrate's agent router service. Get $10 in credits and access to popular AI models including Sonnet 4." />
+  <meta property="og:description" content="New Goose users receive $10 in Tetrate Agent Router credits for instant access to multiple models including GPT-5 and Sonnet-4." />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
-  <meta name="twitter:title" content="Get Started with Goose Using Tetrate's Agent Router Service" />
-  <meta name="twitter:description" content="Start using Goose today with Tetrate's agent router service. Get $10 in credits and access to popular AI models including Sonnet 4, with the reliability of proven cloud routing expertise." />
+  <meta name="twitter:title" content="Your First Goose Experience Is On Us" />
+  <meta name="twitter:description" content="New Goose users receive $10 in Tetrate Agent Router credits for instant access to multiple models including GPT-5 and Sonnet-4" />
 </head>
