@@ -12,7 +12,7 @@ That's why we're thrilled about our newest provider integration: [Tetrate's Agen
 
 <!--truncate-->
 
-We've upgraded the onboarding flow. Tetrate Agent Router now appears as a [recommended setup option](https://block.github.io/goose/docs/getting-started/installation#set-llm-provider) for new users. Selecting Tetrate takes you through OAuth account creation, then drops you back into Goose with your $10 credits ready to go.
+We've upgraded the onboarding flow. Tetrate Agent Router now appears as a [recommended setup option](/docs/getting-started/installation#set-llm-provider) for new users. Selecting Tetrate takes you through OAuth account creation, then drops you back into Goose with your $10 credits ready to go.
 
 ![fresh install](welcome.png)
 
@@ -53,7 +53,7 @@ Browse and select from a wide range of options, including:
 - **Specialized models** optimized for different use cases
 
 :::tip Protip 
- Want the best of both worlds? Use Goose’s [Lead/Worker configuration](https://block.github.io/goose/docs/tutorials/lead-worker) to combine a powerful frontier model with a faster open-weight model. Let your Lead handle the high-level thinking while Workers take care of the repetitive tasks—saving you both time and credits.
+ Want the best of both worlds? Use Goose’s [Lead/Worker configuration](/docs/tutorials/lead-worker) to combine a powerful frontier model with a faster open-weight model. Let your Lead handle the high-level thinking while Workers take care of the repetitive tasks—saving you both time and credits.
 :::
 
 ---
@@ -63,7 +63,7 @@ Thank you to Tetrate for supporting open source and making AI development more a
 
 **What are you waiting for?** [Get started with Goose](/)
 
-*Got questions?* Explore our [docs](/documentation/docs/), browse the [blog](/documentation/blog), or join the conversation in our [Discord](https://discord.gg/block-opensource) and [GitHub Discussions](https://github.com/block/goose/discussions). We’d love to have you.
+*Got questions?* Explore our [docs](/docs/category/guides), browse the [blog](/blog), or join the conversation in our [Discord](https://discord.gg/block-opensource) and [GitHub Discussions](https://github.com/block/goose/discussions). We’d love to have you.
 
 <head>
   <meta property="og:title" content="Your First Goose Experience Is On Us" />
