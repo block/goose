@@ -7,7 +7,6 @@ import TabItem from '@theme/TabItem';
 import Link from "@docusaurus/Link";
 import { IconDownload } from "@site/src/components/icons/download";
 import { RateLimits } from '@site/src/components/RateLimits';
-import { DesktopProviderSetup } from '@site/src/components/DesktopProviderSetup';
 import { ModelSelectionTip } from '@site/src/components/ModelSelectionTip';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import MacDesktopInstallButtons from '@site/src/components/MacDesktopInstallButtons';
@@ -98,6 +97,10 @@ Let's begin 🚀
         
         Learn about prerequisites in the [installation guide](/docs/getting-started/installation).
 
+        :::info PATH Warning
+        If you see a PATH warning after installation, you'll need to add Goose to your PATH before running `goose configure`. See the [Windows CLI installation instructions](/docs/getting-started/installation) for detailed steps.
+        :::
+
       </TabItem>
     </Tabs>
   </TabItem>
@@ -105,38 +108,40 @@ Let's begin 🚀
 
 ## Configure Provider
 
-Goose works with [supported LLM providers][providers]. On first use, you'll be prompted to configure your preferred provider.
+Goose works with [supported LLM providers][providers] that give Goose the AI intelligence it needs to understand your requests. On first use, you'll be prompted to configure your preferred provider.
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-    <DesktopProviderSetup />
+
+    On the welcome screen, choose how to configure a provider:
+
+    - **Recommended**: Automatic setup with [Tetrate Agent Router](https://tetrate.io/products/tetrate-agent-router-service). This option lets you sign up and authenticate in the browser.
+      
+      :::info
+      You'll receive $10 in free credits the first time you automatically authenticate with Tetrate through Goose. This offer is available to both new and existing Tetrate users and is valid through October 2, 2025.
+      :::
+
+    - **Other Options**: Users who prefer a different provider can choose automatic setup with OpenRouter or to manually configure a provider.
+    
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
-    Use the up and down arrow keys to navigate the CLI menu, and press Enter once you've selected a choice. Be ready to provide your API key.
-
-    Example configuration flow:
-
-    ```
-    ┌   goose-configure
-    │
-    ◇ What would you like to configure?
-    │ Configure Providers
-    │
-    ◇ Which model provider should we use?
-    │ Google Gemini
-    │
-    ◇ Provider Google Gemini requires GOOGLE_API_KEY, please enter a value
-    │▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
-    │
-    ◇ Enter a model from that provider:
-    │ gemini-2.0-flash-exp
-    │
-    ◇ Hello! You're all set and ready to go, feel free to ask me anything!
-    │
-    └ Configuration saved successfully
-    ```
     
-    <RateLimits />
+    The CLI automatically enters configuration mode where you can choose how to configure a provider:
+
+    - **Recommended**: Automatic setup with [Tetrate Agent Router](https://tetrate.io/products/tetrate-agent-router-service). This option lets you sign up and authenticate in the browser.
+      
+      :::info
+      You'll receive $10 in free credits the first time you automatically authenticate with Tetrate through Goose. This offer is available to both new and existing Tetrate users and is valid through October 2, 2025.
+      :::
+
+    - **Other Options**: Users who prefer a different provider can choose automatic setup with OpenRouter or to manually configure a provider.
+
+    Use the up and down arrow keys to navigate the CLI menu, and press `Enter` once you've selected a choice.
+
+    :::tip Windows Users
+    If prompted during configuration, choose to not store to keyring. If you encounter keyring errors, see the [Windows setup instructions](/docs/getting-started/installation#set-llm-provider) for more information.
+    :::
+
   </TabItem>
 </Tabs>
 
@@ -149,7 +154,7 @@ Sessions are single, continuous conversations between you and Goose. Let's start
 
 <Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
-        After choosing an LLM provider, you’ll see the session interface ready for use.
+        After choosing an LLM provider, click the `Home` button in the sidebar.
 
         Type your questions, tasks, or instructions directly into the input field, and Goose will immediately get to work.
     </TabItem>
@@ -183,7 +188,7 @@ create an interactive browser-based tic-tac-toe game in javascript where a playe
 Goose will create a plan and then get right to work on implementing it. Once done, your directory should contain a JavaScript file as well as an HTML page for playing.
 
 
-## Install an Extension
+## Enable an Extension
 
 While you're able to manually navigate to your working directory and open the HTML file in a browser, wouldn't it be better if Goose did that for you? Let's give Goose the ability to open a web browser by enabling the `Computer Controller` extension.
 
@@ -233,7 +238,7 @@ While you're able to manually navigate to your working directory and open the HT
 </Tabs>
 
 ```
-open index.html in a browser
+open the tic-tac-toe game in a browser
 ```
 
 Go ahead and play your game, I know you want to 😂 ... good luck!
