@@ -5,10 +5,11 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
+use utoipa::ToSchema;
 
 /// Session data containing all tool states
 /// Keys are in format "tool_name.version" (e.g., "todo.v0")
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, ToSchema)]
 pub struct SessionData {
     #[serde(flatten)]
     pub tool_states: HashMap<String, Value>,

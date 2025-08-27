@@ -621,6 +621,14 @@ export type SessionConfigRequest = {
     response?: Response | null;
 };
 
+/**
+ * Session data containing all tool states
+ * Keys are in format "tool_name.version" (e.g., "todo.v0")
+ */
+export type SessionData = {
+    [key: string]: unknown;
+};
+
 export type SessionDisplayInfo = {
     accumulatedInputTokens?: number | null;
     accumulatedOutputTokens?: number | null;
@@ -698,10 +706,7 @@ export type SessionMetadata = {
      * ID of the schedule that triggered this session, if any
      */
     schedule_id?: string | null;
-    /**
-     * Session-scoped TODO list content
-     */
-    todo_content?: string | null;
+    session_data?: SessionData;
     /**
      * The total number of tokens used in the session. Retrieved from the provider's last usage.
      */

@@ -3052,6 +3052,11 @@
           }
         }
       },
+      "SessionData": {
+        "type": "object",
+        "description": "Session data containing all tool states\nKeys are in format \"tool_name.version\" (e.g., \"todo.v0\")",
+        "additionalProperties": {}
+      },
       "SessionDisplayInfo": {
         "type": "object",
         "required": [
@@ -3229,10 +3234,8 @@
             "description": "ID of the schedule that triggered this session, if any",
             "nullable": true
           },
-          "todo_content": {
-            "type": "string",
-            "description": "Session-scoped TODO list content",
-            "nullable": true
+          "session_data": {
+            "$ref": "#/components/schemas/SessionData"
           },
           "total_tokens": {
             "type": "integer",
