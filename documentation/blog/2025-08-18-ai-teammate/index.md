@@ -74,7 +74,7 @@ This is exactly the kind of work AI should handle: tedious, repetitive, but requ
 
 ## The AI-First Mindset
 
-Gemma's story illustrates what an AI-first approach to legacy codebases looks like in practice:
+This story illustrates what an AI-first approach to legacy codebases looks like in practice:
 
 - Start by making tribal knowledge AI-accessible
 - Test and validate that AI can actually handle the complexity
