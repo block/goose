@@ -456,15 +456,15 @@ You can turn your current Goose session into a reusable recipe that includes the
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-    Share your recipe with Desktop users by copying the recipe URL from the recipe creation dialog.
+    Share your recipe with Desktop users by copying the recipe link:
 
-    To copy the recipe URL:
-    1. [Open the recipe](#use-recipe)
-    2. Click the <Bot className="inline" size={16} /> button at the bottom of the app 
-    3. Click `View/Edit Recipe`
-    4. Scroll down and copy the link
+    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+    2. Click `Recipes` in the sidebar
+    3. Find your recipe in the Recipe Library
+    4. Click `Preview` next to the recipe you want to share
+    5. Under `Deeplink`, click `Copy` and then share the link with others
 
-    When someone clicks the URL, it will open Goose Desktop with your recipe configuration. They can also use your recipe URL to [import a recipe](/docs/guides/recipes/storing-recipes#storing-recipes) into their Recipe Library.
+    When someone clicks the link, it will open Goose Desktop with your recipe configuration. They can also use your recipe link to [import a recipe](/docs/guides/recipes/storing-recipes#storing-recipes) into their Recipe Library for future use.
 
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
@@ -476,6 +476,10 @@ You can turn your current Goose session into a reusable recipe that includes the
 
   </TabItem>
 </Tabs>
+
+:::info Privacy & Isolation
+Each recipient gets their own private session when using your shared recipe. No data is shared between users, and your original session and recipe remain unaffected.
+:::
 
 ## Schedule Recipe
 <Tabs groupId="interface">

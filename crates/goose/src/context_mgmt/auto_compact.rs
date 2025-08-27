@@ -595,6 +595,8 @@ mod tests {
             create_test_message("First message"),
             create_test_message("Second message"),
             create_test_message("Third message"),
+            create_test_message("Fourth message"),
+            create_test_message("Fifth message"),
         ];
 
         // Create session metadata with high token count to trigger compaction
@@ -617,6 +619,7 @@ mod tests {
 
         // Verify the compacted messages are returned
         assert!(!result.messages.is_empty());
+
         // Should have fewer messages after compaction
         assert!(result.messages.len() <= messages.len());
     }

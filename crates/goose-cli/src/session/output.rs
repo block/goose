@@ -185,6 +185,9 @@ pub fn render_message(message: &Message, debug: bool) {
                 println!("\n{}", style("Thinking:").dim().italic());
                 print_markdown("Thinking was redacted", theme);
             }
+            MessageContent::SummarizationRequested(summarization) => {
+                println!("\n{}", style(&summarization.msg).yellow());
+            }
             _ => {
                 println!("WARNING: Message content type could not be rendered");
             }

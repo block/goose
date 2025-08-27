@@ -2,8 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { IpcRendererEvent } from 'electron';
 import { HashRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { ErrorUI } from './components/ErrorBoundary';
-import { ExtensionInstallModal } from './components/modals/ExtensionInstallModal';
-import { useExtensionInstallModal } from './hooks/useExtensionInstallModal';
+import { ExtensionInstallModal } from './components/ExtensionInstallModal';
 import { ToastContainer } from 'react-toastify';
 import { GoosehintsModal } from './components/GoosehintsModal';
 import AnnouncementModal from './components/AnnouncementModal';
@@ -366,8 +365,6 @@ export default function App() {
 
   const { getExtensions, addExtension, read } = useConfig();
   const initAttemptedRef = useRef(false);
-  const { modalState, modalConfig, dismissModal, confirmInstall } =
-    useExtensionInstallModal(addExtension);
 
   // Create a setView function for useChat hook - we'll use window.history instead of navigate
   const setView = (view: View, viewOptions: ViewOptions = {}) => {
@@ -664,15 +661,6 @@ export default function App() {
     };
   }, []);
 
-  const handleExtensionConfirm = async () => {
-    const result = await confirmInstall();
-    if (result.success) {
-      console.log('Extension installation completed successfully');
-    } else {
-      console.error('Extension installation failed:', result.error);
-    }
-  };
-
   if (fatalError) {
     return <ErrorUI error={new Error(fatalError)} />;
   }
@@ -704,14 +692,7 @@ export default function App() {
             closeOnClick
             pauseOnHover
           />
-          <ExtensionInstallModal
-            isOpen={modalState.isOpen}
-            modalType={modalState.modalType}
-            config={modalConfig}
-            onConfirm={handleExtensionConfirm}
-            onCancel={dismissModal}
-            isSubmitting={modalState.isPending}
-          />
+          <ExtensionInstallModal addExtension={addExtension} />
           <div className="relative w-screen h-screen overflow-hidden bg-background-muted flex flex-col">
             <div className="titlebar-drag-region" />
             <Routes>
