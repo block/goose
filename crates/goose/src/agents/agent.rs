@@ -496,7 +496,6 @@ impl Agent {
                 session::storage::read_metadata(&path)
                     .ok()
                     .and_then(|m| {
-                        // Get from new session_data format
                         session::TodoState::from_session_data(&m.session_data)
                             .map(|state| state.content)
                     })
@@ -536,7 +535,6 @@ impl Agent {
                 match session::storage::get_path(session_config.id.clone()) {
                     Ok(path) => match session::storage::read_metadata(&path) {
                         Ok(mut metadata) => {
-                            // Use the new session_data format
                             let todo_state = session::TodoState::new(content);
                             todo_state.to_session_data(&mut metadata.session_data).ok();
 
