@@ -29,7 +29,7 @@ pub async fn run_server(name: &str) -> Result<()> {
 
     tracing::info!("Starting MCP server");
 
-    if name == "rmcp_developer" {
+    if name == "developer" {
         let service = DeveloperServer::new()
             .serve(stdio())
             .await
@@ -42,7 +42,6 @@ pub async fn run_server(name: &str) -> Result<()> {
     }
 
     let router: Option<Box<dyn BoundedService>> = match name {
-        "developer" => Some(Box::new(RouterService(DeveloperRouter::new()))),
         "computercontroller" => Some(Box::new(RouterService(ComputerControllerRouter::new()))),
         "autovisualiser" => Some(Box::new(RouterService(AutoVisualiserRouter::new()))),
         "memory" => Some(Box::new(RouterService(MemoryRouter::new()))),
