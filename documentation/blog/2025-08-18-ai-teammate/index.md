@@ -31,7 +31,7 @@ Given AI documentation is designed to work with a **variety** of AI tools in use
 - legacy flags that were newer but are now old
 - current implementation of feature flags
 
-By testing across this spectrum of legacy code, she proved that the documentation worked. AI could actually understand and safely navigate the complexity of real world legacy systems.
+AI could understand and safely navigate the complexity of real world legacy systems in most scenarios, a win for Developer Velocity. 
 
 ## Phase 3: Building an AI Team Member
 
