@@ -40,7 +40,7 @@ This was great progress. The documentation alone would help teams clean up faste
 But instead, she utilized Goose recipes to create **Goose Janitor**.
 
 
-Goose Janitor acts as new AI team member whose responsibility is to tidy up the code after we're done experimenting. Gemma modified an existing [Goose recipe](/recipes/detail/?id=clean-up-feature-flag) that autonomously removes feature flags from the codebase. Here's how it works:
+Goose Janitor acts as new AI team member whose responsibility is to tidy up the code after we're done experimenting. Gemma drew inspiration from existing [Goose recipes](/recipes/detail/?id=clean-up-feature-flag) and internal talks from other departments to create it. Here's how it works:
 
 ```bash
 goose run \
