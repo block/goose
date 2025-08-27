@@ -50,7 +50,7 @@ goose run \
 --params create_pr=false
 ```
 
-The AI agent:
+The recipe:
 - Runs completely autonomously (no human intervention needed)
 - Handles simple and complex flags 
 - Uses git worktrees for safe parallel work
