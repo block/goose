@@ -44,7 +44,7 @@ use crate::security::inspector::SecurityInspector;
 use crate::session;
 use crate::session::extension_data::ExtensionState;
 use crate::tool_inspection::{apply_inspection_results_to_permissions, ToolInspectionManager};
-use crate::tool_monitor::{ToolMonitor};
+use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
 use mcp_core::ToolResult;
 use regex::Regex;
@@ -188,8 +188,15 @@ impl Agent {
         // Add security inspector (highest priority - runs first)
         tool_inspection_manager.add_inspector(Box::new(SecurityInspector::new()));
         
-        // Add tool monitor (handles both repetition and permissions)
-        tool_inspection_manager.add_inspector(Box::new(ToolMonitor::new(None)));
+        // Add permission inspector (medium-high priority)
+        tool_inspection_manager.add_inspector(Box::new(crate::permission::PermissionInspector::new(
+            "smart_approve".to_string(),
+            std::collections::HashSet::new(), // readonly tools
+            std::collections::HashSet::new(), // regular tools
+        )));
+        
+        // Add repetition inspector (lower priority - basic repetition checking)
+        tool_inspection_manager.add_inspector(Box::new(RepetitionInspector::new(None)));
 
         tool_inspection_manager
     }
@@ -1650,8 +1657,10 @@ mod tests {
         // Verify that the tool inspection manager has the tool monitor
         let inspector_names = agent.tool_inspection_manager.inspector_names();
         
-        assert!(inspector_names.contains(&"tool_monitor"), 
-                "Tool inspection manager should contain tool_monitor inspector");
+        assert!(inspector_names.contains(&"repetition"), 
+                "Tool inspection manager should contain repetition inspector");
+        assert!(inspector_names.contains(&"permission"), 
+                "Tool inspection manager should contain permission inspector");
         assert!(inspector_names.contains(&"security"), 
                 "Tool inspection manager should contain security inspector");
 
