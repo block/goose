@@ -159,14 +159,20 @@ export const useWhisper = ({ onTranscription, onError, onSizeWarning }: UseWhisp
           reader.readAsDataURL(audioBlob);
         });
 
+        const mimeType = audioBlob.type;
+        if (!mimeType) {
+          throw new Error('Unable to determine audio format. Please try again.');
+        }
+
         let endpoint = '';
         let headers: Record<string, string> = {
           'Content-Type': 'application/json',
           'X-Secret-Key': await window.electron.getSecretKey(),
         };
+
         let body: Record<string, string> = {
           audio: base64Audio,
-          mime_type: audioBlob.type || 'audio/webm',
+          mime_type: mimeType,
         };
 
         // Choose endpoint based on provider
@@ -254,19 +260,10 @@ export const useWhisper = ({ onTranscription, onError, onSizeWarning }: UseWhisp
       setAudioContext(null);
       setAnalyser(null);
 
-      // Check supported MIME types and create MediaRecorder
-      let mimeType = 'audio/webm';
-      if (!MediaRecorder.isTypeSupported('audio/webm')) {
-        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-          mimeType = 'audio/webm;codecs=opus';
-        } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
-          mimeType = 'audio/mp4';
-        } else if (MediaRecorder.isTypeSupported('audio/wav')) {
-          mimeType = 'audio/wav';
-        } else {
-          mimeType = '';
-        }
-      }
+      // Determine best supported MIME type
+      const supportedTypes = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/wav'];
+
+      const mimeType = supportedTypes.find((type) => MediaRecorder.isTypeSupported(type)) || '';
 
       const mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
 

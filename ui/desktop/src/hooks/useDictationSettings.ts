@@ -1,5 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useConfig } from '../components/ConfigContext';
+import {
+  DICTATION_SETTINGS_KEY,
+  ELEVENLABS_API_KEY,
+  getDefaultDictationSettings,
+} from './dictationConstants';
 
 export type DictationProvider = 'openai' | 'elevenlabs' | null;
 
@@ -7,9 +12,6 @@ export interface DictationSettings {
   enabled: boolean;
   provider: DictationProvider;
 }
-
-const DICTATION_SETTINGS_KEY = 'dictation_settings';
-const ELEVENLABS_API_KEY = 'ELEVENLABS_API_KEY';
 
 export const useDictationSettings = () => {
   const [settings, setSettings] = useState<DictationSettings | null>(null);
@@ -20,23 +22,13 @@ export const useDictationSettings = () => {
     const loadSettings = async () => {
       // Load settings from localStorage
       const saved = localStorage.getItem(DICTATION_SETTINGS_KEY);
+
       if (saved) {
-        setSettings(JSON.parse(saved));
+        const parsedSettings = JSON.parse(saved);
+        setSettings(parsedSettings);
       } else {
-        const providers = await getProviders(false);
-        // Check if we have an OpenAI API key as primary default
-        const openAIProvider = providers.find((p) => p.name === 'openai');
-        if (openAIProvider && openAIProvider.is_configured) {
-          setSettings({
-            enabled: true,
-            provider: 'openai',
-          });
-        } else {
-          setSettings({
-            enabled: false,
-            provider: null,
-          });
-        }
+        const defaultSettings = await getDefaultDictationSettings(getProviders);
+        setSettings(defaultSettings);
       }
 
       // Load ElevenLabs API key from storage (non-secret for frontend access)

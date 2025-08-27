@@ -44,12 +44,11 @@ struct WhisperResponse {
 
 /// Validate audio input and return decoded bytes and file extension
 fn validate_audio_input(
-    request: &TranscribeRequest,
+    audio: &str,
+    mime_type: &str,
 ) -> Result<(Vec<u8>, &'static str), StatusCode> {
     // Decode the base64 audio data
-    let audio_bytes = BASE64
-        .decode(&request.audio)
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    let audio_bytes = BASE64.decode(audio).map_err(|_| StatusCode::BAD_REQUEST)?;
 
     // Check file size
     if audio_bytes.len() > MAX_AUDIO_SIZE_BYTES {
@@ -62,8 +61,9 @@ fn validate_audio_input(
     }
 
     // Determine file extension based on MIME type
-    let file_extension = match request.mime_type.as_str() {
+    let file_extension = match mime_type {
         "audio/webm" => "webm",
+        "audio/webm;codecs=opus" => "webm",
         "audio/mp4" => "mp4",
         "audio/mpeg" => "mp3",
         "audio/mpga" => "mpga",
@@ -215,7 +215,7 @@ async fn transcribe_handler(
 ) -> Result<Json<TranscribeResponse>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    let (audio_bytes, file_extension) = validate_audio_input(&request)?;
+    let (audio_bytes, file_extension) = validate_audio_input(&request.audio, &request.mime_type)?;
     let (api_key, openai_host) = get_openai_config()?;
 
     let whisper_response = send_openai_request(
@@ -243,33 +243,7 @@ async fn transcribe_elevenlabs_handler(
 ) -> Result<Json<TranscribeResponse>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    // Validate input first before checking API key configuration
-    // Decode the base64 audio data
-    let audio_bytes = BASE64
-        .decode(&request.audio)
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
-
-    // Check file size
-    if audio_bytes.len() > MAX_AUDIO_SIZE_BYTES {
-        tracing::warn!(
-            "Audio file too large: {} bytes (max: {} bytes)",
-            audio_bytes.len(),
-            MAX_AUDIO_SIZE_BYTES
-        );
-        return Err(StatusCode::PAYLOAD_TOO_LARGE);
-    }
-
-    // Determine file extension and content type based on MIME type
-    let (file_extension, content_type) = match request.mime_type.as_str() {
-        "audio/webm" => ("webm", "audio/webm"),
-        "audio/mp4" => ("mp4", "audio/mp4"),
-        "audio/mpeg" => ("mp3", "audio/mpeg"),
-        "audio/mpga" => ("mp3", "audio/mpeg"),
-        "audio/m4a" => ("m4a", "audio/m4a"),
-        "audio/wav" => ("wav", "audio/wav"),
-        "audio/x-wav" => ("wav", "audio/wav"),
-        _ => return Err(StatusCode::UNSUPPORTED_MEDIA_TYPE),
-    };
+    let (audio_bytes, file_extension) = validate_audio_input(&request.audio, &request.mime_type)?;
 
     // Get the ElevenLabs API key from config (after input validation)
     let config = goose::config::Config::global();
@@ -321,7 +295,7 @@ async fn transcribe_elevenlabs_handler(
     // Create multipart form for ElevenLabs API
     let part = reqwest::multipart::Part::bytes(audio_bytes)
         .file_name(format!("audio.{}", file_extension))
-        .mime_str(content_type)
+        .mime_str(&request.mime_type)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let form = reqwest::multipart::Form::new()

@@ -4,9 +4,11 @@ import { ChevronDown } from 'lucide-react';
 import { Input } from '../../ui/input';
 import { useConfig } from '../../ConfigContext';
 import { DictationProvider, DictationSettings } from '../../../hooks/useDictationSettings';
-
-const DICTATION_SETTINGS_KEY = 'dictation_settings';
-const ELEVENLABS_API_KEY = 'ELEVENLABS_API_KEY';
+import {
+  DICTATION_SETTINGS_KEY,
+  ELEVENLABS_API_KEY,
+  getDefaultDictationSettings,
+} from '../../../hooks/dictationConstants';
 
 export default function DictationSection() {
   const [settings, setSettings] = useState<DictationSettings>({
@@ -27,19 +29,14 @@ export default function DictationSection() {
   useEffect(() => {
     const loadSettings = async () => {
       const savedSettings = localStorage.getItem(DICTATION_SETTINGS_KEY);
+
       let loadedSettings: DictationSettings;
 
       if (savedSettings) {
         const parsed = JSON.parse(savedSettings);
         loadedSettings = parsed;
-        console.log('Loaded dictation settings from localStorage:', parsed);
       } else {
-        // Default settings - don't force OpenAI as default
-        loadedSettings = {
-          enabled: false,
-          provider: null,
-        };
-        console.log('Using default dictation settings (no saved settings found):', loadedSettings);
+        loadedSettings = await getDefaultDictationSettings(getProviders);
       }
 
       setSettings(loadedSettings);
@@ -50,7 +47,6 @@ export default function DictationSection() {
       try {
         // Try reading as secret - will return true if exists
         const keyExists = await read(ELEVENLABS_API_KEY, true);
-        console.log('ElevenLabs API key exists in secure storage:', keyExists);
         if (keyExists === true) {
           setHasElevenLabsKey(true);
           // Don't set the actual key since we can't read secrets
@@ -63,7 +59,7 @@ export default function DictationSection() {
     };
 
     loadSettings();
-  }, [read]);
+  }, [read, getProviders]);
 
   // Save ElevenLabs key on unmount if it has changed
   useEffect(() => {
