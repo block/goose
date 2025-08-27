@@ -124,6 +124,56 @@ echo "📅 Timestamp: $(date -u -Iseconds)"
 echo "📁 Working directory: $(pwd)"
 echo "👤 User: $(id)"
 
+# Validate required training data secrets
+echo "🔍 Validating training data secrets..."
+MISSING_SECRETS=()
+
+if [ -z "${TRAINING_DATA_LOW:-}" ]; then
+    MISSING_SECRETS+=("TRAINING_DATA_LOW")
+fi
+
+if [ -z "${TRAINING_DATA_MEDIUM:-}" ]; then
+    MISSING_SECRETS+=("TRAINING_DATA_MEDIUM")
+fi
+
+if [ -z "${TRAINING_DATA_EXTREME:-}" ]; then
+    MISSING_SECRETS+=("TRAINING_DATA_EXTREME")
+fi
+
+if [ ${#MISSING_SECRETS[@]} -gt 0 ]; then
+    echo "❌ Required training data secrets are missing or empty:"
+    for secret in "${MISSING_SECRETS[@]}"; do
+        echo "   - $secret"
+    done
+    echo ""
+    echo "The recipe scanner requires all three training data secrets to function properly."
+    echo "Please ensure these GitHub secrets are configured with the base64-encoded training data:"
+    echo "  - TRAINING_DATA_LOW"
+    echo "  - TRAINING_DATA_MEDIUM" 
+    echo "  - TRAINING_DATA_EXTREME"
+    echo ""
+    echo "Without training data, the AI scanner cannot accurately assess security risks."
+    exit 1
+fi
+
+echo "✅ All training data secrets are present"
+
+# Decode training data from GitHub secrets
+echo "🔍 Decoding training data..."
+if python3 /usr/local/bin/decode-training-data.py; then
+    echo "✅ Training data decoded successfully"
+    TRAINING_INSTRUCTIONS="/tmp/goose_training_instructions.md"
+    if [ -f "$TRAINING_INSTRUCTIONS" ]; then
+        echo "📚 Training instructions available: $TRAINING_INSTRUCTIONS"
+    else
+        echo "❌ Training instructions not generated - decoder may have failed"
+        exit 1
+    fi
+else
+    echo "❌ Failed to decode training data"
+    exit 1
+fi
+
 # Validate inputs
 echo "🔍 Validating inputs..."
 if [ ! -f "$RECIPE_FILE" ]; then

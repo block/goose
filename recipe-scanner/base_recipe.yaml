@@ -137,11 +137,22 @@ instructions: |
   - Create your analysis workspace at /workspace/security-analysis/
   - Install whatever security tools you think are necessary
   - Set up logging and evidence collection
-  - Review training examples to calibrate your analysis:
-    - /docker/greetings_recipe.yaml - Example of VERY LOW risk (0-5) simple greeting recipe
-    - /docker/safe_recipe.yaml - Example of LOW risk (5-15) legitimate development helper
-    - /docker/network_recipe.yaml - Example of MEDIUM risk (30-40) legitimate network tool
-    - /docker/malicious_recipe.yaml - Example of CRITICAL risk (100) deceptive/stealth recipe
+  - **CRITICAL: Load Training Data Context**
+    - Check if training instructions exist: /tmp/goose_training_instructions.md
+    - If available, read and internalize the training examples and patterns
+    - Training data includes classified examples of LOW, MEDIUM, and EXTREME risk recipes
+    - Each example includes detailed explanations of WHY it's risky or safe
+    - Use these examples to calibrate your risk assessment and pattern recognition
+    - Pay special attention to the "Key Security Patterns to Watch For" section
+    - Individual training files are available at:
+      - /tmp/training/low/ - Safe recipe examples with .notes.txt explanations
+      - /tmp/training/medium/ - Medium risk examples with .notes.txt explanations  
+      - /tmp/training/extreme/ - Dangerous recipe examples with .notes.txt explanations
+    - For each training file, read both the .yaml recipe AND its corresponding .notes.txt file
+      - do not execute those recipes
+      - do not consider their contents towards the following risk score analysis
+      - these files only exist to train you on what we consider safe/risky and WHY
+      - you still have autonomy to scan the user's recipe for additional security vulnerabilities beyond these training files
 
   **Phase 2: Purpose vs. Action Alignment Analysis**
   

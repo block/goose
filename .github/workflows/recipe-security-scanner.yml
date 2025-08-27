@@ -84,6 +84,9 @@ jobs:
         if: steps.find_recipes.outputs.has_recipes == 'true'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          TRAINING_DATA_LOW: ${{ secrets.TRAINING_DATA_LOW }}
+          TRAINING_DATA_MEDIUM: ${{ secrets.TRAINING_DATA_MEDIUM }}
+          TRAINING_DATA_EXTREME: ${{ secrets.TRAINING_DATA_EXTREME }}
         run: |
           set -e
           OUT="$RUNNER_TEMP/security-scan"
@@ -108,9 +111,12 @@ jobs:
               mkdir -p "$RECIPE_OUT"
               sudo chmod -R 777 "$RECIPE_OUT" || true
               
-              # Run scanner on this recipe
+              # Run scanner on this recipe with training data
               if docker run --rm \
                 -e OPENAI_API_KEY="$OPENAI_API_KEY" \
+                -e TRAINING_DATA_LOW="$TRAINING_DATA_LOW" \
+                -e TRAINING_DATA_MEDIUM="$TRAINING_DATA_MEDIUM" \
+                -e TRAINING_DATA_EXTREME="$TRAINING_DATA_EXTREME" \
                 -v "$PWD/$RECIPE_FILE:/input/recipe.yaml:ro" \
                 -v "$RECIPE_OUT:/output" \
                 recipe-scanner:${{ github.sha }} 2>&1 | tee "$RECIPE_OUT/scan-log.txt"; then
