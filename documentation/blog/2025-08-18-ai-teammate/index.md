@@ -77,7 +77,7 @@ This is exactly the kind of work AI should handle: tedious, repetitive, but requ
 This story illustrates what an AI-first approach to legacy codebases looks like in practice:
 
 - Start by making tribal knowledge AI-accessible
-- Test and validate that AI can actually handle the complexity
+- Test and validate that AI can actually handle the complexity with enough accuracy to prove useful. Even if manual intervention is required for complex cases, a 'first pass' performed by AI can be a useful boost to productivity. 
 - Build automation that scales across teams
 - Focus human energy on high value creative work
 
