@@ -95,7 +95,7 @@ Want the tweak the base recipe for your own needs? Check out [Clean up feature f
   <meta property="og:title" content="When AI Becomes Your New Team Member: The Story of Goose Janitor" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/08/28/ai-teammate" />
-  <meta property="og:description" content="How one iOS developer turned a Slack conversation into autonomous AI-powered technical debt cleanup" />
+  <meta property="og:description" content="How an engineering team is trialling autonomous AI-powered technical debt cleanup" />
   <meta property="og:image" content="https://block.github.io/goose/assets/images/goose-janitor-129889884d9265d001fe12cbfde03d57.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
