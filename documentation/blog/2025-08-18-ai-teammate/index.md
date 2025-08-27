@@ -53,7 +53,6 @@ goose run \
 The recipe:
 - Runs completely autonomously (no human intervention needed)
 - Handles simple and complex flags 
-- Uses git worktrees for safe parallel work
 - Can automatically create draft pull requests
 - Integrates with a custom Xcode MCP server for deep iOS understanding
 
