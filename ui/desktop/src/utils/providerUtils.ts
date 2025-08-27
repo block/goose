@@ -187,7 +187,11 @@ export const initializeSystem = async (
       const extensionName = extensionConfig.name;
 
       try {
-        await addToAgentOnStartup({ addToConfig: options.addExtension!, extensionConfig });
+        await addToAgentOnStartup({
+          addToConfig: options.addExtension!,
+          extensionConfig,
+          toastOptions: { silent: false },
+        });
       } catch (error) {
         console.error(`Failed to load extension ${extensionName}:`, error);
       }
