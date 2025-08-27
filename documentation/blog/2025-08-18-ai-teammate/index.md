@@ -25,7 +25,7 @@ This wasn't just another README file. This type of documentation allows AI agent
 
 ## Phase 2: Validation Across Generations
 
-She didn't stop there. Gemma put her documentation to the test, using Cursor AI to validate the approach across three different generations of legacy feature flag implementations:
+Given AI documentation is designed to work with a **variety** of AI tools in use at Block, Gemma then iterated with a variety of AI tooling to add to these basic instructions. This validated the approach worked across the three different generations of feature flag implementations that had accumulated:
 
 - super legacy flags the team used way back yonder
 - legacy flags that were newer but are now old
