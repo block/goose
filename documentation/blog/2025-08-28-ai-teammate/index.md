@@ -100,6 +100,6 @@ Want the tweak the base recipe for your own needs? Check out [Clean up feature f
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="When AI Becomes Your New Team Member: The Story of Goose Janitor" />
-  <meta name="twitter:description" content="How one iOS developer turned a Slack conversation into autonomous AI-powered technical debt cleanup" />
+  <meta name="twitter:description" content="How an engineering team is trialling autonomous AI-powered technical debt cleanup" />
   <meta name="twitter:image" content="https://block.github.io/goose/assets/images/goose-janitor-129889884d9265d001fe12cbfde03d57.png" />
 </head>
