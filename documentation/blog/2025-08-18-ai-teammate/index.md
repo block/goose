@@ -63,7 +63,8 @@ Recipes like Goose Janitor represent a fundamental shift in how we think about A
 
 - Understand complex legacy codebases
 - Make safe refactoring decisions
-- Integrate seamlessly with existing development workflows, providing developer velocity improvements
+- Integrate seamlessly with existing development workflows
+- Provide developer velocity improvements
 - Scales across entire organizations
 
 Teams at Block are now planning "Feature Flag Removal Month," confident that Goose Janitor can handle production scale cleanup work.
