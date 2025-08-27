@@ -1,11 +1,9 @@
 use crate::conversation::message::{Message, ToolRequest};
-use crate::providers::base::Provider;
 use crate::tool_inspection::{InspectionAction, InspectionResult, ToolInspector};
 use anyhow::Result;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolCall {
@@ -85,7 +83,6 @@ impl ToolInspector for RepetitionInspector {
         &self,
         tool_requests: &[ToolRequest],
         _messages: &[Message],
-        _provider: Option<Arc<dyn Provider>>,
     ) -> Result<Vec<InspectionResult>> {
         let mut results = Vec::new();
 

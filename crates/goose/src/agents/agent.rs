@@ -189,10 +189,11 @@ impl Agent {
         tool_inspection_manager.add_inspector(Box::new(SecurityInspector::new()));
         
         // Add permission inspector (medium-high priority)
+        // Note: mode will be updated dynamically based on session config
         tool_inspection_manager.add_inspector(Box::new(crate::permission::PermissionInspector::new(
             "smart_approve".to_string(),
-            std::collections::HashSet::new(), // readonly tools
-            std::collections::HashSet::new(), // regular tools
+            std::collections::HashSet::new(), // readonly tools - will be populated from extension manager
+            std::collections::HashSet::new(), // regular tools - will be populated from extension manager
         )));
         
         // Add repetition inspector (lower priority - basic repetition checking)
@@ -1127,7 +1128,6 @@ impl Agent {
                                         .inspect_tools(
                                             &remaining_requests,
                                             messages.messages(),
-                                            Some(self.provider().await?),
                                         )
                                         .await?;
 

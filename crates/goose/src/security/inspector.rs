@@ -1,9 +1,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use std::sync::Arc;
 
 use crate::conversation::message::{Message, ToolRequest};
-use crate::providers::base::Provider;
 use crate::security::{SecurityManager, SecurityResult};
 use crate::tool_inspection::{InspectionAction, InspectionResult, ToolInspector};
 
@@ -37,7 +35,7 @@ impl SecurityInspector {
                 security_result.finding_id
             )))
         } else {
-            // Either not malicious, or malicious but below threshold (already logged) - allow
+            // Either not malicious, or below threshold (already logged) - allow
             InspectionAction::Allow
         };
 
@@ -62,7 +60,6 @@ impl ToolInspector for SecurityInspector {
         &self,
         tool_requests: &[ToolRequest],
         messages: &[Message],
-        _provider: Option<Arc<dyn Provider>>,
     ) -> Result<Vec<InspectionResult>> {
         let security_results = self
             .security_manager
@@ -128,7 +125,7 @@ mod tests {
             }),
         }];
 
-        let results = inspector.inspect(&tool_requests, &[], None).await.unwrap();
+        let results = inspector.inspect(&tool_requests, &[]).await.unwrap();
 
         // Results depend on whether security is enabled in config
         if inspector.is_enabled() {

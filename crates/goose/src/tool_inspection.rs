@@ -1,11 +1,9 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use crate::conversation::message::{Message, ToolRequest};
 use crate::permission::permission_judge::PermissionCheckResult;
-use crate::providers::base::Provider;
 
 
 
@@ -42,7 +40,6 @@ pub trait ToolInspector: Send + Sync {
         &self,
         tool_requests: &[ToolRequest],
         messages: &[Message],
-        provider: Option<Arc<dyn Provider>>,
     ) -> Result<Vec<InspectionResult>>;
 
     /// Whether this inspector is enabled
@@ -80,7 +77,6 @@ impl ToolInspectionManager {
         &self,
         tool_requests: &[ToolRequest],
         messages: &[Message],
-        provider: Option<Arc<dyn Provider>>,
     ) -> Result<Vec<InspectionResult>> {
         let mut all_results = Vec::new();
 
@@ -96,7 +92,7 @@ impl ToolInspectionManager {
             );
 
             match inspector
-                .inspect(tool_requests, messages, provider.clone())
+                .inspect(tool_requests, messages)
                 .await
             {
                 Ok(results) => {
@@ -241,7 +237,6 @@ mod tests {
             &self,
             _tool_requests: &[ToolRequest],
             _messages: &[Message],
-            _provider: Option<Arc<dyn Provider>>,
         ) -> Result<Vec<InspectionResult>> {
             Ok(self.results.clone())
         }

@@ -1,18 +1,20 @@
-use crate::config::PermissionManager;
 use crate::conversation::message::{Message, ToolRequest};
-use crate::permission::permission_judge::check_tool_permissions;
-use crate::providers::base::Provider;
 use crate::tool_inspection::{InspectionAction, InspectionResult, ToolInspector};
+use crate::config::permission::PermissionLevel;
+use crate::config::PermissionManager;
+use crate::agents::platform_tools::PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME;
 use anyhow::Result;
 use async_trait::async_trait;
 use std::collections::HashSet;
 use std::sync::Arc;
+use tokio::sync::Mutex;
 
 /// Permission Inspector that handles tool permission checking
 pub struct PermissionInspector {
     mode: String,
     readonly_tools: HashSet<String>,
     regular_tools: HashSet<String>,
+    permission_manager: Arc<Mutex<PermissionManager>>,
 }
 
 impl PermissionInspector {
@@ -25,6 +27,21 @@ impl PermissionInspector {
             mode,
             readonly_tools,
             regular_tools,
+            permission_manager: Arc::new(Mutex::new(PermissionManager::default())),
+        }
+    }
+
+    pub fn with_permission_manager(
+        mode: String,
+        readonly_tools: HashSet<String>,
+        regular_tools: HashSet<String>,
+        permission_manager: Arc<Mutex<PermissionManager>>,
+    ) -> Self {
+        Self {
+            mode,
+            readonly_tools,
+            regular_tools,
+            permission_manager,
         }
     }
 }
@@ -39,62 +56,83 @@ impl ToolInspector for PermissionInspector {
         &self,
         tool_requests: &[ToolRequest],
         _messages: &[Message],
-        provider: Option<Arc<dyn Provider>>,
     ) -> Result<Vec<InspectionResult>> {
-        let provider = provider.ok_or_else(|| anyhow::anyhow!("Provider required for permission checking"))?;
-        
-        // Create a fresh permission manager for this check
-        let mut permission_manager = PermissionManager::default();
-        
-        let (permission_result, extension_request_ids) = check_tool_permissions(
-            tool_requests,
-            &self.mode,
-            self.readonly_tools.clone(),
-            self.regular_tools.clone(),
-            &mut permission_manager,
-            provider,
-        ).await;
-
         let mut results = Vec::new();
+        let permission_manager = self.permission_manager.lock().await;
 
-        // Convert permission results to inspection results
-        for request in &permission_result.approved {
-            results.push(InspectionResult {
-                tool_request_id: request.id.clone(),
-                action: InspectionAction::Allow,
-                reason: "Tool approved by permission system".to_string(),
-                confidence: 1.0,
-                inspector_name: self.name().to_string(),
-                finding_id: None,
-            });
-        }
+        for request in tool_requests {
+            if let Ok(tool_call) = &request.tool_call {
+                let tool_name = &tool_call.name;
 
-        for request in &permission_result.needs_approval {
-            let warning_message = if extension_request_ids.contains(&request.id) {
-                Some("This tool will install or manage extensions. Please review carefully.".to_string())
-            } else {
-                Some("This tool requires user approval before execution.".to_string())
-            };
+                // Handle different modes
+                let action = if self.mode == "chat" {
+                    // In chat mode, all tools are skipped (handled elsewhere)
+                    continue;
+                } else if self.mode == "auto" {
+                    // In auto mode, all tools are approved
+                    InspectionAction::Allow
+                } else {
+                    // Smart mode - check permissions
+                    
+                    // 1. Check user-defined permission first
+                    if let Some(level) = permission_manager.get_user_permission(tool_name) {
+                        match level {
+                            PermissionLevel::AlwaysAllow => InspectionAction::Allow,
+                            PermissionLevel::NeverAllow => InspectionAction::Deny,
+                            PermissionLevel::AskBefore => InspectionAction::RequireApproval(None),
+                        }
+                    }
+                    // 2. Check if it's a readonly tool
+                    else if self.readonly_tools.contains(tool_name) {
+                        InspectionAction::Allow
+                    }
+                    // 3. Check if it's in the regular tools list (pre-approved)
+                    else if self.regular_tools.contains(tool_name) {
+                        InspectionAction::Allow
+                    }
+                    // 4. Special case for extension management
+                    else if tool_name == PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME {
+                        InspectionAction::RequireApproval(Some(
+                            "Extension management requires approval for security".to_string()
+                        ))
+                    }
+                    // 5. Default: require approval for unknown tools
+                    else {
+                        InspectionAction::RequireApproval(None)
+                    }
+                };
 
-            results.push(InspectionResult {
-                tool_request_id: request.id.clone(),
-                action: InspectionAction::RequireApproval(warning_message),
-                reason: "Tool requires user approval".to_string(),
-                confidence: 1.0,
-                inspector_name: self.name().to_string(),
-                finding_id: None,
-            });
-        }
+                let reason = match &action {
+                    InspectionAction::Allow => {
+                        if self.mode == "auto" {
+                            "Auto mode - all tools approved".to_string()
+                        } else if self.readonly_tools.contains(tool_name) {
+                            "Tool marked as read-only".to_string()
+                        } else if self.regular_tools.contains(tool_name) {
+                            "Tool pre-approved".to_string()
+                        } else {
+                            "User permission allows this tool".to_string()
+                        }
+                    }
+                    InspectionAction::Deny => "User permission denies this tool".to_string(),
+                    InspectionAction::RequireApproval(_) => {
+                        if tool_name == PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME {
+                            "Extension management requires user approval".to_string()
+                        } else {
+                            "Tool requires user approval".to_string()
+                        }
+                    }
+                };
 
-        for request in &permission_result.denied {
-            results.push(InspectionResult {
-                tool_request_id: request.id.clone(),
-                action: InspectionAction::Deny,
-                reason: "Tool denied by permission system".to_string(),
-                confidence: 1.0,
-                inspector_name: self.name().to_string(),
-                finding_id: None,
-            });
+                results.push(InspectionResult {
+                    tool_request_id: request.id.clone(),
+                    action,
+                    reason,
+                    confidence: 1.0, // Permission decisions are definitive
+                    inspector_name: self.name().to_string(),
+                    finding_id: None,
+                });
+            }
         }
 
         Ok(results)
