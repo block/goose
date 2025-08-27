@@ -61,7 +61,7 @@ The recipe:
 
 What Gemma built represents a fundamental shift in how we think about AI in software development. She's gone beyond AI as a coding assistant, and is now using Goose as an autonomous contributor that:
 
-- Understands complex legacy codebases
+- Understand complex legacy codebases
 - Makes safe refactoring decisions
 - Integrates seamlessly with existing development workflows
 - Scales across entire organizations
