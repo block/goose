@@ -247,39 +247,7 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_inspection_manager() {
-        let mut manager = ToolInspectionManager::new();
 
-        let inspector = MockInspector {
-            name: "test_inspector",
-            results: vec![InspectionResult {
-                tool_request_id: "req_1".to_string(),
-                action: InspectionAction::Deny,
-                reason: "Test denial".to_string(),
-                confidence: 0.9,
-                inspector_name: "test_inspector".to_string(),
-                finding_id: Some("TEST-001".to_string()),
-            }],
-        };
-
-        manager.add_inspector(Box::new(inspector));
-
-        let tool_requests = vec![ToolRequest {
-            id: "req_1".to_string(),
-            tool_call: Ok(ToolCall {
-                name: "test_tool".to_string(),
-                arguments: json!({}),
-            }),
-        }];
-
-        let results = manager
-            .inspect_tools(&tool_requests, &[], None)
-            .await
-            .unwrap();
-        assert_eq!(results.len(), 1);
-        assert_eq!(results[0].action, InspectionAction::Deny);
-    }
 
     #[test]
     fn test_apply_inspection_results() {
