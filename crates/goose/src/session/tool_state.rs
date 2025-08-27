@@ -42,12 +42,6 @@ impl SessionData {
         self.tool_states.insert(key, state);
     }
 
-    /// Remove tool state for a specific tool and version
-    pub fn remove_tool_state(&mut self, tool_name: &str, version: &str) -> Option<Value> {
-        let key = format!("{}.{}", tool_name, version);
-        self.tool_states.remove(&key)
-    }
-
     /// Check if a tool state exists
     pub fn has_tool_state(&self, tool_name: &str, version: &str) -> bool {
         let key = format!("{}.{}", tool_name, version);
@@ -216,11 +210,6 @@ mod tests {
 
         assert!(session_data.has_tool_state("todo", "v0"));
         assert_eq!(session_data.get_tool_state("todo", "v0"), Some(&todo_state));
-
-        // Test removing tool state
-        let removed = session_data.remove_tool_state("todo", "v0");
-        assert_eq!(removed, Some(todo_state));
-        assert!(!session_data.has_tool_state("todo", "v0"));
     }
 
     #[test]
