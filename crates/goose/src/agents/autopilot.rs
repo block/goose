@@ -1165,7 +1165,8 @@ mod tests {
             Message::user().with_text("Hello, this is the first message"),
             Message::assistant().with_text("Hello! How can I help you?"),
             second_message,
-        ]).unwrap();
+        ])
+        .unwrap();
 
         // Lead model should NOT trigger on second turn (current_turn = 2, first_turn only works on turn 1)
         assert!(!autopilot.evaluate_rules(lead_model, &conversation_turn2, 2));
