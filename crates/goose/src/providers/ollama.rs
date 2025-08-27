@@ -8,7 +8,9 @@ use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::impl_provider_default;
 use crate::model::ModelConfig;
-use crate::providers::formats::openai::{create_request, get_usage, response_to_message, response_to_streaming_message};
+use crate::providers::formats::openai::{
+    create_request, get_usage, response_to_message, response_to_streaming_message,
+};
 use crate::utils::safe_truncate;
 use anyhow::Result;
 use async_stream::try_stream;
@@ -85,7 +87,7 @@ impl OllamaProvider {
         Ok(Self {
             api_client,
             model,
-            supports_streaming: false,
+            supports_streaming: true,
         })
     }
 
@@ -242,15 +244,11 @@ impl Provider for OllamaProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let config = crate::config::Config::global();
-        let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
-        let filtered_tools = if goose_mode == "chat" { &[] } else { tools };
-
         let mut payload = create_request(
             &self.model,
             system,
             messages,
-            filtered_tools,
+            tools,
             &super::utils::ImageFormat::OpenAi,
         )?;
         payload["stream"] = json!(true);
