@@ -79,6 +79,10 @@ pub struct TriggerRules {
     #[serde(default)]
     pub complexity_threshold: Option<ComplexityLevel>,
 
+    /// Trigger on the first turn of a conversation
+    #[serde(default)]
+    pub first_turn: bool,
+
     /// Source of trigger (human, machine, or any)
     #[serde(default)]
     pub source: TriggerSource,
@@ -467,17 +471,20 @@ impl AutoPilot {
         &self,
         model: &CompleteModelConfig,
         conversation: &Conversation,
-        _current_turn: usize,
+        current_turn: usize,
     ) -> bool {
-        // Check source constraint
         if !self.check_source(conversation, &model.rules.triggers.source) {
-            return false; // Source doesn't match
+            return false;
         }
 
         let triggers = &model.rules.triggers;
         let mut triggered = false;
 
-        // Check keyword triggers
+        if triggers.first_turn && current_turn == 1 {
+            debug!("AutoPilot: '{}' role triggering on first turn", model.role);
+            triggered = true;
+        }
+
         if !triggers.keywords.is_empty() {
             if let Some(text) = conversation
                 .messages()
@@ -493,19 +500,16 @@ impl AutoPilot {
             }
         }
 
-        // Check failure trigger
         if triggers.on_failure && self.check_recent_failure(conversation) {
             triggered = true;
         }
 
-        // Check consecutive failures trigger
         if let Some(threshold) = triggers.consecutive_failures {
             if self.count_consecutive_failures(conversation) >= threshold {
                 triggered = true;
             }
         }
 
-        // Check after_tool_use trigger
         if triggers.after_tool_use {
             let has_recent_tool = conversation
                 .messages()
@@ -524,35 +528,30 @@ impl AutoPilot {
             }
         }
 
-        // Check consecutive tools trigger
         if let Some(threshold) = triggers.consecutive_tools {
             if self.count_consecutive_tools(conversation) >= threshold {
                 triggered = true;
             }
         }
 
-        // Check machine messages without human trigger
         if let Some(threshold) = triggers.machine_messages_without_human {
             if self.count_machine_messages_without_human(conversation) >= threshold {
                 triggered = true;
             }
         }
 
-        // Check tools since human trigger
         if let Some(threshold) = triggers.tools_since_human {
             if self.count_tools_since_human(conversation) >= threshold {
                 triggered = true;
             }
         }
 
-        // Check messages since human trigger
         if let Some(threshold) = triggers.messages_since_human {
             if self.count_messages_since_human(conversation) >= threshold {
                 triggered = true;
             }
         }
 
-        // Check complexity threshold
         if let Some(ref threshold) = triggers.complexity_threshold {
             if let Some(text) = conversation
                 .messages()
@@ -758,6 +757,7 @@ mod tests {
                         machine_messages_without_human: None,
                         tools_since_human: None,
                         messages_since_human: None,
+                        first_turn: false,
                     },
                     active_turns: 0,
                     priority: 10,
@@ -780,6 +780,7 @@ mod tests {
                         machine_messages_without_human: None,
                         tools_since_human: None,
                         messages_since_human: None,
+                        first_turn: false,
                     },
                     active_turns: 5,
                     priority: 5,
@@ -802,6 +803,7 @@ mod tests {
                         machine_messages_without_human: None,
                         tools_since_human: None,
                         messages_since_human: None,
+                        first_turn: false,
                     },
                     active_turns: 10,
                     priority: 20,
@@ -1081,6 +1083,102 @@ mod tests {
     }
 
     #[test]
+    fn test_first_turn_trigger() {
+        let mut autopilot = AutoPilot {
+            model_configs: vec![
+                CompleteModelConfig {
+                    provider: "openai".to_string(),
+                    model: "o1-preview".to_string(),
+                    role: "lead".to_string(),
+                    rules: Rules {
+                        triggers: TriggerRules {
+                            keywords: vec![],
+                            match_type: MatchType::Any,
+                            on_failure: false,
+                            after_tool_use: false,
+                            consecutive_tools: None,
+                            consecutive_failures: Some(2),
+                            complexity_threshold: None,
+                            first_turn: true, // This should trigger on first turn
+                            source: TriggerSource::Any,
+                            machine_messages_without_human: None,
+                            tools_since_human: None,
+                            messages_since_human: None,
+                        },
+                        active_turns: 3,
+                        priority: 30,
+                    },
+                },
+                CompleteModelConfig {
+                    provider: "anthropic".to_string(),
+                    model: "claude-3-5-sonnet".to_string(),
+                    role: "helper".to_string(),
+                    rules: Rules {
+                        triggers: TriggerRules {
+                            keywords: vec!["help".to_string()],
+                            match_type: MatchType::Any,
+                            on_failure: false,
+                            after_tool_use: false,
+                            consecutive_tools: None,
+                            consecutive_failures: None,
+                            complexity_threshold: None,
+                            first_turn: false, // This should NOT trigger on first turn
+                            source: TriggerSource::Any,
+                            machine_messages_without_human: None,
+                            tools_since_human: None,
+                            messages_since_human: None,
+                        },
+                        active_turns: 5,
+                        priority: 5,
+                    },
+                },
+            ],
+            model_states: HashMap::new(),
+            original_provider: None,
+            switch_active: false,
+            current_role: None,
+        };
+
+        // Initialize states
+        for model in &autopilot.model_configs {
+            autopilot
+                .model_states
+                .insert(model.role.clone(), ModelState::default());
+        }
+
+        // Test first turn - only "lead" role should trigger
+        let first_message = Message::user().with_text("Hello, this is the first message");
+        let conversation = Conversation::new(vec![first_message]).unwrap();
+
+        let lead_model = &autopilot.model_configs[0]; // lead model
+        let helper_model = &autopilot.model_configs[1]; // helper model
+
+        // Lead model should trigger on first turn (current_turn = 1)
+        assert!(autopilot.evaluate_rules(lead_model, &conversation, 1));
+
+        // Helper model should NOT trigger on first turn (no first_turn: true and no "help" keyword)
+        assert!(!autopilot.evaluate_rules(helper_model, &conversation, 1));
+
+        // Test second turn - lead should NOT trigger on first_turn anymore
+        let second_message = Message::user().with_text("This is the second message");
+        let conversation_turn2 = Conversation::new(vec![
+            Message::user().with_text("Hello, this is the first message"),
+            Message::assistant().with_text("Hello! How can I help you?"),
+            second_message,
+        ]).unwrap();
+
+        // Lead model should NOT trigger on second turn (current_turn = 2, first_turn only works on turn 1)
+        assert!(!autopilot.evaluate_rules(lead_model, &conversation_turn2, 2));
+
+        // Test that helper model can still trigger on keyword even on first turn
+        let help_message = Message::user().with_text("I need help with something");
+        let help_conversation = Conversation::new(vec![help_message]).unwrap();
+
+        // Helper model should trigger on "help" keyword, even on first turn
+        assert!(autopilot.evaluate_rules(helper_model, &help_conversation, 1));
+    }
+
+    #[test]
     fn test_tool_failure_detection() {
         let autopilot = AutoPilot {
             model_configs: create_test_configs(),
@@ -1141,6 +1239,7 @@ mod tests {
                 tools_since_human: None,
                 messages_since_human: None,
                 complexity_threshold: None,
+                first_turn: false,
                 source: TriggerSource::Any,
             }
         }

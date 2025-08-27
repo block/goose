@@ -134,6 +134,17 @@ roles:
       active_turns: 10
       priority: 14
         
+  # Lead model - high-capability model for initial turns and failure recovery
+  - role: "lead"
+    rules:
+      triggers:
+        # Triggers at conversation start AND on consecutive failures
+        first_turn: true  # Trigger on first turn
+        consecutive_failures: 2  # Same as GOOSE_LEAD_FAILURE_THRESHOLD default
+        source: "any"  # Can trigger on both human (start) and machine (failures)
+      active_turns: 3  # Same as GOOSE_LEAD_TURNS default (initial) and GOOSE_LEAD_FALLBACK_TURNS for failures
+      priority: 30  # Highest priority to ensure it always triggers first
+        
   - role: "second-opinion"
     rules:
       triggers:
