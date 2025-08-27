@@ -1259,8 +1259,8 @@ export default function ChatInput({
 
         {/* Inline action buttons on the right */}
         <div className="flex items-center gap-1 px-2 relative">
-          {/* Microphone button - show if dictation is enabled, disable if not configured */}
-          {(dictationSettings?.enabled || dictationSettings?.provider === null) && (
+          {/* Microphone button - show only if dictation is enabled */}
+          {dictationSettings?.enabled && (
             <>
               {!canUseDictation ? (
                 <Tooltip>
