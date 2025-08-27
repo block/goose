@@ -116,7 +116,7 @@ export default function Pair({
 
   const initialValue =
     messageToSubmit ||
-    (agentState === 'initialized' ? recipeInitialPrompt : undefined) ||
+    (agentState === 'initialized' && !recipeResetOverride ? recipeInitialPrompt : undefined) ||
     undefined;
 
   const customChatInputProps = {
