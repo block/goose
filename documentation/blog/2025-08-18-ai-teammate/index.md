@@ -67,7 +67,7 @@ Recipes like Goose Janitor represent a fundamental shift in how we think about A
 - Provide developer velocity improvements
 - Scales across large codebases
 
-Teams at Block are now planning "Feature Flag Removal Month," confident that Goose Janitor can handle production scale cleanup work.
+Teams at Block are confident that Goose Janitor will be of assistance in production scale cleanup work.
 
 This is exactly the kind of work AI should handle: tedious, repetitive, but requiring deep codebase knowledge. By delegating this to AI, developers can focus on what they do best: building new features and solving novel problems while AI keeps the codebase clean and maintainable.
 
