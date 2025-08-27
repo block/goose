@@ -69,7 +69,7 @@ Recipes like Goose Janitor represent a fundamental shift in how we think about A
 
 Teams at Block are confident that Goose Janitor will be of assistance in production scale cleanup work.
 
-This is exactly the kind of work AI should handle: tedious, repetitive, but requiring deep codebase knowledge. By delegating this to AI, developers can focus on what they do best: building new features and solving novel problems while AI keeps the codebase clean and maintainable.
+This is exactly the kind of work AI should handle: tedious, repetitive, but requiring deep codebase knowledge. By automating portions of their work, developers can focus on what they do best: building new features and solving novel problems while AI keeps the codebase clean and maintainable.
 
 
 ## The AI-First Mindset
