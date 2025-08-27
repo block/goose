@@ -279,6 +279,11 @@ export default function App() {
 
   const { addExtension } = useConfig();
   const { agentState, loadCurrentChat, resetChat } = useAgent();
+  const resetChatIfNecessary = useCallback(() => {
+    if (chat.messages.length > 0) {
+      resetChat();
+    }
+  }, [resetChat, chat.messages.length]);
 
   const { modalState, modalConfig, dismissModal, confirmInstall } =
     useExtensionInstallModal(addExtension);
@@ -608,7 +613,7 @@ export default function App() {
                     <ProviderGuard>
                       <HubRouteWrapper
                         setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-                        resetChat={resetChat}
+                        resetChat={resetChatIfNecessary}
                       />
                     </ProviderGuard>
                   }

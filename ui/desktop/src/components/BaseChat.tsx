@@ -93,6 +93,7 @@ interface BaseChatProps {
   showPopularTopics?: boolean; // Show popular chat topics in empty state (for Pair)
   suppressEmptyState?: boolean; // Suppress empty state content (for transitions)
   autoSubmit?: boolean;
+  loadingChat: boolean;
 }
 
 function BaseChatContent({
@@ -112,6 +113,7 @@ function BaseChatContent({
   showPopularTopics = false,
   suppressEmptyState = false,
   autoSubmit = false,
+  loadingChat = false,
 }: BaseChatProps) {
   const location = useLocation();
   const scrollRef = useRef<ScrollAreaHandle>(null);
@@ -372,12 +374,11 @@ function BaseChatContent({
             {/* Messages or RecipeActivities or Popular Topics */}
             {
               // Check if we should show splash instead of messages
-              (() => {
-                // Show splash if we have a recipe and user hasn't started using it yet, and recipe has been accepted
-                return (
-                  recipeConfig && recipeAccepted && !hasStartedUsingRecipe && !suppressEmptyState
-                );
-              })() ? (
+              // Show splash if we have a recipe and user hasn't started using it yet, and recipe has been accepted
+              loadingChat ? null : recipeConfig &&
+                recipeAccepted &&
+                !hasStartedUsingRecipe &&
+                !suppressEmptyState ? (
                 <>
                   {/* Show RecipeActivities when we have a recipe config and user hasn't started using it */}
                   {recipeConfig ? (
@@ -504,7 +505,7 @@ function BaseChatContent({
           </ScrollArea>
 
           {/* Fixed loading indicator at bottom left of chat container */}
-          {chatState !== ChatState.Idle && (
+          {(chatState !== ChatState.Idle || loadingChat) && (
             <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
               <LoadingGoose
                 message={isLoadingCompaction ? 'summarizing conversation…' : undefined}

@@ -46,6 +46,7 @@ export default function Pair({
   const [shouldAutoSubmit, setShouldAutoSubmit] = useState(false);
   const [messageToSubmit, setMessageToSubmit] = useState<string | null>(null);
   const [isTransitioningFromHub, setIsTransitioningFromHub] = useState(false);
+  const [loadingChat, setLoadingChat] = useState(false);
 
   const { initialPrompt: recipeInitialPrompt } = useRecipeManager(chat, location.state);
 
@@ -53,6 +54,7 @@ export default function Pair({
 
   useEffect(() => {
     const initializeFromState = async () => {
+      setLoadingChat(true);
       try {
         const chat = await loadCurrentChat({
           recipeConfig: routeState.recipeConfig,
@@ -62,6 +64,8 @@ export default function Pair({
         setChat(chat);
       } catch (error) {
         setFatalError(`Agent init failure: ${error instanceof Error ? error.message : '' + error}`);
+      } finally {
+        setLoadingChat(false);
       }
     };
 
@@ -117,6 +121,7 @@ export default function Pair({
   return (
     <BaseChat
       chat={chat}
+      loadingChat={loadingChat}
       autoSubmit={shouldAutoSubmit}
       setChat={setChat}
       setView={setView}
