@@ -1034,8 +1034,7 @@ mod tests {
         assert!(premade.contains_key("deep-thinker"));
         assert!(premade.contains_key("debugger"));
         assert!(premade.contains_key("coder"));
-        assert!(premade.contains_key("oracle")); // Backward compatibility
-        assert!(premade.contains_key("second-opinion")); // Backward compatibility
+        assert!(premade.contains_key("second-opinion"));
     }
 
     #[test]
