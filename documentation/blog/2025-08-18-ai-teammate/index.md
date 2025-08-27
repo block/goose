@@ -1,6 +1,6 @@
 ---
 title: "When AI Becomes Your New Team Member: The Story of Goose Janitor"
-description: "How one iOS developer turned a Slack conversation into autonomous AI-powered technical debt cleanup"
+description: "How one team is trialling autonomous AI-powered technical debt cleanup"
 authors: 
     - angie
 ---
