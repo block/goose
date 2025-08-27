@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { IpcRendererEvent } from 'electron';
 import { HashRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { openSharedSessionFromDeepLink, type SessionLinksViewOptions } from './sessionLinks';
+import { type SharedSessionDetails } from './sharedSessions';
 import { ErrorUI } from './components/ErrorBoundary';
 import { ExtensionInstallModal } from './components/ExtensionInstallModal';
 import { ToastContainer } from 'react-toastify';
@@ -14,6 +16,7 @@ import Hub from './components/hub';
 import Pair from './components/pair';
 import SettingsView, { SettingsViewOptions } from './components/settings/SettingsView';
 import SessionsView from './components/sessions/SessionsView';
+import SharedSessionView from './components/sessions/SharedSessionView';
 import SchedulesView from './components/schedule/SchedulesView';
 import ProviderSettings from './components/settings/providers/ProviderSettingsPage';
 import { useChat } from './hooks/useChat';
@@ -315,6 +318,48 @@ const WelcomeRoute = () => {
   );
 };
 
+// Wrapper component for SharedSessionRoute to access parent state
+const SharedSessionRouteWrapper = ({
+  isLoadingSharedSession,
+  setIsLoadingSharedSession,
+  sharedSessionError,
+}: {
+  isLoadingSharedSession: boolean;
+  setIsLoadingSharedSession: (loading: boolean) => void;
+  sharedSessionError: string | null;
+}) => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const setView = createNavigationHandler(navigate);
+
+  const historyState = window.history.state;
+  const sessionDetails = (location.state?.sessionDetails ||
+    historyState?.sessionDetails) as SharedSessionDetails | null;
+  const error = location.state?.error || historyState?.error || sharedSessionError;
+  const shareToken = location.state?.shareToken || historyState?.shareToken;
+  const baseUrl = location.state?.baseUrl || historyState?.baseUrl;
+
+  return (
+    <SharedSessionView
+      session={sessionDetails}
+      isLoading={isLoadingSharedSession}
+      error={error}
+      onRetry={async () => {
+        if (shareToken && baseUrl) {
+          setIsLoadingSharedSession(true);
+          try {
+            await openSharedSessionFromDeepLink(`goose://sessions/${shareToken}`, setView, baseUrl);
+          } catch (error) {
+            console.error('Failed to retry loading shared session:', error);
+          } finally {
+            setIsLoadingSharedSession(false);
+          }
+        }
+      }}
+    />
+  );
+};
+
 const ExtensionsRoute = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -353,6 +398,8 @@ export default function App() {
   const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [isGoosehintsModalOpen, setIsGoosehintsModalOpen] = useState(false);
   const [agentWaitingMessage, setAgentWaitingMessage] = useState<string | null>(null);
+  const [isLoadingSharedSession, setIsLoadingSharedSession] = useState(false);
+  const [sharedSessionError, setSharedSessionError] = useState<string | null>(null);
 
   // Add separate state for pair chat to maintain its own conversation
   const [pairChat, setPairChat] = useState<ChatType>({
@@ -398,6 +445,9 @@ export default function App() {
         break;
       case 'ConfigureProviders':
         window.location.hash = '#/configure-providers';
+        break;
+      case 'sharedSession':
+        window.location.hash = '#/shared-session';
         break;
       case 'recipeEditor':
         window.location.hash = '#/recipe-editor';
@@ -474,6 +524,44 @@ export default function App() {
     } else if (window.sessionStorage.getItem('ignoreRecipeConfigChanges')) {
       console.log('Router ready - ignoring recipe config navigation due to new window creation');
     }
+  }, []);
+
+  useEffect(() => {
+    const handleOpenSharedSession = async (_event: IpcRendererEvent, ...args: unknown[]) => {
+      const link = args[0] as string;
+      window.electron.logInfo(`Opening shared session from deep link ${link}`);
+      setIsLoadingSharedSession(true);
+      setSharedSessionError(null);
+      try {
+        await openSharedSessionFromDeepLink(
+          link,
+          (_view: View, _options?: SessionLinksViewOptions) => {
+            // Navigate to shared session view with the session data
+            window.location.hash = '#/shared-session';
+            if (_options) {
+              window.history.replaceState(_options, '', '#/shared-session');
+            }
+          }
+        );
+      } catch (error) {
+        console.error('Unexpected error opening shared session:', error);
+        // Navigate to shared session view with error
+        window.location.hash = '#/shared-session';
+        const shareToken = link.replace('goose://sessions/', '');
+        const options = {
+          sessionDetails: null,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          shareToken,
+        };
+        window.history.replaceState(options, '', '#/shared-session');
+      } finally {
+        setIsLoadingSharedSession(false);
+      }
+    };
+    window.electron.on('open-shared-session', handleOpenSharedSession);
+    return () => {
+      window.electron.off('open-shared-session', handleOpenSharedSession);
+    };
   }, []);
 
   // Handle recipe decode events from main process
@@ -790,6 +878,18 @@ export default function App() {
                   element={
                     <ProviderGuard>
                       <RecipeEditorRoute />
+                    </ProviderGuard>
+                  }
+                />
+                <Route
+                  path="shared-session"
+                  element={
+                    <ProviderGuard>
+                      <SharedSessionRouteWrapper
+                        isLoadingSharedSession={isLoadingSharedSession}
+                        setIsLoadingSharedSession={setIsLoadingSharedSession}
+                        sharedSessionError={sharedSessionError}
+                      />
                     </ProviderGuard>
                   }
                 />

@@ -297,6 +297,8 @@ async function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
 
   if (parsedUrl.hostname === 'extension') {
     window.webContents.send('add-extension', pendingDeepLink);
+  } else if (parsedUrl.hostname === 'sessions') {
+    window.webContents.send('open-shared-session', pendingDeepLink);
   } else if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
     const recipeDeeplink = parsedUrl.searchParams.get('config');
     const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
@@ -359,6 +361,8 @@ app.on('open-url', async (_event, url) => {
 
     if (parsedUrl.hostname === 'extension') {
       firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
+    } else if (parsedUrl.hostname === 'sessions') {
+      firstOpenWindow.webContents.send('open-shared-session', pendingDeepLink);
     }
   }
 });
@@ -461,13 +465,24 @@ const getGooseProvider = () => {
   ];
 };
 
+const getSharingUrl = () => {
+  // checks app env for sharing url
+  loadShellEnv(app.isPackaged); // will try to take it from the zshrc file
+  // if GOOSE_BASE_URL_SHARE is found, we will set process.env.GOOSE_BASE_URL_SHARE, otherwise we return what it is set
+  // to in the env at bundle time
+  return process.env.GOOSE_BASE_URL_SHARE;
+};
+
 const getVersion = () => {
+  // checks app env for sharing url
   loadShellEnv(app.isPackaged); // will try to take it from the zshrc file
   // to in the env at bundle time
   return process.env.GOOSE_VERSION;
 };
 
 const [provider, model, predefinedModels] = getGooseProvider();
+
+const sharingUrl = getSharingUrl();
 
 const gooseVersion = getVersion();
 
@@ -593,7 +608,7 @@ const createChat = async (
           GOOSE_PORT: port, // Ensure this specific window gets the correct port
           GOOSE_WORKING_DIR: working_dir,
           REQUEST_DIR: dir,
-
+          GOOSE_BASE_URL_SHARE: sharingUrl,
           GOOSE_VERSION: gooseVersion,
           recipe: recipe,
         }),
@@ -648,7 +663,7 @@ const createChat = async (
     GOOSE_PORT: port, // Ensure this specific window's config gets the correct port
     GOOSE_WORKING_DIR: working_dir,
     REQUEST_DIR: dir,
-
+    GOOSE_BASE_URL_SHARE: sharingUrl,
     recipe: recipe,
   };
 
