@@ -115,26 +115,26 @@ Goose works with [supported LLM providers][providers] that give Goose the AI int
 
     On the welcome screen, choose how to configure a provider:
 
-    - **Recommended**: Automatic setup with [Tetrate Agent Router](https://tetrate.io/products/tetrate-agent-router-service). This option lets you sign up and authenticate in the browser.
+    - **Recommended**: Automatic setup with [Tetrate Agent Router](https://tetrate.io/products/tetrate-agent-router-service). Goose will open a browser for you to authenticate.
       
       :::info
       You'll receive $10 in free credits the first time you automatically authenticate with Tetrate through Goose. This offer is available to both new and existing Tetrate users and is valid through October 2, 2025.
       :::
 
-    - **Other Options**: Users who prefer a different provider can choose automatic setup with OpenRouter or to manually configure a provider.
+    - **Other Options**: Users who prefer a different provider can choose automatic setup with OpenRouter or manually configure a provider.
     
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
     
     The CLI automatically enters configuration mode where you can choose how to configure a provider:
 
-    - **Recommended**: Automatic setup with [Tetrate Agent Router](https://tetrate.io/products/tetrate-agent-router-service). This option lets you sign up and authenticate in the browser.
+    - **Recommended**: Automatic setup with [Tetrate Agent Router](https://tetrate.io/products/tetrate-agent-router-service). Goose will open a browser for you to authenticate.
       
       :::info
       You'll receive $10 in free credits the first time you automatically authenticate with Tetrate through Goose. This offer is available to both new and existing Tetrate users and is valid through October 2, 2025.
       :::
 
-    - **Other Options**: Users who prefer a different provider can choose automatic setup with OpenRouter or to manually configure a provider.
+    - **Other Options**: Users who prefer a different provider can choose automatic setup with OpenRouter or manually configure a provider.
 
     Use the up and down arrow keys to navigate the CLI menu, and press `Enter` once you've selected a choice.
 
@@ -207,7 +207,7 @@ While you're able to manually navigate to your working directory and open the HT
         ```sh
         goose configure
         ```
-        3. Choose `Add extension` > `Built-in Extension` > `Computer Controller`, and set timeout to 300s. This [extension](https://block.github.io/goose/v1/extensions/detail/nondeveloper) enables webscraping, file caching, and automations.
+        3. Choose `Add Extension` > `Built-in Extension` > `Computer Controller`, and set the timeout to 300s. This [extension](/docs/mcp/computer-controller-mcp) enables webscraping, file caching, and automations.
         ```
         ┌   goose-configure
         │
@@ -218,16 +218,12 @@ While you're able to manually navigate to your working directory and open the HT
         │  Built-in Extension
         │
         ◇  Which built-in extension would you like to enable?
-        │  ○ Developer Tools
-        │  ● Computer Controller (controls for webscraping, file caching, and automations)
-        │  ○ Google Drive
-        │  ○ Memory
-        │  ○ JetBrains
-        │        
+        │  Computer Controller
+        │
         ◇  Please set the timeout for this tool (in secs):
         │  300
         │
-        └  Enabled Computer Controller extension
+        └  Enabled computercontroller extension
         ```
         4. Now that Goose has browser capabilities, let's resume your last session:
         ```sh

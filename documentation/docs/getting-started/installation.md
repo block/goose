@@ -4,7 +4,7 @@ sidebar_position: 1
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import { RateLimits } from '@site/src/components/RateLimits';
-import { DesktopProviderSetup } from '@site/src/components/DesktopProviderSetup';
+import { OnboardingProviderSetup } from '@site/src/components/OnboardingProviderSetup';
 import { ModelSelectionTip } from '@site/src/components/ModelSelectionTip';
 import MacDesktopInstallButtons from '@site/src/components/MacDesktopInstallButtons';
 import WindowsDesktopInstallButtons from '@site/src/components/WindowsDesktopInstallButtons';
@@ -244,10 +244,13 @@ Goose works with [supported LLM providers][providers] that give Goose the AI int
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-    <DesktopProviderSetup />
+    On the welcome screen, choose how to configure a provider:
+    <OnboardingProviderSetup />
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
-    The CLI automatically enters configuration mode on first run. You'll be prompted to select from [supported LLM providers][providers] and enter your API key.
+    The CLI automatically enters configuration mode where you can choose how to configure a provider:
+
+    <OnboardingProviderSetup />
 
     :::info Windows Users
     When using the native Windows CLI, choose to not store to keyring when prompted during initial configuration.
@@ -261,8 +264,8 @@ Goose works with [supported LLM providers][providers] that give Goose the AI int
     ◇ How would you like to set up your provider?
     │ Tetrate Agent Router Service Login
     │
-
-    [Browser opens for sign up and/or authentication]
+    Opening browser for Tetrate Agent Router Service authentication...
+    [Goose opens the browser and prints details]
 
     Authentication complete!
 
@@ -272,7 +275,7 @@ Goose works with [supported LLM providers][providers] that give Goose the AI int
 
     Testing configuration...
     ✓ Configuration test passed!
-
+    ✓ Developer extension enabled!
     └ Tetrate Agent Router Service setup complete! You can now use Goose.
   ```
 
@@ -303,7 +306,7 @@ Goose works with [supported LLM providers][providers] that give Goose the AI int
 :::
 
 ## Update Provider
-You can change your LLM provider or update your API key at any time.
+You can change your LLM provider and/or model or update your API key at any time.
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
