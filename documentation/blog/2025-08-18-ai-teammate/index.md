@@ -7,7 +7,11 @@ authors:
 
 ![blog banner](goose-janitor.png)
 
-It started with a conversation in Slack. [Gemma Barlow](https://www.linkedin.com/in/gemmakbarlow/), one of Block's iOS developers, saw teams discussing the challenge of cleaning up feature flags using AI tools. Like many developers, she'd felt the pain of technical debt accumulating over old feature flags lingering in the codebase, each one a small weight slowing down development.
+Over the years, Block's iOS engineers have felt the pain of technical debt accumulating. Feature flags are a specific example of this - even when successfully rolled out, they tend to linger in the codebase, each one a small weight slowing down development.
+
+In the early stages of 2025, with a renewed focus on Developer Acceleration, Square's Foundation iOS team decided to organize 'Feature Flag Removal Month' - an opportunity for teams in the large iOS monorepo to come together and delete _possibly hundreds of thousands of lines of code of dead code_. 
+
+With the serendipitous launch of Goose recipes around the same time, the team wondered; could a dedicated recipe aid this effort ? [Gemma Barlow](https://www.linkedin.com/in/gemmakbarlow/), a newer iOS engineer on the team, wanted to find out. 
 
 But instead of just nodding along, Gemma was inspired to act.
 
