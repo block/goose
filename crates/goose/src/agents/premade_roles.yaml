@@ -133,17 +133,7 @@ roles:
         source: "machine"
       active_turns: 10
       priority: 14
-  
-  # Original autopilot roles for backward compatibility
-  - role: "oracle"
-    rules:
-      triggers:
-        keywords: ["think"]
-        match_type: "any"
-        source: "human"
-      active_turns: 0
-      priority: 10
-      
+        
   - role: "second-opinion"
     rules:
       triggers:
