@@ -1052,11 +1052,33 @@ impl Agent {
                                 push_message(&mut messages_to_add, final_message_tool_resp);
                             }
                         }
-                        Err(ProviderError::ContextLengthExceeded(_)) => {
-                            yield AgentEvent::Message(Message::assistant().with_context_length_exceeded(
-                                    "The context length of the model has been exceeded. Please start a new session and try again.",
-                                ));
-                            break;
+                        Err(ProviderError::ContextLengthExceeded(error_msg)) => {
+                            info!("Context length exceeded, attempting auto-compaction");
+
+                            match auto_compact::check_and_compact_messages(
+                                self,
+                                &messages,
+                                None,
+                            ).await {
+                                Ok(compact_result) if compact_result.compacted => {
+                                    messages = compact_result.messages;
+
+                                    yield AgentEvent::Message(
+                                        Message::assistant().with_summarization_requested(
+                                            "Context limit reached. Conversation has been automatically compacted to continue."
+                                        )
+                                    );
+                                    yield AgentEvent::HistoryReplaced(messages.clone());
+
+                                    continue;
+                                }
+                                _ => {
+                                    yield AgentEvent::Message(Message::assistant().with_context_length_exceeded(
+                                        format!("Context length exceeded: {}. Unable to continue.", error_msg)
+                                    ));
+                                    break;
+                                }
+                            }
                         }
                         Err(e) => {
                             error!("Error: {}", e);
