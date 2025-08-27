@@ -59,7 +59,7 @@ The recipe:
 
 ## The Bigger Picture: AI-First Development
 
-What Gemma built represents a fundamental shift in how we think about AI in software development. She's gone beyond AI as a coding assistant, and is now using Goose as an autonomous contributor that:
+Recipes like Goose Janitor represent a fundamental shift in how we think about AI in software development. They can be useful deployed to:
 
 - Understand complex legacy codebases
 - Makes safe refactoring decisions
