@@ -1025,7 +1025,6 @@ impl Agent {
                     break;
                 }
 
-                // Check if autopilot should switch models
                 let mut autopilot = self.autopilot.lock().await;
                 if let Some((new_provider, role, model)) = autopilot.check_for_switch(&messages, self.provider().await?).await? {
                     debug!("AutoPilot switching to {} role with model {}", role, model);
