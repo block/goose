@@ -1,25 +1,17 @@
 // Tool state management for sessions
-// Provides a versioned, extensible way to store tool-specific data in sessions
+// Provides a simple way to store tool-specific data with versioned keys
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 
-/// Version identifier for tool state formats
-pub type ToolVersion = String;
-
-/// Tool state key format: "tool_name.version"
-/// Example: "todo.v0", "memory.v1"
-pub type ToolStateKey = String;
-
 /// Session data containing all tool states
+/// Keys are in format "tool_name.version" (e.g., "todo.v0")
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SessionData {
-    /// Map of tool state keys to their data
-    /// Keys are in format "tool_name.version" (e.g., "todo.v0")
     #[serde(flatten)]
-    pub tool_states: HashMap<ToolStateKey, Value>,
+    pub tool_states: HashMap<String, Value>,
 }
 
 impl SessionData {
@@ -49,79 +41,13 @@ impl SessionData {
     }
 
     /// Get all tool state keys
-    pub fn tool_state_keys(&self) -> Vec<ToolStateKey> {
+    pub fn tool_state_keys(&self) -> Vec<String> {
         self.tool_states.keys().cloned().collect()
     }
 
     /// Clear all tool states
     pub fn clear(&mut self) {
         self.tool_states.clear();
-    }
-}
-
-/// Tool state registry for managing tool versions and parsers
-pub struct ToolStateRegistry {
-    /// Map of tool names to their current version and parser functions
-    parsers: HashMap<String, (ToolVersion, ToolParserFn)>,
-}
-
-/// Type alias for tool parser functions
-type ToolParserFn = Box<dyn Fn(&Value) -> Result<Value> + Send + Sync>;
-
-impl Default for ToolStateRegistry {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl ToolStateRegistry {
-    /// Create a new registry
-    pub fn new() -> Self {
-        let mut registry = Self {
-            parsers: HashMap::new(),
-        };
-
-        // Register default tools
-        registry.register_default_tools();
-        registry
-    }
-
-    /// Register default tool parsers
-    fn register_default_tools(&mut self) {
-        // Register TODO tool v0 parser
-        self.register_tool(
-            "todo".to_string(),
-            "v0".to_string(),
-            Box::new(|value| {
-                // For todo v0, we expect a simple string
-                if let Some(s) = value.as_str() {
-                    Ok(Value::String(s.to_string()))
-                } else {
-                    // Try to convert to string if it's another type
-                    Ok(Value::String(value.to_string()))
-                }
-            }),
-        );
-    }
-
-    /// Register a tool with its version and parser
-    pub fn register_tool(&mut self, tool_name: String, version: ToolVersion, parser: ToolParserFn) {
-        self.parsers.insert(tool_name, (version, parser));
-    }
-
-    /// Get the current version for a tool
-    pub fn get_tool_version(&self, tool_name: &str) -> Option<&ToolVersion> {
-        self.parsers.get(tool_name).map(|(v, _)| v)
-    }
-
-    /// Parse tool state using the registered parser
-    pub fn parse_tool_state(&self, tool_name: &str, value: &Value) -> Result<Value> {
-        if let Some((_, parser)) = self.parsers.get(tool_name) {
-            parser(value)
-        } else {
-            // If no parser registered, return as-is
-            Ok(value.clone())
-        }
     }
 }
 
@@ -185,16 +111,6 @@ impl TodoState {
     }
 }
 
-// Global registry instance
-lazy_static::lazy_static! {
-    static ref TOOL_STATE_REGISTRY: ToolStateRegistry = ToolStateRegistry::new();
-}
-
-/// Get the global tool state registry
-pub fn registry() -> &'static ToolStateRegistry {
-    &TOOL_STATE_REGISTRY
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -244,19 +160,6 @@ mod tests {
         let retrieved = TodoState::from_session_data(&session_data);
         assert!(retrieved.is_some());
         assert_eq!(retrieved.unwrap().content, "- Task 1\n- Task 2");
-    }
-
-    #[test]
-    fn test_tool_state_registry() {
-        let registry = ToolStateRegistry::new();
-
-        // Check TODO tool is registered
-        assert_eq!(registry.get_tool_version("todo"), Some(&"v0".to_string()));
-
-        // Test parsing TODO state
-        let value = json!("My TODO content");
-        let parsed = registry.parse_tool_state("todo", &value).unwrap();
-        assert_eq!(parsed, json!("My TODO content"));
     }
 
     #[test]

@@ -11,4 +11,4 @@ pub use storage::{
 };
 
 pub use info::{get_valid_sorted_sessions, SessionInfo};
-pub use tool_state::{registry, SessionData, TodoState, ToolState, ToolStateRegistry};
+pub use tool_state::{SessionData, TodoState, ToolState};
