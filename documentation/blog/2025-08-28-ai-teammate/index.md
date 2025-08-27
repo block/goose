@@ -21,7 +21,7 @@ With the serendipitous launch of Goose recipes around the same time, the team wo
 
 Gemma's first move was to utilize an existing system of `.mdc`, `.goosehints` and other symlinked context documents to capture how to safely remove feature flags from the repository.
 
-She created documentation that allows AI agents to glean enough context to perform their work accurately.
+She added documentation that allows AI agents to glean enough context to perform their removal work accurately.
 
 ## Phase 2: Validation Across Generations
 
