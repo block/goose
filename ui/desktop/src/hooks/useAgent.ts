@@ -50,9 +50,10 @@ export function useAgent(): UseAgentReturn {
     setAgentState(AgentState.UNINITIALIZED);
   }, []);
 
+  const agentIsInitialized = agentState === AgentState.INITIALIZED;
   const currentChat = useCallback(
     async (initContext: InitializationContext): Promise<ChatType> => {
-      if (agentState === AgentState.INITIALIZED && sessionId) {
+      if (agentIsInitialized && sessionId) {
         const sessionDetails = await fetchSessionDetails(sessionId);
 
         const chat: ChatType = {
@@ -170,7 +171,7 @@ export function useAgent(): UseAgentReturn {
       initPromiseRef.current = initPromise;
       return initPromise;
     },
-    [getExtensions, addExtension, read, agentState, sessionId]
+    [getExtensions, addExtension, read, agentIsInitialized, sessionId]
   );
 
   return {

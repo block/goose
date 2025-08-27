@@ -577,99 +577,48 @@ export default function App() {
               <Route
                 path="/"
                 element={
-                  <ChatProvider
-                    chat={chat}
-                    setChat={setChat}
-                    contextKey="hub"
-                    agentWaitingMessage={agentWaitingMessage}
-                  >
-                    <AppLayout setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
-                  </ChatProvider>
+                  <ProviderGuard>
+                    <ChatProvider
+                      chat={chat}
+                      setChat={setChat}
+                      contextKey="hub"
+                      agentWaitingMessage={agentWaitingMessage}
+                    >
+                      <AppLayout setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
+                    </ChatProvider>
+                  </ProviderGuard>
                 }
               >
                 <Route
                   index
                   element={
-                    <ProviderGuard>
-                      <HubRouteWrapper
-                        setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-                        resetChat={resetChatIfNecessary}
-                      />
-                    </ProviderGuard>
+                    <HubRouteWrapper
+                      setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+                      resetChat={resetChatIfNecessary}
+                    />
                   }
                 />
                 <Route
                   path="pair"
                   element={
-                    <ProviderGuard>
-                      <PairRouteWrapper
-                        chat={chat}
-                        setChat={setChat}
-                        agentState={agentState}
-                        loadCurrentChat={loadCurrentChat}
-                        setFatalError={setFatalError}
-                        setAgentWaitingMessage={setAgentWaitingMessage}
-                        setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-                      />
-                    </ProviderGuard>
+                    <PairRouteWrapper
+                      chat={chat}
+                      setChat={setChat}
+                      agentState={agentState}
+                      loadCurrentChat={loadCurrentChat}
+                      setFatalError={setFatalError}
+                      setAgentWaitingMessage={setAgentWaitingMessage}
+                      setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+                    />
                   }
                 />
-                <Route
-                  path="settings"
-                  element={
-                    <ProviderGuard>
-                      <SettingsRoute />
-                    </ProviderGuard>
-                  }
-                />
-                <Route
-                  path="extensions"
-                  element={
-                    <ProviderGuard>
-                      <ExtensionsRoute />
-                    </ProviderGuard>
-                  }
-                />
-                <Route
-                  path="sessions"
-                  element={
-                    <ProviderGuard>
-                      <SessionsRoute />
-                    </ProviderGuard>
-                  }
-                />
-                <Route
-                  path="schedules"
-                  element={
-                    <ProviderGuard>
-                      <SchedulesRoute />
-                    </ProviderGuard>
-                  }
-                />
-                <Route
-                  path="recipes"
-                  element={
-                    <ProviderGuard>
-                      <RecipesRoute resetChat={resetChat} />
-                    </ProviderGuard>
-                  }
-                />
-                <Route
-                  path="recipe-editor"
-                  element={
-                    <ProviderGuard>
-                      <RecipeEditorRoute />
-                    </ProviderGuard>
-                  }
-                />
-                <Route
-                  path="permission"
-                  element={
-                    <ProviderGuard>
-                      <PermissionRoute />
-                    </ProviderGuard>
-                  }
-                />
+                <Route path="settings" element={<SettingsRoute />} />
+                <Route path="extensions" element={<ExtensionsRoute />} />
+                <Route path="sessions" element={<SessionsRoute />} />
+                <Route path="schedules" element={<SchedulesRoute />} />
+                <Route path="recipes" element={<RecipesRoute resetChat={resetChat} />} />
+                <Route path="recipe-editor" element={<RecipeEditorRoute />} />
+                <Route path="permission" element={<PermissionRoute />} />
               </Route>
             </Routes>
           </div>
