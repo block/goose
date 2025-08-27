@@ -9,7 +9,7 @@ authors:
 
 Over the years, Block's iOS engineers have felt the pain of technical debt accumulating. Feature flags are a specific example of this. Even when successfully rolled out, they tend to linger in the codebase, each one a small weight slowing down development.
 
-In the early stages of 2025, with a renewed focus on developer acceleration, the Foundation iOS team decided to organize 'Feature Flag Removal Month' - an opportunity for teams in the large iOS monorepo to come together and delete _possibly hundreds of thousands of lines of code of dead code_. 
+In the early stages of 2025, with a renewed focus on developer acceleration, the Foundation iOS team decided to organize 'Feature Flag Removal Month' - an opportunity for teams in the large iOS monorepo to come together and delete _possibly hundreds of thousands of lines of dead code_. 
 
 With the serendipitous launch of Goose recipes around the same time, the team wondered could a dedicated recipe aid this effort? [Gemma Barlow](https://www.linkedin.com/in/gemmakbarlow/), a newer iOS engineer on the team, wanted to find out. 
 
