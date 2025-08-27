@@ -348,8 +348,31 @@ pub trait Provider: Send + Sync {
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let model_config = self.get_model_config();
         let fast_config = model_config.use_fast_model();
-        self.complete_with_model(&fast_config, system, messages, tools)
+
+        // Try with the fast model first
+        match self
+            .complete_with_model(&fast_config, system, messages, tools)
             .await
+        {
+            Ok(result) => Ok(result),
+            Err(e) => {
+                // If fast model fails and it's different from the regular model,
+                // fall back to the regular model
+                if fast_config.model_name != model_config.model_name {
+                    tracing::warn!(
+                        "Fast model {} failed with error: {}. Falling back to regular model {}",
+                        fast_config.model_name,
+                        e,
+                        model_config.model_name
+                    );
+                    self.complete_with_model(&model_config, system, messages, tools)
+                        .await
+                } else {
+                    // If fast model is the same as regular model, just return the error
+                    Err(e)
+                }
+            }
+        }
     }
 
     /// Get the model config from the provider
