@@ -62,7 +62,7 @@ The recipe:
 Recipes like Goose Janitor represent a fundamental shift in how we think about AI in software development. They can be useful deployed to:
 
 - Understand complex legacy codebases
-- Makes safe refactoring decisions
+- Make safe refactoring decisions
 - Integrates seamlessly with existing development workflows
 - Scales across entire organizations
 
