@@ -31,7 +31,7 @@ use crate::agents::tool_route_manager::ToolRouteManager;
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, ToolResultReceiver};
-use crate::config::{Config, ExtensionConfigManager, PermissionManager};
+use crate::config::{Config, ExtensionConfigManager};
 use crate::context_mgmt::auto_compact;
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::permission::permission_judge::PermissionCheckResult;
@@ -1168,11 +1168,9 @@ impl Agent {
                                     let tool_futures_arc = Arc::new(Mutex::new(tool_futures));
 
                                     // Process tools requiring approval
-                                    let mut permission_manager = PermissionManager::default();
                                     let mut tool_approval_stream = self.handle_approval_tool_requests(
                                         &permission_check_result.needs_approval,
                                         tool_futures_arc.clone(),
-                                        &mut permission_manager,
                                         message_tool_response.clone(),
                                         cancel_token.clone(),
                                         &inspection_results,
@@ -1651,10 +1649,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_tool_inspection_manager_has_tool_monitor() -> Result<()> {
+    async fn test_tool_inspection_manager_has_all_inspectors() -> Result<()> {
         let agent = Agent::new();
         
-        // Verify that the tool inspection manager has the tool monitor
+        // Verify that the tool inspection manager has all expected inspectors
         let inspector_names = agent.tool_inspection_manager.inspector_names();
         
         assert!(inspector_names.contains(&"repetition"), 
