@@ -25,7 +25,7 @@ She added documentation that allows AI agents to glean enough context to perform
 
 ## Phase 2: Validation Across Generations
 
-Given AI documentation is designed to work with a variety of AI tools in use at Block, Gemma then iterated to add to these basic instructions. This validated the approach worked across the three different generations of feature flag implementations that had accumulated:
+Given AI documentation is designed to work with a variety of tools in use at Block, further iteration and validation was needed. Several weeks of tests and trials later, it was confirmed the approach was accurate enough to be useful *and* it could handle the three different generations of feature flag implementations that had accumulated:
 
 - super legacy flags the team used way back yonder
 - legacy flags that were newer but are now old
