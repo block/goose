@@ -33,22 +33,6 @@ impl SessionData {
         let key = format!("{}.{}", tool_name, version);
         self.tool_states.insert(key, state);
     }
-
-    /// Check if a tool state exists
-    pub fn has_tool_state(&self, tool_name: &str, version: &str) -> bool {
-        let key = format!("{}.{}", tool_name, version);
-        self.tool_states.contains_key(&key)
-    }
-
-    /// Get all tool state keys
-    pub fn tool_state_keys(&self) -> Vec<String> {
-        self.tool_states.keys().cloned().collect()
-    }
-
-    /// Clear all tool states
-    pub fn clear(&mut self) {
-        self.tool_states.clear();
-    }
 }
 
 /// Helper trait for tool-specific state management
@@ -102,13 +86,6 @@ impl TodoState {
     pub fn new(content: String) -> Self {
         Self { content }
     }
-
-    /// Create an empty TODO state
-    pub fn empty() -> Self {
-        Self {
-            content: String::new(),
-        }
-    }
 }
 
 #[cfg(test)]
@@ -124,8 +101,8 @@ mod tests {
         let todo_state = json!({"content": "- Task 1\n- Task 2"});
         session_data.set_tool_state("todo", "v0", todo_state.clone());
 
-        assert!(session_data.has_tool_state("todo", "v0"));
         assert_eq!(session_data.get_tool_state("todo", "v0"), Some(&todo_state));
+        assert_eq!(session_data.get_tool_state("todo", "v1"), None);
     }
 
     #[test]
@@ -138,14 +115,10 @@ mod tests {
         session_data.set_tool_state("config", "v2", json!({"setting": true}));
 
         // Check all states exist
-        assert_eq!(session_data.tool_state_keys().len(), 3);
-        assert!(session_data.has_tool_state("todo", "v0"));
-        assert!(session_data.has_tool_state("memory", "v1"));
-        assert!(session_data.has_tool_state("config", "v2"));
-
-        // Clear all states
-        session_data.clear();
-        assert_eq!(session_data.tool_state_keys().len(), 0);
+        assert_eq!(session_data.tool_states.len(), 3);
+        assert!(session_data.get_tool_state("todo", "v0").is_some());
+        assert!(session_data.get_tool_state("memory", "v1").is_some());
+        assert!(session_data.get_tool_state("config", "v2").is_some());
     }
 
     #[test]
