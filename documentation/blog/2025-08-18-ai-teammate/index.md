@@ -37,7 +37,7 @@ AI could understand and safely navigate the complexity of real world legacy syst
 
 This was great progress. The documentation alone would help teams clean up faster. Gemma could have stopped here.
 
-But instead, she built something remarkable: **Goose Janitor**.
+But instead, she utilized Goose recipes to create **Goose Janitor**.
 
 
 Goose Janitor acts as new AI team member whose responsibility is to tidy up the code after we're done experimenting. Gemma modified an existing [Goose recipe](/recipes/detail/?id=clean-up-feature-flag) that autonomously removes feature flags from the codebase. Here's how it works:
