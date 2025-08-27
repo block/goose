@@ -13,7 +13,6 @@ In the early stages of 2025, with a renewed focus on Developer Acceleration, Squ
 
 With the serendipitous launch of Goose recipes around the same time, the team wondered; could a dedicated recipe aid this effort ? [Gemma Barlow](https://www.linkedin.com/in/gemmakbarlow/), a newer iOS engineer on the team, wanted to find out. 
 
-But instead of just nodding along, Gemma was inspired to act.
 
 <!-- truncate -->
 
