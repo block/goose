@@ -52,7 +52,7 @@ goose run \
 
 The recipe:
 - Runs completely autonomously (no human intervention needed)
-- Handles simple and complex flags 
+- Handles different flag implementations, ranging in complexity
 - Attempts refactoring for outdated code paths
 - Can automatically create draft pull requests, via the Github CLI
 - Integrates with [Xcode Index MCP](https://github.com/block/xcode-index-mcp) for deep iOS project understanding
