@@ -55,7 +55,7 @@ The recipe:
 - Handles simple and complex flags 
 - Attempts refactoring for outdated code paths
 - Can automatically create draft pull requests
-- Integrates with a custom Xcode MCP server for deep iOS understanding
+- Integrates with [Xcode Index MCP](https://github.com/block/xcode-index-mcp) for deep iOS project understanding
 
 ## The Bigger Picture: AI-First Development
 
