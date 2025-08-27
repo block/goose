@@ -6,14 +6,13 @@ use crate::tool_inspection::{InspectionAction, InspectionResult, ToolInspector};
 use anyhow::Result;
 use async_trait::async_trait;
 use std::collections::HashSet;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 /// Permission Inspector that handles tool permission checking
 pub struct PermissionInspector {
     mode: String,
     readonly_tools: HashSet<String>,
     regular_tools: HashSet<String>,
-    permission_manager: Arc<Mutex<PermissionManager>>,
 }
 
 impl PermissionInspector {
@@ -21,13 +20,11 @@ impl PermissionInspector {
         mode: String,
         readonly_tools: HashSet<String>,
         regular_tools: HashSet<String>,
-        permission_manager: PermissionManager,
     ) -> Self {
         Self {
             mode,
             readonly_tools,
             regular_tools,
-            permission_manager: Arc::new(Mutex::new(permission_manager)),
         }
     }
 }
@@ -44,13 +41,10 @@ impl ToolInspector for PermissionInspector {
         _messages: &[Message],
         provider: Option<Arc<dyn Provider>>,
     ) -> Result<Vec<InspectionResult>> {
-        let mut results = Vec::new();
+        let provider = provider.ok_or_else(|| anyhow::anyhow!("Provider required for permission checking"))?;
         
-        // Clone the permission manager to avoid holding the lock across await
-        let mut permission_manager = {
-            let guard = self.permission_manager.lock().unwrap();
-            guard.clone()
-        };
+        // Create a fresh permission manager for this check
+        let mut permission_manager = PermissionManager::default();
         
         let (permission_result, extension_request_ids) = check_tool_permissions(
             tool_requests,
@@ -58,17 +52,10 @@ impl ToolInspector for PermissionInspector {
             self.readonly_tools.clone(),
             self.regular_tools.clone(),
             &mut permission_manager,
-            provider.unwrap_or_else(|| {
-                // Create a dummy provider if none provided - this shouldn't happen in practice
-                panic!("Provider required for permission checking")
-            }),
+            provider,
         ).await;
 
-        // Update the shared permission manager with any changes
-        {
-            let mut guard = self.permission_manager.lock().unwrap();
-            *guard = permission_manager;
-        }
+        let mut results = Vec::new();
 
         // Convert permission results to inspection results
         for request in &permission_result.approved {
