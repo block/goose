@@ -25,23 +25,19 @@ impl SecurityInspector {
         security_result: &SecurityResult,
         tool_request_id: String,
     ) -> InspectionResult {
-        let action = if security_result.is_malicious {
-            if security_result.should_ask_user {
-                // High confidence threat - require user approval with warning
-                InspectionAction::RequireApproval(Some(format!(
-                    "🔒 Security Alert: This tool call has been flagged as potentially dangerous.\n\
-                    Confidence: {:.1}%\n\
-                    Explanation: {}\n\
-                    Finding ID: {}",
-                    security_result.confidence * 100.0,
-                    security_result.explanation,
-                    security_result.finding_id
-                )))
-            } else {
-                // Low confidence threat - allow but log
-                InspectionAction::Allow
-            }
+        let action = if security_result.is_malicious && security_result.should_ask_user {
+            // High confidence threat - require user approval with warning
+            InspectionAction::RequireApproval(Some(format!(
+                "🔒 Security Alert: This tool call has been flagged as potentially dangerous.\n\
+                Confidence: {:.1}%\n\
+                Explanation: {}\n\
+                Finding ID: {}",
+                security_result.confidence * 100.0,
+                security_result.explanation,
+                security_result.finding_id
+            )))
         } else {
+            // Either not malicious, or malicious but below threshold (already logged) - allow
             InspectionAction::Allow
         };
 
