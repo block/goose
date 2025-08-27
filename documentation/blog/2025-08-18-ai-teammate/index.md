@@ -19,7 +19,7 @@ With the serendipitous launch of Goose recipes around the same time, the team wo
 
 ## Phase 1: Making Knowledge AI-Accessible
 
-Gemma's first move was brilliant in its simplicity. She documented how to safely remove feature flags from the repository. She also structured the documentation so AI agents could follow it too!
+Gemma's first move was to utilize an existing system of .mdc, .goosehints and other symlinked context documents to capture how to safely remove feature flags from the repository.
 
 This wasn't just another README file. This was documentation designed for both human and AI to understand and act upon.
 
