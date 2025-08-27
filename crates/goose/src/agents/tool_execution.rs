@@ -51,12 +51,14 @@ impl Agent {
         &'a self,
         tool_requests: &'a [ToolRequest],
         tool_futures: Arc<Mutex<Vec<(String, ToolStream)>>>,
-        permission_manager: &'a mut PermissionManager,
         message_tool_response: Arc<Mutex<Message>>,
         cancellation_token: Option<CancellationToken>,
         inspection_results: &'a [crate::tool_inspection::InspectionResult],
     ) -> BoxStream<'a, anyhow::Result<Message>> {
         try_stream! {
+            // Create a permission manager for this approval session
+            let mut permission_manager = PermissionManager::default();
+            
             for request in tool_requests.iter() {
                 if let Ok(tool_call) = request.tool_call.clone() {
                     // Find the corresponding inspection result for this tool request
