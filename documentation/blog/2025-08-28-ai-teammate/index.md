@@ -56,6 +56,8 @@ The recipe:
 - Attempts refactoring for outdated code paths
 - Can automatically create draft pull requests
 - Integrates with [Xcode Index MCP](https://github.com/block/xcode-index-mcp) for deep iOS project understanding
+- Plans, implements, builds and tests locally to improve the accuracy of the flag removal result
+
 
 ## The Bigger Picture: AI-First Development
 
