@@ -6,56 +6,64 @@ authors:
     - rizel
 ---
 
-Let's be honest: while Goose is completely free to use, the reality is that most performant LLMs aren't. You want to experience that agentic goodness without breaking the bank or jumping through hoops. We've been thinking about how to make that first step easier for newcomers to Goose.
+ You shouldn’t need a credit card to vibe code with Goose. While Goose is completely free to use, the reality is that most performant LLMs aren't. You want to experience Goose in action without breaking the bank or jumping through hoops. We've been thinking about how to make that first step easier for newcomers to Goose.
 
-That's why we're thrilled about our newest provider integration: Tetrate's Agent Router Service. From August 27th through October 2nd, new Goose users can get $10 in credits to use Goose with any model on the Tetrate platform.
+That's why we're thrilled about our newest provider integration: [Tetrate's Agent Router Service](https://router.tetrate.ai). From August 27th through October 2nd, new Goose users can get $10 in credits to use Goose with any model on the Tetrate platform.
 
 <!--truncate-->
 
-We've upgraded the onboarding flow. Tetrate Agent Router now appears as a recommended setup option for new users. Selecting Tetrate takes you through OAuth account creation, then drops you back into Goose with your $10 credits ready to go.
+We've upgraded the onboarding flow. Tetrate Agent Router now appears as a [recommended setup option](https://block.github.io/goose/docs/getting-started/installation#set-llm-provider) for new users. Selecting Tetrate takes you through OAuth account creation, then drops you back into Goose with your $10 credits ready to go.
 
 ![fresh install](welcome.png)
 
 
-For Goose users, this means:
-- **Simple setup** in a few clicks
-- **starting credits** to get started immediately
-- **Access to multiple models** through one interface
-- **Reliable routing** built on envoy and more
+This integration gives Goose users:
+* **Instant access** to models without manual setup
+* **$10 in credits** to start building without a paywall
+* **A unified model layer** powered by Tetrate
+* **Stable routing** built on [Envoy](https://www.envoyproxy.io/), an open source proxy for high-scale systems
 
 
 ## Tetrate's Agent Router Service
 
-Tetrate's agent router service at [router.tetrate.ai](https://router.tetrate.ai/) provides access to a collection of popular AI models, open source and also the frontier models like gpt-5 and sonnet-4, grok4 and more (all the hits!). 
+Tetrate's Agent Router Service provides unified access to a comprehensive collection of AI models including open source options to cutting-edge frontier models like GPT-5, Sonnet-4, and Grok-4.
 
-### From Cloud Routing to Model Routing
+### From Cloud Infrastructure to AI Model Routing
 
-Tetrate has deep experience in routing and infrastructure, having been involved with major open source projects like Istio and Envoy for many years. It seems natural that this expertise and approach can now be applied to routing/handling of LLM traffic workload, which has simmilar needs, but is also kind of novel. 
+Tetrate brings years of expertise in routing and infrastructure to the AI space. As major contributors to open source projects like Istio and Envoy, they understand how to build reliable, scalable routing systems. Now they're applying this same expertise to LLM traffic management.
 
-Currently LLM traffic is stateless in the sense that you can route requests to many providers and models, either for cost, speed, availability, quality or even just to have another model check your work. The patterns here are still emerging, and sometimes the terminology can be confusing (eg in goose we have providers, of which Tetrate is one, and in turn, Tetrate has service providers as well, which are also in turn called providers!), confused? Not to worry, mostly you don't have to configure things too much with router services. 
+LLM requests are inherently stateless, making them ideal for intelligent routing across multiple providers and models. This allows you to optimize for cost, speed, availability, or quality, or even use multiple models to cross-check results. Terminology in this space is still settling. Goose refers to Tetrate as a “provider” for consistency, though under the hood it is a router service that connects to other providers. That layer abstracts away model selection, auth, and host config, keeping your setup clean.
 
-## Why This Matters
+## Why This Collaboration Matters
 
-We love making Goose accessible to anyone as quickly as possible, which means removing barriers to getting started, which has been aided greatly by Tetrate helping out here with their service and credits. 
+Our goal is simple: make Goose accessible to everyone, immediately. That means removing barriers to getting started. Tetrate's generous credit offering and seamless integration help us achieve exactly that.
 
-Tetrate's commitment to open source continues with their support for making AI development more accessible through services like this.
+It also reflects Tetrate's ongoing commitment to open source and making AI development more accessible to developers worldwide.
 
-## Advanced usage and model catalog
+## Explore the Full Model Catalog
 
-Out of the box Goose will be auto configured to use sonnet-4 (at the time of writing) but, there is a whole catalog of models to choose from. 
+While Goose auto-configures with Sonnet-4 by default, you have access to Tetrate's entire model catalog through the interface:
 
 ![providers](providers.png)
 ![gpt5](gpt5.png)
 
-You can select from from within Goose, and explore what is available via Tetrate. There are open weight models (such as kimi/k2) which are hosted for you (of you had the hardware you could run them yourself) as well as the frontier models hosted in a variety of places. 
+Browse and select from a wide range of options, including:
+- **Open-weight models** (like Kimi/K2) hosted and ready to use
+- **Frontier models** from various providers
+- **Specialized models** optimized for different use cases
 
-With Goose you can optimize your usage, for example with the "Lead/Worker" configuration: this could let you save time/money by using a frontier model as the lead and falling back to a lower cost or faster model for iteration, automatically.
-
-Thanks again for Tetrate for supporting open source!
+:::tip Protip 
+ Want the best of both worlds? Use Goose’s [Lead/Worker configuration](https://block.github.io/goose/docs/tutorials/lead-worker) to combine a powerful frontier model with a faster open-weight model. Let your Lead handle the high-level thinking while Workers take care of the repetitive tasks—saving you both time and credits.
+:::
 
 ---
 
-*Have questions about setting up with Goose? Join our [community discussions](https://github.com/block/goose/discussions) or check out our [documentation](https://block.github.io/goose/docs/) for more detailed setup guides.*
+Thank you to Tetrate for supporting open source and making AI development more accessible!
+---
+
+**What are you waiting for?** [Get started with Goose](/)
+
+*Got questions?* Explore our [docs](/documentation/docs/), browse the [blog](/documentation/blog), or join the conversation in our [Discord](https://discord.gg/block-opensource) and [GitHub Discussions](https://github.com/block/goose/discussions). We’d love to have you.
 
 <head>
   <meta property="og:title" content="Your First Goose Experience Is On Us" />
