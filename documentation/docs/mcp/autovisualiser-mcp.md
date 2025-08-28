@@ -138,7 +138,7 @@ The **Sankey diagram** represents customer flow through your sales process, with
 - **Electronics** has the thickest flow (highest revenue conversion)
 - **Home & Garden** has the thinnest but represents growth opportunity
 
-## Key Business Insights:
+#### Key Business Insights:
 - **Total Revenue**: $1.75M across all categories
 - **Growth Pattern**: All categories show positive growth trends
 - **Category Performance**: Electronics (42.6%), Clothing (34%), Home & Garden (23.4%)
