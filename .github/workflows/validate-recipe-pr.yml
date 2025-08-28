@@ -201,8 +201,10 @@ jobs:
 
       - name: Set validation status
         if: always()
+        env:
+          VALIDATION_STATUS: ${{ steps.validate.outputs.validation_status }}
         run: |
-          if [ "${{ steps.validate.outputs.validation_status }}" = "valid" ]; then
+          if [ "$VALIDATION_STATUS" = "valid" ]; then
             echo "✅ All recipes are valid"
             exit 0
           else
