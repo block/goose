@@ -2123,6 +2123,11 @@
           "propertyName": "type"
         }
       },
+      "ExtensionData": {
+        "type": "object",
+        "description": "Extension data containing all extension states\nKeys are in format \"extension_name.version\" (e.g., \"todo.v0\")",
+        "additionalProperties": {}
+      },
       "ExtensionEntry": {
         "allOf": [
           {
@@ -3207,6 +3212,9 @@
             "type": "string",
             "description": "A short description of the session, typically 3 words or less"
           },
+          "extension_data": {
+            "$ref": "#/components/schemas/ExtensionData"
+          },
           "input_tokens": {
             "type": "integer",
             "format": "int32",
@@ -3227,11 +3235,6 @@
           "schedule_id": {
             "type": "string",
             "description": "ID of the schedule that triggered this session, if any",
-            "nullable": true
-          },
-          "todo_content": {
-            "type": "string",
-            "description": "Session-scoped TODO list content",
             "nullable": true
           },
           "total_tokens": {
