@@ -2725,6 +2725,7 @@ dependencies = [
  "serial_test",
  "shellexpand",
  "sysinfo 0.32.1",
+ "temp-env",
  "tempfile",
  "thiserror 1.0.69",
  "tokio",

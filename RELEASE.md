@@ -6,12 +6,12 @@ You'll generally create one of two release types: a regular feature release (min
 
 1. Check out the main branch.
 1. Pick the new version. Use a new minor version (e.g. if the current latest release is 1.2.3, use 1.3.0). Save it using `export VERSION=<new version>`
-1. Run `just prepare-release $VERSION`. This will create a branch `release/<version>`. Push this branch and open a PR into main. The diff should show version updates to Cargo.toml/package.json and their lock files.
-1. This should trigger a signed macOS build -- Github actions will comment on the PR when it's ready. Test this build. When ready to make the release, proceed to the next step.
-1. Run git branch --set-upstream-to origin/release/$VERSION
-1. Tag the release: run `just tag-push` to create the tag and push it. This will start the build process for your new release.
-1. Merge the PR you created in step 2.
-1. Once the release is created on [Github](https://github.com/block/goose/releases), run `just release-notes <prior release>` to generate release notes. Copy these into the release description.
+1. Run `just prepare-release $VERSION`. This will create a branch `release/<version>`
+1. Run `git push origin release/<version> --set-upstream` and open a PR into `main`. Use `git log --oneline --cherry-pick --right-only v<previous-version>...release/$VERSION` to generate a PR description
+1. Wait for the bundled version of the app which will be linked from a comment on the PR
+1. Test the bundled version of the app
+1. When ready, tag the release: run `just tag-push` to create the tag and push it. This will start the release process
+1. Once the release is created on [Github](https://github.com/block/goose/releases), merge the PR and run `just release-notes <prior release>` to generate release notes. Copy these into the release description.
 
 ## Patch release
 
