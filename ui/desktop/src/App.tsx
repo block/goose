@@ -303,15 +303,15 @@ export default function App() {
     const resumeSessionId = urlParams.get('resumeSessionId') || undefined;
     const recipeConfig = (window.appConfig?.get('recipe') || undefined) as Recipe;
 
-    if (resumeSessionId || (recipeConfig && typeof recipeConfig === 'object')) {
-      const stateData: PairRouteState = {
-        resumeSessionId: resumeSessionId,
-        recipeConfig: recipeConfig,
-      };
-      (async () => {
-        await loadCurrentChat({ setAgentWaitingMessage, ...stateData });
-      })();
+    const stateData: PairRouteState = {
+      resumeSessionId: resumeSessionId,
+      recipeConfig: recipeConfig,
+    };
+    (async () => {
+      await loadCurrentChat({ setAgentWaitingMessage, ...stateData });
+    })();
 
+    if (resumeSessionId || (recipeConfig && typeof recipeConfig === 'object')) {
       window.location.hash = '#/pair';
       window.history.replaceState(stateData, '', '#/pair');
       return;
