@@ -308,9 +308,6 @@ export default function App() {
         resumeSessionId: resumeSessionId,
         recipeConfig: recipeConfig,
       };
-      if (recipeConfig) {
-        resetChat();
-      }
       (async () => {
         await loadCurrentChat({ setAgentWaitingMessage, ...stateData });
       })();
