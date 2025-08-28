@@ -2,11 +2,11 @@ import React from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import AppSidebar from '../GooseSidebar/AppSidebar';
 import { View, ViewOptions } from '../../App';
-import { AppWindowMac, AppWindow, Globe } from 'lucide-react';
+import { AppWindowMac, AppWindow } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Sidebar, SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from '../ui/sidebar';
 import { SidecarProvider, useSidecar } from '../SidecarLayout';
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/Tooltip';
+import { SidecarInvoker } from './SidecarInvoker';
 
 interface AppLayoutProps {
   setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
@@ -22,7 +22,6 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
 
   // Calculate padding based on sidebar state and macOS
   const headerPadding = safeIsMacOS ? 'pl-21' : 'pl-4';
-  // const headerPadding = '';
 
   // Hide buttons when mobile sheet is showing
   const shouldHideButtons = isMobile && openMobile;
@@ -83,8 +82,8 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
     );
   };
 
-  const handleGlobeClick = () => {
-    console.log('Right globe button clicked');
+  const handleShowLocalhost = () => {
+    console.log('Localhost viewer requested');
     console.log('Sidecar available:', !!sidecar);
     console.log('Current pathname:', location.pathname);
 
@@ -107,6 +106,11 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
     window.addEventListener('open-sidecar-localhost', handler);
     return () => window.removeEventListener('open-sidecar-localhost', handler);
   }, [sidecar]);
+
+  // Show sidecar invoker on chat-related pages when sidecar is not open
+  const shouldShowSidecarInvoker = 
+    (location.pathname === '/' || location.pathname === '/chat' || location.pathname === '/pair') &&
+    !(sidecar?.activeView && sidecar?.views.find((v) => v.id === sidecar.activeView));
 
   return (
     <div className="flex flex-1 w-full relative animate-fade-in">
@@ -131,28 +135,15 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
               )}
             </Button>
           </div>
-
-          {/* Right side globe button - show on chat-related pages (not home/hub) and hide when sidecar is open */}
-          {(location.pathname === '/chat' || location.pathname === '/pair') &&
-            !(sidecar?.activeView && sidecar?.views.find((v) => v.id === sidecar.activeView)) && (
-              <div className="absolute top-3 right-4 z-100">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      onClick={handleGlobeClick}
-                      className="no-drag hover:!bg-background-medium"
-                      variant="ghost"
-                      size="xs"
-                    >
-                      <Globe className="w-4 h-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">Open Localhost Site</TooltipContent>
-                </Tooltip>
-              </div>
-            )}
         </>
       )}
+
+      {/* New hover-triggered sidecar invoker */}
+      <SidecarInvoker 
+        onShowLocalhost={handleShowLocalhost}
+        isVisible={shouldShowSidecarInvoker}
+      />
+
       <Sidebar variant="inset" collapsible="offcanvas">
         <AppSidebar
           onSelectSession={handleSelectSession}
