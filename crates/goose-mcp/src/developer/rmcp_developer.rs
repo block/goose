@@ -1,11 +1,17 @@
 use base64::Engine;
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
+use include_dir::{include_dir, Dir};
 use indoc::formatdoc;
 use rmcp::{
     handler::server::{router::tool::ToolRouter, tool::Parameters},
-    model::{CallToolResult, Content, ErrorCode, ErrorData, Role, ServerCapabilities, ServerInfo},
+    model::{
+        CallToolResult, Content, ErrorCode, ErrorData, GetPromptRequestParam, GetPromptResult,
+        ListPromptsResult, PaginatedRequestParam, Prompt, PromptArgument, PromptMessage,
+        PromptMessageRole, Role, ServerCapabilities, ServerInfo,
+    },
     schemars::JsonSchema,
-    tool, tool_handler, tool_router, ServerHandler,
+    service::RequestContext,
+    tool, tool_handler, tool_router, RoleServer, ServerHandler,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -84,6 +90,73 @@ pub struct ImageProcessorParams {
     pub path: String,
 }
 
+/// Template structure for prompt definitions
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PromptTemplate {
+    pub id: String,
+    pub template: String,
+    pub arguments: Vec<PromptArgumentTemplate>,
+}
+
+/// Template structure for prompt arguments
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PromptArgumentTemplate {
+    pub name: String,
+    pub description: Option<String>,
+    pub required: Option<bool>,
+}
+
+// Embeds the prompts directory to the build
+static PROMPTS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/developer/prompts");
+
+/// Loads prompt files from the embedded PROMPTS_DIR and returns a HashMap of prompts.
+/// Ensures that each prompt name is unique.
+fn load_prompt_files() -> HashMap<String, Prompt> {
+    let mut prompts = HashMap::new();
+
+    for entry in PROMPTS_DIR.files() {
+        // Only process JSON files
+        if !entry.path().extension().map_or(false, |ext| ext == "json") {
+            continue;
+        }
+
+        let prompt_str = String::from_utf8_lossy(entry.contents()).into_owned();
+
+        let template: PromptTemplate = match serde_json::from_str(&prompt_str) {
+            Ok(t) => t,
+            Err(e) => {
+                eprintln!(
+                    "Failed to parse prompt template in {}: {}",
+                    entry.path().display(),
+                    e
+                );
+                continue; // Skip invalid prompt file
+            }
+        };
+
+        let arguments = template
+            .arguments
+            .into_iter()
+            .map(|arg| PromptArgument {
+                name: arg.name,
+                description: arg.description,
+                required: arg.required,
+            })
+            .collect::<Vec<PromptArgument>>();
+
+        let prompt = Prompt::new(&template.id, Some(&template.template), Some(arguments));
+
+        if prompts.contains_key(&prompt.name) {
+            eprintln!("Duplicate prompt name '{}' found. Skipping.", prompt.name);
+            continue; // Skip duplicate prompt name
+        }
+
+        prompts.insert(prompt.name.clone(), prompt);
+    }
+
+    prompts
+}
+
 /// Developer MCP Server using official RMCP SDK
 #[derive(Debug)]
 pub struct DeveloperServer {
@@ -91,6 +164,7 @@ pub struct DeveloperServer {
     file_history: Arc<Mutex<HashMap<PathBuf, Vec<String>>>>,
     ignore_patterns: Gitignore,
     editor_model: Option<EditorModel>,
+    prompts: HashMap<String, Prompt>,
 }
 
 #[tool_handler(router = self.tool_router)]
@@ -158,9 +232,132 @@ impl ServerHandler for DeveloperServer {
         };
 
         ServerInfo {
-            capabilities: ServerCapabilities::builder().enable_tools().build(),
+            capabilities: ServerCapabilities::builder()
+                .enable_tools()
+                .enable_prompts()
+                .build(),
             instructions: Some(instructions),
             ..Default::default()
+        }
+    }
+
+    // TODO: use the rmcp prompt macros instead, but the current sdk version doesn't support it yet, need to update the sdk
+    fn list_prompts(
+        &self,
+        _request: Option<PaginatedRequestParam>,
+        _context: RequestContext<RoleServer>,
+    ) -> impl Future<Output = Result<ListPromptsResult, ErrorData>> + Send + '_ {
+        let prompts: Vec<Prompt> = self.prompts.values().cloned().collect();
+        std::future::ready(Ok(ListPromptsResult {
+            prompts,
+            next_cursor: None,
+        }))
+    }
+
+    fn get_prompt(
+        &self,
+        request: GetPromptRequestParam,
+        _context: RequestContext<RoleServer>,
+    ) -> impl Future<Output = Result<GetPromptResult, ErrorData>> + Send + '_ {
+        let prompt_name = request.name;
+        let arguments = request.arguments.unwrap_or_default();
+
+        match self.prompts.get(&prompt_name) {
+            Some(prompt) => {
+                // Get the template from the prompt description
+                let template = prompt.description.clone().unwrap_or_default();
+
+                // Validate template length
+                if template.len() > 10000 {
+                    return std::future::ready(Err(ErrorData::new(
+                        ErrorCode::INTERNAL_ERROR,
+                        "Prompt template exceeds maximum allowed length".to_string(),
+                        None,
+                    )));
+                }
+
+                // Validate arguments for security (same checks as router)
+                for (key, value) in &arguments {
+                    // Check for empty or overly long keys/values
+                    if key.is_empty() || key.len() > 1000 {
+                        return std::future::ready(Err(ErrorData::new(
+                            ErrorCode::INVALID_PARAMS,
+                            "Argument keys must be between 1-1000 characters".to_string(),
+                            None,
+                        )));
+                    }
+
+                    let value_str = value.as_str().unwrap_or_default();
+                    if value_str.len() > 1000 {
+                        return std::future::ready(Err(ErrorData::new(
+                            ErrorCode::INVALID_PARAMS,
+                            "Argument values must not exceed 1000 characters".to_string(),
+                            None,
+                        )));
+                    }
+
+                    // Check for potentially dangerous patterns
+                    let dangerous_patterns = ["../", "//", "\\\\", "<script>", "{{", "}}"];
+                    for pattern in dangerous_patterns {
+                        if key.contains(pattern) || value_str.contains(pattern) {
+                            return std::future::ready(Err(ErrorData::new(
+                                ErrorCode::INVALID_PARAMS,
+                                format!(
+                                    "Arguments contain potentially unsafe pattern: {}",
+                                    pattern
+                                ),
+                                None,
+                            )));
+                        }
+                    }
+                }
+
+                // Validate required arguments
+                if let Some(args) = &prompt.arguments {
+                    for arg in args {
+                        if arg.required.unwrap_or(false)
+                            && (!arguments.contains_key(&arg.name)
+                                || arguments
+                                    .get(&arg.name)
+                                    .and_then(|v| v.as_str())
+                                    .map_or(true, str::is_empty))
+                        {
+                            return std::future::ready(Err(ErrorData::new(
+                                ErrorCode::INVALID_PARAMS,
+                                format!("Missing required argument: '{}'", arg.name),
+                                None,
+                            )));
+                        }
+                    }
+                }
+
+                // Create a mutable copy of the template to fill in arguments
+                let mut template_filled = template.clone();
+
+                // Replace each argument placeholder with its value from the arguments object
+                for (key, value) in &arguments {
+                    let placeholder = format!("{{{}}}", key);
+                    template_filled =
+                        template_filled.replace(&placeholder, value.as_str().unwrap_or_default());
+                }
+
+                // Create prompt messages with the filled template
+                let messages = vec![PromptMessage::new_text(
+                    PromptMessageRole::User,
+                    template_filled.clone(),
+                )];
+
+                let result = GetPromptResult {
+                    description: Some(template_filled),
+                    messages,
+                };
+                std::future::ready(Ok(result))
+            }
+            None => std::future::ready(Err(ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Prompt '{}' not found", prompt_name),
+                None,
+            ))),
         }
     }
 }
@@ -180,6 +377,7 @@ impl DeveloperServer {
             file_history: Arc::new(Mutex::new(HashMap::new())),
             ignore_patterns,
             editor_model,
+            prompts: load_prompt_files(),
         }
     }
 
