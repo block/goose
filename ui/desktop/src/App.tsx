@@ -307,6 +307,22 @@ export default function App() {
   const [isLoadingSharedSession, setIsLoadingSharedSession] = useState(false);
   const [sharedSessionError, setSharedSessionError] = useState<string | null>(null);
 
+  const [didSyncUrlParams, setDidSyncUrlParams] = useState<boolean>(false);
+
+  const [viewType, setViewType] = useState<string | null>(null);
+  const [resumeSessionId, setResumeSessionId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+
+    const viewType = urlParams.get('view') || null;
+    const resumeSessionId = urlParams.get('resumeSessionId') || null;
+
+    setViewType(viewType);
+    setResumeSessionId(resumeSessionId);
+    setDidSyncUrlParams(true);
+  }, []);
+
   const [chat, _setChat] = useState<ChatType>({
     sessionId: generateSessionId(),
     title: 'Pair Chat',
@@ -327,6 +343,7 @@ export default function App() {
   const { agentState, loadCurrentChat, resetChat } = useAgent();
   const resetChatIfNecessary = useCallback(() => {
     if (chat.messages.length > 0) {
+      setResumeSessionId(null);
       resetChat();
     }
   }, [resetChat, chat.messages.length]);
@@ -345,13 +362,14 @@ export default function App() {
 
   // Handle URL parameters and deeplinks on app startup
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const viewType = urlParams.get('view') || undefined;
-    const resumeSessionId = urlParams.get('resumeSessionId') || undefined;
+    if (!didSyncUrlParams) {
+      return;
+    }
+
     const recipeConfig = (window.appConfig?.get('recipe') || undefined) as Recipe;
 
     const stateData: PairRouteState = {
-      resumeSessionId: resumeSessionId,
+      resumeSessionId: resumeSessionId || undefined,
       recipeConfig: recipeConfig,
     };
     (async () => {
@@ -395,7 +413,14 @@ export default function App() {
         }
       }
     }
-  }, [resetChat, loadCurrentChat, setAgentWaitingMessage]);
+  }, [
+    resetChat,
+    loadCurrentChat,
+    setAgentWaitingMessage,
+    didSyncUrlParams,
+    resumeSessionId,
+    viewType,
+  ]);
 
   useEffect(() => {
     const handleOpenSharedSession = async (_event: IpcRendererEvent, ...args: unknown[]) => {
