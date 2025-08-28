@@ -1,6 +1,5 @@
 import os
 import requests
-import base64
 import re
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
@@ -18,13 +17,65 @@ def fetch_pr_body(pr_url, github_token):
         raise
     return pr_resp.json()
 
-def extract_email(pr_body):
-    match = re.search(r"<!--EMAIL:([A-Za-z0-9+/=]+)-->", pr_body)
-    if not match:
-        print("❌ No encoded email found in PR body. Skipping key issuance.")
-        exit(0)
-    email_b64 = match.group(1)
-    return base64.b64decode(email_b64).decode("utf-8")
+def extract_email_from_text(text):
+    """Extract email from text using various patterns"""
+    # Try PR template format: "**Email**: email@example.com"
+    email_match = re.search(r"\*\*Email\*\*:\s*([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})", text)
+    if email_match:
+        return email_match.group(1)
+    
+    # Try other common email patterns
+    email_match = re.search(r"[Ee]mail:\s*([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})", text)
+    if email_match:
+        return email_match.group(1)
+    
+    # Try general email pattern
+    email_match = re.search(r"\b([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})\b", text)
+    if email_match:
+        return email_match.group(1)
+    
+    return None
+
+def fetch_pr_comments(pr_url, github_token):
+    """Fetch all comments on the PR"""
+    # Convert PR URL to comments URL
+    comments_url = pr_url.replace("/pulls/", "/issues/") + "/comments"
+    
+    try:
+        comments_resp = requests.get(
+            comments_url,
+            headers={"Authorization": f"Bearer {github_token}"}
+        )
+        comments_resp.raise_for_status()
+        return comments_resp.json()
+    except requests.exceptions.RequestException as e:
+        print(f"⚠️ Failed to fetch PR comments: {e}")
+        return []
+
+def extract_email(pr_body, pr_url, github_token):
+    """Extract email from PR body and comments"""
+    print("🔍 Searching for email in PR body...")
+    
+    # First check PR body
+    email = extract_email_from_text(pr_body)
+    if email:
+        print(f"📧 Found email in PR body: {email}")
+        return email
+    
+    print("🔍 No email found in PR body, checking comments...")
+    
+    # Check PR comments
+    comments = fetch_pr_comments(pr_url, github_token)
+    for comment in comments:
+        comment_body = comment.get("body", "")
+        email = extract_email_from_text(comment_body)
+        if email:
+            print(f"📧 Found email in comment by {comment.get('user', {}).get('login', 'unknown')}: {email}")
+            return email
+    
+    # No email found anywhere
+    print("❌ No email found in PR body or comments. Skipping key issuance.")
+    exit(0)
 
 def provision_api_key(provisioning_api_key):
     print("🔐 Creating OpenRouter key...")
@@ -104,8 +155,8 @@ def main():
     pr_number = pr_data["number"]
     repo_full_name = pr_data["base"]["repo"]["full_name"]
 
-    email = extract_email(pr_body)
-    print(f"📬 Decoded email: {email}")
+    email = extract_email(pr_body, PR_URL, GITHUB_TOKEN)
+    print(f"📬 Found email: {email}")
 
     try:
         api_key = provision_api_key(PROVISIONING_API_KEY)

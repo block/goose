@@ -8,9 +8,7 @@ on:
 
 jobs:
   send-api-key:
-    if: |
-      github.event.pull_request.merged == true &&
-      startsWith(github.event.pull_request.title, 'Add External Recipe:')
+    if: github.event.pull_request.merged == true
 
     runs-on: ubuntu-latest
 
