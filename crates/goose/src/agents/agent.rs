@@ -41,7 +41,7 @@ use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::session;
-use crate::session::tool_state::ToolState;
+use crate::session::extension_data::ExtensionState;
 use crate::tool_monitor::{ToolCall, ToolMonitor};
 use crate::utils::is_token_cancelled;
 use mcp_core::ToolResult;
@@ -496,7 +496,7 @@ impl Agent {
                 session::storage::read_metadata(&path)
                     .ok()
                     .and_then(|m| {
-                        session::TodoState::from_session_data(&m.session_data)
+                        session::TodoState::from_extension_data(&m.extension_data)
                             .map(|state| state.content)
                     })
                     .unwrap_or_default()
@@ -536,7 +536,9 @@ impl Agent {
                     Ok(path) => match session::storage::read_metadata(&path) {
                         Ok(mut metadata) => {
                             let todo_state = session::TodoState::new(content);
-                            todo_state.to_session_data(&mut metadata.session_data).ok();
+                            todo_state
+                                .to_extension_data(&mut metadata.extension_data)
+                                .ok();
 
                             let path_clone = path.clone();
                             let metadata_clone = metadata.clone();

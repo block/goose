@@ -2123,6 +2123,11 @@
           "propertyName": "type"
         }
       },
+      "ExtensionData": {
+        "type": "object",
+        "description": "Extension data containing all extension states\nKeys are in format \"extension_name.version\" (e.g., \"todo.v0\")",
+        "additionalProperties": {}
+      },
       "ExtensionEntry": {
         "allOf": [
           {
@@ -3052,11 +3057,6 @@
           }
         }
       },
-      "SessionData": {
-        "type": "object",
-        "description": "Session data containing all tool states\nKeys are in format \"tool_name.version\" (e.g., \"todo.v0\")",
-        "additionalProperties": {}
-      },
       "SessionDisplayInfo": {
         "type": "object",
         "required": [
@@ -3212,6 +3212,9 @@
             "type": "string",
             "description": "A short description of the session, typically 3 words or less"
           },
+          "extension_data": {
+            "$ref": "#/components/schemas/ExtensionData"
+          },
           "input_tokens": {
             "type": "integer",
             "format": "int32",
@@ -3233,9 +3236,6 @@
             "type": "string",
             "description": "ID of the schedule that triggered this session, if any",
             "nullable": true
-          },
-          "session_data": {
-            "$ref": "#/components/schemas/SessionData"
           },
           "total_tokens": {
             "type": "integer",

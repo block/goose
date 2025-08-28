@@ -445,7 +445,7 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         ModelInfo,
         SessionInfo,
         SessionMetadata,
-        goose::session::SessionData,
+        goose::session::ExtensionData,
         super::routes::schedule::CreateScheduleRequest,
         super::routes::schedule::UpdateScheduleRequest,
         super::routes::schedule::KillJobResponse,

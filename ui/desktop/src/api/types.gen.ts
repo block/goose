@@ -279,6 +279,14 @@ export type ExtensionConfig = {
     type: 'inline_python';
 };
 
+/**
+ * Extension data containing all extension states
+ * Keys are in format "extension_name.version" (e.g., "todo.v0")
+ */
+export type ExtensionData = {
+    [key: string]: unknown;
+};
+
 export type ExtensionEntry = ExtensionConfig & {
     type?: 'ExtensionEntry';
 } & {
@@ -621,14 +629,6 @@ export type SessionConfigRequest = {
     response?: Response | null;
 };
 
-/**
- * Session data containing all tool states
- * Keys are in format "tool_name.version" (e.g., "todo.v0")
- */
-export type SessionData = {
-    [key: string]: unknown;
-};
-
 export type SessionDisplayInfo = {
     accumulatedInputTokens?: number | null;
     accumulatedOutputTokens?: number | null;
@@ -690,6 +690,7 @@ export type SessionMetadata = {
      * A short description of the session, typically 3 words or less
      */
     description: string;
+    extension_data?: ExtensionData;
     /**
      * The number of input tokens used in the session. Retrieved from the provider's last usage.
      */
@@ -706,7 +707,6 @@ export type SessionMetadata = {
      * ID of the schedule that triggered this session, if any
      */
     schedule_id?: string | null;
-    session_data?: SessionData;
     /**
      * The total number of tokens used in the session. Retrieved from the provider's last usage.
      */

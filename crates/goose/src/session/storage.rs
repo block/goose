@@ -8,7 +8,7 @@
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::providers::base::Provider;
-use crate::session::tool_state::SessionData;
+use crate::session::extension_data::ExtensionData;
 use crate::utils::safe_truncate;
 use anyhow::Result;
 use chrono::Local;
@@ -66,9 +66,9 @@ pub struct SessionMetadata {
     /// The number of output tokens used in the session. Accumulated across all messages.
     pub accumulated_output_tokens: Option<i32>,
 
-    /// Session data containing tool states
+    /// Extension data containing extension states
     #[serde(default)]
-    pub session_data: SessionData,
+    pub extension_data: ExtensionData,
 }
 
 // Custom deserializer to handle old sessions without working_dir
@@ -90,7 +90,7 @@ impl<'de> Deserialize<'de> for SessionMetadata {
             accumulated_output_tokens: Option<i32>,
             working_dir: Option<PathBuf>,
             #[serde(default)]
-            session_data: SessionData,
+            extension_data: ExtensionData,
         }
 
         let helper = Helper::deserialize(deserializer)?;
@@ -112,7 +112,7 @@ impl<'de> Deserialize<'de> for SessionMetadata {
             accumulated_input_tokens: helper.accumulated_input_tokens,
             accumulated_output_tokens: helper.accumulated_output_tokens,
             working_dir,
-            session_data: helper.session_data,
+            extension_data: helper.extension_data,
         })
     }
 }
@@ -137,7 +137,7 @@ impl SessionMetadata {
             accumulated_total_tokens: None,
             accumulated_input_tokens: None,
             accumulated_output_tokens: None,
-            session_data: SessionData::new(),
+            extension_data: ExtensionData::new(),
         }
     }
 }

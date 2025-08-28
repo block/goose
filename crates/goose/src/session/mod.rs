@@ -1,6 +1,6 @@
+pub mod extension_data;
 pub mod info;
 pub mod storage;
-pub mod tool_state;
 
 // Re-export common session types and functions
 pub use storage::{
@@ -10,5 +10,5 @@ pub use storage::{
     SessionMetadata,
 };
 
+pub use extension_data::{ExtensionData, ExtensionState, TodoState};
 pub use info::{get_valid_sorted_sessions, SessionInfo};
-pub use tool_state::{SessionData, TodoState, ToolState};

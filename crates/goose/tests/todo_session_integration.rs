@@ -161,8 +161,8 @@ async fn test_todo_add_persists_to_session() {
     // Since we're using a mock provider, we can't test the actual TODO content
     // but we can verify the metadata structure is correct
     assert!(
-        metadata.session_data.tool_states.is_empty()
-            || !metadata.session_data.tool_states.is_empty()
+        metadata.extension_data.extension_states.is_empty()
+            || !metadata.extension_data.extension_states.is_empty()
     );
 }
 
@@ -175,10 +175,10 @@ async fn test_todo_list_reads_from_session() {
     // Pre-populate session with TODO content
     let session_path = goose::session::storage::get_path(session_id.clone()).unwrap();
     let mut metadata = SessionMetadata::default();
-    use goose::session::tool_state::{TodoState, ToolState};
+    use goose::session::extension_data::{ExtensionState, TodoState};
     let todo_state = TodoState::new("- Task 1\n- Task 2\n- Task 3".to_string());
     todo_state
-        .to_session_data(&mut metadata.session_data)
+        .to_extension_data(&mut metadata.extension_data)
         .unwrap();
     goose::session::storage::update_metadata(&session_path, &metadata)
         .await
@@ -213,7 +213,7 @@ async fn test_todo_list_reads_from_session() {
 
     // Verify the TODO content is still in session
     let metadata_after = goose::session::storage::read_metadata(&session_path).unwrap();
-    let todo_state_after = TodoState::from_session_data(&metadata_after.session_data);
+    let todo_state_after = TodoState::from_extension_data(&metadata_after.extension_data);
     assert!(todo_state_after.is_some());
     assert_eq!(
         todo_state_after.unwrap().content,
@@ -223,7 +223,7 @@ async fn test_todo_list_reads_from_session() {
 
 #[tokio::test]
 async fn test_todo_isolation_between_sessions() {
-    use goose::session::tool_state::{TodoState, ToolState};
+    use goose::session::extension_data::{ExtensionState, TodoState};
     let session1_id = session::Identifier::Name(format!("test_session_{}", Uuid::new_v4()));
     let session2_id = session::Identifier::Name(format!("test_session_{}", Uuid::new_v4()));
 
@@ -232,7 +232,7 @@ async fn test_todo_isolation_between_sessions() {
     let mut metadata1 = SessionMetadata::default();
     let todo_state1 = TodoState::new("Session 1 tasks".to_string());
     todo_state1
-        .to_session_data(&mut metadata1.session_data)
+        .to_extension_data(&mut metadata1.extension_data)
         .unwrap();
     goose::session::storage::update_metadata(&session1_path, &metadata1)
         .await
@@ -243,7 +243,7 @@ async fn test_todo_isolation_between_sessions() {
     let mut metadata2 = SessionMetadata::default();
     let todo_state2 = TodoState::new("Session 2 tasks".to_string());
     todo_state2
-        .to_session_data(&mut metadata2.session_data)
+        .to_extension_data(&mut metadata2.extension_data)
         .unwrap();
     goose::session::storage::update_metadata(&session2_path, &metadata2)
         .await
@@ -253,8 +253,8 @@ async fn test_todo_isolation_between_sessions() {
     let metadata1_read = goose::session::storage::read_metadata(&session1_path).unwrap();
     let metadata2_read = goose::session::storage::read_metadata(&session2_path).unwrap();
 
-    let todo1 = TodoState::from_session_data(&metadata1_read.session_data).unwrap();
-    let todo2 = TodoState::from_session_data(&metadata2_read.session_data).unwrap();
+    let todo1 = TodoState::from_extension_data(&metadata1_read.extension_data).unwrap();
+    let todo2 = TodoState::from_extension_data(&metadata2_read.extension_data).unwrap();
 
     assert_eq!(todo1.content, "Session 1 tasks");
     assert_eq!(todo2.content, "Session 2 tasks");
@@ -262,7 +262,7 @@ async fn test_todo_isolation_between_sessions() {
 
 #[tokio::test]
 async fn test_todo_clear_removes_from_session() {
-    use goose::session::tool_state::{TodoState, ToolState};
+    use goose::session::extension_data::{ExtensionState, TodoState};
     let temp_dir = create_test_session_dir().await;
     let session_id = session::Identifier::Name(format!("test_session_{}", Uuid::new_v4()));
     let agent = create_test_agent_with_mock_provider().await;
@@ -272,7 +272,7 @@ async fn test_todo_clear_removes_from_session() {
     let mut metadata = SessionMetadata::default();
     let todo_state = TodoState::new("- Task to clear".to_string());
     todo_state
-        .to_session_data(&mut metadata.session_data)
+        .to_extension_data(&mut metadata.extension_data)
         .unwrap();
     goose::session::storage::update_metadata(&session_path, &metadata)
         .await
@@ -303,13 +303,13 @@ async fn test_todo_clear_removes_from_session() {
     // With mock provider, the TODO won't actually be cleared via tool calls
     // but we can verify the structure is correct
     let metadata_after = goose::session::storage::read_metadata(&session_path).unwrap();
-    let todo_state_after = TodoState::from_session_data(&metadata_after.session_data);
+    let todo_state_after = TodoState::from_extension_data(&metadata_after.extension_data);
     assert!(todo_state_after.is_some()); // Will still have the original content with mock
 }
 
 #[tokio::test]
 async fn test_todo_persistence_across_agent_instances() {
-    use goose::session::tool_state::{TodoState, ToolState};
+    use goose::session::extension_data::{ExtensionState, TodoState};
     let session_id = session::Identifier::Name(format!("test_session_{}", Uuid::new_v4()));
 
     // First agent instance adds TODO
@@ -318,7 +318,7 @@ async fn test_todo_persistence_across_agent_instances() {
         let mut metadata = SessionMetadata::default();
         let todo_state = TodoState::new("Persistent task".to_string());
         todo_state
-            .to_session_data(&mut metadata.session_data)
+            .to_extension_data(&mut metadata.extension_data)
             .unwrap();
         goose::session::storage::update_metadata(&session_path, &metadata)
             .await
@@ -329,14 +329,14 @@ async fn test_todo_persistence_across_agent_instances() {
     {
         let session_path = goose::session::storage::get_path(session_id.clone()).unwrap();
         let metadata = goose::session::storage::read_metadata(&session_path).unwrap();
-        let todo_state = TodoState::from_session_data(&metadata.session_data).unwrap();
+        let todo_state = TodoState::from_extension_data(&metadata.extension_data).unwrap();
         assert_eq!(todo_state.content, "Persistent task");
     }
 }
 
 #[tokio::test]
 async fn test_todo_max_chars_limit() {
-    use goose::session::tool_state::{TodoState, ToolState};
+    use goose::session::extension_data::{ExtensionState, TodoState};
     let session_id = session::Identifier::Name(format!("test_session_{}", Uuid::new_v4()));
 
     // Set a small limit for testing
@@ -349,7 +349,7 @@ async fn test_todo_max_chars_limit() {
     let long_content = "x".repeat(100);
     let todo_state = TodoState::new(long_content.clone());
     todo_state
-        .to_session_data(&mut metadata.session_data)
+        .to_extension_data(&mut metadata.extension_data)
         .unwrap();
 
     // This should succeed at the storage level (storage doesn't enforce limits)
@@ -366,7 +366,7 @@ async fn test_todo_max_chars_limit() {
 
 #[tokio::test]
 async fn test_todo_with_special_characters() {
-    use goose::session::tool_state::{TodoState, ToolState};
+    use goose::session::extension_data::{ExtensionState, TodoState};
     let session_id = session::Identifier::Name(format!("test_session_{}", Uuid::new_v4()));
 
     let session_path = goose::session::storage::get_path(session_id.clone()).unwrap();
@@ -385,7 +385,7 @@ async fn test_todo_with_special_characters() {
 
     let todo_state = TodoState::new(special_content.to_string());
     todo_state
-        .to_session_data(&mut metadata.session_data)
+        .to_extension_data(&mut metadata.extension_data)
         .unwrap();
     goose::session::storage::update_metadata(&session_path, &metadata)
         .await
@@ -393,13 +393,13 @@ async fn test_todo_with_special_characters() {
 
     // Read back and verify
     let metadata_read = goose::session::storage::read_metadata(&session_path).unwrap();
-    let todo_state_read = TodoState::from_session_data(&metadata_read.session_data).unwrap();
+    let todo_state_read = TodoState::from_extension_data(&metadata_read.extension_data).unwrap();
     assert_eq!(todo_state_read.content, special_content);
 }
 
 #[tokio::test]
 async fn test_todo_concurrent_access() {
-    use goose::session::tool_state::{TodoState, ToolState};
+    use goose::session::extension_data::{ExtensionState, TodoState};
     let session_id = session::Identifier::Name(format!("test_session_{}", Uuid::new_v4()));
 
     // Spawn multiple concurrent TODO operations
@@ -413,12 +413,12 @@ async fn test_todo_concurrent_access() {
             let mut metadata = goose::session::storage::read_metadata(&session_path)
                 .unwrap_or_else(|_| SessionMetadata::default());
 
-            let current_content = TodoState::from_session_data(&metadata.session_data)
+            let current_content = TodoState::from_extension_data(&metadata.extension_data)
                 .map(|t| t.content)
                 .unwrap_or_default();
             let new_todo = TodoState::new(format!("{}\n- Task {}", current_content, i));
             new_todo
-                .to_session_data(&mut metadata.session_data)
+                .to_extension_data(&mut metadata.extension_data)
                 .unwrap();
 
             goose::session::storage::update_metadata(&session_path, &metadata).await
@@ -435,7 +435,7 @@ async fn test_todo_concurrent_access() {
     // Verify final state contains at least one task
     let session_path = goose::session::storage::get_path(session_id).unwrap();
     let metadata = goose::session::storage::read_metadata(&session_path).unwrap();
-    let todo_state = TodoState::from_session_data(&metadata.session_data).unwrap();
+    let todo_state = TodoState::from_extension_data(&metadata.extension_data).unwrap();
 
     // Should contain at least one task (concurrent writes may overwrite)
     assert!(todo_state.content.contains("Task"));
@@ -443,20 +443,20 @@ async fn test_todo_concurrent_access() {
 
 #[tokio::test]
 async fn test_todo_empty_session_returns_empty() {
-    use goose::session::tool_state::{TodoState, ToolState};
+    use goose::session::extension_data::{ExtensionState, TodoState};
     let session_id = session::Identifier::Name(format!("test_session_{}", Uuid::new_v4()));
 
     let session_path = goose::session::storage::get_path(session_id.clone()).unwrap();
     let metadata = goose::session::storage::read_metadata(&session_path)
         .unwrap_or_else(|_| SessionMetadata::default());
 
-    let todo_state = TodoState::from_session_data(&metadata.session_data);
+    let todo_state = TodoState::from_extension_data(&metadata.extension_data);
     assert!(todo_state.is_none() || todo_state.unwrap().content.is_empty());
 }
 
 #[tokio::test]
 async fn test_todo_update_preserves_other_metadata() {
-    use goose::session::tool_state::{TodoState, ToolState};
+    use goose::session::extension_data::{ExtensionState, TodoState};
     let session_id = session::Identifier::Name(format!("test_session_{}", Uuid::new_v4()));
 
     let session_path = goose::session::storage::get_path(session_id.clone()).unwrap();
@@ -468,7 +468,7 @@ async fn test_todo_update_preserves_other_metadata() {
     metadata.total_tokens = Some(1000);
     let todo_state = TodoState::new("Initial TODO".to_string());
     todo_state
-        .to_session_data(&mut metadata.session_data)
+        .to_extension_data(&mut metadata.extension_data)
         .unwrap();
 
     goose::session::storage::update_metadata(&session_path, &metadata)
@@ -478,7 +478,7 @@ async fn test_todo_update_preserves_other_metadata() {
     // Update only TODO content
     let todo_state_updated = TodoState::new("Updated TODO".to_string());
     todo_state_updated
-        .to_session_data(&mut metadata.session_data)
+        .to_extension_data(&mut metadata.extension_data)
         .unwrap();
     goose::session::storage::update_metadata(&session_path, &metadata)
         .await
@@ -489,6 +489,6 @@ async fn test_todo_update_preserves_other_metadata() {
     assert_eq!(metadata_read.message_count, 5);
     assert_eq!(metadata_read.description, "Test session");
     assert_eq!(metadata_read.total_tokens, Some(1000));
-    let todo_state_read = TodoState::from_session_data(&metadata_read.session_data).unwrap();
+    let todo_state_read = TodoState::from_extension_data(&metadata_read.extension_data).unwrap();
     assert_eq!(todo_state_read.content, "Updated TODO");
 }
