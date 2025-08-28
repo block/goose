@@ -424,13 +424,10 @@ export function Sidecar({ className = '' }: { className?: string }) {
 
   return (
     <div
-      className={`bg-background-default overflow-hidden rounded-2xl flex flex-col h-full ${className}`}
+      className={`bg-background-default overflow-hidden rounded-l-xl flex flex-col h-full ${className}`}
       style={{
-        marginTop: '8px', // Match w-2 (0.5rem = 8px)
-        marginBottom: '8px', // Match w-2 (0.5rem = 8px)
-        marginLeft: '2px', // Match gap-0.5 (0.125rem = 2px)
-        marginRight: '8px', // Match w-2 (0.5rem = 8px)
-        height: 'calc(100% - 16px)', // Adjust for 8px margin on top and bottom
+        marginLeft: '0px', // Match gap-0.5 (0.125rem = 2px)
+        height: '100%', // Adjust for 8px margin on top and bottom
       }}
     >
       {currentView && (

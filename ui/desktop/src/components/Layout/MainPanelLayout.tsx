@@ -67,7 +67,7 @@ export const MainPanelLayout: React.FC<{
         {/* Resize Handle */}
         {isVisible && (
           <div
-            className={`flex items-center justify-center w-2 cursor-col-resize hover:bg-borderSubtle transition-colors group ${
+            className={`flex items-center justify-center w-1 cursor-col-resize hover:bg-borderSubtle transition-colors group ${
               isResizing ? 'bg-borderProminent' : ''
             }`}
             onMouseDown={handleMouseDown}
