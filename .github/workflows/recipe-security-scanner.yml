@@ -299,7 +299,7 @@ jobs:
               });
             }
             
-            commentLines.push('', '🔗 **View detailed scan results in the [workflow artifacts](../../actions).**');
+            commentLines.push('', `🔗 **View detailed scan results in the [workflow artifacts](https://github.com/${context.repo.owner}/${context.repo.repo}/actions).**`);
             
             const comment = commentLines.join('\n');
             
