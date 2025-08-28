@@ -28,12 +28,45 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Check if recipe files changed in this push
+        id: recipe_changes
+        run: |
+          set -e
+          echo "🔍 Checking if recipe files were modified in this push..."
+          
+          # Get the list of changed files in this specific push
+          if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ github.event.action }}" = "synchronize" ]; then
+            # For synchronize events, check files changed since the previous commit
+            echo "📝 Synchronize event - checking files changed since previous commit"
+            CHANGED_FILES=$(git diff --name-only ${{ github.event.before }}..${{ github.event.after }})
+          else
+            # For opened/reopened, check all files in the PR
+            echo "📝 PR opened/reopened - checking all files in PR"
+            CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}..HEAD)
+          fi
+          
+          echo "Changed files in this push:"
+          echo "$CHANGED_FILES"
+          echo ""
+          
+          # Check if any recipe files were changed
+          if echo "$CHANGED_FILES" | grep -q "^documentation/src/pages/recipes/data/recipes/"; then
+            echo "recipe_files_changed=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Recipe files were modified in this push - proceeding with scan"
+          else
+            echo "recipe_files_changed=false" >> "$GITHUB_OUTPUT"
+            echo "ℹ️ No recipe files were modified in this push - skipping scan"
+          fi          
 
       - name: Ensure jq available
+        if: steps.recipe_changes.outputs.recipe_files_changed == 'true'
         run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Find recipe files in PR
         id: find_recipes
+        if: steps.recipe_changes.outputs.recipe_files_changed == 'true'
         run: |
           set -e
           echo "Looking for recipe files in PR..."
@@ -57,36 +90,38 @@ jobs:
           fi
 
       - name: Set up Docker Buildx
-        if: steps.find_recipes.outputs.has_recipes == 'true'
+        if: steps.find_recipes.outputs.has_recipes == 'true' && steps.recipe_changes.outputs.recipe_files_changed == 'true'
         uses: docker/setup-buildx-action@1583c0f09d26c58c59d25b0eef29792b7ce99d9a
 
       - name: Prune Docker caches
-        if: steps.find_recipes.outputs.has_recipes == 'true'
+        if: steps.find_recipes.outputs.has_recipes == 'true' && steps.recipe_changes.outputs.recipe_files_changed == 'true'
         run: |
           docker buildx prune -af || true
           docker system prune -af || true
 
       - name: Build scanner image (no cache)
-        if: steps.find_recipes.outputs.has_recipes == 'true'
+        if: steps.find_recipes.outputs.has_recipes == 'true' && steps.recipe_changes.outputs.recipe_files_changed == 'true'
         env:
           DOCKER_BUILDKIT: 1
+          IMAGE_TAG: ${{ github.sha }}
         run: |
           docker buildx build \
             --pull \
             --no-cache \
             --load \
             --platform linux/amd64 \
-            -t recipe-scanner:${{ github.sha }} \
+            -t "recipe-scanner:${IMAGE_TAG}" \
             -f recipe-scanner/Dockerfile \
             recipe-scanner/
 
       - name: Scan all recipe files
-        if: steps.find_recipes.outputs.has_recipes == 'true'
+        if: steps.find_recipes.outputs.has_recipes == 'true' && steps.recipe_changes.outputs.recipe_files_changed == 'true'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           TRAINING_DATA_LOW: ${{ secrets.TRAINING_DATA_LOW }}
           TRAINING_DATA_MEDIUM: ${{ secrets.TRAINING_DATA_MEDIUM }}
           TRAINING_DATA_EXTREME: ${{ secrets.TRAINING_DATA_EXTREME }}
+          IMAGE_TAG: ${{ github.sha }}
         run: |
           set -e
           OUT="$RUNNER_TEMP/security-scan"
@@ -119,7 +154,7 @@ jobs:
                 -e TRAINING_DATA_EXTREME="$TRAINING_DATA_EXTREME" \
                 -v "$PWD/$RECIPE_FILE:/input/recipe.yaml:ro" \
                 -v "$RECIPE_OUT:/output" \
-                recipe-scanner:${{ github.sha }} 2>&1 | tee "$RECIPE_OUT/scan-log.txt"; then
+                "recipe-scanner:${IMAGE_TAG}" 2>&1 | tee "$RECIPE_OUT/scan-log.txt"; then
                 
                 echo "✅ Scan completed for recipe $RECIPE_NUM"
                 
@@ -172,7 +207,7 @@ jobs:
           echo "- Overall status: $OVERALL_STATUS"
 
       - name: Upload scan artifacts
-        if: always()
+        if: always() && steps.find_recipes.outputs.has_recipes == 'true' && steps.recipe_changes.outputs.recipe_files_changed == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: security-scan
@@ -181,7 +216,7 @@ jobs:
           retention-days: 10
 
       - name: Post scan results to PR
-        if: always() && steps.find_recipes.outputs.has_recipes == 'true'
+        if: always() && steps.find_recipes.outputs.has_recipes == 'true' && steps.recipe_changes.outputs.recipe_files_changed == 'true'
         uses: actions/github-script@v7
         env:
           WORKSPACE: ${{ github.workspace }}
@@ -276,7 +311,7 @@ jobs:
             });
 
       - name: Set GitHub status check
-        if: always() && steps.find_recipes.outputs.has_recipes == 'true'
+        if: always() && steps.find_recipes.outputs.has_recipes == 'true' && steps.recipe_changes.outputs.recipe_files_changed == 'true'
         uses: actions/github-script@v7
         env:
           RUNNER_TEMP: ${{ runner.temp }}
@@ -330,6 +365,12 @@ jobs:
       - name: Final scan result
         if: always()
         run: |
+          # Check if recipe files were changed in this push
+          if [ "${{ steps.recipe_changes.outputs.recipe_files_changed }}" = "false" ]; then
+            # No recipe files were modified in this push - scan skipped
+            exit 0
+          fi
+
           OUT="$RUNNER_TEMP/security-scan"
           SUMMARY_FILE="$OUT/pr_scan_summary.json"
           
