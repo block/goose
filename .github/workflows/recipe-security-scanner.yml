@@ -207,7 +207,7 @@ jobs:
           echo "- Overall status: $OVERALL_STATUS"
 
       - name: Upload scan artifacts
-        if: always()
+        if: always() && steps.find_recipes.outputs.has_recipes == 'true' && steps.recipe_changes.outputs.recipe_files_changed == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: security-scan
