@@ -95,6 +95,18 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
     }
   };
 
+  const handleShowFileViewer = (filePath: string) => {
+    console.log('File viewer requested for:', filePath);
+    console.log('Sidecar available:', !!sidecar);
+
+    if (sidecar) {
+      console.log('Calling sidecar.showFileViewer...');
+      sidecar.showFileViewer(filePath);
+    } else {
+      console.error('No sidecar available');
+    }
+  };
+
   // Listen for programmatic request to show the sidecar localhost viewer
   React.useEffect(() => {
     const handler = (e: globalThis.Event) => {
@@ -141,6 +153,7 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
       {/* New hover-triggered sidecar invoker */}
       <SidecarInvoker 
         onShowLocalhost={handleShowLocalhost}
+        onShowFileViewer={handleShowFileViewer}
         isVisible={shouldShowSidecarInvoker}
       />
 

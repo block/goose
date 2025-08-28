@@ -1,13 +1,18 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Globe } from 'lucide-react';
+import { Plus, Globe, FileText } from 'lucide-react';
 import { Button } from '../ui/button';
 
 interface SidecarInvokerProps {
   onShowLocalhost: () => void;
+  onShowFileViewer: (filePath: string) => void;
   isVisible: boolean;
 }
 
-export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({ onShowLocalhost, isVisible }) => {
+export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({ 
+  onShowLocalhost, 
+  onShowFileViewer, 
+  isVisible 
+}) => {
   const [isHovering, setIsHovering] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -35,6 +40,28 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({ onShowLocalhost,
 
   const handleLocalhostClick = () => {
     onShowLocalhost();
+    setShowMenu(false);
+    setIsHovering(false);
+  };
+
+  const handleFileViewerClick = async () => {
+    try {
+      console.log('File viewer button clicked');
+      
+      // Use Electron's selectFileOrDirectory API
+      const filePath = await window.electron.selectFileOrDirectory();
+      
+      console.log('Selected file path:', filePath);
+      
+      if (filePath) {
+        onShowFileViewer(filePath);
+      } else {
+        console.log('No file selected');
+      }
+    } catch (error) {
+      console.error('Error opening file dialog:', error);
+    }
+
     setShowMenu(false);
     setIsHovering(false);
   };
@@ -86,15 +113,27 @@ export const SidecarInvoker: React.FC<SidecarInvokerProps> = ({ onShowLocalhost,
             <div
               className="absolute right-full mr-3 top-1/2 transform -translate-y-1/2 bg-background-default border border-border-subtle rounded-lg shadow-xl p-2 min-w-[160px] pointer-events-auto animate-in fade-in slide-in-from-right-2 duration-200"
             >
-              <Button
-                onClick={handleLocalhostClick}
-                className="w-full justify-start text-left hover:bg-background-medium transition-colors duration-150"
-                variant="ghost"
-                size="sm"
-              >
-                <Globe className="w-4 h-4 mr-2" />
-                Localhost Viewer
-              </Button>
+              <div className="space-y-1">
+                <Button
+                  onClick={handleLocalhostClick}
+                  className="w-full justify-start text-left hover:bg-background-medium transition-colors duration-150"
+                  variant="ghost"
+                  size="sm"
+                >
+                  <Globe className="w-4 h-4 mr-2" />
+                  Localhost Viewer
+                </Button>
+                
+                <Button
+                  onClick={handleFileViewerClick}
+                  className="w-full justify-start text-left hover:bg-background-medium transition-colors duration-150"
+                  variant="ghost"
+                  size="sm"
+                >
+                  <FileText className="w-4 h-4 mr-2" />
+                  Open File
+                </Button>
+              </div>
             </div>
           )}
         </div>

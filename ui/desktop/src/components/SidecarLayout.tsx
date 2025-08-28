@@ -1,8 +1,9 @@
 import React, { useState, createContext, useContext, useEffect } from 'react';
-import { X, FileDiff, SquareSplitHorizontal, BetweenHorizontalStart, Globe } from 'lucide-react';
+import { X, FileDiff, SquareSplitHorizontal, BetweenHorizontalStart, Globe, FileText } from 'lucide-react';
 import { Button } from './ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
 import SidecarTabs from './SidecarTabs';
+import { FileViewer } from './FileViewer';
 
 interface SidecarView {
   id: string;
@@ -21,6 +22,8 @@ interface SidecarContextType {
   hideDiffViewer: () => void;
   showLocalhostViewer: (url?: string, title?: string) => void;
   hideLocalhostViewer: () => void;
+  showFileViewer: (filePath: string) => void;
+  hideFileViewer: () => void;
 }
 
 const SidecarContext = createContext<SidecarContextType | null>(null);
@@ -356,6 +359,25 @@ export function SidecarProvider({ children, showSidecar = true }: SidecarProvide
     }
   };
 
+  const showFileViewer = (filePath: string) => {
+    const fileName = filePath.split('/').pop() || filePath;
+    const fileView: SidecarView = {
+      id: 'file',
+      title: 'File Viewer',
+      icon: <FileText size={16} />,
+      content: <FileViewer filePath={filePath} />,
+      fileName: fileName,
+    };
+    showView(fileView);
+  };
+
+  const hideFileViewer = () => {
+    setViews((prev) => prev.filter((v) => v.id !== 'file'));
+    if (activeView === 'file') {
+      setActiveView(null);
+    }
+  };
+
   const contextValue: SidecarContextType = {
     activeView,
     views,
@@ -365,6 +387,8 @@ export function SidecarProvider({ children, showSidecar = true }: SidecarProvide
     hideDiffViewer,
     showLocalhostViewer,
     hideLocalhostViewer,
+    showFileViewer,
+    hideFileViewer,
   };
 
   // Don't render sidecar if showSidecar is false
@@ -424,10 +448,10 @@ export function Sidecar({ className = '' }: { className?: string }) {
 
   return (
     <div
-      className={`bg-background-default overflow-hidden rounded-l-xl flex flex-col h-full ${className}`}
+      className={`bg-background-default overflow-hidden rounded-xl flex flex-col h-full ${className}`}
       style={{
-        marginLeft: '0px', // Match gap-0.5 (0.125rem = 2px)
-        height: '100%', // Adjust for 8px margin on top and bottom
+        marginLeft: '0px',
+        height: '100%',
       }}
     >
       {currentView && (
@@ -508,7 +532,7 @@ export function Sidecar({ className = '' }: { className?: string }) {
           </div>
 
           {/* Sidecar Content */}
-          <div className="flex-1  border-4 overflow-hidden border-background-default border-t-0 rounded-b-2xl">
+          <div className="flex-1  overflow-hidden rounded-xl">
             {currentView.content}
           </div>
         </>
