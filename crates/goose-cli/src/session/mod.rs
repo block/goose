@@ -942,13 +942,13 @@ impl Session {
                             if let Some(MessageContent::ToolConfirmationRequest(confirmation)) = message.content.first() {
                                 output::hide_thinking();
 
-                                // Display security message if present
-                                if let Some(security_message) = &confirmation.prompt {
+                                // Format the confirmation prompt - use security message if present, otherwise use generic message
+                                let prompt = if let Some(security_message) = &confirmation.prompt {
                                     println!("\n{}", security_message);
-                                }
-
-                                // Format the confirmation prompt
-                                let prompt = "Goose would like to call the above tool, do you allow?".to_string();
+                                    "Do you allow this tool call?".to_string()
+                                } else {
+                                    "Goose would like to call the above tool, do you allow?".to_string()
+                                };
 
                                 // Get confirmation from user
                                 let permission_result = cliclack::select(prompt)

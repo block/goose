@@ -127,7 +127,9 @@ export default function ToolConfirmation({
       )}
 
       <div className="goose-message-content bg-background-muted rounded-2xl px-4 py-2 rounded-b-none text-textStandard">
-        Goose would like to call the above tool. Allow?
+        {prompt
+          ? 'Do you allow this tool call?'
+          : 'Goose would like to call the above tool. Allow?'}
       </div>
       {clicked ? (
         <div className="goose-message-tool bg-background-default border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-2 pb-2 flex items-center justify-between">
