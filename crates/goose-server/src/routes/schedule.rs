@@ -231,26 +231,16 @@ async fn run_now_handler(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let recipe_display_name = match scheduler.list_scheduled_jobs().await {
-        Ok(jobs) => jobs
-            .into_iter()
-            .find(|job| job.id == id)
-            .and_then(|job| {
-                std::path::Path::new(&job.source)
+    let (recipe_display_name, recipe_version) = match scheduler.list_scheduled_jobs().await {
+        Ok(jobs) => {
+            if let Some(job) = jobs.into_iter().find(|job| job.id == id) {
+                let recipe_display_name = std::path::Path::new(&job.source)
                     .file_name()
                     .and_then(|name| name.to_str())
                     .map(|s| s.to_string())
-            })
-            .unwrap_or_else(|| id.clone()),
-        Err(_) => id.clone(),
-    };
+                    .unwrap_or_else(|| id.clone());
 
-    let recipe_version = match scheduler.list_scheduled_jobs().await {
-        Ok(jobs) => jobs
-            .into_iter()
-            .find(|job| job.id == id)
-            .and_then(|job| {
-                std::fs::read_to_string(&job.source)
+                let recipe_version = std::fs::read_to_string(&job.source)
                     .ok()
                     .and_then(|content| {
                         goose::recipe::template_recipe::parse_recipe_content(
@@ -264,9 +254,14 @@ async fn run_now_handler(
                         .ok()
                         .map(|(r, _)| r.version)
                     })
-            })
-            .unwrap_or_else(|| "unknown".to_string()),
-        Err(_) => "unknown".to_string(),
+                    .unwrap_or_else(|| "unknown".to_string());
+
+                (recipe_display_name, recipe_version)
+            } else {
+                (id.clone(), "unknown".to_string())
+            }
+        }
+        Err(_) => (id.clone(), "unknown".to_string()),
     };
 
     tracing::info!(
