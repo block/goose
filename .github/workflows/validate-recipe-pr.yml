@@ -64,15 +64,14 @@ jobs:
           # First pass: Basic YAML validation
           while IFS= read -r RECIPE_FILE; do
             if [ -f "$RECIPE_FILE" ]; then
-              FILENAME=$(basename "$RECIPE_FILE")
               echo "🔍 Validating: $RECIPE_FILE"
               if OUTPUT=$(goose recipe validate "$RECIPE_FILE" 2>&1); then
-                echo "✅ Valid: $FILENAME"
-                VALIDATION_OUTPUT=$(printf "%s✅ %s: VALID\n" "$VALIDATION_OUTPUT" "$FILENAME")
+                echo "✅ Valid: $RECIPE_FILE"
+                VALIDATION_OUTPUT="${VALIDATION_OUTPUT}✅ $RECIPE_FILE: VALID\n"
               else
-                echo "❌ Invalid: $FILENAME"
+                echo "❌ Invalid: $RECIPE_FILE"
                 echo "$OUTPUT"
-                VALIDATION_OUTPUT=$(printf "%s❌ %s: INVALID\n\n\`\`\`\n%s\n\`\`\`\n\n" "$VALIDATION_OUTPUT" "$FILENAME" "$OUTPUT")
+                VALIDATION_OUTPUT="${VALIDATION_OUTPUT}❌ $RECIPE_FILE: INVALID\n\`\`\`\n$OUTPUT\n\`\`\`\n"
                 ALL_VALID=false
               fi
             fi
@@ -94,7 +93,7 @@ jobs:
                 # Check if we've seen this filename before in this PR
                 if echo "$SEEN_FILENAMES" | grep -q "^$FILENAME$"; then
                   echo "❌ Duplicate filename '$FILENAME' found in this PR"
-                  VALIDATION_OUTPUT=$(printf "%s❌ Duplicate filename '%s' found in this PR\n" "$VALIDATION_OUTPUT" "$FILENAME")
+                  VALIDATION_OUTPUT="${VALIDATION_OUTPUT}❌ Duplicate filename '$FILENAME' found in this PR\n"
                   ALL_VALID=false
                 else
                   SEEN_FILENAMES="$SEEN_FILENAMES\n$FILENAME"
@@ -109,7 +108,7 @@ jobs:
                   # File exists in repo but is not being modified - this is a new duplicate
                   echo "❌ Recipe filename '$FILENAME' already exists:"
                   echo "$EXISTING_FILES"
-                  VALIDATION_OUTPUT=$(printf "%s❌ %s: Filename '%s' already exists in: %s\n" "$VALIDATION_OUTPUT" "$(basename "$RECIPE_FILE")" "$FILENAME" "$EXISTING_FILES")
+                  VALIDATION_OUTPUT="${VALIDATION_OUTPUT}❌ $RECIPE_FILE: Filename '$FILENAME' already exists in: $EXISTING_FILES\n"
                   ALL_VALID=false
                 elif [ -n "$EXISTING_FILES" ] && [ -n "$CHANGED_FILES" ]; then
                   # File exists and is being modified - this is an update
@@ -125,7 +124,7 @@ jobs:
           fi
           
           # Save validation output for use in comment
-          printf "%s" "$VALIDATION_OUTPUT" > /tmp/validation_output.txt
+          echo "$VALIDATION_OUTPUT" > /tmp/validation_output.txt
           
           if [ "$ALL_VALID" = true ]; then
             echo "validation_status=valid" >> $GITHUB_OUTPUT
