@@ -124,7 +124,7 @@ The **treemap visualization** shows your revenue hierarchy with proportional are
 - **Home & Garden** is smallest but growing ($410k total)
 - You can see how each quarter contributes within each category
 
-## 2. Performance Metrics Comparison (Radar Chart)
+#### 2. Performance Metrics Comparison (Radar Chart)
 The **radar chart** displays how all three product categories performed across the four quarters, making it easy to compare:
 - **Electronics** shows strong Q3 performance ($220k) with slight Q4 decline
 - **Clothing** demonstrates consistent growth throughout the year
