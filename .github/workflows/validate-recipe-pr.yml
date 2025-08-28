@@ -42,21 +42,59 @@ jobs:
           keyring: false
           EOF
 
-      - name: Find and validate recipe files
-        id: validate
+      - name: Check if recipe files changed in this PR
+        id: recipe_changes
         run: |
-          echo "🔍 Looking for recipe files..."
-          RECIPE_FILES=$(find documentation/src/pages/recipes/data/recipes/ -name "*.yaml" -o -name "*.yml" 2>/dev/null || true)
+          set -e
+          echo "🔍 Checking if recipe files were modified in this PR..."
+          
+          # Get the list of changed files in this PR
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}..HEAD)
+          
+          echo "All changed files in PR:"
+          echo "$CHANGED_FILES"
+          echo ""
+          
+          # Check if any recipe files were changed
+          if echo "$CHANGED_FILES" | grep -q "^documentation/src/pages/recipes/data/recipes/.*\.(yaml|yml)$"; then
+            echo "recipe_files_changed=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Recipe files were modified in this PR - proceeding with validation"
+          else
+            echo "recipe_files_changed=false" >> "$GITHUB_OUTPUT"
+            echo "ℹ️ No recipe files were modified in this PR - skipping validation"
+          fi
+
+      - name: Find changed recipe files in PR
+        id: find_changed_recipes
+        if: steps.recipe_changes.outputs.recipe_files_changed == 'true'
+        run: |
+          echo "🔍 Finding recipe files changed in this PR..."
+          
+          # Get the list of changed files in this PR
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}..HEAD)
+          
+          # Filter for recipe files only
+          RECIPE_FILES=$(echo "$CHANGED_FILES" | grep "^documentation/src/pages/recipes/data/recipes/" | grep -E "\.(yaml|yml)$" || true)
           
           if [ -z "$RECIPE_FILES" ]; then
-            echo "❌ No recipe files found in the correct location!"
+            echo "❌ No recipe files found in the PR changes!"
             echo "📁 Please add your recipe to: documentation/src/pages/recipes/data/recipes/"
             echo "validation_status=no_files" >> $GITHUB_OUTPUT
             exit 1
           fi
           
-          echo "Found recipe files:"
+          echo "Found changed recipe files:"
           echo "$RECIPE_FILES"
+          
+          # Save recipe file paths for validation step
+          echo "$RECIPE_FILES" > /tmp/changed_recipe_files.txt
+
+      - name: Validate changed recipe files
+        id: validate
+        if: steps.recipe_changes.outputs.recipe_files_changed == 'true'
+        run: |
+          # Read the list of changed recipe files
+          RECIPE_FILES=$(cat /tmp/changed_recipe_files.txt)
           
           ALL_VALID=true
           VALIDATION_OUTPUT=""
@@ -133,6 +171,7 @@ jobs:
           fi
 
       - name: Comment validation results
+        if: steps.recipe_changes.outputs.recipe_files_changed == 'true'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -188,9 +227,15 @@ jobs:
 
       - name: Set validation status
         if: always()
-        env:
-          VALIDATION_STATUS: ${{ steps.validate.outputs.validation_status }}
         run: |
+          # Check if recipe files were changed in this PR
+          if [ "${{ steps.recipe_changes.outputs.recipe_files_changed }}" = "false" ]; then
+            # No recipe files were modified in this PR - validation skipped
+            echo "ℹ️ No recipe files in PR - validation skipped"
+            exit 0
+          fi
+
+          VALIDATION_STATUS="${{ steps.validate.outputs.validation_status }}"
           if [ "$VALIDATION_STATUS" = "valid" ]; then
             echo "✅ All recipes are valid"
             exit 0
