@@ -125,7 +125,7 @@ jobs:
           fi
           
           # Save validation output for use in comment
-          echo "$VALIDATION_OUTPUT" > /tmp/validation_output.txt
+          printf "%s" "$VALIDATION_OUTPUT" > /tmp/validation_output.txt
           
           if [ "$ALL_VALID" = true ]; then
             echo "validation_status=valid" >> $GITHUB_OUTPUT
