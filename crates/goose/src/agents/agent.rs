@@ -1025,17 +1025,19 @@ impl Agent {
                     break;
                 }
 
-                let mut autopilot = self.autopilot.lock().await;
-                if let Some((new_provider, role, model)) = autopilot.check_for_switch(&messages, self.provider().await?).await? {
-                    debug!("AutoPilot switching to {} role with model {}", role, model);
-                    self.update_provider(new_provider).await?;
+                {
+                    let mut autopilot = self.autopilot.lock().await;
+                    if let Some((new_provider, role, model)) = autopilot.check_for_switch(&messages, self.provider().await?).await? {
+                        debug!("AutoPilot switching to {} role with model {}", role, model);
+                        self.update_provider(new_provider).await?;
 
-                    yield AgentEvent::ModelChange {
-                        model: model.clone(),
-                        mode: format!("autopilot:{}", role),
-                    };
+                        yield AgentEvent::ModelChange {
+                            model: model.clone(),
+                            mode: format!("autopilot:{}", role),
+                        };
+                    }
                 }
-                drop(autopilot);
+
 
                 let mut stream = Self::stream_response_from_provider(
                     self.provider().await?,
