@@ -64,25 +64,25 @@ jobs:
         if: steps.recipe_changes.outputs.recipe_files_changed == 'true'
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Find changed recipe files in PR
+      - name: Find recipe files in PR (new or modified)
         id: find_recipes
         if: steps.recipe_changes.outputs.recipe_files_changed == 'true'
         run: |
           set -e
-          echo "Looking for changed recipe files in PR..."
+          echo "Looking for recipe files in PR (new or modified)..."
           
-          # Get the list of changed files in this PR
+          # Get the list of changed/new files in this PR
           if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ github.event.action }}" = "synchronize" ]; then
             # For synchronize events, check files changed since the previous commit
-            echo "📝 Synchronize event - checking files changed since previous commit"
+            echo "📝 Synchronize event - checking files changed/added since previous commit"
             CHANGED_FILES=$(git diff --name-only ${{ github.event.before }}..${{ github.event.after }})
           else
-            # For opened/reopened, check all files in the PR
-            echo "📝 PR opened/reopened - checking all files in PR"
+            # For opened/reopened, check all files in the PR (new and modified)
+            echo "📝 PR opened/reopened - checking all new/modified files in PR"
             CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}..HEAD)
           fi
           
-          # Filter for recipe files only that were changed
+          # Filter for recipe files only that were changed or added
           RECIPE_FILES=$(echo "$CHANGED_FILES" | grep "^documentation/src/pages/recipes/data/recipes/" | grep -E "\.(yaml|yml)$" || true)
           
           if [ -z "$RECIPE_FILES" ]; then
