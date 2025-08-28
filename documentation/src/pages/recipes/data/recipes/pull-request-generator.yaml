@@ -1,4 +1,3 @@
-id: pr-generator
 title: PR Generator
 description: Automatically generate pull request descriptions based on changes in a local git repo.
 instructions: >
