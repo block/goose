@@ -15,11 +15,26 @@ pub enum ExecutionMode {
     Parallel,
 }
 
+/// Filter for selecting which extensions to load in a subagent
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "mode", rename_all = "lowercase")]
+pub enum ExtensionFilter {
+    /// Load only specified extensions (by normalized name)
+    Include { extensions: Vec<String> },
+    /// Load all except specified extensions
+    Exclude { extensions: Vec<String> },
+    /// Load no extensions
+    None,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Task {
     pub id: String,
     pub task_type: String,
     pub payload: Value,
+    /// Optional filter for which extensions to load in the subagent
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extension_filter: Option<ExtensionFilter>,
 }
 
 impl Task {
