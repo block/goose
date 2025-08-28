@@ -1,5 +1,5 @@
 ---
-title: Cloudflare MCP Server
+title: Cloudflare Extension
 description: Add Cloudflare MCP Servers as Goose Extensions
 unlisted: true
 ---

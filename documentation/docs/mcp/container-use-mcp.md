@@ -1,5 +1,5 @@
 ---
-title: Container Use
+title: Container Use Extension
 description: Use Container-Use MCP as a Goose Extension
 ---
 
