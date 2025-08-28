@@ -19,7 +19,6 @@ pub enum ExecutionMode {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum TaskType {
-    TextInstruction,
     InlineRecipe,
     SubRecipe,
 }
@@ -27,7 +26,6 @@ pub enum TaskType {
 impl fmt::Display for TaskType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            TaskType::TextInstruction => write!(f, "text_instruction"),
             TaskType::InlineRecipe => write!(f, "inline_recipe"),
             TaskType::SubRecipe => write!(f, "sub_recipe"),
         }
@@ -70,16 +68,6 @@ impl Task {
         self.get_sub_recipe()
             .and_then(|sr| sr.get("recipe_path"))
             .and_then(|path| path.as_str())
-    }
-
-    pub fn get_text_instruction(&self) -> Option<&str> {
-        if !matches!(self.task_type, TaskType::SubRecipe) {
-            self.payload
-                .get("text_instruction")
-                .and_then(|text| text.as_str())
-        } else {
-            None
-        }
     }
 }
 

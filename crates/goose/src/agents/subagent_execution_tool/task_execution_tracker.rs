@@ -44,8 +44,6 @@ fn format_task_metadata(task_info: &TaskInfo) -> String {
             })
             .collect::<Vec<_>>()
             .join(",")
-    } else if let Some(text_instruction) = task_info.task.get_text_instruction() {
-        format!("instruction={}", text_instruction)
     } else {
         String::new()
     }

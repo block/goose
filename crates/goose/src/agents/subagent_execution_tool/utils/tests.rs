@@ -38,14 +38,14 @@ mod test_get_task_name {
     }
 
     #[test]
-    fn falls_back_to_task_id_for_text_instruction() {
-        let text_task = Task {
+    fn falls_back_to_task_id_for_inline_recipe() {
+        let inline_task = Task {
             id: "task_2".to_string(),
-            task_type: TaskType::TextInstruction,
-            payload: json!({"text_instruction": "do something"}),
+            task_type: TaskType::InlineRecipe,
+            payload: json!({"recipe": {"instructions": "do something"}}),
         };
 
-        let task_info = create_task_info_with_defaults(text_task, TaskStatus::Pending);
+        let task_info = create_task_info_with_defaults(inline_task, TaskStatus::Pending);
 
         assert_eq!(get_task_name(&task_info), "task_2");
     }

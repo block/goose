@@ -5,10 +5,6 @@ use serde_json::json;
 fn test_task_type_serialization() {
     // Test that TaskType serializes to the expected string format
     assert_eq!(
-        serde_json::to_string(&TaskType::TextInstruction).unwrap(),
-        "\"text_instruction\""
-    );
-    assert_eq!(
         serde_json::to_string(&TaskType::InlineRecipe).unwrap(),
         "\"inline_recipe\""
     );
@@ -21,10 +17,6 @@ fn test_task_type_serialization() {
 #[test]
 fn test_task_type_deserialization() {
     // Test that strings deserialize to the correct TaskType variants
-    assert_eq!(
-        serde_json::from_str::<TaskType>("\"text_instruction\"").unwrap(),
-        TaskType::TextInstruction
-    );
     assert_eq!(
         serde_json::from_str::<TaskType>("\"inline_recipe\"").unwrap(),
         TaskType::InlineRecipe
@@ -65,7 +57,6 @@ fn test_task_deserialization_with_string() {
 
 #[test]
 fn test_task_type_display() {
-    assert_eq!(TaskType::TextInstruction.to_string(), "text_instruction");
     assert_eq!(TaskType::InlineRecipe.to_string(), "inline_recipe");
     assert_eq!(TaskType::SubRecipe.to_string(), "sub_recipe");
 }
@@ -90,25 +81,6 @@ fn test_task_methods_with_sub_recipe() {
     assert_eq!(task.get_sub_recipe_path(), Some("/path/to/recipe"));
     assert!(task.get_command_parameters().is_some());
     assert!(task.get_sequential_when_repeated());
-    assert!(task.get_text_instruction().is_none());
-}
-
-#[test]
-fn test_task_methods_with_text_instruction() {
-    let task = Task {
-        id: "test-2".to_string(),
-        task_type: TaskType::TextInstruction,
-        payload: json!({
-            "text_instruction": "Do something"
-        }),
-    };
-
-    assert!(task.get_sub_recipe().is_none());
-    assert!(task.get_sub_recipe_name().is_none());
-    assert!(task.get_sub_recipe_path().is_none());
-    assert!(task.get_command_parameters().is_none());
-    assert!(!task.get_sequential_when_repeated());
-    assert_eq!(task.get_text_instruction(), Some("Do something"));
 }
 
 #[test]
@@ -129,7 +101,6 @@ fn test_task_methods_with_inline_recipe() {
     assert!(task.get_sub_recipe_path().is_none());
     assert!(task.get_command_parameters().is_none());
     assert!(!task.get_sequential_when_repeated());
-    assert!(task.get_text_instruction().is_none());
 }
 
 #[test]
