@@ -131,7 +131,7 @@ The **radar chart** displays how all three product categories performed across t
 - **Home & Garden** shows steady upward trajectory across all quarters
 - All categories show their strongest performance in Q3-Q4
 
-## 3. Sales Funnel Flow (Sankey Diagram)
+#### 3. Sales Funnel Flow (Sankey Diagram)
 The **Sankey diagram** represents customer flow through your sales process, with flow thickness proportional to revenue:
 - Shows how market opportunities flow into prospects for each category
 - Demonstrates the conversion from prospects to actual sales
