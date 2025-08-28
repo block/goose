@@ -29,7 +29,7 @@ Goose’s permissions determine how much autonomy it has when modifying files, u
 | **Completely Autonomous**           | Goose can modify files, use extensions, and delete files **without requiring approval**.              | Users who want **full automation** and seamless integration into their workflow.           |
 | **Manual Approval**| Goose **asks for confirmation** before using any tools or extensions.                                 | Users who want to **review and approve** every change and tool usage.                      |
 | **Smart Approval** | Goose uses a risk-based approach to **automatically approve low-risk actions** and **flag others** for approval. | Users who want a **balanced mix of autonomy and oversight** based on the action’s impact. |
-| **Chat Only**      | Goose **only engages in chat**, with no extension use or file modifications.                          | Users who prefer a **conversational AI experience** without automation.                    |
+| **Chat Only**      | Goose **only engages in chat**, with no extension use or file modifications.                          | Users who prefer a **conversational AI experience** for analysis, writing, and reasoning tasks without automation.                    |
        |
 
 :::warning
@@ -65,6 +65,7 @@ Here's how to configure:
         To change modes mid-session, use the `/mode` command.
 
         * Autonomous: `/mode auto`
+        * Smart Approve: `/mode smart_approve`
         * Approve: `/mode approve`
         * Chat: `/mode chat`     
       </TabItem>
@@ -134,7 +135,7 @@ Here's how to configure:
 </Tabs>
 
   :::info
-  If you choose `Approve` mode, you will see "Allow" and "Deny" buttons in your session windows during tool calls. 
+  If you choose `Manual` (in Goose Desktop) or `Approve Mode` (in Goose CLI), you will see "Allow" and "Deny" buttons in your session windows during tool calls. 
   Goose will only ask for permission for tools that it deems are 'write' tools, e.g. any 'text editor write', 'text editor edit', 'bash - rm, cp, mv' commands. 
   
   Read/write approval makes best effort attempt at classifying read or write tools. This is interpreted by your LLM provider. 

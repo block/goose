@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Button } from '../../ui/button';
 import { Plus } from 'lucide-react';
 import { GPSIcon } from '../../ui/icons';
@@ -33,8 +33,7 @@ export default function ExtensionsSection({
   customToggle,
   selectedExtensions = [],
 }: ExtensionSectionProps) {
-  const { getExtensions, addExtension, removeExtension } = useConfig();
-  const [extensions, setExtensions] = useState<FixedExtensionEntry[]>([]);
+  const { getExtensions, addExtension, removeExtension, extensionsList } = useConfig();
   const [selectedExtension, setSelectedExtension] = useState<FixedExtensionEntry | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -51,19 +50,11 @@ export default function ExtensionsSection({
     setShowEnvVarsStateVar(showEnvVars);
   }, [deepLinkConfig, showEnvVars]);
 
-  // Reset deep link state when component is re-mounted (via key prop changes)
-  useEffect(() => {
-    return () => {
-      // Cleanup function to reset state when component unmounts
-      setDeepLinkConfigStateVar(null);
-      setShowEnvVarsStateVar(null);
-    };
-  }, []);
+  // Process extensions from context - this automatically updates when extensionsList changes
+  const extensions = useMemo(() => {
+    if (extensionsList.length === 0) return [];
 
-  const fetchExtensions = useCallback(async () => {
-    const extensionsList = await getExtensions(true); // Force refresh
-    // Sort extensions by name to maintain consistent order
-    const sortedExtensions = [...extensionsList]
+    return [...extensionsList]
       .sort((a, b) => {
         // First sort by builtin
         if (a.type === 'builtin' && b.type !== 'builtin') return -1;
@@ -83,24 +74,15 @@ export default function ExtensionsSection({
         // Use selectedExtensions to determine enabled state in recipe editor
         enabled: disableConfiguration ? selectedExtensions.includes(ext.name) : ext.enabled,
       }));
+  }, [extensionsList, disableConfiguration, selectedExtensions]);
 
-    setExtensions(sortedExtensions);
-  }, [getExtensions, disableConfiguration, selectedExtensions]);
-
-  useEffect(() => {
-    fetchExtensions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const fetchExtensions = useCallback(async () => {
+    await getExtensions(true); // Force refresh - this will update the context
+  }, [getExtensions]);
 
   const handleExtensionToggle = async (extension: FixedExtensionEntry) => {
     if (customToggle) {
       await customToggle(extension);
-      // After custom toggle, update the local state to reflect the change
-      setExtensions((prevExtensions) =>
-        prevExtensions.map((ext) =>
-          ext.name === extension.name ? { ...ext, enabled: !ext.enabled } : ext
-        )
-      );
       return true;
     }
 

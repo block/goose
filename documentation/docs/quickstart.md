@@ -6,7 +6,9 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import Link from "@docusaurus/Link";
 import { IconDownload } from "@site/src/components/icons/download";
-import RateLimits from '@site/src/components/RateLimits';
+import { RateLimits } from '@site/src/components/RateLimits';
+import { DesktopProviderSetup } from '@site/src/components/DesktopProviderSetup';
+import { ModelSelectionTip } from '@site/src/components/ModelSelectionTip';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import MacDesktopInstallButtons from '@site/src/components/MacDesktopInstallButtons';
 import WindowsDesktopInstallButtons from '@site/src/components/WindowsDesktopInstallButtons';
@@ -30,7 +32,7 @@ Let's begin 🚀
 
 <Tabs>
   <TabItem value="mac" label="macOS" default>
-    Choose to install Goose on CLI and/or Desktop:
+    Choose to install the Desktop and/or CLI version of Goose:
 
     <Tabs groupId="interface">
       <TabItem value="ui" label="Goose Desktop" default>
@@ -51,6 +53,8 @@ Let's begin 🚀
   </TabItem>
 
   <TabItem value="linux" label="Linux">
+    Choose to install the Desktop and/or CLI version of Goose:
+
     <Tabs groupId="interface">
       <TabItem value="ui" label="Goose Desktop" default>
         <LinuxDesktopInstallButtons/>
@@ -74,7 +78,7 @@ Let's begin 🚀
   </TabItem>
 
   <TabItem value="windows" label="Windows">
-    Choose to install Goose on CLI and/or Desktop:
+    Choose to install the Desktop and/or CLI version of Goose:
 
     <Tabs groupId="interface">
       <TabItem value="ui" label="Goose Desktop" default>
@@ -101,14 +105,16 @@ Let's begin 🚀
 
 ## Configure Provider
 
-Goose works with [supported LLM providers][providers]. When you install Goose, you'll be prompted to choose your preferred LLM and supply an API key.
+Goose works with [supported LLM providers][providers]. On first use, you'll be prompted to configure your preferred provider.
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-    ![Set Up a Provider UI](./assets/guides/set-up-provider-ui.png)
+    <DesktopProviderSetup />
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
-    Use the up and down arrow keys to navigate the CLI menu, and press Enter once you've selected a choice.
+    Use the up and down arrow keys to navigate the CLI menu, and press Enter once you've selected a choice. Be ready to provide your API key.
+
+    Example configuration flow:
 
     ```
     ┌   goose-configure
@@ -128,14 +134,14 @@ Goose works with [supported LLM providers][providers]. When you install Goose, y
     ◇ Hello! You're all set and ready to go, feel free to ask me anything!
     │
     └ Configuration saved successfully
-  ```
+    ```
+    
+    <RateLimits />
   </TabItem>
 </Tabs>
 
-<RateLimits />
-
-:::tip Model Selection
-Goose relies heavily on tool calling capabilities and currently works best with Anthropic's Claude 3.5 Sonnet and OpenAI's GPT-4o (2024-11-20) model.
+:::tip
+<ModelSelectionTip />
 :::
 
 ## Start Session

@@ -1,11 +1,9 @@
 use anyhow::Result;
 use dotenvy::dotenv;
-use goose::{
-    message::Message,
-    providers::{
-        base::{Provider, Usage},
-        databricks::DatabricksProvider,
-    },
+use goose::conversation::message::Message;
+use goose::providers::{
+    base::{Provider, Usage},
+    databricks::DatabricksProvider,
 };
 use tokio_stream::StreamExt;
 

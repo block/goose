@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 
 use super::base::{Provider, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
-use crate::message::Message;
+use crate::conversation::message::Message;
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
 
@@ -112,8 +112,9 @@ impl Provider for TestProvider {
         )
     }
 
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        _model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -162,7 +163,7 @@ impl Provider for TestProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::message::{Message, MessageContent};
+    use crate::conversation::message::{Message, MessageContent};
     use crate::providers::base::{ProviderUsage, Usage};
     use chrono::Utc;
     use rmcp::model::{RawTextContent, Role, TextContent};
@@ -188,8 +189,9 @@ mod tests {
             )
         }
 
-        async fn complete(
+        async fn complete_with_model(
             &self,
+            _model_config: &ModelConfig,
             _system: &str,
             _messages: &[Message],
             _tools: &[Tool],

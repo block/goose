@@ -29,6 +29,8 @@ import { Grape } from './Grape';
 import Idea from './Idea';
 import LinkedIn from './LinkedIn';
 import More from './More';
+import OpenRouter from './OpenRouter';
+import Ollama from './Ollama';
 import Refresh from './Refresh';
 import SensitiveHidden from './SensitiveHidden';
 import SensitiveVisible from './SensitiveVisible';
@@ -80,6 +82,8 @@ export {
   LinkedIn,
   Microphone,
   More,
+  OpenRouter,
+  Ollama,
   Refresh,
   SensitiveHidden,
   SensitiveVisible,

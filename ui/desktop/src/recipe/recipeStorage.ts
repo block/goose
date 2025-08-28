@@ -12,6 +12,7 @@ export interface SavedRecipe {
   isGlobal: boolean;
   lastModified: Date;
   isArchived?: boolean;
+  filename: string; // The actual filename used
 }
 
 /**
@@ -66,6 +67,7 @@ async function loadRecipeFromFile(
     return {
       ...recipeData,
       isGlobal: isGlobal,
+      filename: recipeName,
     };
   } catch (error) {
     console.warn(`Failed to load recipe from ${filePath}:`, error);
@@ -112,6 +114,7 @@ export async function saveRecipe(recipe: Recipe, options: SaveRecipeOptions): Pr
     // Create saved recipe object
     const savedRecipe: SavedRecipe = {
       name: sanitizedName,
+      filename: sanitizedName,
       recipe: recipe,
       isGlobal: global,
       lastModified: new Date(),

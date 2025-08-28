@@ -46,7 +46,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     args={["-y", "@modelcontextprotocol/server-brave-search"]}
     envVars={[{ name: "BRAVE_API_KEY", label: "Your Brave Search API Key" }]}
     apiKeyLink="https://api-dashboard.search.brave.com/app/keys"
-    apiKeyLinkText="Get your Brave Search API Key"
+    apiKeyLinkText="Brave Search API Key"
   />
   </TabItem>
   <TabItem value="cli" label="Goose CLI">

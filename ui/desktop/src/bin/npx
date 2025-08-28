@@ -12,7 +12,7 @@ LOG_FILE="/tmp/mcp.log"
 # Function for logging
 log() {
     local MESSAGE="$1"
-    echo "$(date +'%Y-%m-%d %H:%M:%S') - $MESSAGE" | tee -a "$LOG_FILE"
+    echo "$(date +'%Y-%m-%d %H:%M:%S') - $MESSAGE" | tee -a "$LOG_FILE" >&2
 }
 
 # Trap errors and log them before exiting

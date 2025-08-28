@@ -22,6 +22,17 @@
     "bundled": true
   },
   {
+    "id": "autovisualiser",
+    "name": "autovisualiser",
+    "display_name": "Auto Visualiser",
+    "description": "Data visualization and UI generation tools",
+    "enabled": false,
+    "type": "builtin",
+    "env_keys": [],
+    "timeout": 300,
+    "bundled": true
+  },
+  {
     "id": "memory",
     "name": "memory",
     "display_name": "Memory",

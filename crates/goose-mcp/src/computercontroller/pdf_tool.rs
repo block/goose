@@ -1,16 +1,20 @@
 use lopdf::{content::Content as PdfContent, Document, Object};
-use mcp_core::ToolError;
-use rmcp::model::Content;
+use rmcp::model::{Content, ErrorCode, ErrorData};
 use std::{fs, path::Path};
 
 pub async fn pdf_tool(
     path: &str,
     operation: &str,
     cache_dir: &Path,
-) -> Result<Vec<Content>, ToolError> {
+) -> Result<Vec<Content>, ErrorData> {
     // Open and parse the PDF file
-    let doc = Document::load(path)
-        .map_err(|e| ToolError::ExecutionError(format!("Failed to open PDF file: {}", e)))?;
+    let doc = Document::load(path).map_err(|e| {
+        ErrorData::new(
+            ErrorCode::INTERNAL_ERROR,
+            format!("Failed to open PDF file: {}", e),
+            None,
+        )
+    })?;
 
     let result = match operation {
         "extract_text" => {
@@ -115,7 +119,11 @@ pub async fn pdf_tool(
         "extract_images" => {
             let cache_dir = cache_dir.join("pdf_images");
             fs::create_dir_all(&cache_dir).map_err(|e| {
-                ToolError::ExecutionError(format!("Failed to create image cache directory: {}", e))
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Failed to create image cache directory: {}", e),
+                    None,
+                )
             })?;
 
             let mut images = Vec::new();
@@ -167,14 +175,19 @@ pub async fn pdf_tool(
             // Process each page
             for (page_num, page_id) in doc.get_pages() {
                 let page = doc.get_object(page_id).map_err(|e| {
-                    ToolError::ExecutionError(format!("Failed to get page {}: {}", page_num, e))
+                    ErrorData::new(
+                        ErrorCode::INTERNAL_ERROR,
+                        format!("Failed to get page {}: {}", page_num, e),
+                        None,
+                    )
                 })?;
 
                 let page_dict = page.as_dict().map_err(|e| {
-                    ToolError::ExecutionError(format!(
-                        "Failed to get page dict {}: {}",
-                        page_num, e
-                    ))
+                    ErrorData::new(
+                        ErrorCode::INTERNAL_ERROR,
+                        format!("Failed to get page dict {}: {}", page_num, e),
+                        None,
+                    )
                 })?;
 
                 // Get page resources - handle both direct dict and reference
@@ -184,27 +197,32 @@ pub async fn pdf_tool(
                         Object::Reference(id) => doc
                             .get_object(*id)
                             .map_err(|e| {
-                                ToolError::ExecutionError(format!(
-                                    "Failed to get resource reference: {}",
-                                    e
-                                ))
+                                ErrorData::new(
+                                    ErrorCode::RESOURCE_NOT_FOUND,
+                                    format!("Failed to get resource reference: {}", e),
+                                    None,
+                                )
                             })
                             .and_then(|obj| {
                                 obj.as_dict().map_err(|e| {
-                                    ToolError::ExecutionError(format!(
-                                        "Resource reference is not a dictionary: {}",
-                                        e
-                                    ))
+                                    ErrorData::new(
+                                        ErrorCode::RESOURCE_NOT_FOUND,
+                                        format!("Resource reference is not a dictionary: {}", e),
+                                        None,
+                                    )
                                 })
                             }),
-                        _ => Err(ToolError::ExecutionError(
+                        _ => Err(ErrorData::new(
+                            ErrorCode::INTERNAL_ERROR,
                             "Resources is neither dictionary nor reference".to_string(),
+                            None,
                         )),
                     },
-                    Err(e) => Err(ToolError::ExecutionError(format!(
-                        "Failed to get Resources: {}",
-                        e
-                    ))),
+                    Err(e) => Err(ErrorData::new(
+                        ErrorCode::INTERNAL_ERROR,
+                        format!("Failed to get Resources: {}", e),
+                        None,
+                    )),
                 }?;
 
                 // Look for XObject dictionary - handle both direct dict and reference
@@ -214,37 +232,50 @@ pub async fn pdf_tool(
                         Object::Reference(id) => doc
                             .get_object(*id)
                             .map_err(|e| {
-                                ToolError::ExecutionError(format!(
-                                    "Failed to get XObject reference: {}",
-                                    e
-                                ))
+                                ErrorData::new(
+                                    ErrorCode::INTERNAL_ERROR,
+                                    format!("Failed to get XObject reference: {}", e),
+                                    None,
+                                )
                             })
                             .and_then(|obj| {
                                 obj.as_dict().map_err(|e| {
-                                    ToolError::ExecutionError(format!(
-                                        "XObject reference is not a dictionary: {}",
-                                        e
-                                    ))
+                                    ErrorData::new(
+                                        ErrorCode::INTERNAL_ERROR,
+                                        format!("XObject reference is not a dictionary: {}", e),
+                                        None,
+                                    )
                                 })
                             }),
-                        _ => Err(ToolError::ExecutionError(
+                        _ => Err(ErrorData::new(
+                            ErrorCode::INTERNAL_ERROR,
                             "XObject is neither dictionary nor reference".to_string(),
+                            None,
                         )),
                     },
-                    Err(e) => Err(ToolError::ExecutionError(format!(
-                        "Failed to get XObject: {}",
-                        e
-                    ))),
+                    Err(e) => Err(ErrorData::new(
+                        ErrorCode::INTERNAL_ERROR,
+                        format!("Failed to get XObject: {}", e),
+                        None,
+                    )),
                 };
 
                 if let Ok(xobjects) = xobjects {
                     for (name, xobject) in xobjects.iter() {
                         let xobject_id = xobject.as_reference().map_err(|_| {
-                            ToolError::ExecutionError("Failed to get XObject reference".to_string())
+                            ErrorData::new(
+                                ErrorCode::INTERNAL_ERROR,
+                                "Failed to get XObject reference".to_string(),
+                                None,
+                            )
                         })?;
 
                         let xobject = doc.get_object(xobject_id).map_err(|e| {
-                            ToolError::ExecutionError(format!("Failed to get XObject: {}", e))
+                            ErrorData::new(
+                                ErrorCode::INTERNAL_ERROR,
+                                format!("Failed to get XObject: {}", e),
+                                None,
+                            )
                         })?;
 
                         if let Ok(stream) = xobject.as_stream() {
@@ -283,10 +314,11 @@ pub async fn pdf_tool(
                                         ));
 
                                         fs::write(&image_path, &data).map_err(|e| {
-                                            ToolError::ExecutionError(format!(
-                                                "Failed to write image: {}",
-                                                e
-                                            ))
+                                            ErrorData::new(
+                                                ErrorCode::INTERNAL_ERROR,
+                                                format!("Failed to write image: {}", e),
+                                                None,
+                                            )
                                         })?;
 
                                         images.push(format!(
@@ -313,10 +345,14 @@ pub async fn pdf_tool(
         }
 
         _ => {
-            return Err(ToolError::InvalidParameters(format!(
-                "Invalid operation: {}. Valid operations are: 'extract_text', 'extract_images'",
-                operation
-            )))
+            return Err(ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                format!(
+                    "Invalid operation: {}. Valid operations are: 'extract_text', 'extract_images'",
+                    operation
+                ),
+                None,
+            ))
         }
     };
 

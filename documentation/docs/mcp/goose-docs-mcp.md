@@ -35,7 +35,7 @@ This tutorial covers how to add the [Goose Docs MCP Server](https://github.com/i
     <GooseDesktopInstaller
       extensionId="goose-docs"
       extensionName="Goose Docs"
-      extensionDescription="GitMCP for Goose documentation"
+      description="GitMCP for Goose documentation"
       command="npx"
       args={["mcp-remote", "https://block.gitmcp.io/goose/"]}
       cliCommand="npx mcp-remote https://block.gitmcp.io/goose/"

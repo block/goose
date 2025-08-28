@@ -1,42 +1,88 @@
 use anyhow::Result;
-use chrono::{DateTime, TimeZone, Utc};
+use axum::http::{HeaderMap, HeaderName};
+use chrono::{DateTime, Utc};
 use futures::stream::{FuturesUnordered, StreamExt};
 use futures::{future, FutureExt};
-use rmcp::model::GetPromptResult;
-use std::collections::{HashMap, HashSet};
+use mcp_core::handler::require_str_parameter;
+use mcp_core::ToolCall;
+use rmcp::service::ClientInitializeError;
+use rmcp::transport::streamable_http_client::StreamableHttpClientTransportConfig;
+use rmcp::transport::{
+    ConfigureCommandExt, SseClientTransport, StreamableHttpClientTransport, TokioChildProcess,
+};
+use std::collections::HashMap;
+use std::process::Stdio;
 use std::sync::Arc;
-use std::sync::LazyLock;
 use std::time::Duration;
-use tempfile::tempdir;
+use tempfile::{tempdir, TempDir};
+use tokio::io::AsyncReadExt;
+use tokio::process::Command;
 use tokio::sync::Mutex;
 use tokio::task;
 use tokio_stream::wrappers::ReceiverStream;
+use tokio_util::sync::CancellationToken;
 use tracing::{error, warn};
 
 use super::extension::{ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, ToolInfo};
 use super::tool_execution::ToolCallResult;
-use crate::agents::extension::Envs;
+use crate::agents::extension::{Envs, ProcessExit};
+use crate::agents::extension_malware_check;
 use crate::config::{Config, ExtensionConfigManager};
+use crate::oauth::oauth_flow;
 use crate::prompt_template;
-use mcp_client::client::{ClientCapabilities, ClientInfo, McpClient, McpClientTrait};
-use mcp_client::transport::{SseTransport, StdioTransport, StreamableHttpTransport, Transport};
-use mcp_core::{ToolCall, ToolError};
-use rmcp::model::{Content, Prompt, Resource, ResourceContents, Tool};
+use mcp_client::client::{McpClient, McpClientTrait};
+use rmcp::model::{
+    Content, ErrorCode, ErrorData, GetPromptResult, Prompt, ResourceContents, ServerInfo, Tool,
+};
+use rmcp::transport::auth::AuthClient;
 use serde_json::Value;
-
-// By default, we set it to Jan 1, 2020 if the resource does not have a timestamp
-// This is to ensure that the resource is considered less important than resources with a more recent timestamp
-static DEFAULT_TIMESTAMP: LazyLock<DateTime<Utc>> =
-    LazyLock::new(|| Utc.with_ymd_and_hms(2020, 1, 1, 0, 0, 0).unwrap());
 
 type McpClientBox = Arc<Mutex<Box<dyn McpClientTrait>>>;
 
+struct Extension {
+    pub config: ExtensionConfig,
+
+    client: McpClientBox,
+    server_info: Option<ServerInfo>,
+    _temp_dir: Option<tempfile::TempDir>,
+}
+
+impl Extension {
+    fn new(
+        config: ExtensionConfig,
+        client: McpClientBox,
+        server_info: Option<ServerInfo>,
+        temp_dir: Option<tempfile::TempDir>,
+    ) -> Self {
+        Self {
+            client,
+            config,
+            server_info,
+            _temp_dir: temp_dir,
+        }
+    }
+
+    fn supports_resources(&self) -> bool {
+        self.server_info
+            .as_ref()
+            .and_then(|info| info.capabilities.resources.as_ref())
+            .is_some()
+    }
+
+    fn get_instructions(&self) -> Option<String> {
+        self.server_info
+            .as_ref()
+            .and_then(|info| info.instructions.clone())
+    }
+
+    fn get_client(&self) -> McpClientBox {
+        self.client.clone()
+    }
+}
+
 /// Manages Goose extensions / MCP clients and their interactions
 pub struct ExtensionManager {
-    clients: HashMap<String, McpClientBox>,
-    instructions: HashMap<String, String>,
-    resource_capable_extensions: HashSet<String>,
-    temp_dirs: HashMap<String, tempfile::TempDir>,
+    extensions: Mutex<HashMap<String, Extension>>,
 }
 
 /// A flattened representation of a resource used by the agent to prepare inference
@@ -72,6 +118,9 @@ impl ResourceItem {
     }
 }
 
+#[cfg(windows)]
+const CREATE_NO_WINDOW_FLAG: u32 = 0x08000000;
+
 /// Sanitizes a string by replacing invalid characters with underscores.
 /// Valid characters match [a-zA-Z0-9_-]
 fn normalize(input: String) -> String {
@@ -100,26 +149,64 @@ impl Default for ExtensionManager {
     }
 }
 
+async fn child_process_client(
+    mut command: Command,
+    timeout: &Option<u64>,
+) -> ExtensionResult<McpClient> {
+    #[cfg(unix)]
+    command.process_group(0);
+    #[cfg(windows)]
+    command.creation_flags(CREATE_NO_WINDOW_FLAG);
+    let (transport, mut stderr) = TokioChildProcess::builder(command)
+        .stderr(Stdio::piped())
+        .spawn()?;
+    let mut stderr = stderr.take().ok_or_else(|| {
+        ExtensionError::SetupError("failed to attach child process stderr".to_owned())
+    })?;
+
+    let stderr_task = tokio::spawn(async move {
+        let mut all_stderr = Vec::new();
+        stderr.read_to_end(&mut all_stderr).await?;
+        Ok::<String, std::io::Error>(String::from_utf8_lossy(&all_stderr).into())
+    });
+
+    let client_result = McpClient::connect(
+        transport,
+        Duration::from_secs(timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT)),
+    )
+    .await;
+
+    match client_result {
+        Ok(client) => Ok(client),
+        Err(error) => {
+            let error_task_out = stderr_task.await?;
+            Err::<McpClient, ExtensionError>(match error_task_out {
+                Ok(stderr_content) => ProcessExit::new(stderr_content, error).into(),
+                Err(e) => e.into(),
+            })
+        }
+    }
+}
+
 impl ExtensionManager {
-    /// Create a new ExtensionManager instance
     pub fn new() -> Self {
         Self {
-            clients: HashMap::new(),
-            instructions: HashMap::new(),
-            resource_capable_extensions: HashSet::new(),
-            temp_dirs: HashMap::new(),
+            extensions: Mutex::new(HashMap::new()),
         }
     }
 
-    pub fn supports_resources(&self) -> bool {
-        !self.resource_capable_extensions.is_empty()
+    pub async fn supports_resources(&self) -> bool {
+        self.extensions
+            .lock()
+            .await
+            .values()
+            .any(|ext| ext.supports_resources())
     }
 
-    /// Add a new MCP extension based on the provided client type
-    // TODO IMPORTANT need to ensure this times out if the extension command is broken!
-    pub async fn add_extension(&mut self, config: ExtensionConfig) -> ExtensionResult<()> {
+    pub async fn add_extension(&self, config: ExtensionConfig) -> ExtensionResult<()> {
         let config_name = config.key().to_string();
         let sanitized_name = normalize(config_name.clone());
+        let mut temp_dir = None;
 
         /// Helper function to merge environment variables from direct envs and keychain-stored env_keys
         async fn merge_environments(
@@ -167,7 +254,7 @@ impl ExtensionManager {
                             error = %e,
                             "Failed to fetch secret from config."
                         );
-                        return Err(ExtensionError::SetupError(format!(
+                        return Err(ExtensionError::ConfigError(format!(
                             "Failed to fetch secret '{}' from config: {}",
                             key, e
                         )));
@@ -178,20 +265,19 @@ impl ExtensionManager {
             Ok(all_envs)
         }
 
-        let mut client: Box<dyn McpClientTrait> = match &config {
-            ExtensionConfig::Sse {
-                uri,
-                envs,
-                env_keys,
-                timeout,
-                ..
-            } => {
-                let all_envs = merge_environments(envs, env_keys, &sanitized_name).await?;
-                let transport = SseTransport::new(uri, all_envs);
-                let handle = transport.start().await?;
+        let client: Box<dyn McpClientTrait> = match &config {
+            ExtensionConfig::Sse { uri, timeout, .. } => {
+                let transport = SseClientTransport::start(uri.to_string()).await.map_err(
+                    |transport_error| {
+                        ClientInitializeError::transport::<SseClientTransport<reqwest::Client>>(
+                            transport_error,
+                            "connect",
+                        )
+                    },
+                )?;
                 Box::new(
                     McpClient::connect(
-                        handle,
+                        transport,
                         Duration::from_secs(
                             timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
                         ),
@@ -201,25 +287,70 @@ impl ExtensionManager {
             }
             ExtensionConfig::StreamableHttp {
                 uri,
-                envs,
-                env_keys,
-                headers,
                 timeout,
+                headers,
+                name,
                 ..
             } => {
-                let all_envs = merge_environments(envs, env_keys, &sanitized_name).await?;
-                let transport =
-                    StreamableHttpTransport::with_headers(uri, all_envs, headers.clone());
-                let handle = transport.start().await?;
-                Box::new(
+                let mut default_headers = HeaderMap::new();
+                for (key, value) in headers {
+                    default_headers.insert(
+                        HeaderName::try_from(key).map_err(|_| {
+                            ExtensionError::ConfigError(format!("invalid header: {}", key))
+                        })?,
+                        value.parse().map_err(|_| {
+                            ExtensionError::ConfigError(format!("invalid header value: {}", key))
+                        })?,
+                    );
+                }
+                let client = reqwest::Client::builder()
+                    .default_headers(default_headers)
+                    .build()
+                    .map_err(|_| {
+                        ExtensionError::ConfigError("could not construct http client".to_string())
+                    })?;
+                let transport = StreamableHttpClientTransport::with_client(
+                    client,
+                    StreamableHttpClientTransportConfig {
+                        uri: uri.clone().into(),
+                        ..Default::default()
+                    },
+                );
+                let client_res = McpClient::connect(
+                    transport,
+                    Duration::from_secs(
+                        timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
+                    ),
+                )
+                .await;
+                let client = if let Err(e) = client_res {
+                    // make an attempt at oauth, but failing that, return the original error,
+                    // because this might not have been an auth error at all.
+                    // TODO: when rmcp supports it, we should trigger this flow on 401s with
+                    // WWW-Authenticate headers, not just any init error
+                    let am = match oauth_flow(uri, name).await {
+                        Ok(am) => am,
+                        Err(_) => return Err(e.into()),
+                    };
+                    let client = AuthClient::new(reqwest::Client::default(), am);
+                    let transport = StreamableHttpClientTransport::with_client(
+                        client,
+                        StreamableHttpClientTransportConfig {
+                            uri: uri.clone().into(),
+                            ..Default::default()
+                        },
+                    );
                     McpClient::connect(
-                        handle,
+                        transport,
                         Duration::from_secs(
                             timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
                         ),
                     )
-                    .await?,
-                )
+                    .await?
+                } else {
+                    client_res?
+                };
+                Box::new(client)
             }
             ExtensionConfig::Stdio {
                 cmd,
@@ -230,17 +361,15 @@ impl ExtensionManager {
                 ..
             } => {
                 let all_envs = merge_environments(envs, env_keys, &sanitized_name).await?;
-                let transport = StdioTransport::new(cmd, args.to_vec(), all_envs);
-                let handle = transport.start().await?;
-                Box::new(
-                    McpClient::connect(
-                        handle,
-                        Duration::from_secs(
-                            timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
-                        ),
-                    )
-                    .await?,
-                )
+                let command = Command::new(cmd).configure(|command| {
+                    command.args(args).envs(all_envs);
+                });
+
+                // Check for malicious packages before launching the process
+                extension_malware_check::deny_if_malicious_cmd_args(cmd, args).await?;
+
+                let client = child_process_client(command, timeout).await?;
+                Box::new(client)
             }
             ExtensionConfig::Builtin {
                 name,
@@ -248,27 +377,18 @@ impl ExtensionManager {
                 description: _,
                 timeout,
                 bundled: _,
+                available_tools: _,
             } => {
                 let cmd = std::env::current_exe()
                     .expect("should find the current executable")
                     .to_str()
                     .expect("should resolve executable to string path")
                     .to_string();
-                let transport = StdioTransport::new(
-                    &cmd,
-                    vec!["mcp".to_string(), name.clone()],
-                    HashMap::new(),
-                );
-                let handle = transport.start().await?;
-                Box::new(
-                    McpClient::connect(
-                        handle,
-                        Duration::from_secs(
-                            timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
-                        ),
-                    )
-                    .await?,
-                )
+                let command = Command::new(cmd).configure(|command| {
+                    command.arg("mcp").arg(name);
+                });
+                let client = child_process_client(command, timeout).await?;
+                Box::new(client)
             }
             ExtensionConfig::InlinePython {
                 name,
@@ -277,102 +397,80 @@ impl ExtensionManager {
                 dependencies,
                 ..
             } => {
-                let temp_dir = tempdir()?;
-                let file_path = temp_dir.path().join(format!("{}.py", name));
+                let dir = tempdir()?;
+                let file_path = dir.path().join(format!("{}.py", name));
+                temp_dir = Some(dir);
                 std::fs::write(&file_path, code)?;
 
-                let mut args = vec![];
+                let command = Command::new("uvx").configure(|command| {
+                    command.arg("--with").arg("mcp");
 
-                let mut all_deps = vec!["mcp".to_string()];
+                    dependencies.iter().flatten().for_each(|dep| {
+                        command.arg("--with").arg(dep);
+                    });
 
-                if let Some(deps) = dependencies.as_ref() {
-                    all_deps.extend(deps.iter().cloned());
-                }
+                    command.arg("python").arg(file_path.to_str().unwrap());
+                });
 
-                for dep in all_deps {
-                    args.push("--with".to_string());
-                    args.push(dep);
-                }
+                let client = child_process_client(command, timeout).await?;
 
-                args.push("python".to_string());
-                args.push(file_path.to_str().unwrap().to_string());
-
-                let transport = StdioTransport::new("uvx", args, HashMap::new());
-                let handle = transport.start().await?;
-                let client = Box::new(
-                    McpClient::connect(
-                        handle,
-                        Duration::from_secs(
-                            timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
-                        ),
-                    )
-                    .await?,
-                );
-
-                self.temp_dirs.insert(sanitized_name.clone(), temp_dir);
-
-                client
+                Box::new(client)
             }
             _ => unreachable!(),
         };
 
-        // Initialize the client with default capabilities
-        let info = ClientInfo {
-            name: "goose".to_string(),
-            version: env!("CARGO_PKG_VERSION").to_string(),
-        };
-        let capabilities = ClientCapabilities::default();
+        let server_info = client.get_info().cloned();
+        self.add_client(
+            sanitized_name,
+            config,
+            Arc::new(Mutex::new(client)),
+            server_info,
+            temp_dir,
+        )
+        .await;
 
-        let init_result = client
-            .initialize(info, capabilities)
-            .await
-            .map_err(|e| ExtensionError::Initialization(Box::new(config.clone()), e))?;
-
-        if let Some(instructions) = init_result.instructions {
-            self.instructions
-                .insert(sanitized_name.clone(), instructions);
-        }
-
-        if init_result.capabilities.resources.is_some() {
-            self.resource_capable_extensions
-                .insert(sanitized_name.clone());
-        }
-
-        self.add_client(sanitized_name, client);
         Ok(())
     }
 
-    pub fn add_client(&mut self, client_name: String, client: Box<dyn McpClientTrait>) {
-        let sanitized_name = normalize(client_name);
-        self.clients
-            .insert(sanitized_name, Arc::new(Mutex::new(client)));
+    pub async fn add_client(
+        &self,
+        name: String,
+        config: ExtensionConfig,
+        client: McpClientBox,
+        info: Option<ServerInfo>,
+        temp_dir: Option<TempDir>,
+    ) {
+        self.extensions
+            .lock()
+            .await
+            .insert(name, Extension::new(config, client, info, temp_dir));
     }
 
     /// Get extensions info
     pub async fn get_extensions_info(&self) -> Vec<ExtensionInfo> {
-        self.clients
-            .keys()
-            .map(|name| {
-                let instructions = self.instructions.get(name).cloned().unwrap_or_default();
-                let has_resources = self.resource_capable_extensions.contains(name);
-                ExtensionInfo::new(name, &instructions, has_resources)
+        self.extensions
+            .lock()
+            .await
+            .iter()
+            .map(|(name, ext)| {
+                ExtensionInfo::new(
+                    name,
+                    ext.get_instructions().unwrap_or_default().as_str(),
+                    ext.supports_resources(),
+                )
             })
             .collect()
     }
 
     /// Get aggregated usage statistics
-    pub async fn remove_extension(&mut self, name: &str) -> ExtensionResult<()> {
+    pub async fn remove_extension(&self, name: &str) -> ExtensionResult<()> {
         let sanitized_name = normalize(name.to_string());
-
-        self.clients.remove(&sanitized_name);
-        self.instructions.remove(&sanitized_name);
-        self.resource_capable_extensions.remove(&sanitized_name);
-        self.temp_dirs.remove(&sanitized_name);
+        self.extensions.lock().await.remove(&sanitized_name);
         Ok(())
     }
 
     pub async fn suggest_disable_extensions_prompt(&self) -> Value {
-        let enabled_extensions_count = self.clients.len();
+        let enabled_extensions_count = self.extensions.lock().await.len();
 
         let total_tools = self
             .get_prefixed_tools(None)
@@ -404,7 +502,7 @@ impl ExtensionManager {
     }
 
     pub async fn list_extensions(&self) -> ExtensionResult<Vec<String>> {
-        Ok(self.clients.keys().cloned().collect())
+        Ok(self.extensions.lock().await.keys().cloned().collect())
     }
 
     /// Get all tools from all clients with proper prefixing
@@ -413,36 +511,42 @@ impl ExtensionManager {
         extension_name: Option<String>,
     ) -> ExtensionResult<Vec<Tool>> {
         // Filter clients based on the provided extension_name or include all if None
-        let filtered_clients = self.clients.iter().filter(|(name, _)| {
-            if let Some(ref name_filter) = extension_name {
-                *name == name_filter
-            } else {
-                true
-            }
-        });
+        let filtered_clients: Vec<_> = self
+            .extensions
+            .lock()
+            .await
+            .iter()
+            .filter(|(name, _ext)| {
+                if let Some(ref name_filter) = extension_name {
+                    *name == name_filter
+                } else {
+                    true
+                }
+            })
+            .map(|(name, ext)| (name.clone(), ext.config.clone(), ext.get_client()))
+            .collect();
 
-        let client_futures = filtered_clients.map(|(name, client)| {
-            let name = name.clone();
-            let client = client.clone();
-
+        let cancel_token = CancellationToken::default();
+        let client_futures = filtered_clients.into_iter().map(|(name, config, client)| {
+            let cancel_token = cancel_token.clone();
             task::spawn(async move {
                 let mut tools = Vec::new();
                 let client_guard = client.lock().await;
-                let mut client_tools = client_guard.list_tools(None).await?;
+                let mut client_tools = client_guard.list_tools(None, cancel_token).await?;
 
                 loop {
-                    for client_tool in client_tools.tools {
-                        let mut tool = Tool::new(
-                            format!("{}__{}", name, client_tool.name),
-                            client_tool.description.unwrap_or_default(),
-                            client_tool.input_schema,
-                        );
+                    for tool in client_tools.tools {
+                        let is_available = config.is_tool_available(&tool.name);
 
-                        if tool.annotations.is_some() {
-                            tool = tool.annotate(client_tool.annotations.unwrap())
+                        if is_available {
+                            tools.push(Tool {
+                                name: format!("{}__{}", name, tool.name).into(),
+                                description: tool.description,
+                                input_schema: tool.input_schema,
+                                annotations: tool.annotations,
+                                output_schema: tool.output_schema,
+                            });
                         }
-
-                        tools.push(tool);
                     }
 
                     // Exit loop when there are no more pages
@@ -450,7 +554,9 @@ impl ExtensionManager {
                         break;
                     }
 
-                    client_tools = client_guard.list_tools(client_tools.next_cursor).await?;
+                    client_tools = client_guard
+                        .list_tools(client_tools.next_cursor, CancellationToken::default())
+                        .await?;
                 }
 
                 Ok::<Vec<Tool>, ExtensionError>(tools)
@@ -473,43 +579,6 @@ impl ExtensionManager {
         Ok(tools)
     }
 
-    /// Get client resources and their contents
-    pub async fn get_resources(&self) -> ExtensionResult<Vec<ResourceItem>> {
-        let mut result: Vec<ResourceItem> = Vec::new();
-
-        for (name, client) in &self.clients {
-            let client_guard = client.lock().await;
-            let resources = client_guard.list_resources(None).await?;
-
-            for resource in resources.resources {
-                // Skip reading the resource if it's not marked active
-                // This avoids blowing up the context with inactive resources
-                if !resource_is_active(&resource) {
-                    continue;
-                }
-
-                if let Ok(contents) = client_guard.read_resource(&resource.uri).await {
-                    for content in contents.contents {
-                        let (uri, content_str) = match content {
-                            ResourceContents::TextResourceContents { uri, text, .. } => (uri, text),
-                            ResourceContents::BlobResourceContents { uri, blob, .. } => (uri, blob),
-                        };
-
-                        result.push(ResourceItem::new(
-                            name.clone(),
-                            uri,
-                            resource.name.clone(),
-                            content_str,
-                            resource.timestamp().unwrap_or(*DEFAULT_TIMESTAMP),
-                            resource.priority().unwrap_or(0.0),
-                        ));
-                    }
-                }
-            }
-        }
-        Ok(result)
-    }
-
     /// Get the extension prompt including client instructions
     pub async fn get_planning_prompt(&self, tools_info: Vec<ToolInfo>) -> String {
         let mut context: HashMap<&str, Value> = HashMap::new();
@@ -519,26 +588,32 @@ impl ExtensionManager {
     }
 
     /// Find and return a reference to the appropriate client for a tool call
-    fn get_client_for_tool(&self, prefixed_name: &str) -> Option<(&str, McpClientBox)> {
-        self.clients
+    async fn get_client_for_tool(&self, prefixed_name: &str) -> Option<(String, McpClientBox)> {
+        self.extensions
+            .lock()
+            .await
             .iter()
             .find(|(key, _)| prefixed_name.starts_with(*key))
-            .map(|(name, client)| (name.as_str(), Arc::clone(client)))
+            .map(|(name, extension)| (name.clone(), extension.get_client()))
     }
 
     // Function that gets executed for read_resource tool
-    pub async fn read_resource(&self, params: Value) -> Result<Vec<Content>, ToolError> {
-        let uri = params
-            .get("uri")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| ToolError::InvalidParameters("Missing 'uri' parameter".to_string()))?;
-
+    pub async fn read_resource(
+        &self,
+        params: Value,
+        cancellation_token: CancellationToken,
+    ) -> Result<Vec<Content>, ErrorData> {
+        let uri = require_str_parameter(&params, "uri")?;
         let extension_name = params.get("extension_name").and_then(|v| v.as_str());
 
         // If extension name is provided, we can just look it up
         if extension_name.is_some() {
             let result = self
-                .read_resource_from_extension(uri, extension_name.unwrap())
+                .read_resource_from_extension(
+                    uri,
+                    extension_name.unwrap(),
+                    cancellation_token.clone(),
+                )
                 .await?;
             return Ok(result);
         }
@@ -547,8 +622,10 @@ impl ExtensionManager {
         // Loop through each extension and try to read the resource, don't raise an error if the resource is not found
         // TODO: do we want to find if a provided uri is in multiple extensions?
         // currently it will return the first match and skip any others
-        for extension_name in self.resource_capable_extensions.iter() {
-            let result = self.read_resource_from_extension(uri, extension_name).await;
+        for extension_name in self.extensions.lock().await.keys() {
+            let result = self
+                .read_resource_from_extension(uri, extension_name, cancellation_token.clone())
+                .await;
             match result {
                 Ok(result) => return Ok(result),
                 Err(_) => continue,
@@ -557,7 +634,9 @@ impl ExtensionManager {
 
         // None of the extensions had the resource so we raise an error
         let available_extensions = self
-            .clients
+            .extensions
+            .lock()
+            .await
             .keys()
             .map(|s| s.as_str())
             .collect::<Vec<&str>>()
@@ -567,16 +646,23 @@ impl ExtensionManager {
             uri, available_extensions
         );
 
-        Err(ToolError::InvalidParameters(error_msg))
+        Err(ErrorData::new(
+            ErrorCode::RESOURCE_NOT_FOUND,
+            error_msg,
+            None,
+        ))
     }
 
     async fn read_resource_from_extension(
         &self,
         uri: &str,
         extension_name: &str,
-    ) -> Result<Vec<Content>, ToolError> {
+        cancellation_token: CancellationToken,
+    ) -> Result<Vec<Content>, ErrorData> {
         let available_extensions = self
-            .clients
+            .extensions
+            .lock()
+            .await
             .keys()
             .map(|s| s.as_str())
             .collect::<Vec<&str>>()
@@ -587,14 +673,21 @@ impl ExtensionManager {
         );
 
         let client = self
-            .clients
-            .get(extension_name)
-            .ok_or(ToolError::InvalidParameters(error_msg))?;
+            .get_server_client(extension_name)
+            .await
+            .ok_or(ErrorData::new(ErrorCode::INVALID_PARAMS, error_msg, None))?;
 
         let client_guard = client.lock().await;
-        let read_result = client_guard.read_resource(uri).await.map_err(|_| {
-            ToolError::ExecutionError(format!("Could not read resource with uri: {}", uri))
-        })?;
+        let read_result = client_guard
+            .read_resource(uri, cancellation_token)
+            .await
+            .map_err(|_| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Could not read resource with uri: {}", uri),
+                    None,
+                )
+            })?;
 
         let mut result = Vec::new();
         for content in read_result.contents {
@@ -611,20 +704,29 @@ impl ExtensionManager {
     async fn list_resources_from_extension(
         &self,
         extension_name: &str,
-    ) -> Result<Vec<Content>, ToolError> {
-        let client = self.clients.get(extension_name).ok_or_else(|| {
-            ToolError::InvalidParameters(format!("Extension {} is not valid", extension_name))
-        })?;
+        cancellation_token: CancellationToken,
+    ) -> Result<Vec<Content>, ErrorData> {
+        let client = self
+            .get_server_client(extension_name)
+            .await
+            .ok_or_else(|| {
+                ErrorData::new(
+                    ErrorCode::INVALID_PARAMS,
+                    format!("Extension {} is not valid", extension_name),
+                    None,
+                )
+            })?;
 
         let client_guard = client.lock().await;
         client_guard
-            .list_resources(None)
+            .list_resources(None, cancellation_token)
             .await
             .map_err(|e| {
-                ToolError::ExecutionError(format!(
-                    "Unable to list resources for {}, {:?}",
-                    extension_name, e
-                ))
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Unable to list resources for {}, {:?}", extension_name, e),
+                    None,
+                )
             })
             .map(|lr| {
                 let resource_list = lr
@@ -638,24 +740,37 @@ impl ExtensionManager {
             })
     }
 
-    pub async fn list_resources(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+    pub async fn list_resources(
+        &self,
+        params: Value,
+        cancellation_token: CancellationToken,
+    ) -> Result<Vec<Content>, ErrorData> {
         let extension = params.get("extension").and_then(|v| v.as_str());
 
         match extension {
             Some(extension_name) => {
                 // Handle single extension case
-                self.list_resources_from_extension(extension_name).await
+                self.list_resources_from_extension(extension_name, cancellation_token)
+                    .await
             }
             None => {
                 // Handle all extensions case using FuturesUnordered
                 let mut futures = FuturesUnordered::new();
 
                 // Create futures for each resource_capable_extension
-                for extension_name in &self.resource_capable_extensions {
-                    futures.push(async move {
-                        self.list_resources_from_extension(extension_name).await
+                self.extensions
+                    .lock()
+                    .await
+                    .iter()
+                    .filter(|(_name, ext)| ext.supports_resources())
+                    .map(|(name, _ext)| name.clone())
+                    .for_each(|name| {
+                        let token = cancellation_token.clone();
+                        futures.push(async move {
+                            self.list_resources_from_extension(&name.clone(), token)
+                                .await
+                        });
                     });
-                }
 
                 let mut all_resources = Vec::new();
                 let mut errors = Vec::new();
@@ -688,19 +803,42 @@ impl ExtensionManager {
         }
     }
 
-    pub async fn dispatch_tool_call(&self, tool_call: ToolCall) -> Result<ToolCallResult> {
+    pub async fn dispatch_tool_call(
+        &self,
+        tool_call: ToolCall,
+        cancellation_token: CancellationToken,
+    ) -> Result<ToolCallResult> {
         // Dispatch tool call based on the prefix naming convention
-        let (client_name, client) = self
-            .get_client_for_tool(&tool_call.name)
-            .ok_or_else(|| ToolError::NotFound(tool_call.name.clone()))?;
+        let (client_name, client) =
+            self.get_client_for_tool(&tool_call.name)
+                .await
+                .ok_or_else(|| {
+                    ErrorData::new(ErrorCode::RESOURCE_NOT_FOUND, tool_call.name.clone(), None)
+                })?;
 
         // rsplit returns the iterator in reverse, tool_name is then at 0
         let tool_name = tool_call
             .name
-            .strip_prefix(client_name)
+            .strip_prefix(client_name.as_str())
             .and_then(|s| s.strip_prefix("__"))
-            .ok_or_else(|| ToolError::NotFound(tool_call.name.clone()))?
+            .ok_or_else(|| {
+                ErrorData::new(ErrorCode::RESOURCE_NOT_FOUND, tool_call.name.clone(), None)
+            })?
             .to_string();
+
+        if let Some(extension) = self.extensions.lock().await.get(&client_name) {
+            if !extension.config.is_tool_available(&tool_name) {
+                return Err(ErrorData::new(
+                    ErrorCode::RESOURCE_NOT_FOUND,
+                    format!(
+                        "Tool '{}' is not available for extension '{}'",
+                        tool_name, client_name
+                    ),
+                    None,
+                )
+                .into());
+            }
+        }
 
         let arguments = tool_call.arguments.clone();
         let client = client.clone();
@@ -709,10 +847,10 @@ impl ExtensionManager {
         let fut = async move {
             let client_guard = client.lock().await;
             client_guard
-                .call_tool(&tool_name, arguments)
+                .call_tool(&tool_name, arguments, cancellation_token)
                 .await
                 .map(|call| call.content)
-                .map_err(|e| ToolError::ExecutionError(e.to_string()))
+                .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))
         };
 
         Ok(ToolCallResult {
@@ -724,32 +862,47 @@ impl ExtensionManager {
     pub async fn list_prompts_from_extension(
         &self,
         extension_name: &str,
-    ) -> Result<Vec<Prompt>, ToolError> {
-        let client = self.clients.get(extension_name).ok_or_else(|| {
-            ToolError::InvalidParameters(format!("Extension {} is not valid", extension_name))
-        })?;
+        cancellation_token: CancellationToken,
+    ) -> Result<Vec<Prompt>, ErrorData> {
+        let client = self
+            .get_server_client(extension_name)
+            .await
+            .ok_or_else(|| {
+                ErrorData::new(
+                    ErrorCode::INVALID_PARAMS,
+                    format!("Extension {} is not valid", extension_name),
+                    None,
+                )
+            })?;
 
         let client_guard = client.lock().await;
         client_guard
-            .list_prompts(None)
+            .list_prompts(None, cancellation_token)
             .await
             .map_err(|e| {
-                ToolError::ExecutionError(format!(
-                    "Unable to list prompts for {}, {:?}",
-                    extension_name, e
-                ))
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Unable to list prompts for {}, {:?}", extension_name, e),
+                    None,
+                )
             })
             .map(|lp| lp.prompts)
     }
 
-    pub async fn list_prompts(&self) -> Result<HashMap<String, Vec<Prompt>>, ToolError> {
+    pub async fn list_prompts(
+        &self,
+        cancellation_token: CancellationToken,
+    ) -> Result<HashMap<String, Vec<Prompt>>, ErrorData> {
         let mut futures = FuturesUnordered::new();
 
-        for extension_name in self.clients.keys() {
+        let names: Vec<_> = self.extensions.lock().await.keys().cloned().collect();
+        for extension_name in names {
+            let token = cancellation_token.clone();
             futures.push(async move {
                 (
-                    extension_name,
-                    self.list_prompts_from_extension(extension_name).await,
+                    extension_name.clone(),
+                    self.list_prompts_from_extension(extension_name.as_str(), token)
+                        .await,
                 )
             });
         }
@@ -789,20 +942,21 @@ impl ExtensionManager {
         extension_name: &str,
         name: &str,
         arguments: Value,
+        cancellation_token: CancellationToken,
     ) -> Result<GetPromptResult> {
         let client = self
-            .clients
-            .get(extension_name)
+            .get_server_client(extension_name)
+            .await
             .ok_or_else(|| anyhow::anyhow!("Extension {} not found", extension_name))?;
 
         let client_guard = client.lock().await;
         client_guard
-            .get_prompt(name, arguments)
+            .get_prompt(name, arguments, cancellation_token)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to get prompt: {}", e))
     }
 
-    pub async fn search_available_extensions(&self) -> Result<Vec<Content>, ToolError> {
+    pub async fn search_available_extensions(&self) -> Result<Vec<Content>, ErrorData> {
         let mut output_parts = vec![];
 
         // First get disabled extensions from current config
@@ -847,7 +1001,8 @@ impl ExtensionManager {
         }
 
         // Get currently enabled extensions that can be disabled
-        let enabled_extensions: Vec<String> = self.clients.keys().cloned().collect();
+        let enabled_extensions: Vec<String> =
+            self.extensions.lock().await.keys().cloned().collect();
 
         // Build output string
         if !disabled_extensions.is_empty() {
@@ -874,10 +1029,14 @@ impl ExtensionManager {
 
         Ok(vec![Content::text(output_parts.join("\n"))])
     }
-}
 
-fn resource_is_active(resource: &Resource) -> bool {
-    resource.priority().is_some_and(|p| (p - 1.0).abs() < 1e-6)
+    async fn get_server_client(&self, name: impl Into<String>) -> Option<McpClientBox> {
+        self.extensions
+            .lock()
+            .await
+            .get(&name.into())
+            .map(|ext| ext.get_client())
+    }
 }
 
 #[cfg(test)]
@@ -885,64 +1044,136 @@ mod tests {
     use super::*;
     use mcp_client::client::Error;
     use mcp_client::client::McpClientTrait;
-    use mcp_core::protocol::{
-        CallToolResult, InitializeResult, ListPromptsResult, ListResourcesResult, ListToolsResult,
-        ReadResourceResult,
-    };
-    use rmcp::model::{GetPromptResult, ServerNotification};
+    use rmcp::model::CallToolResult;
+    use rmcp::model::InitializeResult;
+
+    use rmcp::model::ListPromptsResult;
+    use rmcp::model::ListResourcesResult;
+    use rmcp::model::ListToolsResult;
+    use rmcp::model::ReadResourceResult;
+    use rmcp::model::ServerNotification;
     use serde_json::json;
     use tokio::sync::mpsc;
+
+    impl ExtensionManager {
+        async fn add_mock_extension(&self, name: String, client: McpClientBox) {
+            self.add_mock_extension_with_tools(name, client, vec![])
+                .await;
+        }
+
+        async fn add_mock_extension_with_tools(
+            &self,
+            name: String,
+            client: McpClientBox,
+            available_tools: Vec<String>,
+        ) {
+            let sanitized_name = normalize(name.clone());
+            let config = ExtensionConfig::Builtin {
+                name: name.clone(),
+                display_name: Some(name.clone()),
+                description: None,
+                timeout: None,
+                bundled: None,
+                available_tools,
+            };
+            let extension = Extension::new(config, client, None, None);
+            self.extensions
+                .lock()
+                .await
+                .insert(sanitized_name, extension);
+        }
+    }
 
     struct MockClient {}
 
     #[async_trait::async_trait]
     impl McpClientTrait for MockClient {
-        async fn initialize(
-            &mut self,
-            _info: ClientInfo,
-            _capabilities: ClientCapabilities,
-        ) -> Result<InitializeResult, Error> {
-            Err(Error::NotInitialized)
+        fn get_info(&self) -> Option<&InitializeResult> {
+            None
         }
 
         async fn list_resources(
             &self,
             _next_cursor: Option<String>,
+            _cancellation_token: CancellationToken,
         ) -> Result<ListResourcesResult, Error> {
-            Err(Error::NotInitialized)
+            Err(Error::TransportClosed)
         }
 
-        async fn read_resource(&self, _uri: &str) -> Result<ReadResourceResult, Error> {
-            Err(Error::NotInitialized)
+        async fn read_resource(
+            &self,
+            _uri: &str,
+            _cancellation_token: CancellationToken,
+        ) -> Result<ReadResourceResult, Error> {
+            Err(Error::TransportClosed)
         }
 
-        async fn list_tools(&self, _next_cursor: Option<String>) -> Result<ListToolsResult, Error> {
-            Err(Error::NotInitialized)
+        async fn list_tools(
+            &self,
+            _next_cursor: Option<String>,
+            _cancellation_token: CancellationToken,
+        ) -> Result<ListToolsResult, Error> {
+            use serde_json::json;
+            use std::sync::Arc;
+            Ok(ListToolsResult {
+                tools: vec![
+                    Tool {
+                        name: "tool".into(),
+                        description: Some("A basic tool".into()),
+                        input_schema: Arc::new(json!({}).as_object().unwrap().clone()),
+                        annotations: None,
+                        output_schema: None,
+                    },
+                    Tool {
+                        name: "available_tool".into(),
+                        description: Some("An available tool".into()),
+                        input_schema: Arc::new(json!({}).as_object().unwrap().clone()),
+                        annotations: None,
+                        output_schema: None,
+                    },
+                    Tool {
+                        name: "hidden_tool".into(),
+                        description: Some("A hidden tool".into()),
+                        input_schema: Arc::new(json!({}).as_object().unwrap().clone()),
+                        annotations: None,
+                        output_schema: None,
+                    },
+                ],
+                next_cursor: None,
+            })
         }
 
-        async fn call_tool(&self, name: &str, _arguments: Value) -> Result<CallToolResult, Error> {
+        async fn call_tool(
+            &self,
+            name: &str,
+            _arguments: Value,
+            _cancellation_token: CancellationToken,
+        ) -> Result<CallToolResult, Error> {
             match name {
-                "tool" | "test__tool" => Ok(CallToolResult {
+                "tool" | "test__tool" | "available_tool" | "hidden_tool" => Ok(CallToolResult {
                     content: vec![],
                     is_error: None,
+                    structured_content: None,
                 }),
-                _ => Err(Error::NotInitialized),
+                _ => Err(Error::TransportClosed),
             }
         }
 
         async fn list_prompts(
             &self,
             _next_cursor: Option<String>,
+            _cancellation_token: CancellationToken,
         ) -> Result<ListPromptsResult, Error> {
-            Err(Error::NotInitialized)
+            Err(Error::TransportClosed)
         }
 
         async fn get_prompt(
             &self,
             _name: &str,
             _arguments: Value,
+            _cancellation_token: CancellationToken,
         ) -> Result<GetPromptResult, Error> {
-            Err(Error::NotInitialized)
+            Err(Error::TransportClosed)
         }
 
         async fn subscribe(&self) -> mpsc::Receiver<ServerNotification> {
@@ -950,49 +1181,61 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_get_client_for_tool() {
-        let mut extension_manager = ExtensionManager::new();
+    #[tokio::test]
+    async fn test_get_client_for_tool() {
+        let extension_manager = ExtensionManager::new();
 
-        // Add some mock clients
-        extension_manager.clients.insert(
-            normalize("test_client".to_string()),
-            Arc::new(Mutex::new(Box::new(MockClient {}))),
-        );
+        // Add some mock clients using the helper method
+        extension_manager
+            .add_mock_extension(
+                "test_client".to_string(),
+                Arc::new(Mutex::new(Box::new(MockClient {}))),
+            )
+            .await;
 
-        extension_manager.clients.insert(
-            normalize("__client".to_string()),
-            Arc::new(Mutex::new(Box::new(MockClient {}))),
-        );
+        extension_manager
+            .add_mock_extension(
+                "__client".to_string(),
+                Arc::new(Mutex::new(Box::new(MockClient {}))),
+            )
+            .await;
 
-        extension_manager.clients.insert(
-            normalize("__cli__ent__".to_string()),
-            Arc::new(Mutex::new(Box::new(MockClient {}))),
-        );
+        extension_manager
+            .add_mock_extension(
+                "__cli__ent__".to_string(),
+                Arc::new(Mutex::new(Box::new(MockClient {}))),
+            )
+            .await;
 
-        extension_manager.clients.insert(
-            normalize("client 🚀".to_string()),
-            Arc::new(Mutex::new(Box::new(MockClient {}))),
-        );
+        extension_manager
+            .add_mock_extension(
+                "client 🚀".to_string(),
+                Arc::new(Mutex::new(Box::new(MockClient {}))),
+            )
+            .await;
 
         // Test basic case
         assert!(extension_manager
             .get_client_for_tool("test_client__tool")
+            .await
             .is_some());
 
         // Test leading underscores
         assert!(extension_manager
             .get_client_for_tool("__client__tool")
+            .await
             .is_some());
 
         // Test multiple underscores in client name, and ending with __
         assert!(extension_manager
             .get_client_for_tool("__cli__ent____tool")
+            .await
             .is_some());
 
         // Test unicode in tool name, "client 🚀" should become "client_"
         assert!(extension_manager
             .get_client_for_tool("client___tool")
+            .await
             .is_some());
     }
 
@@ -1000,23 +1243,29 @@ mod tests {
     async fn test_dispatch_tool_call() {
         // test that dispatch_tool_call parses out the sanitized name correctly, and extracts
         // tool_names
-        let mut extension_manager = ExtensionManager::new();
+        let extension_manager = ExtensionManager::new();
 
-        // Add some mock clients
-        extension_manager.clients.insert(
-            normalize("test_client".to_string()),
-            Arc::new(Mutex::new(Box::new(MockClient {}))),
-        );
+        // Add some mock clients using the helper method
+        extension_manager
+            .add_mock_extension(
+                "test_client".to_string(),
+                Arc::new(Mutex::new(Box::new(MockClient {}))),
+            )
+            .await;
 
-        extension_manager.clients.insert(
-            normalize("__cli__ent__".to_string()),
-            Arc::new(Mutex::new(Box::new(MockClient {}))),
-        );
+        extension_manager
+            .add_mock_extension(
+                "__cli__ent__".to_string(),
+                Arc::new(Mutex::new(Box::new(MockClient {}))),
+            )
+            .await;
 
-        extension_manager.clients.insert(
-            normalize("client 🚀".to_string()),
-            Arc::new(Mutex::new(Box::new(MockClient {}))),
-        );
+        extension_manager
+            .add_mock_extension(
+                "client 🚀".to_string(),
+                Arc::new(Mutex::new(Box::new(MockClient {}))),
+            )
+            .await;
 
         // verify a normal tool call
         let tool_call = ToolCall {
@@ -1024,7 +1273,9 @@ mod tests {
             arguments: json!({}),
         };
 
-        let result = extension_manager.dispatch_tool_call(tool_call).await;
+        let result = extension_manager
+            .dispatch_tool_call(tool_call, CancellationToken::default())
+            .await;
         assert!(result.is_ok());
 
         let tool_call = ToolCall {
@@ -1032,7 +1283,9 @@ mod tests {
             arguments: json!({}),
         };
 
-        let result = extension_manager.dispatch_tool_call(tool_call).await;
+        let result = extension_manager
+            .dispatch_tool_call(tool_call, CancellationToken::default())
+            .await;
         assert!(result.is_ok());
 
         // verify a multiple underscores dispatch
@@ -1041,7 +1294,9 @@ mod tests {
             arguments: json!({}),
         };
 
-        let result = extension_manager.dispatch_tool_call(tool_call).await;
+        let result = extension_manager
+            .dispatch_tool_call(tool_call, CancellationToken::default())
+            .await;
         assert!(result.is_ok());
 
         // Test unicode in tool name, "client 🚀" should become "client_"
@@ -1050,7 +1305,9 @@ mod tests {
             arguments: json!({}),
         };
 
-        let result = extension_manager.dispatch_tool_call(tool_call).await;
+        let result = extension_manager
+            .dispatch_tool_call(tool_call, CancellationToken::default())
+            .await;
         assert!(result.is_ok());
 
         let tool_call = ToolCall {
@@ -1058,7 +1315,9 @@ mod tests {
             arguments: json!({}),
         };
 
-        let result = extension_manager.dispatch_tool_call(tool_call).await;
+        let result = extension_manager
+            .dispatch_tool_call(tool_call, CancellationToken::default())
+            .await;
         assert!(result.is_ok());
 
         // this should error out, specifically for an ToolError::ExecutionError
@@ -1068,14 +1327,17 @@ mod tests {
         };
 
         let result = extension_manager
-            .dispatch_tool_call(invalid_tool_call)
+            .dispatch_tool_call(invalid_tool_call, CancellationToken::default())
             .await
             .unwrap()
             .result
             .await;
         assert!(matches!(
-            result.err().unwrap(),
-            ToolError::ExecutionError(_)
+            result,
+            Err(ErrorData {
+                code: ErrorCode::INTERNAL_ERROR,
+                ..
+            })
         ));
 
         // this should error out, specifically with an ToolError::NotFound
@@ -1086,13 +1348,112 @@ mod tests {
         };
 
         let result = extension_manager
-            .dispatch_tool_call(invalid_tool_call)
+            .dispatch_tool_call(invalid_tool_call, CancellationToken::default())
             .await;
         if let Err(err) = result {
-            let tool_err = err.downcast_ref::<ToolError>().expect("Expected ToolError");
-            assert!(matches!(tool_err, ToolError::NotFound(_)));
+            let tool_err = err.downcast_ref::<ErrorData>().expect("Expected ErrorData");
+            assert_eq!(tool_err.code, ErrorCode::RESOURCE_NOT_FOUND);
         } else {
-            panic!("Expected ToolError::NotFound");
+            panic!("Expected ErrorData with ErrorCode::RESOURCE_NOT_FOUND");
         }
+    }
+
+    #[tokio::test]
+    async fn test_tool_availability_filtering() {
+        let extension_manager = ExtensionManager::new();
+
+        // Only "available_tool" should be available to the LLM
+        let available_tools = vec!["available_tool".to_string()];
+
+        extension_manager
+            .add_mock_extension_with_tools(
+                "test_extension".to_string(),
+                Arc::new(Mutex::new(Box::new(MockClient {}))),
+                available_tools,
+            )
+            .await;
+
+        let tools = extension_manager.get_prefixed_tools(None).await.unwrap();
+
+        let tool_names: Vec<String> = tools.iter().map(|t| t.name.to_string()).collect();
+        assert!(!tool_names.iter().any(|name| name == "test_extension__tool")); // Default unavailable
+        assert!(tool_names
+            .iter()
+            .any(|name| name == "test_extension__available_tool"));
+        assert!(!tool_names
+            .iter()
+            .any(|name| name == "test_extension__hidden_tool"));
+        assert!(tool_names.len() == 1);
+    }
+
+    #[tokio::test]
+    async fn test_tool_availability_defaults_to_available() {
+        let extension_manager = ExtensionManager::new();
+
+        extension_manager
+            .add_mock_extension_with_tools(
+                "test_extension".to_string(),
+                Arc::new(Mutex::new(Box::new(MockClient {}))),
+                vec![], // Empty available_tools means all tools are available by default
+            )
+            .await;
+
+        let tools = extension_manager.get_prefixed_tools(None).await.unwrap();
+
+        let tool_names: Vec<String> = tools.iter().map(|t| t.name.to_string()).collect();
+        assert!(tool_names.iter().any(|name| name == "test_extension__tool"));
+        assert!(tool_names
+            .iter()
+            .any(|name| name == "test_extension__available_tool"));
+        assert!(tool_names
+            .iter()
+            .any(|name| name == "test_extension__hidden_tool"));
+        assert!(tool_names.len() == 3);
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_unavailable_tool_returns_error() {
+        let extension_manager = ExtensionManager::new();
+
+        let available_tools = vec!["available_tool".to_string()];
+
+        extension_manager
+            .add_mock_extension_with_tools(
+                "test_extension".to_string(),
+                Arc::new(Mutex::new(Box::new(MockClient {}))),
+                available_tools,
+            )
+            .await;
+
+        // Try to call an unavailable tool
+        let unavailable_tool_call = ToolCall {
+            name: "test_extension__tool".to_string(),
+            arguments: json!({}),
+        };
+
+        let result = extension_manager
+            .dispatch_tool_call(unavailable_tool_call, CancellationToken::default())
+            .await;
+
+        // Should return RESOURCE_NOT_FOUND error
+        if let Err(err) = result {
+            let tool_err = err.downcast_ref::<ErrorData>().expect("Expected ErrorData");
+            assert_eq!(tool_err.code, ErrorCode::RESOURCE_NOT_FOUND);
+            assert!(tool_err.message.contains("is not available"));
+        } else {
+            panic!("Expected ErrorData with ErrorCode::RESOURCE_NOT_FOUND");
+        }
+
+        // Try to call an available tool - should succeed
+        let available_tool_call = ToolCall {
+            name: "test_extension__available_tool".to_string(),
+            arguments: json!({}),
+        };
+
+        let result = extension_manager
+            .dispatch_tool_call(available_tool_call, CancellationToken::default())
+            .await;
+
+        assert!(result.is_ok());
     }
 }

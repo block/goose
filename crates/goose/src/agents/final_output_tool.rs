@@ -1,9 +1,10 @@
 use crate::agents::tool_execution::ToolCallResult;
 use crate::recipe::Response;
 use indoc::formatdoc;
-use mcp_core::{ToolCall, ToolError};
-use rmcp::model::{Content, Tool, ToolAnnotations};
+use mcp_core::ToolCall;
+use rmcp::model::{Content, ErrorCode, ErrorData, Tool, ToolAnnotations};
 use serde_json::Value;
+use std::borrow::Cow;
 
 pub const FINAL_OUTPUT_TOOL_NAME: &str = "recipe__final_output";
 pub const FINAL_OUTPUT_CONTINUATION_MESSAGE: &str =
@@ -127,13 +128,18 @@ impl FinalOutputTool {
                             "Final output successfully collected.".to_string(),
                         )]))
                     }
-                    Err(error) => ToolCallResult::from(Err(ToolError::InvalidParameters(error))),
+                    Err(error) => ToolCallResult::from(Err(ErrorData {
+                        code: ErrorCode::INVALID_PARAMS,
+                        message: Cow::from(error),
+                        data: None,
+                    })),
                 }
             }
-            _ => ToolCallResult::from(Err(ToolError::NotFound(format!(
-                "Unknown tool: {}",
-                tool_call.name
-            )))),
+            _ => ToolCallResult::from(Err(ErrorData {
+                code: ErrorCode::INVALID_REQUEST,
+                message: Cow::from(format!("Unknown tool: {}", tool_call.name)),
+                data: None,
+            })),
         }
     }
 

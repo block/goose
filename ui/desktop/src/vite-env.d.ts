@@ -45,13 +45,6 @@ declare module '*.md?raw' {
   export default value;
 }
 
-// Extend CSS properties to include Electron-specific properties
-declare namespace React {
-  interface CSSProperties {
-    WebkitAppRegion?: 'drag' | 'no-drag';
-  }
-}
-
 // Extend Window interface to include global recipe creation flag
 declare global {
   interface Window {

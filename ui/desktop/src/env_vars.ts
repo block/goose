@@ -1,2 +1,0 @@
-export const GOOSE_PROVIDER = 'GOOSE_PROVIDER';
-export const GOOSE_MODEL = 'GOOSE_MODEL';

@@ -3,21 +3,17 @@ import { Switch } from '../../ui/switch';
 import { ChevronDown } from 'lucide-react';
 import { Input } from '../../ui/input';
 import { useConfig } from '../../ConfigContext';
-
-type DictationProvider = 'openai' | 'elevenlabs';
-
-interface DictationSettings {
-  enabled: boolean;
-  provider: DictationProvider;
-}
-
-const DICTATION_SETTINGS_KEY = 'dictation_settings';
-const ELEVENLABS_API_KEY = 'ELEVENLABS_API_KEY';
+import { DictationProvider, DictationSettings } from '../../../hooks/useDictationSettings';
+import {
+  DICTATION_SETTINGS_KEY,
+  ELEVENLABS_API_KEY,
+  getDefaultDictationSettings,
+} from '../../../hooks/dictationConstants';
 
 export default function DictationSection() {
   const [settings, setSettings] = useState<DictationSettings>({
-    enabled: true,
-    provider: 'openai',
+    enabled: false,
+    provider: null,
   });
   const [hasOpenAIKey, setHasOpenAIKey] = useState(false);
   const [showProviderDropdown, setShowProviderDropdown] = useState(false);
@@ -33,19 +29,18 @@ export default function DictationSection() {
   useEffect(() => {
     const loadSettings = async () => {
       const savedSettings = localStorage.getItem(DICTATION_SETTINGS_KEY);
+
+      let loadedSettings: DictationSettings;
+
       if (savedSettings) {
         const parsed = JSON.parse(savedSettings);
-        setSettings(parsed);
-        setShowElevenLabsKey(parsed.provider === 'elevenlabs');
+        loadedSettings = parsed;
       } else {
-        // Default settings
-        const defaultSettings: DictationSettings = {
-          enabled: true,
-          provider: 'openai',
-        };
-        setSettings(defaultSettings);
-        localStorage.setItem(DICTATION_SETTINGS_KEY, JSON.stringify(defaultSettings));
+        loadedSettings = await getDefaultDictationSettings(getProviders);
       }
+
+      setSettings(loadedSettings);
+      setShowElevenLabsKey(loadedSettings.provider === 'elevenlabs');
 
       // Load ElevenLabs API key from storage
       setIsLoadingKey(true);
@@ -64,7 +59,7 @@ export default function DictationSection() {
     };
 
     loadSettings();
-  }, [read]);
+  }, [read, getProviders]);
 
   // Save ElevenLabs key on unmount if it has changed
   useEffect(() => {
@@ -97,13 +92,35 @@ export default function DictationSection() {
     checkOpenAIKey();
   }, [getProviders]);
 
+  const handleDropdownToggle = async () => {
+    const newShowState = !showProviderDropdown;
+    setShowProviderDropdown(newShowState);
+
+    if (newShowState) {
+      try {
+        const providers = await getProviders(true);
+        const openAIProvider = providers.find((p) => p.name === 'openai');
+        const isConfigured = !!openAIProvider?.is_configured;
+        setHasOpenAIKey(isConfigured);
+      } catch (error) {
+        console.error('Error checking OpenAI configuration:', error);
+        setHasOpenAIKey(false);
+      }
+    }
+  };
+
   const saveSettings = (newSettings: DictationSettings) => {
+    console.log('Saving dictation settings to localStorage:', newSettings);
     setSettings(newSettings);
     localStorage.setItem(DICTATION_SETTINGS_KEY, JSON.stringify(newSettings));
   };
 
   const handleToggle = (enabled: boolean) => {
-    saveSettings({ ...settings, enabled });
+    saveSettings({
+      ...settings,
+      enabled,
+      provider: settings.provider === null ? 'openai' : settings.provider,
+    });
   };
 
   const handleProviderChange = (provider: DictationProvider) => {
@@ -115,18 +132,26 @@ export default function DictationSection() {
   const handleElevenLabsKeyChange = (key: string) => {
     setElevenLabsApiKey(key);
     elevenLabsApiKeyRef.current = key;
+    // If user starts typing, they're updating the key
+    if (key.length > 0) {
+      setHasElevenLabsKey(false); // Hide "configured" while typing
+    }
   };
 
   const saveElevenLabsKey = async () => {
     // Save to secure storage
     try {
       if (elevenLabsApiKey.trim()) {
+        console.log('Saving ElevenLabs API key to secure storage...');
         await upsert(ELEVENLABS_API_KEY, elevenLabsApiKey, true);
         setHasElevenLabsKey(true);
+        console.log('ElevenLabs API key saved successfully');
       } else {
         // If key is empty, remove it from storage
+        console.log('Removing ElevenLabs API key from secure storage...');
         await upsert(ELEVENLABS_API_KEY, null, true);
         setHasElevenLabsKey(false);
+        console.log('ElevenLabs API key removed successfully');
       }
     } catch (error) {
       console.error('Error saving ElevenLabs API key:', error);
@@ -140,7 +165,7 @@ export default function DictationSection() {
       case 'elevenlabs':
         return 'ElevenLabs';
       default:
-        return provider;
+        return 'None (disabled)';
     }
   };
 
@@ -171,7 +196,7 @@ export default function DictationSection() {
             </div>
             <div className="relative">
               <button
-                onClick={() => setShowProviderDropdown(!showProviderDropdown)}
+                onClick={handleDropdownToggle}
                 className="flex items-center gap-2 px-3 py-1.5 text-sm border border-borderSubtle rounded-md hover:border-borderStandard transition-colors text-textStandard bg-background-default"
               >
                 {getProviderLabel(settings.provider)}
@@ -182,12 +207,7 @@ export default function DictationSection() {
                 <div className="absolute right-0 mt-1 w-48 bg-background-default border border-borderStandard rounded-md shadow-lg z-10">
                   <button
                     onClick={() => handleProviderChange('openai')}
-                    disabled={!hasOpenAIKey}
-                    className={`w-full px-3 py-2 text-left text-sm transition-colors first:rounded-t-md ${
-                      hasOpenAIKey
-                        ? 'hover:bg-bgSubtle text-textStandard'
-                        : 'text-textSubtle cursor-not-allowed'
-                    }`}
+                    className="w-full px-3 py-2 text-left text-sm transition-colors first:rounded-t-md hover:bg-bgSubtle text-textStandard"
                   >
                     OpenAI Whisper
                     {!hasOpenAIKey && <span className="text-xs ml-1">(not configured)</span>}

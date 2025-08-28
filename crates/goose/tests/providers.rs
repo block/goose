@@ -1,6 +1,6 @@
 use anyhow::Result;
 use dotenvy::dotenv;
-use goose::message::{Message, MessageContent};
+use goose::conversation::message::{Message, MessageContent};
 use goose::providers::base::Provider;
 use goose::providers::errors::ProviderError;
 use goose::providers::{
@@ -257,6 +257,7 @@ impl ProviderTester {
 
     async fn test_image_content_support(&self) -> Result<()> {
         use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+        use goose::conversation::message::Message;
         use std::fs;
 
         // Try to read the test image

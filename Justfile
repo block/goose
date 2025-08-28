@@ -155,6 +155,20 @@ debug-ui:
 	npm install && \
 	npm run start-gui
 
+# Run UI with main process debugging enabled
+# To debug main process:
+# 1. Run: just debug-ui-main-process
+# 2. Open Chrome → chrome://inspect
+# 3. Click "Open dedicated DevTools for Node"
+# 4. If not auto-detected, click "Configure" and add: localhost:9229
+
+debug-ui-main-process:
+	@echo "🔍 Starting Goose UI with main process debugging enabled"
+	@just release-binary
+	cd ui/desktop && \
+	npm install && \
+	npm run start-gui-debug
+
 # Run UI with alpha changes
 run-ui-alpha temporal="true":
     @just release-binary
@@ -444,3 +458,9 @@ win-total-rls *allparam:
   just win-bld-rls{{allparam}}
   just win-run-rls
 
+build-test-tools:
+  cargo build -p goose-test
+
+record-mcp-tests: build-test-tools
+  GOOSE_RECORD_MCP=1 cargo test --package goose --test mcp_integration_test
+  git add crates/goose/tests/mcp_replays/

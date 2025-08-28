@@ -33,7 +33,8 @@
 use super::errors::ProviderError;
 use super::ollama::OLLAMA_DEFAULT_PORT;
 use super::ollama::OLLAMA_HOST;
-use crate::message::{Message, MessageContent};
+use crate::conversation::message::{Message, MessageContent};
+use crate::conversation::Conversation;
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::create_request;
 use anyhow::Result;
@@ -310,8 +311,8 @@ pub fn format_tool_info(tools: &[Tool]) -> String {
 /// Convert messages containing ToolRequest/ToolResponse to text messages for toolshim mode
 /// This is necessary because some providers (like Bedrock) validate that tool_use/tool_result
 /// blocks can only exist when tools are defined, but in toolshim mode we pass empty tools
-pub fn convert_tool_messages_to_text(messages: &[Message]) -> Vec<Message> {
-    messages
+pub fn convert_tool_messages_to_text(messages: &[Message]) -> Conversation {
+    let converted_messages: Vec<Message> = messages
         .iter()
         .map(|message| {
             let mut new_content = Vec::new();
@@ -366,7 +367,9 @@ pub fn convert_tool_messages_to_text(messages: &[Message]) -> Vec<Message> {
                 message.clone()
             }
         })
-        .collect()
+        .collect();
+
+    Conversation::new_unvalidated(converted_messages)
 }
 
 /// Modifies the system prompt to include tool usage instructions when tool interpretation is enabled

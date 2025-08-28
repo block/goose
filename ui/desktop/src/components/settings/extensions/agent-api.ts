@@ -14,18 +14,20 @@ interface ApiResponse {
 export async function extensionApiCall(
   endpoint: string,
   payload: ExtensionConfig | string,
-  options: ToastServiceOptions = {}
+  options: ToastServiceOptions & { isDelete?: boolean } = {}
 ): Promise<Response> {
   // Configure toast notifications
   toastService.configure(options);
 
-  // Determine if we're activating or removing an extension
+  // Determine if we're activating, deactivating, or removing an extension
   const isActivating = endpoint == '/extensions/add';
+  const isRemoving = options.isDelete === true;
+
   const action = {
-    type: isActivating ? 'activating' : 'removing',
-    verb: isActivating ? 'Activating' : 'Removing',
-    pastTense: isActivating ? 'activated' : 'removed',
-    presentTense: isActivating ? 'activate' : 'remove',
+    type: isActivating ? 'activating' : isRemoving ? 'removing' : 'deactivating',
+    verb: isActivating ? 'Activating' : isRemoving ? 'Removing' : 'Deactivating',
+    pastTense: isActivating ? 'activated' : isRemoving ? 'removed' : 'deactivated',
+    presentTense: isActivating ? 'activate' : isRemoving ? 'remove' : 'deactivate',
   };
 
   // for adding the payload is an extensionConfig, for removing payload is just the name
@@ -71,7 +73,7 @@ export async function extensionApiCall(
     toastService.dismiss(toastId);
     toastService.success({
       title: extensionName,
-      msg: `Successfully ${action.pastTense} extension!`,
+      msg: `Successfully ${action.pastTense} extension`,
     });
     return response;
   } catch (error) {
@@ -114,7 +116,7 @@ function handleErrorResponse(
   }
 
   // General error case
-  const msg = `Failed to ${action.type === 'activating' ? 'add' : 'remove'} ${extensionName} extension: ${errorMsg}`;
+  const msg = `Failed to ${action.type === 'activating' ? 'add' : action.type === 'removing' ? 'remove' : 'deactivate'} ${extensionName} extension: ${errorMsg}`;
   toastService.dismiss(toastId);
   toastService.error({
     title: extensionName,
@@ -168,12 +170,13 @@ export async function addToAgent(
  */
 export async function removeFromAgent(
   name: string,
-  options: ToastServiceOptions = {}
+  options: ToastServiceOptions & { isDelete?: boolean } = {}
 ): Promise<Response> {
   try {
     return await extensionApiCall('/extensions/remove', sanitizeName(name), options);
   } catch (error) {
-    console.error(`Failed to remove extension ${name} from agent:`, error);
+    const action = options.isDelete ? 'remove' : 'deactivate';
+    console.error(`Failed to ${action} extension ${name} from agent:`, error);
     throw error;
   }
 }

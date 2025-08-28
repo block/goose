@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
-use goose::message::Message;
+use goose::conversation::{message::Message, Conversation};
 use goose::recipe::Recipe;
 use goose::recipe_deeplink;
 use serde::{Deserialize, Serialize};
@@ -56,6 +56,16 @@ pub struct DecodeRecipeResponse {
     recipe: Recipe,
 }
 
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct ScanRecipeRequest {
+    recipe: Recipe,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ScanRecipeResponse {
+    has_security_warnings: bool,
+}
+
 #[utoipa::path(
     post,
     path = "/recipes/create",
@@ -73,20 +83,31 @@ async fn create_recipe(
     State(state): State<Arc<AppState>>,
     Json(request): Json<CreateRecipeRequest>,
 ) -> Result<Json<CreateRecipeResponse>, (StatusCode, Json<CreateRecipeResponse>)> {
+    tracing::info!(
+        "Recipe creation request received with {} messages",
+        request.messages.len()
+    );
+
     let error_response = CreateRecipeResponse {
         recipe: None,
         error: Some("Missing agent".to_string()),
     };
-    let agent = state
-        .get_agent()
-        .await
-        .map_err(|_| (StatusCode::PRECONDITION_FAILED, Json(error_response)))?;
+    let agent = state.get_agent().await.map_err(|e| {
+        tracing::error!("Failed to get agent for recipe creation: {}", e);
+        (StatusCode::PRECONDITION_FAILED, Json(error_response))
+    })?;
+
+    tracing::debug!("Agent retrieved successfully, creating recipe from conversation");
 
     // Create base recipe from agent state and messages
-    let recipe_result = agent.create_recipe(request.messages).await;
+    let recipe_result = agent
+        .create_recipe(Conversation::new_unvalidated(request.messages))
+        .await;
 
     match recipe_result {
         Ok(mut recipe) => {
+            tracing::info!("Recipe created successfully with title: '{}'", recipe.title);
+
             // Update with user-provided metadata
             recipe.title = request.title;
             recipe.description = request.description;
@@ -102,16 +123,23 @@ async fn create_recipe(
                 });
             }
 
+            tracing::debug!("Recipe metadata updated, returning success response");
+
             Ok(Json(CreateRecipeResponse {
                 recipe: Some(recipe),
                 error: None,
             }))
         }
         Err(e) => {
+            // Log the detailed error for debugging
+            tracing::error!("Recipe creation failed: {}", e);
+            tracing::error!("Error details: {:?}", e);
+
             // Return 400 Bad Request with error message
+            let error_message = format!("Recipe creation failed: {}", e);
             let error_response = CreateRecipeResponse {
                 recipe: None,
-                error: Some(e.to_string()),
+                error: Some(error_message),
             };
             Err((StatusCode::BAD_REQUEST, Json(error_response)))
         }
@@ -162,11 +190,31 @@ async fn decode_recipe(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/recipes/scan",
+    request_body = ScanRecipeRequest,
+    responses(
+        (status = 200, description = "Recipe scanned successfully", body = ScanRecipeResponse),
+    ),
+    tag = "Recipe Management"
+)]
+async fn scan_recipe(
+    Json(request): Json<ScanRecipeRequest>,
+) -> Result<Json<ScanRecipeResponse>, StatusCode> {
+    let has_security_warnings = request.recipe.check_for_security_warnings();
+
+    Ok(Json(ScanRecipeResponse {
+        has_security_warnings,
+    }))
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/recipes/create", post(create_recipe))
         .route("/recipes/encode", post(encode_recipe))
         .route("/recipes/decode", post(decode_recipe))
+        .route("/recipes/scan", post(scan_recipe))
         .with_state(state)
 }
 

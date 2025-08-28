@@ -1,4 +1,4 @@
-use crate::message::{Message, MessageContent};
+use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::{ProviderUsage, Usage};
 use crate::providers::utils::{
@@ -8,10 +8,13 @@ use crate::providers::utils::{
 use anyhow::{anyhow, Error};
 use async_stream::try_stream;
 use futures::Stream;
-use mcp_core::{ToolCall, ToolError};
-use rmcp::model::{AnnotateAble, Content, RawContent, ResourceContents, Role, Tool};
+use mcp_core::ToolCall;
+use rmcp::model::{
+    AnnotateAble, Content, ErrorCode, ErrorData, RawContent, ResourceContents, Role, Tool,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::borrow::Cow;
 use std::ops::Deref;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -48,7 +51,7 @@ struct StreamingChunk {
     created: Option<i64>,
     id: Option<String>,
     usage: Option<Value>,
-    model: String,
+    model: Option<String>,
 }
 
 /// Convert internal Message format to OpenAI's API message specification
@@ -299,10 +302,14 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                 };
 
                 if !is_valid_function_name(&function_name) {
-                    let error = ToolError::NotFound(format!(
-                        "The provided function name '{}' had invalid characters, it must match this regex [a-zA-Z0-9_-]+",
-                        function_name
-                    ));
+                    let error = ErrorData {
+                        code: ErrorCode::INVALID_REQUEST,
+                        message: Cow::from(format!(
+                            "The provided function name '{}' had invalid characters, it must match this regex [a-zA-Z0-9_-]+",
+                            function_name
+                        )),
+                        data: None,
+                    };
                     content.push(MessageContent::tool_request(id, Err(error)));
                 } else {
                     match safely_parse_json(&arguments_str) {
@@ -313,10 +320,14 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                             ));
                         }
                         Err(e) => {
-                            let error = ToolError::InvalidParameters(format!(
-                                "Could not interpret tool use parameters for id {}: {}. Raw arguments: '{}'",
-                                id, e, arguments_str
-                            ));
+                            let error = ErrorData {
+                                code: ErrorCode::INVALID_PARAMS,
+                                message: Cow::from(format!(
+                                    "Could not interpret tool use parameters for id {}: {}. Raw arguments: '{}'",
+                                    id, e, arguments_str
+                                )),
+                                data: None,
+                            };
                             content.push(MessageContent::tool_request(id, Err(error)));
                         }
                     }
@@ -428,13 +439,14 @@ where
             let chunk: StreamingChunk = serde_json::from_str(line
                 .ok_or_else(|| anyhow!("unexpected stream format"))?)
                 .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
-            let model = chunk.model.clone();
 
-            let usage = chunk.usage.as_ref().map(|u| {
-                ProviderUsage {
-                    usage: get_usage(u),
-                    model,
-                }
+            let usage = chunk.usage.as_ref().and_then(|u| {
+                chunk.model.as_ref().map(|model| {
+                    ProviderUsage {
+                        usage: get_usage(u),
+                        model: model.clone(),
+                    }
+                })
             });
 
             if chunk.choices.is_empty() {
@@ -448,37 +460,42 @@ where
                     }
                 }
 
-                let mut done = false;
-                while !done {
-                    if let Some(response_chunk) = stream.next().await {
-                        if response_chunk.as_ref().is_ok_and(|s| s == "data: [DONE]") {
-                            break 'outer;
-                        }
-                        let response_str = response_chunk?;
-                        if let Some(line) = strip_data_prefix(&response_str) {
-                            let tool_chunk: StreamingChunk = serde_json::from_str(line)
-                                .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
+                // Check if this chunk already has finish_reason "tool_calls"
+                let is_complete = chunk.choices[0].finish_reason == Some("tool_calls".to_string());
 
-                            if let Some(delta_tool_calls) = &tool_chunk.choices[0].delta.tool_calls {
-                                for delta_call in delta_tool_calls {
-                                    if let Some(index) = delta_call.index {
-                                        if let Some((_, _, ref mut args)) = tool_call_data.get_mut(&index) {
-                                            args.push_str(&delta_call.function.arguments);
-                                        } else if let (Some(id), Some(name)) = (&delta_call.id, &delta_call.function.name) {
-                                            tool_call_data.insert(index, (id.clone(), name.clone(), delta_call.function.arguments.clone()));
+                if !is_complete {
+                    let mut done = false;
+                    while !done {
+                        if let Some(response_chunk) = stream.next().await {
+                            if response_chunk.as_ref().is_ok_and(|s| s == "data: [DONE]") {
+                                break 'outer;
+                            }
+                            let response_str = response_chunk?;
+                            if let Some(line) = strip_data_prefix(&response_str) {
+                                let tool_chunk: StreamingChunk = serde_json::from_str(line)
+                                    .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
+
+                                if let Some(delta_tool_calls) = &tool_chunk.choices[0].delta.tool_calls {
+                                    for delta_call in delta_tool_calls {
+                                        if let Some(index) = delta_call.index {
+                                            if let Some((_, _, ref mut args)) = tool_call_data.get_mut(&index) {
+                                                args.push_str(&delta_call.function.arguments);
+                                            } else if let (Some(id), Some(name)) = (&delta_call.id, &delta_call.function.name) {
+                                                tool_call_data.insert(index, (id.clone(), name.clone(), delta_call.function.arguments.clone()));
+                                            }
                                         }
                                     }
+                                } else {
+                                    done = true;
                                 }
-                            } else {
-                                done = true;
-                            }
 
-                            if tool_chunk.choices[0].finish_reason == Some("tool_calls".to_string()) {
-                                done = true;
+                                if tool_chunk.choices[0].finish_reason == Some("tool_calls".to_string()) {
+                                    done = true;
+                                }
                             }
+                        } else {
+                            break;
                         }
-                    } else {
-                        break;
                     }
                 }
 
@@ -495,15 +512,21 @@ where
                         };
 
                         let content = match parsed {
-                            Ok(params) => MessageContent::tool_request(
-                                id.clone(),
-                                Ok(ToolCall::new(function_name.clone(), params)),
-                            ),
+                            Ok(params) => {
+                                MessageContent::tool_request(
+                                    id.clone(),
+                                    Ok(ToolCall::new(function_name.clone(), params)),
+                                )
+                            },
                             Err(e) => {
-                                let error = ToolError::InvalidParameters(format!(
-                                    "Could not interpret tool use parameters for id {}: {}",
-                                    id, e
-                                ));
+                                let error = ErrorData {
+                                    code: ErrorCode::INVALID_PARAMS,
+                                    message: Cow::from(format!(
+                                        "Could not interpret tool use parameters for id {}: {}",
+                                        id, e
+                                    )),
+                                    data: None,
+                                };
                                 MessageContent::tool_request(id.clone(), Err(error))
                             }
                         };
@@ -534,6 +557,8 @@ where
                         None
                     },
                 )
+            } else if usage.is_some() {
+                yield (None, usage)
             }
         }
     }
@@ -552,7 +577,8 @@ pub fn create_request(
         ));
     }
 
-    let is_ox_model = model_config.model_name.starts_with("o");
+    let is_ox_model =
+        model_config.model_name.starts_with("o") || model_config.model_name.starts_with("gpt-5");
 
     // Only extract reasoning effort for O1/O3 models
     let (model_name, reasoning_effort) = if is_ox_model {
@@ -638,6 +664,7 @@ pub fn create_request(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::conversation::message::Message;
     use rmcp::object;
     use serde_json::json;
     use tokio::pin;
@@ -979,7 +1006,11 @@ mod tests {
 
         if let MessageContent::ToolRequest(request) = &message.content[0] {
             match &request.tool_call {
-                Err(ToolError::NotFound(msg)) => {
+                Err(ErrorData {
+                    code: ErrorCode::INVALID_REQUEST,
+                    message: msg,
+                    data: None,
+                }) => {
                     assert!(msg.starts_with("The provided function name"));
                 }
                 _ => panic!("Expected ToolNotFound error"),
@@ -1001,7 +1032,11 @@ mod tests {
 
         if let MessageContent::ToolRequest(request) = &message.content[0] {
             match &request.tool_call {
-                Err(ToolError::InvalidParameters(msg)) => {
+                Err(ErrorData {
+                    code: ErrorCode::INVALID_PARAMS,
+                    message: msg,
+                    data: None,
+                }) => {
                     assert!(msg.starts_with("Could not interpret tool use parameters"));
                 }
                 _ => panic!("Expected InvalidParameters error"),
@@ -1042,6 +1077,7 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
+            fast_model: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         let obj = request.as_object().unwrap();
@@ -1073,6 +1109,7 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
+            fast_model: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         let obj = request.as_object().unwrap();
@@ -1105,6 +1142,7 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
+            fast_model: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         let obj = request.as_object().unwrap();

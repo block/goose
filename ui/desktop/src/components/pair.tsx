@@ -26,7 +26,7 @@
 
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { type View, ViewOptions } from '../App';
+import { View, ViewOptions } from '../utils/navigationUtils';
 import BaseChat from './BaseChat';
 import { useRecipeManager } from '../hooks/useRecipeManager';
 import { useIsMobile } from '../hooks/use-mobile';
@@ -35,6 +35,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import { cn } from '../utils';
 
 import { ChatType } from '../types/chat';
+import { DEFAULT_CHAT_TITLE } from '../contexts/ChatContext';
 
 export default function Pair({
   chat,
@@ -75,11 +76,28 @@ export default function Pair({
       // Clear the location state to prevent re-processing
       window.history.replaceState({}, '', '/pair');
     }
-  }, [location.state, chat.id, setChat]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state, chat.id]);
 
   // Handle initial message from hub page
   useEffect(() => {
     const messageFromHub = location.state?.initialMessage;
+    const resetChat = location.state?.resetChat;
+
+    // If we have a resetChat flag from Hub, clear any existing recipe config
+    // This scenario occurs when a user navigates from Hub to start a new chat,
+    // ensuring any previous recipe configuration is cleared for a fresh start
+    if (resetChat) {
+      const newChat: ChatType = {
+        ...chat,
+        recipeConfig: null,
+        recipeParameters: null,
+        title: DEFAULT_CHAT_TITLE,
+        messages: [], // Clear messages for fresh start
+        messageHistoryIndex: 0,
+      };
+      setChat(newChat);
+    }
 
     // Reset processing state when we have a new message from hub
     if (messageFromHub) {
@@ -100,49 +118,8 @@ export default function Pair({
         window.history.replaceState({}, '', '/pair');
       }
     }
-  }, [location.state, hasProcessedInitialInput, initialMessage, chat]);
-
-  // Auto-submit the initial message after it's been set and component is ready
-  useEffect(() => {
-    if (shouldAutoSubmit && initialMessage) {
-      // Wait for the component to be fully rendered
-      const timer = setTimeout(() => {
-        // Try to trigger form submission programmatically
-        const textarea = document.querySelector(
-          'textarea[data-testid="chat-input"]'
-        ) as HTMLTextAreaElement;
-        const form = textarea?.closest('form');
-
-        if (textarea && form) {
-          // Set the textarea value
-          textarea.value = initialMessage;
-          // eslint-disable-next-line no-undef
-          textarea.dispatchEvent(new Event('input', { bubbles: true }));
-
-          // Focus the textarea
-          textarea.focus();
-
-          // Simulate Enter key press to trigger submission
-          const enterEvent = new KeyboardEvent('keydown', {
-            key: 'Enter',
-            code: 'Enter',
-            keyCode: 13,
-            which: 13,
-            bubbles: true,
-          });
-          textarea.dispatchEvent(enterEvent);
-
-          setShouldAutoSubmit(false);
-        }
-      }, 500); // Give more time for the component to fully mount
-
-      // eslint-disable-next-line no-undef
-      return () => clearTimeout(timer);
-    }
-
-    // Return undefined when condition is not met
-    return undefined;
-  }, [shouldAutoSubmit, initialMessage]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state, hasProcessedInitialInput, initialMessage]);
 
   // Custom message submit handler
   const handleMessageSubmit = (message: string) => {
@@ -168,27 +145,20 @@ export default function Pair({
     initialValue,
   };
 
-  // Custom content before messages
-  const renderBeforeMessages = () => {
-    return <div>{/* Any Pair-specific content before messages can go here */}</div>;
-  };
-
   return (
-    <>
-      <BaseChat
-        chat={chat}
-        setChat={setChat}
-        setView={setView}
-        setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-        enableLocalStorage={true} // Enable local storage for Pair mode
-        onMessageSubmit={handleMessageSubmit}
-        onMessageStreamFinish={handleMessageStreamFinish}
-        renderBeforeMessages={renderBeforeMessages}
-        customChatInputProps={customChatInputProps}
-        contentClassName={cn('pr-1 pb-10', (isMobile || sidebarState === 'collapsed') && 'pt-11')} // Use dynamic content class with mobile margin and sidebar state
-        showPopularTopics={!isTransitioningFromHub} // Don't show popular topics while transitioning from Hub
-        suppressEmptyState={isTransitioningFromHub} // Suppress all empty state content while transitioning from Hub
-      />
-    </>
+    <BaseChat
+      chat={chat}
+      autoSubmit={shouldAutoSubmit}
+      setChat={setChat}
+      setView={setView}
+      setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+      enableLocalStorage={true} // Enable local storage for Pair mode
+      onMessageSubmit={handleMessageSubmit}
+      onMessageStreamFinish={handleMessageStreamFinish}
+      customChatInputProps={customChatInputProps}
+      contentClassName={cn('pr-1 pb-10', (isMobile || sidebarState === 'collapsed') && 'pt-11')} // Use dynamic content class with mobile margin and sidebar state
+      showPopularTopics={!isTransitioningFromHub} // Don't show popular topics while transitioning from Hub
+      suppressEmptyState={isTransitioningFromHub} // Suppress all empty state content while transitioning from Hub
+    />
   );
 }

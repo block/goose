@@ -52,6 +52,11 @@ import styles from '@site/src/components/Card/styles.module.css';
       description="Learn how to save, organize, and find your Goose recipes for easy access and reuse."
       link="/docs/guides/recipes/storing-recipes"
     />
+    <Card 
+      title="Sub-Recipes In Parallel Tutorial"
+      description="Learn how to run multiple sub-recipes instances concurrently."
+      link="/docs/tutorials/sub-recipes-in-parallel"
+    />
   </div>
 </div>
 

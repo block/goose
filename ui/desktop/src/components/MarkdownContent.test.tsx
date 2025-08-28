@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/dom';
 import MarkdownContent from './MarkdownContent';
 
 // Mock the icons to avoid import issues
@@ -256,6 +257,68 @@ Unclosed code block`;
       await waitFor(() => {
         // Should still render what it can
         expect(screen.getByText('Unclosed header')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Line Break Functionality', () => {
+    it('preserves single line breaks with remark-breaks plugin', async () => {
+      const content = `First line
+Second line
+Third line`;
+
+      const { container } = render(<MarkdownContent content={content} />);
+
+      await waitFor(() => {
+        // Check that all text content is present (text may be split by <br> tags)
+        expect(container).toHaveTextContent('First line');
+        expect(container).toHaveTextContent('Second line');
+        expect(container).toHaveTextContent('Third line');
+      });
+
+      // Check that line breaks are preserved (rendered as <br> tags)
+      const brElements = container.querySelectorAll('br');
+      expect(brElements.length).toBeGreaterThan(0);
+    });
+
+    it('handles mixed content with line breaks', async () => {
+      const content = `# Header
+Paragraph with
+line breaks.
+
+- List item 1
+- List item 2`;
+
+      const { container } = render(<MarkdownContent content={content} />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { level: 1, name: 'Header' })).toBeInTheDocument();
+
+        // Check that text content is present (text may be split by <br> tags)
+        expect(container).toHaveTextContent('Paragraph with');
+        expect(container).toHaveTextContent('line breaks.');
+        expect(screen.getByText('List item 1')).toBeInTheDocument();
+        expect(screen.getByText('List item 2')).toBeInTheDocument();
+      });
+    });
+
+    it('maintains existing markdown features with line breaks', async () => {
+      const content = `**Bold text**
+with line break
+
+\`code\` and
+more text`;
+
+      const { container } = render(<MarkdownContent content={content} />);
+
+      await waitFor(() => {
+        // Bold text should still work
+        const boldElement = container.querySelector('strong');
+        expect(boldElement).toBeInTheDocument();
+        expect(boldElement).toHaveTextContent('Bold text');
+
+        // Code should still work
+        expect(screen.getByText('code')).toBeInTheDocument();
       });
     });
   });

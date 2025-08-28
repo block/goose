@@ -20,6 +20,8 @@ type BundledExtension = {
   allow_configure?: boolean;
 };
 
+const DEPRECATED_BUILTINS = ['googledrive', 'google_drive'];
+
 /**
  * Synchronizes built-in extensions with the config system.
  * This function ensures all built-in extensions are added, which is especially
@@ -36,6 +38,13 @@ export async function syncBundledExtensions(
   try {
     // Cast the imported JSON data to the expected type
     const bundledExtensions = bundledExtensionsData as BundledExtension[];
+
+    for (let i = existingExtensions.length - 1; i >= 0; i--) {
+      const ext = existingExtensions[i];
+      if (ext.type == 'builtin' && DEPRECATED_BUILTINS.includes(ext.name)) {
+        existingExtensions.splice(i, 1);
+      }
+    }
 
     // Process each bundled extension
     for (const bundledExt of bundledExtensions) {

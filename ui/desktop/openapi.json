@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.1.0"
+    "version": "1.6.0"
   },
   "paths": {
     "/agent/add_sub_recipes": {
@@ -31,7 +31,7 @@
         },
         "responses": {
           "200": {
-            "description": "added sub recipes to agent successfully",
+            "description": "Added sub recipes to agent successfully",
             "content": {
               "application/json": {
                 "schema": {
@@ -42,6 +42,84 @@
           },
           "401": {
             "description": "Unauthorized - invalid secret key"
+          },
+          "424": {
+            "description": "Agent not initialized"
+          }
+        }
+      }
+    },
+    "/agent/prompt": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "extend_prompt",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExtendPromptRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Extended system prompt successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendPromptResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "424": {
+            "description": "Agent not initialized"
+          }
+        }
+      }
+    },
+    "/agent/session_config": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "update_session_config",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionConfigRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Session config updated successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "424": {
+            "description": "Agent not initialized"
+          },
+          "500": {
+            "description": "Internal server error"
           }
         }
       }
@@ -74,6 +152,70 @@
                   "items": {
                     "$ref": "#/components/schemas/ToolInfo"
                   }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "424": {
+            "description": "Agent not initialized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/agent/update_provider": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "update_agent_provider",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProviderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Provider updated successfully"
+          },
+          "400": {
+            "description": "Bad request - missing or invalid parameters"
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "424": {
+            "description": "Agent not initialized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/agent/update_router_tool_selector": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "update_router_tool_selector",
+        "responses": {
+          "200": {
+            "description": "Tool selection strategy updated successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -126,6 +268,78 @@
                 }
               }
             }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/config/custom-providers": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "create_custom_provider",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCustomProviderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Custom provider created successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/config/custom-providers/{id}": {
+      "delete": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "remove_custom_provider",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Custom provider removed successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Provider not found"
           },
           "500": {
             "description": "Internal server error"
@@ -308,6 +522,49 @@
         }
       }
     },
+    "/config/providers/{name}/models": {
+      "get": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "get_provider_models",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Provider name (e.g., openai)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Models fetched successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown provider, provider not configured, or authentication error"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/config/read": {
       "post": {
         "tags": [
@@ -333,8 +590,8 @@
               }
             }
           },
-          "404": {
-            "description": "Configuration key not found"
+          "500": {
+            "description": "Unable to get the configuration value"
           }
         }
       }
@@ -634,6 +891,36 @@
           },
           "400": {
             "description": "Bad request"
+          }
+        }
+      }
+    },
+    "/recipes/scan": {
+      "post": {
+        "tags": [
+          "Recipe Management"
+        ],
+        "operationId": "scan_recipe",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScanRecipeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Recipe scanned successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanRecipeResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -1150,24 +1437,34 @@
       },
       "ConfigKey": {
         "type": "object",
+        "description": "Configuration key metadata for provider setup",
         "required": [
           "name",
           "required",
-          "secret"
+          "secret",
+          "oauth_flow"
         ],
         "properties": {
           "default": {
             "type": "string",
+            "description": "Optional default value for the key",
             "nullable": true
           },
           "name": {
-            "type": "string"
+            "type": "string",
+            "description": "The name of the configuration key (e.g., \"API_KEY\")"
+          },
+          "oauth_flow": {
+            "type": "boolean",
+            "description": "Whether this key should be configured using OAuth device code flow\nWhen true, the provider's configure_oauth() method will be called instead of prompting for manual input"
           },
           "required": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Whether this key is required for the provider to function"
           },
           "secret": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Whether this key should be stored securely (e.g., in keychain)"
           }
         }
       },
@@ -1284,6 +1581,40 @@
               "minimum": 0
             },
             "description": "Token counts for each processed message"
+          }
+        }
+      },
+      "CreateCustomProviderRequest": {
+        "type": "object",
+        "required": [
+          "provider_type",
+          "display_name",
+          "api_url",
+          "api_key",
+          "models"
+        ],
+        "properties": {
+          "api_key": {
+            "type": "string"
+          },
+          "api_url": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "provider_type": {
+            "type": "string"
+          },
+          "supports_streaming": {
+            "type": "boolean",
+            "nullable": true
           }
         }
       },
@@ -1436,6 +1767,39 @@
           "description": "A map of environment variables to set, e.g. API_KEY -> some_secret, HOST -> host"
         }
       },
+      "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        }
+      },
+      "ExtendPromptRequest": {
+        "type": "object",
+        "required": [
+          "extension"
+        ],
+        "properties": {
+          "extension": {
+            "type": "string"
+          }
+        }
+      },
+      "ExtendPromptResponse": {
+        "type": "object",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          }
+        }
+      },
       "ExtensionConfig": {
         "oneOf": [
           {
@@ -1447,6 +1811,12 @@
               "type"
             ],
             "properties": {
+              "available_tools": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "bundled": {
                 "type": "boolean",
                 "description": "Whether this extension is bundled with Goose",
@@ -1502,6 +1872,12 @@
                   "type": "string"
                 }
               },
+              "available_tools": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "bundled": {
                 "type": "boolean",
                 "description": "Whether this extension is bundled with Goose",
@@ -1549,6 +1925,12 @@
               "type"
             ],
             "properties": {
+              "available_tools": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "bundled": {
                 "type": "boolean",
                 "description": "Whether this extension is bundled with Goose",
@@ -1589,6 +1971,12 @@
               "type"
             ],
             "properties": {
+              "available_tools": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "bundled": {
                 "type": "boolean",
                 "description": "Whether this extension is bundled with Goose",
@@ -1643,6 +2031,12 @@
               "type"
             ],
             "properties": {
+              "available_tools": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "bundled": {
                 "type": "boolean",
                 "description": "Whether this extension is bundled with Goose",
@@ -1681,6 +2075,12 @@
               "type"
             ],
             "properties": {
+              "available_tools": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "code": {
                 "type": "string",
                 "description": "The Python code to execute"
@@ -1789,6 +2189,15 @@
           }
         }
       },
+      "GetToolsQuery": {
+        "type": "object",
+        "properties": {
+          "extension_name": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
       "ImageContent": {
         "type": "object",
         "required": [
@@ -1862,7 +2271,6 @@
         "description": "A message to or from an LLM",
         "required": [
           "role",
-          "created",
           "content"
         ],
         "properties": {
@@ -2566,6 +2974,28 @@
           }
         }
       },
+      "ScanRecipeRequest": {
+        "type": "object",
+        "required": [
+          "recipe"
+        ],
+        "properties": {
+          "recipe": {
+            "$ref": "#/components/schemas/Recipe"
+          }
+        }
+      },
+      "ScanRecipeResponse": {
+        "type": "object",
+        "required": [
+          "has_security_warnings"
+        ],
+        "properties": {
+          "has_security_warnings": {
+            "type": "boolean"
+          }
+        }
+      },
       "ScheduledJob": {
         "type": "object",
         "required": [
@@ -2606,6 +3036,19 @@
           },
           "source": {
             "type": "string"
+          }
+        }
+      },
+      "SessionConfigRequest": {
+        "type": "object",
+        "properties": {
+          "response": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Response"
+              }
+            ],
+            "nullable": true
           }
         }
       },
@@ -2781,14 +3224,14 @@
             "description": "The number of output tokens used in the session. Retrieved from the provider's last usage.",
             "nullable": true
           },
-          "project_id": {
-            "type": "string",
-            "description": "ID of the project this session belongs to, if any",
-            "nullable": true
-          },
           "schedule_id": {
             "type": "string",
             "description": "ID of the schedule that triggered this session, if any",
+            "nullable": true
+          },
+          "todo_content": {
+            "type": "string",
+            "description": "Session-scoped TODO list content",
             "nullable": true
           },
           "total_tokens": {
@@ -2962,6 +3405,10 @@
           },
           "name": {
             "type": "string"
+          },
+          "outputSchema": {
+            "type": "object",
+            "additionalProperties": true
           }
         }
       },
@@ -3079,6 +3526,21 @@
           },
           "toolResult": {
             "type": "object"
+          }
+        }
+      },
+      "UpdateProviderRequest": {
+        "type": "object",
+        "required": [
+          "provider"
+        ],
+        "properties": {
+          "model": {
+            "type": "string",
+            "nullable": true
+          },
+          "provider": {
+            "type": "string"
           }
         }
       },

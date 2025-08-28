@@ -24,7 +24,7 @@ export const useFileDrop = () => {
       readers.forEach((reader) => {
         try {
           reader.abort();
-        } catch (error) {
+        } catch {
           // Reader might already be done, ignore errors
         }
       });

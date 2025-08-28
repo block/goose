@@ -1,6 +1,7 @@
 mod agent;
 mod context;
 pub mod extension;
+pub mod extension_malware_check;
 pub mod extension_manager;
 pub mod final_output_tool;
 mod large_response_handler;
@@ -17,10 +18,10 @@ pub mod subagent;
 pub mod subagent_execution_tool;
 pub mod subagent_handler;
 mod subagent_task_config;
+pub mod todo_tools;
 mod tool_execution;
 mod tool_route_manager;
 mod tool_router_index_manager;
-pub(crate) mod tool_vectordb;
 pub mod types;
 
 pub use agent::{Agent, AgentEvent};

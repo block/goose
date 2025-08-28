@@ -38,6 +38,23 @@ No extensions are defined. You should let the user know that they should add ext
 
 {{tool_selection_strategy}}
 
+# Task Management
+
+- Required — use `todo__read` and `todo__write` for any task with 2+ steps, multiple files/components, or uncertain scope. Skipping them is an error.
+- Start — `todo__read`, then `todo__write` a brief checklist (Markdown checkboxes).
+- During — after each major action, update via `todo__write`: mark done, add/edit items, note blockers/dependencies.
+- Finish — ensure every item is checked, or clearly list what remains.
+- Overwrite warning — `todo__write` replaces the entire list; always read before writing. It is an error to not read before writing.
+- Quality — keep items short, specific, and action‑oriented.
+
+Template:
+```markdown
+- [ ] Implement feature X
+  - [ ] Update API
+  - [ ] Write tests
+- [ ] Blocked: waiting on credentials
+```
+
 # Response Guidelines
 
 - Use Markdown formatting for all responses.

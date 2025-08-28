@@ -5,7 +5,7 @@ import { Copy } from './icons';
 
 interface MessageCopyLinkProps {
   text: string;
-  contentRef: React.RefObject<HTMLElement>;
+  contentRef: React.RefObject<HTMLDivElement | null>;
 }
 
 export default function MessageCopyLink({ text, contentRef }: MessageCopyLinkProps) {

@@ -13,7 +13,7 @@ use tracing::info;
 use goose::providers::pricing::initialize_pricing_cache;
 
 pub async fn run() -> Result<()> {
-    // Initialize logging
+    // Initialize logging and telemetry
     crate::logging::setup_logging(Some("goosed"))?;
 
     let settings = configuration::Settings::new()?;

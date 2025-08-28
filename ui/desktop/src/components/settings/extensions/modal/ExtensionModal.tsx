@@ -406,7 +406,11 @@ export default function ExtensionModal({
                 <Button variant="outline" onClick={handleClose}>
                   Cancel
                 </Button>
-                <Button onClick={handleSubmit} disabled={!isFormValid()}>
+                <Button
+                  data-testid="extension-submit-btn"
+                  onClick={handleSubmit}
+                  disabled={!isFormValid()}
+                >
                   {submitLabel}
                 </Button>
               </>

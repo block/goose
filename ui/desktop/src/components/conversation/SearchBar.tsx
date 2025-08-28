@@ -41,7 +41,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   const [isExiting, setIsExiting] = useState(false);
   const internalInputRef = React.useRef<HTMLInputElement>(null);
   const inputRef = externalInputRef || internalInputRef;
-  const debouncedSearchRef = useRef<ReturnType<typeof debounce>>();
+  const debouncedSearchRef = useRef<ReturnType<typeof debounce> | null>(null);
 
   // Create debounced search function
   useEffect(() => {

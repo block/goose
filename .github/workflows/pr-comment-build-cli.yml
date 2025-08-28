@@ -17,7 +17,7 @@ permissions:
 name: Build CLI
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ (github.event.issue && github.event.issue.number) || github.event.inputs.pr_number }}
   cancel-in-progress: true
 
 jobs:

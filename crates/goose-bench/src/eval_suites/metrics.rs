@@ -1,6 +1,7 @@
 use crate::bench_session::BenchAgent;
 use crate::eval_suites::EvalMetricValue;
-use goose::message::{Message, MessageContent};
+use goose::conversation::message::{Message, MessageContent};
+use goose::conversation::Conversation;
 use std::collections::HashMap;
 use std::time::Instant;
 
@@ -8,7 +9,7 @@ use std::time::Instant;
 pub async fn collect_baseline_metrics(
     agent: &mut BenchAgent,
     prompt: String,
-) -> (Vec<Message>, HashMap<String, EvalMetricValue>) {
+) -> (Conversation, HashMap<String, EvalMetricValue>) {
     // Initialize metrics map
     let mut metrics = HashMap::new();
 
@@ -23,7 +24,7 @@ pub async fn collect_baseline_metrics(
                 "prompt_error".to_string(),
                 EvalMetricValue::String(format!("Error: {}", e)),
             );
-            Vec::new()
+            Conversation::new_unvalidated(Vec::new())
         }
     };
 
@@ -35,7 +36,7 @@ pub async fn collect_baseline_metrics(
     );
 
     // Count tool calls
-    let (total_tool_calls, tool_calls_by_name) = count_tool_calls(&messages);
+    let (total_tool_calls, tool_calls_by_name) = count_tool_calls(messages.messages());
     metrics.insert(
         "total_tool_calls".to_string(),
         EvalMetricValue::Integer(total_tool_calls),

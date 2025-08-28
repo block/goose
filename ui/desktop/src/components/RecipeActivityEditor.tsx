@@ -17,7 +17,7 @@ export default function RecipeActivityEditor({
       activity.toLowerCase().startsWith('message:')
     );
     if (messageActivity) {
-      setMessageContent(messageActivity.replace(/^message:/i, '').trim());
+      setMessageContent(messageActivity.replace(/^message:/i, ''));
     }
   }, [activities]);
 
@@ -45,7 +45,7 @@ export default function RecipeActivityEditor({
       (activity) => !activity.toLowerCase().startsWith('message:')
     );
 
-    if (value.trim()) {
+    if (value.length > 0) {
       setActivities([`message:${value}`, ...otherActivities]);
     } else {
       setActivities(otherActivities);
@@ -77,6 +77,9 @@ export default function RecipeActivityEditor({
           className="w-full px-4 py-3 border rounded-lg bg-background-default text-textStandard placeholder-textPlaceholder focus:outline-none focus:ring-2 focus:ring-borderProminent resize-vertical"
           placeholder="Enter a message for your recipe (supports **bold**, *italic*, `code`, etc.)"
           rows={3}
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck="false"
         />
       </div>
 

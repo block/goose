@@ -123,6 +123,11 @@ Later, you can ask:
 
 Goose will recall everything you’ve saved as long as you instruct it to remember. This makes it easier to have consistent results when working with Goose.
 
+Goose loads all saved memories at the start of a session and includes them in every prompt sent to the LLM. For large or detailed instructions, store them in files and instruct Goose to reference those files:
+
+> _Remember that if I ask for help writing JavaScript, I want you to refer to "/path/to/javascript_notes.txt" and follow the instructions in that file._
+
+
 ## Trigger Words and When to Use Them
 Goose also recognizes certain trigger words that signal when to store, retrieve, or remove memory.
 
@@ -244,3 +249,4 @@ If you frequently work with API standards or other structured knowledge, Goose m
 
     Would you like me to implement the full endpoint logic?
     ```
+

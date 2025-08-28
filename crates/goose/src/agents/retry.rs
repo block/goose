@@ -11,7 +11,8 @@ use crate::agents::types::{
     RetryConfig, SuccessCheck, DEFAULT_ON_FAILURE_TIMEOUT_SECONDS, DEFAULT_RETRY_TIMEOUT_SECONDS,
 };
 use crate::config::Config;
-use crate::message::Message;
+use crate::conversation::message::Message;
+use crate::conversation::Conversation;
 use crate::tool_monitor::ToolMonitor;
 
 /// Result of a retry logic evaluation
@@ -92,12 +93,11 @@ impl RetryManager {
 
     /// Reset status for retry: clear message history and final output tool state
     async fn reset_status_for_retry(
-        messages: &mut Vec<Message>,
+        messages: &mut Conversation,
         initial_messages: &[Message],
         final_output_tool: &Arc<Mutex<Option<crate::agents::final_output_tool::FinalOutputTool>>>,
     ) {
-        messages.clear();
-        messages.extend_from_slice(initial_messages);
+        *messages = Conversation::new_unvalidated(initial_messages.to_vec());
         info!("Reset message history to initial state for retry");
 
         if let Some(final_output_tool) = final_output_tool.lock().await.as_mut() {
@@ -109,7 +109,7 @@ impl RetryManager {
     /// Handle retry logic for the agent reply loop
     pub async fn handle_retry_logic(
         &self,
-        messages: &mut Vec<Message>,
+        messages: &mut Conversation,
         session: &Option<SessionConfig>,
         initial_messages: &[Message],
         final_output_tool: &Arc<Mutex<Option<crate::agents::final_output_tool::FinalOutputTool>>>,
@@ -231,10 +231,12 @@ pub async fn execute_shell_command(
         let mut cmd = if cfg!(target_os = "windows") {
             let mut cmd = Command::new("cmd");
             cmd.args(["/C", command]);
+            cmd.env("GOOSE_TERMINAL", "1");
             cmd
         } else {
             let mut cmd = Command::new("sh");
             cmd.args(["-c", command]);
+            cmd.env("GOOSE_TERMINAL", "1");
             cmd
         };
 

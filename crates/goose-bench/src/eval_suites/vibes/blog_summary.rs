@@ -37,7 +37,7 @@ impl Evaluation for BlogSummary {
 
         // Write response to file and get the text content
         let response_text =
-            match write_response_to_file(&response, run_loc, "blog_summary_output.txt") {
+            match write_response_to_file(response.messages(), run_loc, "blog_summary_output.txt") {
                 Ok(text) => text,
                 Err(e) => {
                     println!("Warning: Failed to write blog summary output: {}", e);
@@ -59,7 +59,7 @@ impl Evaluation for BlogSummary {
         ));
 
         // Check if the fetch tool was used
-        let used_fetch_tool = crate::eval_suites::used_tool(&response, "fetch");
+        let used_fetch_tool = crate::eval_suites::used_tool(response.messages(), "fetch");
         metrics.push((
             "used_fetch_tool".to_string(),
             EvalMetricValue::Boolean(used_fetch_tool),

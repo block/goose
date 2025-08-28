@@ -4,16 +4,14 @@ use std::sync::Arc;
 use async_stream::try_stream;
 use futures::stream::{self, BoxStream};
 use futures::{Stream, StreamExt};
-use rmcp::model::ServerNotification;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
 use crate::config::permission::PermissionLevel;
 use crate::config::PermissionManager;
-use crate::message::{Message, ToolRequest};
 use crate::permission::Permission;
 use mcp_core::ToolResult;
-use rmcp::model::Content;
+use rmcp::model::{Content, ServerNotification};
 
 // ToolCallResult combines the result of a tool call with an optional notification stream that
 // can be used to receive notifications from the tool.
@@ -33,6 +31,7 @@ impl From<ToolResult<Vec<Content>>> for ToolCallResult {
 
 use super::agent::{tool_stream, ToolStream};
 use crate::agents::Agent;
+use crate::conversation::message::{Message, ToolRequest};
 
 pub const DECLINED_RESPONSE: &str = "The user has declined to run this tool. \
     DO NOT attempt to call this tool again. \
@@ -71,7 +70,7 @@ impl Agent {
                     while let Some((req_id, confirmation)) = rx.recv().await {
                         if req_id == request.id {
                             if confirmation.permission == Permission::AllowOnce || confirmation.permission == Permission::AlwaysAllow {
-                                let (req_id, tool_result) = self.dispatch_tool_call(tool_call.clone(), request.id.clone(), cancellation_token.clone()).await;
+                                let (req_id, tool_result) = self.dispatch_tool_call(tool_call.clone(), request.id.clone(), cancellation_token.clone(), &None).await;
                                 let mut futures = tool_futures.lock().await;
 
                                 futures.push((req_id, match tool_result {

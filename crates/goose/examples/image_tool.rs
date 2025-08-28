@@ -1,9 +1,9 @@
 use anyhow::Result;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use dotenvy::dotenv;
-use goose::{
-    message::Message,
-    providers::{bedrock::BedrockProvider, databricks::DatabricksProvider, openai::OpenAiProvider},
+use goose::conversation::message::Message;
+use goose::providers::{
+    bedrock::BedrockProvider, databricks::DatabricksProvider, openai::OpenAiProvider,
 };
 use mcp_core::tool::ToolCall;
 use rmcp::model::{Content, Tool};

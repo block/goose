@@ -37,7 +37,7 @@ export default function ExtensionItem({
       // Call the actual toggle function that performs the async operation
       await onToggle(ext);
       // Success case is handled by the useEffect below when extension.enabled changes
-    } catch (error) {
+    } catch {
       // If there was an error, revert the visual state
       console.log('Toggle failed, reverting visual state');
       setVisuallyEnabled(!newState);
@@ -73,7 +73,7 @@ export default function ExtensionItem({
 
   return (
     <Card
-      className="transition-all duration-200 hover:shadow-default hover:cursor-pointer min-h-[120px]"
+      className="transition-all duration-200 hover:shadow-default hover:cursor-pointer min-h-[120px] overflow-hidden"
       onClick={() => handleToggle(extension)}
     >
       <CardHeader>
@@ -98,7 +98,9 @@ export default function ExtensionItem({
           </div>
         </CardAction>
       </CardHeader>
-      <CardContent className="px-4 text-sm text-text-muted">{renderSubtitle()}</CardContent>
+      <CardContent className="px-4 text-sm text-text-muted overflow-hidden break-words">
+        {renderSubtitle()}
+      </CardContent>
     </Card>
   );
 }

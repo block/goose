@@ -9,8 +9,8 @@ use tokio::process::Command;
 use super::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::utils::emit_debug_trace;
+use crate::conversation::message::{Message, MessageContent};
 use crate::impl_provider_default;
-use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use rmcp::model::Role;
 use rmcp::model::Tool;
@@ -176,9 +176,13 @@ impl GeminiCliProvider {
 
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
-        let mut child = cmd
-            .spawn()
-            .map_err(|e| ProviderError::RequestFailed(format!("Failed to spawn command: {}", e)))?;
+        let mut child = cmd.spawn().map_err(|e| {
+            ProviderError::RequestFailed(format!(
+                "Failed to spawn Gemini CLI command '{}': {}. \
+                Make sure the Gemini CLI is installed and in your PATH.",
+                self.command, e
+            ))
+        })?;
 
         let stdout = child
             .stdout
@@ -315,11 +319,12 @@ impl Provider for GeminiCliProvider {
     }
 
     #[tracing::instrument(
-        skip(self, system, messages, tools),
+        skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -346,7 +351,7 @@ impl Provider for GeminiCliProvider {
             "usage": usage
         });
 
-        emit_debug_trace(&self.model, &payload, &response, &usage);
+        emit_debug_trace(model_config, &payload, &response, &usage);
 
         Ok((
             message,

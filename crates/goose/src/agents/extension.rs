@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use mcp_client::client::Error as ClientError;
 use rmcp::model::Tool;
+use rmcp::service::ClientInitializeError;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::warn;
@@ -11,25 +12,43 @@ use crate::config;
 use crate::config::extensions::name_to_key;
 use crate::config::permission::PermissionLevel;
 
+#[derive(Error, Debug)]
+#[error("process quit before initialization: stderr = {stderr}")]
+pub struct ProcessExit {
+    stderr: String,
+    #[source]
+    source: ClientInitializeError,
+}
+
+impl ProcessExit {
+    pub fn new<T>(stderr: T, source: ClientInitializeError) -> Self
+    where
+        T: Into<String>,
+    {
+        ProcessExit {
+            stderr: stderr.into(),
+            source,
+        }
+    }
+}
+
 /// Errors from Extension operation
 #[derive(Error, Debug)]
 pub enum ExtensionError {
-    #[error("Failed to start the MCP server from configuration `{0}` `{1}`")]
-    Initialization(Box<ExtensionConfig>, ClientError),
-    #[error("Failed a client call to an MCP server: {0}")]
+    #[error("failed a client call to an MCP server: {0}")]
     Client(#[from] ClientError),
-    #[error("User Message exceeded context-limit. History could not be truncated to accommodate.")]
-    ContextLimit,
-    #[error("Transport error: {0}")]
-    Transport(#[from] mcp_client::transport::Error),
-    #[error("Environment variable `{0}` is not allowed to be overridden.")]
-    InvalidEnvVar(String),
-    #[error("Error during extension setup: {0}")]
+    #[error("invalid config: {0}")]
+    ConfigError(String),
+    #[error("error during extension setup: {0}")]
     SetupError(String),
-    #[error("Join error occurred during task execution: {0}")]
+    #[error("join error occurred during task execution: {0}")]
     TaskJoinError(#[from] tokio::task::JoinError),
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
+    #[error("failed to initialize MCP client: {0}")]
+    InitializeError(#[from] ClientInitializeError),
+    #[error("{0}")]
+    ProcessExit(#[from] ProcessExit),
 }
 
 pub type ExtensionResult<T> = Result<T, ExtensionError>;
@@ -107,7 +126,10 @@ impl Envs {
     pub fn validate(&self) -> Result<(), Box<ExtensionError>> {
         for key in self.map.keys() {
             if Self::is_disallowed(key) {
-                return Err(Box::new(ExtensionError::InvalidEnvVar(key.clone())));
+                return Err(Box::new(ExtensionError::ConfigError(format!(
+                    "environment variable {} not allowed to be overwritten",
+                    key
+                ))));
             }
         }
         Ok(())
@@ -141,6 +163,8 @@ pub enum ExtensionConfig {
         /// Whether this extension is bundled with Goose
         #[serde(default)]
         bundled: Option<bool>,
+        #[serde(default)]
+        available_tools: Vec<String>,
     },
     /// Standard I/O client with command and arguments
     #[serde(rename = "stdio")]
@@ -158,6 +182,8 @@ pub enum ExtensionConfig {
         /// Whether this extension is bundled with Goose
         #[serde(default)]
         bundled: Option<bool>,
+        #[serde(default)]
+        available_tools: Vec<String>,
     },
     /// Built-in extension that is part of the goose binary
     #[serde(rename = "builtin")]
@@ -170,6 +196,8 @@ pub enum ExtensionConfig {
         /// Whether this extension is bundled with Goose
         #[serde(default)]
         bundled: Option<bool>,
+        #[serde(default)]
+        available_tools: Vec<String>,
     },
     /// Streamable HTTP client with a URI endpoint using MCP Streamable HTTP specification
     #[serde(rename = "streamable_http")]
@@ -190,6 +218,8 @@ pub enum ExtensionConfig {
         /// Whether this extension is bundled with Goose
         #[serde(default)]
         bundled: Option<bool>,
+        #[serde(default)]
+        available_tools: Vec<String>,
     },
     /// Frontend-provided tools that will be called through the frontend
     #[serde(rename = "frontend")]
@@ -203,6 +233,8 @@ pub enum ExtensionConfig {
         /// Whether this extension is bundled with Goose
         #[serde(default)]
         bundled: Option<bool>,
+        #[serde(default)]
+        available_tools: Vec<String>,
     },
     /// Inline Python code that will be executed using uvx
     #[serde(rename = "inline_python")]
@@ -218,6 +250,8 @@ pub enum ExtensionConfig {
         /// Python package dependencies required by this extension
         #[serde(default)]
         dependencies: Option<Vec<String>>,
+        #[serde(default)]
+        available_tools: Vec<String>,
     },
 }
 
@@ -229,6 +263,7 @@ impl Default for ExtensionConfig {
             description: None,
             timeout: Some(config::DEFAULT_EXTENSION_TIMEOUT),
             bundled: Some(true),
+            available_tools: Vec::new(),
         }
     }
 }
@@ -243,6 +278,7 @@ impl ExtensionConfig {
             description: Some(description.into()),
             timeout: Some(timeout.into()),
             bundled: None,
+            available_tools: Vec::new(),
         }
     }
 
@@ -261,6 +297,7 @@ impl ExtensionConfig {
             description: Some(description.into()),
             timeout: Some(timeout.into()),
             bundled: None,
+            available_tools: Vec::new(),
         }
     }
 
@@ -279,6 +316,7 @@ impl ExtensionConfig {
             description: Some(description.into()),
             timeout: Some(timeout.into()),
             bundled: None,
+            available_tools: Vec::new(),
         }
     }
 
@@ -294,6 +332,7 @@ impl ExtensionConfig {
             description: Some(description.into()),
             timeout: Some(timeout.into()),
             dependencies: None,
+            available_tools: Vec::new(),
         }
     }
 
@@ -311,6 +350,7 @@ impl ExtensionConfig {
                 timeout,
                 description,
                 bundled,
+                available_tools,
                 ..
             } => Self::Stdio {
                 name,
@@ -321,6 +361,7 @@ impl ExtensionConfig {
                 description,
                 timeout,
                 bundled,
+                available_tools,
             },
             other => other,
         }
@@ -342,6 +383,34 @@ impl ExtensionConfig {
             Self::InlinePython { name, .. } => name,
         }
         .to_string()
+    }
+
+    /// Check if a tool should be available to the LLM
+    pub fn is_tool_available(&self, tool_name: &str) -> bool {
+        let available_tools = match self {
+            Self::Sse {
+                available_tools, ..
+            }
+            | Self::StreamableHttp {
+                available_tools, ..
+            }
+            | Self::Stdio {
+                available_tools, ..
+            }
+            | Self::Builtin {
+                available_tools, ..
+            }
+            | Self::InlinePython {
+                available_tools, ..
+            }
+            | Self::Frontend {
+                available_tools, ..
+            } => available_tools,
+        };
+
+        // If no tools are specified, all tools are available
+        // If tools are specified, only those tools are available
+        available_tools.is_empty() || available_tools.contains(&tool_name.to_string())
     }
 }
 

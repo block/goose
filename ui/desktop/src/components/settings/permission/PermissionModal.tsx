@@ -45,7 +45,7 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
           console.error('Failed to get tools');
         } else {
           const filteredTools = (response.data || []).filter(
-            (tool) =>
+            (tool: ToolInfo) =>
               tool.name !== 'platform__read_resource' && tool.name !== 'platform__list_resources'
           );
           setTools(filteredTools);

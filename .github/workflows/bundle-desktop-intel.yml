@@ -63,22 +63,6 @@ jobs:
           cd ui/desktop
           npm version ${{ inputs.version }} --no-git-tag-version --allow-same-version
 
-      # Pre-build cleanup to ensure enough disk space
-      - name: Pre-build cleanup
-        run: |
-          source ./bin/activate-hermit
-          echo "Performing pre-build cleanup..."
-          # Clean npm cache
-          npm cache clean --force || true
-          # Clean any previous build artifacts
-          rm -rf target || true
-          # Clean Homebrew cache
-          brew cleanup || true
-          # Remove unnecessary large directories
-          rm -rf ~/Library/Caches/* || true
-          # Check disk space after cleanup
-          df -h
-
       - name: Cache Cargo registry
         uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
         with:
@@ -150,6 +134,16 @@ jobs:
           cp temporal-service/temporal-service ui/desktop/src/bin/temporal-service
           cp bin/temporal ui/desktop/src/bin/temporal
 
+      - name: Cache npm dependencies
+        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
+        with:
+          path: |
+            ui/desktop/node_modules
+            .hermit/node/cache
+          key: intel-npm-cache-v1-${{ runner.os }}-${{ hashFiles('ui/desktop/package-lock.json') }}
+          restore-keys: |
+            intel-npm-cache-v1-${{ runner.os }}-
+            
       - name: Install dependencies
         run: source ../../bin/activate-hermit && npm ci
         working-directory: ui/desktop
@@ -233,16 +227,19 @@ jobs:
               exit 1
             fi
 
-            if [ "$(jq -r .body.state response.json)" == "completed" ]; then
+            state="$(jq -r .body.state response.json)"
+
+            if [ "${state}" == "completed" ]; then
               echo "✅ signing complete ($(($(date +%s) - start_time))s)"
               break
             fi
 
-            if [ $(($(date +%s) - start_time)) -ge 900 ]; then
+            if [ $(($(date +%s) - start_time)) -ge 3600 ]; then
               echo "⚠️ timed out ($(($(date +%s) - start_time))s)"
               exit 1
             fi
-            echo "⏲️ waiting for signing to complete ($(($(date +%s) - start_time))s)"
+
+            echo "⏲️ waiting for signing to complete (${state}: $(($(date +%s) - start_time))s)"
           done
 
           # parse lambda response

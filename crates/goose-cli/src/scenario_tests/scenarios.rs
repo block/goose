@@ -7,7 +7,7 @@ mod tests {
     use crate::scenario_tests::mock_client::WEATHER_TYPE;
     use crate::scenario_tests::scenario_runner::run_scenario;
     use anyhow::Result;
-    use goose::message::Message;
+    use goose::conversation::message::Message;
 
     #[tokio::test]
     async fn test_what_is_your_name() -> Result<()> {
