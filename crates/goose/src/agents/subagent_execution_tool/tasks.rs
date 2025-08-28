@@ -6,7 +6,7 @@ use tokio::process::Command;
 use tokio_util::sync::CancellationToken;
 
 use crate::agents::subagent_execution_tool::task_execution_tracker::TaskExecutionTracker;
-use crate::agents::subagent_execution_tool::task_types::{Task, TaskResult, TaskStatus};
+use crate::agents::subagent_execution_tool::task_types::{Task, TaskResult, TaskStatus, TaskType};
 use crate::agents::subagent_execution_tool::utils::strip_ansi_codes;
 use crate::agents::subagent_handler::run_complete_subagent_task;
 use crate::agents::subagent_task_config::TaskConfig;
@@ -46,12 +46,14 @@ async fn get_task_result(
     task_config: TaskConfig,
     cancellation_token: CancellationToken,
 ) -> Result<Value, String> {
-    match task.task_type.as_str() {
-        "text_instruction" => {
+    match task.task_type {
+        TaskType::TextInstruction => {
             handle_text_instruction_task(task, task_config, cancellation_token).await
         }
-        "inline_recipe" => handle_inline_recipe_task(task, task_config, cancellation_token).await,
-        "sub_recipe" => {
+        TaskType::InlineRecipe => {
+            handle_inline_recipe_task(task, task_config, cancellation_token).await
+        }
+        TaskType::SubRecipe => {
             let (command, output_identifier) = build_command(&task)?;
             let (stdout_output, stderr_output, success) = run_command(
                 command,
@@ -68,7 +70,6 @@ async fn get_task_result(
                 Err(format!("Command failed:\n{}", &stderr_output))
             }
         }
-        _ => Err(format!("Unknown task type: {}", task.task_type)),
     }
 }
 
@@ -147,7 +148,7 @@ async fn handle_inline_recipe_task(
 fn build_command(task: &Task) -> Result<(Command, String), String> {
     let task_error = |field: &str| format!("Task {}: Missing {}", task.id, field);
 
-    let (mut command, output_identifier) = if task.task_type == "sub_recipe" {
+    let (mut command, output_identifier) = if matches!(task.task_type, TaskType::SubRecipe) {
         let sub_recipe_name = task
             .get_sub_recipe_name()
             .ok_or_else(|| task_error("sub_recipe name"))?;

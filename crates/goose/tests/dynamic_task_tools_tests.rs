@@ -146,7 +146,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_backward_compatibility() {
+    async fn test_text_instruction_not_supported() {
         use goose::agents::subagent_execution_tool::tasks_manager::TasksManager;
 
         let tasks_manager = TasksManager::new();
@@ -158,11 +158,15 @@ mod tests {
 
         let result = create_dynamic_task(params, &tasks_manager, test_loaded_extensions()).await;
 
-        // Check that the result is successful by awaiting the future
+        // Check that the result fails since text_instruction is no longer supported
         let tool_result = result.result.await;
-        assert!(tool_result.is_ok());
-        let contents = tool_result.unwrap();
-        assert!(!contents.is_empty());
+        assert!(tool_result.is_err());
+
+        // Verify the error message indicates missing required fields
+        if let Err(err) = tool_result {
+            let error_msg = err.message.to_string();
+            assert!(error_msg.contains("instructions") || error_msg.contains("prompt"));
+        }
     }
 
     #[test]

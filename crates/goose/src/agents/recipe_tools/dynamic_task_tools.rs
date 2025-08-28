@@ -4,7 +4,10 @@
 // =======================================
 use crate::agents::extension::ExtensionConfig;
 use crate::agents::subagent_execution_tool::tasks_manager::TasksManager;
-use crate::agents::subagent_execution_tool::{lib::ExecutionMode, task_types::Task};
+use crate::agents::subagent_execution_tool::{
+    lib::ExecutionMode,
+    task_types::{Task, TaskType},
+};
 use crate::agents::tool_execution::ToolCallResult;
 use crate::agents::types::RetryConfig;
 use crate::recipe::{Recipe, Response, Settings};
@@ -260,66 +263,42 @@ pub async fn create_dynamic_task(
     // Convert each parameter set to inline recipe and create tasks
     let mut tasks = Vec::new();
     for task_param in &task_params_array {
-        // Check if this is a legacy text_instruction task
-        if task_param.get("text_instruction").is_some()
-            && task_param.get("instructions").is_none()
-            && task_param.get("prompt").is_none()
-        {
-            // Legacy path for backward compatibility
-            let text_instruction = task_param
-                .get("text_instruction")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
+        // All tasks must use the new inline recipe path
+        match task_params_to_inline_recipe(task_param, &loaded_extensions) {
+            Ok(recipe) => {
+                let recipe_json = match serde_json::to_value(&recipe) {
+                    Ok(json) => json,
+                    Err(e) => {
+                        return ToolCallResult::from(Err(ErrorData {
+                            code: ErrorCode::INTERNAL_ERROR,
+                            message: Cow::from(format!("Failed to serialize recipe: {}", e)),
+                            data: None,
+                        }));
+                    }
+                };
 
-            let payload = json!({
-                "text_instruction": text_instruction
-            });
+                // Extract return_last_only flag if present
+                let return_last_only = task_param
+                    .get("return_last_only")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
 
-            let task = Task {
-                id: uuid::Uuid::new_v4().to_string(),
-                task_type: "text_instruction".to_string(),
-                payload,
-            };
-            tasks.push(task);
-        } else {
-            // New inline recipe path
-            match task_params_to_inline_recipe(task_param, &loaded_extensions) {
-                Ok(recipe) => {
-                    let recipe_json = match serde_json::to_value(&recipe) {
-                        Ok(json) => json,
-                        Err(e) => {
-                            return ToolCallResult::from(Err(ErrorData {
-                                code: ErrorCode::INTERNAL_ERROR,
-                                message: Cow::from(format!("Failed to serialize recipe: {}", e)),
-                                data: None,
-                            }));
-                        }
-                    };
-
-                    // Extract return_last_only flag if present
-                    let return_last_only = task_param
-                        .get("return_last_only")
-                        .and_then(|v| v.as_bool())
-                        .unwrap_or(false);
-
-                    let task = Task {
-                        id: uuid::Uuid::new_v4().to_string(),
-                        task_type: "inline_recipe".to_string(),
-                        payload: json!({
-                            "recipe": recipe_json,
-                            "return_last_only": return_last_only
-                        }),
-                    };
-                    tasks.push(task);
-                }
-                Err(e) => {
-                    return ToolCallResult::from(Err(ErrorData {
-                        code: ErrorCode::INVALID_PARAMS,
-                        message: Cow::from(format!("Invalid task parameters: {}", e)),
-                        data: None,
-                    }));
-                }
+                let task = Task {
+                    id: uuid::Uuid::new_v4().to_string(),
+                    task_type: TaskType::InlineRecipe,
+                    payload: json!({
+                        "recipe": recipe_json,
+                        "return_last_only": return_last_only
+                    }),
+                };
+                tasks.push(task);
+            }
+            Err(e) => {
+                return ToolCallResult::from(Err(ErrorData {
+                    code: ErrorCode::INVALID_PARAMS,
+                    message: Cow::from(format!("Invalid task parameters: {}", e)),
+                    data: None,
+                }));
             }
         }
     }

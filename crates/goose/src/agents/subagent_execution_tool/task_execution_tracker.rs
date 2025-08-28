@@ -234,7 +234,7 @@ impl TaskExecutionTracker {
                         }
                     }),
                     current_output: task_info.current_output.clone(),
-                    task_type: task_info.task.task_type.clone(),
+                    task_type: task_info.task.task_type.to_string(),
                     task_name: get_task_name(task_info).to_string(),
                     task_metadata: format_task_metadata(task_info),
                     error: task_info.error().cloned(),
