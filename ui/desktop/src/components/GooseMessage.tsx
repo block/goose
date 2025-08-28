@@ -24,6 +24,7 @@ import {
 import ToolCallConfirmation from './ToolCallConfirmation';
 import MessageCopyLink from './MessageCopyLink';
 import { NotificationEvent } from '../hooks/useMessageStream';
+import { cn } from '../utils';
 
 interface GooseMessageProps {
   // messages up to this index are presumed to be "history" from a resumed session, this is used to track older tool confirmation requests
@@ -209,7 +210,6 @@ export default function GooseMessage({
   return (
     <div className="goose-message flex w-[90%] justify-start min-w-0">
       <div className="flex flex-col w-full min-w-0">
-        {/* Chain-of-Thought (hidden by default) */}
         {cotText && (
           <details className="bg-bgSubtle border border-borderSubtle rounded p-2 mb-2">
             <summary className="cursor-pointer text-sm text-textSubtle select-none">
@@ -221,7 +221,6 @@ export default function GooseMessage({
           </details>
         )}
 
-        {/* Visible assistant response */}
         {displayText && (
           <div className="flex flex-col group">
             <div ref={contentRef} className="w-full">
@@ -237,7 +236,6 @@ export default function GooseMessage({
               </div>
             )}
 
-            {/* Show timestamp for text-only messages */}
             {toolRequests.length === 0 && (
               <div className="relative flex justify-start">
                 {!isStreaming && (
@@ -255,11 +253,9 @@ export default function GooseMessage({
           </div>
         )}
 
-        {/* Tool calls - either as chain or individual */}
         {toolRequests.length > 0 && (
-          <>
+          <div className={cn(displayText && 'mt-2')}>
             {isFirstInChain ? (
-              // This is the first message in a chain - render the entire chain
               <ToolCallChain
                 messages={messages}
                 chainIndices={messageChain}
@@ -269,29 +265,30 @@ export default function GooseMessage({
                 isStreaming={isStreaming}
               />
             ) : !messageChain ? (
-              // This message is not part of any chain - render individual tool calls
               <div className="relative flex flex-col w-full">
-                {toolRequests.map((toolRequest) => (
-                  <div className={`goose-message-tool pb-2`} key={toolRequest.id}>
-                    <ToolCallWithResponse
-                      isCancelledMessage={
-                        messageIndex < messageHistoryIndex &&
-                        toolResponsesMap.get(toolRequest.id) == undefined
-                      }
-                      toolRequest={toolRequest}
-                      toolResponse={toolResponsesMap.get(toolRequest.id)}
-                      notifications={toolCallNotifications.get(toolRequest.id)}
-                      isStreamingMessage={isStreaming}
-                      append={append}
-                    />
-                  </div>
-                ))}
+                <div className="flex flex-col gap-3">
+                  {toolRequests.map((toolRequest) => (
+                    <div className="goose-message-tool" key={toolRequest.id}>
+                      <ToolCallWithResponse
+                        isCancelledMessage={
+                          messageIndex < messageHistoryIndex &&
+                          toolResponsesMap.get(toolRequest.id) == undefined
+                        }
+                        toolRequest={toolRequest}
+                        toolResponse={toolResponsesMap.get(toolRequest.id)}
+                        notifications={toolCallNotifications.get(toolRequest.id)}
+                        isStreamingMessage={isStreaming}
+                        append={append}
+                      />
+                    </div>
+                  ))}
+                </div>
                 <div className="text-xs text-text-muted pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
                   {!isStreaming && timestamp}
                 </div>
               </div>
             ) : null}
-          </>
+          </div>
         )}
 
         {hasToolConfirmation && (

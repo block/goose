@@ -26,28 +26,28 @@ export default function ToolCallChain({
 
   return (
     <div className="relative flex flex-col w-full">
-      {/* Render each message's tool calls in the chain */}
-      {chainIndices.map((messageIndex) => {
-        const message = messages[messageIndex];
-        const toolRequests = getToolRequests(message);
+      <div className="flex flex-col gap-3">
+        {chainIndices.map((messageIndex) => {
+          const message = messages[messageIndex];
+          const toolRequests = getToolRequests(message);
 
-        return toolRequests.map((toolRequest) => (
-          <div key={toolRequest.id} className="goose-message-tool pb-2">
-            <ToolCallWithResponse
-              isCancelledMessage={
-                messageIndex < messageHistoryIndex &&
-                toolResponsesMap.get(toolRequest.id) == undefined
-              }
-              toolRequest={toolRequest}
-              toolResponse={toolResponsesMap.get(toolRequest.id)}
-              notifications={toolCallNotifications.get(toolRequest.id)}
-              isStreamingMessage={isStreaming}
-            />
-          </div>
-        ));
-      })}
+          return toolRequests.map((toolRequest) => (
+            <div key={toolRequest.id} className="goose-message-tool">
+              <ToolCallWithResponse
+                isCancelledMessage={
+                  messageIndex < messageHistoryIndex &&
+                  toolResponsesMap.get(toolRequest.id) == undefined
+                }
+                toolRequest={toolRequest}
+                toolResponse={toolResponsesMap.get(toolRequest.id)}
+                notifications={toolCallNotifications.get(toolRequest.id)}
+                isStreamingMessage={isStreaming}
+              />
+            </div>
+          ));
+        })}
+      </div>
 
-      {/* Single timestamp for the entire chain */}
       <div className="text-xs text-text-muted pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
         {!isStreaming && timestamp}
       </div>
