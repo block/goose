@@ -23,10 +23,10 @@ Click the **"Fork"** button at the top of this repository to create your own cop
 ### Step 2: Create Your Recipe File
 
 1. **Navigate to**: `documentation/src/pages/recipes/data/recipes/`
-2. **Create a new file**: `your-recipe-id.yaml`
-3. **Important**: The filename must match your recipe's `id` field
+2. **Create a new file**: `your-recipe-name.yaml`
+3. **Important**: Choose a unique filename that describes your recipe
 
-**Example**: If your recipe ID is `web-scraper`, create `web-scraper.yaml`
+**Example**: For a web scraping recipe, create `web-scraper.yaml`
 
 ### Step 3: Write Your Recipe
 
@@ -34,9 +34,8 @@ Use this template structure:
 
 ```yaml
 # Required fields
-id: your-unique-recipe-id
-title: "Your Recipe Title"
 version: 1.0.0
+title: "Your Recipe Name"  # Should match your filename
 description: "Brief description of what your recipe does"
 instructions: "Detailed instructions for what the recipe should accomplish"
 author:
@@ -69,7 +68,7 @@ parameters:
     default: "default_value"
 ```
 
-📚 **Need help with the format?** Check out [existing recipes](documentation/src/pages/recipes/data/recipes/) for examples.
+📚 **Need help with the format?** Check out the [Recipe Reference Guide](https://block.github.io/goose/docs/guides/recipes/recipe-reference) or [existing recipes](documentation/src/pages/recipes/data/recipes/) for examples.
 
 ### Step 4: Create a Pull Request
 
@@ -98,7 +97,11 @@ Your recipe should:
 - [ ] **Work correctly** - Test it before submitting
 - [ ] **Be useful** - Solve a real problem or demonstrate a valuable workflow
 - [ ] **Follow the format** - Refer to the [Recipe Reference Guide](https://block.github.io/goose/docs/guides/recipes/recipe-reference)
-- [ ] **Have a unique ID** - No conflicts with existing recipes
+- [ ] **Have a unique filename** - No conflicts with existing recipe files
+
+### 📝 **Naming Guidelines:**
+- **Filename**: Choose a descriptive, unique filename (e.g., `web-scraper.yaml`)
+- **Title**: Should match your filename (e.g., `"Web Scraper"`)
 
 ## 🔍 Recipe Validation
 

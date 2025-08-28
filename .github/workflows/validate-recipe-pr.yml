@@ -77,61 +77,41 @@ jobs:
             fi
           done <<< "$RECIPE_FILES"
           
-          # Second pass: Check for duplicate IDs and filename matches
+          # Second pass: Check for duplicate filenames
           if [ "$ALL_VALID" = true ]; then
-            echo "🔍 Checking for duplicate recipe IDs and filename matches..."
+            echo "🔍 Checking for duplicate filenames..."
             
+            # Check for duplicate filenames first
+            SEEN_FILENAMES=""
             while IFS= read -r RECIPE_FILE; do
               if [ -f "$RECIPE_FILE" ]; then
-                # Extract recipe ID using yq
-                if command -v yq >/dev/null 2>&1; then
-                  RECIPE_ID=$(yq eval '.id' "$RECIPE_FILE" 2>/dev/null || echo "")
-                else
-                  # Fallback to grep if yq not available
-                  RECIPE_ID=$(grep -E '^id:' "$RECIPE_FILE" | sed 's/id:[[:space:]]*//' | tr -d '"' || echo "")
-                fi
-                
                 FILENAME=$(basename "$RECIPE_FILE" .yaml)
                 FILENAME=$(basename "$FILENAME" .yml)
                 
-                if [ -z "$RECIPE_ID" ]; then
-                  echo "❌ Could not extract recipe ID from $RECIPE_FILE"
-                  VALIDATION_OUTPUT="${VALIDATION_OUTPUT}❌ $RECIPE_FILE: Missing or invalid recipe ID\n"
-                  ALL_VALID=false
-                  continue
-                fi
+                echo "📋 Checking filename: '$FILENAME'"
                 
-                echo "📋 Recipe: $RECIPE_FILE → ID: '$RECIPE_ID', Filename: '$FILENAME'"
-                
-                # Check if filename matches recipe ID
-                if [ "$RECIPE_ID" != "$FILENAME" ]; then
-                  echo "❌ Recipe ID '$RECIPE_ID' doesn't match filename '$FILENAME.yaml'"
-                  VALIDATION_OUTPUT="${VALIDATION_OUTPUT}❌ $RECIPE_FILE: Recipe ID '$RECIPE_ID' must match filename '$FILENAME.yaml'\n"
-                  ALL_VALID=false
-                fi
-                
-                # Check for duplicate IDs in other files
-                DUPLICATE_FILES=$(find documentation/src/pages/recipes/data/recipes/ -name "*.yaml" -o -name "*.yml" | while read -r OTHER_FILE; do
-                  if [ "$OTHER_FILE" != "$RECIPE_FILE" ] && [ -f "$OTHER_FILE" ]; then
-                    if command -v yq >/dev/null 2>&1; then
-                      OTHER_ID=$(yq eval '.id' "$OTHER_FILE" 2>/dev/null || echo "")
-                    else
-                      OTHER_ID=$(grep -E '^id:' "$OTHER_FILE" | sed 's/id:[[:space:]]*//' | tr -d '"' || echo "")
-                    fi
-                    if [ "$OTHER_ID" = "$RECIPE_ID" ]; then
-                      echo "$OTHER_FILE"
-                    fi
-                  fi
-                done)
-                
-                if [ -n "$DUPLICATE_FILES" ]; then
-                  echo "❌ Recipe ID '$RECIPE_ID' is already used in:"
-                  echo "$DUPLICATE_FILES"
-                  VALIDATION_OUTPUT="${VALIDATION_OUTPUT}❌ $RECIPE_FILE: Recipe ID '$RECIPE_ID' already exists in: $DUPLICATE_FILES\n"
+                # Check if we've seen this filename before in this PR
+                if echo "$SEEN_FILENAMES" | grep -q "^$FILENAME$"; then
+                  echo "❌ Duplicate filename '$FILENAME' found in this PR"
+                  VALIDATION_OUTPUT="${VALIDATION_OUTPUT}❌ Duplicate filename '$FILENAME' found in this PR\n"
                   ALL_VALID=false
                 else
-                  echo "✅ Recipe ID '$RECIPE_ID' is unique"
+                  SEEN_FILENAMES="$SEEN_FILENAMES\n$FILENAME"
                 fi
+                
+                # Check if filename already exists in the repository
+                EXISTING_FILES=$(find documentation/src/pages/recipes/data/recipes/ -name "$FILENAME.yaml" -o -name "$FILENAME.yml" | grep -v "^$RECIPE_FILE$" || true)
+                
+                if [ -n "$EXISTING_FILES" ]; then
+                  echo "❌ Recipe filename '$FILENAME' already exists:"
+                  echo "$EXISTING_FILES"
+                  VALIDATION_OUTPUT="${VALIDATION_OUTPUT}❌ $RECIPE_FILE: Filename '$FILENAME' already exists in: $EXISTING_FILES\n"
+                  ALL_VALID=false
+                else
+                  echo "✅ Filename '$FILENAME' is unique"
+                fi
+                
+                echo "✅ Filename '$FILENAME' validation complete"
               fi
             done <<< "$RECIPE_FILES"
           fi
