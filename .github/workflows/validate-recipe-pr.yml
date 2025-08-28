@@ -120,7 +120,8 @@ jobs:
           while IFS= read -r RECIPE_FILE; do
             BASE_RECIPE_FILENAME=$(basename "$RECIPE_FILE"
             if [ -f "$RECIPE_FILE" ]; then
-              echo "🔍 Validating: $RECIPE_FILE"
+              BASE_RECIPE_FILENAME=$(basename "$RECIPE_FILE")
+              echo "🔍 Validating: $BASE_RECIPE_FILENAME"
               if OUTPUT=$(goose recipe validate "$RECIPE_FILE" 2>&1); then
                 echo "✅ Valid: $BASE_RECIPE_FILENAME"
                 VALIDATION_OUTPUT="${VALIDATION_OUTPUT}✅ $BASE_RECIPE_FILENAME: VALID\n"
