@@ -24,7 +24,7 @@ Once turned on, a smorgasboard of visualisation tools are made available as tool
 
 You can also explicitly ask for a visualisation, even specifying what style you want, and Goose will try to shape your data and then render it inline. This is powered by the [MCP-UI](https://mcpui.dev/) emerging standard, which lets the MCP server formulate a visualisation (in this case using libraries like d3.js) and render it inline.
 
-The autovisualiser analyzes data patterns and automatically suggests the most appropriate visualization type. My favourite is the treemap which is a great way to see releative sizes of things in a way that pie charts can mislead. It is also interactive in that you can drill down.
+The autovisualiser analyzes data patterns and automatically suggests the most appropriate visualization type. My favourite is the treemap which is a great way to see relative sizes of things in a way that pie charts can mislead. It is also interactive in that you can drill down.
 
 ![tree map](treemap.png)
 
