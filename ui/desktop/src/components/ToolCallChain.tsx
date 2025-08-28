@@ -7,7 +7,7 @@ interface ToolCallChainProps {
   messages: Message[];
   chainIndices: number[];
   toolCallNotifications: Map<string, NotificationEvent[]>;
-  toolResponsesMap: Map<string, import("../types/message").ToolResponseMessageContent>;
+  toolResponsesMap: Map<string, import('../types/message').ToolResponseMessageContent>;
   messageHistoryIndex: number;
   isStreaming?: boolean;
 }
@@ -18,7 +18,7 @@ export default function ToolCallChain({
   toolCallNotifications,
   toolResponsesMap,
   messageHistoryIndex,
-  isStreaming = false
+  isStreaming = false,
 }: ToolCallChainProps) {
   const lastMessageIndex = chainIndices[chainIndices.length - 1];
   const lastMessage = messages[lastMessageIndex];
@@ -32,10 +32,7 @@ export default function ToolCallChain({
         const toolRequests = getToolRequests(message);
 
         return toolRequests.map((toolRequest) => (
-          <div 
-            key={toolRequest.id} 
-            className="goose-message-tool pb-2"
-          >
+          <div key={toolRequest.id} className="goose-message-tool pb-2">
             <ToolCallWithResponse
               isCancelledMessage={
                 messageIndex < messageHistoryIndex &&
@@ -49,7 +46,7 @@ export default function ToolCallChain({
           </div>
         ));
       })}
-      
+
       {/* Single timestamp for the entire chain */}
       <div className="text-xs text-text-muted pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
         {!isStreaming && timestamp}

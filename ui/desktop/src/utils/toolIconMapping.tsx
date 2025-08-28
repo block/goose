@@ -9,7 +9,6 @@ import {
   FilePlus,
   FileText,
   Globe,
-
   Monitor,
   Numbers,
   Save,
@@ -36,7 +35,7 @@ export const getToolIcon = (toolName: string): React.ComponentType<ToolIconProps
     case 'shell':
       return Terminal;
 
-    // Memory Extension Tools  
+    // Memory Extension Tools
     case 'remember_memory':
       return Save;
     case 'retrieve_memories':
@@ -130,14 +129,14 @@ export const extractExtensionName = (toolCallName: string): string => {
  * @returns React component for the icon
  */
 export const getToolCallIcon = (
-  toolCallName: string, 
+  toolCallName: string,
   useExtensionIcon: boolean = false
 ): React.ComponentType<ToolIconProps> => {
   if (useExtensionIcon) {
     const extensionName = extractExtensionName(toolCallName);
     return getExtensionIcon(extensionName);
   }
-  
+
   const toolName = extractToolName(toolCallName);
   return getToolIcon(toolName);
 };

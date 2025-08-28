@@ -456,11 +456,13 @@ function ToolCallView({
   const toolCallStatus = getToolCallStatus(loadingStatus);
 
   const toolLabel = (
-    <span className={cn('flex items-center gap-2', extensionTooltip && 'cursor-pointer hover:opacity-80')}>
-      <ToolIconWithStatus
-        ToolIcon={getToolCallIcon(toolCall.name)}
-        status={toolCallStatus}
-      />
+    <span
+      className={cn(
+        'flex items-center gap-2',
+        extensionTooltip && 'cursor-pointer hover:opacity-80'
+      )}
+    >
+      <ToolIconWithStatus ToolIcon={getToolCallIcon(toolCall.name)} status={toolCallStatus} />
       <span>{getToolLabelContent()}</span>
     </span>
   );
@@ -476,7 +478,8 @@ function ToolCallView({
         ) : (
           toolLabel
         )
-      }    >
+      }
+    >
       {/* Tool Details */}
       {isToolDetails && (
         <div className="border-t border-borderSubtle">
