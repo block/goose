@@ -1,8 +1,10 @@
 import os
 import requests
 import re
+import email_validator
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
+from python_http_client.exceptions import HTTPError
 
 def fetch_pr_body(pr_url, github_token):
     print("🔍 Fetching PR body...")
@@ -52,17 +54,33 @@ def fetch_pr_comments(pr_url, github_token):
         print(f"⚠️ Failed to fetch PR comments: {e}")
         return []
 
+def validate_email_address(email):
+    """Validate email address format and deliverability"""
+    try:
+        # Validate and get normalized email
+        valid_email = email_validator.validate_email(email)
+        normalized_email = valid_email.email
+        print(f"✅ Email validation passed: {normalized_email}")
+        return normalized_email
+    except email_validator.EmailNotValidError as e:
+        print(f"❌ Email validation failed: {e}")
+        return None
+
 def extract_email(pr_body, pr_url, github_token):
-    """Extract email from PR body and comments"""
+    """Extract and validate email from PR body and comments"""
     print("🔍 Searching for email in PR body...")
     
     # First check PR body
     email = extract_email_from_text(pr_body)
     if email:
         print(f"📧 Found email in PR body: {email}")
-        return email
+        validated_email = validate_email_address(email)
+        if validated_email:
+            return validated_email
+        else:
+            print("⚠️ Email in PR body is invalid, checking comments...")
     
-    print("🔍 No email found in PR body, checking comments...")
+    print("🔍 No valid email found in PR body, checking comments...")
     
     # Check PR comments
     comments = fetch_pr_comments(pr_url, github_token)
@@ -71,10 +89,14 @@ def extract_email(pr_body, pr_url, github_token):
         email = extract_email_from_text(comment_body)
         if email:
             print(f"📧 Found email in comment by {comment.get('user', {}).get('login', 'unknown')}: {email}")
-            return email
+            validated_email = validate_email_address(email)
+            if validated_email:
+                return validated_email
+            else:
+                print("⚠️ Email in comment is invalid, continuing search...")
     
-    # No email found anywhere
-    print("❌ No email found in PR body or comments. Skipping key issuance.")
+    # No valid email found anywhere
+    print("❌ No valid email found in PR body or comments. Skipping key issuance.")
     exit(0)
 
 def provision_api_key(provisioning_api_key):
@@ -100,27 +122,62 @@ def provision_api_key(provisioning_api_key):
 
 def send_email(email, api_key, sendgrid_api_key):
     print("📤 Sending email via SendGrid...")
-    sg = SendGridAPIClient(sendgrid_api_key)
-    from_email = "Goose Team <goose@opensource.block.xyz>"  
-    subject = "🎉 Your Goose Contributor API Key"
-    html_content = f"""
-        <p>Thanks for contributing to the Goose Recipe Cookbook!</p>
-        <p>Here's your <strong>$10 OpenRouter API key</strong>:</p>
-        <p><code>{api_key}</code></p>
-        <p>Happy vibe-coding!<br>– The Goose Team 🪿</p>
-    """
-    message = Mail(
-        from_email=from_email,
-        to_emails=email,
-        subject=subject,
-        html_content=html_content
-    )
+    
     try:
+        sg = SendGridAPIClient(sendgrid_api_key)
+        from_email = "Goose Team <goose@opensource.block.xyz>"  
+        subject = "🎉 Your Goose Contributor API Key"
+        html_content = f"""
+            <p>Thanks for contributing to the Goose Recipe Cookbook!</p>
+            <p>Here's your <strong>$10 OpenRouter API key</strong>:</p>
+            <p><code>{api_key}</code></p>
+            <p>Happy vibe-coding!<br>– The Goose Team 🪿</p>
+        """
+        message = Mail(
+            from_email=from_email,
+            to_emails=email,
+            subject=subject,
+            html_content=html_content
+        )
+        
         response = sg.send(message)
-        print("✅ Email sent! Status code:", response.status_code)
+        print(f"✅ Email sent successfully! Status code: {response.status_code}")
+        
+        # Check for potential issues even on "success"
+        if response.status_code >= 300:
+            print(f"⚠️ Warning: Unexpected status code {response.status_code}")
+            print(f"Response body: {response.body}")
+            return False
+            
         return True
-    except (requests.exceptions.RequestException, ValueError, KeyError) as e:
-        print("❌ Failed to send email:", str(e))
+        
+    except HTTPError as e:
+        # Specific SendGrid HTTP errors
+        status_code = e.status_code
+        error_body = e.body
+        
+        if status_code == 401:
+            print("❌ SendGrid authentication failed - invalid API key")
+        elif status_code == 403:
+            print("❌ SendGrid authorization failed - API key lacks permissions")
+        elif status_code == 429:
+            print("❌ SendGrid rate limit exceeded - too many requests")
+        elif status_code == 400:
+            print(f"❌ SendGrid bad request - invalid email data: {error_body}")
+        elif status_code >= 500:
+            print(f"❌ SendGrid server error ({status_code}) - try again later")
+        else:
+            print(f"❌ SendGrid HTTP error {status_code}: {error_body}")
+            
+        print(f"Full error details: {e}")
+        return False
+        
+    except ValueError as e:
+        print(f"❌ Invalid email format or API key: {e}")
+        return False
+        
+    except Exception as e:
+        print(f"❌ Unexpected error sending email: {type(e).__name__}: {e}")
         return False
 
 def comment_on_pr(github_token, repo_full_name, pr_number, email):

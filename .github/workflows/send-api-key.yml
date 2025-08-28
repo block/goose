@@ -28,5 +28,5 @@ jobs:
           PROVISIONING_API_KEY: ${{ secrets.PROVISIONING_API_KEY }}
           EMAIL_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
         run: |
-          pip install requests sendgrid
+          pip install requests sendgrid email-validator
           python .github/scripts/send_key.py
