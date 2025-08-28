@@ -175,16 +175,13 @@ function ToolCallView({
 }: ToolCallViewProps) {
   const [responseStyle, setResponseStyle] = useState(() => localStorage.getItem('response_style'));
 
-  // Listen for localStorage changes to update the response style
   useEffect(() => {
     const handleStorageChange = () => {
       setResponseStyle(localStorage.getItem('response_style'));
     };
 
-    // Listen for storage events (changes from other tabs/windows)
     window.addEventListener('storage', handleStorageChange);
 
-    // Listen for custom events (changes from same tab)
     window.addEventListener('responseStyleChanged', handleStorageChange);
 
     return () => {
@@ -285,12 +282,10 @@ function ToolCallView({
     const args = toolCall.arguments as Record<string, ToolCallArgumentValue>;
     const toolName = toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2);
 
-    // Helper function to get string value safely
     const getStringValue = (value: ToolCallArgumentValue): string => {
       return typeof value === 'string' ? value : JSON.stringify(value);
     };
 
-    // Helper function to truncate long values
     const truncate = (str: string, maxLength: number = 50): string => {
       return str.length > maxLength ? str.substring(0, maxLength) + '...' : str;
     };

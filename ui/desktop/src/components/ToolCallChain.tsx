@@ -12,9 +12,6 @@ interface ToolCallChainProps {
   isStreaming?: boolean;
 }
 
-/**
- * Component that renders a chain of consecutive tool call messages with a single timestamp
- */
 export default function ToolCallChain({
   messages,
   chainIndices,
@@ -23,7 +20,6 @@ export default function ToolCallChain({
   messageHistoryIndex,
   isStreaming = false
 }: ToolCallChainProps) {
-  // Get the timestamp from the last message in the chain
   const lastMessageIndex = chainIndices[chainIndices.length - 1];
   const lastMessage = messages[lastMessageIndex];
   const timestamp = lastMessage ? formatMessageTimestamp(lastMessage.created) : '';
