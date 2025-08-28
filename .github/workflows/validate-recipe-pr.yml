@@ -118,15 +118,16 @@ jobs:
           
           # First pass: Basic YAML validation
           while IFS= read -r RECIPE_FILE; do
+            BASE_RECIPE_FILENAME=$(basename "$RECIPE_FILE"
             if [ -f "$RECIPE_FILE" ]; then
               echo "🔍 Validating: $RECIPE_FILE"
               if OUTPUT=$(goose recipe validate "$RECIPE_FILE" 2>&1); then
-                echo "✅ Valid: $RECIPE_FILE"
-                VALIDATION_OUTPUT="${VALIDATION_OUTPUT}✅ $RECIPE_FILE: VALID\n"
+                echo "✅ Valid: $BASE_RECIPE_FILENAME"
+                VALIDATION_OUTPUT="${VALIDATION_OUTPUT}✅ $BASE_RECIPE_FILENAME: VALID\n"
               else
-                echo "❌ Invalid: $RECIPE_FILE"
+                echo "❌ Invalid: $BASE_RECIPE_FILENAME"
                 echo "$OUTPUT"
-                VALIDATION_OUTPUT="${VALIDATION_OUTPUT}❌ $RECIPE_FILE: INVALID\n\`\`\`\n$OUTPUT\n\`\`\`\n"
+                VALIDATION_OUTPUT="${VALIDATION_OUTPUT}❌ $BASE_RECIPE_FILENAME: INVALID\n\`\`\`\n$OUTPUT\n\`\`\`\n"
                 ALL_VALID=false
               fi
             fi
