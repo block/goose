@@ -1,10 +1,6 @@
 import { Card } from './ui/card';
-import { gsap } from 'gsap';
 import GooseLogo from './GooseLogo';
 import MarkdownContent from './MarkdownContent';
-
-// Register GSAP plugins
-gsap.registerPlugin();
 
 interface RecipeActivitiesProps {
   append: (text: string) => void;
