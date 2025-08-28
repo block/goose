@@ -1581,37 +1581,44 @@ ipcMain.handle('get-binary-path', (_event, binaryName) => {
   return getBinaryPath(app, binaryName);
 });
 
-ipcMain.handle('read-file', (_event, filePath) => {
-  return new Promise((resolve) => {
-    // Expand tilde to home directory
+ipcMain.handle('read-file', async (_event, filePath) => {
+  try {
     const expandedPath = expandTilde(filePath);
+    if (process.platform === 'win32') {
+      const buffer = await fs.readFile(expandedPath);
+      return { file: buffer.toString('utf8'), filePath: expandedPath, error: null, found: true };
+    }
+    // Non-Windows: keep previous behavior via cat for parity
+    return await new Promise((resolve) => {
+      const cat = spawn('cat', [expandedPath]);
+      let output = '';
+      let errorOutput = '';
 
-    const cat = spawn('cat', [expandedPath]);
-    let output = '';
-    let errorOutput = '';
+      cat.stdout.on('data', (data) => {
+        output += data.toString();
+      });
 
-    cat.stdout.on('data', (data) => {
-      output += data.toString();
+      cat.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+
+      cat.on('close', (code) => {
+        if (code !== 0) {
+          resolve({ file: '', filePath: expandedPath, error: errorOutput || null, found: false });
+          return;
+        }
+        resolve({ file: output, filePath: expandedPath, error: null, found: true });
+      });
+
+      cat.on('error', (error) => {
+        console.error('Error reading file:', error);
+        resolve({ file: '', filePath: expandedPath, error, found: false });
+      });
     });
-
-    cat.stderr.on('data', (data) => {
-      errorOutput += data.toString();
-    });
-
-    cat.on('close', (code) => {
-      if (code !== 0) {
-        // File not found or error
-        resolve({ file: '', filePath: expandedPath, error: errorOutput || null, found: false });
-        return;
-      }
-      resolve({ file: output, filePath: expandedPath, error: null, found: true });
-    });
-
-    cat.on('error', (error) => {
-      console.error('Error reading file:', error);
-      resolve({ file: '', filePath: expandedPath, error, found: false });
-    });
-  });
+  } catch (error) {
+    console.error('Error reading file:', error);
+    return { file: '', filePath: expandTilde(filePath), error, found: false };
+  }
 });
 
 ipcMain.handle('write-file', async (_event, filePath, content) => {
