@@ -139,51 +139,59 @@ impl DeveloperRouter {
         // a load off the main LLM making the tool calls and you get faster more correct applies
         let editor_model = create_editor_model();
 
-        // Get OS-specific shell tool description
+        let common_shell_instructions = indoc! {r#"
+            Execute a command in the shell.
+
+            This will return the output and error concatenated into a single string, as
+            you would see from running on the command line. There will also be an indication
+            of if the command succeeded or failed.
+
+            Avoid commands that produce a large amount of output, and consider piping those outputs to files.
+
+            **Important**: Each shell command runs in its own process. Things like directory changes or
+            sourcing files do not persist between tool calls. So you may need to repeat them each time by
+            stringing together commands.
+              - Pathnames: Use absolute paths and avoid cd unless explicitly requested
+        "#};
+
+        let windows_specific = indoc! {r#"
+            **Important**: For searching files and code:
+
+            Preferred: Use ripgrep (`rg`) when available - it respects .gitignore and is fast:
+              - To locate a file by name: `rg --files | rg example.py`
+              - To locate content inside files: `rg 'class Example'`
+
+            Alternative Windows commands (if ripgrep is not installed):
+              - To locate a file by name: `dir /s /b example.py`
+              - To locate content inside files: `findstr /s /i "class Example" *.py`
+
+            Note: Alternative commands may show ignored/hidden files that should be excluded.
+
+              - Multiple commands: Use && to chain commands, avoid newlines
+              - Example: `cd example && dir` or `activate.bat && pip install numpy`
+
+             **Important**: Use forward slashes in paths (e.g., `C:/Users/name`) to avoid
+                 escape character issues with backslashes, i.e. \n in a path could be
+                 mistaken for a newline.
+`;
+        "#};
+
+        let unix_specific = indoc! {r#"
+            If you need to run a long lived command, background it - e.g. `uvicorn main:app &` so that
+            this tool does not run indefinitely.
+
+            **Important**: Use ripgrep - `rg` - exclusively when you need to locate a file or a code reference,
+            other solutions may produce too large output because of hidden files! For example *do not* use `find` or `ls -r`
+              - List files by name: `rg --files | rg <filename>`
+              - List files that contain a regex: `rg '<regex>' -l`
+
+              - Multiple commands: Use && to chain commands, avoid newlines
+              - Example: `cd example && ls` or `source env/bin/activate && pip install numpy`
+        "#};
+
         let shell_tool_desc = match std::env::consts::OS {
-            "windows" => indoc! {r#"
-                Execute a command in the shell.
-
-                This will return the output and error concatenated into a single string, as
-                you would see from running on the command line. There will also be an indication
-                of if the command succeeded or failed.
-
-                Avoid commands that produce a large amount of output, and consider piping those outputs to files.
-
-                **Important**: For searching files and code:
-
-                Preferred: Use ripgrep (`rg`) when available - it respects .gitignore and is fast:
-                  - To locate a file by name: `rg --files | rg example.py`
-                  - To locate content inside files: `rg 'class Example'`
-
-                Alternative Windows commands (if ripgrep is not installed):
-                  - To locate a file by name: `dir /s /b example.py`
-                  - To locate content inside files: `findstr /s /i "class Example" *.py`
-
-                Note: Alternative commands may show ignored/hidden files that should be excluded.
-            "#},
-            _ => indoc! {r#"
-                Execute a command in the shell.
-
-                This will return the output and error concatenated into a single string, as
-                you would see from running on the command line. There will also be an indication
-                of if the command succeeded or failed.
-
-                Avoid commands that produce a large amount of output, and consider piping those outputs to files.
-                If you need to run a long lived command, background it - e.g. `uvicorn main:app &` so that
-                this tool does not run indefinitely.
-
-                **Important**: Use ripgrep - `rg` - exclusively when you need to locate a file or a code reference,
-                other solutions may produce too large output because of hidden files! For example *do not* use `find` or `ls -r`
-                  - List files by name: `rg --files | rg <filename>`
-                  - List files that contain a regex: `rg '<regex>' -l`
-
-                **Important**: Each shell command runs in its own process. Things like directory changes or
-                sourcing files do not persist between tool calls. So you may need to repeat them each time by
-                stringing together commands, e.g. `cd example && ls` or `source env/bin/activate && pip install numpy`
-                  - Multiple commands: Use ; or && to chain commands, avoid newlines
-                  - Pathnames: Use absolute paths and avoid cd unless explicitly requested
-            "#},
+            "windows" => format!("{}{}", common_shell_instructions, windows_specific),
+            _ => format!("{}{}", common_shell_instructions, unix_specific),
         };
 
         let bash_tool = Tool::new(

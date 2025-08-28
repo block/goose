@@ -36,7 +36,21 @@ pub fn read_recipe_file<P: AsRef<Path>>(recipe_path: P) -> Result<RecipeFile> {
 
 fn convert_path_with_tilde_expansion(path: &Path) -> PathBuf {
     if let Some(path_str) = path.to_str() {
+        // Handle exact "~" (Windows only to avoid changing behavior on Unix)
+        if cfg!(windows) && path_str == "~" {
+            if let Some(home_dir) = dirs::home_dir() {
+                return home_dir;
+            }
+        }
+        // Handle Unix-style "~/..."
         if let Some(stripped) = path_str.strip_prefix("~/") {
+            if let Some(home_dir) = dirs::home_dir() {
+                return home_dir.join(stripped);
+            }
+        }
+        // Handle Windows-style "~\\..." (Windows only)
+        #[cfg(windows)]
+        if let Some(stripped) = path_str.strip_prefix("~\\") {
             if let Some(home_dir) = dirs::home_dir() {
                 return home_dir.join(stripped);
             }
