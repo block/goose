@@ -117,7 +117,7 @@ First, let's visualize the hierarchical breakdown of your revenue across product
 
 I've created three comprehensive visualizations to help you understand your quarterly sales data from different perspectives:
 
-## 1. Hierarchical Revenue Breakdown (Treemap)
+#### 1. Hierarchical Revenue Breakdown (Treemap)
 The **treemap visualization** shows your revenue hierarchy with proportional areas representing the relative size of each category and quarter. Key insights:
 - **Electronics** is your largest revenue generator ($745k total)
 - **Clothing** follows as second largest ($595k total) 
