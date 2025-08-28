@@ -3,7 +3,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use crate::agents::subagent_execution_tool::task_types::{Task, TaskType};
+use crate::agents::subagent_execution_tool::task_types::Task;
+#[cfg(test)]
+use crate::agents::subagent_execution_tool::task_types::TaskType;
 
 #[derive(Debug, Clone)]
 pub struct TasksManager {
