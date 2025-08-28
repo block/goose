@@ -8,6 +8,7 @@ use futures::stream::StreamExt;
 use super::super::agents::Agent;
 use crate::conversation::message::{Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
+use crate::debug_logger::log_debug_event;
 use crate::providers::base::{stream_from_single_message, MessageStream, Provider, ProviderUsage};
 use crate::providers::errors::ProviderError;
 use crate::providers::toolshim::{
@@ -125,9 +126,11 @@ impl Agent {
         };
 
         // Call the provider to get a response
+        log_debug_event("WAITING_LLM_START");
         let (mut response, mut usage) = provider
             .complete(system_prompt, messages_for_provider.messages(), tools)
             .await?;
+        log_debug_event("WAITING_LLM_END");
 
         // Ensure we have token counts, estimating if necessary
         usage
@@ -173,21 +176,35 @@ impl Agent {
         let provider = provider.clone();
 
         let mut stream = if provider.supports_streaming() {
-            provider
+            log_debug_event("WAITING_LLM_STREAM_START");
+            let stream = provider
                 .stream(
                     system_prompt.as_str(),
                     messages_for_provider.messages(),
                     &tools,
                 )
-                .await?
+                .await?;
+            log_debug_event("WAITING_LLM_STREAM_CONNECTED");
+            stream
         } else {
+<<<<<<< HEAD
+            log_wait_event("WAITING_LLM_START");
             let (message, mut usage) = provider
+||||||| parent of 2f22fd34b4 (feat(logging): address PR feedback and dedupe logging utils across crates)
+            log_wait_event("WAITING_LLM_START");
+            let (message, usage) = provider
+=======
+            log_debug_event("WAITING_LLM_START");
+            let (message, usage) = provider
+>>>>>>> 2f22fd34b4 (feat(logging): address PR feedback and dedupe logging utils across crates)
                 .complete(
                     system_prompt.as_str(),
                     messages_for_provider.messages(),
                     &tools,
                 )
                 .await?;
+<<<<<<< HEAD
+            log_wait_event("WAITING_LLM_END");
 
             // Ensure we have token counts for non-streaming case
             usage
@@ -199,6 +216,11 @@ impl Agent {
                 )
                 .await?;
 
+||||||| parent of 2f22fd34b4 (feat(logging): address PR feedback and dedupe logging utils across crates)
+            log_wait_event("WAITING_LLM_END");
+=======
+            log_debug_event("WAITING_LLM_END");
+>>>>>>> 2f22fd34b4 (feat(logging): address PR feedback and dedupe logging utils across crates)
             stream_from_single_message(message, usage)
         };
 

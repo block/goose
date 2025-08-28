@@ -62,6 +62,7 @@ use crate::agents::todo_tools::{
     todo_read_tool, todo_write_tool, TODO_READ_TOOL_NAME, TODO_WRITE_TOOL_NAME,
 };
 use crate::conversation::message::{Message, ToolRequest};
+use crate::debug_logger::log_debug_event;
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 
@@ -434,6 +435,8 @@ impl Agent {
             };
         }
 
+        log_debug_event(&format!("WAITING_TOOL_START: {}", tool_call.name));
+        let extension_manager = self.extension_manager.read().await;
         let sub_recipe_manager = self.sub_recipe_manager.lock().await;
         let result: ToolCallResult = if sub_recipe_manager.is_sub_recipe_tool(&tool_call.name) {
             sub_recipe_manager
@@ -601,6 +604,8 @@ impl Agent {
                 )))
             })
         };
+
+        log_debug_event(&format!("WAITING_TOOL_END: {}", tool_call.name));
 
         (
             request_id,
