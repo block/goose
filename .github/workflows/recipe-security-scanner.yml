@@ -103,13 +103,14 @@ jobs:
         if: steps.find_recipes.outputs.has_recipes == 'true' && steps.recipe_changes.outputs.recipe_files_changed == 'true'
         env:
           DOCKER_BUILDKIT: 1
+          IMAGE_TAG: ${{ github.sha }}
         run: |
           docker buildx build \
             --pull \
             --no-cache \
             --load \
             --platform linux/amd64 \
-            -t recipe-scanner:${{ github.sha }} \
+            -t "recipe-scanner:${IMAGE_TAG}" \
             -f recipe-scanner/Dockerfile \
             recipe-scanner/
 
@@ -120,6 +121,7 @@ jobs:
           TRAINING_DATA_LOW: ${{ secrets.TRAINING_DATA_LOW }}
           TRAINING_DATA_MEDIUM: ${{ secrets.TRAINING_DATA_MEDIUM }}
           TRAINING_DATA_EXTREME: ${{ secrets.TRAINING_DATA_EXTREME }}
+          IMAGE_TAG: ${{ github.sha }}
         run: |
           set -e
           OUT="$RUNNER_TEMP/security-scan"
@@ -152,7 +154,7 @@ jobs:
                 -e TRAINING_DATA_EXTREME="$TRAINING_DATA_EXTREME" \
                 -v "$PWD/$RECIPE_FILE:/input/recipe.yaml:ro" \
                 -v "$RECIPE_OUT:/output" \
-                recipe-scanner:${{ github.sha }} 2>&1 | tee "$RECIPE_OUT/scan-log.txt"; then
+                "recipe-scanner:${IMAGE_TAG}" 2>&1 | tee "$RECIPE_OUT/scan-log.txt"; then
                 
                 echo "✅ Scan completed for recipe $RECIPE_NUM"
                 
