@@ -99,16 +99,23 @@ jobs:
                   SEEN_FILENAMES="$SEEN_FILENAMES\n$FILENAME"
                 fi
                 
-                # Check if filename already exists in the repository
+                # Check if this is a new file or an update to existing file
+                # Get list of changed files in this PR compared to base branch
+                CHANGED_FILES=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}...HEAD | grep "^$RECIPE_FILE$" || true)
                 EXISTING_FILES=$(find documentation/src/pages/recipes/data/recipes/ -name "$FILENAME.yaml" -o -name "$FILENAME.yml" | grep -v "^$RECIPE_FILE$" || true)
                 
-                if [ -n "$EXISTING_FILES" ]; then
+                if [ -n "$EXISTING_FILES" ] && [ -z "$CHANGED_FILES" ]; then
+                  # File exists in repo but is not being modified - this is a new duplicate
                   echo "❌ Recipe filename '$FILENAME' already exists:"
                   echo "$EXISTING_FILES"
                   VALIDATION_OUTPUT="${VALIDATION_OUTPUT}❌ $RECIPE_FILE: Filename '$FILENAME' already exists in: $EXISTING_FILES\n"
                   ALL_VALID=false
+                elif [ -n "$EXISTING_FILES" ] && [ -n "$CHANGED_FILES" ]; then
+                  # File exists and is being modified - this is an update
+                  echo "✅ Updating existing recipe: '$FILENAME'"
                 else
-                  echo "✅ Filename '$FILENAME' is unique"
+                  # File doesn't exist - this is a new recipe
+                  echo "✅ New recipe filename '$FILENAME' is unique"
                 fi
                 
                 echo "✅ Filename '$FILENAME' validation complete"
