@@ -228,6 +228,51 @@ impl Provider for OllamaProvider {
     fn supports_streaming(&self) -> bool {
         self.supports_streaming
     }
+
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+        // Ollama uses /api/tags endpoint to list installed models
+        let response = match self.api_client.response_get("api/tags").await {
+            Ok(resp) => resp,
+            Err(e) => {
+                tracing::warn!("Failed to fetch models from Ollama: {}", e);
+                return Ok(None);
+            }
+        };
+
+        // Parse JSON response
+        let json: serde_json::Value = match response.json().await {
+            Ok(json) => json,
+            Err(e) => {
+                tracing::warn!("Failed to parse Ollama models response: {}", e);
+                return Ok(None);
+            }
+        };
+
+        // Extract model names from the response
+        // Ollama returns: { "models": [{"name": "model1", "size": ..., "digest": ..., "modified_at": ...}, ...] }
+        let models = json
+            .get("models")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                let mut model_names: Vec<String> = arr.iter()
+                    .filter_map(|m| m.get("name").and_then(|v| v.as_str()))
+                    .map(|s| s.to_string())
+                    .collect();
+                model_names.sort();
+                model_names
+            });
+
+        match models {
+            Some(model_list) if !model_list.is_empty() => {
+                tracing::info!("Found {} models in Ollama", model_list.len());
+                Ok(Some(model_list))
+            }
+            _ => {
+                tracing::info!("No models found in Ollama or unable to parse response");
+                Ok(None)
+            }
+        }
+    }
 }
 
 impl OllamaProvider {

@@ -39,3 +39,25 @@ export async function getProviderMetadata(
   }
   return matches.metadata;
 }
+
+export async function getModelOptionsForProvider(
+  provider: ProviderDetails,
+  getProviderModels: (providerName: string) => Promise<string[]>
+): Promise<{ value: string; provider: string }[]> {
+  let models: string[] = [];
+
+  try {
+    models = await getProviderModels(provider.name);
+  } catch (error) {
+    console.warn(`Failed to fetch models for ${provider.name}:`, error);
+  }
+
+  if ((!models || models.length === 0) && provider.metadata.known_models?.length) {
+    models = provider.metadata.known_models.map((m) => m.name);
+  }
+
+  return models.map((modelName) => ({
+    value: modelName,
+    provider: provider.name,
+  }));
+}

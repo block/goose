@@ -6,6 +6,7 @@ import { Select } from '../../../ui/Select';
 import { Input } from '../../../ui/input';
 import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../ui/dialog';
+import { getModelOptionsForProvider } from '../modelInterface';
 
 interface LeadWorkerSettingsProps {
   isOpen: boolean;
@@ -13,7 +14,7 @@ interface LeadWorkerSettingsProps {
 }
 
 export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps) {
-  const { read, upsert, getProviders, remove } = useConfig();
+  const { read, upsert, getProviders, getProviderModels, remove } = useConfig();
   const { currentModel } = useModelAndProvider();
   const [leadModel, setLeadModel] = useState<string>('');
   const [workerModel, setWorkerModel] = useState<string>('');
@@ -96,21 +97,21 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
             });
           });
         } else {
-          // Fallback to provider-based models
+          // Fetch models with dynamic discovery and static fallback
           const providers = await getProviders(false);
           const activeProviders = providers.filter((p) => p.is_configured);
 
-          activeProviders.forEach(({ metadata, name }) => {
-            if (metadata.known_models) {
-              metadata.known_models.forEach((model) => {
-                options.push({
-                  value: model.name,
-                  label: `${model.name} (${metadata.display_name})`,
-                  provider: name,
-                });
+          // Fetch models for all active providers with dynamic discovery
+          for (const provider of activeProviders) {
+            const providerOptions = await getModelOptionsForProvider(provider, getProviderModels);
+            providerOptions.forEach((option) => {
+              options.push({
+                value: option.value,
+                label: `${option.value} (${provider.metadata.display_name})`,
+                provider: option.provider,
               });
-            }
-          });
+            });
+          }
         }
 
         setModelOptions(options);
@@ -122,7 +123,7 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
     };
 
     loadConfig();
-  }, [read, getProviders, currentModel, isOpen]);
+  }, [read, getProviders, getProviderModels, currentModel, isOpen]);
 
   const handleSave = async () => {
     try {
