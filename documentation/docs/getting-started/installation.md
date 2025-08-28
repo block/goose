@@ -252,10 +252,6 @@ Goose works with [supported LLM providers][providers] that give Goose the AI int
 
     <OnboardingProviderSetup />
 
-    :::info Windows Users
-    When using the native Windows CLI, choose to not store to keyring when prompted during initial configuration.
-    :::
-
     Example configuration flow:
 
     ```
@@ -280,7 +276,7 @@ Goose works with [supported LLM providers][providers] that give Goose the AI int
   ```
 
   :::info Windows Users
-  If you encounter keyring errors when setting API keys, you can set environment variables manually instead:
+  If you choose to manually configure a provider, when prompted during configuration, choose to not store to keyring. If you encounter keyring errors when setting API keys, you can set environment variables manually instead:
 
   ```bash
   export OPENAI_API_KEY={your_api_key}

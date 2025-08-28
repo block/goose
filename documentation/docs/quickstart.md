@@ -97,8 +97,10 @@ Let's begin 🚀
         
         Learn about prerequisites in the [installation guide](/docs/getting-started/installation).
 
-        :::info PATH Warning
+        :::info PATH Warning And Keyring
         If you see a PATH warning after installation, you'll need to add Goose to your PATH before running `goose configure`. See the [Windows CLI installation instructions](/docs/getting-started/installation) for detailed steps.
+
+        If prompted during configuration, choose to not store to keyring. If you encounter keyring errors, see the [Windows setup instructions](/docs/getting-started/installation#set-llm-provider) for more information.
         :::
 
       </TabItem>
@@ -113,41 +115,31 @@ Goose works with [supported LLM providers][providers] that give Goose the AI int
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
 
-    On the welcome screen, choose how to configure a provider:
-
-    - **Recommended**: Automatic setup with [Tetrate Agent Router](https://tetrate.io/products/tetrate-agent-router-service). Goose will open a browser for you to authenticate.
+    On the welcome screen, choose `Automatic setup with Tetrate Agent Router`.
+    
+    Goose will open a browser for you to authenticate.
       
-      :::info
-      You'll receive $10 in free credits the first time you automatically authenticate with Tetrate through Goose. This offer is available to both new and existing Tetrate users and is valid through October 2, 2025.
-      :::
+    :::info Free Credits Offer
+    You'll receive $10 in free credits the first time you automatically authenticate with Tetrate through Goose. This offer is available to both new and existing Tetrate users and is valid through October 2, 2025.
+    :::
 
-    - **Other Options**: Users who prefer a different provider can choose automatic setup with OpenRouter or manually configure a provider.
+    Tetrate provides access to multiple AI models with built-in rate limiting and automatic failover. If you prefer a different provider, choose automatic setup with OpenRouter or manually configure a provider.
     
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
     
-    The CLI automatically enters configuration mode where you can choose how to configure a provider:
-
-    - **Recommended**: Automatic setup with [Tetrate Agent Router](https://tetrate.io/products/tetrate-agent-router-service). Goose will open a browser for you to authenticate.
+    On the welcome screen, choose `Tetrate Agent Router Service Login`. Use the up and down arrow keys to navigate the options, then press `Enter` to select. 
+    
+    Goose will open a browser for you to authenticate.
       
-      :::info
-      You'll receive $10 in free credits the first time you automatically authenticate with Tetrate through Goose. This offer is available to both new and existing Tetrate users and is valid through October 2, 2025.
-      :::
-
-    - **Other Options**: Users who prefer a different provider can choose automatic setup with OpenRouter or manually configure a provider.
-
-    Use the up and down arrow keys to navigate the CLI menu, and press `Enter` once you've selected a choice.
-
-    :::tip Windows Users
-    If prompted during configuration, choose to not store to keyring. If you encounter keyring errors, see the [Windows setup instructions](/docs/getting-started/installation#set-llm-provider) for more information.
+    :::info Free Credits Offer
+    You'll receive $10 in free credits the first time you automatically authenticate with Tetrate through Goose. This offer is available to both new and existing Tetrate users and is valid through October 2, 2025.
     :::
+
+    Tetrate provides access to multiple AI models with built-in rate limiting and automatic failover. If you prefer a different provider, choose automatic setup with OpenRouter or manually configure a provider.
 
   </TabItem>
 </Tabs>
-
-:::tip
-<ModelSelectionTip />
-:::
 
 ## Start Session
 Sessions are single, continuous conversations between you and Goose. Let's start one.
