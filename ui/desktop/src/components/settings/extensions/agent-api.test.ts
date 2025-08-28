@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { extensionApiCall, addToAgent, removeFromAgent, sanitizeName } from './agent-api';
+import { extensionApiCall, addExtensionToAgent, removeFromAgent, sanitizeName } from './agent-api';
 import * as config from '../../../config';
 import * as toasts from '../../../toasts';
 import { ExtensionConfig } from '../../../api/types.gen';
@@ -232,7 +232,7 @@ describe('Agent API', () => {
       const { replaceWithShims } = await import('./utils');
       vi.mocked(replaceWithShims).mockResolvedValue('/path/to/python');
 
-      await addToAgent(mockExtensionConfig);
+      await addExtensionToAgent(mockExtensionConfig);
 
       expect(mockFetch).toHaveBeenCalledWith('http://localhost:8080/extensions/add', {
         method: 'POST',
@@ -256,7 +256,7 @@ describe('Agent API', () => {
       };
       mockFetch.mockResolvedValue(mockResponse);
 
-      await expect(addToAgent(mockExtensionConfig)).rejects.toThrow(
+      await expect(addExtensionToAgent(mockExtensionConfig)).rejects.toThrow(
         'Agent is not initialized. Please initialize the agent first.'
       );
     });
@@ -274,7 +274,7 @@ describe('Agent API', () => {
       };
       mockFetch.mockResolvedValue(mockResponse);
 
-      await addToAgent(sseConfig);
+      await addExtensionToAgent(sseConfig);
 
       expect(mockFetch).toHaveBeenCalledWith('http://localhost:8080/extensions/add', {
         method: 'POST',

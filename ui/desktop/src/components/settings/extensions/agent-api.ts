@@ -137,10 +137,7 @@ async function parseResponseData(response: Response): Promise<ApiResponse> {
   }
 }
 
-/**
- * Add an extension to the agent
- */
-export async function addToAgent(
+export async function addExtensionToAgent(
   extension: ExtensionConfig,
   options: ToastServiceOptions = {}
 ): Promise<Response> {

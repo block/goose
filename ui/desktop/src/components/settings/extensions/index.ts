@@ -17,4 +17,4 @@ export { syncBundledExtensions, initializeBundledExtensions } from './bundled-ex
 export { addExtensionFromDeepLink } from './deeplink';
 
 // Export agent API functions
-export { addToAgent as AddToAgent, removeFromAgent as RemoveFromAgent } from './agent-api';
+export { addExtensionToAgent as AddToAgent, removeFromAgent as RemoveFromAgent } from './agent-api';

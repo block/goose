@@ -1,6 +1,6 @@
 import type { ExtensionConfig } from '../../../api/types.gen';
 import { toastService, ToastServiceOptions } from '../../../toasts';
-import { addToAgent, removeFromAgent, sanitizeName } from './agent-api';
+import { addExtensionToAgent, removeFromAgent, sanitizeName } from './agent-api';
 
 interface ActivateExtensionProps {
   addToConfig: (name: string, extensionConfig: ExtensionConfig, enabled: boolean) => Promise<void>;
@@ -58,7 +58,7 @@ export async function activateExtension({
 }: ActivateExtensionProps): Promise<void> {
   try {
     // AddToAgent
-    await addToAgent(extensionConfig, { silent: false });
+    await addExtensionToAgent(extensionConfig, { silent: false });
   } catch (error) {
     console.error('Failed to add extension to agent:', error);
     // add to config with enabled = false
@@ -96,7 +96,7 @@ export async function addToAgentOnStartup({
   extensionConfig,
 }: AddToAgentOnStartupProps): Promise<void> {
   try {
-    await retryWithBackoff(() => addToAgent(extensionConfig, { silent: true }), {
+    await retryWithBackoff(() => addExtensionToAgent(extensionConfig, { silent: true }), {
       retries: 3,
       delayMs: 1000,
       shouldRetry: (error: ExtensionError) =>
@@ -180,7 +180,7 @@ export async function updateExtension({
     if (enabled) {
       try {
         // AddToAgent with silent option to avoid duplicate toasts
-        await addToAgent(sanitizedExtensionConfig, { silent: true });
+        await addExtensionToAgent(sanitizedExtensionConfig, { silent: true });
       } catch (error) {
         console.error('[updateExtension]: Failed to add renamed extension to agent:', error);
         throw error;
@@ -210,7 +210,7 @@ export async function updateExtension({
     if (enabled) {
       try {
         // AddToAgent with silent option to avoid duplicate toasts
-        await addToAgent(sanitizedExtensionConfig, { silent: true });
+        await addExtensionToAgent(sanitizedExtensionConfig, { silent: true });
       } catch (error) {
         console.error('[updateExtension]: Failed to add extension to agent during update:', error);
         // Failed to add to agent -- show that error to user and do not update the config file
@@ -267,7 +267,7 @@ export async function toggleExtension({
   if (toggle == 'toggleOn') {
     try {
       // add to agent with toast options
-      await addToAgent(extensionConfig, {
+      await addExtensionToAgent(extensionConfig, {
         ...toastOptions,
       });
     } catch (error) {

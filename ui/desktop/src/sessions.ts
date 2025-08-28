@@ -59,47 +59,29 @@ export function generateSessionId(): string {
   return `${year}${month}${day}_${hours}${minutes}${seconds}`;
 }
 
-/**
- * Fetches all available sessions from the API
- * @returns Promise with sessions data
- */
-/**
- * Fetches all available sessions from the API
- * @returns Promise with an array of Session objects
- */
 export async function fetchSessions(): Promise<Session[]> {
-  try {
-    const response = await listSessions<true>();
+  const response = await listSessions<true>();
 
-    // Check if the response has the expected structure
-    if (response && response.data && response.data.sessions) {
-      // Since the API returns SessionInfo, we need to convert to Session
-      const sessions = response.data.sessions
-        .filter(
-          (sessionInfo: SessionInfo) =>
-            sessionInfo.metadata && sessionInfo.metadata.message_count > 0
-        )
-        .map(
-          (sessionInfo: SessionInfo): Session => ({
-            id: sessionInfo.id,
-            path: sessionInfo.path,
-            modified: sessionInfo.modified,
-            metadata: ensureWorkingDir(sessionInfo.metadata),
-          })
-        );
-
-      // order sessions by 'modified' date descending
-      sessions.sort(
-        (a: Session, b: Session) => new Date(b.modified).getTime() - new Date(a.modified).getTime()
+  if (response && response.data && response.data.sessions) {
+    const sessions = response.data.sessions
+      .filter(
+        (sessionInfo: SessionInfo) => sessionInfo.metadata && sessionInfo.metadata.message_count > 0
+      )
+      .map(
+        (sessionInfo: SessionInfo): Session => ({
+          id: sessionInfo.id,
+          path: sessionInfo.path,
+          modified: sessionInfo.modified,
+          metadata: ensureWorkingDir(sessionInfo.metadata),
+        })
       );
+    sessions.sort(
+      (a: Session, b: Session) => new Date(b.modified).getTime() - new Date(a.modified).getTime()
+    );
 
-      return sessions;
-    } else {
-      throw new Error('Unexpected response format from listSessions');
-    }
-  } catch (error) {
-    console.error('Error fetching sessions:', error);
-    throw error;
+    return sessions;
+  } else {
+    return [];
   }
 }
 
@@ -109,23 +91,18 @@ export async function fetchSessions(): Promise<Session[]> {
  * @returns Promise with session details
  */
 export async function fetchSessionDetails(sessionId: string): Promise<SessionDetails> {
-  try {
-    const response = await getSessionHistory<true>({
-      path: { session_id: sessionId },
-    });
+  const response = await getSessionHistory<true>({
+    path: { session_id: sessionId },
+  });
 
-    // Convert the SessionHistoryResponse to a SessionDetails object
-    return {
-      session_id: response.data.sessionId,
-      metadata: ensureWorkingDir(response.data.metadata),
-      messages: response.data.messages.map((message: ApiMessage) =>
-        convertApiMessageToFrontendMessage(message, true, true)
-      ), // slight diffs between backend and frontend Message obj
-    };
-  } catch (error) {
-    console.error(`Error fetching session details for ${sessionId}:`, error);
-    throw error;
-  }
+  // Convert the SessionHistoryResponse to a SessionDetails object
+  return {
+    session_id: response.data.sessionId,
+    metadata: ensureWorkingDir(response.data.metadata),
+    messages: response.data.messages.map((message: ApiMessage) =>
+      convertApiMessageToFrontendMessage(message, true, true)
+    ),
+  };
 }
 
 /**

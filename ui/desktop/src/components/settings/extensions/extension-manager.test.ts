@@ -13,7 +13,7 @@ import * as toasts from '../../../toasts';
 vi.mock('./agent-api');
 vi.mock('../../../toasts');
 
-const mockAddToAgent = vi.mocked(agentApi.addToAgent);
+const mockAddToAgent = vi.mocked(agentApi.addExtensionToAgent);
 const mockRemoveFromAgent = vi.mocked(agentApi.removeFromAgent);
 const mockSanitizeName = vi.mocked(agentApi.sanitizeName);
 const mockToastService = vi.mocked(toasts.toastService);

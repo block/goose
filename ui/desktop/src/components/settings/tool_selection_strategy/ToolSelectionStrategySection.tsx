@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useConfig } from '../../ConfigContext';
-import { getApiUrl } from '../../../config';
+import { updateRouterToolSelector } from '../../../api';
 
 interface ToolSelectionStrategy {
   key: boolean;
@@ -47,27 +47,10 @@ export const ToolSelectionStrategySection = () => {
 
       // Then update the backend
       try {
-        const response = await fetch(getApiUrl('/agent/update_router_tool_selector'), {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Secret-Key': await window.electron.getSecretKey(),
-          },
-        });
+        const result = await updateRouterToolSelector();
 
-        if (!response.ok) {
-          const errorData = await response
-            .json()
-            .catch(() => ({ error: 'Unknown error from backend' }));
-          throw new Error(errorData.error || 'Unknown error from backend');
-        }
-
-        // Parse the success response
-        const data = await response
-          .json()
-          .catch(() => ({ message: 'Tool selection strategy updated successfully' }));
-        if (data.error) {
-          throw new Error(data.error);
+        if (result.error) {
+          throw new Error((result.error as any)?.message || 'Unknown error from backend');
         }
       } catch (error) {
         console.error('Error updating backend:', error);

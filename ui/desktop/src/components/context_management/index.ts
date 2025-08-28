@@ -127,29 +127,3 @@ function mapApiContentToFrontendMessageContent(
   console.warn(`Skipping unsupported content type: ${apiContent.type}`);
   return null;
 }
-
-export function createSummarizationRequestMessage(
-  messages: FrontendMessage[],
-  requestMessage: string
-): FrontendMessage {
-  // Get the last message
-  const lastMessage = messages[messages.length - 1];
-
-  // Determine the next role (opposite of the last message)
-  const nextRole: Role = lastMessage.role === 'user' ? 'assistant' : 'user';
-
-  // Create the new message with SummarizationRequestedContent
-  return {
-    id: generateId(),
-    role: nextRole,
-    created: Math.floor(Date.now() / 1000),
-    content: [
-      {
-        type: 'summarizationRequested',
-        msg: requestMessage,
-      },
-    ],
-    sendToLLM: false,
-    display: true,
-  };
-}

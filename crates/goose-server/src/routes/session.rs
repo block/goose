@@ -39,7 +39,7 @@ pub struct SessionHistoryResponse {
 #[derive(Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateSessionMetadataRequest {
-    /// Updated description (name) for the session (max 200 characters)
+    /// Updated description (name) for the session
     description: String,
 }
 
@@ -52,20 +52,10 @@ pub struct SessionInsights {
     total_sessions: usize,
     /// Most active working directories with session counts
     most_active_dirs: Vec<(String, usize)>,
-    /// Average session duration in minutes
-    avg_session_duration: f64,
     /// Total tokens used across all sessions
     total_tokens: i64,
     /// Activity trend for the last 7 days
     recent_activity: Vec<(String, usize)>,
-}
-
-#[derive(Serialize, ToSchema, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct ActivityHeatmapCell {
-    pub week: usize,
-    pub day: usize,
-    pub count: usize,
 }
 
 #[utoipa::path(
@@ -236,13 +226,6 @@ async fn get_session_insights(
     dir_vec.sort_by(|a, b| b.1.cmp(&a.1));
     let most_active_dirs = dir_vec.into_iter().take(3).collect();
 
-    // Calculate average session duration
-    let avg_session_duration = if total_sessions > 0 {
-        total_duration / total_sessions as f64
-    } else {
-        0.0
-    };
-
     // Get last 7 days of activity
     let mut activity_vec: Vec<(String, usize)> = activity_by_date.into_iter().collect();
     activity_vec.sort_by(|a, b| b.0.cmp(&a.0)); // Sort by date descending
@@ -251,7 +234,6 @@ async fn get_session_insights(
     let insights = SessionInsights {
         total_sessions,
         most_active_dirs,
-        avg_session_duration,
         total_tokens,
         recent_activity,
     };
