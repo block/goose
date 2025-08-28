@@ -1200,14 +1200,10 @@ impl Agent {
                             }
                         }
                         Err(ProviderError::ContextLengthExceeded(error_msg)) => {
-                            info!("Context length exceeded, attempting auto-compaction");
+                            info!("Context length exceeded, attempting compaction");
 
-                            match auto_compact::check_and_compact_messages(
-                                self,
-                                &messages,
-                                None,
-                            ).await {
-                                Ok(compact_result) if compact_result.compacted => {
+                            match auto_compact::perform_compaction(self, messages.messages()).await {
+                                Ok(compact_result) => {
                                     messages = compact_result.messages;
 
                                     yield AgentEvent::Message(
@@ -1215,13 +1211,13 @@ impl Agent {
                                             "Context limit reached. Conversation has been automatically compacted to continue."
                                         )
                                     );
-                                    yield AgentEvent::HistoryReplaced(messages.clone());
+                                    yield AgentEvent::HistoryReplaced(messages.messages().to_vec());
 
                                     continue;
                                 }
-                                _ => {
+                                Err(_) => {
                                     yield AgentEvent::Message(Message::assistant().with_context_length_exceeded(
-                                        format!("Context length exceeded: {}. Unable to continue.", error_msg)
+                                        format!("Context length exceeded and cannot summarize: {}. Unable to continue.", error_msg)
                                     ));
                                     break;
                                 }
