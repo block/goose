@@ -1,4 +1,6 @@
 use anyhow::Result;
+use once_cell::sync::Lazy;
+use regex::Regex;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -274,50 +276,149 @@ impl AutoPilot {
         }
     }
 
-    /// Analyze text complexity
-    fn analyze_complexity(text: &str) -> ComplexityLevel {
-        // Simple heuristics for complexity
-        let word_count = text.split_whitespace().count();
-        let question_count = text.matches('?').count();
-        let has_code_indicators =
-            text.contains("```") || text.contains("function") || text.contains("class");
-        let has_multiple_sentences = text.matches(". ").count() > 2;
+    /// Score the complexity of a paragraph/sentence as Low / Medium / High.
+    /// This uses a variety of simple (but known) fast algorithms.
+    /// Looks like generated code, only partly is, mic did work over it.
+    /// It appears complex, but the idea is to have a fast way to know if some body of text is hard to read or complex in any way.
+    ///
+    /// Algorithms included:
+    /// - **Flesch Reading Ease (FRE)** → higher = simpler
+    /// - **Flesch–Kincaid Grade Level (FKGL)** → higher = harder
+    /// - **Gunning Fog Index (FOG)** → higher = harder
+    /// - **Coleman–Liau Index (CLI)** → higher = harder
+    /// - **Automated Readability Index (ARI)** → higher = harder
+    /// - **LIX (Läsbarhetsindex)** → higher = harder
+    ///
+    /// some features layered on top of the formulas:
+    /// - **Long-word ratio** (>6 letters): jargon proxy → penalizes if high
+    /// - **Clause density** (commas, semicolons, parentheses per sentence): proxy for syntactic load → penalizes if high
+    /// - **Instructional boost**: if sentences are short, long-word ratio is low, and clauses are few, give a small positive bump (to better classify "simple instruction" style text)
+    ///
+    /// The formulas are normalized into a 0–100 "simplicity" scale, then blended with weights.
+    /// Heuristic penalties/bonuses are applied, and the final result is bucketed in to the following
+    ///   >70 = Low (simple), 40–70 = Medium, <40 = High (complex).
+    pub fn analyze_complexity(text: &str) -> ComplexityLevel {
+        // --- tokenization ---
+        static RE_WORD: Lazy<Regex> =
+            Lazy::new(|| Regex::new(r"[A-Za-z]+(?:'[A-Za-z]+)?").unwrap());
+        static RE_SENT: Lazy<Regex> = Lazy::new(|| Regex::new(r"[.!?]+").unwrap());
+        static RE_CLAUSE: Lazy<Regex> = Lazy::new(|| Regex::new(r"[,:;()—-]").unwrap());
 
-        // Scoring system
-        let mut score = 0;
+        let words: Vec<&str> = RE_WORD.find_iter(text).map(|m| m.as_str()).collect();
+        let w = words.len().max(1);
 
-        // Length-based scoring
-        if word_count > 100 {
-            score += 3;
-        } else if word_count > 50 {
-            score += 2;
-        } else if word_count > 20 {
-            score += 1;
+        // Automatically classify anything less than 4 words as Low complexity
+        if w < 4 {
+            return ComplexityLevel::Low;
+        }
+        let s = RE_SENT.find_iter(text).count().max(1);
+
+        let letters = text.chars().filter(|c| c.is_alphabetic()).count();
+        let chars_no_space = text.chars().filter(|c| !c.is_whitespace()).count();
+        let clauses = RE_CLAUSE.find_iter(text).count();
+
+        // syllable, long-word, polysyllable counts
+        let mut syl = 0usize;
+        let mut polys = 0usize;
+        let mut longw = 0usize;
+        for &wd in &words {
+            let sy = Self::syllables(wd);
+            syl += sy;
+            if sy >= 3 {
+                polys += 1;
+            }
+            if wd.len() > 6 {
+                longw += 1;
+            }
         }
 
-        // Question complexity
-        if question_count > 2 {
-            score += 2;
-        } else if question_count > 0 {
-            score += 1;
+        // --- readability formulas ---
+        let avg_wps = w as f32 / s as f32; // words per sentence
+        let avg_syl = syl as f32 / w as f32;
+
+        // 1. Flesch Reading Ease (FRE)
+        let fre = 206.835 - 1.015 * avg_wps - 84.6 * avg_syl;
+
+        // 2. Flesch–Kincaid Grade Level (FKGL)
+        let fkgl = 0.39 * avg_wps + 11.8 * avg_syl - 15.59;
+
+        // 3. Gunning Fog Index
+        let fog = 0.4 * (avg_wps + 100.0 * (polys as f32 / w as f32));
+
+        // 4. Coleman–Liau Index (CLI)
+        let cli = {
+            let l = 100.0 * (letters as f32 / w as f32);
+            let s100 = 100.0 * (s as f32 / w as f32);
+            0.0588 * l - 0.296 * s100 - 15.8
+        };
+
+        // 5. Automated Readability Index (ARI)
+        let ari = 4.71 * (chars_no_space as f32 / w as f32) + 0.5 * avg_wps - 21.43;
+
+        // 6. LIX (Läsbarhetsindex)
+        let lix = avg_wps + 100.0 * (longw as f32 / w as f32);
+
+        // --- normalize into 0..100 simplicity ---
+        let clamp01 = |x: f32| x.clamp(0.0, 1.0);
+        let inv_grade = |g: f32| 100.0 * (1.0 - clamp01(g / 18.0)); // 0 grade→100 simple, 18+→0
+        let f_fre = 100.0 * clamp01(fre / 100.0);
+        let f_fkgl = inv_grade(fkgl);
+        let f_fog = inv_grade(fog);
+        let f_cli = inv_grade(cli);
+        let f_ari = inv_grade(ari);
+        let f_lix = 100.0 * (1.0 - clamp01((lix - 20.0) / 40.0)); // LIX 20..60 → 100..0
+
+        // Weighted blend of formulas (tuned weights, sum < 1.0)
+        let mut simplicity = 0.30 * f_fre
+            + 0.16 * f_fkgl
+            + 0.12 * f_fog
+            + 0.10 * f_cli
+            + 0.07 * f_ari
+            + 0.08 * f_lix;
+
+        // --- heuristic adjustments ---
+        let long_ratio = longw as f32 / w as f32;
+        let clause_density = clauses as f32 / s as f32;
+
+        // Penalty for jargon-ish long words (up to -20)
+        simplicity -= (long_ratio * 20.0).min(20.0);
+
+        // Penalty for heavy clause punctuation (up to -15 when clauses/sentence ≳ 3)
+        simplicity -= ((clause_density / 3.0) * 15.0).min(15.0);
+
+        // Boost if text looks like simple instructions:
+        // short sentences, few long words, low clause punctuation
+        if avg_wps < 14.0 && long_ratio < 0.12 && clause_density < 0.8 {
+            simplicity += 5.0;
         }
 
-        // Code or technical content
-        if has_code_indicators {
-            score += 2;
+        // --- final bucketing ---
+        let score = simplicity.clamp(0.0, 100.0);
+        if score > 70.0 {
+            ComplexityLevel::Low
+        } else if score >= 40.0 {
+            ComplexityLevel::Medium
+        } else {
+            ComplexityLevel::High
         }
+    }
 
-        // Multiple sentences/paragraphs
-        if has_multiple_sentences {
-            score += 1;
+    /// Tiny syllable guesser (used by FRE, FKGL, Fog)
+    fn syllables(word: &str) -> usize {
+        let w = word.to_lowercase();
+        let mut count = 0usize;
+        let mut prev_v = false;
+        for c in w.chars() {
+            let v = matches!(c, 'a' | 'e' | 'i' | 'o' | 'u' | 'y');
+            if v && !prev_v {
+                count += 1;
+            }
+            prev_v = v;
         }
-
-        // Map score to complexity level
-        match score {
-            0..=2 => ComplexityLevel::Low,
-            3..=5 => ComplexityLevel::Medium,
-            _ => ComplexityLevel::High,
+        if w.ends_with('e') && count > 1 {
+            count -= 1;
         }
+        count.max(1)
     }
 
     /// Check if the trigger source matches the last message
@@ -834,12 +935,13 @@ mod tests {
 
     #[test]
     fn test_complexity() {
-        // check we get low complexity
+        // Test <4 words rule
         assert!(matches!(
             AutoPilot::analyze_complexity("Hello"),
             ComplexityLevel::Low
         ));
 
+        // Test complex text
         let complex_text = "I need help understanding this extremely complex distributed system architecture. \
                           How does the authentication and authorization flow work across multiple microservices? \
                           What are the security implications of our current design? Can you explain the database schema in detail? \
@@ -875,9 +977,16 @@ mod tests {
 
     #[test]
     fn test_complexity_analysis() {
-        // Low complexity
         assert!(matches!(
             AutoPilot::analyze_complexity("Hello"),
+            ComplexityLevel::Low
+        ));
+        assert!(matches!(
+            AutoPilot::analyze_complexity("Yes please"),
+            ComplexityLevel::Low
+        ));
+        assert!(matches!(
+            AutoPilot::analyze_complexity("No thank you"),
             ComplexityLevel::Low
         ));
 
