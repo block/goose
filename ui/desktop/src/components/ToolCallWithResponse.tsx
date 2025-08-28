@@ -9,6 +9,7 @@ import { NotificationEvent } from '../hooks/useMessageStream';
 import { ChevronRight, FlaskConical, LoaderCircle } from 'lucide-react';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';
+import { isUIResource } from '@mcp-ui/client';
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
@@ -16,6 +17,7 @@ interface ToolCallWithResponseProps {
   toolResponse?: ToolResponseMessageContent;
   notifications?: NotificationEvent[];
   isStreamingMessage?: boolean;
+  append?: (value: string) => void; // Function to append messages to the chat
 }
 
 export default function ToolCallWithResponse({
@@ -24,6 +26,7 @@ export default function ToolCallWithResponse({
   toolResponse,
   notifications,
   isStreamingMessage = false,
+  append,
 }: ToolCallWithResponseProps) {
   const toolCall = toolRequest.toolCall.status === 'success' ? toolRequest.toolCall.value : null;
   if (!toolCall) {
@@ -50,10 +53,10 @@ export default function ToolCallWithResponse({
       {/* MCP UI — Inline */}
       {toolResponse?.toolResult?.value &&
         toolResponse.toolResult.value.map((content, index) => {
-          if (content.type === 'resource' && content.resource.uri?.startsWith('ui://')) {
+          if (isUIResource(content)) {
             return (
               <div key={`${content.type}-${index}`} className="mt-3">
-                <MCPUIResourceRenderer content={content} />
+                <MCPUIResourceRenderer content={content} appendPromptToChat={append} />
                 <div className="mt-3 p-4 py-3 border border-borderSubtle rounded-lg bg-background-muted flex items-center">
                   <FlaskConical className="mr-2" size={20} />
                   <div className="text-sm font-sans">

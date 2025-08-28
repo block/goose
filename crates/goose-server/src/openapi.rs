@@ -366,6 +366,7 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::config_management::get_extensions,
         super::routes::config_management::read_all_config,
         super::routes::config_management::providers,
+        super::routes::config_management::get_provider_models,
         super::routes::config_management::upsert_permissions,
         super::routes::config_management::create_custom_provider,
         super::routes::config_management::remove_custom_provider,

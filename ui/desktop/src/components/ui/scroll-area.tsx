@@ -67,17 +67,28 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
       const { scrollHeight, scrollTop, clientHeight } = viewport;
 
       const scrollBottom = scrollTop + clientHeight;
-      // Allow a small tolerance (2px) for rounding errors
-      const isAtBottom = scrollHeight - scrollBottom <= 2;
+      const isAtBottom = scrollHeight - scrollBottom <= 10;
 
       setIsFollowing(isAtBottom);
       setIsScrolled(scrollTop > 0);
     }, []);
 
-    React.useEffect(() => {
-      if (!autoScroll || !isFollowing) return;
+    // Track previous scroll height to detect content changes
+    const prevScrollHeightRef = React.useRef<number>(0);
 
-      scrollToBottom();
+    React.useEffect(() => {
+      if (!autoScroll || !isFollowing || !viewportRef.current) return;
+
+      const viewport = viewportRef.current;
+      const currentScrollHeight = viewport.scrollHeight;
+
+      // Only auto-scroll if content has actually grown (new content added)
+      // and we were already following (at the bottom)
+      if (currentScrollHeight > prevScrollHeightRef.current) {
+        scrollToBottom();
+      }
+
+      prevScrollHeightRef.current = currentScrollHeight;
     }, [children, autoScroll, isFollowing, scrollToBottom]);
 
     // Add scroll event listener

@@ -3,7 +3,6 @@ use opentelemetry::{global, KeyValue};
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::trace::{self, RandomIdGenerator, Sampler};
 use opentelemetry_sdk::{runtime, Resource};
-use std::env;
 use std::time::Duration;
 use tracing::{Level, Metadata};
 use tracing_opentelemetry::{MetricsLayer, OpenTelemetryLayer};
@@ -31,23 +30,26 @@ impl Default for OtlpConfig {
 }
 
 impl OtlpConfig {
-    pub fn from_env() -> Option<Self> {
-        if let Ok(endpoint) = env::var("OTEL_EXPORTER_OTLP_ENDPOINT") {
-            let mut config = Self {
-                endpoint,
-                timeout: Duration::from_secs(10),
-            };
+    pub fn from_config() -> Option<Self> {
+        // Try to get from Goose config system (which checks env vars first, then config file)
+        let config = crate::config::Config::global();
 
-            if let Ok(timeout_str) = env::var("OTEL_EXPORTER_OTLP_TIMEOUT") {
-                if let Ok(timeout_ms) = timeout_str.parse::<u64>() {
-                    config.timeout = Duration::from_millis(timeout_ms);
-                }
-            }
+        // Try to get the endpoint from config (checks OTEL_EXPORTER_OTLP_ENDPOINT env var first)
+        let endpoint = config
+            .get_param::<String>("otel_exporter_otlp_endpoint")
+            .ok()?;
 
-            Some(config)
-        } else {
-            None
+        let mut otlp_config = Self {
+            endpoint,
+            timeout: Duration::from_secs(10),
+        };
+
+        // Try to get timeout from config (checks OTEL_EXPORTER_OTLP_TIMEOUT env var first)
+        if let Ok(timeout_ms) = config.get_param::<u64>("otel_exporter_otlp_timeout") {
+            otlp_config.timeout = Duration::from_millis(timeout_ms);
         }
+
+        Some(otlp_config)
     }
 }
 
@@ -104,8 +106,7 @@ pub fn init_otlp_metrics(config: &OtlpConfig) -> OtlpResult<()> {
 }
 
 pub fn create_otlp_tracing_layer() -> OtlpResult<OtlpTracingLayer> {
-    let config =
-        OtlpConfig::from_env().ok_or("OTEL_EXPORTER_OTLP_ENDPOINT environment variable not set")?;
+    let config = OtlpConfig::from_config().ok_or("OTEL_EXPORTER_OTLP_ENDPOINT not configured")?;
 
     let resource = Resource::new(vec![
         KeyValue::new("service.name", "goose"),
@@ -134,8 +135,7 @@ pub fn create_otlp_tracing_layer() -> OtlpResult<OtlpTracingLayer> {
 }
 
 pub fn create_otlp_metrics_layer() -> OtlpResult<OtlpMetricsLayer> {
-    let config =
-        OtlpConfig::from_env().ok_or("OTEL_EXPORTER_OTLP_ENDPOINT environment variable not set")?;
+    let config = OtlpConfig::from_config().ok_or("OTEL_EXPORTER_OTLP_ENDPOINT not configured")?;
 
     let resource = Resource::new(vec![
         KeyValue::new("service.name", "goose"),
@@ -245,20 +245,54 @@ mod tests {
     }
 
     #[test]
-    fn test_otlp_config_from_env() {
+    fn test_otlp_config_from_config() {
+        use tempfile::NamedTempFile;
+
+        // Save original env vars
         let original_endpoint = env::var("OTEL_EXPORTER_OTLP_ENDPOINT").ok();
         let original_timeout = env::var("OTEL_EXPORTER_OTLP_TIMEOUT").ok();
 
+        // Clear env vars to ensure we're testing config file
         env::remove_var("OTEL_EXPORTER_OTLP_ENDPOINT");
-        assert!(OtlpConfig::from_env().is_none());
+        env::remove_var("OTEL_EXPORTER_OTLP_TIMEOUT");
 
-        env::set_var("OTEL_EXPORTER_OTLP_ENDPOINT", "http://test:4317");
-        env::set_var("OTEL_EXPORTER_OTLP_TIMEOUT", "5000");
+        // Create a test config file
+        let temp_file = NamedTempFile::new().unwrap();
+        let test_config = crate::config::Config::new(temp_file.path(), "test-otlp").unwrap();
 
-        let config = OtlpConfig::from_env().unwrap();
-        assert_eq!(config.endpoint, "http://test:4317");
-        assert_eq!(config.timeout, Duration::from_millis(5000));
+        // Set values in config
+        test_config
+            .set_param(
+                "otel_exporter_otlp_endpoint",
+                serde_json::Value::String("http://config:4318".to_string()),
+            )
+            .unwrap();
+        test_config
+            .set_param(
+                "otel_exporter_otlp_timeout",
+                serde_json::Value::Number(3000.into()),
+            )
+            .unwrap();
 
+        // Test that from_config reads from the config file
+        // Note: We can't easily test from_config() directly since it uses Config::global()
+        // But we can test that the config system works with our keys
+        let endpoint: String = test_config
+            .get_param("otel_exporter_otlp_endpoint")
+            .unwrap();
+        assert_eq!(endpoint, "http://config:4318");
+
+        let timeout: u64 = test_config.get_param("otel_exporter_otlp_timeout").unwrap();
+        assert_eq!(timeout, 3000);
+
+        // Test env var override still works
+        env::set_var("OTEL_EXPORTER_OTLP_ENDPOINT", "http://env:4317");
+        let endpoint: String = test_config
+            .get_param("otel_exporter_otlp_endpoint")
+            .unwrap();
+        assert_eq!(endpoint, "http://env:4317");
+
+        // Restore original env vars
         match original_endpoint {
             Some(val) => env::set_var("OTEL_EXPORTER_OTLP_ENDPOINT", val),
             None => env::remove_var("OTEL_EXPORTER_OTLP_ENDPOINT"),

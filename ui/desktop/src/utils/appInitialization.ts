@@ -14,6 +14,7 @@ interface InitializationDependencies {
   getExtensions?: (b: boolean) => Promise<FixedExtensionEntry[]>;
   addExtension?: (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>;
   setPairChat: (chat: ChatType | ((prev: ChatType) => ChatType)) => void;
+  setMessage: (message: string | null) => void;
   provider: string;
   model: string;
 }
@@ -22,6 +23,7 @@ export const initializeApp = async ({
   getExtensions,
   addExtension,
   setPairChat,
+  setMessage,
   provider,
   model,
 }: InitializationDependencies) => {
@@ -87,6 +89,7 @@ export const initializeApp = async ({
         initPromises.push(costDbPromise);
       }
 
+      setMessage('starting extensions...');
       await Promise.all(initPromises);
     } catch (error) {
       console.error('Error in system initialization:', error);
@@ -95,8 +98,18 @@ export const initializeApp = async ({
       }
     }
   }
-  window.location.hash = '#/';
-  window.history.replaceState({}, '', '#/');
+
+  // Only redirect to home if we're still on the initial empty hash or root
+  // This prevents redirecting users who have already navigated elsewhere during initialization
+  const currentHash = window.location.hash;
+  const currentPathname = window.location.pathname;
+  const isOnRootRoute =
+    currentPathname === '/' && (!currentHash || currentHash === '#' || currentHash === '#/');
+
+  if (isOnRootRoute) {
+    window.location.hash = '#/';
+    window.history.replaceState({}, '', '#/');
+  }
 };
 
 const initializeForSessionResume = async ({

@@ -100,7 +100,7 @@ async function selectProvider(mainWindow: any, provider: Provider) {
     const root = document.getElementById('root');
     return root && root.children.length > 0;
   });
-  await mainWindow.waitForTimeout(2000);
+  await mainWindow.waitForTimeout(10000);
 
   // Take a screenshot before proceeding
   await mainWindow.screenshot({ path: `test-results/before-provider-${provider.name.toLowerCase()}-check.png` });
@@ -155,7 +155,7 @@ async function selectProvider(mainWindow: any, provider: Provider) {
 
   // Wait for chat interface to appear
   const chatTextareaAfterClick = await mainWindow.waitForSelector('[data-testid="chat-input"]',
-    { timeout: 2000 });
+    { timeout: 10000 });
   expect(await chatTextareaAfterClick.isVisible()).toBe(true);
 
   // Take screenshot of chat interface

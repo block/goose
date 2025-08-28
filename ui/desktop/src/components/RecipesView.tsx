@@ -372,67 +372,90 @@ Parameters you can use:
     }
   };
 
-  // Render a recipe item
-  const RecipeItem = ({ savedRecipe }: { savedRecipe: SavedRecipe }) => (
-    <Card className="py-2 px-4 mb-2 bg-background-default border-none hover:bg-background-muted cursor-pointer transition-all duration-150">
-      <div className="flex justify-between items-start gap-4">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 mb-1">
-            <h3 className="text-base truncate max-w-[50vw]">{savedRecipe.recipe.title}</h3>
-            {savedRecipe.isGlobal ? (
-              <Globe className="w-4 h-4 text-text-muted flex-shrink-0" />
-            ) : (
-              <Folder className="w-4 h-4 text-text-muted flex-shrink-0" />
-            )}
-          </div>
-          <p className="text-text-muted text-sm mb-2 line-clamp-2">
-            {savedRecipe.recipe.description}
-          </p>
-          <div className="flex items-center text-xs text-text-muted">
-            <Calendar className="w-3 h-3 mr-1" />
-            {savedRecipe.lastModified.toLocaleDateString()}
-          </div>
-        </div>
+  // Render a recipe item with error handling
+  const RecipeItem = ({ savedRecipe }: { savedRecipe: SavedRecipe }) => {
+    try {
+      return (
+        <Card className="py-2 px-4 mb-2 bg-background-default border-none hover:bg-background-muted cursor-pointer transition-all duration-150">
+          <div className="flex justify-between items-start gap-4">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="text-base truncate max-w-[50vw]">{savedRecipe.recipe.title}</h3>
+                {savedRecipe.isGlobal ? (
+                  <Globe className="w-4 h-4 text-text-muted flex-shrink-0" />
+                ) : (
+                  <Folder className="w-4 h-4 text-text-muted flex-shrink-0" />
+                )}
+              </div>
+              <p className="text-text-muted text-sm mb-2 line-clamp-2">
+                {savedRecipe.recipe.description}
+              </p>
+              <div className="flex items-center text-xs text-text-muted">
+                <Calendar className="w-3 h-3 mr-1" />
+                {savedRecipe.lastModified.toLocaleDateString()}
+              </div>
+            </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <Button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleLoadRecipe(savedRecipe);
-            }}
-            size="sm"
-            className="h-8"
-          >
-            <Bot className="w-4 h-4 mr-1" />
-            Use
-          </Button>
-          <Button
-            onClick={(e) => {
-              e.stopPropagation();
-              handlePreviewRecipe(savedRecipe);
-            }}
-            variant="outline"
-            size="sm"
-            className="h-8"
-          >
-            <FileText className="w-4 h-4 mr-1" />
-            Preview
-          </Button>
-          <Button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDeleteRecipe(savedRecipe);
-            }}
-            variant="ghost"
-            size="sm"
-            className="h-8 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-          >
-            <Trash2 className="w-4 h-4" />
-          </Button>
-        </div>
-      </div>
-    </Card>
-  );
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleLoadRecipe(savedRecipe);
+                }}
+                size="sm"
+                className="h-8"
+              >
+                <Bot className="w-4 h-4 mr-1" />
+                Use
+              </Button>
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handlePreviewRecipe(savedRecipe);
+                }}
+                variant="outline"
+                size="sm"
+                className="h-8"
+              >
+                <FileText className="w-4 h-4 mr-1" />
+                Preview
+              </Button>
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteRecipe(savedRecipe);
+                }}
+                variant="ghost"
+                size="sm"
+                className="h-8 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </Card>
+      );
+    } catch (error) {
+      // Error row showing failed to read file with filename and error details
+      return (
+        <Card className="py-2 px-4 mb-2 bg-red-50 border border-red-200 dark:bg-red-900/20 dark:border-red-800">
+          <div className="flex justify-between items-start gap-4">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                <h3 className="text-base text-red-700 dark:text-red-300">
+                  Failed to read file: {savedRecipe.filename}
+                </h3>
+              </div>
+              <p className="text-red-600 dark:text-red-400 text-sm">
+                {error instanceof Error ? error.message : 'Unknown error'}
+              </p>
+            </div>
+          </div>
+        </Card>
+      );
+    }
+  };
 
   // Render skeleton loader for recipe items
   const RecipeSkeleton = () => (

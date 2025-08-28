@@ -293,6 +293,54 @@ This likely means that the local host address is not accessible from WSL.
 If you still encounter a `failed to connect` error, you can try using WSL's [Mirrored Networking](https://learn.microsoft.com/en-us/windows/wsl/networking#mirrored-mode-networking) setting if you using Windows 11 22H2 or higher 
 
 ---
+
+### Airgapped/Offline Environment Issues
+
+If you're working in an airgapped, offline, or corporate-restricted environment, you may encounter issues where MCP server extensions fail to activate or download their runtime dependencies.
+
+#### Symptoms:
+- Extensions fail to activate with error messages about missing runtime environments
+- Errors containing "hermit:fatal" or failed internet downloads
+- Extensions work on personal machines but fail in corporate/restricted networks
+- Error messages like: `Failed to start extension: Could not run extension command`
+
+#### Solution:
+Goose Desktop uses **"shims"** (packaged versions of `npx` and `uvx`) that automatically download runtime environments via Hermit. In restricted networks, these downloads fail.
+
+**Workaround - Use Custom Command Names:**
+
+1. **Create alternatively named versions of package runners on your system:**
+   ```bash
+   # For uvx (Python packages)
+   ln -s /usr/local/bin/uvx /usr/local/bin/runuv
+   
+   # For npx (Node.js packages)  
+   ln -s /usr/local/bin/npx /usr/local/bin/runnpx
+   ```
+
+2. **Update your MCP server configurations to use the custom names:**
+   
+   Instead of:
+   ```yaml
+   extensions:
+     example:
+       cmd: uvx
+       args: [mcp-server-example]
+   ```
+   
+   Use:
+   ```yaml
+   extensions:
+     example:
+       cmd: runuv  # This bypasses Goose's shims
+       args: [mcp-server-example]
+   ```
+
+3. **Why this works:** Goose only replaces known command names (`npx`, `uvx`, `jbang`, etc.) with its packaged shims. Custom names are passed through unchanged to your system's actual executables.
+
+4. **Require more changes**: In a corporate proxy environment or airgapped environment where the above doesn't work, it is recommended that you customize and package up Goose desktop with shims/config that will work given the network constraints you have (for example, TLS certificate limitations, proxies, inability to download required content etc).
+
+---
 ### Need Further Help? 
 If you have questions, run into issues, or just need to brainstorm ideas join the [Discord Community][discord]!
 

@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Radar Chart</title>
+
+    <script>
+        {{CHART_MIN}}
+    </script>
+    
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        
+        .container {
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+            font-weight: 300;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 600px;
+            width: 100%;
+            margin: 0 auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        #radarChart {
+            max-width: 100%;
+            max-height: 100%;
+        }
+        
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 1000;
+        }
+        
+        .stats-panel {
+            background: #f8f9fa;
+            padding: 20px;
+            margin-top: 20px;
+            border-radius: 8px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+        
+        .stat-item {
+            text-align: center;
+            padding: 10px;
+            background: white;
+            border-radius: 6px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #007bff;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            font-size: 0.85em;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .legend-panel {
+            background: #f8f9fa;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 8px;
+        }
+        
+        .legend-title {
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #495057;
+            text-align: center;
+        }
+        
+        .legend-items {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 10px;
+            background: white;
+            border-radius: 4px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+        
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        
+        .legend-label {
+            font-size: 0.85em;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        
+        <div class="chart-container">
+            <canvas id="radarChart"></canvas>
+        </div>
+        
+        <div class="stats-panel" id="statsPanel">
+            <div class="stat-item">
+                <div class="stat-value" id="dimensions">0</div>
+                <div class="stat-label">Dimensions</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="datasets">0</div>
+                <div class="stat-label">Datasets</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="maxScore">0</div>
+                <div class="stat-label">Max Score</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="avgScore">0</div>
+                <div class="stat-label">Average</div>
+            </div>
+        </div>
+        
+        <div class="legend-panel">
+            <div class="legend-title">Dataset Legend</div>
+            <div class="legend-items" id="legendItems">
+                <!-- Legend items will be populated by JavaScript -->
+            </div>
+        </div>
+        
+        <div class="tooltip" id="tooltip"></div>
+    </div>
+
+    <script>
+        // Data will be injected here
+        const radarData = {{RADAR_DATA}};
+
+        let chart;
+        
+        // Default color schemes for datasets
+        const defaultColors = [
+            'rgba(255, 99, 132, 1)',    // Red
+            'rgba(54, 162, 235, 1)',    // Blue
+            'rgba(75, 192, 192, 1)',    // Teal
+            'rgba(255, 159, 64, 1)',     // Orange
+            'rgba(153, 102, 255, 1)',    // Purple
+            'rgba(255, 206, 86, 1)',     // Yellow
+            'rgba(231, 76, 60, 1)',      // Darker Red
+            'rgba(46, 204, 113, 1)',     // Green
+            'rgba(52, 152, 219, 1)',     // Light Blue
+            'rgba(155, 89, 182, 1)',     // Violet
+        ];
+        
+        function getColor(index, alpha = 1) {
+            const color = defaultColors[index % defaultColors.length];
+            return alpha === 1 ? color : color.replace('1)', `${alpha})`);
+        }
+        
+        function processData(data) {
+            // Ensure datasets have proper colors and styling
+            const processedData = {
+                labels: data.labels || [],
+                datasets: (data.datasets || []).map((dataset, index) => {
+                    const borderColor = dataset.borderColor || getColor(index);
+                    const backgroundColor = dataset.backgroundColor || getColor(index, 0.2);
+                    
+                    return {
+                        label: dataset.label || `Dataset ${index + 1}`,
+                        data: dataset.data || [],
+                        borderColor: borderColor,
+                        backgroundColor: backgroundColor,
+                        borderWidth: dataset.borderWidth || 2,
+                        pointBackgroundColor: dataset.pointBackgroundColor || borderColor,
+                        pointBorderColor: dataset.pointBorderColor || '#fff',
+                        pointHoverBackgroundColor: dataset.pointHoverBackgroundColor || '#fff',
+                        pointHoverBorderColor: dataset.pointHoverBorderColor || borderColor,
+                        fill: dataset.fill !== undefined ? dataset.fill : true,
+                        pointRadius: dataset.pointRadius !== undefined ? dataset.pointRadius : 4,
+                        pointHoverRadius: dataset.pointHoverRadius !== undefined ? dataset.pointHoverRadius : 6
+                    };
+                })
+            };
+            
+            return processedData;
+        }
+        
+        function initChart() {
+            const ctx = document.getElementById('radarChart').getContext('2d');
+            
+            const data = processData(radarData);
+            
+            // Determine scale max from data
+            let maxValue = 100;
+            if (data.datasets.length > 0) {
+                const allValues = data.datasets.flatMap(d => d.data);
+                const dataMax = Math.max(...allValues);
+                maxValue = Math.ceil(dataMax / 10) * 10; // Round up to nearest 10
+            }
+            
+            chart = new Chart(ctx, {
+                type: 'radar',
+                data: data,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                usePointStyle: true,
+                                padding: 15,
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleColor: 'white',
+                            bodyColor: 'white',
+                            borderColor: 'rgba(255, 255, 255, 0.1)',
+                            borderWidth: 1,
+                            cornerRadius: 6,
+                            displayColors: true,
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.parsed.r;
+                                    const percentage = ((value / maxValue) * 100).toFixed(1);
+                                    return `${context.dataset.label}: ${value} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        r: {
+                            beginAtZero: true,
+                            max: maxValue,
+                            min: 0,
+                            ticks: {
+                                stepSize: maxValue / 5,
+                                font: {
+                                    size: 10
+                                },
+                                color: '#666'
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            },
+                            angleLines: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            },
+                            pointLabels: {
+                                font: {
+                                    size: 11,
+                                    weight: 'bold'
+                                },
+                                color: '#333'
+                            }
+                        }
+                    },
+                    animation: {
+                        duration: 1000,
+                        easing: 'easeInOutQuart'
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'point'
+                    }
+                }
+            });
+            
+            updateStats();
+            updateLegend();
+        }
+        
+        function updateStats() {
+            const data = processData(radarData);
+            const dimensions = data.labels.length;
+            const datasets = data.datasets.length;
+            
+            let allValues = [];
+            data.datasets.forEach(dataset => {
+                allValues = allValues.concat(dataset.data);
+            });
+            
+            const maxScore = allValues.length > 0 ? Math.max(...allValues) : 0;
+            const avgScore = allValues.length > 0 
+                ? allValues.reduce((a, b) => a + b, 0) / allValues.length 
+                : 0;
+            
+            document.getElementById('dimensions').textContent = dimensions;
+            document.getElementById('datasets').textContent = datasets;
+            document.getElementById('maxScore').textContent = maxScore.toFixed(0);
+            document.getElementById('avgScore').textContent = avgScore.toFixed(1);
+        }
+        
+        function updateLegend() {
+            const legendContainer = document.getElementById('legendItems');
+            const data = processData(radarData);
+            
+            legendContainer.innerHTML = '';
+            
+            data.datasets.forEach(dataset => {
+                const legendItem = document.createElement('div');
+                legendItem.className = 'legend-item';
+                
+                const colorBox = document.createElement('div');
+                colorBox.className = 'legend-color';
+                colorBox.style.backgroundColor = dataset.borderColor;
+                
+                const label = document.createElement('span');
+                label.className = 'legend-label';
+                label.textContent = dataset.label;
+                
+                legendItem.appendChild(colorBox);
+                legendItem.appendChild(label);
+                legendContainer.appendChild(legendItem);
+            });
+        }
+        
+        // Function to measure and report content size for iframe auto-resizing
+        function reportContentSize() {
+            // Get the actual content height
+            const contentHeight = Math.max(
+                document.body.scrollHeight,
+                document.body.offsetHeight,
+                document.documentElement.clientHeight,
+                document.documentElement.scrollHeight,
+                document.documentElement.offsetHeight
+            );
+            
+            // Send size change message to parent window (for MCP-UI iframe auto-resize)
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'ui-size-change',
+                    payload: {
+                        height: contentHeight
+                    }
+                }, '*');
+            }
+        }
+        
+        // Initialize and render on load
+        window.onload = function() {
+            initChart();
+            
+            // Report initial size
+            setTimeout(reportContentSize, 100);
+            
+            // Watch for size changes using ResizeObserver if available
+            if (typeof ResizeObserver !== 'undefined') {
+                const resizeObserver = new ResizeObserver(() => {
+                    reportContentSize();
+                });
+                resizeObserver.observe(document.body);
+                resizeObserver.observe(document.documentElement);
+            }
+            
+            // Fallback: also report on window resize
+            window.addEventListener('resize', reportContentSize);
+        };
+    </script>
+</body>
+</html>

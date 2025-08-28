@@ -7,6 +7,7 @@ use crate::commands::bench::agent_generator;
 use crate::commands::configure::handle_configure;
 use crate::commands::info::handle_info;
 use crate::commands::mcp::run_server;
+use crate::commands::project::{handle_project_default, handle_projects_interactive};
 use crate::commands::recipe::{handle_deeplink, handle_list, handle_validate};
 // Import the new handlers from commands::schedule
 use crate::commands::schedule::{
@@ -386,6 +387,14 @@ enum Command {
         builtins: Vec<String>,
     },
 
+    /// Open the last project directory
+    #[command(about = "Open the last project directory", visible_alias = "p")]
+    Project {},
+
+    /// List recent project directories
+    #[command(about = "List recent project directories", visible_alias = "ps")]
+    Projects,
+
     /// Execute commands from an instruction file
     #[command(about = "Execute commands from an instruction file or stdin")]
     Run {
@@ -691,11 +700,18 @@ pub struct RecipeInfo {
 pub async fn cli() -> Result<()> {
     let cli = Cli::parse();
 
+    // Track the current directory in projects.json
+    if let Err(e) = crate::project_tracker::update_project_tracker(None, None) {
+        eprintln!("Warning: Failed to update project tracker: {}", e);
+    }
+
     let command_name = match &cli.command {
         Some(Command::Configure {}) => "configure",
         Some(Command::Info { .. }) => "info",
         Some(Command::Mcp { .. }) => "mcp",
         Some(Command::Session { .. }) => "session",
+        Some(Command::Project {}) => "project",
+        Some(Command::Projects) => "projects",
         Some(Command::Run { .. }) => "run",
         Some(Command::Schedule { .. }) => "schedule",
         Some(Command::Update { .. }) => "update",
@@ -721,7 +737,7 @@ pub async fn cli() -> Result<()> {
             return Ok(());
         }
         Some(Command::Mcp { name }) => {
-            run_server(&name).await?;
+            let _ = run_server(&name).await;
         }
         Some(Command::Session {
             command,
@@ -845,6 +861,16 @@ pub async fn cli() -> Result<()> {
                     Ok(())
                 }
             };
+        }
+        Some(Command::Project {}) => {
+            // Default behavior: offer to resume the last project
+            handle_project_default()?;
+            return Ok(());
+        }
+        Some(Command::Projects) => {
+            // Interactive project selection
+            handle_projects_interactive()?;
+            return Ok(());
         }
 
         Some(Command::Run {

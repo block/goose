@@ -676,22 +676,28 @@ const createChat = async (
       (function() {
         function setConfig() {
           try {
-            if (window.localStorage) {
+            if (document.readyState === 'complete' && window.localStorage) {
               localStorage.setItem('gooseConfig', '${configStr}');
               return true;
             }
           } catch (e) {
-            console.warn('localStorage access failed:', e);
+            console.warn('[Renderer] localStorage access failed:', e);
           }
           return false;
         }
 
-        if (!setConfig()) {
-          setTimeout(() => {
+        // If document is already complete, try immediately
+        if (document.readyState === 'complete') {
+          if (!setConfig()) {
+            console.error('[Renderer] Failed to set localStorage config despite document being ready');
+          }
+        } else {
+          // Wait for document to be fully ready
+          document.addEventListener('DOMContentLoaded', () => {
             if (!setConfig()) {
-              console.error('Failed to set localStorage after retry - continuing without localStorage config');
+              console.error('[Renderer] Failed to set localStorage config after DOMContentLoaded');
             }
-          }, 100);
+          });
         }
       })();
     `
@@ -953,9 +959,7 @@ const buildRecentFilesMenu = () => {
   }));
 };
 
-const openDirectoryDialog = async (
-  replaceWindow: boolean = false
-): Promise<OpenDialogReturnValue> => {
+const openDirectoryDialog = async (): Promise<OpenDialogReturnValue> => {
   // Get the current working directory from the focused window
   let defaultPath: string | undefined;
   const currentWindow = BrowserWindow.getFocusedWindow();
@@ -1033,45 +1037,8 @@ const openDirectoryDialog = async (
     }
 
     addRecentDir(dirToAdd);
-    const currentWindow = BrowserWindow.getFocusedWindow();
-
-    if (replaceWindow && currentWindow) {
-      // Replace current window with new one
-      await createChat(app, undefined, dirToAdd);
-      currentWindow.close();
-    } else {
-      // Update the working directory in the current window's localStorage
-      if (currentWindow) {
-        try {
-          const updateConfigScript = `
-            try {
-              const currentConfig = JSON.parse(localStorage.getItem('gooseConfig') || '{}');
-              const updatedConfig = {
-                ...currentConfig,
-                GOOSE_WORKING_DIR: '${dirToAdd.replace(/'/g, "\\'")}',
-              };
-              localStorage.setItem('gooseConfig', JSON.stringify(updatedConfig));
-              
-              // Trigger a config update event so the UI can refresh
-              window.dispatchEvent(new CustomEvent('goose-config-updated', { 
-                detail: { GOOSE_WORKING_DIR: '${dirToAdd.replace(/'/g, "\\'")}' } 
-              }));
-            } catch (e) {
-              console.error('Failed to update working directory in localStorage:', e);
-            }
-          `;
-          await currentWindow.webContents.executeJavaScript(updateConfigScript);
-          console.log(`Updated working directory to: ${dirToAdd}`);
-        } catch (error) {
-          console.error('Failed to update working directory:', error);
-          // Fallback: create new window
-          await createChat(app, undefined, dirToAdd);
-        }
-      } else {
-        // No current window, create new one
-        await createChat(app, undefined, dirToAdd);
-      }
-    }
+    // Create a new window with the selected directory
+    await createChat(app, undefined, dirToAdd);
   }
   return result;
 };
@@ -1109,9 +1076,20 @@ ipcMain.on('react-ready', () => {
   console.log('[main] React ready - window is prepared for deep links');
 });
 
+// Handle external URL opening
+ipcMain.handle('open-external', async (_event, url: string) => {
+  try {
+    await shell.openExternal(url);
+    return true;
+  } catch (error) {
+    console.error('Error opening external URL:', error);
+    throw error;
+  }
+});
+
 // Handle directory chooser
-ipcMain.handle('directory-chooser', (_event, replace: boolean = false) => {
-  return openDirectoryDialog(replace);
+ipcMain.handle('directory-chooser', (_event) => {
+  return openDirectoryDialog();
 });
 
 // Handle scheduling engine settings

@@ -42,5 +42,10 @@ import styles from '@site/src/components/Card/styles.module.css';
       description="MCP-UI servers return content that Goose Desktop renders as rich, embeddable UI."
       link="/blog/2025/08/11/mcp-ui-post-browser-world"
     />
+    <Card      
+      title="MCP-UI: The Future of Agentic Interfaces"
+      description="AI agents need to move beyond walls of text to rich and interactive UX."
+      link="/blog/2025/08/25/mcp-ui-future-agentic-interfaces"
+    />
   </div>
 </div>

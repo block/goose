@@ -474,11 +474,12 @@ impl Provider for ClaudeCodeProvider {
     }
 
     #[tracing::instrument(
-        skip(self, system, messages, tools),
+        skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -495,7 +496,7 @@ impl Provider for ClaudeCodeProvider {
         // Create a dummy payload for debug tracing
         let payload = json!({
             "command": self.command,
-            "model": self.model.model_name,
+            "model": model_config.model_name,
             "system": system,
             "messages": messages.len()
         });
@@ -505,11 +506,11 @@ impl Provider for ClaudeCodeProvider {
             "usage": usage
         });
 
-        emit_debug_trace(&self.model, &payload, &response, &usage);
+        emit_debug_trace(model_config, &payload, &response, &usage);
 
         Ok((
             message,
-            ProviderUsage::new(self.model.model_name.clone(), usage),
+            ProviderUsage::new(model_config.model_name.clone(), usage),
         ))
     }
 }

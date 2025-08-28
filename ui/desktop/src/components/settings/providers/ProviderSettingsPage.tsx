@@ -76,7 +76,7 @@ export default function ProviderSettings({ onClose, isOnboarding }: ProviderSett
         toastService.configure({ silent: false });
         toastService.success({
           title: 'Success!',
-          msg: `Started goose with ${model} by ${provider.metadata.display_name}. You can change the model via the lower right corner.`,
+          msg: `Started goose with ${model} by ${provider.metadata.display_name}. You can change the model via the dropdown.`,
         });
 
         onClose();

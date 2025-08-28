@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { createRecipe, Recipe, scanRecipe } from '../recipe';
 import { Message, createUserMessage } from '../types/message';
-import { updateSystemPromptWithParameters } from '../utils/providerUtils';
+import { updateSystemPromptWithParameters, substituteParameters } from '../utils/providerUtils';
 import { useChatContext } from '../contexts/ChatContext';
 
 interface LocationState {
@@ -118,18 +118,6 @@ export const useRecipeManager = (messages: Message[], locationState?: LocationSt
   useEffect(() => {
     setReadyForAutoUserPrompt(true);
   }, []);
-
-  // Substitute parameters in prompt
-  const substituteParameters = (prompt: string, params: Record<string, string>): string => {
-    let substitutedPrompt = prompt;
-
-    for (const key in params) {
-      // Escape special characters in the key (parameter) and match optional whitespace
-      const regex = new RegExp(`{{\\s*${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*}}`, 'g');
-      substitutedPrompt = substitutedPrompt.replace(regex, params[key]);
-    }
-    return substitutedPrompt;
-  };
 
   // Get the recipe's initial prompt (always return the actual prompt, don't modify based on conversation state)
   const initialPrompt = useMemo(() => {

@@ -347,40 +347,8 @@ export function useMessageStream({
                   }
 
                   case 'Error': {
-                    // Check if this is a token limit error (more specific detection)
-                    const errorMessage = parsedEvent.error;
-                    const isTokenLimitError =
-                      errorMessage &&
-                      ((errorMessage.toLowerCase().includes('token') &&
-                        errorMessage.toLowerCase().includes('limit')) ||
-                        (errorMessage.toLowerCase().includes('context') &&
-                          errorMessage.toLowerCase().includes('length') &&
-                          errorMessage.toLowerCase().includes('exceeded')));
-
-                    // If this is a token limit error, create a contextLengthExceeded message instead of throwing
-                    if (isTokenLimitError) {
-                      const contextMessage: Message = {
-                        id: generateMessageId(),
-                        role: 'assistant',
-                        created: Math.floor(Date.now() / 1000),
-                        content: [
-                          {
-                            type: 'contextLengthExceeded',
-                            msg: errorMessage,
-                          },
-                        ],
-                        display: true,
-                        sendToLLM: false,
-                      };
-
-                      currentMessages = [...currentMessages, contextMessage];
-                      mutate(currentMessages, false);
-
-                      // Clear any existing error state since we handled this as a context message
-                      setError(undefined);
-                      break; // Don't throw error, just add the message
-                    }
-
+                    // Always throw the error so it gets caught and sets the error state
+                    // This ensures the retry UI appears for ALL errors
                     throw new Error(parsedEvent.error);
                   }
 

@@ -299,16 +299,17 @@ impl Provider for SnowflakeProvider {
     }
 
     #[tracing::instrument(
-        skip(self, system, messages, tools),
+        skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete(
+    async fn complete_with_model(
         &self,
+        model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request(&self.model, system, messages, tools)?;
+        let payload = create_request(model_config, system, messages, tools)?;
 
         let response = self
             .with_retry(|| async {
@@ -320,9 +321,9 @@ impl Provider for SnowflakeProvider {
         // Parse response
         let message = response_to_message(&response)?;
         let usage = get_usage(&response)?;
-        let model = get_model(&response);
-        super::utils::emit_debug_trace(&self.model, &payload, &response, &usage);
+        let response_model = get_model(&response);
+        super::utils::emit_debug_trace(model_config, &payload, &response, &usage);
 
-        Ok((message, ProviderUsage::new(model, usage)))
+        Ok((message, ProviderUsage::new(response_model, usage)))
     }
 }

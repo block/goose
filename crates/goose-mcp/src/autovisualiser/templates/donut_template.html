@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Donut & Pie Charts</title>
+
+    <script>
+        {{CHART_MIN}}
+    </script>
+    
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        
+        .container {
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 1.8em;
+            font-weight: 300;
+        }
+        
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 30px;
+            margin-bottom: 20px;
+        }
+        
+        .chart-wrapper {
+            background: #fafbfc;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .chart-title {
+            text-align: center;
+            font-size: 1.2em;
+            font-weight: 500;
+            color: #495057;
+            margin-bottom: 15px;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 350px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .chart-legend {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #e9ecef;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 12px;
+            font-size: 0.85em;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+        }
+        
+        .legend-label {
+            color: #6c757d;
+        }
+        
+        .legend-value {
+            color: #495057;
+            font-weight: 500;
+            margin-left: 4px;
+        }
+        
+        .stats-panel {
+            background: #f8f9fa;
+            padding: 20px;
+            margin-top: 30px;
+            border-radius: 8px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        
+        .stat-title {
+            font-size: 0.85em;
+            color: #6c757d;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #007bff;
+        }
+        
+        .stat-subtitle {
+            font-size: 0.9em;
+            color: #6c757d;
+            margin-top: 4px;
+        }
+        
+        @media (max-width: 768px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">        
+        <div class="charts-grid" id="chartsGrid">
+            <!-- Charts will be dynamically inserted here -->
+        </div>
+        
+        <div class="stats-panel" id="statsPanel">
+            <!-- Stats will be dynamically inserted here -->
+        </div>
+    </div>
+
+    <script>
+        // Data will be injected here
+        const chartsData = {{CHARTS_DATA}};
+        
+        // Default color palette
+        const defaultColors = [
+            'rgba(255, 99, 132, 1)',    // Red
+            'rgba(54, 162, 235, 1)',    // Blue
+            'rgba(75, 192, 192, 1)',    // Teal
+            'rgba(255, 159, 64, 1)',     // Orange
+            'rgba(153, 102, 255, 1)',    // Purple
+            'rgba(255, 206, 86, 1)',     // Yellow
+            'rgba(46, 204, 113, 1)',     // Green
+            'rgba(231, 76, 60, 1)',      // Darker Red
+            'rgba(52, 152, 219, 1)',     // Light Blue
+            'rgba(155, 89, 182, 1)',     // Violet
+            'rgba(241, 196, 15, 1)',     // Gold
+            'rgba(230, 126, 34, 1)',     // Carrot
+            'rgba(149, 165, 166, 1)',    // Gray
+            'rgba(26, 188, 156, 1)',     // Turquoise
+            'rgba(52, 73, 94, 1)',       // Dark Blue-Gray
+        ];
+        
+        function getColor(index, alpha = 1) {
+            const color = defaultColors[index % defaultColors.length];
+            return alpha === 1 ? color : color.replace('1)', `${alpha})`);
+        }
+        
+        function processChartData(data) {
+            // Ensure we have an array of charts
+            const charts = Array.isArray(data) ? data : [data];
+            
+            return charts.map(chart => {
+                // Process labels and data
+                const labels = chart.labels || chart.data.map((d, i) => d.label || `Item ${i + 1}`);
+                const values = chart.data.map(d => typeof d === 'object' ? d.value : d);
+                
+                // Auto-assign colors if not provided
+                const backgroundColors = chart.backgroundColor || 
+                    chart.data.map((d, i) => {
+                        if (typeof d === 'object' && d.color) return d.color;
+                        return getColor(i, 0.8);
+                    });
+                    
+                const borderColors = chart.borderColor || 
+                    backgroundColors.map(c => c.replace('0.8)', '1)'));
+                
+                return {
+                    title: chart.title || 'Chart',
+                    type: chart.type || 'doughnut',
+                    labels: labels,
+                    values: values,
+                    backgroundColors: backgroundColors,
+                    borderColors: borderColors
+                };
+            });
+        }
+        
+        function createChart(chartData, canvasId) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            
+            return new Chart(ctx, {
+                type: chartData.type,
+                data: {
+                    labels: chartData.labels,
+                    datasets: [{
+                        data: chartData.values,
+                        backgroundColor: chartData.backgroundColors,
+                        borderColor: chartData.borderColors,
+                        borderWidth: 2,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false // We'll create custom legend
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleColor: 'white',
+                            bodyColor: 'white',
+                            borderColor: 'rgba(255, 255, 255, 0.1)',
+                            borderWidth: 1,
+                            cornerRadius: 6,
+                            padding: 10,
+                            displayColors: true,
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = ((value / total) * 100).toFixed(1);
+                                    return `${label}: ${value.toLocaleString()} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    },
+                    animation: {
+                        animateRotate: true,
+                        animateScale: false,
+                        duration: 1000,
+                        easing: 'easeInOutQuart'
+                    },
+                    cutout: chartData.type === 'doughnut' ? '50%' : '0%'
+                }
+            });
+        }
+        
+        function createLegend(chartData, container) {
+            const legendHtml = chartData.labels.map((label, index) => {
+                const value = chartData.values[index];
+                const total = chartData.values.reduce((a, b) => a + b, 0);
+                const percentage = ((value / total) * 100).toFixed(1);
+                
+                return `
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: ${chartData.backgroundColors[index]}"></div>
+                        <span class="legend-label">${label}:</span>
+                        <span class="legend-value">${value.toLocaleString()} (${percentage}%)</span>
+                    </div>
+                `;
+            }).join('');
+            
+            container.innerHTML = legendHtml;
+        }
+        
+        function renderCharts() {
+            const processedData = processChartData(chartsData);
+            const chartsGrid = document.getElementById('chartsGrid');
+            
+            // Clear existing content
+            chartsGrid.innerHTML = '';
+            
+            // Create chart elements
+            processedData.forEach((chartData, index) => {
+                const canvasId = `chart-${index}`;
+                const legendId = `legend-${index}`;
+                
+                const chartWrapper = document.createElement('div');
+                chartWrapper.className = 'chart-wrapper';
+                chartWrapper.innerHTML = `
+                    <div class="chart-title">${chartData.title}</div>
+                    <div class="chart-container">
+                        <canvas id="${canvasId}"></canvas>
+                    </div>
+                    <div class="chart-legend" id="${legendId}"></div>
+                `;
+                
+                chartsGrid.appendChild(chartWrapper);
+                
+                // Create the chart
+                createChart(chartData, canvasId);
+                
+                // Create the legend
+                createLegend(chartData, document.getElementById(legendId));
+            });
+            
+            // Update statistics
+            updateStats(processedData);
+        }
+        
+        function updateStats(processedData) {
+            const statsPanel = document.getElementById('statsPanel');
+            
+            // Calculate overall statistics
+            let totalValue = 0;
+            let totalCategories = 0;
+            let maxValue = 0;
+            let minValue = Infinity;
+            
+            processedData.forEach(chart => {
+                const chartTotal = chart.values.reduce((a, b) => a + b, 0);
+                const chartMax = Math.max(...chart.values);
+                const chartMin = Math.min(...chart.values);
+                
+                totalValue += chartTotal;
+                totalCategories += chart.values.length;
+                maxValue = Math.max(maxValue, chartMax);
+                minValue = Math.min(minValue, chartMin);
+            });
+            
+            const avgValue = totalCategories > 0 ? totalValue / totalCategories : 0;
+            
+            statsPanel.innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-title">Total Charts</div>
+                    <div class="stat-value">${processedData.length}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Total Value</div>
+                    <div class="stat-value">${totalValue.toLocaleString()}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Total Categories</div>
+                    <div class="stat-value">${totalCategories}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Average Value</div>
+                    <div class="stat-value">${avgValue.toFixed(0).toLocaleString()}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Max Value</div>
+                    <div class="stat-value">${maxValue.toLocaleString()}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Min Value</div>
+                    <div class="stat-value">${minValue.toLocaleString()}</div>
+                </div>
+            `;
+        }
+        
+        // Function to measure and report content size for iframe auto-resizing
+        function reportContentSize() {
+            // Get the actual content height
+            const contentHeight = Math.max(
+                document.body.scrollHeight,
+                document.body.offsetHeight,
+                document.documentElement.clientHeight,
+                document.documentElement.scrollHeight,
+                document.documentElement.offsetHeight
+            );
+            
+            // Send size change message to parent window (for MCP-UI iframe auto-resize)
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'ui-size-change',
+                    payload: {
+                        height: contentHeight
+                    }
+                }, '*');
+            }
+        }
+        
+        // Initialize on load
+        window.onload = function() {
+            renderCharts();
+            
+            // Report initial size
+            setTimeout(reportContentSize, 100);
+            
+            // Watch for size changes using ResizeObserver if available
+            if (typeof ResizeObserver !== 'undefined') {
+                const resizeObserver = new ResizeObserver(() => {
+                    reportContentSize();
+                });
+                resizeObserver.observe(document.body);
+                resizeObserver.observe(document.documentElement);
+            }
+            
+            // Fallback: also report on window resize
+            window.addEventListener('resize', reportContentSize);
+        };
+    </script>
+</body>
+</html>

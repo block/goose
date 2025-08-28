@@ -1,7 +1,7 @@
 use reqwest::StatusCode;
 use thiserror::Error;
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, PartialEq)]
 pub enum ProviderError {
     #[error("Authentication error: {0}")]
     Authentication(String),

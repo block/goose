@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.5.0"
+    "version": "1.6.0"
   },
   "paths": {
     "/agent/add_sub_recipes": {
@@ -518,6 +518,49 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/config/providers/{name}/models": {
+      "get": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "get_provider_models",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Provider name (e.g., openai)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Models fetched successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown provider, provider not configured, or authentication error"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "500": {
+            "description": "Internal server error"
           }
         }
       }
@@ -3184,6 +3227,11 @@
           "schedule_id": {
             "type": "string",
             "description": "ID of the schedule that triggered this session, if any",
+            "nullable": true
+          },
+          "todo_content": {
+            "type": "string",
+            "description": "Session-scoped TODO list content",
             "nullable": true
           },
           "total_tokens": {

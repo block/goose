@@ -374,6 +374,7 @@ impl Session {
         cancel_token: CancellationToken,
     ) -> Result<()> {
         let cancel_token = cancel_token.clone();
+        let message_text = message.as_concat_text();
 
         self.push_message(message);
         // Get the provider from the agent for description generation
@@ -393,6 +394,24 @@ impl Session {
                 working_dir,
             )
             .await?;
+        }
+
+        // Track the current directory and last instruction in projects.json
+        let session_id = self
+            .session_file
+            .as_ref()
+            .and_then(|p| p.file_stem())
+            .and_then(|s| s.to_str())
+            .map(|s| s.to_string());
+
+        if let Err(e) = crate::project_tracker::update_project_tracker(
+            Some(&message_text),
+            session_id.as_deref(),
+        ) {
+            eprintln!(
+                "Warning: Failed to update project tracker with instruction: {}",
+                e
+            );
         }
 
         self.process_agent_response(false, cancel_token).await?;
@@ -472,6 +491,21 @@ impl Session {
                             save_history(&mut editor);
 
                             self.push_message(Message::user().with_text(&content));
+
+                            // Track the current directory and last instruction in projects.json
+                            let session_id = self
+                                .session_file
+                                .as_ref()
+                                .and_then(|p| p.file_stem())
+                                .and_then(|s| s.to_str())
+                                .map(|s| s.to_string());
+
+                            if let Err(e) = crate::project_tracker::update_project_tracker(
+                                Some(&content),
+                                session_id.as_deref(),
+                            ) {
+                                eprintln!("Warning: Failed to update project tracker with instruction: {}", e);
+                            }
 
                             let provider = self.agent.provider().await?;
 
@@ -581,7 +615,7 @@ impl Session {
                     // Check if mode is valid
                     if !["auto", "approve", "chat", "smart_approve"].contains(&mode.as_str()) {
                         output::render_error(&format!(
-                            "Invalid mode '{}'. Mode must be one of: auto, approve, chat, smart_approve",
+                            "Invalid mode '{}'. Mode must be one of: auto, approve, chat",
                             mode
                         ));
                         continue;

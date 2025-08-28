@@ -83,14 +83,21 @@ async fn create_recipe(
     State(state): State<Arc<AppState>>,
     Json(request): Json<CreateRecipeRequest>,
 ) -> Result<Json<CreateRecipeResponse>, (StatusCode, Json<CreateRecipeResponse>)> {
+    tracing::info!(
+        "Recipe creation request received with {} messages",
+        request.messages.len()
+    );
+
     let error_response = CreateRecipeResponse {
         recipe: None,
         error: Some("Missing agent".to_string()),
     };
-    let agent = state
-        .get_agent()
-        .await
-        .map_err(|_| (StatusCode::PRECONDITION_FAILED, Json(error_response)))?;
+    let agent = state.get_agent().await.map_err(|e| {
+        tracing::error!("Failed to get agent for recipe creation: {}", e);
+        (StatusCode::PRECONDITION_FAILED, Json(error_response))
+    })?;
+
+    tracing::debug!("Agent retrieved successfully, creating recipe from conversation");
 
     // Create base recipe from agent state and messages
     let recipe_result = agent
@@ -99,6 +106,8 @@ async fn create_recipe(
 
     match recipe_result {
         Ok(mut recipe) => {
+            tracing::info!("Recipe created successfully with title: '{}'", recipe.title);
+
             // Update with user-provided metadata
             recipe.title = request.title;
             recipe.description = request.description;
@@ -114,16 +123,23 @@ async fn create_recipe(
                 });
             }
 
+            tracing::debug!("Recipe metadata updated, returning success response");
+
             Ok(Json(CreateRecipeResponse {
                 recipe: Some(recipe),
                 error: None,
             }))
         }
         Err(e) => {
+            // Log the detailed error for debugging
+            tracing::error!("Recipe creation failed: {}", e);
+            tracing::error!("Error details: {:?}", e);
+
             // Return 400 Bad Request with error message
+            let error_message = format!("Recipe creation failed: {}", e);
             let error_response = CreateRecipeResponse {
                 recipe: None,
-                error: Some(e.to_string()),
+                error: Some(error_message),
             };
             Err((StatusCode::BAD_REQUEST, Json(error_response)))
         }
