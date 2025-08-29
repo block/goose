@@ -789,35 +789,6 @@
         ]
       }
     },
-    "/recipes/archive": {
-      "post": {
-        "tags": [
-          "Recipe Management"
-        ],
-        "operationId": "archive_recipe",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ArchiveRecipeRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "204": {
-            "description": "Recipe archived successfully"
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing API key"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      }
-    },
     "/recipes/create": {
       "post": {
         "tags": [
@@ -887,6 +858,38 @@
           },
           "400": {
             "description": "Bad request"
+          }
+        }
+      }
+    },
+    "/recipes/delete": {
+      "post": {
+        "tags": [
+          "Recipe Management"
+        ],
+        "operationId": "delete_recipe",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteRecipeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Recipe deleted successfully"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "404": {
+            "description": "Recipe not found"
+          },
+          "500": {
+            "description": "Internal server error"
           }
         }
       }
@@ -1474,17 +1477,6 @@
           }
         }
       },
-      "ArchiveRecipeRequest": {
-        "type": "object",
-        "required": [
-          "id"
-        ],
-        "properties": {
-          "id": {
-            "type": "string"
-          }
-        }
-      },
       "Author": {
         "type": "object",
         "properties": {
@@ -1790,6 +1782,17 @@
         "properties": {
           "recipe": {
             "$ref": "#/components/schemas/Recipe"
+          }
+        }
+      },
+      "DeleteRecipeRequest": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
           }
         }
       },

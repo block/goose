@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fs;
 use std::sync::Arc;
 
 use axum::extract::Query;
@@ -85,7 +86,7 @@ pub struct RecipeManifestResponse {
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
-pub struct ArchiveRecipeRequest {
+pub struct DeleteRecipeRequest {
     id: String,
 }
 
@@ -281,26 +282,34 @@ async fn list_recipes(
 
 #[utoipa::path(
     post,
-    path = "/recipes/archive",
-    request_body = ArchiveRecipeRequest,
+    path = "/recipes/delete",
+    request_body = DeleteRecipeRequest,
     responses(
-        (status = 204, description = "Recipe archived successfully"),
+        (status = 204, description = "Recipe deleted successfully"),
         (status = 401, description = "Unauthorized - Invalid or missing API key"),
+        (status = 404, description = "Recipe not found"),
         (status = 500, description = "Internal server error")
     ),
     tag = "Recipe Management"
 )]
-async fn archive_recipe(
+async fn delete_recipe(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(request): Json<ArchiveRecipeRequest>,
+    Json(request): Json<DeleteRecipeRequest>,
 ) -> StatusCode {
     if verify_secret_key(&headers, &state).is_err() {
         return StatusCode::UNAUTHORIZED;
     }
     let recipe_file_hash_map = state.recipe_file_hash_map.lock().await;
-    let file_path = recipe_file_hash_map.get(&request.id).unwrap();
-    RecipeManifest::archive(file_path).unwrap();
+    let file_path = match recipe_file_hash_map.get(&request.id) {
+        Some(path) => path,
+        None => return StatusCode::NOT_FOUND,
+    };
+    
+    if let Err(_) = fs::remove_file(file_path) {
+        return StatusCode::INTERNAL_SERVER_ERROR;
+    }
+    
     StatusCode::NO_CONTENT
 }
 
@@ -311,7 +320,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/recipes/decode", post(decode_recipe))
         .route("/recipes/scan", post(scan_recipe))
         .route("/recipes/list", get(list_recipes))
-        .route("/recipes/archive", post(archive_recipe))
+        .route("/recipes/delete", post(delete_recipe))
         .with_state(state)
 }
 

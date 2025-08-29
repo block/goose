@@ -16,10 +16,6 @@ export type Annotations = {
     timestamp?: string;
 };
 
-export type ArchiveRecipeRequest = {
-    id: string;
-};
-
 export type Author = {
     contact?: string | null;
     metadata?: string | null;
@@ -137,6 +133,10 @@ export type DecodeRecipeRequest = {
 
 export type DecodeRecipeResponse = {
     recipe: Recipe;
+};
+
+export type DeleteRecipeRequest = {
+    id: string;
 };
 
 export type EmbeddedResource = {
@@ -1500,33 +1500,6 @@ export type ManageContextResponses = {
 
 export type ManageContextResponse = ManageContextResponses[keyof ManageContextResponses];
 
-export type ArchiveRecipeData = {
-    body: ArchiveRecipeRequest;
-    path?: never;
-    query?: never;
-    url: '/recipes/archive';
-};
-
-export type ArchiveRecipeErrors = {
-    /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type ArchiveRecipeResponses = {
-    /**
-     * Recipe archived successfully
-     */
-    204: void;
-};
-
-export type ArchiveRecipeResponse = ArchiveRecipeResponses[keyof ArchiveRecipeResponses];
-
 export type CreateRecipeData = {
     body: CreateRecipeRequest;
     path?: never;
@@ -1580,6 +1553,37 @@ export type DecodeRecipeResponses = {
 };
 
 export type DecodeRecipeResponse2 = DecodeRecipeResponses[keyof DecodeRecipeResponses];
+
+export type DeleteRecipeData = {
+    body: DeleteRecipeRequest;
+    path?: never;
+    query?: never;
+    url: '/recipes/delete';
+};
+
+export type DeleteRecipeErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Recipe not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type DeleteRecipeResponses = {
+    /**
+     * Recipe deleted successfully
+     */
+    204: void;
+};
+
+export type DeleteRecipeResponse = DeleteRecipeResponses[keyof DeleteRecipeResponses];
 
 export type EncodeRecipeData = {
     body: EncodeRecipeRequest;

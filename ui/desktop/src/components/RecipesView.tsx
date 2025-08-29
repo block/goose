@@ -23,7 +23,7 @@ import { MainPanelLayout } from './Layout/MainPanelLayout';
 import { Recipe, decodeRecipe, generateDeepLink } from '../recipe';
 import { toastSuccess, toastError } from '../toasts';
 import { useEscapeKey } from '../hooks/useEscapeKey';
-import { archiveRecipe, RecipeManifest, RecipeManifestResponse } from '../api';
+import { deleteRecipe, RecipeManifest, RecipeManifestResponse } from '../api';
 
 interface RecipesViewProps {
   onLoadRecipe?: (recipe: Recipe) => void;
@@ -151,7 +151,7 @@ export default function RecipesView({ _onLoadRecipe }: RecipesViewProps = {}) {
     }
 
     try {
-      await await archiveRecipe({ body: { id } });
+      await await deleteRecipe({ body: { id } });
       await loadSavedRecipes();
       toastSuccess({
         title: recipeManifest.name,
