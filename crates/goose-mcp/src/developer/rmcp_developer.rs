@@ -225,11 +225,37 @@ impl ServerHandler for DeveloperServer {
         // Load hints using the centralized function
         let hints = load_hint_files(&cwd, &hints_filenames, &ignore_patterns);
 
+        // Check if editor model exists and augment with custom llm editor tool description
+        let editor_description = if let Some(ref editor) = self.editor_model {
+            formatdoc! {r#"
+
+                Additional Text Editor Tool Description:
+                
+                Perform text editing operations on files.
+                The `command` parameter specifies the operation to perform. Allowed options are:
+                - `view`: View the content of a file.
+                - `write`: Create or overwrite a file with the given content
+                - `str_replace`: Replace old_str with new_str in the file (AI-enhanced when editor model is configured).
+                - `insert`: Insert text at a specific line location in the file.
+                - `undo_edit`: Undo the last edit made to a file.
+                To use the write command, you must specify `file_text` which will become the new content of the file. Be careful with
+                existing files! This is a full overwrite, so you must include everything - not just sections you are modifying.
+                
+                To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning, -1 for end) 
+                and `new_str` (the text to insert).
+                To use the str_replace command, you must specify both `old_str` and `new_str` 
+                {}
+                
+            "#, editor.get_str_replace_description()}
+        } else {
+            String::new()
+        };
+
         // Return base instructions directly when no hints are found
         let instructions = if hints.is_empty() {
-            base_instructions
+            format!("{base_instructions}{editor_description}")
         } else {
-            format!("{base_instructions}\n{hints}")
+            format!("{base_instructions}\n{editor_description}\n{hints}")
         };
 
         ServerInfo {

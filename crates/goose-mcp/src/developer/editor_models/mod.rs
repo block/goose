@@ -43,8 +43,6 @@ impl EditorModel {
         }
     }
 
-    // TODO: with the rmcp refactor of the developer extension, it takes a bit more work to support dynamic tool descriptions. Fix this later
-    #[allow(dead_code)]
     /// Get the description for the str_replace command when this editor is active
     pub fn get_str_replace_description(&self) -> &'static str {
         match self {
