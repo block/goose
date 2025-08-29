@@ -9,8 +9,7 @@ use crate::agents::subagent_execution_tool::{
     task_types::{Task, TaskType},
 };
 use crate::agents::tool_execution::ToolCallResult;
-use crate::agents::types::RetryConfig;
-use crate::recipe::{Recipe, Response, Settings};
+use crate::recipe::{Recipe, RecipeBuilder};
 use anyhow::{anyhow, Result};
 use rmcp::model::{Content, ErrorCode, ErrorData, Tool, ToolAnnotations};
 use rmcp::object;
@@ -173,41 +172,31 @@ pub fn task_params_to_inline_recipe(
     }
 
     // Handle other optional fields
-    if let Some(settings) = task_param.get("settings") {
-        if let Ok(settings_obj) = serde_json::from_value::<Settings>(settings.clone()) {
-            builder = builder.settings(settings_obj);
+    fn apply_if_ok<T: serde::de::DeserializeOwned>(
+        builder: RecipeBuilder,
+        value: Option<&Value>,
+        f: impl FnOnce(RecipeBuilder, T) -> RecipeBuilder,
+    ) -> RecipeBuilder {
+        match value.and_then(|v| serde_json::from_value(v.clone()).ok()) {
+            Some(parsed) => f(builder, parsed),
+            None => builder,
         }
     }
 
-    if let Some(response) = task_param.get("response") {
-        if let Ok(response_obj) = serde_json::from_value::<Response>(response.clone()) {
-            builder = builder.response(response_obj);
-        }
-    }
-
-    if let Some(retry) = task_param.get("retry") {
-        if let Ok(retry_config) = serde_json::from_value::<RetryConfig>(retry.clone()) {
-            builder = builder.retry(retry_config);
-        }
-    }
-
-    if let Some(context) = task_param.get("context") {
-        if let Ok(context_vec) = serde_json::from_value::<Vec<String>>(context.clone()) {
-            builder = builder.context(context_vec);
-        }
-    }
-
-    if let Some(activities) = task_param.get("activities") {
-        if let Ok(activities_vec) = serde_json::from_value::<Vec<String>>(activities.clone()) {
-            builder = builder.activities(activities_vec);
-        }
-    }
-
-    if let Some(params) = task_param.get("parameters") {
-        if let Ok(params_vec) = serde_json::from_value(params.clone()) {
-            builder = builder.parameters(params_vec);
-        }
-    }
+    builder = apply_if_ok(builder, task_param.get("settings"), RecipeBuilder::settings);
+    builder = apply_if_ok(builder, task_param.get("response"), RecipeBuilder::response);
+    builder = apply_if_ok(builder, task_param.get("retry"), RecipeBuilder::retry);
+    builder = apply_if_ok(builder, task_param.get("context"), RecipeBuilder::context);
+    builder = apply_if_ok(
+        builder,
+        task_param.get("activities"),
+        RecipeBuilder::activities,
+    );
+    builder = apply_if_ok(
+        builder,
+        task_param.get("parameters"),
+        RecipeBuilder::parameters,
+    );
 
     // Build and validate
     let recipe = builder
