@@ -49,15 +49,15 @@ jobs:
           set -e
           echo "🔍 Checking if recipe files were modified in this push..."
           
-          # Get the list of changed files in this specific push
+          # Get the list of changed files in this specific push (added/modified only, not deleted)
           if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ github.event.action }}" = "synchronize" ]; then
             # For synchronize events, check files changed since the previous commit
             echo "📝 Synchronize event - checking files changed since previous commit"
-            CHANGED_FILES=$(git diff --name-only ${{ github.event.before }}..${{ github.event.after }})
+            CHANGED_FILES=$(git diff --name-only --diff-filter=AM ${{ github.event.before }}..${{ github.event.after }})
           else
             # For opened/reopened, check all files in the PR
             echo "📝 PR opened/reopened - checking all files in PR"
-            CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}..HEAD)
+            CHANGED_FILES=$(git diff --name-only --diff-filter=AM origin/${{ github.base_ref }}..HEAD)
           fi
           
           echo "Changed files in this push:"
@@ -80,15 +80,15 @@ jobs:
           set -e
           echo "Looking for recipe files in PR (new or modified)..."
           
-          # Get the list of changed/new files in this PR
+          # Get the list of changed/new files in this PR (added/modified only, not deleted)
           if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ github.event.action }}" = "synchronize" ]; then
             # For synchronize events, check files changed since the previous commit
             echo "📝 Synchronize event - checking files changed/added since previous commit"
-            CHANGED_FILES=$(git diff --name-only ${{ github.event.before }}..${{ github.event.after }})
+            CHANGED_FILES=$(git diff --name-only --diff-filter=AM ${{ github.event.before }}..${{ github.event.after }})
           else
             # For opened/reopened, check all files in the PR (new and modified)
             echo "📝 PR opened/reopened - checking all new/modified files in PR"
-            CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}..HEAD)
+            CHANGED_FILES=$(git diff --name-only --diff-filter=AM origin/${{ github.base_ref }}..HEAD)
           fi
           
           # Filter for recipe files only that were changed or added
