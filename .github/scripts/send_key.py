@@ -209,8 +209,35 @@ def main():
 
     pr_data = fetch_pr_body(PR_URL, GITHUB_TOKEN)
     pr_body = pr_data.get("body", "")
-    pr_number = pr_data["number"]
-    repo_full_name = pr_data["base"]["repo"]["full_name"]
+    
+    # Handle cases where pr_data might be missing expected fields
+    pr_number = pr_data.get("number")
+    if not pr_number:
+        print("❌ Unable to get PR number from GitHub API response")
+        print(f"Available keys in response: {list(pr_data.keys())}")
+        # Try to extract number from URL if available
+        if "html_url" in pr_data:
+            import re
+            match = re.search(r'/pull/(\d+)', pr_data["html_url"])
+            if match:
+                pr_number = int(match.group(1))
+                print(f"✅ Extracted PR number from URL: {pr_number}")
+            else:
+                print("❌ Could not extract PR number from URL either")
+                exit(1)
+        else:
+            print("❌ No html_url available to extract PR number")
+            exit(1)
+    
+    # Get repo info
+    if "base" in pr_data and "repo" in pr_data["base"]:
+        repo_full_name = pr_data["base"]["repo"]["full_name"]
+    elif "repository" in pr_data:
+        repo_full_name = pr_data["repository"]["full_name"]
+    else:
+        print("❌ Unable to get repository name from GitHub API response")
+        print(f"Available keys in response: {list(pr_data.keys())}")
+        exit(1)
 
     email = extract_email(pr_body, PR_URL, GITHUB_TOKEN)
     print(f"📬 Found email: {email}")
