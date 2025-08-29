@@ -1,0 +1,32 @@
+name: Send API Key on PR Merge
+
+on:
+  pull_request:
+    types: [closed]
+    paths:
+      - 'documentation/src/pages/recipes/data/recipes/**'
+
+jobs:
+  send-api-key:
+    if: github.event.pull_request.merged == true
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies and run email script
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_API_URL: ${{ github.event.pull_request.url }}
+          PROVISIONING_API_KEY: ${{ secrets.PROVISIONING_API_KEY }}
+          EMAIL_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+        run: |
+          pip install requests sendgrid email-validator
+          python .github/scripts/send_key.py
