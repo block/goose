@@ -106,7 +106,7 @@ def provision_api_key(provisioning_api_key):
     print("🔐 Creating OpenRouter key...")
     try:
         key_resp = requests.post(
-            "https://openrouter.ai/api/v1/keys/",
+            "https://openrouter.ai/api/v1/keys",
             headers={
                 "Authorization": f"Bearer {provisioning_api_key}",
                 "Content-Type": "application/json"
