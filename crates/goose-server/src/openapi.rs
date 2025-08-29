@@ -466,7 +466,6 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::recipe::DecodeRecipeResponse,
         super::routes::recipe::ScanRecipeRequest,
         super::routes::recipe::ScanRecipeResponse,
-        super::routes::recipe::ListRecipeRequest,
         super::routes::recipe::RecipeManifestResponse,
         super::routes::recipe::ListRecipeResponse,
         super::routes::recipe::DeleteRecipeRequest,

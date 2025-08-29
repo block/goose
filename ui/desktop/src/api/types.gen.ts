@@ -336,10 +336,6 @@ export type KillJobResponse = {
     message: string;
 };
 
-export type ListRecipeRequest = {
-    include_archived: boolean;
-};
-
 export type ListRecipeResponse = {
     recipe_manifest_responses: Array<RecipeManifestResponse>;
 };
@@ -1611,9 +1607,7 @@ export type EncodeRecipeResponse2 = EncodeRecipeResponses[keyof EncodeRecipeResp
 export type ListRecipesData = {
     body?: never;
     path?: never;
-    query: {
-        include_archived: boolean;
-    };
+    query?: never;
     url: '/recipes/list';
 };
 

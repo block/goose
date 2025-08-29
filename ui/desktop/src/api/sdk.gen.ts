@@ -281,8 +281,8 @@ export const encodeRecipe = <ThrowOnError extends boolean = false>(options: Opti
     });
 };
 
-export const listRecipes = <ThrowOnError extends boolean = false>(options: Options<ListRecipesData, ThrowOnError>) => {
-    return (options.client ?? _heyApiClient).get<ListRecipesResponses, ListRecipesErrors, ThrowOnError>({
+export const listRecipes = <ThrowOnError extends boolean = false>(options?: Options<ListRecipesData, ThrowOnError>) => {
+    return (options?.client ?? _heyApiClient).get<ListRecipesResponses, ListRecipesErrors, ThrowOnError>({
         url: '/recipes/list',
         ...options
     });

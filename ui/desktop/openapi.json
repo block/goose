@@ -933,16 +933,6 @@
           "Recipe Management"
         ],
         "operationId": "list_recipes",
-        "parameters": [
-          {
-            "name": "include_archived",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "boolean"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "description": "Get recipe list successfully",
@@ -2333,17 +2323,6 @@
         "properties": {
           "message": {
             "type": "string"
-          }
-        }
-      },
-      "ListRecipeRequest": {
-        "type": "object",
-        "required": [
-          "include_archived"
-        ],
-        "properties": {
-          "include_archived": {
-            "type": "boolean"
           }
         }
       },

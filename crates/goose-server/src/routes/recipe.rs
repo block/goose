@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::fs;
 use std::sync::Arc;
 
-use axum::extract::Query;
 use axum::routing::get;
 use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
 use goose::conversation::{message::Message, Conversation};
@@ -72,11 +71,6 @@ pub struct ScanRecipeRequest {
 #[derive(Debug, Serialize, ToSchema)]
 pub struct ScanRecipeResponse {
     has_security_warnings: bool,
-}
-
-#[derive(Debug, Deserialize, ToSchema, utoipa::IntoParams)]
-pub struct ListRecipeRequest {
-    include_archived: bool,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -241,9 +235,6 @@ async fn scan_recipe(
 #[utoipa::path(
     get,
     path = "/recipes/list",
-    params(
-        ListRecipeRequest
-    ),
     responses(
         (status = 200, description = "Get recipe list successfully", body = ListRecipeResponse),
         (status = 401, description = "Unauthorized - Invalid or missing API key"),
@@ -254,12 +245,10 @@ async fn scan_recipe(
 async fn list_recipes(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-    Query(request): Query<ListRecipeRequest>,
 ) -> Result<Json<ListRecipeResponse>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    let recipe_manifest_with_paths =
-        list_sorted_recipe_manifests(request.include_archived).unwrap();
+    let recipe_manifest_with_paths = list_sorted_recipe_manifests().unwrap();
     let mut recipe_file_hash_map = HashMap::new();
     let recipe_manifest_responses = recipe_manifest_with_paths
         .iter()
@@ -305,11 +294,11 @@ async fn delete_recipe(
         Some(path) => path,
         None => return StatusCode::NOT_FOUND,
     };
-    
+
     if let Err(_) = fs::remove_file(file_path) {
         return StatusCode::INTERNAL_SERVER_ERROR;
     }
-    
+
     StatusCode::NO_CONTENT
 }
 

@@ -166,11 +166,9 @@ export async function loadRecipe(recipeName: string, isGlobal: boolean): Promise
   }
 }
 
-export async function listSavedRecipes(
-  includeArchived: boolean = false
-): Promise<RecipeManifestResponse[]> {
+export async function listSavedRecipes(): Promise<RecipeManifestResponse[]> {
   try {
-    const listRecipeResponse = await listRecipes({ query: { include_archived: includeArchived } });
+    const listRecipeResponse = await listRecipes();
     return listRecipeResponse?.data?.recipe_manifest_responses ?? [];
   } catch (error) {
     console.warn('Failed to list saved recipes:', error);

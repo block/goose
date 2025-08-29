@@ -56,12 +56,8 @@ fn get_all_recipes_manifests() -> Result<Vec<RecipeManifestWithPath>> {
     Ok(recipe_manifests_with_path)
 }
 
-pub fn list_sorted_recipe_manifests(include_archived: bool) -> Result<Vec<RecipeManifestWithPath>> {
+pub fn list_sorted_recipe_manifests() -> Result<Vec<RecipeManifestWithPath>> {
     let mut recipe_manifests_with_path = get_all_recipes_manifests()?;
-    if !include_archived {
-        recipe_manifests_with_path
-            .retain(|manifest_with_path| !manifest_with_path.manifest.is_archived);
-    }
     recipe_manifests_with_path
         .sort_by(|a, b| b.manifest.last_modified.cmp(&a.manifest.last_modified));
     Ok(recipe_manifests_with_path)
