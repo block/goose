@@ -36,6 +36,7 @@ export default function Hub({
   setPairChat,
   setView,
   setIsGoosehintsModalOpen,
+  isExtensionsLoading,
 }: {
   readyForAutoUserPrompt: boolean;
   chat: ChatType;
@@ -43,6 +44,7 @@ export default function Hub({
   setPairChat: (chat: ChatType) => void;
   setView: (view: View, viewOptions?: ViewOptions) => void;
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
+  isExtensionsLoading: boolean;
 }) {
   // Handle chat input submission - create new chat and navigate to pair
   const handleSubmit = (e: React.FormEvent) => {
@@ -101,6 +103,7 @@ export default function Hub({
           disableAnimation={false}
           sessionCosts={undefined}
           setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+          isExtensionsLoading={isExtensionsLoading}
         />
       </div>
     </ContextManagerProvider>

@@ -86,6 +86,7 @@ interface ChatInputProps {
   autoSubmit: boolean;
   setAncestorMessages?: (messages: Message[]) => void;
   append?: (message: Message) => void;
+  isExtensionsLoading?: boolean;
 }
 
 export default function ChatInput({
@@ -111,6 +112,7 @@ export default function ChatInput({
   autoSubmit = false,
   append,
   setAncestorMessages,
+  isExtensionsLoading = false,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -1239,6 +1241,7 @@ export default function ChatInput({
             onBlur={() => setIsFocused(false)}
             ref={textAreaRef}
             rows={1}
+            disabled={isExtensionsLoading}
             style={{
               maxHeight: `${maxHeight}px`,
               overflowY: 'auto',
@@ -1356,7 +1359,8 @@ export default function ChatInput({
                       isRecording ||
                       isTranscribing ||
                       isCompacting ||
-                      !agentIsReady
+                      !agentIsReady ||
+                      isExtensionsLoading
                     }
                     className={`rounded-full px-10 py-2 flex items-center gap-2 ${
                       !hasSubmittableContent ||
@@ -1365,7 +1369,8 @@ export default function ChatInput({
                       isRecording ||
                       isTranscribing ||
                       isCompacting ||
-                      !agentIsReady
+                      !agentIsReady ||
+                      isExtensionsLoading
                         ? 'bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600'
                         : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600 hover:cursor-pointer'
                     }`}
@@ -1377,17 +1382,19 @@ export default function ChatInput({
               </TooltipTrigger>
               <TooltipContent>
                 <p>
-                  {isCompacting
-                    ? 'Compacting conversation...'
-                    : isAnyImageLoading
-                      ? 'Waiting for images to save...'
-                      : isAnyDroppedFileLoading
-                        ? 'Processing dropped files...'
-                        : isRecording
-                          ? 'Recording...'
-                          : isTranscribing
-                            ? 'Transcribing...'
-                            : (chatContext?.agentWaitingMessage ?? 'Send')}
+                  {isExtensionsLoading
+                    ? 'Loading extensions...'
+                    : isCompacting
+                      ? 'Compacting conversation...'
+                      : isAnyImageLoading
+                        ? 'Waiting for images to save...'
+                        : isAnyDroppedFileLoading
+                          ? 'Processing dropped files...'
+                          : isRecording
+                            ? 'Recording...'
+                            : isTranscribing
+                              ? 'Transcribing...'
+                              : (chatContext?.agentWaitingMessage ?? 'Send')}
                 </p>
               </TooltipContent>
             </Tooltip>
