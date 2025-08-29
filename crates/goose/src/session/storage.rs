@@ -88,7 +88,6 @@ impl<'de> Deserialize<'de> for SessionMetadata {
             accumulated_input_tokens: Option<i32>,
             accumulated_output_tokens: Option<i32>,
             working_dir: Option<PathBuf>,
-            todo_content: Option<String>, // For backward compatibility
             #[serde(default)]
             extension_data: ExtensionData,
         }
