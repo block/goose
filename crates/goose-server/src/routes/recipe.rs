@@ -5,10 +5,11 @@ use std::sync::Arc;
 use axum::routing::get;
 use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
 use goose::conversation::{message::Message, Conversation};
-use goose::recipe::list_recipes::list_sorted_recipe_manifests;
-use goose::recipe::recipe_manifest::RecipeManifest;
 use goose::recipe::Recipe;
 use goose::recipe_deeplink;
+
+use crate::recipe::list_recipes::list_sorted_recipe_manifests;
+use crate::recipe::recipe_manifest_metadata::RecipeManifestMetadata;
 use http::HeaderMap;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -75,7 +76,11 @@ pub struct ScanRecipeResponse {
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct RecipeManifestResponse {
-    manifest: RecipeManifest,
+    #[serde(rename = "recipeManifestMetadata")]
+    recipe_manifest_metadata: RecipeManifestMetadata,
+    recipe: Recipe,
+    #[serde(rename = "lastModified")]
+    last_modified: String,
     id: String,
 }
 
@@ -257,8 +262,10 @@ async fn list_recipes(
             let file_path = recipe_manifest_with_path.file_path.clone();
             recipe_file_hash_map.insert(id.clone(), file_path);
             RecipeManifestResponse {
-                manifest: recipe_manifest_with_path.manifest.clone(),
+                recipe_manifest_metadata: recipe_manifest_with_path.recipe_metadata.clone(),
+                recipe: recipe_manifest_with_path.recipe.clone(),
                 id: id.clone(),
+                last_modified: recipe_manifest_with_path.last_modified.clone(),
             }
         })
         .collect::<Vec<RecipeManifestResponse>>();
@@ -295,7 +302,7 @@ async fn delete_recipe(
         None => return StatusCode::NOT_FOUND,
     };
 
-    if let Err(_) = fs::remove_file(file_path) {
+    if fs::remove_file(file_path).is_err() {
         return StatusCode::INTERNAL_SERVER_ERROR;
     }
 

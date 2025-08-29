@@ -3,18 +3,9 @@ import {
   listSavedRecipes,
   saveRecipe,
   generateRecipeFilename,
-  recipeLastModified,
+  convertToLocaleDateString,
 } from '../recipe/recipeStorage';
-import {
-  FileText,
-  Trash2,
-  Bot,
-  Calendar,
-  Globe,
-  Folder,
-  AlertCircle,
-  Download,
-} from 'lucide-react';
+import { FileText, Trash2, Bot, Calendar, AlertCircle, Download } from 'lucide-react';
 import { ScrollArea } from './ui/scroll-area';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
@@ -23,7 +14,7 @@ import { MainPanelLayout } from './Layout/MainPanelLayout';
 import { Recipe, decodeRecipe, generateDeepLink } from '../recipe';
 import { toastSuccess, toastError } from '../toasts';
 import { useEscapeKey } from '../hooks/useEscapeKey';
-import { deleteRecipe, RecipeManifest, RecipeManifestResponse } from '../api';
+import { deleteRecipe, RecipeManifestResponse } from '../api';
 
 interface RecipesViewProps {
   onLoadRecipe?: (recipe: Recipe) => void;
@@ -35,7 +26,7 @@ export default function RecipesView({ _onLoadRecipe }: RecipesViewProps = {}) {
   const [loading, setLoading] = useState(true);
   const [showSkeleton, setShowSkeleton] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedRecipe, setSelectedRecipe] = useState<RecipeManifest | null>(null);
+  const [selectedRecipe, setSelectedRecipe] = useState<RecipeManifestResponse | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [showContent, setShowContent] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
@@ -109,7 +100,7 @@ export default function RecipesView({ _onLoadRecipe }: RecipesViewProps = {}) {
     }
   };
 
-  const handleLoadRecipe = async (recipeManifest: RecipeManifest) => {
+  const handleLoadRecipe = async (recipe: Recipe) => {
     try {
       // onLoadRecipe is not working for loading recipes. It looks correct
       // but the instructions are not flowing through to the server.
@@ -125,7 +116,7 @@ export default function RecipesView({ _onLoadRecipe }: RecipesViewProps = {}) {
         undefined, // dir
         undefined, // version
         undefined, // resumeSessionId
-        recipeManifest.recipe, // recipe config
+        recipe, // recipe config
         undefined // view type
       );
       // }
@@ -135,14 +126,14 @@ export default function RecipesView({ _onLoadRecipe }: RecipesViewProps = {}) {
     }
   };
 
-  const handleDeleteRecipe = async (recipeManifest: RecipeManifest, id: string) => {
+  const handleDeleteRecipe = async (recipeManifest: RecipeManifestResponse) => {
     // TODO: Use Electron's dialog API for confirmation
     const result = await window.electron.showMessageBox({
       type: 'warning',
       buttons: ['Cancel', 'Delete'],
       defaultId: 0,
       title: 'Delete Recipe',
-      message: `Are you sure you want to delete "${recipeManifest.name}"?`,
+      message: `Are you sure you want to delete "${recipeManifest.recipeManifestMetadata.name}"?`,
       detail: 'Recipe file will be deleted.',
     });
 
@@ -151,10 +142,10 @@ export default function RecipesView({ _onLoadRecipe }: RecipesViewProps = {}) {
     }
 
     try {
-      await deleteRecipe({ body: { id } });
+      await deleteRecipe({ body: { id: recipeManifest.id } });
       await loadSavedRecipes();
       toastSuccess({
-        title: recipeManifest.name,
+        title: recipeManifest.recipeManifestMetadata.name,
         msg: 'Recipe deleted successfully',
       });
     } catch (err) {
@@ -163,7 +154,7 @@ export default function RecipesView({ _onLoadRecipe }: RecipesViewProps = {}) {
     }
   };
 
-  const handlePreviewRecipe = async (recipeManifest: RecipeManifest) => {
+  const handlePreviewRecipe = async (recipeManifest: RecipeManifestResponse) => {
     setSelectedRecipe(recipeManifest);
     setShowPreview(true);
 
@@ -377,7 +368,8 @@ Parameters you can use:
 
   // Render a recipe item
   const RecipeItem = ({
-    recipeManifestResponse: { manifest, id },
+    recipeManifestResponse,
+    recipeManifestResponse: { recipe, lastModified },
   }: {
     recipeManifestResponse: RecipeManifestResponse;
   }) => (
@@ -385,17 +377,12 @@ Parameters you can use:
       <div className="flex justify-between items-start gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 mb-1">
-            <h3 className="text-base truncate max-w-[50vw]">{manifest.recipe.title}</h3>
-            {manifest.isGlobal ? (
-              <Globe className="w-4 h-4 text-text-muted flex-shrink-0" />
-            ) : (
-              <Folder className="w-4 h-4 text-text-muted flex-shrink-0" />
-            )}
+            <h3 className="text-base truncate max-w-[50vw]">{recipe.title}</h3>
           </div>
-          <p className="text-text-muted text-sm mb-2 line-clamp-2">{manifest.recipe.description}</p>
+          <p className="text-text-muted text-sm mb-2 line-clamp-2">{recipe.description}</p>
           <div className="flex items-center text-xs text-text-muted">
             <Calendar className="w-3 h-3 mr-1" />
-            {recipeLastModified(manifest.lastModified)}
+            {convertToLocaleDateString(lastModified)}
           </div>
         </div>
 
@@ -403,7 +390,7 @@ Parameters you can use:
           <Button
             onClick={(e) => {
               e.stopPropagation();
-              handleLoadRecipe(manifest);
+              handleLoadRecipe(recipe);
             }}
             size="sm"
             className="h-8"
@@ -414,7 +401,7 @@ Parameters you can use:
           <Button
             onClick={(e) => {
               e.stopPropagation();
-              handlePreviewRecipe(manifest);
+              handlePreviewRecipe(recipeManifestResponse);
             }}
             variant="outline"
             size="sm"
@@ -426,7 +413,7 @@ Parameters you can use:
           <Button
             onClick={(e) => {
               e.stopPropagation();
-              handleDeleteRecipe(manifest, id);
+              handleDeleteRecipe(recipeManifestResponse);
             }}
             variant="ghost"
             size="sm"
@@ -566,9 +553,6 @@ Parameters you can use:
                 <h3 className="text-xl font-medium text-text-standard">
                   {selectedRecipe.recipe.title}
                 </h3>
-                <p className="text-sm text-text-muted">
-                  {selectedRecipe.isGlobal ? 'Global recipe' : 'Project recipe'}
-                </p>
               </div>
               <button
                 onClick={() => setShowPreview(false)}
@@ -947,7 +931,7 @@ Parameters you can use:
               <Button
                 onClick={() => {
                   setShowPreview(false);
-                  handleLoadRecipe(selectedRecipe);
+                  handleLoadRecipe(selectedRecipe.recipe);
                 }}
                 variant="default"
               >

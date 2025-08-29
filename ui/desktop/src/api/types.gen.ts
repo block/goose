@@ -550,17 +550,16 @@ export type Recipe = {
     version?: string;
 };
 
-export type RecipeManifest = {
-    isArchived: boolean;
+export type RecipeManifestMetadata = {
     isGlobal: boolean;
-    lastModified: string;
     name: string;
-    recipe: Recipe;
 };
 
 export type RecipeManifestResponse = {
     id: string;
-    manifest: RecipeManifest;
+    lastModified: string;
+    recipe: Recipe;
+    recipeManifestMetadata: RecipeManifestMetadata;
 };
 
 export type RecipeParameter = {

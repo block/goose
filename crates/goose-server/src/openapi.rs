@@ -477,7 +477,7 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         goose::recipe::RecipeParameterRequirement,
         goose::recipe::Response,
         goose::recipe::SubRecipe,
-        goose::recipe::recipe_manifest::RecipeManifest,
+        super::recipe::recipe_manifest_metadata::RecipeManifestMetadata,
         goose::agents::types::RetryConfig,
         goose::agents::types::SuccessCheck,
         super::routes::agent::AddSubRecipesRequest,

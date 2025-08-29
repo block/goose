@@ -176,7 +176,7 @@ export async function listSavedRecipes(): Promise<RecipeManifestResponse[]> {
   }
 }
 
-export function recipeLastModified(lastModified: string): string {
+export function convertToLocaleDateString(lastModified: string): string {
   if (lastModified) {
     return parseLastModified(lastModified).toLocaleDateString();
   }

@@ -2887,45 +2887,41 @@
           }
         }
       },
-      "RecipeManifest": {
+      "RecipeManifestMetadata": {
         "type": "object",
         "required": [
           "name",
-          "recipe",
-          "isGlobal",
-          "lastModified",
-          "isArchived"
+          "isGlobal"
         ],
         "properties": {
-          "isArchived": {
-            "type": "boolean"
-          },
           "isGlobal": {
             "type": "boolean"
           },
-          "lastModified": {
-            "type": "string"
-          },
           "name": {
             "type": "string"
-          },
-          "recipe": {
-            "$ref": "#/components/schemas/Recipe"
           }
         }
       },
       "RecipeManifestResponse": {
         "type": "object",
         "required": [
-          "manifest",
+          "recipeManifestMetadata",
+          "recipe",
+          "lastModified",
           "id"
         ],
         "properties": {
           "id": {
             "type": "string"
           },
-          "manifest": {
-            "$ref": "#/components/schemas/RecipeManifest"
+          "lastModified": {
+            "type": "string"
+          },
+          "recipe": {
+            "$ref": "#/components/schemas/Recipe"
+          },
+          "recipeManifestMetadata": {
+            "$ref": "#/components/schemas/RecipeManifestMetadata"
           }
         }
       },

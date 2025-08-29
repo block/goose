@@ -53,3 +53,4 @@ path = "src/bin/generate_schema.rs"
 [dev-dependencies]
 tower = "0.5"
 async-trait = "0.1"
+tempfile = "3.15.0"
