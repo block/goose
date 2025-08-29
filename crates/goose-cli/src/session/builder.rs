@@ -352,9 +352,10 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     } else if session_config.resume {
         if let Some(session_file) = session_file.as_ref() {
             match session::read_metadata(session_file) {
-                Ok(metadata) if metadata.enabled_extensions.is_some() => {
-                    metadata.enabled_extensions.unwrap().into_iter().collect()
-                }
+                Ok(SessionMetadata {
+                    enabled_extensions: Some(extensions),
+                    ..
+                }) => extensions.into_iter().collect(),
                 _ => get_enabled_extensions(),
             }
         } else {
