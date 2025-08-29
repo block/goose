@@ -110,6 +110,7 @@ jobs:
         id: validate
         if: steps.recipe_changes.outputs.recipe_files_changed == 'true'
         run: |
+          set -e
           # Read the list of changed recipe files
           RECIPE_FILES=$(cat /tmp/changed_recipe_files.txt)
           
@@ -132,7 +133,7 @@ jobs:
                 ALL_VALID=false
               fi
             fi
-          done <<< "$RECIPE_FILES"
+          done < /tmp/changed_recipe_files.txt
           
           # Second pass: Check for duplicate filenames
           if [ "$ALL_VALID" = true ]; then
@@ -177,7 +178,7 @@ jobs:
                 
                 echo "✅ Filename '$FILENAME' validation complete"
               fi
-            done <<< "$RECIPE_FILES"
+            done < /tmp/changed_recipe_files.txt
           fi
           
           # Save validation output for use in comment
