@@ -119,7 +119,6 @@ jobs:
           
           # First pass: Basic YAML validation
           while IFS= read -r RECIPE_FILE; do
-            BASE_RECIPE_FILENAME=$(basename "$RECIPE_FILE"
             if [ -f "$RECIPE_FILE" ]; then
               BASE_RECIPE_FILENAME=$(basename "$RECIPE_FILE")
               echo "🔍 Validating: $BASE_RECIPE_FILENAME"
