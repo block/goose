@@ -1351,26 +1351,6 @@ pub async fn update_metadata(session_file: &Path, metadata: &SessionMetadata) ->
     save_messages_with_metadata(&secure_path, metadata, &messages)
 }
 
-/// Update session metadata with current extension state
-///
-/// This reads the current metadata, updates the extensions, and rewrites the session file.
-pub async fn update_metadata_with_extensions(
-    session_file: &Path,
-    extension_records: Vec<ExtensionConfig>,
-) -> Result<()> {
-    // Validate the path for security
-    let secure_path = get_path(Identifier::Path(session_file.to_path_buf()))?;
-
-    // Read current metadata
-    let mut metadata = read_metadata(&secure_path)?;
-
-    // Update the extensions
-    metadata.enabled_extensions = Some(extension_records);
-
-    // Update the metadata in the file
-    update_metadata(&secure_path, &metadata).await
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

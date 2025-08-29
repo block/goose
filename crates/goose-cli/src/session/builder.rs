@@ -4,10 +4,11 @@ use goose::agents::Agent;
 use goose::config::{Config, ExtensionConfig, ExtensionConfigManager};
 use goose::providers::create;
 use goose::recipe::{Response, SubRecipe};
-use goose::session;
 use goose::session::Identifier;
+use goose::session::{self, SessionMetadata};
 use rustyline::EditMode;
 use std::collections::HashSet;
+use std::path::PathBuf;
 use std::process;
 use std::sync::Arc;
 use tokio::task::JoinSet;
@@ -142,6 +143,7 @@ async fn offer_extension_debugging_help(
         None,
         None,
         None,
+        None, // No startup metadata for debug sessions
     );
 
     // Process the debugging request
@@ -427,7 +429,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             }
         });
 
-    // Create new session
+    // Create new session (initially without metadata)
     let mut session = Session::new(
         Arc::try_unwrap(agent_ptr).unwrap_or_else(|_| panic!("There should be no more references")),
         session_file.clone(),
@@ -436,6 +438,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         session_config.max_turns,
         edit_mode,
         session_config.retry_config.clone(),
+        None, // Will be set after extensions are loaded
     );
 
     // Add stdio extensions if provided
@@ -563,21 +566,28 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         session.agent.override_system_prompt(override_prompt).await;
     }
 
-    // Save all extension configurations for session resume (after all extensions are added)
+    // Prepare metadata with extension configurations (will be persisted with first message)
     if let Some(session_file) = &session_file {
         let all_extension_configs = session.agent.get_extension_configs().await;
+
+        // Prepare metadata to be persisted with first message
+        let mut startup_metadata = if session_config.resume {
+            // For resumed sessions, load existing metadata or create new one
+            session::read_metadata(session_file).unwrap_or_else(|_| {
+                SessionMetadata::new(std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
+            })
+        } else {
+            // For new sessions, create fresh metadata
+            SessionMetadata::new(std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
+        };
+
+        // Update metadata with extension configurations
         if !all_extension_configs.is_empty() {
-            if let Err(e) =
-                goose::session::update_metadata_with_extensions(session_file, all_extension_configs)
-                    .await
-            {
-                tracing::error!("Failed to persist extension configuration: {}", e);
-                if !session_config.quiet {
-                    println!("Warning: Extension configuration could not be saved. Session resume may not work correctly.");
-                }
-                // Non-fatal: continue session even if we can't persist extensions
-            }
+            startup_metadata.enabled_extensions = Some(all_extension_configs);
         }
+
+        // Set the prepared metadata on the session
+        session.startup_metadata = Some(startup_metadata);
     }
 
     // Display session information unless in quiet mode

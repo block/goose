@@ -32,7 +32,7 @@ use goose::agents::types::RetryConfig;
 use goose::agents::{Agent, SessionConfig};
 use goose::config::Config;
 use goose::providers::pricing::initialize_pricing_cache;
-use goose::session;
+use goose::session::{self, SessionMetadata};
 use input::InputResult;
 use rmcp::model::PromptMessage;
 use rmcp::model::ServerNotification;
@@ -55,7 +55,7 @@ pub enum RunMode {
 }
 
 pub struct Session {
-    agent: Agent,
+    pub agent: Agent,
     messages: Conversation,
     session_file: Option<PathBuf>,
     // Cache for completion data - using std::sync for thread safety without async
@@ -66,6 +66,7 @@ pub struct Session {
     max_turns: Option<u32>,
     edit_mode: Option<EditMode>,
     retry_config: Option<RetryConfig>,
+    startup_metadata: Option<SessionMetadata>, // Metadata to write with first message
 }
 
 // Cache structure for completion data
@@ -130,6 +131,7 @@ impl Session {
         max_turns: Option<u32>,
         edit_mode: Option<EditMode>,
         retry_config: Option<RetryConfig>,
+        startup_metadata: Option<SessionMetadata>,
     ) -> Self {
         let messages = if let Some(session_file) = &session_file {
             session::read_messages(session_file).unwrap_or_else(|e| {
@@ -152,6 +154,7 @@ impl Session {
             max_turns,
             edit_mode,
             retry_config,
+            startup_metadata,
         }
     }
 
@@ -387,14 +390,35 @@ impl Session {
                 std::env::current_dir().expect("failed to get current session working directory"),
             );
 
-            session::persist_messages_with_schedule_id(
-                session_file,
-                &self.messages,
-                Some(provider),
-                self.scheduled_job_id.clone(),
-                working_dir,
-            )
-            .await?;
+            // First-write optimization: Save complete metadata (including extensions) only once
+            //
+            // - startup_metadata contains our metadata with extensions (set during session init)
+            // - .take() removes the value and returns it, leaving None behind
+            // - After .take(), startup_metadata is None forever
+            //
+            // Result: First message write uses cached metadata, all others use normal flow
+            // This avoids multiple file writes during startup without needing a "dirty" flag to track the cached metadata
+            if let Some(startup_metadata) = self.startup_metadata.take() {
+                // First write: Use cached metadata with extensions
+                let secure_path =
+                    session::get_path(session::Identifier::Path(session_file.to_path_buf()))?;
+                session::storage::save_messages_with_metadata(
+                    &secure_path,
+                    &startup_metadata,
+                    &self.messages,
+                )?;
+            } else {
+                // All other writes: Use normal persistence
+                // (startup_metadata is None after .take() was called above)
+                session::persist_messages_with_schedule_id(
+                    session_file,
+                    &self.messages,
+                    Some(provider),
+                    self.scheduled_job_id.clone(),
+                    working_dir,
+                )
+                .await?;
+            }
         }
 
         // Track the current directory and last instruction in projects.json
