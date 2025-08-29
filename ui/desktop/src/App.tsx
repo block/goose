@@ -33,7 +33,12 @@ import { Recipe } from './recipe';
 import RecipesView from './components/RecipesView';
 import RecipeEditor from './components/RecipeEditor';
 import { createNavigationHandler, View, ViewOptions } from './utils/navigationUtils';
-import { AgentState, InitializationContext, useAgent } from './hooks/useAgent';
+import {
+  AgentState,
+  InitializationContext,
+  NoProviderOrModelError,
+  useAgent,
+} from './hooks/useAgent';
 
 // Route Components
 const HubRouteWrapper = ({
@@ -373,7 +378,15 @@ export default function App() {
       recipeConfig: recipeConfig,
     };
     (async () => {
-      await loadCurrentChat({ setAgentWaitingMessage, ...stateData });
+      try {
+        await loadCurrentChat({ setAgentWaitingMessage, ...stateData });
+      } catch (e) {
+        if (e instanceof NoProviderOrModelError) {
+          // the onboarding flow will trigger
+        } else {
+          throw e;
+        }
+      }
     })();
 
     if (resumeSessionId || (recipeConfig && typeof recipeConfig === 'object')) {

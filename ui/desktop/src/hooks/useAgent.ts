@@ -38,6 +38,13 @@ interface UseAgentReturn {
   loadCurrentChat: (context: InitializationContext) => Promise<ChatType>;
 }
 
+export class NoProviderOrModelError extends Error {
+  constructor() {
+    super('No provider or model configured');
+    this.name = this.constructor.name;
+  }
+}
+
 export function useAgent(): UseAgentReturn {
   const [agentState, setAgentState] = useState<AgentState>(AgentState.UNINITIALIZED);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -88,7 +95,7 @@ export function useAgent(): UseAgentReturn {
 
           if (!provider || !model) {
             setAgentState(AgentState.NO_PROVIDER);
-            throw new Error('No provider or model configured');
+            throw new NoProviderOrModelError();
           }
 
           const agentResponse = initContext.resumeSessionId
