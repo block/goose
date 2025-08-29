@@ -186,7 +186,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
         session.metadata.working_dir,
         session.messages,
         session.metadata.description || 'Shared Session',
-        session.metadata.total_tokens
+        session.metadata.total_tokens || 0
       );
 
       const shareableLink = `goose://sessions/${shareToken}`;
@@ -288,7 +288,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
                     {session.metadata.total_tokens !== null && (
                       <span className="flex items-center">
                         <Target className="w-4 h-4 mr-1" />
-                        {session.metadata.total_tokens.toLocaleString()}
+                        {(session.metadata.total_tokens || 0).toLocaleString()}
                       </span>
                     )}
                   </div>

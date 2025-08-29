@@ -222,9 +222,9 @@ export const useChatEngine = ({
   useEffect(() => {
     console.log('Session metadata received:', sessionMetadata);
     if (sessionMetadata) {
-      setSessionTokenCount(sessionMetadata.totalTokens || 0);
-      setSessionInputTokens(sessionMetadata.accumulatedInputTokens || 0);
-      setSessionOutputTokens(sessionMetadata.accumulatedOutputTokens || 0);
+      setSessionTokenCount(sessionMetadata.total_tokens || 0);
+      setSessionInputTokens(sessionMetadata.accumulated_input_tokens || 0);
+      setSessionOutputTokens(sessionMetadata.accumulated_output_tokens || 0);
     }
   }, [sessionMetadata]);
 

@@ -1,18 +1,13 @@
 import { Message } from './types/message';
-import { getSessionHistory, listSessions, SessionInfo, Message as ApiMessage } from './api';
+import {
+  getSessionHistory,
+  listSessions,
+  SessionInfo,
+  Message as ApiMessage,
+  SessionMetadata,
+} from './api';
 import { convertApiMessageToFrontendMessage } from './components/context_management';
 import { getApiUrl } from './config';
-
-export interface SessionMetadata {
-  description: string;
-  message_count: number;
-  total_tokens: number | null;
-  working_dir: string; // Required in type, but may be missing in old sessions
-  // Add the accumulated token fields from the API
-  accumulated_input_tokens?: number | null;
-  accumulated_output_tokens?: number | null;
-  accumulated_total_tokens?: number | null;
-}
 
 // Helper function to ensure working directory is set
 export function ensureWorkingDir(metadata: Partial<SessionMetadata>): SessionMetadata {
