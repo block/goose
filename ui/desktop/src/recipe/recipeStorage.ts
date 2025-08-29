@@ -178,6 +178,13 @@ export async function listSavedRecipes(
   }
 }
 
+export function recipeLastModified(lastModified: string): string {
+  if (lastModified) {
+    return parseLastModified(lastModified).toLocaleDateString();
+  }
+  return '';
+}
+
 /**
  * Generate a suggested filename for a recipe based on its title.
  *

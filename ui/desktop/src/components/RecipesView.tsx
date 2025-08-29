@@ -1,5 +1,10 @@
 import { useState, useEffect } from 'react';
-import { listSavedRecipes, saveRecipe, generateRecipeFilename } from '../recipe/recipeStorage';
+import {
+  listSavedRecipes,
+  saveRecipe,
+  generateRecipeFilename,
+  recipeLastModified,
+} from '../recipe/recipeStorage';
 import {
   FileText,
   Trash2,
@@ -390,7 +395,7 @@ Parameters you can use:
           <p className="text-text-muted text-sm mb-2 line-clamp-2">{manifest.recipe.description}</p>
           <div className="flex items-center text-xs text-text-muted">
             <Calendar className="w-3 h-3 mr-1" />
-            {manifest.lastModified}
+            {recipeLastModified(manifest.lastModified)}
           </div>
         </div>
 
