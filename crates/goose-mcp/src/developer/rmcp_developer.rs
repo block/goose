@@ -1,7 +1,7 @@
 use base64::Engine;
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use include_dir::{include_dir, Dir};
-use indoc::formatdoc;
+use indoc::{formatdoc, indoc};
 use rmcp::{
     handler::server::{router::tool::ToolRouter, tool::Parameters},
     model::{
@@ -229,33 +229,114 @@ impl ServerHandler for DeveloperServer {
         let editor_description = if let Some(ref editor) = self.editor_model {
             formatdoc! {r#"
 
-                Additional Text Editor Tool Description:
+                Additional Text Editor Tool Instructions:
                 
                 Perform text editing operations on files.
                 The `command` parameter specifies the operation to perform. Allowed options are:
                 - `view`: View the content of a file.
                 - `write`: Create or overwrite a file with the given content
-                - `str_replace`: Replace old_str with new_str in the file (AI-enhanced when editor model is configured).
+                - `str_replace`: Edit the file with the new content.
                 - `insert`: Insert text at a specific line location in the file.
                 - `undo_edit`: Undo the last edit made to a file.
+
                 To use the write command, you must specify `file_text` which will become the new content of the file. Be careful with
                 existing files! This is a full overwrite, so you must include everything - not just sections you are modifying.
                 
                 To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning, -1 for end) 
                 and `new_str` (the text to insert).
-                To use the str_replace command, you must specify both `old_str` and `new_str` 
+
+                To use the edit_file command, you must specify both `old_str` and `new_str` 
                 {}
                 
             "#, editor.get_str_replace_description()}
         } else {
-            String::new()
+            formatdoc! {r#"
+
+                Additional Text Editor Tool Instructions:
+                
+                Perform text editing operations on files.
+
+                The `command` parameter specifies the operation to perform. Allowed options are:
+                - `view`: View the content of a file.
+                - `write`: Create or overwrite a file with the given content
+                - `str_replace`: Replace a string in a file with a new string.
+                - `insert`: Insert text at a specific line location in the file.
+                - `undo_edit`: Undo the last edit made to a file.
+
+                To use the write command, you must specify `file_text` which will become the new content of the file. Be careful with
+                existing files! This is a full overwrite, so you must include everything - not just sections you are modifying.
+
+                To use the str_replace command, you must specify both `old_str` and `new_str` - the `old_str` needs to exactly match one
+                unique section of the original file, including any whitespace. Make sure to include enough context that the match is not
+                ambiguous. The entire original string will be replaced with `new_str`.
+
+                To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning, -1 for end) 
+                and `new_str` (the text to insert).
+                
+            "#}
+        };
+
+        // Create comprehensive shell tool instructions
+        let common_shell_instructions = indoc! {r#"
+            Additional Shell Tool Instructions:
+            Execute a command in the shell.
+
+            This will return the output and error concatenated into a single string, as
+            you would see from running on the command line. There will also be an indication
+            of if the command succeeded or failed.
+
+            Avoid commands that produce a large amount of output, and consider piping those outputs to files.
+
+            **Important**: Each shell command runs in its own process. Things like directory changes or
+            sourcing files do not persist between tool calls. So you may need to repeat them each time by
+            stringing together commands.
+              - Pathnames: Use absolute paths and avoid cd unless explicitly requested
+        "#};
+
+        let windows_specific = indoc! {r#"
+            **Important**: For searching files and code:
+
+            Preferred: Use ripgrep (`rg`) when available - it respects .gitignore and is fast:
+              - To locate a file by name: `rg --files | rg example.py`
+              - To locate content inside files: `rg 'class Example'`
+
+            Alternative Windows commands (if ripgrep is not installed):
+              - To locate a file by name: `dir /s /b example.py`
+              - To locate content inside files: `findstr /s /i "class Example" *.py`
+
+            Note: Alternative commands may show ignored/hidden files that should be excluded.
+
+              - Multiple commands: Use && to chain commands, avoid newlines
+              - Example: `cd example && dir` or `activate.bat && pip install numpy`
+
+             **Important**: Use forward slashes in paths (e.g., `C:/Users/name`) to avoid
+                 escape character issues with backslashes, i.e. \n in a path could be
+                 mistaken for a newline.
+        "#};
+
+        let unix_specific = indoc! {r#"
+            If you need to run a long lived command, background it - e.g. `uvicorn main:app &` so that
+            this tool does not run indefinitely.
+
+            **Important**: Use ripgrep - `rg` - exclusively when you need to locate a file or a code reference,
+            other solutions may produce too large output because of hidden files! For example *do not* use `find` or `ls -r`
+              - List files by name: `rg --files | rg <filename>`
+              - List files that contain a regex: `rg '<regex>' -l`
+
+              - Multiple commands: Use && to chain commands, avoid newlines
+              - Example: `cd example && ls` or `source env/bin/activate && pip install numpy`
+        "#};
+
+        let shell_tool_desc = match os {
+            "windows" => format!("{}{}", common_shell_instructions, windows_specific),
+            _ => format!("{}{}", common_shell_instructions, unix_specific),
         };
 
         // Return base instructions directly when no hints are found
         let instructions = if hints.is_empty() {
-            format!("{base_instructions}{editor_description}")
+            format!("{base_instructions}{editor_description}\n{shell_tool_desc}")
         } else {
-            format!("{base_instructions}\n{editor_description}\n{hints}")
+            format!("{base_instructions}\n{editor_description}\n{shell_tool_desc}\n{hints}")
         };
 
         ServerInfo {
