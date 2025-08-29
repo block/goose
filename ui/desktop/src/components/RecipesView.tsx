@@ -5,7 +5,16 @@ import {
   generateRecipeFilename,
   recipeLastModified,
 } from '../recipe/recipeStorage';
-import { FileText, Bot, Calendar, Globe, Folder, AlertCircle, Download } from 'lucide-react';
+import {
+  FileText,
+  Trash2,
+  Bot,
+  Calendar,
+  Globe,
+  Folder,
+  AlertCircle,
+  Download,
+} from 'lucide-react';
 import { ScrollArea } from './ui/scroll-area';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
@@ -14,7 +23,7 @@ import { MainPanelLayout } from './Layout/MainPanelLayout';
 import { Recipe, decodeRecipe, generateDeepLink } from '../recipe';
 import { toastSuccess, toastError } from '../toasts';
 import { useEscapeKey } from '../hooks/useEscapeKey';
-import { RecipeManifest, RecipeManifestResponse } from '../api';
+import { archiveRecipe, RecipeManifest, RecipeManifestResponse } from '../api';
 
 interface RecipesViewProps {
   onLoadRecipe?: (recipe: Recipe) => void;
@@ -123,6 +132,34 @@ export default function RecipesView({ _onLoadRecipe }: RecipesViewProps = {}) {
     } catch (err) {
       console.error('Failed to load recipe:', err);
       setError(err instanceof Error ? err.message : 'Failed to load recipe');
+    }
+  };
+
+  const handleDeleteRecipe = async (recipeManifest: RecipeManifest, id: string) => {
+    // TODO: Use Electron's dialog API for confirmation
+    const result = await window.electron.showMessageBox({
+      type: 'warning',
+      buttons: ['Cancel', 'Delete'],
+      defaultId: 0,
+      title: 'Delete Recipe',
+      message: `Are you sure you want to delete "${recipeManifest.name}"?`,
+      detail: 'Deleted recipes can be restored later.',
+    });
+
+    if (result.response !== 1) {
+      return;
+    }
+
+    try {
+      await await archiveRecipe({ body: { id } });
+      await loadSavedRecipes();
+      toastSuccess({
+        title: recipeManifest.name,
+        msg: 'Recipe archived successfully',
+      });
+    } catch (err) {
+      console.error('Failed to archive recipe:', err);
+      setError(err instanceof Error ? err.message : 'Failed to archive recipe');
     }
   };
 
@@ -340,7 +377,7 @@ Parameters you can use:
 
   // Render a recipe item
   const RecipeItem = ({
-    recipeManifestResponse: { manifest },
+    recipeManifestResponse: { manifest, id },
   }: {
     recipeManifestResponse: RecipeManifestResponse;
   }) => (
@@ -385,6 +422,17 @@ Parameters you can use:
           >
             <FileText className="w-4 h-4 mr-1" />
             Preview
+          </Button>
+          <Button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDeleteRecipe(manifest, id);
+            }}
+            variant="ghost"
+            size="sm"
+            className="h-8 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+          >
+            <Trash2 className="w-4 h-4" />
           </Button>
         </div>
       </div>
