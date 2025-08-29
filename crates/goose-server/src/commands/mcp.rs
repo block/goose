@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use goose_mcp::{
-    AutoVisualiserRouter, ComputerControllerRouter, DeveloperServer, MemoryRouter, TutorialRouter
+    AutoVisualiserRouter, ComputerControllerRouter, DeveloperServer, MemoryRouter, TutorialRouter,
 };
 use mcp_server::router::RouterService;
 use mcp_server::{BoundedService, ByteTransport, Server};

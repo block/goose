@@ -117,7 +117,7 @@ fn load_prompt_files() -> HashMap<String, Prompt> {
 
     for entry in PROMPTS_DIR.files() {
         // Only process JSON files
-        if !entry.path().extension().map_or(false, |ext| ext == "json") {
+        if entry.path().extension().is_none_or(|ext| ext != "json") {
             continue;
         }
 
@@ -328,7 +328,7 @@ impl ServerHandler for DeveloperServer {
                                 || arguments
                                     .get(&arg.name)
                                     .and_then(|v| v.as_str())
-                                    .map_or(true, str::is_empty))
+                                    .is_none_or(str::is_empty))
                         {
                             return std::future::ready(Err(ErrorData::new(
                                 ErrorCode::INVALID_PARAMS,
@@ -367,6 +367,12 @@ impl ServerHandler for DeveloperServer {
                 None,
             ))),
         }
+    }
+}
+
+impl Default for DeveloperServer {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
