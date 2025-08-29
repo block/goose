@@ -45,11 +45,13 @@ const HubRouteWrapper = ({
   setChat,
   setPairChat,
   setIsGoosehintsModalOpen,
+  isExtensionsLoading,
 }: {
   chat: ChatType;
   setChat: (chat: ChatType) => void;
   setPairChat: (chat: ChatType) => void;
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
+  isExtensionsLoading: boolean;
 }) => {
   const navigate = useNavigate();
   const setView = createNavigationHandler(navigate);
@@ -62,6 +64,7 @@ const HubRouteWrapper = ({
       setPairChat={setPairChat}
       setView={setView}
       setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+      isExtensionsLoading={isExtensionsLoading}
     />
   );
 };
@@ -400,6 +403,7 @@ export default function App() {
   const [agentWaitingMessage, setAgentWaitingMessage] = useState<string | null>(null);
   const [isLoadingSharedSession, setIsLoadingSharedSession] = useState(false);
   const [sharedSessionError, setSharedSessionError] = useState<string | null>(null);
+  const [isExtensionsLoading, setIsExtensionsLoading] = useState(false);
 
   // Add separate state for pair chat to maintain its own conversation
   const [pairChat, setPairChat] = useState<ChatType>({
@@ -482,6 +486,7 @@ export default function App() {
         addExtension,
         setPairChat,
         setMessage: setAgentWaitingMessage,
+        setIsExtensionsLoading,
         provider: provider as string,
         model: model as string,
       });
@@ -802,12 +807,13 @@ export default function App() {
                 <Route
                   index
                   element={
-                    <ProviderGuard>
+                    <ProviderGuard setIsExtensionsLoading={setIsExtensionsLoading}>
                       <HubRouteWrapper
                         chat={chat}
                         setChat={setChat}
                         setPairChat={setPairChat}
                         setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+                        isExtensionsLoading={isExtensionsLoading}
                       />
                     </ProviderGuard>
                   }
@@ -815,7 +821,7 @@ export default function App() {
                 <Route
                   path="pair"
                   element={
-                    <ProviderGuard>
+                    <ProviderGuard setIsExtensionsLoading={setIsExtensionsLoading}>
                       <ChatProvider
                         chat={pairChat}
                         setChat={setPairChat}
@@ -836,7 +842,7 @@ export default function App() {
                 <Route
                   path="settings"
                   element={
-                    <ProviderGuard>
+                    <ProviderGuard setIsExtensionsLoading={setIsExtensionsLoading}>
                       <SettingsRoute />
                     </ProviderGuard>
                   }
@@ -844,7 +850,7 @@ export default function App() {
                 <Route
                   path="extensions"
                   element={
-                    <ProviderGuard>
+                    <ProviderGuard setIsExtensionsLoading={setIsExtensionsLoading}>
                       <ExtensionsRoute />
                     </ProviderGuard>
                   }
@@ -852,7 +858,7 @@ export default function App() {
                 <Route
                   path="sessions"
                   element={
-                    <ProviderGuard>
+                    <ProviderGuard setIsExtensionsLoading={setIsExtensionsLoading}>
                       <SessionsRoute />
                     </ProviderGuard>
                   }
@@ -860,7 +866,7 @@ export default function App() {
                 <Route
                   path="schedules"
                   element={
-                    <ProviderGuard>
+                    <ProviderGuard setIsExtensionsLoading={setIsExtensionsLoading}>
                       <SchedulesRoute />
                     </ProviderGuard>
                   }
@@ -868,7 +874,7 @@ export default function App() {
                 <Route
                   path="recipes"
                   element={
-                    <ProviderGuard>
+                    <ProviderGuard setIsExtensionsLoading={setIsExtensionsLoading}>
                       <RecipesRoute />
                     </ProviderGuard>
                   }
@@ -876,7 +882,7 @@ export default function App() {
                 <Route
                   path="recipe-editor"
                   element={
-                    <ProviderGuard>
+                    <ProviderGuard setIsExtensionsLoading={setIsExtensionsLoading}>
                       <RecipeEditorRoute />
                     </ProviderGuard>
                   }
@@ -884,7 +890,7 @@ export default function App() {
                 <Route
                   path="shared-session"
                   element={
-                    <ProviderGuard>
+                    <ProviderGuard setIsExtensionsLoading={setIsExtensionsLoading}>
                       <SharedSessionRouteWrapper
                         isLoadingSharedSession={isLoadingSharedSession}
                         setIsLoadingSharedSession={setIsLoadingSharedSession}
@@ -896,7 +902,7 @@ export default function App() {
                 <Route
                   path="permission"
                   element={
-                    <ProviderGuard>
+                    <ProviderGuard setIsExtensionsLoading={setIsExtensionsLoading}>
                       <PermissionRoute />
                     </ProviderGuard>
                   }
