@@ -6,8 +6,29 @@ from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 from python_http_client.exceptions import HTTPError
 
-def fetch_pr_body(pr_url, github_token):
+def get_pr_number_from_sha():
+    token = os.getenv("GITHUB_TOKEN")
+    repo = os.getenv("GITHUB_REPOSITORY")
+    sha = os.getenv("GITHUB_SHA")
+
+    url = f"https://api.github.com/repos/{repo}/commits/{sha}/pulls"
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.groot-preview+json"
+    }
+
+    response = requests.get(url, headers=headers)
+    response.raise_for_status()
+
+    pr_data = response.json()
+    if pr_data:
+        return pr_data[0]["number"]
+    else:
+        raise Exception("No PR found for this SHA")
+
+def fetch_pr_body(pr_number, github_token, repo_full_name):
     print("🔍 Fetching PR body...")
+    pr_url = f"https://api.github.com/repos/{repo_full_name}/pulls/{pr_number}"
     try:
         pr_resp = requests.get(
             pr_url,
@@ -31,8 +52,8 @@ def extract_email_from_text(text):
         return email_match.group(1)
     return None
 
-def fetch_pr_comments(pr_url, github_token):
-    comments_url = pr_url.replace("/pulls/", "/issues/") + "/comments"
+def fetch_pr_comments(repo_full_name, pr_number, github_token):
+    comments_url = f"https://api.github.com/repos/{repo_full_name}/issues/{pr_number}/comments"
     try:
         comments_resp = requests.get(
             comments_url,
@@ -54,7 +75,7 @@ def validate_email_address(email):
         print(f"❌ Email validation failed: {e}")
         return None
 
-def extract_email(pr_body, pr_url, github_token):
+def extract_email(pr_body, repo_full_name, pr_number, github_token):
     print("🔍 Searching for email in PR body...")
     email = extract_email_from_text(pr_body)
     if email:
@@ -66,7 +87,7 @@ def extract_email(pr_body, pr_url, github_token):
             print("⚠️ Email in PR body is invalid, checking comments...")
 
     print("🔍 No valid email found in PR body, checking comments...")
-    comments = fetch_pr_comments(pr_url, github_token)
+    comments = fetch_pr_comments(repo_full_name, pr_number, github_token)
     for comment in comments:
         comment_body = comment.get("body", "")
         email = extract_email_from_text(comment_body)
@@ -110,7 +131,7 @@ def send_email(email, api_key, sendgrid_api_key):
     print("📤 Sending email via SendGrid...")
     try:
         sg = SendGridAPIClient(sendgrid_api_key)
-        from_email = "Goose Team <goose@opensource.block.xyz>"  
+        from_email = "Goose Team <goose@opensource.block.xyz>"
         subject = "🎉 Your Goose Contributor API Key"
         html_content = f"""
             <p>Thanks for contributing to the Goose Recipe Cookbook!</p>
@@ -161,45 +182,34 @@ def comment_on_pr(github_token, repo_full_name, pr_number, email):
 
 def main():
     # ✅ Environment variable validation
-    required_envs = ["GITHUB_TOKEN", "GITHUB_API_URL", "PROVISIONING_API_KEY", "EMAIL_API_KEY"]
+    required_envs = ["GITHUB_TOKEN", "GITHUB_SHA", "GITHUB_REPOSITORY", "PROVISIONING_API_KEY", "EMAIL_API_KEY"]
     missing = [env for env in required_envs if env not in os.environ]
     if missing:
         print(f"❌ Missing environment variables: {', '.join(missing)}")
         exit(2)
 
     GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
-    PR_URL = os.environ["GITHUB_API_URL"]
+    GITHUB_SHA = os.environ["GITHUB_SHA"]
+    REPO_NAME = os.environ["GITHUB_REPOSITORY"]
     PROVISIONING_API_KEY = os.environ["PROVISIONING_API_KEY"]
     SENDGRID_API_KEY = os.environ["EMAIL_API_KEY"]
 
-    pr_data = fetch_pr_body(PR_URL, GITHUB_TOKEN)
+    pr_number = get_pr_number_from_sha()
+    pr_data = fetch_pr_body(pr_number, GITHUB_TOKEN, REPO_NAME)
     pr_body = pr_data.get("body", "")
-    pr_number = pr_data.get("number")
 
-    if not pr_number:
-        print("❌ Unable to get PR number from GitHub API response")
-        exit(2)
-
-    if "base" in pr_data and "repo" in pr_data["base"]:
-        repo_full_name = pr_data["base"]["repo"]["full_name"]
-    elif "repository" in pr_data:
-        repo_full_name = pr_data["repository"]["full_name"]
-    else:
-        print("❌ Unable to get repository name from GitHub API response")
-        exit(2)
-
-    email = extract_email(pr_body, PR_URL, GITHUB_TOKEN)
+    email = extract_email(pr_body, REPO_NAME, pr_number, GITHUB_TOKEN)
     print(f"📬 Found email: {email}")
 
     try:
         api_key = provision_api_key(PROVISIONING_API_KEY)
         print("✅ API key generated!")
-        
+
         if not send_email(email, api_key, SENDGRID_API_KEY):
             print("❌ Email failed to send. Exiting without PR comment.")
             exit(2)
-        
-        comment_on_pr(GITHUB_TOKEN, repo_full_name, pr_number, email)
+
+        comment_on_pr(GITHUB_TOKEN, REPO_NAME, pr_number, email)
 
     except Exception as err:
         print(f"❌ An error occurred: {err}")

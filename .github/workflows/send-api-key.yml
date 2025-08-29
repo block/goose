@@ -24,11 +24,10 @@ jobs:
       - name: Install dependencies and run email script
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          REPO_NAME: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
           PROVISIONING_API_KEY: ${{ secrets.PROVISIONING_API_KEY }}
           EMAIL_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
         run: |
           pip install requests sendgrid email-validator
           python .github/scripts/send_key.py
-
