@@ -84,11 +84,6 @@ pub struct RecipeManifestResponse {
     id: String,
 }
 
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct ArchiveRecipeRequest {
-    id: String,
-}
-
 #[derive(Debug, Serialize, ToSchema)]
 pub struct ListRecipeResponse {
     recipe_manifest_responses: Vec<RecipeManifestResponse>,
@@ -279,31 +274,6 @@ async fn list_recipes(
     }))
 }
 
-#[utoipa::path(
-    post,
-    path = "/recipes/archive",
-    request_body = ArchiveRecipeRequest,
-    responses(
-        (status = 204, description = "Recipe archived successfully"),
-        (status = 401, description = "Unauthorized - Invalid or missing API key"),
-        (status = 500, description = "Internal server error")
-    ),
-    tag = "Recipe Management"
-)]
-async fn archive_recipe(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-    Json(request): Json<ArchiveRecipeRequest>,
-) -> StatusCode {
-    if verify_secret_key(&headers, &state).is_err() {
-        return StatusCode::UNAUTHORIZED;
-    }
-    let recipe_file_hash_map = state.recipe_file_hash_map.lock().await;
-    let file_path = recipe_file_hash_map.get(&request.id).unwrap();
-    RecipeManifest::archive(file_path).unwrap();
-    StatusCode::NO_CONTENT
-}
-
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/recipes/create", post(create_recipe))
@@ -311,7 +281,6 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/recipes/decode", post(decode_recipe))
         .route("/recipes/scan", post(scan_recipe))
         .route("/recipes/list", get(list_recipes))
-        .route("/recipes/archive", post(archive_recipe))
         .with_state(state)
 }
 

@@ -42,4 +42,65 @@ impl RecipeManifest {
         manifest.save_to_yaml_file(file_path).unwrap();
         Ok(())
     }
+
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::tempdir;
+    
+    fn create_test_manifest() -> RecipeManifest {
+        RecipeManifest {
+            name: "test_recipe".to_string(),
+            recipe: Recipe::builder()
+                .title("Test Recipe")
+                .description("A test recipe")
+                .instructions("Test instructions")
+                .build()
+                .unwrap(),
+            is_global: false,
+            last_modified: "2025-01-01T00:00:00.000Z".to_string(),
+            is_archived: false,
+        }
+    }
+    
+    #[test]
+    fn test_save_and_load_yaml_file() {
+        let temp_dir = tempdir().unwrap();
+        let file_path = temp_dir.path().join("test_manifest.yml");
+        
+        let manifest = create_test_manifest();
+        
+        manifest.clone().save_to_yaml_file(&file_path).unwrap();
+        
+        let loaded_manifest = RecipeManifest::from_yaml_file(&file_path).unwrap();
+        
+        assert_eq!(loaded_manifest.name, manifest.name);
+        assert_eq!(loaded_manifest.recipe.title, manifest.recipe.title);
+        assert_eq!(loaded_manifest.is_global, manifest.is_global);
+        assert_eq!(loaded_manifest.is_archived, manifest.is_archived);
+    }
+    
+    #[test]
+    fn test_archive() {
+        let temp_dir = tempdir().unwrap();
+        let file_path = temp_dir.path().join("test_manifest.yml");
+        
+        let manifest = create_test_manifest();
+        manifest.save_to_yaml_file(&file_path).unwrap();
+        
+        RecipeManifest::archive(&file_path).unwrap();
+        
+        let archived_manifest = RecipeManifest::from_yaml_file(&file_path).unwrap();
+        
+        assert!(archived_manifest.is_archived);
+    }
+    
+    #[test]
+    fn test_from_yaml_file_nonexistent() {
+        let result = RecipeManifest::from_yaml_file(&std::path::Path::new("nonexistent.yml"));
+        assert!(result.is_err());
+    }
 }
