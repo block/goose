@@ -6,6 +6,42 @@ from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 from python_http_client.exceptions import HTTPError
 
+
+def main():
+    # Environment variable validation
+    required_envs = ["GITHUB_TOKEN", "GITHUB_SHA", "GITHUB_REPOSITORY", "PROVISIONING_API_KEY", "EMAIL_API_KEY"]
+    missing = [env for env in required_envs if env not in os.environ]
+    if missing:
+        print(f"❌ Missing environment variables: {', '.join(missing)}")
+        exit(2)
+
+    GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
+    GITHUB_SHA = os.environ["GITHUB_SHA"]
+    REPO_NAME = os.environ["GITHUB_REPOSITORY"]
+    PROVISIONING_API_KEY = os.environ["PROVISIONING_API_KEY"]
+    SENDGRID_API_KEY = os.environ["EMAIL_API_KEY"]
+
+    pr_number = get_pr_number_from_sha()
+    pr_data = fetch_pr_body(pr_number, GITHUB_TOKEN, REPO_NAME)
+    pr_body = pr_data.get("body", "")
+
+    email = extract_email(pr_body, REPO_NAME, pr_number, GITHUB_TOKEN)
+    print(f"📬 Found email: {email}")
+
+    try:
+        api_key = provision_api_key(PROVISIONING_API_KEY)
+        print("✅ API key generated!")
+
+        if not send_email(email, api_key, SENDGRID_API_KEY):
+            print("❌ Email failed to send. Exiting without PR comment.")
+            exit(2)
+
+        comment_on_pr(GITHUB_TOKEN, REPO_NAME, pr_number, email)
+
+    except Exception as err:
+        print(f"❌ An error occurred: {err}")
+        exit(2)
+
 def get_pr_number_from_sha():
     token = os.getenv("GITHUB_TOKEN")
     repo = os.getenv("GITHUB_REPOSITORY")
@@ -106,7 +142,7 @@ def provision_api_key(provisioning_api_key):
     print("🔐 Creating OpenRouter key...")
     try:
         key_resp = requests.post(
-            "https://openrouter.ai/api/v1/keys/",
+            "https://openrouter.ai/api/v1/keys",
             headers={
                 "Authorization": f"Bearer {provisioning_api_key}",
                 "Content-Type": "application/json"
@@ -179,41 +215,6 @@ def comment_on_pr(github_token, repo_full_name, pr_number, email):
     except requests.exceptions.RequestException as e:
         print("❌ Failed to comment on PR:", str(e))
         raise
-
-def main():
-    # ✅ Environment variable validation
-    required_envs = ["GITHUB_TOKEN", "GITHUB_SHA", "GITHUB_REPOSITORY", "PROVISIONING_API_KEY", "EMAIL_API_KEY"]
-    missing = [env for env in required_envs if env not in os.environ]
-    if missing:
-        print(f"❌ Missing environment variables: {', '.join(missing)}")
-        exit(2)
-
-    GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
-    GITHUB_SHA = os.environ["GITHUB_SHA"]
-    REPO_NAME = os.environ["GITHUB_REPOSITORY"]
-    PROVISIONING_API_KEY = os.environ["PROVISIONING_API_KEY"]
-    SENDGRID_API_KEY = os.environ["EMAIL_API_KEY"]
-
-    pr_number = get_pr_number_from_sha()
-    pr_data = fetch_pr_body(pr_number, GITHUB_TOKEN, REPO_NAME)
-    pr_body = pr_data.get("body", "")
-
-    email = extract_email(pr_body, REPO_NAME, pr_number, GITHUB_TOKEN)
-    print(f"📬 Found email: {email}")
-
-    try:
-        api_key = provision_api_key(PROVISIONING_API_KEY)
-        print("✅ API key generated!")
-
-        if not send_email(email, api_key, SENDGRID_API_KEY):
-            print("❌ Email failed to send. Exiting without PR comment.")
-            exit(2)
-
-        comment_on_pr(GITHUB_TOKEN, REPO_NAME, pr_number, email)
-
-    except Exception as err:
-        print(f"❌ An error occurred: {err}")
-        exit(2)
 
 if __name__ == "__main__":
     main()
