@@ -1,7 +1,7 @@
 use console::style;
 use goose::agents::types::RetryConfig;
 use goose::agents::Agent;
-use goose::config::{Config, ExtensionConfig, ExtensionConfigManager};
+use goose::config::{get_all_extensions, get_enabled_extensions, Config, ExtensionConfig};
 use goose::providers::create;
 use goose::recipe::{Response, SubRecipe};
 use goose::session::Identifier;
@@ -115,18 +115,17 @@ async fn offer_extension_debugging_help(
     debug_agent.update_provider(provider).await?;
 
     // Add the developer extension if available to help with debugging
-    if let Ok(extensions) = ExtensionConfigManager::get_all() {
-        for ext_wrapper in extensions {
-            if ext_wrapper.enabled && ext_wrapper.config.name() == "developer" {
-                if let Err(e) = debug_agent.add_extension(ext_wrapper.config).await {
-                    // If we can't add developer extension, continue without it
-                    eprintln!(
-                        "Note: Could not load developer extension for debugging: {}",
-                        e
-                    );
-                }
-                break;
+    let extensions = get_all_extensions();
+    for ext_wrapper in extensions {
+        if ext_wrapper.enabled && ext_wrapper.config.name() == "developer" {
+            if let Err(e) = debug_agent.add_extension(ext_wrapper.config).await {
+                // If we can't add developer extension, continue without it
+                eprintln!(
+                    "Note: Could not load developer extension for debugging: {}",
+                    e
+                );
             }
+            break;
         }
     }
 
@@ -356,13 +355,13 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
                 Ok(metadata) if metadata.enabled_extensions.is_some() => {
                     metadata.enabled_extensions.unwrap().into_iter().collect()
                 }
-                _ => ExtensionConfigManager::get_enabled().expect("should load extensions"),
+                _ => get_enabled_extensions(),
             }
         } else {
-            ExtensionConfigManager::get_enabled().expect("should load extensions")
+            get_enabled_extensions()
         }
     } else {
-        ExtensionConfigManager::get_enabled().expect("should load extensions")
+        get_enabled_extensions()
     };
 
     let mut set = JoinSet::new();

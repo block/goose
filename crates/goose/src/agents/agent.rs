@@ -31,7 +31,7 @@ use crate::agents::tool_route_manager::ToolRouteManager;
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, ToolResultReceiver};
-use crate::config::{Config, ExtensionConfigManager, PermissionManager};
+use crate::config::{get_enabled_extensions, get_extension_by_name, Config, PermissionManager};
 use crate::context_mgmt::auto_compact;
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::permission::permission_judge::{check_tool_permissions, PermissionCheckResult};
@@ -653,9 +653,9 @@ impl Agent {
             return (request_id, result);
         }
 
-        let config = match ExtensionConfigManager::get_config_by_name(&extension_name) {
-            Ok(Some(config)) => config,
-            Ok(None) => {
+        let config = match get_extension_by_name(&extension_name) {
+            Some(config) => config,
+            None => {
                 return (
                     request_id,
                     Err(ErrorData::new(
@@ -664,16 +664,6 @@ impl Agent {
                         "Extension '{}' not found. Please check the extension name and try again.",
                         extension_name
                     ),
-                        None,
-                    )),
-                )
-            }
-            Err(e) => {
-                return (
-                    request_id,
-                    Err(ErrorData::new(
-                        ErrorCode::INTERNAL_ERROR,
-                        format!("Failed to get extension config: {}", e),
                         None,
                     )),
                 )
@@ -1512,7 +1502,7 @@ impl Agent {
                 (instructions, activities)
             };
 
-        let extension_configs = ExtensionConfigManager::get_enabled().unwrap_or_default();
+        let extension_configs = get_enabled_extensions();
 
         let author = Author {
             contact: std::env::var("USER")

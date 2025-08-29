@@ -7,9 +7,9 @@ use axum::{
     Json, Router,
 };
 use etcetera::{choose_app_strategy, AppStrategy};
+use goose::config::ExtensionEntry;
 use goose::config::APP_STRATEGY;
 use goose::config::{Config, ConfigError};
-use goose::config::{ExtensionConfigManager, ExtensionEntry};
 use goose::model::ModelConfig;
 use goose::providers::base::ProviderMetadata;
 use goose::providers::pricing::{
@@ -201,19 +201,8 @@ pub async fn get_extensions(
 ) -> Result<Json<ExtensionResponse>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    match ExtensionConfigManager::get_all() {
-        Ok(extensions) => Ok(Json(ExtensionResponse { extensions })),
-        Err(err) => {
-            if err
-                .downcast_ref::<goose::config::base::ConfigError>()
-                .is_some_and(|e| matches!(e, goose::config::base::ConfigError::DeserializeError(_)))
-            {
-                Err(StatusCode::UNPROCESSABLE_ENTITY)
-            } else {
-                Err(StatusCode::INTERNAL_SERVER_ERROR)
-            }
-        }
-    }
+    let extensions = goose::config::get_all_extensions();
+    Ok(Json(ExtensionResponse { extensions }))
 }
 
 #[utoipa::path(
@@ -234,24 +223,20 @@ pub async fn add_extension(
 ) -> Result<Json<String>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    let extensions =
-        ExtensionConfigManager::get_all().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let extensions = goose::config::get_all_extensions();
     let key = goose::config::extensions::name_to_key(&extension_query.name);
 
     let is_update = extensions.iter().any(|e| e.config.key() == key);
 
-    match ExtensionConfigManager::set(ExtensionEntry {
+    goose::config::set_extension(ExtensionEntry {
         enabled: extension_query.enabled,
         config: extension_query.config,
-    }) {
-        Ok(_) => {
-            if is_update {
-                Ok(Json(format!("Updated extension {}", extension_query.name)))
-            } else {
-                Ok(Json(format!("Added extension {}", extension_query.name)))
-            }
-        }
-        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    });
+
+    if is_update {
+        Ok(Json(format!("Updated extension {}", extension_query.name)))
+    } else {
+        Ok(Json(format!("Added extension {}", extension_query.name)))
     }
 }
 
@@ -272,10 +257,8 @@ pub async fn remove_extension(
     verify_secret_key(&headers, &state)?;
 
     let key = goose::config::extensions::name_to_key(&name);
-    match ExtensionConfigManager::remove(&key) {
-        Ok(_) => Ok(Json(format!("Removed extension {}", name))),
-        Err(_) => Err(StatusCode::NOT_FOUND),
-    }
+    goose::config::remove_extension(&key);
+    Ok(Json(format!("Removed extension {}", name)))
 }
 
 #[utoipa::path(

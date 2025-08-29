@@ -26,7 +26,7 @@ use tracing::{error, warn};
 use super::extension::{ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, ToolInfo};
 use super::tool_execution::ToolCallResult;
 use crate::agents::extension::{Envs, ProcessExit};
-use crate::config::{Config, ExtensionConfigManager};
+use crate::config::{get_all_extensions, Config};
 use crate::oauth::oauth_flow;
 use crate::prompt_template;
 use mcp_client::client::{McpClient, McpClientTrait};
@@ -965,7 +965,7 @@ impl ExtensionManager {
 
         // First get disabled extensions from current config
         let mut disabled_extensions: Vec<String> = vec![];
-        for extension in ExtensionConfigManager::get_all().expect("should load extensions") {
+        for extension in get_all_extensions() {
             if !extension.enabled {
                 let config = extension.config.clone();
                 let description = match &config {

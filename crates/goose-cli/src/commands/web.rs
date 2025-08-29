@@ -108,7 +108,7 @@ pub async fn handle_web(port: u16, host: String, open: bool) -> Result<()> {
     agent.update_provider(provider).await?;
 
     // Load and enable extensions from config
-    let enabled_configs = goose::config::ExtensionConfigManager::get_enabled()?;
+    let enabled_configs = goose::config::get_enabled_extensions();
     for config in enabled_configs {
         if let Err(e) = agent.add_extension(config.clone()).await {
             eprintln!("Warning: Failed to load extension {}: {}", config.name(), e);
