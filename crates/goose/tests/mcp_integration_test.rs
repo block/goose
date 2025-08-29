@@ -50,26 +50,26 @@ enum TestMode {
     vec![]
 )]
 #[test_case(
-    vec!["goose", "mcp", "developer"],
+    vec!["cargo", "run", "-p", "goose-server", "--bin", "goosed", "--", "mcp", "developer"],
     vec![
         ToolCall::new("text_editor", json!({
             "command": "view",
-            "path": "/Users/aning/goose/crates/goose/tests/tmp/goose.txt"
+            "path": "~/goose/crates/goose/tests/tmp/goose.txt"
         })),
         ToolCall::new("text_editor", json!({
             "command": "str_replace",
-            "path": "/Users/aning/goose/crates/goose/tests/tmp/goose.txt",
+            "path": "~/goose/crates/goose/tests/tmp/goose.txt",
             "old_str": "# codename goose",
             "new_str": "# codename goose (modified by test)"
         })),
         // Test shell command to verify file was modified
         ToolCall::new("shell", json!({
-            "command": "cat /Users/aning/goose/crates/goose/tests/tmp/goose.txt"
+            "command": "cat ~/goose/crates/goose/tests/tmp/goose.txt"
         })),
         // Test text_editor tool to restore original content
         ToolCall::new("text_editor", json!({
             "command": "str_replace",
-            "path": "/Users/aning/goose/crates/goose/tests/tmp/goose.txt",
+            "path": "~/goose/crates/goose/tests/tmp/goose.txt",
             "old_str": "# codename goose (modified by test)",
             "new_str": "# codename goose"
         })),
@@ -78,41 +78,7 @@ enum TestMode {
             "display": 0
         })),
         ToolCall::new("image_processor", json!({
-            "path": "/Users/aning/goose/crates/goose/tests/tmp/goose-test.png"
-        })),
-    ],
-    vec![]
-)]
-#[test_case(
-    vec!["cargo", "run", "-p", "goose-server", "--bin", "goosed", "--", "mcp", "rmcp_developer"],
-    vec![
-        ToolCall::new("text_editor", json!({
-            "command": "view",
-            "path": "/Users/aning/goose/crates/goose/tests/tmp/goose.txt"
-        })),
-        ToolCall::new("text_editor", json!({
-            "command": "str_replace",
-            "path": "/Users/aning/goose/crates/goose/tests/tmp/goose.txt",
-            "old_str": "# codename goose",
-            "new_str": "# codename goose (modified by rmcp test)"
-        })),
-        // Test shell command to verify file was modified
-        ToolCall::new("shell", json!({
-            "command": "cat /Users/aning/goose/crates/goose/tests/tmp/goose.txt"
-        })),
-        // Test text_editor tool to restore original content
-        ToolCall::new("text_editor", json!({
-            "command": "str_replace",
-            "path": "/Users/aning/goose/crates/goose/tests/tmp/goose.txt",
-            "old_str": "# codename goose (modified by rmcp test)",
-            "new_str": "# codename goose"
-        })),
-        ToolCall::new("list_windows", json!({})),
-        ToolCall::new("screen_capture", json!({
-            "display": 0
-        })),
-        ToolCall::new("image_processor", json!({
-            "path": "/Users/aning/goose/crates/goose/tests/tmp/goose-test.png"
+            "path": "~/goose/crates/goose/tests/tmp/goose-test.png"
         })),
     ],
     vec![]

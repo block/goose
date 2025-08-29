@@ -234,7 +234,7 @@ impl ServerHandler for DeveloperServer {
 
         ServerInfo {
             server_info: Implementation {
-                name: "developer".to_string(),
+                name: "goose-developer".to_string(),
                 version: env!("CARGO_PKG_VERSION").to_owned(),
             },
             capabilities: ServerCapabilities::builder()
