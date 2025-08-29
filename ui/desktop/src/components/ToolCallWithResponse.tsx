@@ -2,14 +2,20 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Button } from './ui/button';
 import { ToolCallArguments, ToolCallArgumentValue } from './ToolCallArguments';
 import MarkdownContent from './MarkdownContent';
-import { Content, ToolRequestMessageContent, ToolResponseMessageContent } from '../types/message';
+import {
+  Content,
+  ToolRequestMessageContent,
+  ToolResponseMessageContent,
+  ResourceContent,
+} from '../types/message';
 import { cn, snakeToTitleCase } from '../utils';
 import Dot, { LoadingStatus } from './ui/Dot';
 import { NotificationEvent } from '../hooks/useMessageStream';
-import { ChevronRight, FlaskConical, LoaderCircle } from 'lucide-react';
+import { ChevronRight, LoaderCircle, SquareArrowOutUpRight } from 'lucide-react';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
-import MCPUIResourceRenderer from './MCPUIResourceRenderer';
+// Inline MCP-UI renderer is unused now (sidecar only)
 import { isUIResource } from '@mcp-ui/client';
+import { useSidecar } from './Sidecar/SidecarContext';
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
@@ -28,47 +34,80 @@ export default function ToolCallWithResponse({
   isStreamingMessage = false,
   append,
 }: ToolCallWithResponseProps) {
+  const sidecar = useSidecar();
   const toolCall = toolRequest.toolCall.status === 'success' ? toolRequest.toolCall.value : null;
-  if (!toolCall) {
-    return null;
-  }
+  // Always mount the component to keep hooks order consistent. Render nothing if no toolCall.
+  const shouldRender = !!toolCall;
+
+  // Find UI resource in tool response
+  const ui = (toolResponse?.toolResult?.value || []).find((c) => isUIResource(c));
+
+  // Track if we've already auto-opened for this tool call to prevent double-firing
+  const hasAutoOpened = React.useRef(false);
+
+  // Auto-open sidecar when tool finishes and contains UI resource
+  React.useEffect(() => {
+    // Reset flag when streaming starts (new tool call)
+    if (isStreamingMessage) {
+      hasAutoOpened.current = false;
+      return;
+    }
+
+    // Auto-open when tool finishes with UI resource
+    if (ui && isUIResource(ui) && !hasAutoOpened.current) {
+      hasAutoOpened.current = true;
+      // Small delay to ensure the tool response is fully processed
+      const timer = setTimeout(() => {
+        sidecar.openWithMCPUI({
+          resource: ui as ResourceContent,
+          appendPromptToChat: append,
+        });
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+
+    // Explicit return for TypeScript when no conditions are met
+    return undefined;
+  }, [ui, isStreamingMessage, append, sidecar]);
 
   return (
     <>
-      <div
-        className={cn(
-          'w-full text-sm font-sans rounded-lg overflow-hidden border-borderSubtle border bg-background-muted'
-        )}
-      >
-        <ToolCallView
-          {...{
-            isCancelledMessage,
-            toolCall,
-            toolResponse,
-            notifications,
-            isStreamingMessage,
-          }}
-        />
-      </div>
-      {/* MCP UI — Inline */}
-      {toolResponse?.toolResult?.value &&
-        toolResponse.toolResult.value.map((content, index) => {
-          if (isUIResource(content)) {
-            return (
-              <div key={`${content.type}-${index}`} className="mt-3">
-                <MCPUIResourceRenderer content={content} appendPromptToChat={append} />
-                <div className="mt-3 p-4 py-3 border border-borderSubtle rounded-lg bg-background-muted flex items-center">
-                  <FlaskConical className="mr-2" size={20} />
-                  <div className="text-sm font-sans">
-                    MCP UI is experimental and may change at any time.
-                  </div>
-                </div>
-              </div>
-            );
-          } else {
-            return null;
-          }
-        })}
+      {shouldRender && (
+        <div className="relative ">
+          <div
+            className={cn(
+              'w-full text-sm font-sans rounded-lg overflow-hidden border-borderSubtle border bg-background-default p-3'
+            )}
+          >
+            <ToolCallView
+              {...{
+                isCancelledMessage,
+                toolCall: toolCall!,
+                toolResponse,
+                notifications,
+                isStreamingMessage,
+                openInSidecar: (resource: ResourceContent) =>
+                  sidecar.openWithMCPUI({ resource, appendPromptToChat: append }),
+              }}
+            />
+          </div>
+          {ui && isUIResource(ui) ? (
+            <button
+              className="absolute right-[-40px] top-0 z-10 p-2 rounded bg-background-default/95 border border-borderSubtle shadow hover:bg-bgSubtle cursor-pointer"
+              title="Open in side panel"
+              aria-label="Open in side panel"
+              onClick={() => {
+                sidecar.openWithMCPUI({
+                  resource: ui as ResourceContent,
+                  appendPromptToChat: append,
+                });
+              }}
+            >
+              <SquareArrowOutUpRight size={14} />
+            </button>
+          ) : null}
+        </div>
+      )}
     </>
   );
 }
