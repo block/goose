@@ -279,6 +279,14 @@ export type ExtensionConfig = {
     type: 'inline_python';
 };
 
+/**
+ * Extension data containing all extension states
+ * Keys are in format "extension_name.version" (e.g., "todo.v0")
+ */
+export type ExtensionData = {
+    [key: string]: unknown;
+};
+
 export type ExtensionEntry = ExtensionConfig & {
     type?: 'ExtensionEntry';
 } & {
@@ -682,6 +690,7 @@ export type SessionMetadata = {
      * A short description of the session, typically 3 words or less
      */
     description: string;
+    extension_data?: ExtensionData;
     /**
      * The number of input tokens used in the session. Retrieved from the provider's last usage.
      */
@@ -698,10 +707,6 @@ export type SessionMetadata = {
      * ID of the schedule that triggered this session, if any
      */
     schedule_id?: string | null;
-    /**
-     * Session-scoped TODO list content
-     */
-    todo_content?: string | null;
     /**
      * The total number of tokens used in the session. Retrieved from the provider's last usage.
      */
@@ -1260,6 +1265,42 @@ export type ProvidersResponses = {
 };
 
 export type ProvidersResponse2 = ProvidersResponses[keyof ProvidersResponses];
+
+export type GetProviderModelsData = {
+    body?: never;
+    path: {
+        /**
+         * Provider name (e.g., openai)
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/config/providers/{name}/models';
+};
+
+export type GetProviderModelsErrors = {
+    /**
+     * Unknown provider, provider not configured, or authentication error
+     */
+    400: unknown;
+    /**
+     * Rate limit exceeded
+     */
+    429: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type GetProviderModelsResponses = {
+    /**
+     * Models fetched successfully
+     */
+    200: Array<string>;
+};
+
+export type GetProviderModelsResponse = GetProviderModelsResponses[keyof GetProviderModelsResponses];
 
 export type ReadConfigData = {
     body: ConfigKeyQuery;

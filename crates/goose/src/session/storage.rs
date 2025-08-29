@@ -5,10 +5,10 @@
 // - Backup creation
 // Additional debug logging can be added if needed for troubleshooting.
 
-use crate::config::ExtensionConfig;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::providers::base::Provider;
+use crate::session::extension_data::ExtensionData;
 use crate::utils::safe_truncate;
 use anyhow::Result;
 use chrono::Local;
@@ -65,13 +65,12 @@ pub struct SessionMetadata {
     pub accumulated_input_tokens: Option<i32>,
     /// The number of output tokens used in the session. Accumulated across all messages.
     pub accumulated_output_tokens: Option<i32>,
-    /// Session-scoped TODO list content
-    pub todo_content: Option<String>,
-    /// Extensions that were active in this session
-    pub enabled_extensions: Option<Vec<ExtensionConfig>>,
+    /// Extension data containing extension states
+    #[serde(default)]
+    pub extension_data: ExtensionData,
 }
 
-// Custom deserializer to handle old sessions without working_dir and todo_content
+// Custom deserializer to handle old sessions without working_dir
 impl<'de> Deserialize<'de> for SessionMetadata {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -81,7 +80,7 @@ impl<'de> Deserialize<'de> for SessionMetadata {
         struct Helper {
             description: String,
             message_count: usize,
-            schedule_id: Option<String>, // For backward compatibility
+            schedule_id: Option<String>,
             total_tokens: Option<i32>,
             input_tokens: Option<i32>,
             output_tokens: Option<i32>,
@@ -90,7 +89,8 @@ impl<'de> Deserialize<'de> for SessionMetadata {
             accumulated_output_tokens: Option<i32>,
             working_dir: Option<PathBuf>,
             todo_content: Option<String>, // For backward compatibility
-            enabled_extensions: Option<Vec<ExtensionConfig>>, // For backward compatibility
+            #[serde(default)]
+            extension_data: ExtensionData,
         }
 
         let helper = Helper::deserialize(deserializer)?;
@@ -112,8 +112,7 @@ impl<'de> Deserialize<'de> for SessionMetadata {
             accumulated_input_tokens: helper.accumulated_input_tokens,
             accumulated_output_tokens: helper.accumulated_output_tokens,
             working_dir,
-            todo_content: helper.todo_content,
-            enabled_extensions: helper.enabled_extensions,
+            extension_data: helper.extension_data,
         })
     }
 }
@@ -138,8 +137,7 @@ impl SessionMetadata {
             accumulated_total_tokens: None,
             accumulated_input_tokens: None,
             accumulated_output_tokens: None,
-            todo_content: None,
-            enabled_extensions: None,
+            extension_data: ExtensionData::new(),
         }
     }
 }

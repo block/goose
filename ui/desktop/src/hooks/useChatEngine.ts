@@ -101,7 +101,16 @@ export const useChatEngine = ({
     api: getApiUrl('/reply'),
     id: chat.id,
     initialMessages: chat.messages,
-    body: { session_id: chat.id, session_working_dir: window.appConfig.get('GOOSE_WORKING_DIR') },
+    body: {
+      session_id: chat.id,
+      session_working_dir: window.appConfig.get('GOOSE_WORKING_DIR'),
+      ...(chat.recipeConfig?.title
+        ? {
+            recipe_name: chat.recipeConfig.title,
+            recipe_version: chat.recipeConfig?.version ?? 'unknown',
+          }
+        : {}),
+    },
     onFinish: async (_message, _reason) => {
       stopPowerSaveBlocker();
 

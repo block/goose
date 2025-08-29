@@ -5,7 +5,7 @@ use goose::config::{get_all_extensions, get_enabled_extensions, Config, Extensio
 use goose::providers::create;
 use goose::recipe::{Response, SubRecipe};
 use goose::session::Identifier;
-use goose::session::{self, SessionMetadata};
+use goose::session::{self, EnabledExtensionsState, ExtensionState, SessionMetadata};
 use rustyline::EditMode;
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -352,10 +352,11 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     } else if session_config.resume {
         if let Some(session_file) = session_file.as_ref() {
             match session::read_metadata(session_file) {
-                Ok(SessionMetadata {
-                    enabled_extensions: Some(extensions),
-                    ..
-                }) => extensions.into_iter().collect(),
+                Ok(metadata) => {
+                    EnabledExtensionsState::from_extension_data(&metadata.extension_data)
+                        .map(|state| state.extensions.into_iter().collect())
+                        .unwrap_or_else(|| get_enabled_extensions())
+                }
                 _ => get_enabled_extensions(),
             }
         } else {
@@ -583,7 +584,10 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
 
         // Update metadata with extension configurations
         if !all_extension_configs.is_empty() {
-            startup_metadata.enabled_extensions = Some(all_extension_configs);
+            let enabled_extensions_state = EnabledExtensionsState::new(all_extension_configs);
+            if let Err(e) = enabled_extensions_state.to_extension_data(&mut startup_metadata.extension_data) {
+                tracing::warn!("Failed to save enabled extensions to metadata: {}", e);
+            }
         }
 
         // Set the prepared metadata on the session

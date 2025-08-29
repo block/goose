@@ -105,6 +105,10 @@ You can also add any other [MCP Server](#mcp-servers) as a Goose extension, even
 
 Extensions can be installed directly via the [extensions directory][extensions-directory], CLI, or UI.
 
+:::warning Airgapped Environments
+If you're in a corporate or airgapped environment and extensions fail to activate, see [Airgapped/Offline Environments](/docs/troubleshooting#airgappedoffline-environment-issues) for workarounds.
+:::
+
 ### MCP Servers
 
 You can install any MCP server as a Goose extension. 

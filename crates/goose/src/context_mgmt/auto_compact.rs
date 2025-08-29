@@ -269,8 +269,7 @@ mod tests {
             accumulated_total_tokens: Some(100),
             accumulated_input_tokens: Some(50),
             accumulated_output_tokens: Some(50),
-            todo_content: None,
-            enabled_extensions: None,
+            extension_data: crate::session::ExtensionData::new(),
         }
     }
 
@@ -596,6 +595,8 @@ mod tests {
             create_test_message("First message"),
             create_test_message("Second message"),
             create_test_message("Third message"),
+            create_test_message("Fourth message"),
+            create_test_message("Fifth message"),
         ];
 
         // Create session metadata with high token count to trigger compaction
@@ -618,6 +619,7 @@ mod tests {
 
         // Verify the compacted messages are returned
         assert!(!result.messages.is_empty());
+
         // Should have fewer messages after compaction
         assert!(result.messages.len() <= messages.len());
     }
