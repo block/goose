@@ -1127,6 +1127,16 @@ export default function ChatInput({
   const isAnyImageLoading = pastedImages.some((img) => img.isLoading);
   const isAnyDroppedFileLoading = allDroppedFiles.some((file) => file.isLoading);
 
+  const isUserInputDisabled =
+    !hasSubmittableContent ||
+    isAnyImageLoading ||
+    isAnyDroppedFileLoading ||
+    isRecording ||
+    isTranscribing ||
+    isCompacting ||
+    !agentIsReady ||
+    isExtensionsLoading;
+
   // Queue management functions - no storage persistence, only in-memory
   const handleRemoveQueuedMessage = (messageId: string) => {
     setQueuedMessages((prev) => prev.filter((msg) => msg.id !== messageId));
@@ -1241,7 +1251,7 @@ export default function ChatInput({
             onBlur={() => setIsFocused(false)}
             ref={textAreaRef}
             rows={1}
-            disabled={isExtensionsLoading}
+            disabled={isUserInputDisabled}
             style={{
               maxHeight: `${maxHeight}px`,
               overflowY: 'auto',
@@ -1352,25 +1362,9 @@ export default function ChatInput({
                     size="sm"
                     shape="round"
                     variant="outline"
-                    disabled={
-                      !hasSubmittableContent ||
-                      isAnyImageLoading ||
-                      isAnyDroppedFileLoading ||
-                      isRecording ||
-                      isTranscribing ||
-                      isCompacting ||
-                      !agentIsReady ||
-                      isExtensionsLoading
-                    }
+                    disabled={isUserInputDisabled}
                     className={`rounded-full px-10 py-2 flex items-center gap-2 ${
-                      !hasSubmittableContent ||
-                      isAnyImageLoading ||
-                      isAnyDroppedFileLoading ||
-                      isRecording ||
-                      isTranscribing ||
-                      isCompacting ||
-                      !agentIsReady ||
-                      isExtensionsLoading
+                      isUserInputDisabled
                         ? 'bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600'
                         : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600 hover:cursor-pointer'
                     }`}
