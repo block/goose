@@ -1,6 +1,7 @@
 use std::fs;
+use std::hash::DefaultHasher;
 use std::path::PathBuf;
-use xxhash_rust::xxh3::xxh3_64;
+use std::hash::{Hash, Hasher};
 
 use anyhow::Result;
 use etcetera::{choose_app_strategy, AppStrategy};
@@ -15,8 +16,10 @@ pub struct RecipeManifestWithPath {
 }
 
 fn short_id_from_path(path: &str) -> String {
-    let hash = xxh3_64(path.as_bytes());
-    format!("{:016x}", hash)
+    let mut hasher = DefaultHasher::new();
+    path.hash(&mut hasher);
+    let h = hasher.finish();
+    format!("{:016x}", h)
 }
 
 fn load_recipes_from_path(path: &PathBuf) -> Result<Vec<RecipeManifestWithPath>> {
