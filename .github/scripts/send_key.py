@@ -170,10 +170,19 @@ def send_email(email, api_key, sendgrid_api_key):
         from_email = "Goose Team <goose@opensource.block.xyz>"
         subject = "🎉 Your Goose Contributor API Key"
         html_content = f"""
-            <p>Thanks for contributing to the Goose Recipe Cookbook!</p>
-            <p>Here's your <strong>$10 OpenRouter API key</strong>:</p>
-            <p><code>{api_key}</code></p>
-            <p>Happy vibe-coding!<br>– The Goose Team 🪿</p>
+            <p>Thank you for contributing to the <strong>Goose Recipe Cookbook</strong>!</p>
+            <p>🎉 Here's your <strong>$10 OpenRouter API key</strong>:</p>
+            <pre style="background-color:#f4f4f4;padding:10px;border-radius:6px;"><code>{api_key}</code></pre>
+            <p>To use this in Goose (CLI or Desktop):</p>
+            <ul>
+              <li>Go to your <strong>Provider Settings</strong></li>
+              <li>Select <strong>OpenRouter</strong> from the provider list</li>
+              <li>Paste your API key</li>
+            </ul>
+            <p>📚 Full setup instructions:<br>
+            <a href="https://block.github.io/goose/docs/getting-started/providers/#configure-provider">
+            https://block.github.io/goose/docs/getting-started/providers/#configure-provider</a></p>
+            <p>Happy coding!<br>– The Goose Team</p>
         """
         message = Mail(
             from_email=from_email,
