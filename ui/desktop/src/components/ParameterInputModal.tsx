@@ -120,7 +120,7 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
             <h2 className="text-xl font-bold text-textProminent mb-6">Recipe Parameters</h2>
           </div>
           <div className="flex-1 overflow-y-auto px-8">
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4 mb-4">
               {parameters.map((param) => (
                 <div key={param.key}>
                   <label className="block text-md font-medium text-textStandard mb-2">

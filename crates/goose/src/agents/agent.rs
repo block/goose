@@ -41,6 +41,7 @@ use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::session;
+use crate::session::extension_data::ExtensionState;
 use crate::tool_monitor::{ToolCall, ToolMonitor};
 use crate::utils::is_token_cancelled;
 use mcp_core::ToolResult;
@@ -494,7 +495,10 @@ impl Agent {
             let todo_content = if let Some(path) = session_file_path {
                 session::storage::read_metadata(&path)
                     .ok()
-                    .and_then(|m| m.todo_content)
+                    .and_then(|m| {
+                        session::TodoState::from_extension_data(&m.extension_data)
+                            .map(|state| state.content)
+                    })
                     .unwrap_or_default()
             } else {
                 String::new()
@@ -531,7 +535,11 @@ impl Agent {
                 match session::storage::get_path(session_config.id.clone()) {
                     Ok(path) => match session::storage::read_metadata(&path) {
                         Ok(mut metadata) => {
-                            metadata.todo_content = Some(content);
+                            let todo_state = session::TodoState::new(content);
+                            todo_state
+                                .to_extension_data(&mut metadata.extension_data)
+                                .ok();
+
                             let path_clone = path.clone();
                             let metadata_clone = metadata.clone();
                             let update_result = tokio::task::spawn(async move {
@@ -946,7 +954,7 @@ impl Agent {
         // If we compacted, yield the compaction message and history replacement event
         if let Some(compaction_msg) = compaction_msg {
             return Ok(Box::pin(async_stream::try_stream! {
-                yield AgentEvent::Message(Message::assistant().with_text(compaction_msg));
+                yield AgentEvent::Message(Message::assistant().with_summarization_requested(compaction_msg));
                 yield AgentEvent::HistoryReplaced(messages.messages().clone());
 
                 // Continue with normal reply processing using compacted messages

@@ -91,6 +91,8 @@ struct ChatRequest {
     session_id: Option<String>,
     session_working_dir: String,
     scheduled_job_id: Option<String>,
+    recipe_name: Option<String>,
+    recipe_version: Option<String>,
 }
 
 pub struct SseResponse {
@@ -182,6 +184,19 @@ async fn reply_handler(
         interface = "ui",
         "Session started"
     );
+
+    if let Some(recipe_name) = &request.recipe_name {
+        let recipe_version = request.recipe_version.as_deref().unwrap_or("unknown");
+
+        tracing::info!(
+            counter.goose.recipe_runs = 1,
+            recipe_name = %recipe_name,
+            recipe_version = %recipe_version,
+            session_type = "app",
+            interface = "ui",
+            "Recipe execution started"
+        );
+    }
 
     let (tx, rx) = mpsc::channel(100);
     let stream = ReceiverStream::new(rx);
@@ -585,6 +600,8 @@ mod tests {
                         session_id: Some("test-session".to_string()),
                         session_working_dir: "test-working-dir".to_string(),
                         scheduled_job_id: None,
+                        recipe_name: None,
+                        recipe_version: None,
                     })
                     .unwrap(),
                 ))

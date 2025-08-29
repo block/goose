@@ -84,6 +84,9 @@ Sometimes the best way to solve a potential AI problem is with more AI. Goose un
 
 Anyone can submit a recipe knowing it'll get a fair, thorough review. And when you see a recipe get a security approval, remember: it was approved by Goose itself.
 
+<iframe class="aspect-ratio" src="https://www.youtube.com/embed/Jtw_FxF3Iug" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+
+
 <head>
   <meta property="og:title" content="I had Goose Build its Own Secure Recipe Scanner" />
   <meta property="og:type" content="article" />

@@ -297,6 +297,8 @@ async function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
 
   if (parsedUrl.hostname === 'extension') {
     window.webContents.send('add-extension', pendingDeepLink);
+  } else if (parsedUrl.hostname === 'sessions') {
+    window.webContents.send('open-shared-session', pendingDeepLink);
   } else if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
     const recipeDeeplink = parsedUrl.searchParams.get('config');
     const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
@@ -359,6 +361,8 @@ app.on('open-url', async (_event, url) => {
 
     if (parsedUrl.hostname === 'extension') {
       firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
+    } else if (parsedUrl.hostname === 'sessions') {
+      firstOpenWindow.webContents.send('open-shared-session', pendingDeepLink);
     }
   }
 });
@@ -461,13 +465,24 @@ const getGooseProvider = () => {
   ];
 };
 
+const getSharingUrl = () => {
+  // checks app env for sharing url
+  loadShellEnv(app.isPackaged); // will try to take it from the zshrc file
+  // if GOOSE_BASE_URL_SHARE is found, we will set process.env.GOOSE_BASE_URL_SHARE, otherwise we return what it is set
+  // to in the env at bundle time
+  return process.env.GOOSE_BASE_URL_SHARE;
+};
+
 const getVersion = () => {
+  // checks app env for sharing url
   loadShellEnv(app.isPackaged); // will try to take it from the zshrc file
   // to in the env at bundle time
   return process.env.GOOSE_VERSION;
 };
 
 const [provider, model, predefinedModels] = getGooseProvider();
+
+const sharingUrl = getSharingUrl();
 
 const gooseVersion = getVersion();
 
@@ -593,7 +608,7 @@ const createChat = async (
           GOOSE_PORT: port, // Ensure this specific window gets the correct port
           GOOSE_WORKING_DIR: working_dir,
           REQUEST_DIR: dir,
-
+          GOOSE_BASE_URL_SHARE: sharingUrl,
           GOOSE_VERSION: gooseVersion,
           recipe: recipe,
         }),
@@ -648,7 +663,7 @@ const createChat = async (
     GOOSE_PORT: port, // Ensure this specific window's config gets the correct port
     GOOSE_WORKING_DIR: working_dir,
     REQUEST_DIR: dir,
-
+    GOOSE_BASE_URL_SHARE: sharingUrl,
     recipe: recipe,
   };
 
@@ -661,22 +676,28 @@ const createChat = async (
       (function() {
         function setConfig() {
           try {
-            if (window.localStorage) {
+            if (document.readyState === 'complete' && window.localStorage) {
               localStorage.setItem('gooseConfig', '${configStr}');
               return true;
             }
           } catch (e) {
-            console.warn('localStorage access failed:', e);
+            console.warn('[Renderer] localStorage access failed:', e);
           }
           return false;
         }
 
-        if (!setConfig()) {
-          setTimeout(() => {
+        // If document is already complete, try immediately
+        if (document.readyState === 'complete') {
+          if (!setConfig()) {
+            console.error('[Renderer] Failed to set localStorage config despite document being ready');
+          }
+        } else {
+          // Wait for document to be fully ready
+          document.addEventListener('DOMContentLoaded', () => {
             if (!setConfig()) {
-              console.error('Failed to set localStorage after retry - continuing without localStorage config');
+              console.error('[Renderer] Failed to set localStorage config after DOMContentLoaded');
             }
-          }, 100);
+          });
         }
       })();
     `
@@ -1560,37 +1581,44 @@ ipcMain.handle('get-binary-path', (_event, binaryName) => {
   return getBinaryPath(app, binaryName);
 });
 
-ipcMain.handle('read-file', (_event, filePath) => {
-  return new Promise((resolve) => {
-    // Expand tilde to home directory
+ipcMain.handle('read-file', async (_event, filePath) => {
+  try {
     const expandedPath = expandTilde(filePath);
+    if (process.platform === 'win32') {
+      const buffer = await fs.readFile(expandedPath);
+      return { file: buffer.toString('utf8'), filePath: expandedPath, error: null, found: true };
+    }
+    // Non-Windows: keep previous behavior via cat for parity
+    return await new Promise((resolve) => {
+      const cat = spawn('cat', [expandedPath]);
+      let output = '';
+      let errorOutput = '';
 
-    const cat = spawn('cat', [expandedPath]);
-    let output = '';
-    let errorOutput = '';
+      cat.stdout.on('data', (data) => {
+        output += data.toString();
+      });
 
-    cat.stdout.on('data', (data) => {
-      output += data.toString();
+      cat.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+
+      cat.on('close', (code) => {
+        if (code !== 0) {
+          resolve({ file: '', filePath: expandedPath, error: errorOutput || null, found: false });
+          return;
+        }
+        resolve({ file: output, filePath: expandedPath, error: null, found: true });
+      });
+
+      cat.on('error', (error) => {
+        console.error('Error reading file:', error);
+        resolve({ file: '', filePath: expandedPath, error, found: false });
+      });
     });
-
-    cat.stderr.on('data', (data) => {
-      errorOutput += data.toString();
-    });
-
-    cat.on('close', (code) => {
-      if (code !== 0) {
-        // File not found or error
-        resolve({ file: '', filePath: expandedPath, error: errorOutput || null, found: false });
-        return;
-      }
-      resolve({ file: output, filePath: expandedPath, error: null, found: true });
-    });
-
-    cat.on('error', (error) => {
-      console.error('Error reading file:', error);
-      resolve({ file: '', filePath: expandedPath, error, found: false });
-    });
-  });
+  } catch (error) {
+    console.error('Error reading file:', error);
+    return { file: '', filePath: expandTilde(filePath), error, found: false };
+  }
 });
 
 ipcMain.handle('write-file', async (_event, filePath, content) => {

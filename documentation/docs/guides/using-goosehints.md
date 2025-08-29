@@ -131,9 +131,9 @@ Like prompts, this is not an extensive list to shape your `.goosehints` file. Yo
 
 ## Custom Context Files
 
-Goose looks for `.goosehints` files by default, but you can configure a different filename or multiple context files using the `CONTEXT_FILE_NAMES` environment variable. This is useful for:
+Goose looks for `AGENTS.md` then `.goosehints` files by default, but you can configure a different filename or multiple context files using the `CONTEXT_FILE_NAMES` environment variable. This is useful for:
 
-- **Tool compatibility**: Use conventions from other AI tools (`AGENTS.md`, `CLAUDE.md`)
+- **Tool compatibility**: Use conventions from other AI tools (e.g. `CLAUDE.md`)
 - **Organization**: Separate frequently-used rules into multiple files that load automatically
 - **Project conventions**: Use context files from your project's established toolchain (`.cursorrules`)
 
@@ -143,7 +143,7 @@ Here's how it works:
 
 ### Configuration
 
-Set the `CONTEXT_FILE_NAMES` environment variable to a JSON array of filenames. The default is `[".goosehints"]`.
+Set the `CONTEXT_FILE_NAMES` environment variable to a JSON array of filenames. The default is `["AGENTS.md", ".goosehints"]`.
 
 ```bash
 # Single custom file

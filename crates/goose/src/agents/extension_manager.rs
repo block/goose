@@ -26,6 +26,7 @@ use tracing::{error, warn};
 use super::extension::{ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, ToolInfo};
 use super::tool_execution::ToolCallResult;
 use crate::agents::extension::{Envs, ProcessExit};
+use crate::agents::extension_malware_check;
 use crate::config::{Config, ExtensionConfigManager};
 use crate::oauth::oauth_flow;
 use crate::prompt_template;
@@ -363,6 +364,10 @@ impl ExtensionManager {
                 let command = Command::new(cmd).configure(|command| {
                     command.args(args).envs(all_envs);
                 });
+
+                // Check for malicious packages before launching the process
+                extension_malware_check::deny_if_malicious_cmd_args(cmd, args).await?;
+
                 let client = child_process_client(command, timeout).await?;
                 Box::new(client)
             }
