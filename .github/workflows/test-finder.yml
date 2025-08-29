@@ -29,7 +29,7 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
         with:
           fetch-depth: 0
       
@@ -90,7 +90,7 @@ jobs:
       
       - name: Create Pull Request
         if: steps.find_untested.outputs.patch_created == 'true' && github.event.inputs.dry_run != 'true'
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # pin@v7.0.8
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "test: add test for ${{ steps.find_untested.outputs.function_name }}"
@@ -123,10 +123,13 @@ jobs:
       
       - name: Summary
         if: always()
+        env:
+          PATCH_CREATED: ${{ steps.find_untested.outputs.patch_created }}
+          FUNCTION_NAME: ${{ steps.find_untested.outputs.function_name }}
         run: |
-          if [ "${{ steps.find_untested.outputs.patch_created }}" == "true" ]; then
+          if [ "$PATCH_CREATED" == "true" ]; then
             echo "✅ Successfully found untested code and created a test"
-            echo "📝 Function tested: ${{ steps.find_untested.outputs.function_name }}"
+            echo "📝 Function tested: $FUNCTION_NAME"
           else
             echo "ℹ️ No suitable untested code found today"
           fi
