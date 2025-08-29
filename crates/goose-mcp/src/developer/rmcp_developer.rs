@@ -170,6 +170,7 @@ pub struct DeveloperServer {
 
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for DeveloperServer {
+    #[allow(clippy::too_many_lines)]
     fn get_info(&self) -> ServerInfo {
         // Get base instructions and working directory
         let cwd = std::env::current_dir().expect("should have a current working dir");
