@@ -143,7 +143,7 @@ export default function RecipesView({ _onLoadRecipe }: RecipesViewProps = {}) {
       defaultId: 0,
       title: 'Delete Recipe',
       message: `Are you sure you want to delete "${recipeManifest.name}"?`,
-      detail: 'Deleted recipes can be restored later.',
+      detail: 'Recipe file will be deleted.',
     });
 
     if (result.response !== 1) {
@@ -151,15 +151,15 @@ export default function RecipesView({ _onLoadRecipe }: RecipesViewProps = {}) {
     }
 
     try {
-      await await deleteRecipe({ body: { id } });
+      await deleteRecipe({ body: { id } });
       await loadSavedRecipes();
       toastSuccess({
         title: recipeManifest.name,
-        msg: 'Recipe archived successfully',
+        msg: 'Recipe deleted successfully',
       });
     } catch (err) {
-      console.error('Failed to archive recipe:', err);
-      setError(err instanceof Error ? err.message : 'Failed to archive recipe');
+      console.error('Failed to delete recipe:', err);
+      setError(err instanceof Error ? err.message : 'Failed to delete recipe');
     }
   };
 
