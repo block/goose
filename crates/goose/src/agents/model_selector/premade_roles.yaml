@@ -3,6 +3,27 @@
 # Users must specify the provider and model in their config.yaml
 
 roles:
+  # Lead model - high-capability model for initial turns and failure recovery
+  - role: "lead"
+    rules:
+      triggers:
+        # Triggers at conversation start AND on consecutive failures
+        first_turn: true  # Trigger on first turn
+        consecutive_failures: 2  # Same as GOOSE_LEAD_FAILURE_THRESHOLD default
+        source: "any"  # Can trigger on both human (start) and machine (failures)
+      active_turns: 3  # Same as GOOSE_LEAD_TURNS default (initial) and GOOSE_LEAD_FALLBACK_TURNS for failures
+      priority: 30  # Highest priority to ensure it always triggers first
+        
+  - role: "second-opinion"
+    rules:
+      triggers:
+        keywords: ["help"]
+        match_type: "any"
+        after_tool_use: true
+        source: "human"
+      active_turns: 5
+      priority: 5  
+  
   # Deep reasoning and analysis
   - role: "deep-thinker"
     rules:
@@ -14,11 +35,35 @@ roles:
       active_turns: 3
       priority: 10
 
+  # Consult the oracle
+  - role: "oracle"
+    rules:
+      triggers:
+        keywords: ["think", "reason", "analyze", "explain why", "what if"]
+        match_type: "any"
+        complexity_threshold: "medium"
+        source: "human"  # Only trigger on human messages
+      active_turns: 5
+      priority: 15
+
+  # Consult the planner
+  - role: "planner"
+    rules:
+      triggers:
+        keywords: ["think", "plan", "help me", "look at", "consider"]
+        match_type: "any"
+        complexity_threshold: "low"
+        source: "any"  # Only trigger on human messages
+      active_turns: 3
+      priority: 5
+
+
+
   # Code debugging and error recovery
   - role: "debugger"
     rules:
       triggers:
-        keywords: ["error", "bug", "broken", "failed", "exception", "traceback"]
+        keywords: ["error", "bug", "broken", "failed", "exception"]
         match_type: "any"
         on_failure: true
         source: "any"  # Can trigger on both human and machine failures
@@ -128,29 +173,9 @@ roles:
   - role: "intensive-work-monitor"
     rules:
       triggers:
-        consecutive_tools: 3  # 3+ tools in a row
+        consecutive_tools: 10  # 10+ tools in a row
         messages_since_human: 6  # AND been working for 6+ messages
         source: "machine"
       active_turns: 10
       priority: 14
         
-  # Lead model - high-capability model for initial turns and failure recovery
-  - role: "lead"
-    rules:
-      triggers:
-        # Triggers at conversation start AND on consecutive failures
-        first_turn: true  # Trigger on first turn
-        consecutive_failures: 2  # Same as GOOSE_LEAD_FAILURE_THRESHOLD default
-        source: "any"  # Can trigger on both human (start) and machine (failures)
-      active_turns: 3  # Same as GOOSE_LEAD_TURNS default (initial) and GOOSE_LEAD_FALLBACK_TURNS for failures
-      priority: 30  # Highest priority to ensure it always triggers first
-        
-  - role: "second-opinion"
-    rules:
-      triggers:
-        keywords: ["help"]
-        match_type: "any"
-        after_tool_use: true
-        source: "human"
-      active_turns: 5
-      priority: 5

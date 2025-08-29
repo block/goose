@@ -1,6 +1,6 @@
 mod agent;
-mod autopilot;
 mod context;
+pub mod model_selector;
 pub mod extension;
 pub mod extension_malware_check;
 pub mod extension_manager;

@@ -249,7 +249,15 @@ impl AutoPilot {
             current_role: None,
         }
     }
+}
 
+impl Default for AutoPilot {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl AutoPilot {
     /// Count the current turn number (number of user messages)
     fn count_turns(&self, conversation: &Conversation) -> usize {
         conversation
