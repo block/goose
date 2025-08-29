@@ -457,6 +457,13 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
             continue;
         }
 
+        // Check if this key uses OAuth flow - if so, short-circuit to OAuth handling
+        if key.oauth_flow {
+            cliclack::log::info(format!("{} requires OAuth login. Starting device-code flow...", key.name))?;
+            handle_oauth_configuration(provider_name, &key.name).await?;
+            continue;
+        }
+
         // First check if the value is set via environment variable
         let from_env = std::env::var(&key.name).ok();
 
