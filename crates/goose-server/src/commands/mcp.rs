@@ -1,7 +1,6 @@
 use anyhow::{anyhow, Result};
 use goose_mcp::{
-    AutoVisualiserRouter, ComputerControllerRouter, DeveloperRouter, DeveloperServer, MemoryRouter,
-    TutorialRouter,
+    AutoVisualiserRouter, ComputerControllerRouter, DeveloperRouter, DeveloperServer, MemoryRouter, TutorialRouter
 };
 use mcp_server::router::RouterService;
 use mcp_server::{BoundedService, ByteTransport, Server};
@@ -31,7 +30,7 @@ pub async fn run(name: &str) -> Result<()> {
         return Ok(());
     }
     let router: Option<Box<dyn BoundedService>> = match name {
-        "developer" => Some(Box::new(RouterService(DeveloperRouter::new()))),
+        // "developer" => Some(Box::new(RouterService(DeveloperRouter::new()))),
         "computercontroller" => Some(Box::new(RouterService(ComputerControllerRouter::new()))),
         "autovisualiser" => Some(Box::new(RouterService(AutoVisualiserRouter::new()))),
         "memory" => Some(Box::new(RouterService(MemoryRouter::new()))),
