@@ -9,6 +9,7 @@ import {
 } from '../components/ConfigContext';
 import { backupConfig, initConfig, readAllConfig, recoverConfig, validateConfig } from '../api';
 import { COST_TRACKING_ENABLED } from '../updates';
+import { toastService } from '../toasts';
 
 interface InitializationDependencies {
   getExtensions?: (b: boolean) => Promise<FixedExtensionEntry[]>;
@@ -140,6 +141,13 @@ const initializeForRecipe = async ({
 > & {
   recipeConfig: Recipe;
 }) => {
+  toastService.configure({ silent: false });
+
+  const loadingToastId = toastService.loading({
+    title: `Loading recipe: ${recipeConfig.title}`,
+    msg: 'Setting up extensions and environment...',
+  });
+
   await initConfig();
   await readAllConfig({ throwOnError: true });
 
@@ -147,6 +155,9 @@ const initializeForRecipe = async ({
     getExtensions,
     addExtension,
   });
+
+  toastService.dismiss(loadingToastId);
+  toastService.success({ title: 'Recipe ready!', msg: `${recipeConfig.title} is ready to use` });
 
   setPairChat((prevChat) => ({
     ...prevChat,
