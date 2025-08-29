@@ -1,6 +1,6 @@
 # Building and Running Goose with Docker
 
-This guide covers building Docker images for Goose CLI and Server (goosed) for production use, CI/CD pipelines, and local development.
+This guide covers building Docker images for Goose CLI for production use, CI/CD pipelines, and local development.
 
 ## Quick Start
 
@@ -47,7 +47,7 @@ docker build -t goose:local .
 The build process:
 - Uses a multi-stage build to minimize final image size
 - Compiles with optimizations (LTO, stripping, size optimization)
-- Results in a ~365MB image containing both `goose` and `goosed` binaries
+- Results in a ~340MB image containing the `goose` CLI binary
 
 ### Build Options
 
@@ -99,24 +99,7 @@ docker run -it --rm \
   goose:local session
 ```
 
-### Server Mode (goosed)
 
-Run the Goose server:
-```bash
-docker run --rm \
-  -p 3000:3000 \
-  --entrypoint goosed \
-  goose:local
-```
-
-With configuration:
-```bash
-docker run --rm \
-  -p 3000:3000 \
-  -v ~/.config/goose:/home/goose/.config/goose \
-  --entrypoint goosed \
-  goose:local
-```
 
 ### Docker Compose
 
@@ -139,14 +122,6 @@ services:
     stdin_open: true
     tty: true
 
-  goosed:
-    image: ghcr.io/block/goose:latest
-    entrypoint: goosed
-    ports:
-      - "3000:3000"
-    volumes:
-      - goose-config:/home/goose/.config/goose
-
 volumes:
   goose-config:
 ```
@@ -154,7 +129,6 @@ volumes:
 Run with:
 ```bash
 docker-compose run --rm goose session
-docker-compose up goosed
 ```
 
 ## Configuration
@@ -236,11 +210,9 @@ analyze:
 ### Size and Optimization
 
 - **Base image**: Debian Bookworm Slim (minimal runtime dependencies)
-- **Final size**: ~365MB
+- **Final size**: ~340MB
 - **Optimizations**: Link-Time Optimization (LTO), binary stripping, size optimization
-- **Binaries included**:
-  - `/usr/local/bin/goose` (32MB)
-  - `/usr/local/bin/goosed` (25MB)
+- **Binary included**: `/usr/local/bin/goose` (32MB)
 
 ### Security
 
@@ -320,16 +292,17 @@ docker run --rm \
 For production deployments:
 
 1. Use specific image tags instead of `latest`
-2. Implement health checks for goosed
-3. Use secrets management for API keys
-4. Set up logging and monitoring
-5. Configure resource limits and auto-scaling
+2. Use secrets management for API keys
+3. Set up logging and monitoring
+4. Configure resource limits and auto-scaling
 
 Example production Dockerfile:
 ```dockerfile
 FROM ghcr.io/block/goose:v1.6.0
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:3000/health || exit 1
+# Add any additional tools needed for your use case
+USER root
+RUN apt-get update && apt-get install -y your-tools && rm -rf /var/lib/apt/lists/*
+USER goose
 ```
 
 ## Contributing

@@ -29,7 +29,7 @@ ENV CARGO_PROFILE_RELEASE_LTO=true
 ENV CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
 ENV CARGO_PROFILE_RELEASE_OPT_LEVEL=z
 ENV CARGO_PROFILE_RELEASE_STRIP=true
-RUN cargo build --release --package goose-cli --package goose-server
+RUN cargo build --release --package goose-cli
 
 # Runtime stage - minimal Debian
 FROM debian:bookworm-slim@sha256:b1a741487078b369e78119849663d7f1a5341ef2768798f7b7406c4240f86aef
@@ -46,9 +46,8 @@ RUN apt-get update && \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy binaries from builder
+# Copy binary from builder
 COPY --from=builder /build/target/release/goose /usr/local/bin/goose
-COPY --from=builder /build/target/release/goosed /usr/local/bin/goosed
 
 # Create non-root user
 RUN useradd -m -u 1000 -s /bin/bash goose && \
@@ -58,9 +57,6 @@ RUN useradd -m -u 1000 -s /bin/bash goose && \
 # Set up environment
 ENV PATH="/usr/local/bin:${PATH}"
 ENV HOME="/home/goose"
-
-# Expose goosed default port
-EXPOSE 3000
 
 # Switch to non-root user
 USER goose
@@ -72,6 +68,6 @@ CMD ["--help"]
 
 # Labels for metadata
 LABEL org.opencontainers.image.title="Goose"
-LABEL org.opencontainers.image.description="Goose CLI and Server"
+LABEL org.opencontainers.image.description="Goose CLI"
 LABEL org.opencontainers.image.vendor="Block"
 LABEL org.opencontainers.image.source="https://github.com/block/goose"
