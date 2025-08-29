@@ -13,7 +13,7 @@ Extensions are based on the [Model Context Protocol (MCP)](https://github.com/mo
 Goose to a wide ecosystem of capabilities.
 
 :::tip Tutorials
-Check out the [step-by-step tutorials](/docs/category/mcp-servers) for adding and using several Goose Extensions
+Check out the [step-by-step tutorials](/docs/mcp) for adding and using several Goose Extensions
 :::
 
 
