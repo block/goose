@@ -297,6 +297,7 @@ export default function GooseMessage({
             isClicked={messageIndex < messageHistoryIndex}
             toolConfirmationId={toolConfirmationContent.id}
             toolName={toolConfirmationContent.toolName}
+            prompt={toolConfirmationContent.prompt}
           />
         )}
       </div>
