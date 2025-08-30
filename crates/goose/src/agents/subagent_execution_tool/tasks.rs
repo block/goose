@@ -6,9 +6,8 @@ use tokio::process::Command;
 use tokio_util::sync::CancellationToken;
 
 use crate::agents::subagent_execution_tool::task_execution_tracker::TaskExecutionTracker;
-use crate::agents::subagent_execution_tool::task_types::{Task, TaskResult, TaskStatus};
+use crate::agents::subagent_execution_tool::task_types::{Task, TaskResult, TaskStatus, TaskType};
 use crate::agents::subagent_execution_tool::utils::strip_ansi_codes;
-use crate::agents::subagent_handler::run_complete_subagent_task;
 use crate::agents::subagent_task_config::TaskConfig;
 
 pub async fn process_task(
@@ -46,60 +45,71 @@ async fn get_task_result(
     task_config: TaskConfig,
     cancellation_token: CancellationToken,
 ) -> Result<Value, String> {
-    if task.task_type == "text_instruction" {
-        // Handle text_instruction tasks using subagent system
-        handle_text_instruction_task(
-            task,
-            task_execution_tracker,
-            task_config,
-            cancellation_token,
-        )
-        .await
-    } else {
-        // Handle sub_recipe tasks using command execution
-        let (command, output_identifier) = build_command(&task)?;
-        let (stdout_output, stderr_output, success) = run_command(
-            command,
-            &output_identifier,
-            &task.id,
-            task_execution_tracker,
-            cancellation_token,
-        )
-        .await?;
+    match task.task_type {
+        TaskType::InlineRecipe => {
+            handle_inline_recipe_task(task, task_config, cancellation_token).await
+        }
+        TaskType::SubRecipe => {
+            let (command, output_identifier) = build_command(&task)?;
+            let (stdout_output, stderr_output, success) = run_command(
+                command,
+                &output_identifier,
+                &task.id,
+                task_execution_tracker,
+                cancellation_token,
+            )
+            .await?;
 
-        if success {
-            process_output(stdout_output)
-        } else {
-            Err(format!("Command failed:\n{}", &stderr_output))
+            if success {
+                process_output(stdout_output)
+            } else {
+                Err(format!("Command failed:\n{}", &stderr_output))
+            }
         }
     }
 }
 
-async fn handle_text_instruction_task(
+async fn handle_inline_recipe_task(
     task: Task,
-    task_execution_tracker: Arc<TaskExecutionTracker>,
-    task_config: TaskConfig,
+    mut task_config: TaskConfig,
     cancellation_token: CancellationToken,
 ) -> Result<Value, String> {
-    let text_instruction = task
-        .get_text_instruction()
-        .ok_or_else(|| format!("Task {}: Missing text_instruction", task.id))?;
+    use crate::agents::subagent_handler::run_complete_subagent_task_with_options;
+    use crate::recipe::Recipe;
 
-    // Start tracking the task
-    task_execution_tracker.start_task(&task.id).await;
+    let recipe_value = task
+        .payload
+        .get("recipe")
+        .ok_or_else(|| "Missing recipe in inline_recipe task payload".to_string())?;
 
+    let recipe: Recipe = serde_json::from_value(recipe_value.clone())
+        .map_err(|e| format!("Invalid recipe in payload: {}", e))?;
+
+    let return_last_only = task
+        .payload
+        .get("return_last_only")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    task_config.extensions = recipe.extensions.clone();
+
+    let instruction = recipe
+        .instructions
+        .or(recipe.prompt)
+        .ok_or_else(|| "No instructions or prompt in recipe".to_string())?;
     let result = tokio::select! {
-        result = run_complete_subagent_task(text_instruction.to_string(), task_config) => result,
+        result = run_complete_subagent_task_with_options(instruction, task_config, return_last_only) => result,
         _ = cancellation_token.cancelled() => {
             return Err("Task cancelled".to_string());
         }
     };
+
     match result {
         Ok(result_text) => Ok(serde_json::json!({
             "result": result_text
         })),
         Err(e) => {
-            let error_msg = format!("Subagent execution failed: {}", e);
+            let error_msg = format!("Inline recipe execution failed: {}", e);
             Err(error_msg)
         }
     }
@@ -108,36 +118,39 @@ async fn handle_text_instruction_task(
 fn build_command(task: &Task) -> Result<(Command, String), String> {
     let task_error = |field: &str| format!("Task {}: Missing {}", task.id, field);
 
-    let (mut command, output_identifier) = if task.task_type == "sub_recipe" {
-        let sub_recipe_name = task
-            .get_sub_recipe_name()
-            .ok_or_else(|| task_error("sub_recipe name"))?;
-        let path = task
-            .get_sub_recipe_path()
-            .ok_or_else(|| task_error("sub_recipe path"))?;
-        let command_parameters = task
-            .get_command_parameters()
-            .ok_or_else(|| task_error("command_parameters"))?;
+    if !matches!(task.task_type, TaskType::SubRecipe) {
+        return Err("Only sub-recipe tasks can be executed as commands".to_string());
+    }
 
-        let mut cmd = Command::new("goose");
-        cmd.arg("run").arg("--recipe").arg(path).arg("--no-session");
+    let sub_recipe_name = task
+        .get_sub_recipe_name()
+        .ok_or_else(|| task_error("sub_recipe name"))?;
+    let path = task
+        .get_sub_recipe_path()
+        .ok_or_else(|| task_error("sub_recipe path"))?;
+    let command_parameters = task
+        .get_command_parameters()
+        .ok_or_else(|| task_error("command_parameters"))?;
 
-        for (key, value) in command_parameters {
-            let key_str = key.to_string();
-            let value_str = value.as_str().unwrap_or(&value.to_string()).to_string();
-            cmd.arg("--params")
-                .arg(format!("{}={}", key_str, value_str));
-        }
-        (cmd, format!("sub-recipe {}", sub_recipe_name))
-    } else {
-        // This branch should not be reached for text_instruction tasks anymore
-        // as they are handled in handle_text_instruction_task
-        return Err("Text instruction tasks are handled separately".to_string());
-    };
+    let mut command = Command::new("goose");
+    command
+        .arg("run")
+        .arg("--recipe")
+        .arg(path)
+        .arg("--no-session");
+
+    for (key, value) in command_parameters {
+        let key_str = key.to_string();
+        let value_str = value.as_str().unwrap_or(&value.to_string()).to_string();
+        command
+            .arg("--params")
+            .arg(format!("{}={}", key_str, value_str));
+    }
 
     command.stdout(Stdio::piped());
     command.stderr(Stdio::piped());
-    Ok((command, output_identifier))
+
+    Ok((command, format!("sub-recipe {}", sub_recipe_name)))
 }
 
 async fn run_command(
@@ -174,7 +187,7 @@ async fn run_command(
             if let Err(e) = child.kill().await {
                 tracing::warn!("Failed to kill child process: {}", e);
             }
-            // Abort the output reading tasks
+
             stdout_task.abort();
             stderr_task.abort();
             return Err("Command cancelled".to_string());

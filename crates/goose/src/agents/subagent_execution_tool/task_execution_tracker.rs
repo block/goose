@@ -44,8 +44,6 @@ fn format_task_metadata(task_info: &TaskInfo) -> String {
             })
             .collect::<Vec<_>>()
             .join(",")
-    } else if let Some(text_instruction) = task_info.task.get_text_instruction() {
-        format!("instruction={}", text_instruction)
     } else {
         String::new()
     }
@@ -234,7 +232,7 @@ impl TaskExecutionTracker {
                         }
                     }),
                     current_output: task_info.current_output.clone(),
-                    task_type: task_info.task.task_type.clone(),
+                    task_type: task_info.task.task_type.to_string(),
                     task_name: get_task_name(task_info).to_string(),
                     task_metadata: format_task_metadata(task_info),
                     error: task_info.error().cloned(),

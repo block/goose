@@ -455,7 +455,18 @@ impl Agent {
             )
             .await
         } else if tool_call.name == DYNAMIC_TASK_TOOL_NAME_PREFIX {
-            create_dynamic_task(tool_call.arguments.clone(), &self.tasks_manager).await
+            // Get loaded extensions for shortname resolution
+            let loaded_extensions = self
+                .extension_manager
+                .list_extensions()
+                .await
+                .unwrap_or_default();
+            create_dynamic_task(
+                tool_call.arguments.clone(),
+                &self.tasks_manager,
+                loaded_extensions,
+            )
+            .await
         } else if tool_call.name == PLATFORM_READ_RESOURCE_TOOL_NAME {
             // Check if the tool is read_resource and handle it separately
             ToolCallResult::from(
