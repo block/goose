@@ -1,0 +1,414 @@
+[
+  {
+    "id": "StartingTemporalService",
+    "translation": "Starting Temporal service..."
+  },
+  {
+    "id": "RuntimeOS",
+    "translation": "Runtime OS: %s"
+  },
+  {
+    "id": "RuntimeARCH",
+    "translation": "Runtime ARCH: %s"
+  },
+  {
+    "id": "CurrentWorkingDirectory",
+    "translation": "Current working directory: %s"
+  },
+  {
+    "id": "PortEnvironmentVariable",
+    "translation": "PORT environment variable: %s"
+  },
+  {
+    "id": "RustLogEnvironmentVariable",
+    "translation": "RUST_LOG environment variable: %s"
+  },
+  {
+    "id": "TemporalLogLevelEnvironmentVariable",
+    "translation": "TEMPORAL_LOG_LEVEL environment variable: %s"
+  },
+  {
+    "id": "CreatingTemporalService",
+    "translation": "Creating Temporal service..."
+  },
+  {
+    "id": "FailedToCreateTemporalService",
+    "translation": "ERROR: Failed to create Temporal service: %v"
+  },
+  {
+    "id": "TemporalServiceCreatedSuccessfully",
+    "translation": "✓ Temporal service created successfully"
+  },
+  {
+    "id": "TemporalServerRunningOnPort",
+    "translation": "Temporal server running on port %d"
+  },
+  {
+    "id": "TemporalUIAvailableAt",
+    "translation": "Temporal UI available at http://localhost:%d"
+  },
+  {
+    "id": "TemporalServiceStartingOnPort",
+    "translation": "Temporal service starting on port %d"
+  },
+  {
+    "id": "HealthEndpoint",
+    "translation": "Health endpoint: http://localhost:%d/health"
+  },
+  {
+    "id": "JobsEndpoint",
+    "translation": "Jobs endpoint: http://localhost:%d/jobs"
+  },
+  {
+    "id": "PortsEndpoint",
+    "translation": "Ports endpoint: http://localhost:%d/ports"
+  },
+  {
+    "id": "FoundTemporalInPATH",
+    "translation": "Found temporal in PATH at: %s"
+  },
+  {
+    "id": "SuccessfullyVerifiedTemporalCLI",
+    "translation": "Successfully verified temporal CLI at: %s"
+  },
+  {
+    "id": "FailedToVerifyTemporalCLI",
+    "translation": "Failed to verify temporal CLI at %s: %v"
+  },
+  {
+    "id": "TemporalNotFoundInPATH",
+    "translation": "temporal not found in PATH: %v"
+  },
+  {
+    "id": "AttemptToFindInLocalDirectoryFailed",
+    "translation": "Attempt to find in local directory failed: %s."
+  },
+  {
+    "id": "FailedToGetExecutablePath",
+    "translation": "Failed to get executable path: %v"
+  },
+  {
+    "id": "ExecutableDirectory",
+    "translation": "Executable directory: %s"
+  },
+  {
+    "id": "WillCheckTheseAdditionalPaths",
+    "translation": "Will check these additional paths: %v"
+  },
+  {
+    "id": "CheckingPossiblePathsForTemporalCLI",
+    "translation": "Checking %d possible paths for temporal CLI"
+  },
+  {
+    "id": "CheckingPath",
+    "translation": "Checking path %d/%d: %s"
+  },
+  {
+    "id": "FileDoesNotExistAt",
+    "translation": "File does not exist at %s: %v"
+  },
+  {
+    "id": "FileExistsAt",
+    "translation": "File exists at: %s"
+  },
+  {
+    "id": "TemporalServerAlreadyRunningOnPort",
+    "translation": "Temporal server is already running on port %d"
+  },
+  {
+    "id": "TemporalServerNotRunningAttemptingToStart",
+    "translation": "Temporal server not running, attempting to start it on port %d..."
+  },
+  {
+    "id": "CouldNotFindTemporalCLI",
+    "translation": "ERROR: Could not find temporal CLI: %v"
+  },
+  {
+    "id": "UsingTemporalCLIAt",
+    "translation": "Using Temporal CLI at: %s"
+  },
+  {
+    "id": "StartingTemporalServerWithCommand",
+    "translation": "Starting Temporal server with command: %s %v"
+  },
+  {
+    "id": "FailedToStartTemporalServer",
+    "translation": "ERROR: Failed to start Temporal server: %v"
+  },
+  {
+    "id": "TemporalServerStartedWithPID",
+    "translation": "Temporal server started with PID: %d (port: %d, UI port: %d)"
+  },
+  {
+    "id": "TimeoutWaitingForTemporalServerToStart",
+    "translation": "ERROR: Timeout waiting for Temporal server to start after %d attempts"
+  },
+  {
+    "id": "CheckingIfTemporalServerIsReady",
+    "translation": "Checking if Temporal server is ready (attempt %d)..."
+  },
+  {
+    "id": "TemporalServerIsNowReadyOnPort",
+    "translation": "Temporal server is now ready on port %d"
+  },
+  {
+    "id": "TemporalServerNotReadyYet",
+    "translation": "Temporal server not ready yet (attempt %d)"
+  },
+  {
+    "id": "ReceivedShutdownSignal",
+    "translation": "Received shutdown signal"
+  },
+  {
+    "id": "HTTPServerFailed",
+    "translation": "HTTP server failed: %v"
+  },
+  {
+    "id": "EmbeddedRecipeContentInMetadataForJob",
+    "translation": "Embedded recipe content in metadata for job %s (size: %d bytes)"
+  },
+  {
+    "id": "RecipeTooLargeForEmbeddingUsingManagedFile",
+    "translation": "Recipe too large for embedding, using managed file for job %s (size: %d bytes)"
+  },
+  {
+    "id": "CreatedScheduleForJob",
+    "translation": "Created schedule for job: %s"
+  },
+  {
+    "id": "DeletedScheduleForJob",
+    "translation": "Deleted schedule for job: %s"
+  },
+  {
+    "id": "PausedScheduleForJob",
+    "translation": "Paused schedule for job: %s"
+  },
+  {
+    "id": "UnpausedScheduleForJob",
+    "translation": "Unpaused schedule for job: %s"
+  },
+  {
+    "id": "UpdatedScheduleForJobWithNewCron",
+    "translation": "Updated schedule for job %s with new cron: %s"
+  },
+  {
+    "id": "ErrorListingSchedules",
+    "translation": "Error listing schedules: %v"
+  },
+  {
+    "id": "WarningCouldNotGetDetailedInfoForSchedule",
+    "translation": "Warning: Could not get detailed info for schedule %s: %v"
+  },
+  {
+    "id": "FailedToParseMetadataFromNoteFieldForSchedule",
+    "translation": "Failed to parse metadata from Note field for schedule %s: %v"
+  },
+  {
+    "id": "ScheduleHasNoMetadataUsingFallbackValues",
+    "translation": "Schedule %s has no metadata, using fallback values"
+  },
+  {
+    "id": "JobScheduledRun",
+    "translation": "Job %s scheduled run: %s"
+  },
+  {
+    "id": "JobManualRun",
+    "translation": "Job %s manual run: %s"
+  },
+  {
+    "id": "JobManualRunIsMoreRecent",
+    "translation": "Job %s: manual run is more recent"
+  },
+  {
+    "id": "JobScheduledRunIsMoreRecent",
+    "translation": "Job %s: scheduled run is more recent"
+  },
+  {
+    "id": "JobOnlyManualRunAvailable",
+    "translation": "Job %s: only manual run available"
+  },
+  {
+    "id": "JobHasNoRuns",
+    "translation": "Job %s has no runs (scheduled or manual)"
+  },
+  {
+    "id": "RecordingManualRunForJob",
+    "translation": "Recording manual run for job %s at %s"
+  },
+  {
+    "id": "ManualExecutionStartedForJob",
+    "translation": "Manual execution started for job: %s, workflow: %s"
+  },
+  {
+    "id": "StartingKillProcessForJob",
+    "translation": "Starting kill process for job %s"
+  },
+  {
+    "id": "FailedToKillManagedProcessForJob",
+    "translation": "Failed to kill managed process for job %s: %v"
+  },
+  {
+    "id": "SuccessfullyKilledManagedProcessForJob",
+    "translation": "Successfully killed managed process for job %s"
+  },
+  {
+    "id": "ErrorTerminatingWorkflowForJob",
+    "translation": "Error terminating workflow %s for job %s: %v"
+  },
+  {
+    "id": "TerminatedWorkflowForJob",
+    "translation": "Terminated workflow %s for job %s"
+  },
+  {
+    "id": "TerminatedWorkflowsForJob",
+    "translation": "Terminated %d workflow(s) for job %s"
+  },
+  {
+    "id": "KilledJob",
+    "translation": "Killed job: %s (%s)"
+  },
+  {
+    "id": "MarkingJobAsCompleted",
+    "translation": "Marking job %s as completed (requested by Rust scheduler)"
+  },
+  {
+    "id": "NoProcessToCleanUpForJob",
+    "translation": "No process to clean up for job %s: %v"
+  },
+  {
+    "id": "StoredRecipeForJob",
+    "translation": "Stored recipe for job %s: %s -> %s (size: %d bytes)"
+  },
+  {
+    "id": "ErrorFindingRecipeFilesForCleanup",
+    "translation": "Error finding recipe files for cleanup: %v"
+  },
+  {
+    "id": "WarningFailedToRemoveRecipeFile",
+    "translation": "Warning: Failed to remove recipe file %s: %v"
+  },
+  {
+    "id": "CleanedUpRecipeFile",
+    "translation": "Cleaned up recipe file: %s"
+  },
+  {
+    "id": "CreatedTemporaryRecipeFileForJob",
+    "translation": "Created temporary recipe file for job %s: %s"
+  },
+  {
+    "id": "ExecutingBackgroundJobUsingRecipeFile",
+    "translation": "Executing background job %s using recipe file: %s"
+  },
+  {
+    "id": "StartingBackgroundCLIJobWithSession",
+    "translation": "Starting background CLI job %s with session %s"
+  },
+  {
+    "id": "BackgroundJobCancelledKillingProcess",
+    "translation": "Background job %s cancelled, killing process"
+  },
+  {
+    "id": "BackgroundCLIJobFailed",
+    "translation": "Background CLI job %s failed: %v"
+  },
+  {
+    "id": "BackgroundCLIJobCompletedSuccessfullyWithSession",
+    "translation": "Background CLI job %s completed successfully with session %s"
+  },
+  {
+    "id": "ExecutingForegroundJobWithRecipe",
+    "translation": "Executing foreground job %s with recipe %s"
+  },
+  {
+    "id": "DesktopAppIsRunningUsingGUIModeForJob",
+    "translation": "Desktop app is running, using GUI mode for job %s"
+  },
+  {
+    "id": "DesktopAppNotRunningFallingBackToCLIModeForJob",
+    "translation": "Desktop app not running, falling back to CLI mode for job %s"
+  },
+  {
+    "id": "ForegroundGUIJobInitiatedWithSession",
+    "translation": "Foreground GUI job %s initiated with session %s, waiting for completion..."
+  },
+  {
+    "id": "GUISessionCancelled",
+    "translation": "GUI session %s cancelled"
+  },
+  {
+    "id": "ForegroundGUIJobCompletedSuccessfullyWithSession",
+    "translation": "Foreground GUI job %s completed successfully with session %s"
+  },
+  {
+    "id": "ExecutingJobViaCLIFallbackUsingRecipeFile",
+    "translation": "Executing job %s via CLI fallback using recipe file: %s"
+  },
+  {
+    "id": "StartingForegroundCLIJobWithSession",
+    "translation": "Starting foreground CLI job %s with session %s"
+  },
+  {
+    "id": "ForegroundCLIJobCancelledKillingProcess",
+    "translation": "Foreground CLI job %s cancelled, killing process"
+  },
+  {
+    "id": "ForegroundCLIJobFailed",
+    "translation": "Foreground CLI job %s failed: %v"
+  },
+  {
+    "id": "ForegroundCLIJobCompletedSuccessfullyWithSession",
+    "translation": "Foreground CLI job %s completed successfully with session %s"
+  },
+  {
+    "id": "UnsupportedOS",
+    "translation": "Unsupported OS: %s"
+  },
+  {
+    "id": "FailedToCheckIfDesktopAppIsRunning",
+    "translation": "Failed to check if desktop app is running: %v"
+  },
+  {
+    "id": "DesktopAppRunning",
+    "translation": "Desktop app running: %v"
+  },
+  {
+    "id": "GeneratedDeepLinkForJobWithSession",
+    "translation": "Generated deep link for job %s with session %s (length: %d)"
+  },
+  {
+    "id": "OpeningDeepLink",
+    "translation": "Opening deep link: %s"
+  },
+  {
+    "id": "WaitingForSessionToComplete",
+    "translation": "Waiting for session %s to complete (timeout: %v)"
+  },
+  {
+    "id": "CheckingSessionStatus",
+    "translation": "Checking session %s status (elapsed: %v)"
+  },
+  {
+    "id": "ErrorCheckingSessionStatus",
+    "translation": "Error checking session %s status: %v"
+  },
+  {
+    "id": "SessionCompletedAfter",
+    "translation": "Session %s completed after %v"
+  },
+  {
+    "id": "SessionStillRunning",
+    "translation": "Session %s still running (elapsed: %v)"
+  },
+  {
+    "id": "AddedProcessForJobToProcessManager",
+    "translation": "Added process %d for job %s to process manager"
+  },
+  {
+    "id": "RemovedProcessForJobFromProcessManager",
+    "translation": "Removed process %d for job %s from process manager"
+  },
+  {
+    "id": "KillingProcessForJob",
+    "translation": "Killing process %d for job %s"
+  }
+]
