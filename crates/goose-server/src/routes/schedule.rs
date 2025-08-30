@@ -231,26 +231,17 @@ async fn run_now_handler(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let recipe_display_name = match scheduler.list_scheduled_jobs().await {
-        Ok(jobs) => jobs
-            .into_iter()
-            .find(|job| job.id == id)
-            .and_then(|job| {
-                std::path::Path::new(&job.source)
+    let (recipe_display_name, recipe_version_opt) = match scheduler.list_scheduled_jobs().await {
+        Ok(jobs) => {
+            if let Some(job) = jobs.into_iter().find(|job| job.id == id) {
+                let recipe_display_name = std::path::Path::new(&job.source)
                     .file_name()
                     .and_then(|name| name.to_str())
                     .map(|s| s.to_string())
-            })
-            .unwrap_or_else(|| id.clone()),
-        Err(_) => id.clone(),
-    };
+                    .unwrap_or_else(|| id.clone());
 
-    let recipe_version = match scheduler.list_scheduled_jobs().await {
-        Ok(jobs) => jobs
-            .into_iter()
-            .find(|job| job.id == id)
-            .and_then(|job| {
-                std::fs::read_to_string(&job.source)
+                let recipe_version_opt = tokio::fs::read_to_string(&job.source)
+                    .await
                     .ok()
                     .and_then(|content| {
                         goose::recipe::template_recipe::parse_recipe_content(
@@ -263,16 +254,21 @@ async fn run_now_handler(
                         )
                         .ok()
                         .map(|(r, _)| r.version)
-                    })
-            })
-            .unwrap_or_else(|| "unknown".to_string()),
-        Err(_) => "unknown".to_string(),
+                    });
+
+                (recipe_display_name, recipe_version_opt)
+            } else {
+                (id.clone(), None)
+            }
+        }
+        Err(_) => (id.clone(), None),
     };
 
+    let recipe_version_tag = recipe_version_opt.as_deref().unwrap_or("");
     tracing::info!(
         counter.goose.recipe_runs = 1,
         recipe_name = %recipe_display_name,
-        recipe_version = %recipe_version,
+        recipe_version = %recipe_version_tag,
         session_type = "schedule",
         interface = "server",
         "Recipe execution started"
