@@ -4,7 +4,8 @@ import { Textarea } from './ui/textarea';
 import { Card, CardContent } from './ui/card';
 import { AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 import Modal from './Modal';
-import { getApiUrl, getSecretKey } from '../config';
+import { getSecretKey } from '../config';
+import { getExtensions, providers } from '../api/sdk.gen';
 
 interface SystemInfo {
   gooseVersion: string;
@@ -29,26 +30,13 @@ export default function ReportFailureModal({ isOpen, onClose }: ReportFailureMod
 
   const getExtensionCount = async (): Promise<number> => {
     try {
-      // Get extension count from the API
-      const apiUrl = getApiUrl('/extension/list');
       const secretKey = getSecretKey();
-
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-      };
-
-      if (secretKey) {
-        headers['X-Secret-Key'] = secretKey;
-      }
-
-      const response = await fetch(apiUrl, {
-        method: 'GET',
-        headers,
+      const response = await getExtensions({
+        headers: secretKey ? { 'X-Secret-Key': secretKey } : {},
       });
 
-      if (response.ok) {
-        const extensions = await response.json();
-        return Array.isArray(extensions) ? extensions.length : 0;
+      if (response.data && Array.isArray(response.data)) {
+        return response.data.length;
       }
     } catch (error) {
       console.error('Failed to get extension count:', error);
@@ -73,21 +61,16 @@ export default function ReportFailureModal({ isOpen, onClose }: ReportFailureMod
 
       // Try to get current provider type (without sensitive data)
       try {
-        const providerApiUrl = getApiUrl('/agent/providers');
-        const providerResponse = await fetch(providerApiUrl, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(secretKey && { 'X-Secret-Key': secretKey }),
-          },
+        const providerResponse = await providers({
+          headers: secretKey ? { 'X-Secret-Key': secretKey } : {},
         });
 
-        if (providerResponse.ok) {
-          const providers = await providerResponse.json();
-          // Get the first configured provider name (without sensitive details)
-          if (Array.isArray(providers) && providers.length > 0) {
-            info.providerType = providers[0].name || 'Unknown Provider';
-          }
+        if (
+          providerResponse.data &&
+          Array.isArray(providerResponse.data) &&
+          providerResponse.data.length > 0
+        ) {
+          info.providerType = providerResponse.data[0].name || 'Unknown Provider';
         }
       } catch (error) {
         console.debug('Provider detection failed:', error);
@@ -101,25 +84,8 @@ export default function ReportFailureModal({ isOpen, onClose }: ReportFailureMod
 
   const collectRecentErrors = useCallback(async () => {
     try {
-      // For now, collect from browser console errors and any stored logs
-      const recentErrors: string[] = [];
-
-      const storedErrors = localStorage.getItem('goose_recent_errors');
-      if (storedErrors) {
-        try {
-          const parsed = JSON.parse(storedErrors);
-          if (Array.isArray(parsed)) {
-            recentErrors.push(...parsed.slice(-10));
-          }
-        } catch (parseError) {
-          console.debug('Failed to parse stored errors:', parseError);
-        }
-      }
-
-      if (recentErrors.length === 0) {
-        recentErrors.push('Recent errors are logged to the main process via ErrorBoundary');
-      }
-
+      // Recent errors are logged to the main process via ErrorBoundary
+      const recentErrors = ['Recent errors are logged to the main process via ErrorBoundary'];
       setRecentErrors(recentErrors);
     } catch (error) {
       console.error('Failed to collect recent errors:', error);
@@ -175,34 +141,6 @@ ${recentErrors.join('\n')}
     setSubmitStatus('idle');
 
     try {
-      // Prepare the issue data for local logging
-      const issueData = {
-        title: `[FAILURE REPORT] ${description.substring(0, 60)}${description.length > 60 ? '...' : ''}`,
-        description,
-        systemInfo,
-        recentErrors,
-        timestamp: new Date().toISOString(),
-      };
-
-      // Log the report locally via our API
-      const apiUrl = getApiUrl('/report-failure');
-      const secretKey = getSecretKey();
-
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-      };
-
-      if (secretKey) {
-        headers['X-Secret-Key'] = secretKey;
-      }
-
-      await fetch(apiUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(issueData),
-      });
-
-      // Construct GitHub issue URL
       const issueTitle = encodeURIComponent(
         `[FAILURE REPORT] ${description.substring(0, 60)}${description.length > 60 ? '...' : ''}`
       );
@@ -211,7 +149,6 @@ ${recentErrors.join('\n')}
 
       const githubUrl = `https://github.com/block/goose/issues/new?title=${issueTitle}&body=${issueBody}&labels=${labels}`;
 
-      // Open GitHub in system browser
       window.electron?.openUrl?.(githubUrl) || window.open(githubUrl, '_blank');
 
       setSubmitStatus('success');
