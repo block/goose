@@ -1,7 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { useConfig } from '../components/ConfigContext';
 import { ChatType } from '../types/chat';
-import { Recipe } from '../recipe';
 import { initializeSystem } from '../utils/providerUtils';
 import { initializeCostDatabase } from '../utils/costDatabase';
 import {
@@ -13,10 +12,10 @@ import {
   resumeAgent,
   startAgent,
   validateConfig,
+  Recipe,
 } from '../api';
 import { COST_TRACKING_ENABLED } from '../updates';
 import { convertApiMessageToFrontendMessage } from '../components/context_management';
-import { fetchSessionDetails } from '../sessions';
 
 export enum AgentState {
   UNINITIALIZED = 'uninitialized',
@@ -61,20 +60,24 @@ export function useAgent(): UseAgentReturn {
   const currentChat = useCallback(
     async (initContext: InitializationContext): Promise<ChatType> => {
       if (agentIsInitialized && sessionId) {
-        const sessionDetails = await fetchSessionDetails(sessionId);
+        const agentResponse = await resumeAgent({
+          body: {
+            session_id: sessionId,
+          },
+          throwOnError: true,
+        });
 
-        const chat: ChatType = {
-          sessionId: sessionDetails.sessionId,
-          title: sessionDetails.metadata.description || 'Chat Session',
+        const agentSessionInfo = agentResponse.data;
+        const sessionMetadata = agentSessionInfo.metadata;
+        let chat: ChatType = {
+          sessionId: agentSessionInfo.session_id,
+          title: sessionMetadata.recipe?.title || sessionMetadata.description,
           messageHistoryIndex: 0,
-          messages: sessionDetails.messages,
+          messages: agentSessionInfo.messages.map((message: ApiMessage) =>
+            convertApiMessageToFrontendMessage(message, true, true)
+          ),
+          recipeConfig: sessionMetadata.recipe,
         };
-
-        // TODO(Douwe): we should store the recipe config on the server so not needed here:
-        if (initContext.recipeConfig) {
-          chat.title = initContext.recipeConfig.title || chat.title;
-          chat.recipeConfig = initContext.recipeConfig;
-        }
 
         return chat;
       }
@@ -108,6 +111,7 @@ export function useAgent(): UseAgentReturn {
             : await startAgent({
                 body: {
                   working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
+                  recipe: initContext.recipeConfig,
                 },
                 throwOnError: true,
               });
@@ -145,19 +149,16 @@ export function useAgent(): UseAgentReturn {
             }
           }
 
+          const sessionMetadata = agentSessionInfo.metadata;
           let initChat: ChatType = {
             sessionId: agentSessionInfo.session_id,
-            title: agentSessionInfo.metadata.description,
+            title: sessionMetadata.recipe?.title || sessionMetadata.description,
             messageHistoryIndex: 0,
             messages: agentSessionInfo.messages.map((message: ApiMessage) =>
               convertApiMessageToFrontendMessage(message, true, true)
             ),
+            recipeConfig: sessionMetadata.recipe,
           };
-
-          if (initContext.recipeConfig) {
-            initChat.title = initContext.recipeConfig.title || initChat.title;
-            initChat.recipeConfig = initContext.recipeConfig;
-          }
 
           setAgentState(AgentState.INITIALIZED);
 

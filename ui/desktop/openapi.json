@@ -3364,6 +3364,14 @@
             "description": "The number of output tokens used in the session. Retrieved from the provider's last usage.",
             "nullable": true
           },
+          "recipe": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Recipe"
+              }
+            ],
+            "nullable": true
+          },
           "schedule_id": {
             "type": "string",
             "description": "ID of the schedule that triggered this session, if any",
@@ -3416,6 +3424,14 @@
           "working_dir"
         ],
         "properties": {
+          "recipe": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Recipe"
+              }
+            ],
+            "nullable": true
+          },
           "working_dir": {
             "type": "string"
           }

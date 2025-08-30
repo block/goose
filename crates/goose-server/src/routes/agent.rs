@@ -12,7 +12,7 @@ use goose::conversation::message::Message;
 use goose::conversation::Conversation;
 use goose::model::ModelConfig;
 use goose::providers::create;
-use goose::recipe::Response;
+use goose::recipe::{Recipe, Response};
 use goose::session;
 use goose::session::SessionMetadata;
 use goose::{
@@ -81,6 +81,7 @@ pub struct UpdateRouterToolSelectorRequest {
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct StartAgentRequest {
     working_dir: String,
+    recipe: Option<Recipe>,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -116,15 +117,8 @@ async fn start_agent(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(payload): Json<StartAgentRequest>,
-) -> Result<Json<StartAgentResponse>, (StatusCode, Json<ErrorResponse>)> {
-    verify_secret_key(&headers, &state).map_err(|_| {
-        (
-            StatusCode::UNAUTHORIZED,
-            Json(ErrorResponse {
-                error: "Unauthorized - Invalid or missing API key".to_string(),
-            }),
-        )
-    })?;
+) -> Result<Json<StartAgentResponse>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
 
     state.reset().await;
 
@@ -143,9 +137,18 @@ async fn start_agent(
         accumulated_input_tokens: Some(0),
         accumulated_output_tokens: Some(0),
         extension_data: Default::default(),
+        recipe: payload.recipe,
+    };
+
+    let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
+        Ok(path) => path,
+        Err(_) => return Err(StatusCode::BAD_REQUEST),
     };
 
     let conversation = Conversation::empty();
+    session::storage::save_messages_with_metadata(&session_path, &metadata, &conversation)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
     Ok(Json(StartAgentResponse {
         session_id,
         metadata,

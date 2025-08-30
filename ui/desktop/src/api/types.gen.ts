@@ -712,6 +712,7 @@ export type SessionMetadata = {
      * The number of output tokens used in the session. Retrieved from the provider's last usage.
      */
     output_tokens?: number | null;
+    recipe?: Recipe | null;
     /**
      * ID of the schedule that triggered this session, if any
      */
@@ -737,6 +738,7 @@ export type Settings = {
 };
 
 export type StartAgentRequest = {
+    recipe?: Recipe | null;
     working_dir: string;
 };
 

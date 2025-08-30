@@ -14,8 +14,6 @@ interface ChatContextType {
   hasActiveSession: boolean;
   setRecipeConfig: (recipe: Recipe | null) => void;
   clearRecipeConfig: () => void;
-  setRecipeParameters: (parameters: Record<string, string> | null) => void;
-  clearRecipeParameters: () => void;
   // Draft functionality
   draft: string;
   setDraft: (draft: string) => void;
@@ -63,7 +61,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
       messages: [],
       messageHistoryIndex: 0,
       recipeConfig: null, // Clear recipe when resetting chat
-      recipeParameters: null, // Clear parameters when resetting chat
+      recipeParameters: null, // Clear  when resetting chat
     });
     // Clear draft when resetting chat
     clearDraft();
@@ -83,20 +81,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
     });
   };
 
-  const setRecipeParameters = (parameters: Record<string, string> | null) => {
-    setChat({
-      ...chat,
-      recipeParameters: parameters,
-    });
-  };
-
-  const clearRecipeParameters = () => {
-    setChat({
-      ...chat,
-      recipeParameters: null,
-    });
-  };
-
   const hasActiveSession = chat.messages.length > 0;
 
   const value: ChatContextType = {
@@ -106,8 +90,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
     hasActiveSession,
     setRecipeConfig,
     clearRecipeConfig,
-    setRecipeParameters,
-    clearRecipeParameters,
     draft,
     setDraft,
     clearDraft,

@@ -14,6 +14,8 @@ export const useRecipeManager = (chat: ChatType, recipeConfig?: Recipe | null) =
   const [recipeAccepted, setRecipeAccepted] = useState(false);
   const [hasSecurityWarnings, setHasSecurityWarnings] = useState(false);
 
+  const [recipeParameters, setRecipeParameters] = useState<Record<string, string> | null>(null);
+
   const chatContext = useChatContext();
   const messages = chat.messages;
 
@@ -24,29 +26,7 @@ export const useRecipeManager = (chat: ChatType, recipeConfig?: Recipe | null) =
     messagesRef.current = messages;
   }, [messages]);
 
-  // Get recipeConfig from multiple sources with priority:
-  // 1. Chat context (persisted recipe)
-  // 2. Passed recipeConfig parameter
-  // 3. App config (from deeplinks)
-  const finalRecipeConfig = useMemo(() => {
-    if (chatContext?.chat.recipeConfig !== undefined) {
-      return chatContext.chat.recipeConfig;
-    }
-
-    if (recipeConfig !== undefined) {
-      return recipeConfig;
-    }
-
-    const appRecipeConfig = window.appConfig.get('recipe') as Recipe | null;
-    if (appRecipeConfig) {
-      return appRecipeConfig;
-    }
-    return null;
-  }, [chatContext, recipeConfig]);
-
-  const recipeParameters = useMemo(() => {
-    return chatContext?.chat.recipeParameters || null;
-  }, [chatContext?.chat.recipeParameters]);
+  const finalRecipeConfig = chat.recipeConfig;
 
   useEffect(() => {
     if (!chatContext?.setRecipeConfig) return;
@@ -89,18 +69,18 @@ export const useRecipeManager = (chat: ChatType, recipeConfig?: Recipe | null) =
     checkRecipeAcceptance();
   }, [finalRecipeConfig]);
 
+  const requiresParameters = !!finalRecipeConfig?.parameters?.length;
+  const hasParameters = !!recipeParameters;
+  const hasMessages = messages.length > 0;
   useEffect(() => {
     // If we have parameters and they haven't been set yet, open the modal.
-    if (
-      finalRecipeConfig?.parameters &&
-      finalRecipeConfig.parameters.length > 0 &&
-      recipeAccepted
-    ) {
-      if (!recipeParameters) {
+    console.log('should open modal', requiresParameters, hasParameters, recipeAccepted);
+    if (requiresParameters && recipeAccepted) {
+      if (!hasParameters && !hasMessages) {
         setIsParameterModalOpen(true);
       }
     }
-  }, [finalRecipeConfig, recipeParameters, recipeAccepted]);
+  }, [requiresParameters, hasParameters, recipeAccepted, hasMessages]);
 
   useEffect(() => {
     setReadyForAutoUserPrompt(true);
@@ -122,9 +102,7 @@ export const useRecipeManager = (chat: ChatType, recipeConfig?: Recipe | null) =
   }, [finalRecipeConfig, recipeParameters, recipeAccepted]);
 
   const handleParameterSubmit = async (inputValues: Record<string, string>) => {
-    if (chatContext?.setRecipeParameters) {
-      chatContext.setRecipeParameters(inputValues);
-    }
+    setRecipeParameters(inputValues);
     setIsParameterModalOpen(false);
 
     try {
@@ -257,16 +235,6 @@ export const useRecipeManager = (chat: ChatType, recipeConfig?: Recipe | null) =
     };
   }, []);
 
-  const resetRecipe = () => {
-    chatContext?.setRecipeConfig(null);
-    chatContext?.setRecipeParameters(null);
-    setRecipeAccepted(false);
-    setIsParameterModalOpen(false);
-    setIsRecipeWarningModalOpen(false);
-    setRecipeError(null);
-    setHasSecurityWarnings(false);
-  };
-
   return {
     recipeConfig: finalRecipeConfig,
     initialPrompt,
@@ -284,6 +252,5 @@ export const useRecipeManager = (chat: ChatType, recipeConfig?: Recipe | null) =
     handleRecipeAccept,
     handleRecipeCancel,
     hasSecurityWarnings,
-    resetRecipe,
   };
 };

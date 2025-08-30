@@ -47,14 +47,11 @@ export default function Pair({
   const [recipeResetOverride, setRecipeResetOverride] = useState(false);
   const [loadingChat, setLoadingChat] = useState(false);
 
-  const recipeJson = JSON.stringify(routeState.recipeConfig);
-
   useEffect(() => {
     const initializeFromState = async () => {
       setLoadingChat(true);
       try {
         const chat = await loadCurrentChat({
-          recipeConfig: routeState.recipeConfig,
           resumeSessionId: routeState.resumeSessionId,
           setAgentWaitingMessage,
         });
@@ -78,7 +75,6 @@ export default function Pair({
     loadCurrentChat,
     routeState.resumeSessionId,
     routeState.recipeConfig,
-    recipeJson, // TODO: Hacky object comparison, but works for now
   ]);
 
   // Followed by sending the initialMessage if we have one. This will happen
@@ -114,10 +110,13 @@ export default function Pair({
     console.log('Message submitted:', message);
   };
 
-  const initialValue =
-    messageToSubmit ||
-    (agentState === 'initialized' && !recipeResetOverride ? recipeInitialPrompt : undefined) ||
-    undefined;
+  const recipePrompt =
+    agentState === 'initialized' &&
+    !recipeResetOverride &&
+    chat.messages.length === 0 &&
+    recipeInitialPrompt;
+
+  const initialValue = messageToSubmit || recipePrompt || undefined;
 
   const customChatInputProps = {
     // Pass initial message from Hub or recipe prompt

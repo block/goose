@@ -8,6 +8,7 @@
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::providers::base::Provider;
+use crate::recipe::Recipe;
 use crate::session::extension_data::ExtensionData;
 use crate::utils::safe_truncate;
 use anyhow::Result;
@@ -69,6 +70,8 @@ pub struct SessionMetadata {
     /// Extension data containing extension states
     #[serde(default)]
     pub extension_data: ExtensionData,
+
+    pub recipe: Option<Recipe>,
 }
 
 // Custom deserializer to handle old sessions without working_dir
@@ -91,6 +94,7 @@ impl<'de> Deserialize<'de> for SessionMetadata {
             working_dir: Option<PathBuf>,
             #[serde(default)]
             extension_data: ExtensionData,
+            recipe: Option<Recipe>,
         }
 
         let helper = Helper::deserialize(deserializer)?;
@@ -113,6 +117,7 @@ impl<'de> Deserialize<'de> for SessionMetadata {
             accumulated_output_tokens: helper.accumulated_output_tokens,
             working_dir,
             extension_data: helper.extension_data,
+            recipe: helper.recipe,
         })
     }
 }
@@ -138,6 +143,7 @@ impl SessionMetadata {
             accumulated_input_tokens: None,
             accumulated_output_tokens: None,
             extension_data: ExtensionData::new(),
+            recipe: None,
         }
     }
 }

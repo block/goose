@@ -317,6 +317,10 @@ export default function App() {
   const [viewType, setViewType] = useState<string | null>(null);
   const [resumeSessionId, setResumeSessionId] = useState<string | null>(null);
 
+  const [recipeFromAppConfig, setRecipeFromAppConfig] = useState<Recipe | null>(
+    (window.appConfig?.get('recipe') as Recipe) || null
+  );
+
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
 
@@ -349,6 +353,7 @@ export default function App() {
   const resetChatIfNecessary = useCallback(() => {
     if (chat.messages.length > 0) {
       setResumeSessionId(null);
+      setRecipeFromAppConfig(null);
       resetChat();
     }
   }, [resetChat, chat.messages.length]);
@@ -371,11 +376,9 @@ export default function App() {
       return;
     }
 
-    const recipeConfig = (window.appConfig?.get('recipe') || undefined) as Recipe;
-
     const stateData: PairRouteState = {
       resumeSessionId: resumeSessionId || undefined,
-      recipeConfig: recipeConfig,
+      recipeConfig: recipeFromAppConfig || undefined,
     };
     (async () => {
       try {
@@ -389,7 +392,7 @@ export default function App() {
       }
     })();
 
-    if (resumeSessionId || (recipeConfig && typeof recipeConfig === 'object')) {
+    if (resumeSessionId || recipeFromAppConfig) {
       window.location.hash = '#/pair';
       window.history.replaceState(stateData, '', '#/pair');
       return;
@@ -401,9 +404,9 @@ export default function App() {
         window.history.replaceState({}, '', '#/');
       }
     } else {
-      if (viewType === 'recipeEditor' && recipeConfig) {
+      if (viewType === 'recipeEditor' && recipeFromAppConfig) {
         window.location.hash = '#/recipe-editor';
-        window.history.replaceState({ config: recipeConfig }, '', '#/recipe-editor');
+        window.history.replaceState({ config: recipeFromAppConfig }, '', '#/recipe-editor');
       } else {
         const routeMap: Record<string, string> = {
           chat: '#/',
@@ -427,6 +430,7 @@ export default function App() {
       }
     }
   }, [
+    recipeFromAppConfig,
     resetChat,
     loadCurrentChat,
     setAgentWaitingMessage,
