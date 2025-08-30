@@ -1,6 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Moon, Sliders, Sun } from 'lucide-react';
 import { Button } from '../ui/button';
+import {
+  broadcastThemeChange,
+  getCurrentThemeState,
+  applyTheme,
+  type ThemeState,
+} from '../../utils/themeSync';
 
 interface ThemeSelectorProps {
   className?: string;
@@ -13,64 +19,60 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
   hideTitle = false,
   horizontal = false,
 }) => {
-  const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'system'>(() => {
-    const savedUseSystemTheme = localStorage.getItem('use_system_theme') === 'true';
-    if (savedUseSystemTheme) {
-      return 'system';
-    }
-    const savedTheme = localStorage.getItem('theme');
-    return savedTheme === 'dark' ? 'dark' : 'light';
-  });
-
-  const [isDarkMode, setDarkMode] = useState(() => {
-    // First check localStorage to determine the intended theme
-    const savedUseSystemTheme = localStorage.getItem('use_system_theme') === 'true';
-    const savedTheme = localStorage.getItem('theme');
-
-    if (savedUseSystemTheme) {
-      // Use system preference
-      const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      return systemPrefersDark;
-    } else if (savedTheme) {
-      // Use saved theme preference
-      return savedTheme === 'dark';
-    } else {
-      // Fallback: check current DOM state to maintain consistency
-      return document.documentElement.classList.contains('dark');
-    }
-  });
+  // Initialize state from current theme state
+  const [themeState] = useState<ThemeState>(() => getCurrentThemeState());
+  const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'system'>(
+    () => themeState.themeMode
+  );
+  const [isDarkMode, setDarkMode] = useState(() => themeState.isDarkMode);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
-    const handleThemeChange = (e: { matches: boolean }) => {
+    const handleSystemThemeChange = (e: { matches: boolean }) => {
       if (themeMode === 'system') {
-        setDarkMode(e.matches);
+        const newDarkMode = e.matches;
+        setDarkMode(newDarkMode);
+
+        // Broadcast the change to other windows
+        const newThemeState: ThemeState = {
+          themeMode: 'system',
+          isDarkMode: newDarkMode,
+          timestamp: Date.now(),
+        };
+        broadcastThemeChange(newThemeState);
       }
     };
 
-    mediaQuery.addEventListener('change', handleThemeChange);
+    mediaQuery.addEventListener('change', handleSystemThemeChange);
 
+    // Update theme based on current mode
+    let newDarkMode: boolean;
     if (themeMode === 'system') {
-      setDarkMode(mediaQuery.matches);
+      newDarkMode = mediaQuery.matches;
       localStorage.setItem('use_system_theme', 'true');
     } else {
-      setDarkMode(themeMode === 'dark');
+      newDarkMode = themeMode === 'dark';
       localStorage.setItem('use_system_theme', 'false');
       localStorage.setItem('theme', themeMode);
     }
 
-    return () => mediaQuery.removeEventListener('change', handleThemeChange);
+    setDarkMode(newDarkMode);
+
+    // Apply theme and broadcast change
+    applyTheme(newDarkMode);
+    const newThemeState: ThemeState = {
+      themeMode,
+      isDarkMode: newDarkMode,
+      timestamp: Date.now(),
+    };
+    broadcastThemeChange(newThemeState);
+
+    return () => mediaQuery.removeEventListener('change', handleSystemThemeChange);
   }, [themeMode]);
 
   useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-      document.documentElement.classList.remove('light');
-    } else {
-      document.documentElement.classList.remove('dark');
-      document.documentElement.classList.add('light');
-    }
+    applyTheme(isDarkMode);
   }, [isDarkMode]);
 
   const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {

@@ -465,6 +465,15 @@ export default function App() {
 
   const { chat, setChat } = useChat({ setIsLoadingSession, setView, setPairChat });
 
+  // Initialize theme synchronization on app load
+  useEffect(() => {
+    import('./utils/themeSync').then(({ initializeThemeSync }) => {
+      // Initialize theme sync which will apply the current theme and listen for changes
+      // and return for component unmount cleanup
+      return initializeThemeSync();
+    });
+  }, []);
+
   useEffect(() => {
     if (initAttemptedRef.current) {
       console.log('Initialization already attempted, skipping...');

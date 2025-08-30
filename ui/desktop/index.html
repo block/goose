@@ -14,23 +14,32 @@
               const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
               const savedTheme = localStorage.getItem('theme');
               const isDark = useSystemTheme ? systemPrefersDark : (savedTheme ? savedTheme === 'dark' : systemPrefersDark);
-              
+
               if (isDark) {
                 document.documentElement.classList.add('dark');
+                document.documentElement.classList.remove('light');
               } else {
                 document.documentElement.classList.remove('dark');
+                document.documentElement.classList.add('light');
               }
             } else {
               const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
               if (systemPrefersDark) {
                 document.documentElement.classList.add('dark');
+                document.documentElement.classList.remove('light');
+              } else {
+                document.documentElement.classList.remove('dark');
+                document.documentElement.classList.add('light');
               }
             }
           } catch (error) {
-            console.warn('Failed to initialize theme from localStorage, using system preference:', error);
             const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
             if (systemPrefersDark) {
               document.documentElement.classList.add('dark');
+              document.documentElement.classList.remove('light');
+            } else {
+              document.documentElement.classList.remove('dark');
+              document.documentElement.classList.add('light');
             }
           }
         }
@@ -44,6 +53,9 @@
             setTimeout(initializeTheme, 50);
           });
         }
+        
+        // Also retry after a short delay to ensure it's applied
+        setTimeout(initializeTheme, 100);
       })();
     </script>
     <link href="./src/styles/main.css" rel="stylesheet"/>
