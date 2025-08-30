@@ -11,10 +11,12 @@ pub mod autovisualiser;
 pub mod computercontroller;
 mod developer;
 mod memory;
+mod todo;
 mod tutorial;
 
 pub use autovisualiser::AutoVisualiserRouter;
 pub use computercontroller::ComputerControllerRouter;
 pub use developer::DeveloperRouter;
 pub use memory::MemoryRouter;
+pub use todo::TodoRouter;
 pub use tutorial::TutorialRouter;
