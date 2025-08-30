@@ -39,25 +39,6 @@ impl PromptManager {
         self.system_prompt_override = Some(template);
     }
 
-    /// Normalize a model name (replace - and / with _, lower case)
-    fn normalize_model_name(name: &str) -> String {
-        name.replace(['-', '/', '.'], "_").to_lowercase()
-    }
-
-    /// Map model (normalized) to prompt filenames; returns filename if a key is contained in the normalized model
-    fn model_prompt_map(model: &str) -> &'static str {
-        let mut map = HashMap::new();
-        map.insert("gpt_4_1", "system_gpt_4.1.md");
-        // Add more mappings as needed
-        let norm_model = Self::normalize_model_name(model);
-        for (key, val) in &map {
-            if norm_model.contains(key) {
-                return val;
-            }
-        }
-        "system.md"
-    }
-
     /// Build the final system prompt
     ///
     /// * `extensions_info` – extension information for each extension/MCP
@@ -122,9 +103,8 @@ impl PromptManager {
             let sanitized_override_prompt = sanitize_unicode_tags(override_prompt);
             prompt_template::render_inline_once(&sanitized_override_prompt, &context)
                 .expect("Prompt should render")
-        } else if let Some(model) = &model_to_use {
-            // Use the fuzzy mapping to determine the prompt file, or fall back to legacy logic
-            let prompt_file = Self::model_prompt_map(model);
+        } else if let Some(_model) = &model_to_use {
+            let prompt_file = "system.md";
             match prompt_template::render_global_file(prompt_file, &context) {
                 Ok(prompt) => prompt,
                 Err(_) => {
@@ -176,58 +156,6 @@ impl PromptManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_normalize_model_name() {
-        assert_eq!(PromptManager::normalize_model_name("gpt-4.1"), "gpt_4_1");
-        assert_eq!(PromptManager::normalize_model_name("gpt/3.5"), "gpt_3_5");
-        assert_eq!(
-            PromptManager::normalize_model_name("GPT-3.5/PLUS"),
-            "gpt_3_5_plus"
-        );
-    }
-
-    #[test]
-    fn test_model_prompt_map_matches() {
-        // should match prompts based on contained normalized keys
-        assert_eq!(
-            PromptManager::model_prompt_map("gpt-4.1"),
-            "system_gpt_4.1.md"
-        );
-
-        assert_eq!(
-            PromptManager::model_prompt_map("gpt-4.1-2025-04-14"),
-            "system_gpt_4.1.md"
-        );
-
-        assert_eq!(
-            PromptManager::model_prompt_map("openai/gpt-4.1"),
-            "system_gpt_4.1.md"
-        );
-        assert_eq!(
-            PromptManager::model_prompt_map("goose-gpt-4-1"),
-            "system_gpt_4.1.md"
-        );
-        assert_eq!(
-            PromptManager::model_prompt_map("gpt-4-1-huge"),
-            "system_gpt_4.1.md"
-        );
-    }
-
-    #[test]
-    fn test_model_prompt_map_none() {
-        // should return system.md for unrecognized/unsupported model names
-        assert_eq!(PromptManager::model_prompt_map("llama-3-70b"), "system.md");
-        assert_eq!(PromptManager::model_prompt_map("goose"), "system.md");
-        assert_eq!(
-            PromptManager::model_prompt_map("claude-3.7-sonnet"),
-            "system.md"
-        );
-        assert_eq!(
-            PromptManager::model_prompt_map("xxx-unknown-model"),
-            "system.md"
-        );
-    }
 
     #[test]
     fn test_build_system_prompt_sanitizes_override() {

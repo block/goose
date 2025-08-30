@@ -48,14 +48,11 @@ fn test_format_result_data_for_display() {
 
     let obj = json!({"key": "value", "num": 42});
     let result = format_result_data_for_display(&obj);
-    assert!(result.contains("key"));
-    assert!(result.contains("value"));
+    assert_eq!(result, "{...} (2 fields)");
 
     let arr = json!([1, 2, 3]);
     let result = format_result_data_for_display(&arr);
-    assert!(result.contains("1"));
-    assert!(result.contains("2"));
-    assert!(result.contains("3"));
+    assert_eq!(result, "[...] (3 items)");
 }
 
 #[test]
@@ -136,10 +133,10 @@ fn test_format_tasks_update_from_event() {
     assert!(result.contains("⏳ 1 pending"));
     assert!(result.contains("🏃 1 running"));
     assert!(result.contains("✅ 1 completed"));
-    assert!(result.contains("❌ 0 failed"));
+    assert!(!result.contains("❌ 0 failed"));
+    assert!(!result.contains("❌ failed"));
     assert!(result.contains("🏃 test-task"));
     assert!(result.contains("✅ another-task"));
-    assert!(result.contains("📋 Parameters: param=value"));
     assert!(result.contains("⏱️  1.5s"));
     assert!(result.contains("💬 Processing..."));
 
@@ -188,7 +185,7 @@ fn test_format_tasks_complete_from_event_no_failures() {
 
     assert!(!result.contains("❌ Failed Tasks:"));
     assert!(result.contains("📈 Success Rate: 100.0%"));
-    assert!(result.contains("❌ Failed: 0"));
+    assert!(!result.contains("❌ Failed"));
 }
 
 #[test]
@@ -207,8 +204,7 @@ fn test_format_task_display_running() {
 
     let result = format_task_display(&task);
 
-    assert!(result.contains("🏃 data-processor (sub_recipe)"));
-    assert!(result.contains("📋 Parameters: input=file.txt,output=result.json"));
+    assert!(result.contains("🏃 data-processor"));
     assert!(result.contains("⏱️  1.5s"));
     assert!(result.contains("💬 Processing data... ... Almost done..."));
 }
@@ -229,7 +225,7 @@ fn test_format_task_display_completed() {
 
     let result = format_task_display(&task);
 
-    assert!(result.contains("✅ analyzer (text_instruction)"));
+    assert!(result.contains("✅ analyzer"));
     assert!(result.contains("⏱️  3.2s"));
     assert!(!result.contains("📋 Parameters"));
     assert!(result.contains("📄"));
@@ -254,7 +250,7 @@ fn test_format_task_display_failed() {
 
     let result = format_task_display(&task);
 
-    assert!(result.contains("❌ failing-task (sub_recipe)"));
+    assert!(result.contains("❌ failing-task"));
     assert!(!result.contains("⏱️"));
     assert!(result.contains("⚠️"));
     assert!(result.contains("Network connection failed after multiple retries"));
@@ -276,8 +272,8 @@ fn test_format_task_display_pending() {
 
     let result = format_task_display(&task);
 
-    assert!(result.contains("⏳ waiting-task (sub_recipe)"));
-    assert!(result.contains("📋 Parameters: priority=high"));
+    assert!(result.contains("⏳ waiting-task"));
+    assert!(!result.contains("📋 Parameters"));
     assert!(!result.contains("⏱️"));
     assert!(!result.contains("💬"));
     assert!(!result.contains("📄"));

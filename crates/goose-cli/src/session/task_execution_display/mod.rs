@@ -18,20 +18,29 @@ pub const TASK_EXECUTION_NOTIFICATION_TYPE: &str = "task_execution";
 static INITIAL_SHOWN: AtomicBool = AtomicBool::new(false);
 
 fn format_result_data_for_display(result_data: &Value) -> String {
-    match result_data {
+    const MAX_RESULT_LENGTH: usize = 100;
+
+    let result = match result_data {
         Value::String(s) => s.to_string(),
         Value::Object(obj) => {
             if let Some(partial_output) = obj.get("partial_output").and_then(|v| v.as_str()) {
                 format!("Partial output: {}", partial_output)
+            } else if let Some(result) = obj.get("result").and_then(|v| v.as_str()) {
+                // If there's a "result" field, just show that instead of the whole object
+                result.to_string()
             } else {
-                serde_json::to_string_pretty(obj).unwrap_or_default()
+                // For other objects, show a compact representation
+                format!("{{...}} ({} fields)", obj.len())
             }
         }
-        Value::Array(arr) => serde_json::to_string_pretty(arr).unwrap_or_default(),
+        Value::Array(arr) => format!("[...] ({} items)", arr.len()),
         Value::Bool(b) => b.to_string(),
         Value::Number(n) => n.to_string(),
         Value::Null => "null".to_string(),
-    }
+    };
+
+    // Truncate long results to keep output clean
+    safe_truncate(&result, MAX_RESULT_LENGTH)
 }
 
 fn process_output_for_display(output: &str) -> String {
@@ -92,10 +101,18 @@ fn format_tasks_update_from_event(event: &TaskExecutionNotificationEvent) -> Str
             display.push_str(MOVE_TO_PROGRESS_LINE);
         }
 
-        display.push_str(&format!(
-            "📊 Progress: {} total | ⏳ {} pending | 🏃 {} running | ✅ {} completed | ❌ {} failed", 
-            stats.total, stats.pending, stats.running, stats.completed, stats.failed
-        ));
+        let mut progress_parts = vec![
+            format!("📊 Progress: {} total", stats.total),
+            format!("⏳ {} pending", stats.pending),
+            format!("🏃 {} running", stats.running),
+            format!("✅ {} completed", stats.completed),
+        ];
+
+        if stats.failed > 0 {
+            progress_parts.push(format!("❌ {} failed", stats.failed));
+        }
+
+        display.push_str(&progress_parts.join(" | "));
         display.push_str(&format!("{}\n\n", CLEAR_TO_EOL));
 
         let mut sorted_tasks = tasks.clone();
@@ -124,7 +141,9 @@ fn format_tasks_complete_from_event(event: &TaskExecutionNotificationEvent) -> S
 
         summary.push_str(&format!("Total Tasks: {}\n", stats.total));
         summary.push_str(&format!("✅ Completed: {}\n", stats.completed));
-        summary.push_str(&format!("❌ Failed: {}\n", stats.failed));
+        if stats.failed > 0 {
+            summary.push_str(&format!("❌ Failed: {}\n", stats.failed));
+        }
         summary.push_str(&format!("📈 Success Rate: {:.1}%\n", stats.success_rate));
 
         if !failed_tasks.is_empty() {
@@ -154,18 +173,39 @@ fn format_task_display(task: &TaskInfo) -> String {
         TaskStatus::Failed => "❌",
     };
 
+    // Show a clean, informative task header
+    // For text_instruction tasks, extract the instruction from metadata
+    // For sub_recipe tasks, show the recipe name
+    let task_description = if task.task_type == "text_instruction" {
+        // Extract the instruction text from the metadata (format: "instruction=...")
+        if task.task_metadata.starts_with("instruction=") {
+            task.task_metadata
+                .strip_prefix("instruction=")
+                .unwrap_or(&task.task_metadata)
+                .to_string()
+        } else {
+            // Fallback to task name or type
+            if !task.task_name.is_empty() && task.task_name != task.id {
+                task.task_name.clone()
+            } else {
+                task.task_type.clone()
+            }
+        }
+    } else {
+        // For sub_recipe, show the recipe name if available
+        if !task.task_name.is_empty() && task.task_name != task.id {
+            task.task_name.clone()
+        } else {
+            task.task_type.clone()
+        }
+    };
+
     task_display.push_str(&format!(
-        "{} {} ({}){}\n",
-        status_icon, task.task_name, task.task_type, CLEAR_TO_EOL
+        "{} {}{}\n",
+        status_icon, task_description, CLEAR_TO_EOL
     ));
 
-    if !task.task_metadata.is_empty() {
-        task_display.push_str(&format!(
-            "   📋 Parameters: {}{}\n",
-            task.task_metadata, CLEAR_TO_EOL
-        ));
-    }
-
+    // Only show timing if available
     if let Some(duration_secs) = task.duration_secs {
         task_display.push_str(&format!("   ⏱️  {:.1}s{}\n", duration_secs, CLEAR_TO_EOL));
     }
