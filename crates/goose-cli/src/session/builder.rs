@@ -1,13 +1,14 @@
 use console::style;
 use goose::agents::types::RetryConfig;
 use goose::agents::Agent;
-use goose::config::{Config, ExtensionConfig, ExtensionConfigManager};
+use goose::config::{get_all_extensions, get_enabled_extensions, Config, ExtensionConfig};
 use goose::providers::create;
 use goose::recipe::{Response, SubRecipe};
-use goose::session;
 use goose::session::Identifier;
+use goose::session::{self, EnabledExtensionsState, ExtensionState, SessionMetadata};
 use rustyline::EditMode;
 use std::collections::HashSet;
+use std::path::PathBuf;
 use std::process;
 use std::sync::Arc;
 use tokio::task::JoinSet;
@@ -114,18 +115,17 @@ async fn offer_extension_debugging_help(
     debug_agent.update_provider(provider).await?;
 
     // Add the developer extension if available to help with debugging
-    if let Ok(extensions) = ExtensionConfigManager::get_all() {
-        for ext_wrapper in extensions {
-            if ext_wrapper.enabled && ext_wrapper.config.name() == "developer" {
-                if let Err(e) = debug_agent.add_extension(ext_wrapper.config).await {
-                    // If we can't add developer extension, continue without it
-                    eprintln!(
-                        "Note: Could not load developer extension for debugging: {}",
-                        e
-                    );
-                }
-                break;
+    let extensions = get_all_extensions();
+    for ext_wrapper in extensions {
+        if ext_wrapper.enabled && ext_wrapper.config.name() == "developer" {
+            if let Err(e) = debug_agent.add_extension(ext_wrapper.config).await {
+                // If we can't add developer extension, continue without it
+                eprintln!(
+                    "Note: Could not load developer extension for debugging: {}",
+                    e
+                );
             }
+            break;
         }
     }
 
@@ -142,6 +142,7 @@ async fn offer_extension_debugging_help(
         None,
         None,
         None,
+        None, // No startup metadata for debug sessions
     );
 
     // Process the debugging request
@@ -348,13 +349,21 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
     let extensions_to_run: Vec<_> = if let Some(extensions) = session_config.extensions_override {
         agent.disable_router_for_recipe().await;
         extensions.into_iter().collect()
+    } else if session_config.resume {
+        if let Some(session_file) = session_file.as_ref() {
+            match session::read_metadata(session_file) {
+                Ok(metadata) => {
+                    EnabledExtensionsState::from_extension_data(&metadata.extension_data)
+                        .map(|state| state.extensions.into_iter().collect())
+                        .unwrap_or_else(|| get_enabled_extensions())
+                }
+                _ => get_enabled_extensions(),
+            }
+        } else {
+            get_enabled_extensions()
+        }
     } else {
-        ExtensionConfigManager::get_all()
-            .expect("should load extensions")
-            .into_iter()
-            .filter(|ext| ext.enabled)
-            .map(|ext| ext.config)
-            .collect()
+        get_enabled_extensions()
     };
 
     let mut set = JoinSet::new();
@@ -421,7 +430,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             }
         });
 
-    // Create new session
+    // Create new session (initially without metadata)
     let mut session = Session::new(
         Arc::try_unwrap(agent_ptr).unwrap_or_else(|_| panic!("There should be no more references")),
         session_file.clone(),
@@ -430,22 +439,19 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         session_config.max_turns,
         edit_mode,
         session_config.retry_config.clone(),
+        None, // Will be set after extensions are loaded
     );
 
-    // Add extensions if provided
+    // Add stdio extensions if provided
     for extension_str in session_config.extensions {
         if let Err(e) = session.add_extension(extension_str.clone()).await {
             eprintln!(
                 "{}",
                 style(format!(
-                    "Warning: Failed to start extension '{}': {}",
+                    "Warning: Failed to start stdio extension '{}' ({}), continuing without it",
                     extension_str, e
                 ))
                 .yellow()
-            );
-            eprintln!(
-                "{}",
-                style(format!("Continuing without extension '{}'", extension_str)).yellow()
             );
 
             // Offer debugging help
@@ -468,16 +474,8 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             eprintln!(
                 "{}",
                 style(format!(
-                    "Warning: Failed to start remote extension '{}': {}",
+                    "Warning: Failed to start remote extension '{}' ({}), continuing without it",
                     extension_str, e
-                ))
-                .yellow()
-            );
-            eprintln!(
-                "{}",
-                style(format!(
-                    "Continuing without remote extension '{}'",
-                    extension_str
                 ))
                 .yellow()
             );
@@ -505,16 +503,8 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             eprintln!(
                 "{}",
                 style(format!(
-                    "Warning: Failed to start streamable HTTP extension '{}': {}",
+                    "Warning: Failed to start streamable HTTP extension '{}' ({}), continuing without it",
                     extension_str, e
-                ))
-                .yellow()
-            );
-            eprintln!(
-                "{}",
-                style(format!(
-                    "Continuing without streamable HTTP extension '{}'",
-                    extension_str
                 ))
                 .yellow()
             );
@@ -539,16 +529,8 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             eprintln!(
                 "{}",
                 style(format!(
-                    "Warning: Failed to start builtin extension '{}': {}",
+                    "Warning: Failed to start builtin extension '{}' ({}), continuing without it",
                     builtin, e
-                ))
-                .yellow()
-            );
-            eprintln!(
-                "{}",
-                style(format!(
-                    "Continuing without builtin extension '{}'",
-                    builtin
                 ))
                 .yellow()
             );
@@ -583,6 +565,33 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         let override_prompt =
             std::fs::read_to_string(path).expect("Failed to read system prompt file");
         session.agent.override_system_prompt(override_prompt).await;
+    }
+
+    // Prepare metadata with extension configurations (will be persisted with first message)
+    if let Some(session_file) = &session_file {
+        let all_extension_configs = session.agent.get_extension_configs().await;
+
+        // Prepare metadata to be persisted with first message
+        let mut startup_metadata = if session_config.resume {
+            // For resumed sessions, load existing metadata or create new one
+            session::read_metadata(session_file).unwrap_or_else(|_| {
+                SessionMetadata::new(std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
+            })
+        } else {
+            // For new sessions, create fresh metadata
+            SessionMetadata::new(std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
+        };
+
+        // Update metadata with extension configurations
+        if !all_extension_configs.is_empty() {
+            let enabled_extensions_state = EnabledExtensionsState::new(all_extension_configs);
+            if let Err(e) = enabled_extensions_state.to_extension_data(&mut startup_metadata.extension_data) {
+                tracing::warn!("Failed to save enabled extensions to metadata: {}", e);
+            }
+        }
+
+        // Set the prepared metadata on the session
+        session.startup_metadata = Some(startup_metadata);
     }
 
     // Display session information unless in quiet mode
