@@ -227,7 +227,7 @@ export default function ProgressiveMessageList({
     toolCallNotifications,
     isStreamingMessage,
     onMessageUpdate,
-    hasCompactionMarker
+    hasCompactionMarker,
   ]);
 
   return (
