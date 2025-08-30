@@ -53,10 +53,7 @@ async fn manage_context(
 ) -> Result<Json<ContextManageResponse>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    let agent = state
-        .get_agent()
-        .await
-        .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
+    let agent = state.get_agent().await;
 
     let mut processed_messages = Conversation::new_unvalidated(vec![]);
     let mut token_counts: Vec<usize> = vec![];

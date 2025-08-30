@@ -56,5 +56,5 @@ export function shouldHideMessage(messageIndex: number, chains: number[][]): boo
 }
 
 export function getChainForMessage(messageIndex: number, chains: number[][]): number[] | null {
-  return chains.find(chain => chain.includes(messageIndex)) || null;
+  return chains.find((chain) => chain.includes(messageIndex)) || null;
 }

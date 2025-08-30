@@ -19,7 +19,7 @@ describe('AlertBox', () => {
       };
 
       render(<AlertBox alert={alert} />);
-      
+
       expect(screen.getByText('Test info message')).toBeInTheDocument();
     });
 
@@ -31,7 +31,7 @@ describe('AlertBox', () => {
 
       const { container } = render(<AlertBox alert={alert} />);
       const alertElement = container.querySelector('.bg-\\[\\#cc4b03\\]');
-      
+
       expect(alertElement).toBeInTheDocument();
       expect(screen.getByText('Test warning message')).toBeInTheDocument();
     });
@@ -44,7 +44,7 @@ describe('AlertBox', () => {
 
       const { container } = render(<AlertBox alert={alert} />);
       const alertElement = container.querySelector('.bg-\\[\\#d7040e\\]');
-      
+
       expect(alertElement).toBeInTheDocument();
       expect(screen.getByText('Test error message')).toBeInTheDocument();
     });
@@ -57,7 +57,7 @@ describe('AlertBox', () => {
 
       const { container } = render(<AlertBox alert={alert} className="custom-class" />);
       const alertElement = container.firstChild as HTMLElement;
-      
+
       expect(alertElement).toHaveClass('custom-class');
     });
   });
@@ -74,13 +74,15 @@ describe('AlertBox', () => {
       };
 
       render(<AlertBox alert={alert} />);
-      
+
       expect(screen.getByText('50')).toBeInTheDocument();
       expect(screen.getByText('50%')).toBeInTheDocument();
       expect(screen.getByText('100')).toBeInTheDocument();
-      
+
       // Check progress bar exists
-      const progressDots = screen.getByText('Context window').parentElement?.parentElement?.querySelectorAll('.h-\\[2px\\]');
+      const progressDots = screen
+        .getByText('Context window')
+        .parentElement?.parentElement?.querySelectorAll('.h-\\[2px\\]');
       expect(progressDots).toBeDefined();
     });
 
@@ -95,7 +97,7 @@ describe('AlertBox', () => {
       };
 
       render(<AlertBox alert={alert} />);
-      
+
       expect(screen.getByText('0')).toBeInTheDocument();
       expect(screen.getByText('0%')).toBeInTheDocument();
       expect(screen.getByText('100')).toBeInTheDocument();
@@ -112,7 +114,7 @@ describe('AlertBox', () => {
       };
 
       render(<AlertBox alert={alert} />);
-      
+
       // Use getAllByText since there are multiple "100" elements (current and total)
       const hundredElements = screen.getAllByText('100');
       expect(hundredElements).toHaveLength(2); // One for current, one for total
@@ -130,7 +132,7 @@ describe('AlertBox', () => {
       };
 
       render(<AlertBox alert={alert} />);
-      
+
       expect(screen.getByText('1.5k')).toBeInTheDocument();
       expect(screen.getByText('15%')).toBeInTheDocument();
       expect(screen.getByText('10k')).toBeInTheDocument();
@@ -147,7 +149,7 @@ describe('AlertBox', () => {
       };
 
       render(<AlertBox alert={alert} />);
-      
+
       expect(screen.getByText('150')).toBeInTheDocument();
       expect(screen.getByText('150%')).toBeInTheDocument();
       expect(screen.getByText('100')).toBeInTheDocument();
@@ -165,13 +167,13 @@ describe('AlertBox', () => {
       };
 
       render(<AlertBox alert={alert} />);
-      
+
       expect(screen.getByText('Compact now')).toBeInTheDocument();
     });
 
     it('should render compact button with custom icon', () => {
       const CompactIcon = () => <span data-testid="compact-icon">📦</span>;
-      
+
       const alert: Alert = {
         type: AlertType.Info,
         message: 'Context window',
@@ -182,14 +184,14 @@ describe('AlertBox', () => {
       };
 
       render(<AlertBox alert={alert} />);
-      
+
       expect(screen.getByTestId('compact-icon')).toBeInTheDocument();
       expect(screen.getByText('Compact now')).toBeInTheDocument();
     });
 
     it('should call onCompact when compact button is clicked', async () => {
       const user = userEvent.setup();
-      
+
       const alert: Alert = {
         type: AlertType.Info,
         message: 'Context window',
@@ -199,16 +201,16 @@ describe('AlertBox', () => {
       };
 
       render(<AlertBox alert={alert} />);
-      
+
       const compactButton = screen.getByText('Compact now');
       await user.click(compactButton);
-      
+
       expect(mockOnCompact).toHaveBeenCalledTimes(1);
     });
 
     it('should prevent event propagation when compact button is clicked', () => {
       const mockParentClick = vi.fn();
-      
+
       const alert: Alert = {
         type: AlertType.Info,
         message: 'Context window',
@@ -222,10 +224,10 @@ describe('AlertBox', () => {
           <AlertBox alert={alert} />
         </div>
       );
-      
+
       const compactButton = screen.getByText('Compact now');
       fireEvent.click(compactButton);
-      
+
       expect(mockOnCompact).toHaveBeenCalledTimes(1);
       expect(mockParentClick).not.toHaveBeenCalled();
     });
@@ -240,7 +242,7 @@ describe('AlertBox', () => {
       };
 
       render(<AlertBox alert={alert} />);
-      
+
       expect(screen.queryByText('Compact now')).not.toBeInTheDocument();
     });
 
@@ -253,7 +255,7 @@ describe('AlertBox', () => {
       };
 
       render(<AlertBox alert={alert} />);
-      
+
       expect(screen.queryByText('Compact now')).not.toBeInTheDocument();
     });
   });
@@ -272,7 +274,7 @@ describe('AlertBox', () => {
       };
 
       render(<AlertBox alert={alert} />);
-      
+
       expect(screen.getByText('75')).toBeInTheDocument();
       expect(screen.getByText('75%')).toBeInTheDocument();
       expect(screen.getByText('100')).toBeInTheDocument();
@@ -286,9 +288,14 @@ describe('AlertBox', () => {
       };
 
       render(<AlertBox alert={alert} />);
-      
+
       // Use a function matcher to handle the whitespace-pre-line rendering
-      expect(screen.getByText((content) => content.includes('Line 1') && content.includes('Line 2') && content.includes('Line 3'))).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          (content) =>
+            content.includes('Line 1') && content.includes('Line 2') && content.includes('Line 3')
+        )
+      ).toBeInTheDocument();
     });
   });
 
@@ -300,7 +307,7 @@ describe('AlertBox', () => {
       };
 
       const { container } = render(<AlertBox alert={alert} />);
-      
+
       // Should still render the alert container
       const alertElement = container.querySelector('.flex.flex-col.gap-2');
       expect(alertElement).toBeInTheDocument();
@@ -317,7 +324,7 @@ describe('AlertBox', () => {
       };
 
       render(<AlertBox alert={alert} />);
-      
+
       expect(screen.getByText('10')).toBeInTheDocument();
       expect(screen.getByText('0')).toBeInTheDocument();
       // Progress percentage would be Infinity, but it should still render

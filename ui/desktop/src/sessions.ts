@@ -1,18 +1,13 @@
 import { Message } from './types/message';
-import { getSessionHistory, listSessions, SessionInfo, Message as ApiMessage } from './api';
+import {
+  getSessionHistory,
+  listSessions,
+  SessionInfo,
+  Message as ApiMessage,
+  SessionMetadata,
+} from './api';
 import { convertApiMessageToFrontendMessage } from './components/context_management';
 import { getApiUrl } from './config';
-
-export interface SessionMetadata {
-  description: string;
-  message_count: number;
-  total_tokens: number | null;
-  working_dir: string; // Required in type, but may be missing in old sessions
-  // Add the accumulated token fields from the API
-  accumulated_input_tokens?: number | null;
-  accumulated_output_tokens?: number | null;
-  accumulated_total_tokens?: number | null;
-}
 
 // Helper function to ensure working directory is set
 export function ensureWorkingDir(metadata: Partial<SessionMetadata>): SessionMetadata {
@@ -34,12 +29,8 @@ export interface Session {
   metadata: SessionMetadata;
 }
 
-export interface SessionsResponse {
-  sessions: Session[];
-}
-
 export interface SessionDetails {
-  session_id: string;
+  sessionId: string;
   metadata: SessionMetadata;
   messages: Message[];
 }
@@ -68,38 +59,32 @@ export function generateSessionId(): string {
  * @returns Promise with an array of Session objects
  */
 export async function fetchSessions(): Promise<Session[]> {
-  try {
-    const response = await listSessions<true>();
+  const response = await listSessions<true>();
 
-    // Check if the response has the expected structure
-    if (response && response.data && response.data.sessions) {
-      // Since the API returns SessionInfo, we need to convert to Session
-      const sessions = response.data.sessions
-        .filter(
-          (sessionInfo: SessionInfo) =>
-            sessionInfo.metadata && sessionInfo.metadata.message_count > 0
-        )
-        .map(
-          (sessionInfo: SessionInfo): Session => ({
-            id: sessionInfo.id,
-            path: sessionInfo.path,
-            modified: sessionInfo.modified,
-            metadata: ensureWorkingDir(sessionInfo.metadata),
-          })
-        );
-
-      // order sessions by 'modified' date descending
-      sessions.sort(
-        (a: Session, b: Session) => new Date(b.modified).getTime() - new Date(a.modified).getTime()
+  // Check if the response has the expected structure
+  if (response && response.data && response.data.sessions) {
+    // Since the API returns SessionInfo, we need to convert to Session
+    const sessions = response.data.sessions
+      .filter(
+        (sessionInfo: SessionInfo) => sessionInfo.metadata && sessionInfo.metadata.message_count > 0
+      )
+      .map(
+        (sessionInfo: SessionInfo): Session => ({
+          id: sessionInfo.id,
+          path: sessionInfo.path,
+          modified: sessionInfo.modified,
+          metadata: ensureWorkingDir(sessionInfo.metadata),
+        })
       );
 
-      return sessions;
-    } else {
-      throw new Error('Unexpected response format from listSessions');
-    }
-  } catch (error) {
-    console.error('Error fetching sessions:', error);
-    throw error;
+    // order sessions by 'modified' date descending
+    sessions.sort(
+      (a: Session, b: Session) => new Date(b.modified).getTime() - new Date(a.modified).getTime()
+    );
+
+    return sessions;
+  } else {
+    throw new Error('Unexpected response format from listSessions');
   }
 }
 
@@ -109,23 +94,18 @@ export async function fetchSessions(): Promise<Session[]> {
  * @returns Promise with session details
  */
 export async function fetchSessionDetails(sessionId: string): Promise<SessionDetails> {
-  try {
-    const response = await getSessionHistory<true>({
-      path: { session_id: sessionId },
-    });
+  const response = await getSessionHistory<true>({
+    path: { session_id: sessionId },
+  });
 
-    // Convert the SessionHistoryResponse to a SessionDetails object
-    return {
-      session_id: response.data.sessionId,
-      metadata: ensureWorkingDir(response.data.metadata),
-      messages: response.data.messages.map((message: ApiMessage) =>
-        convertApiMessageToFrontendMessage(message, true, true)
-      ), // slight diffs between backend and frontend Message obj
-    };
-  } catch (error) {
-    console.error(`Error fetching session details for ${sessionId}:`, error);
-    throw error;
-  }
+  // Convert the SessionHistoryResponse to a SessionDetails object
+  return {
+    sessionId: response.data.sessionId,
+    metadata: ensureWorkingDir(response.data.metadata),
+    messages: response.data.messages.map((message: ApiMessage) =>
+      convertApiMessageToFrontendMessage(message, true, true)
+    ), // slight diffs between backend and frontend Message obj
+  };
 }
 
 /**
@@ -135,25 +115,39 @@ export async function fetchSessionDetails(sessionId: string): Promise<SessionDet
  * @returns Promise that resolves when the update is complete
  */
 export async function updateSessionMetadata(sessionId: string, description: string): Promise<void> {
-  try {
-    const url = getApiUrl(`/sessions/${sessionId}/metadata`);
-    const secretKey = await window.electron.getSecretKey();
+  const url = getApiUrl(`/sessions/${sessionId}/metadata`);
+  const secretKey = await window.electron.getSecretKey();
 
-    const response = await fetch(url, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Secret-Key': secretKey,
-      },
-      body: JSON.stringify({ description }),
-    });
+  const response = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Secret-Key': secretKey,
+    },
+    body: JSON.stringify({ description }),
+  });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to update session metadata: ${response.statusText} - ${errorText}`);
-    }
-  } catch (error) {
-    console.error(`Error updating session metadata for ${sessionId}:`, error);
-    throw error;
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to update session metadata: ${response.statusText} - ${errorText}`);
   }
+}
+
+/**
+ * Resumes a session. Currently, this opens a new window with the session loaded.
+ */
+export function resumeSession(session: SessionDetails | Session) {
+  const resumedSessionId = 'sessionId' in session ? session.sessionId : session.id;
+  console.log('Launching session in new window:', resumedSessionId);
+  const workingDir = session.metadata?.working_dir;
+  if (!workingDir) {
+    throw new Error('Cannot resume session: working directory is missing in session metadata');
+  }
+
+  window.electron.createChatWindow(
+    undefined, // query
+    workingDir,
+    undefined, // version
+    resumedSessionId
+  );
 }

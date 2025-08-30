@@ -88,16 +88,7 @@ async fn create_recipe(
         request.messages.len()
     );
 
-    let error_response = CreateRecipeResponse {
-        recipe: None,
-        error: Some("Missing agent".to_string()),
-    };
-    let agent = state.get_agent().await.map_err(|e| {
-        tracing::error!("Failed to get agent for recipe creation: {}", e);
-        (StatusCode::PRECONDITION_FAILED, Json(error_response))
-    })?;
-
-    tracing::debug!("Agent retrieved successfully, creating recipe from conversation");
+    let agent = state.get_agent().await;
 
     // Create base recipe from agent state and messages
     let recipe_result = agent
@@ -106,16 +97,12 @@ async fn create_recipe(
 
     match recipe_result {
         Ok(mut recipe) => {
-            tracing::info!("Recipe created successfully with title: '{}'", recipe.title);
-
-            // Update with user-provided metadata
             recipe.title = request.title;
             recipe.description = request.description;
             if request.activities.is_some() {
                 recipe.activities = request.activities
             };
 
-            // Add author if provided
             if let Some(author_req) = request.author {
                 recipe.author = Some(goose::recipe::Author {
                     contact: author_req.contact,
@@ -123,19 +110,13 @@ async fn create_recipe(
                 });
             }
 
-            tracing::debug!("Recipe metadata updated, returning success response");
-
             Ok(Json(CreateRecipeResponse {
                 recipe: Some(recipe),
                 error: None,
             }))
         }
         Err(e) => {
-            // Log the detailed error for debugging
-            tracing::error!("Recipe creation failed: {}", e);
             tracing::error!("Error details: {:?}", e);
-
-            // Return 400 Bad Request with error message
             let error_message = format!("Recipe creation failed: {}", e);
             let error_response = CreateRecipeResponse {
                 recipe: None,

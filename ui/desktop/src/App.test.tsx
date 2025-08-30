@@ -37,12 +37,33 @@ vi.mock('./utils/costDatabase', () => ({
   initializeCostDatabase: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('./api/sdk.gen', () => ({
-  initConfig: vi.fn().mockResolvedValue(undefined),
-  readAllConfig: vi.fn().mockResolvedValue(undefined),
-  backupConfig: vi.fn().mockResolvedValue(undefined),
-  recoverConfig: vi.fn().mockResolvedValue(undefined),
-  validateConfig: vi.fn().mockResolvedValue(undefined),
+vi.mock('./api/sdk.gen', () => {
+  const test_chat = {
+    data: {
+      session_id: 'test',
+      messages: [],
+      metadata: {
+        description: '',
+      },
+    },
+  };
+
+  return {
+    initConfig: vi.fn().mockResolvedValue(undefined),
+    readAllConfig: vi.fn().mockResolvedValue(undefined),
+    backupConfig: vi.fn().mockResolvedValue(undefined),
+    recoverConfig: vi.fn().mockResolvedValue(undefined),
+    validateConfig: vi.fn().mockResolvedValue(undefined),
+    startAgent: vi.fn().mockResolvedValue(test_chat),
+    resumeAgent: vi.fn().mockResolvedValue(test_chat),
+  };
+});
+
+vi.mock('./sessions', () => ({
+  fetchSessionDetails: vi
+    .fn()
+    .mockResolvedValue({ sessionId: 'test', messages: [], metadata: { description: '' } }),
+  generateSessionId: vi.fn(),
 }));
 
 vi.mock('./utils/openRouterSetup', () => ({

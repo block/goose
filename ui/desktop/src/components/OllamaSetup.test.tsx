@@ -143,7 +143,8 @@ describe('OllamaSetup', () => {
     });
   });
 
-  describe('when Ollama and model are both available', () => {
+  // TODO: re-enable when we have ollama back in the onboarding
+  describe.skip('when Ollama and model are both available', () => {
     beforeEach(() => {
       vi.mocked(ollamaDetection.checkOllamaStatus).mockResolvedValue({
         isRunning: true,

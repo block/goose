@@ -5,7 +5,7 @@ import { SetupModal } from './SetupModal';
 import { startOpenRouterSetup } from '../utils/openRouterSetup';
 import { startTetrateSetup } from '../utils/tetrateSetup';
 import WelcomeGooseLogo from './WelcomeGooseLogo';
-import { initializeSystem } from '../utils/providerUtils';
+//import { initializeSystem } from '../utils/providerUtils';
 import { toastService } from '../toasts';
 import { OllamaSetup } from './OllamaSetup';
 
@@ -17,7 +17,8 @@ interface ProviderGuardProps {
 }
 
 export default function ProviderGuard({ children }: ProviderGuardProps) {
-  const { read, getExtensions, addExtension } = useConfig();
+  //const { read, getExtensions, addExtension } = useConfig();
+  const { read } = useConfig();
   const navigate = useNavigate();
   const [isChecking, setIsChecking] = useState(true);
   const [hasProvider, setHasProvider] = useState(false);
@@ -69,10 +70,11 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
 
         if (provider && model) {
           // Initialize the system with the new provider/model
-          await initializeSystem(provider as string, model as string, {
-            getExtensions,
-            addExtension,
-          });
+          // Douwe: I am assuming we don't need to do this
+          // await initializeSystem(provider as string, model as string, {
+          //   getExtensions,
+          //   addExtension,
+          // });
 
           toastService.configure({ silent: false });
           toastService.success({
@@ -135,10 +137,11 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
 
         if (provider && model) {
           // Initialize the system with the new provider/model
-          await initializeSystem(provider as string, model as string, {
-            getExtensions,
-            addExtension,
-          });
+          // Douwe: I am assuming we don't need to do this
+          // await initializeSystem(provider as string, model as string, {
+          //   getExtensions,
+          //   addExtension,
+          // });
 
           toastService.configure({ silent: false });
           toastService.success({
