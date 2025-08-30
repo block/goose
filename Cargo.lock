@@ -2719,6 +2719,7 @@ dependencies = [
  "regex",
  "reqwest 0.11.27",
  "rmcp",
+ "schemars",
  "serde",
  "serde_json",
  "serde_with",
