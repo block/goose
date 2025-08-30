@@ -10,9 +10,14 @@ import { toastService } from '../../../toasts';
 interface ProviderSettingsProps {
   onClose: () => void;
   isOnboarding: boolean;
+  setIsExtensionsLoading?: (loading: boolean) => void;
 }
 
-export default function ProviderSettings({ onClose, isOnboarding }: ProviderSettingsProps) {
+export default function ProviderSettings({
+  onClose,
+  isOnboarding,
+  setIsExtensionsLoading,
+}: ProviderSettingsProps) {
   const { getProviders, upsert, getExtensions, addExtension } = useConfig();
   const [loading, setLoading] = useState(true);
   const [providers, setProviders] = useState<ProviderDetails[]>([]);
@@ -71,6 +76,7 @@ export default function ProviderSettings({ onClose, isOnboarding }: ProviderSett
         await initializeSystem(provider.name, model, {
           getExtensions,
           addExtension,
+          setIsExtensionsLoading,
         });
 
         toastService.configure({ silent: false });
@@ -92,7 +98,7 @@ export default function ProviderSettings({ onClose, isOnboarding }: ProviderSett
         });
       }
     },
-    [onClose, upsert, getExtensions, addExtension]
+    [onClose, upsert, getExtensions, addExtension, setIsExtensionsLoading]
   );
 
   return (
