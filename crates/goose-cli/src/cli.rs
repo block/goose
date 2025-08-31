@@ -1219,7 +1219,12 @@ pub async fn cli() -> Result<()> {
             }
             return Ok(());
         }
-        Some(Command::Web { port, host, open, auth_token }) => {
+        Some(Command::Web {
+            port,
+            host,
+            open,
+            auth_token,
+        }) => {
             crate::commands::web::handle_web(port, host, open, auth_token).await?;
             return Ok(());
         }
