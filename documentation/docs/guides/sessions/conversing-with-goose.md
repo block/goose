@@ -92,7 +92,7 @@ Goose may perform better when complex tasks are handled in stages. A structured 
       - **Send a message**: Click the <Send className="inline" size={16} /> button to send a message immediately and interrupt the current task
       - **Delete a message**: Click the <X className="inline" size={16} /> button to delete the message
       - **Clear the queue**: Click `Clear All` on the **Message Queue** card
-      - **Expand or collapse the queue**: Click the <ChevronDown className="inline" size={16} /> or <ChevronUp className="inline" size={16} /> button on the **Message Queue** card
+      - **Collapse or expand the queue**: Click the <ChevronDown className="inline" size={16} /> or <ChevronUp className="inline" size={16} /> button on the **Message Queue** card
 
       #### Example Message Flow
 
@@ -153,7 +153,7 @@ Interrupt Goose while it's processing a task to take control of the conversation
         :::
 
         <details>
-          <summary>Complete Keyword List</summary>
+          <summary>Keyword List</summary>
 
           **High-priority keywords** (interrupt in any context):
           ```
