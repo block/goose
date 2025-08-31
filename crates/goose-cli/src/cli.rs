@@ -703,6 +703,14 @@ enum Command {
         /// Open browser automatically
         #[arg(long, help = "Open browser automatically when server starts")]
         open: bool,
+
+        /// Authentication token for both Basic Auth (password) and Bearer token
+        #[arg(
+            long,
+            help = "Optional authentication token to secure the web interface",
+            long_help = "Optional token for authentication. Can be used as password in Basic Auth (username ignored) or as Bearer token in API calls. If not provided, no authentication is required."
+        )]
+        auth_token: Option<String>,
     },
 }
 
@@ -1211,8 +1219,8 @@ pub async fn cli() -> Result<()> {
             }
             return Ok(());
         }
-        Some(Command::Web { port, host, open }) => {
-            crate::commands::web::handle_web(port, host, open).await?;
+        Some(Command::Web { port, host, open, auth_token }) => {
+            crate::commands::web::handle_web(port, host, open, auth_token).await?;
             return Ok(());
         }
         None => {

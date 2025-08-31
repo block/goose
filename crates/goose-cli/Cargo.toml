@@ -52,7 +52,7 @@ nix = { version = "0.30.1", features = ["process", "signal"] }
 tar = "0.4"
 # Web server dependencies
 axum = { version = "0.8.1", features = ["ws", "macros"] }
-tower-http = { version = "0.5", features = ["cors", "fs"] }
+tower-http = { version = "0.5", features = ["cors", "fs", "auth"] }
 http = "1.0"
 webbrowser = "1.0"
 indicatif = "0.17.11"
