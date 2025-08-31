@@ -111,6 +111,10 @@ const config: Config = {
             to: '/extensions'
           },
           {
+            from: '/docs/guides/managing-goose-sessions',
+            to: '/docs/guides/sessions/managing-goose-sessions'
+          },
+          {
             from: '/docs/guides/share-goose-sessions',
             to: '/docs/guides/recipes/session-recipes'
           },
