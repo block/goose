@@ -68,7 +68,7 @@ pub fn get_input(
         rustyline::EventHandler::Conditional(Box::new(CtrlCHandler)),
     );
 
-    let prompt = format!("{} ", console::style("( O)>").cyan().bold());
+    let prompt = get_input_prompt_string();
 
     let input = match editor.readline(&prompt) {
         Ok(text) => text,
@@ -270,6 +270,25 @@ fn parse_plan_command(input: String) -> Option<InputResult> {
 
     Some(InputResult::Plan(options))
 }
+
+// Generate the input prompt string, handling Windows-specific ANSI escape sequence issues.
+// Windows has issues with ANSI escape sequences in rustyline causing incorrect width calculation.
+// This should be fixed pending release of https://github.com/kkawakam/rustyline/pull/890
+// More details:https://github.com/kkawakam/rustyline/issues/562
+fn get_input_prompt_string() -> String {
+    #[cfg(target_os = "windows")]
+    {
+        // On Windows, use plain text to avoid ANSI escape sequence issues
+        "( O)> ".to_string()
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        // On other platforms, use styled prompt with ANSI colors
+        format!("{} ", console::style("( O)>").cyan().bold())
+    }
+}
+
 
 fn print_help() {
     println!(
@@ -535,5 +554,44 @@ mod tests {
         // Test with whitespace
         let result = handle_slash_command("  /summarize  ");
         assert!(matches!(result, Some(InputResult::Summarize)));
+    }
+
+    #[test]
+    fn test_get_input_prompt_string() {
+        let prompt = get_input_prompt_string();
+
+        // Prompt should always end with a space
+        assert!(prompt.ends_with(" "));
+
+        // Prompt should contain the goose face
+        assert!(prompt.contains("( O)>"));
+
+        // On Windows, prompt should be plain text without ANSI codes
+        #[cfg(target_os = "windows")]
+        {
+            assert_eq!(prompt, "( O)> ");
+            // Ensure no ANSI escape sequences
+            assert!(!prompt.contains("\x1b["));
+        }
+
+        // On non-Windows, prompt should contain ANSI styling (cyan and bold)
+        #[cfg(not(target_os = "windows"))]
+        {
+            // The prompt should contain ANSI escape sequences for styling
+            assert!(prompt.contains("\x1b["));
+            // Should contain cyan (36) and bold (1) ANSI codes
+            assert!(prompt.contains("36") || prompt.contains("1"));
+        }
+    }
+
+    #[test]
+    fn test_prompt_consistency() {
+        // Test that get_input_prompt_string() returns consistent results
+        let prompt1 = get_input_prompt_string();
+        let prompt2 = get_input_prompt_string();
+        assert_eq!(prompt1, prompt2);
+
+        // Test that prompt is not empty
+        assert!(!get_input_prompt_string().trim().is_empty());
     }
 }
