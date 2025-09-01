@@ -11,8 +11,6 @@ pub struct ScanResult {
     pub explanation: String,
 }
 
-/// Simplified security scanner using pattern matching
-/// Phase 1 implementation focusing on dangerous command detection
 pub struct PromptInjectionScanner {
     pattern_matcher: PatternMatcher,
 }
