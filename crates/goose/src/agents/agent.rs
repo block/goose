@@ -41,6 +41,7 @@ use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::security::security_inspector::SecurityInspector;
+use crate::permission::permission_inspector::PermissionInspector;
 use crate::session;
 use crate::session::extension_data::ExtensionState;
 use crate::tool_inspection::{apply_inspection_results_to_permissions, ToolInspectionManager};
@@ -190,7 +191,7 @@ impl Agent {
         
         // Add permission inspector (medium-high priority)
         // Note: mode will be updated dynamically based on session config
-        tool_inspection_manager.add_inspector(Box::new(crate::permission::PermissionInspector::new(
+        tool_inspection_manager.add_inspector(Box::new(PermissionInspector::new(
             "smart_approve".to_string(),
             std::collections::HashSet::new(), // readonly tools - will be populated from extension manager
             std::collections::HashSet::new(), // regular tools - will be populated from extension manager
