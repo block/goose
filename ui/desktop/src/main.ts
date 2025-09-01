@@ -330,7 +330,7 @@ app.on('open-url', async (_event, url) => {
     if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
       console.log('[Main] Detected bot/recipe URL, creating new chat window');
       let recipeDeeplink = parsedUrl.searchParams.get('config');
-      if (recipeDeeplink?.includes(' ')) {
+      if (recipeDeeplink && !url.includes(recipeDeeplink)) {
         // Parse raw query to preserve "+" characters in values like config
         const search = parsedUrl.search || '';
         // parse recipe deeplink from search params
