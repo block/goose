@@ -2887,25 +2887,11 @@
           }
         }
       },
-      "RecipeManifestMetadata": {
-        "type": "object",
-        "required": [
-          "name",
-          "isGlobal"
-        ],
-        "properties": {
-          "isGlobal": {
-            "type": "boolean"
-          },
-          "name": {
-            "type": "string"
-          }
-        }
-      },
       "RecipeManifestResponse": {
         "type": "object",
         "required": [
-          "recipeManifestMetadata",
+          "name",
+          "isGlobal",
           "recipe",
           "lastModified",
           "id"
@@ -2914,14 +2900,17 @@
           "id": {
             "type": "string"
           },
+          "isGlobal": {
+            "type": "boolean"
+          },
           "lastModified": {
+            "type": "string"
+          },
+          "name": {
             "type": "string"
           },
           "recipe": {
             "$ref": "#/components/schemas/Recipe"
-          },
-          "recipeManifestMetadata": {
-            "$ref": "#/components/schemas/RecipeManifestMetadata"
           }
         }
       },

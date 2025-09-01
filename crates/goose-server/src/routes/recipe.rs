@@ -8,12 +8,11 @@ use goose::conversation::{message::Message, Conversation};
 use goose::recipe::Recipe;
 use goose::recipe_deeplink;
 
-use crate::recipe::list_recipes::list_sorted_recipe_manifests;
-use crate::recipe::recipe_manifest_metadata::RecipeManifestMetadata;
 use http::HeaderMap;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+use crate::routes::recipe_utils::get_all_recipes_manifests;
 use crate::routes::utils::verify_secret_key;
 use crate::state::AppState;
 
@@ -76,8 +75,9 @@ pub struct ScanRecipeResponse {
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct RecipeManifestResponse {
-    #[serde(rename = "recipeManifestMetadata")]
-    recipe_manifest_metadata: RecipeManifestMetadata,
+    name: String,
+    #[serde(rename = "isGlobal")]
+    is_global: bool,
     recipe: Recipe,
     #[serde(rename = "lastModified")]
     last_modified: String,
@@ -253,7 +253,7 @@ async fn list_recipes(
 ) -> Result<Json<ListRecipeResponse>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    let recipe_manifest_with_paths = list_sorted_recipe_manifests().unwrap();
+    let recipe_manifest_with_paths = get_all_recipes_manifests().unwrap();
     let mut recipe_file_hash_map = HashMap::new();
     let recipe_manifest_responses = recipe_manifest_with_paths
         .iter()
@@ -262,7 +262,8 @@ async fn list_recipes(
             let file_path = recipe_manifest_with_path.file_path.clone();
             recipe_file_hash_map.insert(id.clone(), file_path);
             RecipeManifestResponse {
-                recipe_manifest_metadata: recipe_manifest_with_path.recipe_metadata.clone(),
+                name: recipe_manifest_with_path.name.clone(),
+                is_global: recipe_manifest_with_path.is_global,
                 recipe: recipe_manifest_with_path.recipe.clone(),
                 id: id.clone(),
                 last_modified: recipe_manifest_with_path.last_modified.clone(),

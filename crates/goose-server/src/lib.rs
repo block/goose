@@ -1,5 +1,4 @@
 pub mod openapi;
-pub mod recipe;
 pub mod routes;
 pub mod state;
 
