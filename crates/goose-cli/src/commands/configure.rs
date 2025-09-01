@@ -1239,6 +1239,11 @@ pub async fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
             "Scheduler Type",
             "Choose between built-in cron scheduler or Temporal workflow engine",
         )
+        .item(
+            "session_storage",
+            "Session Storage Size",
+            "Configure maximum session file size",
+        )
         .interact()?;
 
     match setting_type {
@@ -1265,6 +1270,9 @@ pub async fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
         }
         "scheduler" => {
             configure_scheduler_dialog()?;
+        }
+        "session_storage" => {
+            configure_session_storage_dialog()?;
         }
         _ => unreachable!(),
     };
@@ -1895,6 +1903,73 @@ pub async fn handle_tetrate_auth() -> Result<(), Box<dyn Error>> {
             return Err(e.into());
         }
     }
+
+    Ok(())
+}
+
+fn configure_session_storage_dialog() -> Result<(), Box<dyn Error>> {
+    let config = Config::global();
+
+    // Check if GOOSE_SESSION_STORAGE_SIZE is set as an environment variable
+    if std::env::var("GOOSE_SESSION_STORAGE_SIZE").is_ok() {
+        let _ = cliclack::log::info("Notice: GOOSE_SESSION_STORAGE_SIZE environment variable is set and will override the configuration here.");
+    }
+
+    // Get current session storage size from config for display
+    let current_size: String = config
+        .get_param("GOOSE_SESSION_STORAGE_SIZE")
+        .unwrap_or_else(|_| "10MB".to_string());
+
+    println!(
+        "Current session storage size: {}",
+        style(&current_size).cyan()
+    );
+
+    let storage_size: String = cliclack::input("Set maximum session storage size (e.g., 10MB, 1GB, 500KB):")
+        .placeholder("10MB")
+        .default_input(&current_size)
+        .validate(|input: &String| {
+            if input.trim().is_empty() {
+                return Err("Size cannot be empty");
+            }
+            
+            // Validate the format by trying to parse it
+            let size_str = input.trim().to_uppercase();
+            
+            // Handle pure numbers (assume MB)
+            if size_str.parse::<u64>().is_ok() {
+                return Ok(());
+            }
+            
+            // Validate with units
+            if size_str.ends_with("GB") || size_str.ends_with("MB") || size_str.ends_with("KB") || size_str.ends_with("B") {
+                let (number_part, _) = if size_str.ends_with("GB") {
+                    (size_str.trim_end_matches("GB"), "GB")
+                } else if size_str.ends_with("MB") {
+                    (size_str.trim_end_matches("MB"), "MB")
+                } else if size_str.ends_with("KB") {
+                    (size_str.trim_end_matches("KB"), "KB")
+                } else {
+                    (size_str.trim_end_matches("B"), "B")
+                };
+                
+                if number_part.trim().parse::<u64>().is_ok() {
+                    Ok(())
+                } else {
+                    Err("Invalid number format. Use formats like '10MB', '1GB', '500KB'")
+                }
+            } else {
+                Err("Invalid size format. Use formats like '10MB', '1GB', '500KB'")
+            }
+        })
+        .interact()?;
+
+    config.set_param("GOOSE_SESSION_STORAGE_SIZE", Value::String(storage_size.clone()))?;
+
+    cliclack::outro(format!(
+        "Session storage size set to {} - sessions will be limited to this size to prevent memory issues",
+        storage_size
+    ))?;
 
     Ok(())
 }

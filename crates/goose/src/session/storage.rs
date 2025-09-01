@@ -23,9 +23,68 @@ use std::sync::Arc;
 use utoipa::ToSchema;
 
 // Security limits
-const MAX_FILE_SIZE: u64 = 10 * 1024 * 1024; // 10MB
+const DEFAULT_MAX_FILE_SIZE: u64 = 10 * 1024 * 1024; // 10MB
 const MAX_MESSAGE_COUNT: usize = 5000;
 const MAX_LINE_LENGTH: usize = 1024 * 1024; // 1MB per line
+
+/// Get the maximum file size from configuration, defaulting to 10MB
+fn get_max_file_size() -> u64 {
+    use crate::config::Config;
+    let config = Config::global();
+    
+    match config.get_param::<String>("GOOSE_SESSION_STORAGE_SIZE") {
+        Ok(size_str) => {
+            match parse_size_string(&size_str) {
+                Ok(size) => size,
+                Err(_) => {
+                    tracing::warn!("Invalid GOOSE_SESSION_STORAGE_SIZE format: {}. Using default.", size_str);
+                    DEFAULT_MAX_FILE_SIZE
+                }
+            }
+        },
+        Err(_) => DEFAULT_MAX_FILE_SIZE,
+    }
+}
+
+/// Parse size string like "10MB", "1GB", "500KB" into bytes
+fn parse_size_string(size_str: &str) -> Result<u64, anyhow::Error> {
+    let size_str = size_str.trim().to_uppercase();
+    
+    if size_str.is_empty() {
+        return Err(anyhow::anyhow!("Empty size string"));
+    }
+    
+    // Handle pure numbers (assume MB)
+    if let Ok(num) = size_str.parse::<u64>() {
+        return Ok(num * 1024 * 1024); // Default to MB
+    }
+    
+    // Parse with units
+    let (number_part, unit) = if size_str.ends_with("GB") {
+        (size_str.trim_end_matches("GB"), "GB")
+    } else if size_str.ends_with("MB") {
+        (size_str.trim_end_matches("MB"), "MB")
+    } else if size_str.ends_with("KB") {
+        (size_str.trim_end_matches("KB"), "KB")
+    } else if size_str.ends_with("B") {
+        (size_str.trim_end_matches("B"), "B")
+    } else {
+        return Err(anyhow::anyhow!("Invalid size format. Use format like '10MB', '1GB', etc."));
+    };
+    
+    let number: u64 = number_part.trim().parse()
+        .map_err(|_| anyhow::anyhow!("Invalid number in size string"))?;
+    
+    let bytes = match unit {
+        "B" => number,
+        "KB" => number * 1024,
+        "MB" => number * 1024 * 1024,
+        "GB" => number * 1024 * 1024 * 1024,
+        _ => return Err(anyhow::anyhow!("Unsupported unit")),
+    };
+    
+    Ok(bytes)
+}
 
 fn get_home_dir() -> PathBuf {
     choose_app_strategy(crate::config::APP_STRATEGY.clone())
@@ -438,8 +497,9 @@ pub fn read_messages_with_truncation(
     // Security check: file size limit
     if session_file.exists() {
         let metadata = fs::metadata(session_file)?;
-        if metadata.len() > MAX_FILE_SIZE {
-            tracing::warn!("Session file exceeds size limit: {} bytes", metadata.len());
+        let max_file_size = get_max_file_size();
+        if metadata.len() > max_file_size {
+            tracing::warn!("Session file exceeds size limit: {} bytes (max: {})", metadata.len(), max_file_size);
             return Err(anyhow::anyhow!("Session file too large"));
         }
     }
@@ -1013,8 +1073,9 @@ pub fn read_metadata(session_file: &Path) -> Result<SessionMetadata> {
 
     // Security check: file size
     let file_metadata = fs::metadata(&secure_path)?;
-    if file_metadata.len() > MAX_FILE_SIZE {
-        tracing::warn!("Session file exceeds size limit during metadata read");
+    let max_file_size = get_max_file_size();
+    if file_metadata.len() > max_file_size {
+        tracing::warn!("Session file exceeds size limit during metadata read: {} bytes (max: {})", file_metadata.len(), max_file_size);
         return Err(anyhow::anyhow!("Session file too large"));
     }
 
