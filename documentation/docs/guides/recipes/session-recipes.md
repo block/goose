@@ -55,7 +55,7 @@ You can turn your current Goose session into a reusable recipe that includes the
   </TabItem>
 
   <TabItem value="cli" label="Goose CLI">
-   Recipe files can be either JSON (.json) or YAML (.yaml) files. While in a [session](/docs/guides/managing-goose-sessions#start-session), run this command to generate a recipe.yaml file in your current directory:
+   Recipe files can be either JSON (.json) or YAML (.yaml) files. While in a [session](/docs/guides/sessions/session-management#start-session), run this command to generate a recipe.yaml file in your current directory:
 
    ```sh
    /recipe
@@ -441,7 +441,7 @@ You can turn your current Goose session into a reusable recipe that includes the
    ```
 
    :::info
-   If you want to validate a recipe you just created, you need to [exit the session](/docs/guides/managing-goose-sessions#exit-session) before running the [`validate` subcommand](/docs/guides/goose-cli-commands#recipe).
+   If you want to validate a recipe you just created, you need to [exit the session](/docs/guides/sessions/session-management#exit-session) before running the [`validate` subcommand](/docs/guides/goose-cli-commands#recipe).
    :::
 
    Recipe validation can be useful for:

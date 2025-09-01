@@ -1,6 +1,6 @@
 ---
 title: Smart Context Management
-sidebar_position: 22
+sidebar_position: 3
 sidebar_label: Smart Context Management
 ---
 
@@ -48,7 +48,8 @@ You can also trigger compaction manually before reaching context or token limits
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
 
-  1. Click the scroll text icon <ScrollText className="inline" size={16} /> in the chat interface
+  1. Point to the token usage indicator dot next to the model name at the bottom of the app
+  2. Click <ScrollText className="inline" size={16} /> `Summarize now` in the context window that appears
   2. Confirm the summarization in the modal
   3. View or edit the generated summary if needed
 

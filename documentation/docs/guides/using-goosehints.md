@@ -1,6 +1,6 @@
 ---
 title: Providing Hints to Goose
-sidebar_position: 4
+sidebar_position: 7
 sidebar_label: Using Goosehints
 ---
 
