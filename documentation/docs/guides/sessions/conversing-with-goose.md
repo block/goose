@@ -11,7 +11,11 @@ Goose provides features you can use to share information and communicate during 
 
 ## Edit Message
 
-Edit your previously sent messages to refine conversations and correct course. This is useful when:
+Edit your previously sent messages to refine conversations and correct course.  
+
+Editing any message in the session gives you complete control over the conversation history by overwriting all the context that follows the edited message. Your change can be as simple as fixing a path in your last message or completely starting over from a given point. 
+
+This is useful when:
 
 - You realize a prompt you sent was unclear or incomplete
 - Goose misunderstood your intent and went in the wrong direction  
