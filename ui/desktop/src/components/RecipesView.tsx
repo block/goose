@@ -1,21 +1,11 @@
 import { useState, useEffect } from 'react';
 import {
   listSavedRecipes,
-  archiveRecipe,
-  SavedRecipe,
   saveRecipe,
   generateRecipeFilename,
+  convertToLocaleDateString,
 } from '../recipe/recipeStorage';
-import {
-  FileText,
-  Trash2,
-  Bot,
-  Calendar,
-  Globe,
-  Folder,
-  AlertCircle,
-  Download,
-} from 'lucide-react';
+import { FileText, Trash2, Bot, Calendar, AlertCircle, Download } from 'lucide-react';
 import { ScrollArea } from './ui/scroll-area';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
@@ -24,6 +14,7 @@ import { MainPanelLayout } from './Layout/MainPanelLayout';
 import { Recipe, decodeRecipe, generateDeepLink } from '../recipe';
 import { toastSuccess, toastError } from '../toasts';
 import { useEscapeKey } from '../hooks/useEscapeKey';
+import { deleteRecipe, RecipeManifestResponse } from '../api';
 
 interface RecipesViewProps {
   onLoadRecipe?: (recipe: Recipe) => void;
@@ -31,11 +22,11 @@ interface RecipesViewProps {
 
 // @ts-expect-error until we make onLoadRecipe work for loading recipes in the same window
 export default function RecipesView({ _onLoadRecipe }: RecipesViewProps = {}) {
-  const [savedRecipes, setSavedRecipes] = useState<SavedRecipe[]>([]);
+  const [savedRecipes, setSavedRecipes] = useState<RecipeManifestResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSkeleton, setShowSkeleton] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedRecipe, setSelectedRecipe] = useState<SavedRecipe | null>(null);
+  const [selectedRecipe, setSelectedRecipe] = useState<RecipeManifestResponse | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [showContent, setShowContent] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
@@ -99,8 +90,8 @@ export default function RecipesView({ _onLoadRecipe }: RecipesViewProps = {}) {
       setShowSkeleton(true);
       setShowContent(false);
       setError(null);
-      const recipes = await listSavedRecipes();
-      setSavedRecipes(recipes);
+      const recipeManifestResponses = await listSavedRecipes();
+      setSavedRecipes(recipeManifestResponses);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load recipes');
       console.error('Failed to load saved recipes:', err);
@@ -109,7 +100,7 @@ export default function RecipesView({ _onLoadRecipe }: RecipesViewProps = {}) {
     }
   };
 
-  const handleLoadRecipe = async (savedRecipe: SavedRecipe) => {
+  const handleLoadRecipe = async (recipe: Recipe) => {
     try {
       // onLoadRecipe is not working for loading recipes. It looks correct
       // but the instructions are not flowing through to the server.
@@ -125,7 +116,7 @@ export default function RecipesView({ _onLoadRecipe }: RecipesViewProps = {}) {
         undefined, // dir
         undefined, // version
         undefined, // resumeSessionId
-        savedRecipe.recipe, // recipe config
+        recipe, // recipe config
         undefined // view type
       );
       // }
@@ -135,15 +126,15 @@ export default function RecipesView({ _onLoadRecipe }: RecipesViewProps = {}) {
     }
   };
 
-  const handleDeleteRecipe = async (savedRecipe: SavedRecipe) => {
+  const handleDeleteRecipe = async (recipeManifest: RecipeManifestResponse) => {
     // TODO: Use Electron's dialog API for confirmation
     const result = await window.electron.showMessageBox({
       type: 'warning',
       buttons: ['Cancel', 'Delete'],
       defaultId: 0,
       title: 'Delete Recipe',
-      message: `Are you sure you want to delete "${savedRecipe.name}"?`,
-      detail: 'Deleted recipes can be restored later.',
+      message: `Are you sure you want to delete "${recipeManifest.name}"?`,
+      detail: 'Recipe file will be deleted.',
     });
 
     if (result.response !== 1) {
@@ -151,22 +142,25 @@ export default function RecipesView({ _onLoadRecipe }: RecipesViewProps = {}) {
     }
 
     try {
-      await archiveRecipe(savedRecipe.name, savedRecipe.isGlobal);
-      // Reload the recipes list
+      await deleteRecipe({ body: { id: recipeManifest.id } });
       await loadSavedRecipes();
+      toastSuccess({
+        title: recipeManifest.name,
+        msg: 'Recipe deleted successfully',
+      });
     } catch (err) {
-      console.error('Failed to archive recipe:', err);
-      setError(err instanceof Error ? err.message : 'Failed to archive recipe');
+      console.error('Failed to delete recipe:', err);
+      setError(err instanceof Error ? err.message : 'Failed to delete recipe');
     }
   };
 
-  const handlePreviewRecipe = async (savedRecipe: SavedRecipe) => {
-    setSelectedRecipe(savedRecipe);
+  const handlePreviewRecipe = async (recipeManifest: RecipeManifestResponse) => {
+    setSelectedRecipe(recipeManifest);
     setShowPreview(true);
 
     // Generate deeplink for preview
     try {
-      const deeplink = await generateDeepLink(savedRecipe.recipe);
+      const deeplink = await generateDeepLink(recipeManifest.recipe);
       setPreviewDeeplink(deeplink);
     } catch (error) {
       console.error('Failed to generate deeplink for preview:', error);
@@ -372,90 +366,65 @@ Parameters you can use:
     }
   };
 
-  // Render a recipe item with error handling
-  const RecipeItem = ({ savedRecipe }: { savedRecipe: SavedRecipe }) => {
-    try {
-      return (
-        <Card className="py-2 px-4 mb-2 bg-background-default border-none hover:bg-background-muted cursor-pointer transition-all duration-150">
-          <div className="flex justify-between items-start gap-4">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <h3 className="text-base truncate max-w-[50vw]">{savedRecipe.recipe.title}</h3>
-                {savedRecipe.isGlobal ? (
-                  <Globe className="w-4 h-4 text-text-muted flex-shrink-0" />
-                ) : (
-                  <Folder className="w-4 h-4 text-text-muted flex-shrink-0" />
-                )}
-              </div>
-              <p className="text-text-muted text-sm mb-2 line-clamp-2">
-                {savedRecipe.recipe.description}
-              </p>
-              <div className="flex items-center text-xs text-text-muted">
-                <Calendar className="w-3 h-3 mr-1" />
-                {savedRecipe.lastModified.toLocaleDateString()}
-              </div>
-            </div>
+  // Render a recipe item
+  const RecipeItem = ({
+    recipeManifestResponse,
+    recipeManifestResponse: { recipe, lastModified },
+  }: {
+    recipeManifestResponse: RecipeManifestResponse;
+  }) => (
+    <Card className="py-2 px-4 mb-2 bg-background-default border-none hover:bg-background-muted cursor-pointer transition-all duration-150">
+      <div className="flex justify-between items-start gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <h3 className="text-base truncate max-w-[50vw]">{recipe.title}</h3>
+          </div>
+          <p className="text-text-muted text-sm mb-2 line-clamp-2">{recipe.description}</p>
+          <div className="flex items-center text-xs text-text-muted">
+            <Calendar className="w-3 h-3 mr-1" />
+            {convertToLocaleDateString(lastModified)}
+          </div>
+        </div>
 
-            <div className="flex items-center gap-2 shrink-0">
-              <Button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleLoadRecipe(savedRecipe);
-                }}
-                size="sm"
-                className="h-8"
-              >
-                <Bot className="w-4 h-4 mr-1" />
-                Use
-              </Button>
-              <Button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handlePreviewRecipe(savedRecipe);
-                }}
-                variant="outline"
-                size="sm"
-                className="h-8"
-              >
-                <FileText className="w-4 h-4 mr-1" />
-                Preview
-              </Button>
-              <Button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDeleteRecipe(savedRecipe);
-                }}
-                variant="ghost"
-                size="sm"
-                className="h-8 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-        </Card>
-      );
-    } catch (error) {
-      // Error row showing failed to read file with filename and error details
-      return (
-        <Card className="py-2 px-4 mb-2 bg-red-50 border border-red-200 dark:bg-red-900/20 dark:border-red-800">
-          <div className="flex justify-between items-start gap-4">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
-                <h3 className="text-base text-red-700 dark:text-red-300">
-                  Failed to read file: {savedRecipe.filename}
-                </h3>
-              </div>
-              <p className="text-red-600 dark:text-red-400 text-sm">
-                {error instanceof Error ? error.message : 'Unknown error'}
-              </p>
-            </div>
-          </div>
-        </Card>
-      );
-    }
-  };
+        <div className="flex items-center gap-2 shrink-0">
+          <Button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleLoadRecipe(recipe);
+            }}
+            size="sm"
+            className="h-8"
+          >
+            <Bot className="w-4 h-4 mr-1" />
+            Use
+          </Button>
+          <Button
+            onClick={(e) => {
+              e.stopPropagation();
+              handlePreviewRecipe(recipeManifestResponse);
+            }}
+            variant="outline"
+            size="sm"
+            className="h-8"
+          >
+            <FileText className="w-4 h-4 mr-1" />
+            Preview
+          </Button>
+          <Button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDeleteRecipe(recipeManifestResponse);
+            }}
+            variant="ghost"
+            size="sm"
+            className="h-8 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+    </Card>
+  );
 
   // Render skeleton loader for recipe items
   const RecipeSkeleton = () => (
@@ -515,10 +484,10 @@ Parameters you can use:
 
     return (
       <div className="space-y-2">
-        {savedRecipes.map((savedRecipe) => (
+        {savedRecipes.map((recipeManifestResponse: RecipeManifestResponse) => (
           <RecipeItem
-            key={`${savedRecipe.isGlobal ? 'global' : 'local'}-${savedRecipe.name}`}
-            savedRecipe={savedRecipe}
+            key={recipeManifestResponse.id}
+            recipeManifestResponse={recipeManifestResponse}
           />
         ))}
       </div>
@@ -584,9 +553,6 @@ Parameters you can use:
                 <h3 className="text-xl font-medium text-text-standard">
                   {selectedRecipe.recipe.title}
                 </h3>
-                <p className="text-sm text-text-muted">
-                  {selectedRecipe.isGlobal ? 'Global recipe' : 'Project recipe'}
-                </p>
               </div>
               <button
                 onClick={() => setShowPreview(false)}
@@ -921,18 +887,6 @@ Parameters you can use:
                   </div>
                 </div>
               )}
-
-              {selectedRecipe.recipe.goosehints && (
-                <div>
-                  <h4 className="text-sm font-medium text-text-standard mb-2">Goose Hints</h4>
-                  <div className="bg-background-muted border border-border-subtle p-3 rounded-lg">
-                    <pre className="text-sm text-text-muted whitespace-pre-wrap font-mono">
-                      {selectedRecipe.recipe.goosehints}
-                    </pre>
-                  </div>
-                </div>
-              )}
-
               {selectedRecipe.recipe.context && selectedRecipe.recipe.context.length > 0 && (
                 <div>
                   <h4 className="text-sm font-medium text-text-standard mb-2">Context</h4>
@@ -945,30 +899,6 @@ Parameters you can use:
                         {contextItem}
                       </div>
                     ))}
-                  </div>
-                </div>
-              )}
-
-              {selectedRecipe.recipe.profile && (
-                <div>
-                  <h4 className="text-sm font-medium text-text-standard mb-2">Profile</h4>
-                  <div className="bg-background-muted border border-border-subtle p-3 rounded-lg">
-                    <span className="text-sm text-text-muted font-mono">
-                      {selectedRecipe.recipe.profile}
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {selectedRecipe.recipe.mcps && (
-                <div>
-                  <h4 className="text-sm font-medium text-text-standard mb-2">
-                    Max Completion Tokens per Second
-                  </h4>
-                  <div className="bg-background-muted border border-border-subtle p-3 rounded-lg">
-                    <span className="text-sm text-text-muted font-mono">
-                      {selectedRecipe.recipe.mcps}
-                    </span>
                   </div>
                 </div>
               )}
@@ -1001,7 +931,7 @@ Parameters you can use:
               <Button
                 onClick={() => {
                   setShowPreview(false);
-                  handleLoadRecipe(selectedRecipe);
+                  handleLoadRecipe(selectedRecipe.recipe);
                 }}
                 variant="default"
               >
