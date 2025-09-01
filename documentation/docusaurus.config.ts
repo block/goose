@@ -112,7 +112,11 @@ const config: Config = {
           },
           {
             from: '/docs/guides/managing-goose-sessions',
-            to: '/docs/guides/sessions/managing-goose-sessions'
+            to: '/docs/guides/sessions/session-management'
+          },
+          {
+            from: '/docs/guides/smart-context-management',
+            to: '/docs/guides/sessions/smart-context-management'
           },
           {
             from: '/docs/guides/share-goose-sessions',

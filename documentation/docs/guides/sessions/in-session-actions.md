@@ -1,13 +1,13 @@
 ---
-sidebar_position: 12
-title: Conversing with Goose
-sidebar_label: Conversing with Goose
+sidebar_position: 2
+title: In-Session Actions
+sidebar_label: In-Session Actions
 ---
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import { PanelLeft, Paperclip, Edit2, ScrollText, Send, GripVertical, X, ChevronUp, ChevronDown } from 'lucide-react';
+import { PanelLeft, Paperclip, Edit2, Send, GripVertical, X, ChevronUp, ChevronDown } from 'lucide-react';
 
-Goose provides features you can use to share information and communicate during sessions. Learn to refine your conversations and manage context more effectively.
+Goose provides features you can use to manage conversations and share information during sessions.
 
 ## Edit Message
 
@@ -256,30 +256,5 @@ Provide Goose with context from your codebase, documents, and other files to get
         # Use shell expansion
         Review these test files: ./tests/*.rs
         ```
-    </TabItem>
-</Tabs>
-
-## Manage Context
-
-Goose provides features to help manage context and conversation history in your sessions. See [Smart Context Management](/docs/guides/smart-context-management) for more details.
-
-<Tabs groupId="interface">
-    <TabItem value="ui" label="Goose Desktop" default>
-        
-        Key Desktop features include:
-        - **Auto-compaction**: Automatically summarizes older messages when approaching token limits
-        - **Manual summarization**: Use <ScrollText className="inline" size={16} /> `Summarize now` to proactively summarize context
-        - **Token usage indicator**: Displays color-coded status indicator
-        - **Cost tracking**: Displays real-time estimated costs as conversations grow
-
-    </TabItem>
-    <TabItem value="cli" label="Goose CLI">
-        
-        Key CLI features include:
-        - **Context strategies**: Choose between summarize, truncate, clear, or prompt modes
-        - **Manual summarization**: Use the `/summarize` command to proactively summarize context
-        - **Max turns limit**: Configure the maximum number of turns to prevent runaway automation
-        - **Token usage display**: Displays color-coded status indicator
-
     </TabItem>
 </Tabs>

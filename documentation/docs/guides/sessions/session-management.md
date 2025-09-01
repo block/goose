@@ -1,14 +1,14 @@
 ---
 sidebar_position: 1
-title: Managing Goose Sessions
-sidebar_label: Managing Sessions
+title: Session Management
+sidebar_label: Session Management
 ---
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import { AppWindow, PanelLeft, FolderDot, Paperclip, Copy, Edit2 } from 'lucide-react';
 
 
-A session is a single, continuous interaction between you and Goose, providing a space to ask questions and prompt action. This guide covers how to perform session management tasks.
+A session is a single, continuous interaction between you and Goose, providing a space to ask questions and prompt action. This guide covers how to manage the session lifecycle.
 
 ## Start Session 
 
@@ -18,7 +18,7 @@ In your first session, Goose prompts you to [set up an LLM (Large Language Model
 
 <Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
-        When you open Goose, you'll see the session interface ready for use. Just type&mdash;[or speak](/docs/guides/sessions/conversing-with-goose#voice-dictation "Learn how to enable voice dictation")&mdash;your questions, requests, or instructions directly into the input field, and Goose will immediately get to work. 
+        When you open Goose, you'll see the session interface ready for use. Just type&mdash;[or speak](/docs/guides/sessions/in-session-actions#voice-dictation "Learn how to enable voice dictation")&mdash;your questions, requests, or instructions directly into the input field, and Goose will immediately get to work. 
         
         When you're ready to work on a new task, you can start a new session in the same directory or a different one. This directory is where Goose reads and writes files by default.
 
