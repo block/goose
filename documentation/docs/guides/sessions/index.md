@@ -42,5 +42,10 @@ import TabItem from '@theme/TabItem';
       description="Make your sessions more effective by adding structure to your prompts."
       link="/blog/2025/03/19/better-ai-prompting"
     />
+    <Card
+      title="The AI Skeptic’s Guide to Context Windows"
+      description="Learn how context windows, tokens, and Goose help you manage memory and long conversations."
+      link="/blog/2025/08/18/understanding-context-windows"
+    />
   </div>
 </div>

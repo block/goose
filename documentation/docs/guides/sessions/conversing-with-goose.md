@@ -71,19 +71,19 @@ Queue messages while Goose is processing a task to manage your workflow. This is
 - You're using [voice dictation](#voice-dictation) and need to capture thoughts quickly
 
 :::tip
-Goose may perform better when complex tasks are handled in stages. A structured approach can both improve accuracy and give you more control over the process.
+Goose may perform better when complex tasks are split into subtasks, a technique called [*prompt chaining*](https://www.promptingguide.ai/techniques/prompt_chaining). This structured approach can both improve accuracy and give you more control over the process.
 :::
 
 <Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
       Add a message to the queue:
       1. While Goose is processing a response, type your next message
-      2. Press `Enter` to add it to the queue
+      2. Press `Enter` to add it to the queue (or interrupts if using [interruption keywords](#interrupt-task))
       
-      Queued messages appear as numbered cards showing the queue order. The first queued message is automatically sent when Goose finishes each response.
+      Queued messages appear as numbered cards showing the queue order. The first message in the queue is automatically sent when Goose finishes each response.
       
       :::info Related Features
-      - Pressing `Enter` while Goose is processing a task queues the message, but clicking `Send` sends the task immediately and [interrupts the task](#interrupt-task)
+      - In general, pressing `Enter` while Goose is processing a task queues the message, but clicking `Send` sends the task immediately and [interrupts the task](#interrupt-task)
       - When you type common interrupt keywords like "stop", "wait", or "hold on" in a queued message, Goose pauses until you enter or send the next message and then continues processing the queue
       :::
 
@@ -95,7 +95,7 @@ Goose may perform better when complex tasks are handled in stages. A structured 
       - **Send a message**: Click the <Send className="inline" size={16} /> button to send a message immediately and interrupt the current task
       - **Delete a message**: Click the <X className="inline" size={16} /> button to delete the message
       - **Clear the queue**: Click `Clear All` on the **Message Queue** card
-      - **Collapse or expand the queue**: Click the <ChevronDown className="inline" size={16} /> or <ChevronUp className="inline" size={16} /> button on the **Message Queue** card
+      - **Collapse or expand the queue**: Click the <ChevronUp className="inline" size={16} /> or <ChevronDown className="inline" size={16} /> button on the **Message Queue** card
 
       #### Example Message Flow
 
@@ -156,7 +156,7 @@ Interrupt Goose while it's processing a task to take control of the conversation
         :::
 
         <details>
-          <summary>Keyword List</summary>
+          <summary>Interruption Keywords List</summary>
 
           **High-priority keywords** (interrupt in any context):
           ```
