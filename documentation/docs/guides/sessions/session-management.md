@@ -1,31 +1,36 @@
 ---
 sidebar_position: 1
-title: Managing Goose Sessions
-sidebar_label: Managing Sessions
+title: Session Management
+sidebar_label: Session Management
 ---
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import { AppWindow, PanelLeft, FolderDot, Paperclip, Copy, Edit2 } from 'lucide-react';
 
 
-A session is a single, continuous interaction between you and Goose, providing a space to ask questions and prompt action. In this guide, we'll cover how to start, exit, and resume a session. 
-
+A session is a single, continuous interaction between you and Goose, providing a space to ask questions and prompt action. This guide covers how to manage the session lifecycle.
 
 ## Start Session 
 
+:::info First-time setup
+In your first session, Goose prompts you to [set up an LLM (Large Language Model) provider](/docs/getting-started/installation#set-llm-provider).
+:::
+
 <Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
-        After choosing an LLM provider, you'll see the session interface ready for use. Type your questions, tasks, or instructions directly into the input field, and Goose will immediately get to work. You can start a new session in the same directory or in a different directory.
+        When you open Goose, you'll see the session interface ready for use. Just type&mdash;[or speak](/docs/guides/sessions/in-session-actions#voice-dictation "Learn how to enable voice dictation")&mdash;your questions, requests, or instructions directly into the input field, and Goose will immediately get to work. 
+        
+        When you're ready to work on a new task, you can start a new session in the same directory or a different one. This directory is where Goose reads and writes files by default.
 
         <Tabs>
           <TabItem value="same-directory" label="Same Directory" default>
 
-            To start a session in the same window:
+            To start a session in the same Goose window:
             1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
             2. Click `Home` in the sidebar
             3. Send your first prompt from the chat box
 
-            To start a session in a new window:
+            To start a session in a new Goose window:
             1. Click the <AppWindow className="inline" size={16} /> button in the top-left
             2. In the new Goose window, send your first prompt from the chat box
 
@@ -54,7 +59,7 @@ A session is a single, continuous interaction between you and Goose, providing a
 
     </TabItem>
     <TabItem value="cli" label="Goose CLI">
-        From your terminal, navigate to the directory from which you'd like to start, and run:
+        From your terminal, navigate to the directory from which you'd like to start, and run the [session](/docs/guides/goose-cli-commands#session-options) command:
         ```sh
         goose session 
         ```
@@ -65,10 +70,6 @@ A session is a single, continuous interaction between you and Goose, providing a
         ```
     </TabItem>
 </Tabs>
-
-:::info
-If this is your first session, Goose will prompt you for an API key to access an LLM (Large Language Model) of your choice. For more information on setting up your API key, see the [Installation Guide](/docs/getting-started/installation#set-llm-provider). Here is the list of [supported LLMs](/docs/getting-started/providers).
-:::
 
 ## Name Session
 <Tabs groupId="interface">
@@ -282,7 +283,7 @@ You can resume a CLI session in Desktop.
     </TabItem>
 </Tabs>
 
-## Project-Based Sessions
+### Resume Project-Based Sessions
 
 <Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
@@ -321,68 +322,5 @@ Export sessions to Markdown to share with your team, create documentation, archi
         ```
         
         For more details on export options, available flags, and output formats, see the [CLI commands documentation](/docs/guides/goose-cli-commands#session-export-options).
-    </TabItem>
-</Tabs>
-
-## Voice Dictation
-Speak to Goose directly instead of typing your prompts.
-
-<Tabs groupId="interface">
-    <TabItem value="ui" label="Goose Desktop" default>
-    To enable voice dictation:
-        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-        2. Click `Settings` in the sidebar
-        3. Click `Chat`
-        4. Under `Voice Dictation`, toggle `Enable Voice Dictation` on
-        5. Choose between `OpenAI Whisper` or `ElevenLabs` as your dictation provider
-        6. Enter your API key for the provider you chose 
-
-    To use voice dictation:
-        1. Return to the chat interface (click `Chat` in the sidebar)
-        2. Click the microphone on the right of the chat box and begin speaking
-        
-        The first time you use voice dictation, Goose will request access to your microphone. While recording, you'll see a live waveform of your audio in the input field, a timer, and the current size of your recording. Click the microphone button again to finish recording. 
-
-        **If you don't see the microphone**, check the [models you have configured](/docs/getting-started/providers.md). ElevenLabs can be used as a dictation provider alongside any LLM, but OpenAI Whisper requires that you have an OpenAI model configured in Goose, even if using another LLM provider for chat.  
-
-       #### Important Notes
-        * You can record up to 10 minutes or 25MB of audio.
-        * The audio is processed by your chosen provider (OpenAI or ElevenLabs).
-        * Voice input is appended to any existing text in the text input field, so you can combine typing and speaking your prompts.
-        * Recordings are not stored locally after transcription.
-
-  </TabItem>
-    <TabItem value="cli" label="Goose CLI">
-        Voice dictation is not available in the Goose CLI. 
-    </TabItem>
-</Tabs>
-
-## Share Files in Session
-
-<Tabs groupId="interface">
-    <TabItem value="ui" label="Goose Desktop" default>
-        Share files with Goose in several ways:
-
-        1. **Drag and Drop**: Simply drag files from your computer's file explorer/finder and drop them anywhere in the chat window. The file paths will be automatically added to your message.
-
-        2. **File Browser**: Click the <Paperclip className="inline" size={16} /> button at the bottom of the app to open your system's file browser and select files.
-
-        3. **Manual Path**: Type or paste the file path directly into the chat input.
-
-        4. **Quick File Search**: Use the [`@` shortcut key](/docs/guides/file-management#quick-file-search-in-goose-desktop) to quickly find and include files.
-    </TabItem>
-    <TabItem value="cli" label="Goose CLI">
-        You can reference files by their paths directly in your messages. Since you're already in a terminal, you can use standard shell commands to help with file paths:
-
-        ```bash
-        # Reference a specific file
-        What does this code do? ./src/main.rs
-
-        # Use tab completion
-        Can you explain the function in ./src/lib<tab>
-
-        # Use shell expansion
-        Review these test files: ./tests/*.rs
-        ```
     </TabItem>
 </Tabs>
