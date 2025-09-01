@@ -862,6 +862,38 @@
         }
       }
     },
+    "/recipes/delete": {
+      "post": {
+        "tags": [
+          "Recipe Management"
+        ],
+        "operationId": "delete_recipe",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteRecipeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Recipe deleted successfully"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "404": {
+            "description": "Recipe not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/recipes/encode": {
       "post": {
         "tags": [
@@ -891,6 +923,32 @@
           },
           "400": {
             "description": "Bad request"
+          }
+        }
+      }
+    },
+    "/recipes/list": {
+      "get": {
+        "tags": [
+          "Recipe Management"
+        ],
+        "operationId": "list_recipes",
+        "responses": {
+          "200": {
+            "description": "Get recipe list successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListRecipeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "500": {
+            "description": "Internal server error"
           }
         }
       }
@@ -1717,6 +1775,17 @@
           }
         }
       },
+      "DeleteRecipeRequest": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        }
+      },
       "EmbeddedResource": {
         "type": "object",
         "required": [
@@ -2254,6 +2323,20 @@
         "properties": {
           "message": {
             "type": "string"
+          }
+        }
+      },
+      "ListRecipeResponse": {
+        "type": "object",
+        "required": [
+          "recipe_manifest_responses"
+        ],
+        "properties": {
+          "recipe_manifest_responses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecipeManifestResponse"
+            }
           }
         }
       },
@@ -2801,6 +2884,33 @@
           },
           "version": {
             "type": "string"
+          }
+        }
+      },
+      "RecipeManifestResponse": {
+        "type": "object",
+        "required": [
+          "name",
+          "isGlobal",
+          "recipe",
+          "lastModified",
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "isGlobal": {
+            "type": "boolean"
+          },
+          "lastModified": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "recipe": {
+            "$ref": "#/components/schemas/Recipe"
           }
         }
       },

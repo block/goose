@@ -1,5 +1,7 @@
 use goose::agents::Agent;
 use goose::scheduler_trait::SchedulerTrait;
+use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -10,6 +12,7 @@ pub struct AppState {
     agent: Option<AgentRef>,
     pub secret_key: String,
     pub scheduler: Arc<Mutex<Option<Arc<dyn SchedulerTrait>>>>,
+    pub recipe_file_hash_map: Arc<Mutex<HashMap<String, PathBuf>>>,
 }
 
 impl AppState {
@@ -18,6 +21,7 @@ impl AppState {
             agent: Some(agent.clone()),
             secret_key,
             scheduler: Arc::new(Mutex::new(None)),
+            recipe_file_hash_map: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 
@@ -38,5 +42,10 @@ impl AppState {
             .await
             .clone()
             .ok_or_else(|| anyhow::anyhow!("Scheduler not initialized"))
+    }
+
+    pub async fn set_recipe_file_hash_map(&self, hash_map: HashMap<String, PathBuf>) {
+        let mut map = self.recipe_file_hash_map.lock().await;
+        *map = hash_map;
     }
 }

@@ -1,5 +1,5 @@
 ---
-title: Alby Bitcoin Payments MCP
+title: Alby Bitcoin Payments Extension
 
 description: Connect Goose to your Bitcoin Lightning Wallet
 ---
