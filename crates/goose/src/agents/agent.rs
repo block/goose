@@ -40,7 +40,7 @@ use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
 use crate::scheduler_trait::SchedulerTrait;
-use crate::security::inspector::SecurityInspector;
+use crate::security::security_inspector::SecurityInspector;
 use crate::session;
 use crate::session::extension_data::ExtensionState;
 use crate::tool_inspection::{apply_inspection_results_to_permissions, ToolInspectionManager};

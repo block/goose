@@ -1,4 +1,4 @@
-pub mod inspector;
+pub mod security_inspector;
 pub mod patterns;
 pub mod scanner;
 

@@ -13,12 +13,12 @@ pub struct ThreatPattern {
     pub category: ThreatCategory,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum RiskLevel {
-    Critical, // Immediate system compromise risk
-    High,     // Significant security risk
-    Medium,   // Moderate security concern
     Low,      // Minor security issue
+    Medium,   // Moderate security concern
+    High,     // Significant security risk
+    Critical, // Immediate system compromise risk
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -396,16 +396,8 @@ impl PatternMatcher {
             }
         }
 
-        // Sort by risk level (critical first) and position
-        matches.sort_by(|a, b| match (&a.threat.risk_level, &b.threat.risk_level) {
-            (RiskLevel::Critical, RiskLevel::Critical) => a.start_pos.cmp(&b.start_pos),
-            (RiskLevel::Critical, _) => std::cmp::Ordering::Less,
-            (_, RiskLevel::Critical) => std::cmp::Ordering::Greater,
-            (RiskLevel::High, RiskLevel::High) => a.start_pos.cmp(&b.start_pos),
-            (RiskLevel::High, _) => std::cmp::Ordering::Less,
-            (_, RiskLevel::High) => std::cmp::Ordering::Greater,
-            _ => a.start_pos.cmp(&b.start_pos),
-        });
+        // Sort by risk level (highest first), then by position in text
+        matches.sort_by_key(|m| (std::cmp::Reverse(&m.threat.risk_level), m.start_pos));
 
         matches
     }
@@ -415,18 +407,7 @@ impl PatternMatcher {
         matches
             .iter()
             .map(|m| &m.threat.risk_level)
-            .max_by(|a, b| match (a, b) {
-                (RiskLevel::Critical, RiskLevel::Critical) => std::cmp::Ordering::Equal,
-                (RiskLevel::Critical, _) => std::cmp::Ordering::Greater,
-                (_, RiskLevel::Critical) => std::cmp::Ordering::Less,
-                (RiskLevel::High, RiskLevel::High) => std::cmp::Ordering::Equal,
-                (RiskLevel::High, _) => std::cmp::Ordering::Greater,
-                (_, RiskLevel::High) => std::cmp::Ordering::Less,
-                (RiskLevel::Medium, RiskLevel::Medium) => std::cmp::Ordering::Equal,
-                (RiskLevel::Medium, _) => std::cmp::Ordering::Greater,
-                (_, RiskLevel::Medium) => std::cmp::Ordering::Less,
-                (RiskLevel::Low, RiskLevel::Low) => std::cmp::Ordering::Equal,
-            })
+            .max()
             .cloned()
     }
 
