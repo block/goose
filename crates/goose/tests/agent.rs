@@ -156,14 +156,19 @@ async fn run_truncate_test(
     }
 
     println!("Responses: {responses:?}\n");
-    assert_eq!(responses.len(), 1);
 
     // Ollama and OpenRouter truncate by default even when the context window is exceeded
-    // We don't have control over the truncation behavior in these providers
+    // We don't have control over the truncation behavior in these providers.
+    // Skip the strict assertions for these providers.
     if provider_type == ProviderType::Ollama || provider_type == ProviderType::OpenRouter {
-        println!("WARNING: Skipping test for {:?} because it truncates by default when the context window is exceeded", provider_type);
+        println!(
+            "WARNING: Skipping test for {:?} because it truncates by default when the context window is exceeded",
+            provider_type
+        );
         return Ok(());
     }
+
+    assert_eq!(responses.len(), 1);
 
     assert_eq!(responses[0].content.len(), 1);
 
@@ -587,6 +592,16 @@ mod final_output_tool_tests {
                     ProviderUsage::new("mock".to_string(), Usage::default()),
                 ))
             }
+
+            async fn complete_with_model(
+                &self,
+                _model_config: &ModelConfig,
+                system: &str,
+                messages: &[Message],
+                tools: &[Tool],
+            ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
+                self.complete(system, messages, tools).await
+            }
         }
 
         let agent = Agent::new();
@@ -614,7 +629,7 @@ mod final_output_tool_tests {
             }),
         );
         let (_, result) = agent
-            .dispatch_tool_call(tool_call, "request_id".to_string(), None)
+            .dispatch_tool_call(tool_call, "request_id".to_string(), None, &None)
             .await;
 
         assert!(result.is_ok(), "Tool call should succeed");
@@ -707,6 +722,16 @@ mod final_output_tool_tests {
                 _tools: &[Tool],
             ) -> Result<(Message, ProviderUsage), ProviderError> {
                 Err(ProviderError::NotImplemented("Not implemented".to_string()))
+            }
+
+            async fn complete_with_model(
+                &self,
+                _model_config: &ModelConfig,
+                system: &str,
+                messages: &[Message],
+                tools: &[Tool],
+            ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
+                self.complete(system, messages, tools).await
             }
         }
 
@@ -823,6 +848,16 @@ mod retry_tests {
                     ProviderUsage::new("mock".to_string(), Usage::default()),
                 ))
             }
+        }
+
+        async fn complete_with_model(
+            &self,
+            _model_config: &ModelConfig,
+            system: &str,
+            messages: &[Message],
+            tools: &[Tool],
+        ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
+            self.complete(system, messages, tools).await
         }
     }
 
@@ -995,6 +1030,16 @@ mod max_turns_tests {
             );
 
             Ok((message, usage))
+        }
+
+        async fn complete_with_model(
+            &self,
+            _model_config: &ModelConfig,
+            system_prompt: &str,
+            messages: &[Message],
+            tools: &[Tool],
+        ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
+            self.complete(system_prompt, messages, tools).await
         }
 
         fn get_model_config(&self) -> ModelConfig {

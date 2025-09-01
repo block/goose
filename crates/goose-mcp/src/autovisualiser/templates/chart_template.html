@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Chart</title>
+
+    <script>
+        {{CHART_MIN}}
+    </script>
+    
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            margin: 0 0 10px 0;
+            font-size: 2em;
+            font-weight: 300;
+        }
+        
+        .header p {
+            margin: 0;
+            font-size: 1em;
+            opacity: 0.9;
+        }
+        
+        .chart-container {
+            padding: 30px;
+            position: relative;
+            height: 500px;
+        }
+        
+        @media (max-width: 768px) {
+            .chart-container {
+                padding: 15px;
+                height: 400px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 id="chartTitle">📊 Chart Visualization</h1>
+            <p id="chartSubtitle">Interactive data visualization</p>
+        </div>
+        
+        <div class="chart-container">
+            <canvas id="mainChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // Data will be injected here
+        const chartData = {{CHART_DATA}};
+        
+        let chart;
+        
+        function getChartOptions(type) {
+            const baseOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            usePointStyle: true,
+                            padding: 20,
+                            font: {
+                                size: 12
+                            }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        titleColor: 'white',
+                        bodyColor: 'white',
+                        borderColor: 'rgba(255, 255, 255, 0.1)',
+                        borderWidth: 1,
+                        cornerRadius: 8,
+                        displayColors: true,
+                        padding: 12
+                    },
+                    title: {
+                        display: false // We handle title in HTML
+                    }
+                },
+                animation: {
+                    duration: 750,
+                    easing: 'easeInOutQuart'
+                }
+            };
+            
+            if (type === 'scatter') {
+                baseOptions.scales = {
+                    x: {
+                        type: 'linear',
+                        position: 'bottom',
+                        title: {
+                            display: chartData.xAxisLabel ? true : false,
+                            text: chartData.xAxisLabel || 'X Values',
+                            font: {
+                                size: 12
+                            }
+                        },
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.1)'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: chartData.yAxisLabel ? true : false,
+                            text: chartData.yAxisLabel || 'Y Values',
+                            font: {
+                                size: 12
+                            }
+                        },
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.1)'
+                        }
+                    }
+                };
+            } else {
+                baseOptions.scales = {
+                    x: {
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.1)'
+                        },
+                        title: {
+                            display: chartData.xAxisLabel ? true : false,
+                            text: chartData.xAxisLabel,
+                            font: {
+                                size: 12
+                            }
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.1)'
+                        },
+                        title: {
+                            display: chartData.yAxisLabel ? true : false,
+                            text: chartData.yAxisLabel,
+                            font: {
+                                size: 12
+                            }
+                        }
+                    }
+                };
+            }
+            
+            // Apply any custom options from the data
+            if (chartData.options) {
+                return mergeOptions(baseOptions, chartData.options);
+            }
+            
+            return baseOptions;
+        }
+        
+        function mergeOptions(base, custom) {
+            // Simple deep merge for options
+            const merged = {...base};
+            for (const key in custom) {
+                if (typeof custom[key] === 'object' && !Array.isArray(custom[key]) && custom[key] !== null) {
+                    merged[key] = mergeOptions(base[key] || {}, custom[key]);
+                } else {
+                    merged[key] = custom[key];
+                }
+            }
+            return merged;
+        }
+        
+        // Default color palette
+        const defaultColors = [
+            'rgba(54, 162, 235, 0.8)',   // Blue
+            'rgba(255, 99, 132, 0.8)',   // Red
+            'rgba(75, 192, 192, 0.8)',   // Teal
+            'rgba(255, 159, 64, 0.8)',   // Orange
+            'rgba(153, 102, 255, 0.8)',  // Purple
+            'rgba(255, 206, 86, 0.8)',   // Yellow
+            'rgba(46, 204, 113, 0.8)',   // Green
+            'rgba(231, 76, 60, 0.8)',    // Darker Red
+            'rgba(52, 152, 219, 0.8)',   // Light Blue
+            'rgba(155, 89, 182, 0.8)',   // Violet
+        ];
+        
+        const defaultBorderColors = [
+            'rgba(54, 162, 235, 1)',
+            'rgba(255, 99, 132, 1)',
+            'rgba(75, 192, 192, 1)',
+            'rgba(255, 159, 64, 1)',
+            'rgba(153, 102, 255, 1)',
+            'rgba(255, 206, 86, 1)',
+            'rgba(46, 204, 113, 1)',
+            'rgba(231, 76, 60, 1)',
+            'rgba(52, 152, 219, 1)',
+            'rgba(155, 89, 182, 1)',
+        ];
+        
+        function processDatasets(datasets, chartType) {
+            return datasets.map((dataset, index) => {
+                const processed = {...dataset};
+                
+                // Add default colors if not provided
+                if (!processed.backgroundColor) {
+                    if (chartType === 'bar' && !dataset.label && datasets.length === 1) {
+                        // For single bar dataset without label, use multiple colors
+                        processed.backgroundColor = defaultColors;
+                        processed.borderColor = defaultBorderColors;
+                    } else {
+                        processed.backgroundColor = defaultColors[index % defaultColors.length];
+                        processed.borderColor = defaultBorderColors[index % defaultBorderColors.length];
+                    }
+                }
+                
+                if (!processed.borderColor && processed.backgroundColor) {
+                    processed.borderColor = processed.backgroundColor.replace('0.8', '1');
+                }
+                
+                // Set default border width
+                if (processed.borderWidth === undefined) {
+                    processed.borderWidth = chartType === 'line' ? 2 : 1;
+                }
+                
+                // For line charts, add default tension if not specified
+                if (chartType === 'line' && processed.tension === undefined) {
+                    processed.tension = 0.4;
+                }
+                
+                // For line charts, set fill to false by default if not specified
+                if (chartType === 'line' && processed.fill === undefined) {
+                    processed.fill = false;
+                }
+                
+                return processed;
+            });
+        }
+        
+        function initChart() {
+            const ctx = document.getElementById('mainChart').getContext('2d');
+            
+            // Set title and subtitle if provided
+            if (chartData.title) {
+                document.getElementById('chartTitle').textContent = chartData.title;
+            }
+            if (chartData.subtitle) {
+                document.getElementById('chartSubtitle').textContent = chartData.subtitle;
+            }
+            
+            const chartType = chartData.type || 'line';
+            const processedDatasets = processDatasets(chartData.datasets, chartType);
+            
+            const chartConfig = {
+                type: chartType,
+                data: {
+                    labels: chartData.labels || [],
+                    datasets: processedDatasets
+                },
+                options: getChartOptions(chartType)
+            };
+            
+            chart = new Chart(ctx, chartConfig);
+        }
+        
+        // Function to measure and report content size for iframe auto-resizing
+        function reportContentSize() {
+            const contentHeight = Math.max(
+                document.body.scrollHeight,
+                document.body.offsetHeight,
+                document.documentElement.clientHeight,
+                document.documentElement.scrollHeight,
+                document.documentElement.offsetHeight
+            );
+            
+            // Send size change message to parent window (for MCP-UI iframe auto-resize)
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'ui-size-change',
+                    payload: {
+                        height: contentHeight
+                    }
+                }, '*');
+            }
+        }
+        
+        // Initialize on load
+        window.onload = function() {
+            initChart();
+            
+            // Report initial size
+            setTimeout(reportContentSize, 100);
+            
+            // Watch for size changes using ResizeObserver if available
+            if (typeof ResizeObserver !== 'undefined') {
+                const resizeObserver = new ResizeObserver(() => {
+                    reportContentSize();
+                });
+                resizeObserver.observe(document.body);
+                resizeObserver.observe(document.documentElement);
+            }
+            
+            // Fallback: also report on window resize
+            window.addEventListener('resize', reportContentSize);
+        };
+    </script>
+</body>
+</html>

@@ -185,6 +185,9 @@ pub fn render_message(message: &Message, debug: bool) {
                 println!("\n{}", style("Thinking:").dim().italic());
                 print_markdown("Thinking was redacted", theme);
             }
+            MessageContent::SummarizationRequested(summarization) => {
+                println!("\n{}", style(&summarization.msg).yellow());
+            }
             _ => {
                 println!("WARNING: Message content type could not be rendered");
             }
@@ -248,6 +251,7 @@ fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
             "developer__text_editor" => render_text_editor_request(call, debug),
             "developer__shell" => render_shell_request(call, debug),
             "dynamic_task__create_task" => render_dynamic_task_request(call, debug),
+            "todo__read" | "todo__write" => render_todo_request(call, debug),
             _ => render_default_request(call, debug),
         },
         Err(e) => print_markdown(&e.to_string(), theme),
@@ -449,6 +453,19 @@ fn render_dynamic_task_request(call: &ToolCall, debug: bool) {
         }
     }
 
+    println!();
+}
+
+fn render_todo_request(call: &ToolCall, _debug: bool) {
+    print_tool_header(call);
+
+    // For todo tools, always show the full content without redaction
+    if let Some(Value::String(content)) = call.arguments.get("content") {
+        println!("{}: {}", style("content").dim(), style(content).green());
+    } else {
+        // For todo__read, there are no arguments
+        // Just print an empty line for consistency
+    }
     println!();
 }
 

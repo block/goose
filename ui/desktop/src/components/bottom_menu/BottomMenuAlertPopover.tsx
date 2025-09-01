@@ -4,8 +4,6 @@ import { cn } from '../../utils';
 import { Alert, AlertType } from '../alerts';
 import { AlertBox } from '../alerts';
 
-const { clearTimeout } = window;
-
 interface AlertPopoverProps {
   alerts: Alert[];
 }
@@ -17,7 +15,7 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
   const [popoverPosition, setPopoverPosition] = useState({ top: 0, left: 0 });
   const [shouldShowIndicator, setShouldShowIndicator] = useState(false); // Stable indicator state
   const previousAlertsRef = useRef<Alert[]>([]);
-  const hideTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 
@@ -95,6 +93,8 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
   useEffect(() => {
     if (alerts.length > 0) {
       setShouldShowIndicator(true);
+    } else {
+      setShouldShowIndicator(false);
     }
   }, [alerts.length]);
 
@@ -147,6 +147,27 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
+
+  // Listen for custom event to hide the popover
+  useEffect(() => {
+    const handleHidePopover = () => {
+      if (isOpen) {
+        setIsOpen(false);
+        setWasAutoShown(false);
+        setIsHovered(false);
+        // Clear any pending hide timer
+        if (hideTimerRef.current) {
+          clearTimeout(hideTimerRef.current);
+          hideTimerRef.current = null;
+        }
+      }
+    };
+
+    window.addEventListener('hide-alert-popover', handleHidePopover);
+    return () => {
+      window.removeEventListener('hide-alert-popover', handleHidePopover);
     };
   }, [isOpen]);
 

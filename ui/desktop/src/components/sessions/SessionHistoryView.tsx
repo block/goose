@@ -28,9 +28,10 @@ import {
 } from '../ui/dialog';
 import ProgressiveMessageList from '../ProgressiveMessageList';
 import { SearchView } from '../conversation/SearchView';
-import { ChatContextManagerProvider } from '../context_management/ChatContextManager';
+import { ContextManagerProvider } from '../context_management/ContextManager';
 import { Message } from '../../types/message';
 import BackButton from '../ui/BackButton';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/Tooltip';
 
 // Helper function to determine if a message is a user message (same as useChatEngine)
 const isUserMessage = (message: Message): boolean => {
@@ -105,7 +106,7 @@ const SessionMessages: React.FC<{
               </Button>
             </div>
           ) : filteredMessages?.length > 0 ? (
-            <ChatContextManagerProvider>
+            <ContextManagerProvider>
               <div className="max-w-4xl mx-auto w-full">
                 <SearchView>
                   <ProgressiveMessageList
@@ -127,7 +128,7 @@ const SessionMessages: React.FC<{
                   />
                 </SearchView>
               </div>
-            </ChatContextManagerProvider>
+            </ContextManagerProvider>
           ) : (
             <div className="flex flex-col items-center justify-center py-8 text-textSubtle">
               <MessageSquareText className="w-12 h-12 mb-4" />
@@ -249,25 +250,37 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
   // Define action buttons
   const actionButtons = showActionButtons ? (
     <>
-      <Button
-        onClick={handleShare}
-        disabled={!canShare || isSharing}
-        size="sm"
-        variant="outline"
-        className={canShare ? '' : 'cursor-not-allowed opacity-50'}
-      >
-        {isSharing ? (
-          <>
-            <LoaderCircle className="w-4 h-4 mr-2 animate-spin" />
-            Sharing...
-          </>
-        ) : (
-          <>
-            <Share2 className="w-4 h-4" />
-            Share
-          </>
-        )}
-      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            onClick={handleShare}
+            disabled={!canShare || isSharing}
+            size="sm"
+            variant="outline"
+            className={canShare ? '' : 'cursor-not-allowed opacity-50'}
+          >
+            {isSharing ? (
+              <>
+                <LoaderCircle className="w-4 h-4 mr-2 animate-spin" />
+                Sharing...
+              </>
+            ) : (
+              <>
+                <Share2 className="w-4 h-4" />
+                Share
+              </>
+            )}
+          </Button>
+        </TooltipTrigger>
+        {!canShare ? (
+          <TooltipContent>
+            <p>
+              To enable session sharing, go to <b>Settings</b> {'>'} <b>Session</b> {'>'}{' '}
+              <b>Session Sharing</b>.
+            </p>
+          </TooltipContent>
+        ) : null}
+      </Tooltip>
       <Button onClick={handleLaunchInNewWindow} size="sm" variant="outline">
         <Sparkles className="w-4 h-4" />
         Resume

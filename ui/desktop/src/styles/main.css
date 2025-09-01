@@ -741,3 +741,29 @@ p > code.bg-inline-code {
 [data-state='collapsed'] [data-slot='sidebar-gap'] {
   will-change: width;
 }
+
+/* Subtle back-and-forth shimmer animation for onboarding card */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.15;
+  }
+  50% {
+    transform: translateX(100%);
+    opacity: 0.05;
+  }
+  80% {
+    opacity: 0.15;
+  }
+  100% {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 6s ease-in-out infinite;
+}

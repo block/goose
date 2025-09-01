@@ -19,17 +19,16 @@
  * the Hub creates a brand new chat session in the Pair view.
  */
 
-import { useState } from 'react';
-import FlappyGoose from './FlappyGoose';
-import { type View, ViewOptions } from '../App';
 import { SessionInsights } from './sessions/SessionsInsights';
 import ChatInput from './ChatInput';
 import { generateSessionId } from '../sessions';
 import { ChatState } from '../types/chatState';
-import { ChatContextManagerProvider } from './context_management/ChatContextManager';
+import { ContextManagerProvider } from './context_management/ContextManager';
 import 'react-toastify/dist/ReactToastify.css';
 
 import { ChatType } from '../types/chat';
+import { DEFAULT_CHAT_TITLE } from '../contexts/ChatContext';
+import { View, ViewOptions } from '../utils/navigationUtils';
 
 export default function Hub({
   chat: _chat,
@@ -45,8 +44,6 @@ export default function Hub({
   setView: (view: View, viewOptions?: ViewOptions) => void;
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
 }) {
-  const [showGame, setShowGame] = useState(false);
-
   // Handle chat input submission - create new chat and navigate to pair
   const handleSubmit = (e: React.FormEvent) => {
     const customEvent = e as unknown as CustomEvent;
@@ -57,7 +54,7 @@ export default function Hub({
       const newChatId = generateSessionId();
       const newPairChat = {
         id: newChatId, // This generates a unique ID each time
-        title: 'New Chat',
+        title: DEFAULT_CHAT_TITLE,
         messages: [], // Always start with empty messages
         messageHistoryIndex: 0,
         recipeConfig: null, // Clear recipe for new chats from Hub
@@ -68,10 +65,10 @@ export default function Hub({
       setPairChat(newPairChat);
 
       // Navigate to pair page with the message to be submitted immediately
-      // No delay needed since we're updating state synchronously
       setView('pair', {
         disableAnimation: true,
         initialMessage: combinedTextFromInput,
+        resetChat: true,
       });
     }
 
@@ -80,7 +77,7 @@ export default function Hub({
   };
 
   return (
-    <ChatContextManagerProvider>
+    <ContextManagerProvider>
       <div className="flex flex-col h-full bg-background-muted">
         <div className="flex-1 flex flex-col mb-0.5">
           <SessionInsights />
@@ -88,6 +85,7 @@ export default function Hub({
 
         <ChatInput
           handleSubmit={handleSubmit}
+          autoSubmit={false}
           chatState={ChatState.Idle}
           onStop={() => {}}
           commandHistory={[]}
@@ -104,9 +102,7 @@ export default function Hub({
           sessionCosts={undefined}
           setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
         />
-
-        {showGame && <FlappyGoose onClose={() => setShowGame(false)} />}
       </div>
-    </ChatContextManagerProvider>
+    </ContextManagerProvider>
   );
 }

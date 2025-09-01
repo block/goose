@@ -1,4 +1,4 @@
-id: clean-up-feature-flag
+version: 1.0.0
 title: Clean Up Feature Flag
 description: Automatically clean up all references of a fully rolled out feature flag from a codebase and make the new behavior the default.
 instructions: >

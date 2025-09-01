@@ -8,6 +8,7 @@
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::providers::base::Provider;
+use crate::session::extension_data::ExtensionData;
 use crate::utils::safe_truncate;
 use anyhow::Result;
 use chrono::Local;
@@ -49,8 +50,7 @@ pub struct SessionMetadata {
     pub description: String,
     /// ID of the schedule that triggered this session, if any
     pub schedule_id: Option<String>,
-    /// ID of the project this session belongs to, if any
-    pub project_id: Option<String>,
+
     /// Number of messages in the session
     pub message_count: usize,
     /// The total number of tokens used in the session. Retrieved from the provider's last usage.
@@ -65,6 +65,10 @@ pub struct SessionMetadata {
     pub accumulated_input_tokens: Option<i32>,
     /// The number of output tokens used in the session. Accumulated across all messages.
     pub accumulated_output_tokens: Option<i32>,
+
+    /// Extension data containing extension states
+    #[serde(default)]
+    pub extension_data: ExtensionData,
 }
 
 // Custom deserializer to handle old sessions without working_dir
@@ -77,8 +81,7 @@ impl<'de> Deserialize<'de> for SessionMetadata {
         struct Helper {
             description: String,
             message_count: usize,
-            schedule_id: Option<String>, // For backward compatibility
-            project_id: Option<String>,  // For backward compatibility
+            schedule_id: Option<String>,
             total_tokens: Option<i32>,
             input_tokens: Option<i32>,
             output_tokens: Option<i32>,
@@ -86,6 +89,8 @@ impl<'de> Deserialize<'de> for SessionMetadata {
             accumulated_input_tokens: Option<i32>,
             accumulated_output_tokens: Option<i32>,
             working_dir: Option<PathBuf>,
+            #[serde(default)]
+            extension_data: ExtensionData,
         }
 
         let helper = Helper::deserialize(deserializer)?;
@@ -100,7 +105,6 @@ impl<'de> Deserialize<'de> for SessionMetadata {
             description: helper.description,
             message_count: helper.message_count,
             schedule_id: helper.schedule_id,
-            project_id: helper.project_id,
             total_tokens: helper.total_tokens,
             input_tokens: helper.input_tokens,
             output_tokens: helper.output_tokens,
@@ -108,6 +112,7 @@ impl<'de> Deserialize<'de> for SessionMetadata {
             accumulated_input_tokens: helper.accumulated_input_tokens,
             accumulated_output_tokens: helper.accumulated_output_tokens,
             working_dir,
+            extension_data: helper.extension_data,
         })
     }
 }
@@ -125,7 +130,6 @@ impl SessionMetadata {
             working_dir,
             description: String::new(),
             schedule_id: None,
-            project_id: None,
             message_count: 0,
             total_tokens: None,
             input_tokens: None,
@@ -133,6 +137,7 @@ impl SessionMetadata {
             accumulated_total_tokens: None,
             accumulated_input_tokens: None,
             accumulated_output_tokens: None,
+            extension_data: ExtensionData::new(),
         }
     }
 }

@@ -246,12 +246,13 @@ impl Provider for VeniceProvider {
     }
 
     #[tracing::instrument(
-        skip(_system, messages, tools),
+        skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete(
+    async fn complete_with_model(
         &self,
-        _system: &str,
+        model_config: &ModelConfig,
+        system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
@@ -259,10 +260,10 @@ impl Provider for VeniceProvider {
         let mut formatted_messages = Vec::new();
 
         // Add the system message if present
-        if !_system.is_empty() {
+        if !system.is_empty() {
             formatted_messages.push(json!({
                 "role": "system",
-                "content": _system
+                "content": system
             }));
         }
 
@@ -391,7 +392,7 @@ impl Provider for VeniceProvider {
 
         // Build Venice-specific payload
         let mut payload = json!({
-            "model": strip_flags(&self.model.model_name),
+            "model": strip_flags(&model_config.model_name),
             "messages": formatted_messages,
             "stream": false,
             "temperature": 0.7,
@@ -470,7 +471,7 @@ impl Provider for VeniceProvider {
                 return Ok((
                     message,
                     ProviderUsage::new(
-                        strip_flags(&self.model.model_name).to_string(),
+                        strip_flags(&model_config.model_name).to_string(),
                         Usage::default(),
                     ),
                 ));

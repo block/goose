@@ -1,5 +1,4 @@
 import { getApiUrl } from '../config';
-import { FullExtensionConfig } from '../extensions';
 import { initializeAgent } from '../agent';
 import {
   initializeBundledExtensions,
@@ -8,14 +7,7 @@ import {
 } from '../components/settings/extensions';
 import { extractExtensionConfig } from '../components/settings/extensions/utils';
 import type { ExtensionConfig, FixedExtensionEntry } from '../components/ConfigContext';
-// TODO: remove when removing migration logic
-import { toastService } from '../toasts';
-import {
-  ExtensionQuery,
-  RecipeParameter,
-  SubRecipe,
-  addExtension as apiAddExtension,
-} from '../api';
+import { RecipeParameter, SubRecipe, updateSessionConfig, extendPrompt } from '../api';
 import { addSubRecipesToAgent } from '../recipe/add_sub_recipe_on_agent';
 
 export interface Provider {
@@ -59,7 +51,7 @@ There may be (but not always) some tools mentioned in the instructions which you
 `;
 
 // Helper function to substitute parameters in text
-const substituteParameters = (text: string, params: Record<string, string>): string => {
+export const substituteParameters = (text: string, params: Record<string, string>): string => {
   let substitutedText = text;
 
   for (const key in params) {
@@ -94,21 +86,13 @@ export const updateSystemPromptWithParameters = async (
     const substitutedInstructions = substituteParameters(originalInstructions, recipeParameters);
 
     // Update the system prompt with substituted instructions
-    const response = await fetch(getApiUrl('/agent/prompt'), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Secret-Key': await window.electron.getSecretKey(),
-      },
-      body: JSON.stringify({
+    const response = await extendPrompt({
+      body: {
         extension: `${desktopPromptBot}\nIMPORTANT instructions for you to operate as agent:\n${substitutedInstructions}`,
-      }),
+      },
     });
-
-    if (!response.ok) {
-      console.warn(
-        `Failed to update system prompt with parameters: ${response.status} ${response.statusText}`
-      );
+    if (response.error) {
+      console.warn(`Failed to update system prompt with parameters: ${response.error}`);
     }
   } catch (error) {
     console.error('Error updating system prompt with parameters:', error);
@@ -122,81 +106,6 @@ export const updateSystemPromptWithParameters = async (
       }
     }
     await addSubRecipesToAgent(subRecipes);
-  }
-};
-
-/**
- * Migrates extensions from localStorage to config.yaml (settings v2)
- * This function handles the migration from settings v1 to v2 by:
- * 1. Reading extensions from localStorage
- * 2. Adding non-builtin extensions to config.yaml
- * 3. Marking the migration as complete
- *
- * NOTE: This logic can be removed eventually when enough versions have passed
- * We leave the existing user settings in localStorage, in case users downgrade
- * or things need to be reverted.
- */
-export const migrateExtensionsToSettingsV3 = async () => {
-  console.log('need to perform extension migration v3');
-
-  const userSettingsStr = localStorage.getItem('user_settings');
-  let localStorageExtensions: FullExtensionConfig[] = [];
-
-  try {
-    if (userSettingsStr) {
-      const userSettings = JSON.parse(userSettingsStr);
-      localStorageExtensions = userSettings.extensions ?? [];
-    }
-  } catch (error) {
-    console.error('Failed to parse user settings:', error);
-  }
-
-  if (localStorageExtensions.length === 0) {
-    localStorage.setItem('configVersion', '3');
-    console.log('No extensions to migrate. Config version set to 3.');
-    return;
-  }
-
-  const migrationErrors: { name: string; error: unknown }[] = [];
-
-  // Process extensions in parallel for better performance
-  const migrationPromises = localStorageExtensions
-    .filter((extension) => extension.type !== 'builtin') // Skip builtins as before
-    .map(async (extension) => {
-      console.log(`Migrating extension ${extension.name} to config.yaml`);
-      try {
-        const query: ExtensionQuery = {
-          name: extension.name,
-          config: extension,
-          enabled: extension.enabled,
-        };
-        await apiAddExtension({
-          body: query,
-          throwOnError: true,
-        });
-      } catch (err) {
-        console.error(`Failed to migrate extension ${extension.name}:`, err);
-        migrationErrors.push({
-          name: extension.name,
-          error: `failed migration with ${JSON.stringify(err)}`,
-        });
-      }
-    });
-
-  await Promise.allSettled(migrationPromises);
-
-  if (migrationErrors.length === 0) {
-    localStorage.setItem('configVersion', '3');
-    console.log('Extension migration complete. Config version set to 3.');
-  } else {
-    const errorSummaryStr = migrationErrors
-      .map(({ name, error }) => `- ${name}: ${JSON.stringify(error)}`)
-      .join('\n');
-    toastService.error({
-      title: 'Config Migration Error',
-      msg: 'There was a problem updating your config file',
-      traceback: errorSummaryStr,
-    });
   }
 };
 
@@ -245,18 +154,13 @@ export const initializeSystem = async (
     }
     // Configure session with response config if present
     if (responseConfig?.json_schema) {
-      const sessionConfigResponse = await fetch(getApiUrl('/agent/session_config'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Secret-Key': await window.electron.getSecretKey(),
-        },
-        body: JSON.stringify({
+      const sessionConfigResponse = await updateSessionConfig({
+        body: {
           response: responseConfig,
-        }),
+        },
       });
-      if (!sessionConfigResponse.ok) {
-        console.warn(`Failed to configure session: ${sessionConfigResponse.statusText}`);
+      if (sessionConfigResponse.error) {
+        console.warn(`Failed to configure session: ${sessionConfigResponse.error}`);
       }
     }
 
@@ -264,22 +168,6 @@ export const initializeSystem = async (
       console.warn('Extension helpers not provided in alpha mode');
       return;
     }
-
-    // NOTE: remove when we want to stop migration logic
-    // Check if we need to migrate extensions from localStorage to config.yaml
-    const configVersion = localStorage.getItem('configVersion');
-    const shouldMigrateExtensions = !configVersion || parseInt(configVersion, 10) < 3;
-
-    if (shouldMigrateExtensions) {
-      await migrateExtensionsToSettingsV3();
-    }
-
-    /* NOTE:
-     * If we've migrated and this is a version update, refreshedExtensions should be > 0
-     *  and we'll want to syncBundledExtensions to ensure any new extensions are added.
-     * Otherwise if the user has never opened goose - refreshedExtensions will be 0
-     *  and we want to fall into the case to initializeBundledExtensions.
-     */
 
     // Initialize or sync built-in extensions into config.yaml
     let refreshedExtensions = await options.getExtensions(false);
@@ -291,13 +179,25 @@ export const initializeSystem = async (
       await syncBundledExtensions(refreshedExtensions, options.addExtension);
     }
 
-    // Add enabled extensions to agent
-    for (const extensionEntry of refreshedExtensions) {
-      if (extensionEntry.enabled) {
-        const extensionConfig = extractExtensionConfig(extensionEntry);
-        await addToAgentOnStartup({ addToConfig: options.addExtension, extensionConfig });
+    // Add enabled extensions to agent in parallel
+    const enabledExtensions = refreshedExtensions.filter((ext) => ext.enabled);
+
+    const extensionLoadingPromises = enabledExtensions.map(async (extensionEntry) => {
+      const extensionConfig = extractExtensionConfig(extensionEntry);
+      const extensionName = extensionConfig.name;
+
+      try {
+        await addToAgentOnStartup({
+          addToConfig: options.addExtension!,
+          extensionConfig,
+          toastOptions: { silent: false },
+        });
+      } catch (error) {
+        console.error(`Failed to load extension ${extensionName}:`, error);
       }
-    }
+    });
+
+    await Promise.allSettled(extensionLoadingPromises);
   } catch (error) {
     console.error('Failed to initialize agent:', error);
     throw error;

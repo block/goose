@@ -1,5 +1,6 @@
-use mcp_core::ToolError;
-use rmcp::model::{Content, ServerNotification, Tool, ToolAnnotations};
+use std::borrow::Cow;
+
+use rmcp::model::{Content, ErrorCode, ErrorData, ServerNotification, Tool, ToolAnnotations};
 use serde_json::Value;
 
 use crate::agents::subagent_task_config::TaskConfig;
@@ -90,7 +91,11 @@ pub async fn run_tasks(
                 let output = serde_json::to_string(&result).unwrap();
                 Ok(vec![Content::text(output)])
             }
-            Err(e) => Err(ToolError::ExecutionError(e.to_string())),
+            Err(e) => Err(ErrorData {
+                code: ErrorCode::INTERNAL_ERROR,
+                message: Cow::from(e.to_string()),
+                data: None,
+            }),
         }
     };
 

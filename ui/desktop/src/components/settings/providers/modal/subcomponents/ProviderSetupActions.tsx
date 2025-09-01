@@ -37,7 +37,7 @@ export default function ProviderSetupActions({
     // Check if this is the active provider
     if (isActiveProvider) {
       return (
-        <>
+        <div className="w-full">
           <div className="w-full px-6 py-4 bg-yellow-600/20 border-t border-yellow-500/30">
             <p className="text-yellow-500 text-sm mb-2 flex items-start">
               <AlertTriangle className="h-4 w-4 mr-2 mt-0.5 flex-shrink-0" />
@@ -54,13 +54,13 @@ export default function ProviderSetupActions({
           >
             Ok
           </Button>
-        </>
+        </div>
       );
     }
 
     // Normal delete confirmation
     return (
-      <>
+      <div className="w-full">
         <div className="w-full px-6 py-4 bg-red-900/20 border-t border-red-500/30">
           <p className="text-red-400 text-sm mb-2">
             Are you sure you want to delete the configuration parameters for {providerName}? This
@@ -80,7 +80,7 @@ export default function ProviderSetupActions({
         >
           Cancel
         </Button>
-      </>
+      </div>
     );
   }
 

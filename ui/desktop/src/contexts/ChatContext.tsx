@@ -4,6 +4,8 @@ import { generateSessionId } from '../sessions';
 import { Recipe } from '../recipe';
 import { useDraftContext } from './DraftContext';
 
+export const DEFAULT_CHAT_TITLE = 'New Chat';
+
 interface ChatContextType {
   chat: ChatType;
   setChat: (chat: ChatType) => void;
@@ -19,6 +21,7 @@ interface ChatContextType {
   clearDraft: () => void;
   // Context identification
   contextKey: string; // 'hub' or 'pair-{sessionId}'
+  agentWaitingMessage: string | null;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -28,12 +31,14 @@ interface ChatProviderProps {
   chat: ChatType;
   setChat: (chat: ChatType) => void;
   contextKey?: string; // Optional context key, defaults to 'hub'
+  agentWaitingMessage: string | null;
 }
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({
   children,
   chat,
   setChat,
+  agentWaitingMessage,
   contextKey = 'hub',
 }) => {
   const draftContext = useDraftContext();
@@ -53,7 +58,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
     const newSessionId = generateSessionId();
     setChat({
       id: newSessionId,
-      title: 'New Chat',
+      title: DEFAULT_CHAT_TITLE,
       messages: [],
       messageHistoryIndex: 0,
       recipeConfig: null, // Clear recipe when resetting chat
@@ -106,6 +111,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
     setDraft,
     clearDraft,
     contextKey,
+    agentWaitingMessage,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

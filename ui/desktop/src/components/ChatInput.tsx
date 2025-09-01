@@ -1,8 +1,8 @@
-import React, { useRef, useState, useEffect, useMemo } from 'react';
-import { FolderKey } from 'lucide-react';
+import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
+import { FolderKey, ScrollText } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
 import { Button } from './ui/button';
-import type { View } from '../App';
+import type { View } from '../utils/navigationUtils';
 import Stop from './ui/Stop';
 import { Attach, Send, Close, Microphone } from './icons';
 import { ChatState } from '../types/chatState';
@@ -12,7 +12,6 @@ import { Message } from '../types/message';
 import { DirSwitcher } from './bottom_menu/DirSwitcher';
 import ModelsBottomBar from './settings/models/bottom_bar/ModelsBottomBar';
 import { BottomMenuModeSelection } from './bottom_menu/BottomMenuModeSelection';
-import { ManualCompactButton } from './context_management/ManualCompactButton';
 import { AlertType, useAlerts } from './alerts';
 import { useToolCount } from './alerts/useToolCount';
 import { useConfig } from './ConfigContext';
@@ -22,12 +21,20 @@ import { WaveformVisualizer } from './WaveformVisualizer';
 import { toastError } from '../toasts';
 import MentionPopover, { FileItemWithMatch } from './MentionPopover';
 import { useDictationSettings } from '../hooks/useDictationSettings';
-import { useChatContextManager } from './context_management/ChatContextManager';
+import { useContextManager } from './context_management/ContextManager';
 import { useChatContext } from '../contexts/ChatContext';
 import { COST_TRACKING_ENABLED } from '../updates';
 import { CostTracker } from './bottom_menu/CostTracker';
 import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
 import { Recipe } from '../recipe';
+import MessageQueue from './MessageQueue';
+import { detectInterruption } from '../utils/interruptionDetector';
+
+interface QueuedMessage {
+  id: string;
+  content: string;
+  timestamp: number;
+}
 
 interface PastedImage {
   id: string;
@@ -43,7 +50,6 @@ const MAX_IMAGE_SIZE_MB = 5;
 
 // Constants for token and tool alerts
 const TOKEN_LIMIT_DEFAULT = 128000; // fallback for custom models that the backend doesn't know about
-const TOKEN_WARNING_THRESHOLD = 0.8; // warning shows at 80% of the token limit
 const TOOLS_MAX_SUGGESTED = 60; // max number of tools before we show a warning
 
 interface ModelLimit {
@@ -77,6 +83,9 @@ interface ChatInputProps {
   recipeConfig?: Recipe | null;
   recipeAccepted?: boolean;
   initialPrompt?: string;
+  autoSubmit: boolean;
+  setAncestorMessages?: (messages: Message[]) => void;
+  append?: (message: Message) => void;
 }
 
 export default function ChatInput({
@@ -99,6 +108,9 @@ export default function ChatInput({
   recipeConfig,
   recipeAccepted,
   initialPrompt,
+  autoSubmit = false,
+  append,
+  setAncestorMessages,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -107,10 +119,20 @@ export default function ChatInput({
 
   // Derived state - chatState != Idle means we're in some form of loading state
   const isLoading = chatState !== ChatState.Idle;
+  const wasLoadingRef = useRef(isLoading);
+
+  // Queue functionality - ephemeral, only exists in memory for this chat instance
+  const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
+  const queuePausedRef = useRef(false);
+  const editingMessageIdRef = useRef<string | null>(null);
+  const [lastInterruption, setLastInterruption] = useState<string | null>(null);
+
   const { alerts, addAlert, clearAlerts } = useAlerts();
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const dropdownRef: React.RefObject<HTMLDivElement> = useRef<HTMLDivElement>(
+    null
+  ) as React.RefObject<HTMLDivElement>;
   const toolCount = useToolCount();
-  const { isLoadingCompaction } = useChatContextManager();
+  const { isCompacting, handleManualCompaction } = useContextManager();
   const { getProviders, read } = useConfig();
   const { getCurrentModelAndProvider, currentModel, currentProvider } = useModelAndProvider();
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
@@ -119,12 +141,80 @@ export default function ChatInput({
   // Draft functionality - get chat context and global draft context
   // We need to handle the case where ChatInput is used without ChatProvider (e.g., in Hub)
   const chatContext = useChatContext(); // This should always be available now
+  const agentIsReady = chatContext === null || chatContext.agentWaitingMessage === null;
   const draftLoadedRef = useRef(false);
 
   // Debug logging for draft context
   useEffect(() => {
     // Debug logging removed - draft functionality is working correctly
   }, [chatContext?.contextKey, chatContext?.draft, chatContext]);
+
+  // Save queue state (paused/interrupted) to storage
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem('goose-queue-paused', JSON.stringify(queuePausedRef.current));
+    } catch (error) {
+      console.error('Error saving queue pause state:', error);
+    }
+  }, [queuedMessages]); // Save when queue changes
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem('goose-queue-interruption', JSON.stringify(lastInterruption));
+    } catch (error) {
+      console.error('Error saving queue interruption state:', error);
+    }
+  }, [lastInterruption]);
+
+  // Cleanup effect - save final state on component unmount
+  useEffect(() => {
+    return () => {
+      // Save final queue state when component unmounts
+      try {
+        window.sessionStorage.setItem('goose-queue-paused', JSON.stringify(queuePausedRef.current));
+        window.sessionStorage.setItem('goose-queue-interruption', JSON.stringify(lastInterruption));
+      } catch (error) {
+        console.error('Error saving queue state on unmount:', error);
+      }
+    };
+  }, [lastInterruption]); // Include lastInterruption in dependency array
+
+  // Queue processing
+  useEffect(() => {
+    if (wasLoadingRef.current && !isLoading && queuedMessages.length > 0) {
+      // After an interruption, we should process the interruption message immediately
+      // The queue is only truly paused if there was an interruption AND we want to keep it paused
+      const shouldProcessQueue = !queuePausedRef.current || lastInterruption;
+
+      if (shouldProcessQueue) {
+        const nextMessage = queuedMessages[0];
+        LocalMessageStorage.addMessage(nextMessage.content);
+        handleSubmit(
+          new CustomEvent('submit', {
+            detail: { value: nextMessage.content },
+          }) as unknown as React.FormEvent
+        );
+        setQueuedMessages((prev) => {
+          const newQueue = prev.slice(1);
+          // If queue becomes empty after processing, clear the paused state
+          if (newQueue.length === 0) {
+            queuePausedRef.current = false;
+            setLastInterruption(null);
+          }
+          return newQueue;
+        });
+
+        // Clear the interruption flag after processing the interruption message
+        if (lastInterruption) {
+          setLastInterruption(null);
+          // Keep the queue paused after sending the interruption message
+          // User can manually resume if they want to continue with queued messages
+          queuePausedRef.current = true;
+        }
+      }
+    }
+    wasLoadingRef.current = isLoading;
+  }, [isLoading, queuedMessages, handleSubmit, lastInterruption]);
   const [mentionPopover, setMentionPopover] = useState<{
     isOpen: boolean;
     position: { x: number; y: number };
@@ -204,17 +294,34 @@ export default function ChatInput({
     setHasUserTyped(false);
   }, [initialValue]); // Keep only initialValue as a dependency
 
+  // Track if we've already set the recipe prompt to avoid re-setting it
+  const hasSetRecipePromptRef = useRef(false);
+
   // Handle recipe prompt updates
   useEffect(() => {
-    // If recipe is accepted and we have an initial prompt, and no messages yet, set the prompt
-    if (recipeAccepted && initialPrompt && messages.length === 0 && !displayValue.trim()) {
+    // If recipe is accepted and we have an initial prompt, and no messages yet, and we haven't set it before
+    if (
+      recipeAccepted &&
+      initialPrompt &&
+      messages.length === 0 &&
+      !hasSetRecipePromptRef.current
+    ) {
       setDisplayValue(initialPrompt);
       setValue(initialPrompt);
+      hasSetRecipePromptRef.current = true;
       setTimeout(() => {
         textAreaRef.current?.focus();
       }, 0);
     }
-  }, [recipeAccepted, initialPrompt, messages.length, displayValue]);
+    // we don't need hasSetRecipePromptRef in the dependency array because it is a ref that persists across renders
+  }, [recipeAccepted, initialPrompt, messages.length]);
+
+  // Reset the recipe prompt flag when the recipe changes or messages are added
+  useEffect(() => {
+    if (messages.length > 0 || !recipeAccepted || !initialPrompt) {
+      hasSetRecipePromptRef.current = false;
+    }
+  }, [recipeAccepted, initialPrompt, messages.length]);
 
   // Draft functionality - load draft if no initial value or recipe
   useEffect(() => {
@@ -256,6 +363,7 @@ export default function ChatInput({
   const [hasUserTyped, setHasUserTyped] = useState(false);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const timeoutRefsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  const [didAutoSubmit, setDidAutoSubmit] = useState<boolean>(false);
 
   // Use shared file drop hook for ChatInput
   const {
@@ -266,7 +374,10 @@ export default function ChatInput({
   } = useFileDrop();
 
   // Merge local dropped files with parent dropped files
-  const allDroppedFiles = [...droppedFiles, ...localDroppedFiles];
+  const allDroppedFiles = useMemo(
+    () => [...droppedFiles, ...localDroppedFiles],
+    [droppedFiles, localDroppedFiles]
+  );
 
   const handleRemoveDroppedFile = (idToRemove: string) => {
     // Remove from local dropped files
@@ -403,42 +514,27 @@ export default function ChatInput({
   useEffect(() => {
     clearAlerts();
 
-    // Always show token alerts if we have loaded the real token limit and have tokens
-    if (isTokenLimitLoaded && tokenLimit && numTokens && numTokens > 0) {
-      if (numTokens >= tokenLimit) {
-        // Only show error alert when limit reached
-        addAlert({
-          type: AlertType.Error,
-          message: `Token limit reached (${numTokens.toLocaleString()}/${tokenLimit.toLocaleString()}) \n You've reached the model's conversation limit. The session will be saved — copy anything important and start a new one to continue.`,
-          autoShow: true, // Auto-show token limit errors
-        });
-      } else if (numTokens >= tokenLimit * TOKEN_WARNING_THRESHOLD) {
-        // Only show warning alert when approaching limit
-        addAlert({
-          type: AlertType.Warning,
-          message: `Approaching token limit (${numTokens.toLocaleString()}/${tokenLimit.toLocaleString()}) \n You're reaching the model's conversation limit. Consider compacting the conversation to continue.`,
-          autoShow: true, // Auto-show token limit warnings
-        });
-      } else {
-        // Show info alert only when not in warning/error state
-        addAlert({
-          type: AlertType.Info,
-          message: 'Context window',
-          progress: {
-            current: numTokens,
-            total: tokenLimit,
-          },
-        });
-      }
-    } else if (isTokenLimitLoaded && tokenLimit) {
-      // Always show context window info even when no tokens are present (start of conversation)
+    // Show alert when either there is registered token usage, or we know the limit
+    if ((numTokens && numTokens > 0) || (isTokenLimitLoaded && tokenLimit)) {
+      // in these conditions we want it to be present but disabled
+      const compactButtonDisabled = !numTokens || isCompacting;
+
       addAlert({
         type: AlertType.Info,
         message: 'Context window',
         progress: {
-          current: 0,
+          current: numTokens || 0,
           total: tokenLimit,
         },
+        showCompactButton: true,
+        compactButtonDisabled,
+        onCompact: () => {
+          // Hide the alert popup by dispatching a custom event that the popover can listen to
+          // Importantly, this leaves the alert so the dot still shows up, but hides the popover
+          window.dispatchEvent(new CustomEvent('hide-alert-popover'));
+          handleManualCompaction(messages, setMessages, append, setAncestorMessages);
+        },
+        compactIcon: <ScrollText size={12} />,
       });
     }
 
@@ -456,7 +552,7 @@ export default function ChatInput({
     }
     // We intentionally omit setView as it shouldn't trigger a re-render of alerts
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [numTokens, toolCount, tokenLimit, isTokenLimitLoaded, addAlert, clearAlerts]);
+  }, [numTokens, toolCount, tokenLimit, isTokenLimitLoaded, addAlert, isCompacting, clearAlerts]);
 
   // Cleanup effect for component unmount - prevent memory leaks
   useEffect(() => {
@@ -774,58 +870,137 @@ export default function ChatInput({
     }
   };
 
-  const performSubmit = () => {
-    const validPastedImageFilesPaths = pastedImages
-      .filter((img) => img.filePath && !img.error && !img.isLoading)
-      .map((img) => img.filePath as string);
-
-    // Get paths from all dropped files (both parent and local)
-    const droppedFilePaths = allDroppedFiles
-      .filter((file) => !file.error && !file.isLoading)
-      .map((file) => file.path);
-
-    let textToSend = displayValue.trim();
-
-    // Combine pasted images and dropped files
-    const allFilePaths = [...validPastedImageFilesPaths, ...droppedFilePaths];
-    if (allFilePaths.length > 0) {
-      const pathsString = allFilePaths.join(' ');
-      textToSend = textToSend ? `${textToSend} ${pathsString}` : pathsString;
+  // Helper function to handle interruption and queue logic when loading
+  const handleInterruptionAndQueue = () => {
+    if (!isLoading || !displayValue.trim()) {
+      return false; // Return false if no action was taken
     }
 
-    if (textToSend) {
-      if (displayValue.trim()) {
-        LocalMessageStorage.addMessage(displayValue);
-      } else if (allFilePaths.length > 0) {
-        LocalMessageStorage.addMessage(allFilePaths.join(' '));
-      }
+    const interruptionMatch = detectInterruption(displayValue.trim());
 
-      handleSubmit(
-        new CustomEvent('submit', { detail: { value: textToSend } }) as unknown as React.FormEvent
-      );
+    if (interruptionMatch && interruptionMatch.shouldInterrupt) {
+      setLastInterruption(interruptionMatch.matchedText);
+      if (onStop) onStop();
+      queuePausedRef.current = true;
+
+      // For interruptions, we need to queue the message to be sent after the stop completes
+      // rather than trying to send it immediately while the system is still loading
+      const interruptionMessage = {
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+        content: displayValue.trim(),
+        timestamp: Date.now(),
+      };
+
+      // Add the interruption message to the front of the queue so it gets sent first
+      setQueuedMessages((prev) => [interruptionMessage, ...prev]);
 
       setDisplayValue('');
       setValue('');
-      setPastedImages([]);
-      setHistoryIndex(-1);
-      setSavedInput('');
-      setIsInGlobalHistory(false);
-      setHasUserTyped(false);
-
-      // Clear draft when message is sent
-      if (chatContext && chatContext.clearDraft) {
-        chatContext.clearDraft();
-      }
-
-      // Clear both parent and local dropped files after processing
-      if (onFilesProcessed && droppedFiles.length > 0) {
-        onFilesProcessed();
-      }
-      if (localDroppedFiles.length > 0) {
-        setLocalDroppedFiles([]);
-      }
+      return true; // Return true if interruption was handled
     }
+
+    const newMessage = {
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      content: displayValue.trim(),
+      timestamp: Date.now(),
+    };
+    setQueuedMessages((prev) => {
+      const newQueue = [...prev, newMessage];
+      // If adding to an empty queue, reset the paused state
+      if (prev.length === 0) {
+        queuePausedRef.current = false;
+        setLastInterruption(null);
+      }
+      return newQueue;
+    });
+    setDisplayValue('');
+    setValue('');
+    return true; // Return true if message was queued
   };
+
+  const performSubmit = useCallback(
+    (text?: string) => {
+      const validPastedImageFilesPaths = pastedImages
+        .filter((img) => img.filePath && !img.error && !img.isLoading)
+        .map((img) => img.filePath as string);
+      // Get paths from all dropped files (both parent and local)
+      const droppedFilePaths = allDroppedFiles
+        .filter((file) => !file.error && !file.isLoading)
+        .map((file) => file.path);
+
+      let textToSend = text ?? displayValue.trim();
+
+      // Combine pasted images and dropped files
+      const allFilePaths = [...validPastedImageFilesPaths, ...droppedFilePaths];
+      if (allFilePaths.length > 0) {
+        const pathsString = allFilePaths.join(' ');
+        textToSend = textToSend ? `${textToSend} ${pathsString}` : pathsString;
+      }
+
+      if (textToSend) {
+        if (displayValue.trim()) {
+          LocalMessageStorage.addMessage(displayValue);
+        } else if (allFilePaths.length > 0) {
+          LocalMessageStorage.addMessage(allFilePaths.join(' '));
+        }
+
+        handleSubmit(
+          new CustomEvent('submit', { detail: { value: textToSend } }) as unknown as React.FormEvent
+        );
+
+        // Auto-resume queue after sending a NON-interruption message (if it was paused due to interruption)
+        if (
+          queuePausedRef.current &&
+          lastInterruption &&
+          textToSend &&
+          !detectInterruption(textToSend)
+        ) {
+          queuePausedRef.current = false;
+          setLastInterruption(null);
+        }
+
+        setDisplayValue('');
+        setValue('');
+        setPastedImages([]);
+        setHistoryIndex(-1);
+        setSavedInput('');
+        setIsInGlobalHistory(false);
+        setHasUserTyped(false);
+
+        // Clear draft when message is sent
+        if (chatContext && chatContext.clearDraft) {
+          chatContext.clearDraft();
+        }
+
+        // Clear both parent and local dropped files after processing
+        if (onFilesProcessed && droppedFiles.length > 0) {
+          onFilesProcessed();
+        }
+        if (localDroppedFiles.length > 0) {
+          setLocalDroppedFiles([]);
+        }
+      }
+    },
+    [
+      allDroppedFiles,
+      chatContext,
+      displayValue,
+      droppedFiles.length,
+      handleSubmit,
+      lastInterruption,
+      localDroppedFiles.length,
+      onFilesProcessed,
+      pastedImages,
+      setLocalDroppedFiles,
+    ]
+  );
+
+  useEffect(() => {
+    if (!!autoSubmit && !didAutoSubmit) {
+      setDidAutoSubmit(true);
+      performSubmit(initialValue);
+    }
+  }, [autoSubmit, didAutoSubmit, initialValue, performSubmit]);
 
   const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // If mention popover is open, handle arrow keys and enter
@@ -878,9 +1053,16 @@ export default function ChatInput({
       }
 
       evt.preventDefault();
+
+      // Handle interruption and queue logic
+      if (handleInterruptionAndQueue()) {
+        return;
+      }
+
       const canSubmit =
         !isLoading &&
-        !isLoadingCompaction &&
+        !isCompacting &&
+        agentIsReady &&
         (displayValue.trim() ||
           pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
           allDroppedFiles.some((file) => !file.error && !file.isLoading));
@@ -894,7 +1076,8 @@ export default function ChatInput({
     e.preventDefault();
     const canSubmit =
       !isLoading &&
-      !isLoadingCompaction &&
+      !isCompacting &&
+      agentIsReady &&
       (displayValue.trim() ||
         pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
         allDroppedFiles.some((file) => !file.error && !file.isLoading));
@@ -942,6 +1125,74 @@ export default function ChatInput({
   const isAnyImageLoading = pastedImages.some((img) => img.isLoading);
   const isAnyDroppedFileLoading = allDroppedFiles.some((file) => file.isLoading);
 
+  // Queue management functions - no storage persistence, only in-memory
+  const handleRemoveQueuedMessage = (messageId: string) => {
+    setQueuedMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+  };
+
+  const handleClearQueue = () => {
+    setQueuedMessages([]);
+    queuePausedRef.current = false;
+    setLastInterruption(null);
+  };
+
+  const handleReorderMessages = (reorderedMessages: QueuedMessage[]) => {
+    setQueuedMessages(reorderedMessages);
+  };
+
+  const handleEditMessage = (messageId: string, newContent: string) => {
+    setQueuedMessages((prev) =>
+      prev.map((msg) => (msg.id === messageId ? { ...msg, content: newContent } : msg))
+    );
+  };
+
+  const handleStopAndSend = (messageId: string) => {
+    const messageToSend = queuedMessages.find((msg) => msg.id === messageId);
+    if (!messageToSend) return;
+
+    // Stop current processing and temporarily pause queue to prevent double-send
+    if (onStop) onStop();
+    const wasPaused = queuePausedRef.current;
+    queuePausedRef.current = true;
+
+    // Remove the message from queue and send it immediately
+    setQueuedMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+    LocalMessageStorage.addMessage(messageToSend.content);
+    handleSubmit(
+      new CustomEvent('submit', {
+        detail: { value: messageToSend.content },
+      }) as unknown as React.FormEvent
+    );
+
+    // Restore previous pause state after a brief delay to prevent race condition
+    setTimeout(() => {
+      queuePausedRef.current = wasPaused;
+    }, 100);
+  };
+
+  const handleResumeQueue = () => {
+    queuePausedRef.current = false;
+    setLastInterruption(null);
+    if (!isLoading && queuedMessages.length > 0) {
+      const nextMessage = queuedMessages[0];
+      LocalMessageStorage.addMessage(nextMessage.content);
+      handleSubmit(
+        new CustomEvent('submit', {
+          detail: { value: nextMessage.content },
+        }) as unknown as React.FormEvent
+      );
+      setQueuedMessages((prev) => {
+        const newQueue = prev.slice(1);
+        // If queue becomes empty after processing, clear the paused state
+        if (newQueue.length === 0) {
+          queuePausedRef.current = false;
+          setLastInterruption(null);
+        }
+        return newQueue;
+      });
+    }
+  };
+
   return (
     <div
       className={`flex flex-col relative h-auto p-4 transition-colors ${
@@ -955,6 +1206,21 @@ export default function ChatInput({
       onDrop={handleLocalDrop}
       onDragOver={handleLocalDragOver}
     >
+      {/* Message Queue Display */}
+      {queuedMessages.length > 0 && (
+        <MessageQueue
+          queuedMessages={queuedMessages}
+          onRemoveMessage={handleRemoveQueuedMessage}
+          onClearQueue={handleClearQueue}
+          onStopAndSend={handleStopAndSend}
+          onReorderMessages={handleReorderMessages}
+          onEditMessage={handleEditMessage}
+          onTriggerQueueProcessing={handleResumeQueue}
+          editingMessageIdRef={editingMessageIdRef}
+          isPaused={queuePausedRef.current}
+          className="border-b border-borderSubtle"
+        />
+      )}
       {/* Input row with inline action buttons wrapped in form */}
       <form onSubmit={onFormSubmit} className="relative flex items-end">
         <div className="relative flex-1">
@@ -993,7 +1259,7 @@ export default function ChatInput({
 
         {/* Inline action buttons on the right */}
         <div className="flex items-center gap-1 px-2 relative">
-          {/* Microphone button - show if dictation is enabled, disable if not configured */}
+          {/* Microphone button - show only if dictation is enabled */}
           {dictationSettings?.enabled && (
             <>
               {!canUseDictation ? (
@@ -1014,11 +1280,24 @@ export default function ChatInput({
                     </span>
                   </TooltipTrigger>
                   <TooltipContent>
-                    {dictationSettings.provider === 'openai'
-                      ? 'OpenAI API key is not configured. Set it up in Settings > Models.'
-                      : dictationSettings.provider === 'elevenlabs'
-                        ? 'ElevenLabs API key is not configured. Set it up in Settings > Chat > Voice Dictation.'
-                        : 'Dictation provider is not properly configured.'}
+                    {dictationSettings.provider === 'openai' ? (
+                      <p>
+                        OpenAI API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
+                        <b>Models.</b>
+                      </p>
+                    ) : dictationSettings.provider === 'elevenlabs' ? (
+                      <p>
+                        ElevenLabs API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
+                        <b>Chat</b> {'>'} <b>Voice Dictation.</b>
+                      </p>
+                    ) : dictationSettings.provider === null ? (
+                      <p>
+                        Dictation is not configured. Configure it in <b>Settings</b> {'>'}{' '}
+                        <b>Chat</b> {'>'} <b>Voice Dictation.</b>
+                      </p>
+                    ) : (
+                      <p>Dictation provider is not properly configured.</p>
+                    )}
                   </TooltipContent>
                 </Tooltip>
               ) : (
@@ -1062,46 +1341,56 @@ export default function ChatInput({
               <Stop />
             </Button>
           ) : (
-            <Button
-              type="submit"
-              size="sm"
-              shape="round"
-              variant="outline"
-              disabled={
-                !hasSubmittableContent ||
-                isAnyImageLoading ||
-                isAnyDroppedFileLoading ||
-                isRecording ||
-                isTranscribing ||
-                isLoadingCompaction
-              }
-              className={`rounded-full px-10 py-2 flex items-center gap-2 ${
-                !hasSubmittableContent ||
-                isAnyImageLoading ||
-                isAnyDroppedFileLoading ||
-                isRecording ||
-                isTranscribing ||
-                isLoadingCompaction
-                  ? 'bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600'
-                  : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600 hover:cursor-pointer'
-              }`}
-              title={
-                isLoadingCompaction
-                  ? 'Summarizing conversation...'
-                  : isAnyImageLoading
-                    ? 'Waiting for images to save...'
-                    : isAnyDroppedFileLoading
-                      ? 'Processing dropped files...'
-                      : isRecording
-                        ? 'Recording...'
-                        : isTranscribing
-                          ? 'Transcribing...'
-                          : 'Send'
-              }
-            >
-              <Send className="w-4 h-4" />
-              <span className="text-sm">Send</span>
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    shape="round"
+                    variant="outline"
+                    disabled={
+                      !hasSubmittableContent ||
+                      isAnyImageLoading ||
+                      isAnyDroppedFileLoading ||
+                      isRecording ||
+                      isTranscribing ||
+                      isCompacting ||
+                      !agentIsReady
+                    }
+                    className={`rounded-full px-10 py-2 flex items-center gap-2 ${
+                      !hasSubmittableContent ||
+                      isAnyImageLoading ||
+                      isAnyDroppedFileLoading ||
+                      isRecording ||
+                      isTranscribing ||
+                      isCompacting ||
+                      !agentIsReady
+                        ? 'bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600'
+                        : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600 hover:cursor-pointer'
+                    }`}
+                  >
+                    <Send className="w-4 h-4" />
+                    <span className="text-sm">Send</span>
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>
+                  {isCompacting
+                    ? 'Compacting conversation...'
+                    : isAnyImageLoading
+                      ? 'Waiting for images to save...'
+                      : isAnyDroppedFileLoading
+                        ? 'Processing dropped files...'
+                        : isRecording
+                          ? 'Recording...'
+                          : isTranscribing
+                            ? 'Transcribing...'
+                            : (chatContext?.agentWaitingMessage ?? 'Send')}
+                </p>
+              </TooltipContent>
+            </Tooltip>
           )}
 
           {/* Recording/transcribing status indicator - positioned above the button row */}
@@ -1286,13 +1575,6 @@ export default function ChatInput({
           </Tooltip>
           <div className="w-px h-4 bg-border-default mx-2" />
           <BottomMenuModeSelection />
-          {messages.length > 0 && (
-            <ManualCompactButton
-              messages={messages}
-              isLoading={isLoading}
-              setMessages={setMessages}
-            />
-          )}
           <div className="w-px h-4 bg-border-default mx-2" />
           <div className="flex items-center h-full">
             <Tooltip>

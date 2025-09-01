@@ -8,7 +8,7 @@ pub use self::windows::WindowsAutomation;
 #[cfg(target_os = "macos")]
 pub use self::macos::MacOSAutomation;
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 pub use self::linux::LinuxAutomation;
 
 pub trait SystemAutomation: Send + Sync {

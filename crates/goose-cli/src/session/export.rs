@@ -347,6 +347,9 @@ pub fn message_to_markdown(message: &Message, export_all_content: bool) -> Strin
                 md.push_str("**Thinking:**\n");
                 md.push_str("> *Thinking was redacted*\n\n");
             }
+            MessageContent::SummarizationRequested(summarization) => {
+                md.push_str(&format!("*{}*\n\n", summarization.msg));
+            }
             _ => {
                 md.push_str(
                     "`WARNING: Message content type could not be rendered to Markdown`\n\n",

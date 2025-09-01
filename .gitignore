@@ -61,3 +61,10 @@ do_not_version/
 /.env
 
 /working_dir
+
+# Error log artifacts from mcp replay tests
+crates/goose/tests/mcp_replays/*errors.txt
+
+.gromastate
+# Nix build output
+result

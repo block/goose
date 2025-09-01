@@ -9,7 +9,7 @@ This guide covers building the Goose Desktop application from source on various 
 **Debian/Ubuntu:**
 ```bash
 sudo apt update
-sudo apt install -y dpkg fakeroot build-essential
+sudo apt install -y dpkg fakeroot build-essential libxcb1-dev libxcb-util-dev protobuf-compiler
 ```
 
 **Arch/Manjaro:**
@@ -25,6 +25,18 @@ sudo dnf install dpkg-dev fakeroot gcc gcc-c++ make
 **openSUSE:**
 ```bash
 sudo zypper install dpkg fakeroot gcc gcc-c++ make
+```
+
+**android / termux:**
+
+goose is not officially support termux build yet, you need some minor patch to fix build issues.
+We will publish goose (block-goose) into termux-packages.
+If you want to try there is a non-official build, https://github.com/shawn111/goose/releases/download/termux/goose-termux-aarch64.tar.bz2
+For more details, see: https://github.com/block/goose/pull/3890
+
+```bash
+pkg install rust
+pkg install cmake protobuf clang build-essential
 ```
 
 ### Development Tools
@@ -145,12 +157,13 @@ Create `~/.local/share/applications/goose.desktop`:
 [Desktop Entry]
 Name=Goose AI Agent
 Comment=Local AI agent for development tasks
-Exec=/path/to/goose/ui/desktop/out/Goose-linux-x64/Goose
+Exec=/path/to/goose/ui/desktop/out/Goose-linux-x64/Goose %U
 Icon=/path/to/goose/ui/desktop/out/Goose-linux-x64/resources/app.asar.unpacked/src/images/icon.png
 Terminal=false
 Type=Application
 Categories=Development;Utility;
 StartupNotify=true
+MimeType=x-scheme-handler/goose
 ```
 
 ### System-wide Installation

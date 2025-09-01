@@ -99,7 +99,12 @@ enum SessionCommand {
     },
     #[command(about = "Remove sessions. Runs interactively if no ID or regex is provided.")]
     Remove {
-        #[arg(short, long, help = "Session ID to be removed (optional)")]
+        #[arg(
+            short,
+            long,
+            alias = "name",
+            help = "Session ID to be removed (optional)"
+        )]
         id: Option<String>,
         #[arg(short, long, help = "Regex for removing matched sessions (optional)")]
         regex: Option<String>,
@@ -936,8 +941,25 @@ pub async fn cli() -> Result<()> {
                         .and_then(|name| name.to_str())
                         .unwrap_or(&recipe_name);
 
-                    tracing::info!(counter.goose.recipe_runs = 1,
+                    let recipe_version =
+                        crate::recipes::search_recipe::retrieve_recipe_file(&recipe_name)
+                            .ok()
+                            .and_then(|rf| {
+                                goose::recipe::template_recipe::parse_recipe_content(
+                                    &rf.content,
+                                    rf.parent_dir.to_string_lossy().to_string(),
+                                )
+                                .ok()
+                                .map(|(r, _)| r.version)
+                            })
+                            .unwrap_or_else(|| "unknown".to_string());
+
+                    tracing::info!(
+                        counter.goose.recipe_runs = 1,
                         recipe_name = %recipe_display_name,
+                        recipe_version = %recipe_version,
+                        session_type = "recipe",
+                        interface = "cli",
                         "Recipe execution started"
                     );
 
