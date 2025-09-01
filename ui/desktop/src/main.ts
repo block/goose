@@ -329,7 +329,22 @@ app.on('open-url', async (_event, url) => {
     console.log('[Main] Received open-url event:', url);
     if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
       console.log('[Main] Detected bot/recipe URL, creating new chat window');
-      const recipeDeeplink = parsedUrl.searchParams.get('config');
+      let recipeDeeplink = parsedUrl.searchParams.get('config');
+      if (recipeDeeplink?.includes(' ')) {
+        // Parse raw query to preserve "+" characters in values like config
+        const search = parsedUrl.search || '';
+        // parse recipe deeplink from search params
+        const configMatch = search.match(/(?:[?&])config=([^&]*)/);
+        // get recipe deeplink from config match
+        let recipeDeeplinkTmp = configMatch ? configMatch[1] : null;
+        if (recipeDeeplinkTmp) {
+          try {
+            recipeDeeplink = decodeURIComponent(recipeDeeplinkTmp);
+          } catch {
+            // Leave as-is if decoding fails
+          }
+        }
+      }
       const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
 
       // Create a new window directly
