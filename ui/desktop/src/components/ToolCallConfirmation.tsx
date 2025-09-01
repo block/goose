@@ -19,21 +19,21 @@ const toolConfirmationState = new Map<
   }
 >();
 
+import { ToolConfirmationRequestMessageContent } from '../types/message';
+
 interface ToolConfirmationProps {
   isCancelledMessage: boolean;
   isClicked: boolean;
-  toolConfirmationId: string;
-  toolName: string;
-  prompt?: string;
+  toolConfirmationContent: ToolConfirmationRequestMessageContent;
 }
 
 export default function ToolConfirmation({
   isCancelledMessage,
   isClicked,
-  toolConfirmationId,
-  toolName,
-  prompt,
+  toolConfirmationContent,
 }: ToolConfirmationProps) {
+  const { id: toolConfirmationId, toolName, prompt } = toolConfirmationContent;
+
   // Check if we have a stored state for this tool confirmation
   const storedState = toolConfirmationState.get(toolConfirmationId);
 
