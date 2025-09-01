@@ -137,7 +137,7 @@ Search allows you to find specific content within sessions or find specific sess
 
     The following scenarios are supported:
 
-    #### Search Within Current Session
+    ### Search Within Current Session
     
     To find specific content within your current session:
 
@@ -145,7 +145,7 @@ Search allows you to find specific content within sessions or find specific sess
     2. Enter your search term
     3. Use shortcuts and search bar buttons to navigate the results
 
-    #### Search For Session By Name or Path
+    ### Search For Session By Name or Path
     
     To search all your sessions by name or working directory path:
 
@@ -161,7 +161,7 @@ Search allows you to find specific content within sessions or find specific sess
     You can [rename sessions](#name-session) to give them descriptive names that you'll remember later.
     :::
 
-    #### Search Within Historical Session
+    ### Search Within Historical Session
     
     To find specific content within a historical session:
 
