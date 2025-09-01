@@ -15,6 +15,7 @@ use serde_json::Value;
 pub const XAI_API_HOST: &str = "https://api.x.ai/v1";
 pub const XAI_DEFAULT_MODEL: &str = "grok-3";
 pub const XAI_KNOWN_MODELS: &[&str] = &[
+    "grok-code-fast-1",
     "grok-4-0709",
     "grok-3",
     "grok-3-fast",
