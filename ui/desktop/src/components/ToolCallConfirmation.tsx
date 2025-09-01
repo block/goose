@@ -121,7 +121,7 @@ export default function ToolConfirmation({
     <>
       {/* Display security message if present */}
       {prompt && (
-        <div className="goose-message-content bg-yellow-50 border border-yellow-200 rounded-2xl px-4 py-2 mb-2 text-textStandard">
+        <div className="goose-message-content bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-2xl px-4 py-2 mb-2 text-yellow-800 dark:text-gray-200">
           {prompt}
         </div>
       )}
