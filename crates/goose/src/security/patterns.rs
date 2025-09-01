@@ -397,7 +397,7 @@ impl PatternMatcher {
         }
 
         // Sort by risk level (highest first), then by position in text
-        matches.sort_by_key(|m| (std::cmp::Reverse(&m.threat.risk_level), m.start_pos));
+        matches.sort_by_key(|m| (std::cmp::Reverse(m.threat.risk_level.clone()), m.start_pos));
 
         matches
     }

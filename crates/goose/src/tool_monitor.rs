@@ -116,8 +116,4 @@ impl ToolInspector for RepetitionInspector {
 
         Ok(results)
     }
-
-    fn priority(&self) -> u32 {
-        50 // Lower priority - basic repetition checking
-    }
 }

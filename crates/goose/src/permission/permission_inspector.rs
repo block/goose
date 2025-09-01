@@ -137,8 +137,4 @@ impl ToolInspector for PermissionInspector {
 
         Ok(results)
     }
-
-    fn priority(&self) -> u32 {
-        150 // Medium-high priority - runs after security but before other inspectors
-    }
 }

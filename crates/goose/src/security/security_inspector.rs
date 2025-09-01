@@ -92,11 +92,6 @@ impl ToolInspector for SecurityInspector {
             .and_then(|security_config| security_config.get("enabled")?.as_bool())
             .unwrap_or(false)
     }
-
-    fn priority(&self) -> u32 {
-        // High priority - security checks should run early
-        200
-    }
 }
 
 impl Default for SecurityInspector {

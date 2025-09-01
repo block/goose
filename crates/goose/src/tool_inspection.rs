@@ -46,11 +46,6 @@ pub trait ToolInspector: Send + Sync {
     fn is_enabled(&self) -> bool {
         true
     }
-
-    /// Priority of this inspector (higher = runs first)
-    fn priority(&self) -> u32 {
-        100
-    }
 }
 
 /// Manages all tool inspectors and coordinates their results
@@ -66,10 +61,9 @@ impl ToolInspectionManager {
     }
 
     /// Add an inspector to the manager
+    /// Inspectors run in the order they are added
     pub fn add_inspector(&mut self, inspector: Box<dyn ToolInspector>) {
         self.inspectors.push(inspector);
-        // Sort by priority (highest first)
-        self.inspectors.sort_by_key(|b| std::cmp::Reverse(b.priority()));
     }
 
     /// Run all inspectors on the tool requests
