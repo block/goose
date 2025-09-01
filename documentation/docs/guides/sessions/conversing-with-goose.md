@@ -19,7 +19,6 @@ Edit your previously sent messages to refine conversations and correct course. T
 
 <Tabs groupId="interface">
     <TabItem value="ui" label="Goose Desktop" default>
-        The ability to edit any message in the session gives you complete control over the conversation history by overwriting all the context that follows the edited message. Your change can be as simple as fixing a path in your last message or completely starting over from a given point.
 
         1. Hover over any of your previous messages to reveal the edit button
         2. Click the <Edit2 className="inline" size={16} /> edit button that appears
