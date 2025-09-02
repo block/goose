@@ -48,7 +48,7 @@ pub fn load_recipe(recipe_name: &str, params: Vec<(String, String)>) -> Result<R
             }
             Ok(recipe)
         }
-        Err(RecipeError::MissingParams { parameters }) => Err(anyhow::anyhow!(
+        Err(RecipeError::MissingParams { parameters, .. }) => Err(anyhow::anyhow!(
             "Please provide the following parameters in the command line: {}",
             missing_parameters_command_line(parameters)
         )),

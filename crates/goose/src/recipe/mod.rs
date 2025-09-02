@@ -2,6 +2,8 @@ use anyhow::Result;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt;
+use std::fs;
+use std::path::Path;
 
 use crate::agents::extension::ExtensionConfig;
 use crate::agents::types::RetryConfig;
@@ -305,6 +307,11 @@ impl Recipe {
             retry: None,
         }
     }
+    pub fn from_file(file_path: &Path) -> Result<Self> {
+        let content = fs::read_to_string(file_path)?;
+        Self::from_content(&content)
+    }
+
     pub fn from_content(content: &str) -> Result<Self> {
         let recipe: Recipe =
             if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(content) {

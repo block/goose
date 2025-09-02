@@ -12,6 +12,10 @@ interface ChatContextType {
   resetChat: () => void;
   hasActiveSession: boolean;
   setRecipeConfig: (recipe: Recipe | null) => void;
+  setRecipeConfigAndParameters: (
+    recipe: Recipe | null,
+    parameters: Record<string, string> | null
+  ) => void;
   clearRecipeConfig: () => void;
   setRecipeParameters: (parameters: Record<string, string> | null) => void;
   clearRecipeParameters: () => void;
@@ -75,6 +79,17 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
     });
   };
 
+  const setRecipeConfigAndParameters = (
+    recipe: Recipe | null,
+    parameters: Record<string, string> | null
+  ) => {
+    setChat({
+      ...chat,
+      recipeConfig: recipe,
+      recipeParameters: parameters,
+    });
+  };
+
   const clearRecipeConfig = () => {
     setChat({
       ...chat,
@@ -104,6 +119,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
     resetChat,
     hasActiveSession,
     setRecipeConfig,
+    setRecipeConfigAndParameters,
     clearRecipeConfig,
     setRecipeParameters,
     clearRecipeParameters,

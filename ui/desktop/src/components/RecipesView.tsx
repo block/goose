@@ -100,7 +100,7 @@ export default function RecipesView({ _onLoadRecipe }: RecipesViewProps = {}) {
     }
   };
 
-  const handleLoadRecipe = async (recipe: Recipe) => {
+  const handleLoadRecipe = async (recipeId: string) => {
     try {
       // onLoadRecipe is not working for loading recipes. It looks correct
       // but the instructions are not flowing through to the server.
@@ -116,8 +116,9 @@ export default function RecipesView({ _onLoadRecipe }: RecipesViewProps = {}) {
         undefined, // dir
         undefined, // version
         undefined, // resumeSessionId
-        recipe, // recipe config
-        undefined // view type
+        undefined, // recipe config
+        undefined, // view type
+        recipeId
       );
       // }
     } catch (err) {
@@ -369,7 +370,7 @@ Parameters you can use:
   // Render a recipe item
   const RecipeItem = ({
     recipeManifestResponse,
-    recipeManifestResponse: { recipe, lastModified },
+    recipeManifestResponse: { recipe, lastModified, id: recipeId },
   }: {
     recipeManifestResponse: RecipeManifestResponse;
   }) => (
@@ -390,7 +391,7 @@ Parameters you can use:
           <Button
             onClick={(e) => {
               e.stopPropagation();
-              handleLoadRecipe(recipe);
+              handleLoadRecipe(recipeId);
             }}
             size="sm"
             className="h-8"
@@ -931,7 +932,7 @@ Parameters you can use:
               <Button
                 onClick={() => {
                   setShowPreview(false);
-                  handleLoadRecipe(selectedRecipe.recipe);
+                  handleLoadRecipe(selectedRecipe.id);
                 }}
                 variant="default"
               >

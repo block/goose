@@ -1,6 +1,8 @@
+use std::collections::HashMap;
 use std::fs;
 use std::hash::DefaultHasher;
 use std::hash::{Hash, Hasher};
+use std::io::Write;
 use std::path::PathBuf;
 
 use anyhow::Result;
@@ -15,6 +17,8 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+const RECIPE_ID_HASH_SEED: u64 = 0x1234567890abcdef;
+
 pub struct RecipeManifestWithPath {
     pub id: String,
     pub name: String,
@@ -26,6 +30,7 @@ pub struct RecipeManifestWithPath {
 
 fn short_id_from_path(path: &str) -> String {
     let mut hasher = DefaultHasher::new();
+    hasher.write_u64(RECIPE_ID_HASH_SEED);
     path.hash(&mut hasher);
     let h = hasher.finish();
     format!("{:016x}", h)
@@ -83,6 +88,51 @@ pub fn get_all_recipes_manifests() -> Result<Vec<RecipeManifestWithPath>> {
     recipe_manifests_with_path.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
 
     Ok(recipe_manifests_with_path)
+}
+
+fn get_recipe_temp_file_path() -> std::path::PathBuf {
+    std::env::temp_dir().join("goose_recipe_file_map.json")
+}
+
+pub fn save_recipe_file_hash_map(hash_map: &HashMap<String, std::path::PathBuf>) -> Result<()> {
+    let temp_path = get_recipe_temp_file_path();
+    let json_data = serde_json::to_string(hash_map)
+        .map_err(|e| anyhow::anyhow!("Failed to serialize hash map: {}", e))?;
+    fs::write(temp_path, json_data)
+        .map_err(|e| anyhow::anyhow!("Failed to write recipe id to file: {}", e))?;
+    Ok(())
+}
+
+fn load_recipe_file_hash_map() -> Result<HashMap<String, std::path::PathBuf>> {
+    let temp_path = get_recipe_temp_file_path();
+    if !temp_path.exists() {
+        return Ok(HashMap::new());
+    }
+    let json_data = fs::read_to_string(temp_path)
+        .map_err(|e| anyhow::anyhow!("Failed to read recipe id to file: {}", e))?;
+    let hash_map = serde_json::from_str(&json_data)
+        .map_err(|e| anyhow::anyhow!("Failed to deserialize hash map: {}", e))?;
+    Ok(hash_map)
+}
+
+pub fn find_recipe_file_path_by_id(recipe_id: &str) -> Result<PathBuf> {
+    let recipe_file_hash_map = load_recipe_file_hash_map()?;
+    recipe_file_hash_map
+        .get(recipe_id)
+        .cloned()
+        .ok_or_else(|| anyhow::anyhow!("Recipe not found with id: {}", recipe_id))
+}
+
+pub fn create_temp_deeplink_recipe_file(content: &str) -> Result<PathBuf> {
+    let temp_dir = std::env::temp_dir();
+    let file_name = format!("recipe_deeplink_{}.yaml", uuid::Uuid::new_v4());
+    let temp_path = temp_dir.join(file_name);
+
+    let mut file = std::fs::File::create(&temp_path)?;
+    file.write_all(content.as_bytes())?;
+    file.sync_all()?;
+
+    Ok(temp_path)
 }
 
 // this is a temporary struct to deserilize the UI recipe files. should not be used for other purposes.

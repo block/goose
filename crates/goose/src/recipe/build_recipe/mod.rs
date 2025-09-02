@@ -1,4 +1,4 @@
-use crate::recipe::read_recipe_file_content::RecipeFile;
+use crate::recipe::read_recipe_file_content::{read_recipe_file, RecipeFile};
 use crate::recipe::template_recipe::{parse_recipe_content, render_recipe_content_with_params};
 use crate::recipe::{
     Recipe, RecipeParameter, RecipeParameterRequirement, BUILT_IN_RECIPE_DIR_PARAM,
@@ -10,14 +10,17 @@ use std::path::Path;
 #[derive(Debug, thiserror::Error)]
 pub enum RecipeError {
     #[error("Missing required parameters: {parameters:?}")]
-    MissingParams { parameters: Vec<String> },
+    MissingParams {
+        parameters: Vec<String>,
+        raw_recipe: Box<Recipe>,
+    },
     #[error("Template rendering failed: {source}")]
     TemplateRendering { source: anyhow::Error },
     #[error("Recipe parsing failed: {source}")]
     RecipeParsing { source: anyhow::Error },
 }
 
-pub fn render_recipe_template<F>(
+fn render_recipe_template<F>(
     recipe_file: RecipeFile,
     params: Vec<(String, String)>,
     user_prompt_fn: Option<F>,
@@ -41,7 +44,7 @@ where
     let rendered_content = if missing_params.is_empty() {
         render_recipe_content_with_params(&recipe_file_content, &params_for_template)?
     } else {
-        String::new()
+        recipe_file_content.clone()
     };
 
     Ok((rendered_content, missing_params))
@@ -59,6 +62,19 @@ pub fn validate_recipe_parameters(
     Ok(recipe_parameters)
 }
 
+pub fn build_recipe_from_file(
+    file_path: &Path,
+    params: Vec<(String, String)>,
+) -> Result<Recipe, RecipeError> {
+    let recipe_file =
+        read_recipe_file(file_path).map_err(|source| RecipeError::RecipeParsing { source })?;
+    build_recipe_from_template(
+        recipe_file,
+        params,
+        None::<fn(&str, &str) -> Result<String>>,
+    )
+}
+
 pub fn build_recipe_from_template<F>(
     recipe_file: RecipeFile,
     params: Vec<(String, String)>,
@@ -72,12 +88,6 @@ where
         render_recipe_template(recipe_file, params.clone(), user_prompt_fn)
             .map_err(|source| RecipeError::TemplateRendering { source })?;
 
-    if !missing_params.is_empty() {
-        return Err(RecipeError::MissingParams {
-            parameters: missing_params,
-        });
-    }
-
     let mut recipe = Recipe::from_content(&rendered_content)
         .map_err(|source| RecipeError::RecipeParsing { source })?;
 
@@ -88,6 +98,13 @@ where
                 sub_recipe.path = resolved_path;
             }
         }
+    }
+
+    if !missing_params.is_empty() {
+        return Err(RecipeError::MissingParams {
+            parameters: missing_params,
+            raw_recipe: Box::new(recipe.clone()),
+        });
     }
 
     Ok(recipe)

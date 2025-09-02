@@ -16,30 +16,29 @@ pub fn encode(recipe: &Recipe) -> Result<String, serde_json::Error> {
     Ok(encoded)
 }
 
-pub fn decode(link: &str) -> Result<Recipe, DecodeError> {
+pub fn decode_deeplink_to_string(link: &str) -> Result<String, DecodeError> {
     // Handle the current format: URL-safe Base64 without padding.
     if let Ok(decoded_bytes) = URL_SAFE_NO_PAD.decode(link) {
         if let Ok(recipe_json) = String::from_utf8(decoded_bytes) {
-            if let Ok(recipe) = serde_json::from_str::<Recipe>(&recipe_json) {
-                return Ok(recipe);
-            }
+            return Ok(recipe_json);
         }
     }
 
     // Handle legacy formats of 'standard base64 encoded' and standard base64 encoded that was then url encoded.
-    if let Ok(url_decoded) = urlencoding::decode(link) {
-        if let Ok(decoded_bytes) =
-            base64::engine::general_purpose::STANDARD.decode(url_decoded.as_bytes())
-        {
-            if let Ok(recipe_json) = String::from_utf8(decoded_bytes) {
-                if let Ok(recipe) = serde_json::from_str::<Recipe>(&recipe_json) {
-                    return Ok(recipe);
-                }
-            }
-        }
-    }
+    urlencoding::decode(link)
+        .ok()
+        .and_then(|decoded| {
+            base64::engine::general_purpose::STANDARD
+                .decode(decoded.as_bytes())
+                .ok()
+        })
+        .and_then(|bytes| String::from_utf8(bytes).ok())
+        .ok_or(DecodeError::AllMethodsFailed)
+}
 
-    Err(DecodeError::AllMethodsFailed)
+pub fn decode(link: &str) -> Result<Recipe, DecodeError> {
+    let recipe_json = decode_deeplink_to_string(link)?;
+    serde_json::from_str::<Recipe>(&recipe_json).map_err(|_| DecodeError::AllMethodsFailed)
 }
 
 #[cfg(test)]

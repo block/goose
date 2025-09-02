@@ -396,6 +396,7 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::recipe::scan_recipe,
         super::routes::recipe::list_recipes,
         super::routes::recipe::delete_recipe,
+        super::routes::recipe::load_recipe,
     ),
     components(schemas(
         super::routes::config_management::UpsertConfigQuery,
@@ -469,6 +470,8 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::recipe::RecipeManifestResponse,
         super::routes::recipe::ListRecipeResponse,
         super::routes::recipe::DeleteRecipeRequest,
+        super::routes::recipe::LoadRecipeRequest,
+        super::routes::recipe::LoadRecipeResponse,
         goose::recipe::Recipe,
         goose::recipe::Author,
         goose::recipe::Settings,
