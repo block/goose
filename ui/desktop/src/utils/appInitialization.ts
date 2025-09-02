@@ -145,7 +145,7 @@ const initializeForRecipe = async ({
 
   const loadingToastId = toastService.loading({
     title: `Loading recipe: ${recipeConfig.title}`,
-    msg: 'Setting up extensions and environment...',
+    msg: 'Setting up environment...',
   });
 
   await initConfig();
