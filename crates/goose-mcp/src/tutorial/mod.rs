@@ -1,57 +1,59 @@
 use anyhow::Result;
 use include_dir::{include_dir, Dir};
 use indoc::formatdoc;
-use mcp_core::{
-    handler::{PromptError, ResourceError},
-    protocol::ServerCapabilities,
+use rmcp::handler::server::wrapper::Parameters;
+use rmcp::{
+    handler::server::router::tool::ToolRouter,
+    model::{
+        CallToolResult, Content, ErrorCode, ErrorData, Implementation, Role, ServerCapabilities,
+        ServerInfo,
+    },
+    schemars::JsonSchema,
+    tool, tool_handler, tool_router, ServerHandler,
 };
-use mcp_server::router::CapabilitiesBuilder;
-use mcp_server::Router;
-use rmcp::model::{
-    Content, ErrorCode, ErrorData, JsonRpcMessage, Prompt, Resource, Role, Tool, ToolAnnotations,
-};
-use rmcp::object;
-use serde_json::Value;
-use std::{future::Future, pin::Pin};
-use tokio::sync::mpsc;
+use serde::{Deserialize, Serialize};
 
 static TUTORIALS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/tutorial/tutorials");
 
-pub struct TutorialRouter {
-    tools: Vec<Tool>,
+/// Parameters for the load_tutorial tool
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct LoadTutorialParams {
+    /// Name of the tutorial to load, e.g. 'getting-started' or 'developer-mcp'
+    pub name: String,
+}
+
+/// Tutorial MCP Server using official RMCP SDK
+#[derive(Debug)]
+pub struct TutorialServer {
+    tool_router: ToolRouter<Self>,
     instructions: String,
 }
 
-impl Default for TutorialRouter {
+#[tool_handler(router = self.tool_router)]
+impl ServerHandler for TutorialServer {
+    fn get_info(&self) -> ServerInfo {
+        ServerInfo {
+            server_info: Implementation {
+                name: "goose-tutorial".to_string(),
+                version: env!("CARGO_PKG_VERSION").to_owned(),
+            },
+            capabilities: ServerCapabilities::builder().enable_tools().build(),
+            instructions: Some(self.instructions.clone()),
+            ..Default::default()
+        }
+    }
+}
+
+impl Default for TutorialServer {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl TutorialRouter {
+#[tool_router(router = tool_router)]
+impl TutorialServer {
     pub fn new() -> Self {
-        let load_tutorial = Tool::new(
-            "load_tutorial".to_string(),
-            "Load a specific tutorial by name. The tutorial will be returned as markdown content that provides step by step instructions.".to_string(),
-            object!({
-                "type": "object",
-                "required": ["name"],
-                "properties": {
-                    "name": {
-                        "type": "string",
-                        "description": "Name of the tutorial to load, e.g. 'getting-started' or 'developer-mcp'"
-                    }
-                }
-            })
-        ).annotate(ToolAnnotations {
-            title: Some("Load Tutorial".to_string()),
-            read_only_hint: Some(true),
-            destructive_hint: Some(false),
-            idempotent_hint: Some(false),
-            open_world_hint: Some(false),
-        });
-
-        // Get base instructions and available tutorials
+        // Get available tutorials
         let available_tutorials = Self::get_available_tutorials();
 
         let instructions = formatdoc! {r#"
@@ -73,11 +75,31 @@ impl TutorialRouter {
         };
 
         Self {
-            tools: vec![load_tutorial],
+            tool_router: Self::tool_router(),
             instructions,
         }
     }
 
+    /// Load a specific tutorial by name. The tutorial will be returned as markdown content that provides step by step instructions.
+    #[tool(
+        name = "load_tutorial",
+        description = "Load a specific tutorial by name. The tutorial will be returned as markdown content that provides step by step instructions."
+    )]
+    pub async fn load_tutorial(
+        &self,
+        params: Parameters<LoadTutorialParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let params = params.0;
+        let name = &params.name;
+
+        let content = self.load_tutorial_content(name).await?;
+
+        Ok(CallToolResult::success(vec![
+            Content::text(content).with_audience(vec![Role::Assistant])
+        ]))
+    }
+
+    /// Get list of available tutorials with descriptions
     fn get_available_tutorials() -> String {
         let mut tutorials = String::new();
         for file in TUTORIALS_DIR.files() {
@@ -94,7 +116,8 @@ impl TutorialRouter {
         tutorials
     }
 
-    async fn load_tutorial(&self, name: &str) -> Result<String, ErrorData> {
+    /// Load tutorial content by name
+    async fn load_tutorial_content(&self, name: &str) -> Result<String, ErrorData> {
         let file_name = format!("{}.md", name);
         let file = TUTORIALS_DIR.get_file(&file_name).ok_or(ErrorData::new(
             ErrorCode::INTERNAL_ERROR,
@@ -105,93 +128,10 @@ impl TutorialRouter {
     }
 }
 
-impl Router for TutorialRouter {
-    fn name(&self) -> String {
-        "tutorial".to_string()
-    }
-
-    fn instructions(&self) -> String {
-        self.instructions.clone()
-    }
-
-    fn capabilities(&self) -> ServerCapabilities {
-        CapabilitiesBuilder::new().with_tools(false).build()
-    }
-
-    fn list_tools(&self) -> Vec<Tool> {
-        self.tools.clone()
-    }
-
-    fn call_tool(
-        &self,
-        tool_name: &str,
-        arguments: Value,
-        _notifier: mpsc::Sender<JsonRpcMessage>,
-    ) -> Pin<Box<dyn Future<Output = Result<Vec<Content>, ErrorData>> + Send + 'static>> {
-        let this = self.clone();
-        let tool_name = tool_name.to_string();
-
-        Box::pin(async move {
-            match tool_name.as_str() {
-                "load_tutorial" => {
-                    let name = arguments
-                        .get("name")
-                        .and_then(|v| v.as_str())
-                        .ok_or_else(|| {
-                            ErrorData::new(
-                                ErrorCode::INVALID_PARAMS,
-                                "Missing 'name' parameter".to_string(),
-                                None,
-                            )
-                        })?;
-
-                    let content = this.load_tutorial(name).await?;
-                    Ok(vec![
-                        Content::text(content).with_audience(vec![Role::Assistant])
-                    ])
-                }
-                _ => Err(ErrorData::new(
-                    ErrorCode::RESOURCE_NOT_FOUND,
-                    format!("Tool {} not found", tool_name),
-                    None,
-                )),
-            }
-        })
-    }
-
-    fn list_resources(&self) -> Vec<Resource> {
-        Vec::new()
-    }
-
-    fn read_resource(
-        &self,
-        _uri: &str,
-    ) -> Pin<Box<dyn Future<Output = Result<String, ResourceError>> + Send + 'static>> {
-        Box::pin(async move { Ok("".to_string()) })
-    }
-
-    fn list_prompts(&self) -> Vec<Prompt> {
-        vec![]
-    }
-
-    fn get_prompt(
-        &self,
-        prompt_name: &str,
-    ) -> Pin<Box<dyn Future<Output = Result<String, PromptError>> + Send + 'static>> {
-        let prompt_name = prompt_name.to_string();
-        Box::pin(async move {
-            Err(PromptError::NotFound(format!(
-                "Prompt {} not found",
-                prompt_name
-            )))
-        })
-    }
-}
-
-impl Clone for TutorialRouter {
+impl Clone for TutorialServer {
     fn clone(&self) -> Self {
         Self {
-            tools: self.tools.clone(),
+            tool_router: Self::tool_router(),
             instructions: self.instructions.clone(),
         }
     }
