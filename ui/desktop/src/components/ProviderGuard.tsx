@@ -14,9 +14,10 @@ import { OpenRouter } from './icons';
 
 interface ProviderGuardProps {
   children: React.ReactNode;
+  setIsExtensionsLoading?: (loading: boolean) => void;
 }
 
-export default function ProviderGuard({ children }: ProviderGuardProps) {
+export default function ProviderGuard({ children, setIsExtensionsLoading }: ProviderGuardProps) {
   const { read, getExtensions, addExtension } = useConfig();
   const navigate = useNavigate();
   const [isChecking, setIsChecking] = useState(true);
@@ -72,6 +73,7 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
           await initializeSystem(provider as string, model as string, {
             getExtensions,
             addExtension,
+            setIsExtensionsLoading,
           });
 
           toastService.configure({ silent: false });
@@ -138,6 +140,7 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
           await initializeSystem(provider as string, model as string, {
             getExtensions,
             addExtension,
+            setIsExtensionsLoading,
           });
 
           toastService.configure({ silent: false });
@@ -267,6 +270,7 @@ export default function ProviderGuard({ children }: ProviderGuardProps) {
               setShowOllamaSetup(false);
               setShowFirstTimeSetup(true);
             }}
+            setIsExtensionsLoading={setIsExtensionsLoading}
           />
         </div>
       </div>
