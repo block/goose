@@ -1,8 +1,8 @@
-use crate::conversation::message::{Message, ToolRequest};
-use crate::tool_inspection::{InspectionAction, InspectionResult, ToolInspector};
+use crate::agents::platform_tools::PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME;
 use crate::config::permission::PermissionLevel;
 use crate::config::PermissionManager;
-use crate::agents::platform_tools::PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME;
+use crate::conversation::message::{Message, ToolRequest};
+use crate::tool_inspection::{InspectionAction, InspectionResult, ToolInspector};
 use anyhow::Result;
 use async_trait::async_trait;
 use std::collections::HashSet;
@@ -73,7 +73,7 @@ impl ToolInspector for PermissionInspector {
                     InspectionAction::Allow
                 } else {
                     // Smart mode - check permissions
-                    
+
                     // 1. Check user-defined permission first
                     if let Some(level) = permission_manager.get_user_permission(tool_name) {
                         match level {
@@ -93,7 +93,7 @@ impl ToolInspector for PermissionInspector {
                     // 4. Special case for extension management
                     else if tool_name == PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME {
                         InspectionAction::RequireApproval(Some(
-                            "Extension management requires approval for security".to_string()
+                            "Extension management requires approval for security".to_string(),
                         ))
                     }
                     // 5. Default: require approval for unknown tools

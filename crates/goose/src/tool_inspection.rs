@@ -5,8 +5,6 @@ use std::collections::HashMap;
 use crate::conversation::message::{Message, ToolRequest};
 use crate::permission::permission_judge::PermissionCheckResult;
 
-
-
 /// Result of inspecting a tool call
 #[derive(Debug, Clone)]
 pub struct InspectionResult {
@@ -85,10 +83,7 @@ impl ToolInspectionManager {
                 "Running tool inspector"
             );
 
-            match inspector
-                .inspect(tool_requests, messages)
-                .await
-            {
+            match inspector.inspect(tool_requests, messages).await {
                 Ok(results) => {
                     tracing::debug!(
                         inspector_name = inspector.name(),
@@ -122,8 +117,6 @@ impl Default for ToolInspectionManager {
         Self::new()
     }
 }
-
-
 
 /// Apply inspection results to permission check results
 /// This is the generic permission-mixing logic that works for all inspector types
@@ -235,8 +228,6 @@ mod tests {
             Ok(self.results.clone())
         }
     }
-
-
 
     #[test]
     fn test_apply_inspection_results() {

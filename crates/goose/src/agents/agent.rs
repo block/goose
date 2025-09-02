@@ -34,6 +34,7 @@ use crate::agents::types::{FrontendTool, ToolResultReceiver};
 use crate::config::{Config, ExtensionConfigManager};
 use crate::context_mgmt::auto_compact;
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
+use crate::permission::permission_inspector::PermissionInspector;
 use crate::permission::permission_judge::PermissionCheckResult;
 use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
@@ -41,7 +42,6 @@ use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::security::security_inspector::SecurityInspector;
-use crate::permission::permission_inspector::PermissionInspector;
 use crate::session;
 use crate::session::extension_data::ExtensionState;
 use crate::tool_inspection::{apply_inspection_results_to_permissions, ToolInspectionManager};
@@ -185,10 +185,10 @@ impl Agent {
     /// Create a tool inspection manager with default inspectors
     fn create_default_tool_inspection_manager() -> ToolInspectionManager {
         let mut tool_inspection_manager = ToolInspectionManager::new();
-        
+
         // Add security inspector (highest priority - runs first)
         tool_inspection_manager.add_inspector(Box::new(SecurityInspector::new()));
-        
+
         // Add permission inspector (medium-high priority)
         // Note: mode will be updated dynamically based on session config
         tool_inspection_manager.add_inspector(Box::new(PermissionInspector::new(
@@ -196,7 +196,7 @@ impl Agent {
             std::collections::HashSet::new(), // readonly tools - will be populated from extension manager
             std::collections::HashSet::new(), // regular tools - will be populated from extension manager
         )));
-        
+
         // Add repetition inspector (lower priority - basic repetition checking)
         tool_inspection_manager.add_inspector(Box::new(RepetitionInspector::new(None)));
 
@@ -1646,16 +1646,22 @@ mod tests {
     #[tokio::test]
     async fn test_tool_inspection_manager_has_all_inspectors() -> Result<()> {
         let agent = Agent::new();
-        
+
         // Verify that the tool inspection manager has all expected inspectors
         let inspector_names = agent.tool_inspection_manager.inspector_names();
-        
-        assert!(inspector_names.contains(&"repetition"), 
-                "Tool inspection manager should contain repetition inspector");
-        assert!(inspector_names.contains(&"permission"), 
-                "Tool inspection manager should contain permission inspector");
-        assert!(inspector_names.contains(&"security"), 
-                "Tool inspection manager should contain security inspector");
+
+        assert!(
+            inspector_names.contains(&"repetition"),
+            "Tool inspection manager should contain repetition inspector"
+        );
+        assert!(
+            inspector_names.contains(&"permission"),
+            "Tool inspection manager should contain permission inspector"
+        );
+        assert!(
+            inspector_names.contains(&"security"),
+            "Tool inspection manager should contain security inspector"
+        );
 
         Ok(())
     }

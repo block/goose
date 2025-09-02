@@ -83,8 +83,6 @@ impl Agent {
         Ok((tools, toolshim_tools, system_prompt))
     }
 
-
-
     /// Generate a response from the LLM provider
     /// Handles toolshim transformations if needed
     pub(crate) async fn generate_response_from_provider(

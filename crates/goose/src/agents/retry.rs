@@ -59,7 +59,9 @@ impl RetryManager {
     }
 
     /// Create a new retry manager with repetition inspector
-    pub fn with_repetition_inspector(repetition_inspector: Arc<Mutex<Option<RepetitionInspector>>>) -> Self {
+    pub fn with_repetition_inspector(
+        repetition_inspector: Arc<Mutex<Option<RepetitionInspector>>>,
+    ) -> Self {
         Self {
             attempts: Arc::new(Mutex::new(0)),
             repetition_inspector: Some(repetition_inspector),

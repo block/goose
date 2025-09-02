@@ -1,6 +1,6 @@
-pub mod security_inspector;
 pub mod patterns;
 pub mod scanner;
+pub mod security_inspector;
 
 use crate::conversation::message::{Message, ToolRequest};
 use crate::permission::permission_judge::PermissionCheckResult;
@@ -40,7 +40,7 @@ impl SecurityManager {
             None
         };
 
-        Self { 
+        Self {
             scanner,
             flagged_findings: Arc::new(Mutex::new(HashSet::new())),
         }
@@ -113,7 +113,8 @@ impl SecurityManager {
                     // Generate a unique finding ID based on normalized tool call content
                     // This ensures the same malicious content always gets the same finding ID
                     // regardless of JSON formatting or tool request ID variations
-                    let normalized_content = format!("{}:{}", 
+                    let normalized_content = format!(
+                        "{}:{}",
                         tool_call.name,
                         serde_json::to_string(&tool_call.arguments).unwrap_or_default()
                     );

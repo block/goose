@@ -58,7 +58,6 @@ impl Agent {
         try_stream! {
             // Create a permission manager for this approval session
             let mut permission_manager = PermissionManager::default();
-            
             for request in tool_requests.iter() {
                 if let Ok(tool_call) = request.tool_call.clone() {
                     // Find the corresponding inspection result for this tool request
