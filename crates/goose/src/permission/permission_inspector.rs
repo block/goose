@@ -82,12 +82,8 @@ impl ToolInspector for PermissionInspector {
                             PermissionLevel::AskBefore => InspectionAction::RequireApproval(None),
                         }
                     }
-                    // 2. Check if it's a readonly tool
-                    else if self.readonly_tools.contains(tool_name) {
-                        InspectionAction::Allow
-                    }
-                    // 3. Check if it's in the regular tools list (pre-approved)
-                    else if self.regular_tools.contains(tool_name) {
+                    // 2. Check if it's a readonly or regular tool (both pre-approved)
+                    else if self.readonly_tools.contains(tool_name) || self.regular_tools.contains(tool_name) {
                         InspectionAction::Allow
                     }
                     // 4. Special case for extension management
