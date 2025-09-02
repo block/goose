@@ -11,7 +11,6 @@ use rmcp::model::{ErrorCode, ErrorData, Tool};
 use serde_json::Value;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tokio::sync::RwLock;
 use tracing::error;
 
 pub struct ToolRouteManager {
@@ -85,7 +84,7 @@ impl ToolRouteManager {
         &self,
         provider: Arc<dyn Provider>,
         reindex_all: Option<bool>,
-        extension_manager: &Arc<RwLock<ExtensionManager>>,
+        extension_manager: &ExtensionManager,
     ) -> Result<()> {
         let enabled = self.is_router_enabled().await;
         if !enabled {
@@ -100,15 +99,14 @@ impl ToolRouteManager {
         let selector_arc = Arc::new(selector);
 
         // First index platform tools
-        let extension_manager = extension_manager.read().await;
-        ToolRouterIndexManager::index_platform_tools(&selector_arc, &extension_manager).await?;
+        ToolRouterIndexManager::index_platform_tools(&selector_arc, extension_manager).await?;
 
         if reindex_all.unwrap_or(false) {
             let enabled_extensions = extension_manager.list_extensions().await?;
             for extension_name in enabled_extensions {
                 if let Err(e) = ToolRouterIndexManager::update_extension_tools(
                     &selector_arc,
-                    &extension_manager,
+                    extension_manager,
                     &extension_name,
                     "add",
                 )
@@ -142,10 +140,7 @@ impl ToolRouteManager {
         self.router_tool_selector.lock().await.is_some()
     }
 
-    pub async fn list_tools_for_router(
-        &self,
-        extension_manager: &Arc<RwLock<ExtensionManager>>,
-    ) -> Vec<Tool> {
+    pub async fn list_tools_for_router(&self, extension_manager: &ExtensionManager) -> Vec<Tool> {
         // If router is disabled or overridden, return empty
         if *self.router_disabled_override.lock().await {
             return vec![];
@@ -163,7 +158,6 @@ impl ToolRouteManager {
         let selector = self.router_tool_selector.lock().await.clone();
         if let Some(selector) = selector {
             if let Ok(recent_calls) = selector.get_recent_tool_calls(20).await {
-                let extension_manager = extension_manager.read().await;
                 // Add recent tool calls to the list, avoiding duplicates
                 for tool_name in recent_calls {
                     // Find the tool in the extension manager's tools

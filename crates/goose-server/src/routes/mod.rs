@@ -6,6 +6,7 @@ pub mod context;
 pub mod extension;
 pub mod health;
 pub mod recipe;
+pub mod recipe_utils;
 pub mod reply;
 pub mod schedule;
 pub mod session;

@@ -676,22 +676,28 @@ const createChat = async (
       (function() {
         function setConfig() {
           try {
-            if (window.localStorage) {
+            if (document.readyState === 'complete' && window.localStorage) {
               localStorage.setItem('gooseConfig', '${configStr}');
               return true;
             }
           } catch (e) {
-            console.warn('localStorage access failed:', e);
+            console.warn('[Renderer] localStorage access failed:', e);
           }
           return false;
         }
 
-        if (!setConfig()) {
-          setTimeout(() => {
+        // If document is already complete, try immediately
+        if (document.readyState === 'complete') {
+          if (!setConfig()) {
+            console.error('[Renderer] Failed to set localStorage config despite document being ready');
+          }
+        } else {
+          // Wait for document to be fully ready
+          document.addEventListener('DOMContentLoaded', () => {
             if (!setConfig()) {
-              console.error('Failed to set localStorage after retry - continuing without localStorage config');
+              console.error('[Renderer] Failed to set localStorage config after DOMContentLoaded');
             }
-          }, 100);
+          });
         }
       })();
     `
@@ -953,9 +959,7 @@ const buildRecentFilesMenu = () => {
   }));
 };
 
-const openDirectoryDialog = async (
-  replaceWindow: boolean = false
-): Promise<OpenDialogReturnValue> => {
+const openDirectoryDialog = async (): Promise<OpenDialogReturnValue> => {
   // Get the current working directory from the focused window
   let defaultPath: string | undefined;
   const currentWindow = BrowserWindow.getFocusedWindow();
@@ -1033,45 +1037,8 @@ const openDirectoryDialog = async (
     }
 
     addRecentDir(dirToAdd);
-    const currentWindow = BrowserWindow.getFocusedWindow();
-
-    if (replaceWindow && currentWindow) {
-      // Replace current window with new one
-      await createChat(app, undefined, dirToAdd);
-      currentWindow.close();
-    } else {
-      // Update the working directory in the current window's localStorage
-      if (currentWindow) {
-        try {
-          const updateConfigScript = `
-            try {
-              const currentConfig = JSON.parse(localStorage.getItem('gooseConfig') || '{}');
-              const updatedConfig = {
-                ...currentConfig,
-                GOOSE_WORKING_DIR: '${dirToAdd.replace(/'/g, "\\'")}',
-              };
-              localStorage.setItem('gooseConfig', JSON.stringify(updatedConfig));
-              
-              // Trigger a config update event so the UI can refresh
-              window.dispatchEvent(new CustomEvent('goose-config-updated', { 
-                detail: { GOOSE_WORKING_DIR: '${dirToAdd.replace(/'/g, "\\'")}' } 
-              }));
-            } catch (e) {
-              console.error('Failed to update working directory in localStorage:', e);
-            }
-          `;
-          await currentWindow.webContents.executeJavaScript(updateConfigScript);
-          console.log(`Updated working directory to: ${dirToAdd}`);
-        } catch (error) {
-          console.error('Failed to update working directory:', error);
-          // Fallback: create new window
-          await createChat(app, undefined, dirToAdd);
-        }
-      } else {
-        // No current window, create new one
-        await createChat(app, undefined, dirToAdd);
-      }
-    }
+    // Create a new window with the selected directory
+    await createChat(app, undefined, dirToAdd);
   }
   return result;
 };
@@ -1109,9 +1076,20 @@ ipcMain.on('react-ready', () => {
   console.log('[main] React ready - window is prepared for deep links');
 });
 
+// Handle external URL opening
+ipcMain.handle('open-external', async (_event, url: string) => {
+  try {
+    await shell.openExternal(url);
+    return true;
+  } catch (error) {
+    console.error('Error opening external URL:', error);
+    throw error;
+  }
+});
+
 // Handle directory chooser
-ipcMain.handle('directory-chooser', (_event, replace: boolean = false) => {
-  return openDirectoryDialog(replace);
+ipcMain.handle('directory-chooser', (_event) => {
+  return openDirectoryDialog();
 });
 
 // Handle scheduling engine settings
@@ -1264,29 +1242,6 @@ ipcMain.handle('open-notifications-settings', async () => {
   } catch (error) {
     console.error('Error opening notification settings:', error);
     return false;
-  }
-});
-
-// Handle quit confirmation setting
-ipcMain.handle('set-quit-confirmation', async (_event, show: boolean) => {
-  try {
-    const settings = loadSettings();
-    settings.showQuitConfirmation = show;
-    saveSettings(settings);
-    return true;
-  } catch (error) {
-    console.error('Error setting quit confirmation:', error);
-    return false;
-  }
-});
-
-ipcMain.handle('get-quit-confirmation-state', () => {
-  try {
-    const settings = loadSettings();
-    return settings.showQuitConfirmation ?? true;
-  } catch (error) {
-    console.error('Error getting quit confirmation state:', error);
-    return true;
   }
 });
 
@@ -1626,37 +1581,44 @@ ipcMain.handle('get-binary-path', (_event, binaryName) => {
   return getBinaryPath(app, binaryName);
 });
 
-ipcMain.handle('read-file', (_event, filePath) => {
-  return new Promise((resolve) => {
-    // Expand tilde to home directory
+ipcMain.handle('read-file', async (_event, filePath) => {
+  try {
     const expandedPath = expandTilde(filePath);
+    if (process.platform === 'win32') {
+      const buffer = await fs.readFile(expandedPath);
+      return { file: buffer.toString('utf8'), filePath: expandedPath, error: null, found: true };
+    }
+    // Non-Windows: keep previous behavior via cat for parity
+    return await new Promise((resolve) => {
+      const cat = spawn('cat', [expandedPath]);
+      let output = '';
+      let errorOutput = '';
 
-    const cat = spawn('cat', [expandedPath]);
-    let output = '';
-    let errorOutput = '';
+      cat.stdout.on('data', (data) => {
+        output += data.toString();
+      });
 
-    cat.stdout.on('data', (data) => {
-      output += data.toString();
+      cat.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+
+      cat.on('close', (code) => {
+        if (code !== 0) {
+          resolve({ file: '', filePath: expandedPath, error: errorOutput || null, found: false });
+          return;
+        }
+        resolve({ file: output, filePath: expandedPath, error: null, found: true });
+      });
+
+      cat.on('error', (error) => {
+        console.error('Error reading file:', error);
+        resolve({ file: '', filePath: expandedPath, error, found: false });
+      });
     });
-
-    cat.stderr.on('data', (data) => {
-      errorOutput += data.toString();
-    });
-
-    cat.on('close', (code) => {
-      if (code !== 0) {
-        // File not found or error
-        resolve({ file: '', filePath: expandedPath, error: errorOutput || null, found: false });
-        return;
-      }
-      resolve({ file: output, filePath: expandedPath, error: null, found: true });
-    });
-
-    cat.on('error', (error) => {
-      console.error('Error reading file:', error);
-      resolve({ file: '', filePath: expandedPath, error, found: false });
-    });
-  });
+  } catch (error) {
+    console.error('Error reading file:', error);
+    return { file: '', filePath: expandTilde(filePath), error, found: false };
+  }
 });
 
 ipcMain.handle('write-file', async (_event, filePath, content) => {
@@ -2314,48 +2276,6 @@ app.on('will-quit', async () => {
         error
       );
     }
-  }
-});
-
-// Quit when all windows are closed, except on macOS or if we have a tray icon.
-// Add confirmation dialog when quitting with Cmd+Q (skip in dev mode)
-app.on('before-quit', async (event) => {
-  // Skip confirmation dialog in development mode
-  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    return; // Allow normal quit behavior in dev mode
-  }
-
-  // Check if quit confirmation is enabled in settings
-  const settings = loadSettings();
-  if (!settings.showQuitConfirmation) {
-    return; // Allow normal quit behavior if confirmation is disabled
-  }
-
-  // Prevent the default quit behavior
-  event.preventDefault();
-
-  // Show confirmation dialog
-  try {
-    const result = (await dialog.showMessageBox({
-      type: 'question',
-      buttons: ['Quit', 'Cancel'],
-      defaultId: 1, // Default to Cancel
-      title: 'Confirm Quit',
-      message: 'Are you sure you want to quit Goose?',
-      detail: 'Any unsaved changes may be lost.',
-    })) as unknown as { response: number };
-
-    if (result.response === 0) {
-      // User clicked "Quit"
-      // Set a flag to avoid showing the dialog again
-      app.removeAllListeners('before-quit');
-      // Force quit the app
-      process.nextTick(() => {
-        app.exit(0);
-      });
-    }
-  } catch (error) {
-    console.error('Error showing quit dialog:', error);
   }
 });
 

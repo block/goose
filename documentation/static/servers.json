@@ -51,12 +51,23 @@
     ]
   },
   {
+    "id": "autovisualiser",
+    "name": "Auto Visualiser",
+    "description": "Automatic data visualisation via MCP-UI",
+    "command": "",
+    "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/autovisualiser",
+    "installation_notes": "This is a built-in extension that comes with Goose and can be enabled on the Extensions page.",
+    "is_builtin": true,
+    "endorsed": true,
+    "environmentVariables": []
+  },
+  {
     "id": "blender-mcp",
     "name": "Blender",
     "description": "3D modeling and animation integration",
-    "command": "npx -y blender-mcp",
+    "command": "uvx blender-mcp",
     "link": "https://github.com/ahujasid/blender-mcp",
-    "installation_notes": "Install using npx package manager.",
+    "installation_notes": "Install using uvx package manager.",
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": []
@@ -232,6 +243,18 @@
     "installation_notes": "Install using uvx package manager. Note: Some sites may block access via robots.txt.",
     "is_builtin": false,
     "endorsed": true,
+    "environmentVariables": []
+  },
+  {
+    "id": "figma",
+    "name": "Figma",
+    "description": "Convert Figma designs into code and extract design context (requires local setup)",
+    "url": "http://127.0.0.1:3845/mcp",
+    "link": "",
+    "installation_notes": "The Figma desktop app must be running with the MCP server enabled.",
+    "is_builtin": false,
+    "endorsed": true,
+    "type": "streamable-http",
     "environmentVariables": []
   },
   {

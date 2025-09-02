@@ -1,3 +1,6 @@
+/**
+ * @vitest-environment jsdom
+ */
 import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useChatEngine } from './useChatEngine';
@@ -19,30 +22,24 @@ describe('useChatEngine', () => {
   let mockUseMessageStream: Mock;
 
   beforeEach(async () => {
-    // Mock the global window object more completely for the React testing environment
-    const mockWindow = {
-      appConfig: {
+    // Mock the appConfig and electron APIs on the existing window object
+    Object.defineProperty(window, 'appConfig', {
+      value: {
         get: vi.fn((key: string) => {
           if (key === 'GOOSE_API_HOST') return 'http://localhost';
           if (key === 'GOOSE_PORT') return '8000';
           return null;
         }),
       },
-      electron: {
+      writable: true,
+    });
+
+    Object.defineProperty(window, 'electron', {
+      value: {
         logInfo: vi.fn(),
       },
-      setTimeout: vi.fn((fn: () => void) => {
-        fn(); // Execute immediately for tests
-        return 123;
-      }),
-      clearTimeout: vi.fn(),
-      dispatchEvent: vi.fn(),
-      CustomEvent: vi.fn(),
-      // Add basic browser objects required by React Testing Library
-      HTMLElement: class MockHTMLElement {},
-      Event: class MockEvent {},
-    };
-    vi.stubGlobal('window', mockWindow);
+      writable: true,
+    });
 
     // Dynamically import the hook so we can get a reference to the mock
     const { useMessageStream } = await import('./useMessageStream');

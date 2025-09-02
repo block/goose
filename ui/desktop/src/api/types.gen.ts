@@ -98,6 +98,15 @@ export type ContextManageResponse = {
     tokenCounts: Array<number>;
 };
 
+export type CreateCustomProviderRequest = {
+    api_key: string;
+    api_url: string;
+    display_name: string;
+    models: Array<string>;
+    provider_type: string;
+    supports_streaming?: boolean | null;
+};
+
 export type CreateRecipeRequest = {
     activities?: Array<string> | null;
     author?: AuthorRequest | null;
@@ -124,6 +133,10 @@ export type DecodeRecipeRequest = {
 
 export type DecodeRecipeResponse = {
     recipe: Recipe;
+};
+
+export type DeleteRecipeRequest = {
+    id: string;
 };
 
 export type EmbeddedResource = {
@@ -270,6 +283,14 @@ export type ExtensionConfig = {
     type: 'inline_python';
 };
 
+/**
+ * Extension data containing all extension states
+ * Keys are in format "extension_name.version" (e.g., "todo.v0")
+ */
+export type ExtensionData = {
+    [key: string]: unknown;
+};
+
 export type ExtensionEntry = ExtensionConfig & {
     type?: 'ExtensionEntry';
 } & {
@@ -313,6 +334,10 @@ export type InspectJobResponse = {
 
 export type KillJobResponse = {
     message: string;
+};
+
+export type ListRecipeResponse = {
+    recipe_manifest_responses: Array<RecipeManifestResponse>;
 };
 
 export type ListSchedulesResponse = {
@@ -525,6 +550,14 @@ export type Recipe = {
     version?: string;
 };
 
+export type RecipeManifestResponse = {
+    id: string;
+    isGlobal: boolean;
+    lastModified: string;
+    name: string;
+    recipe: Recipe;
+};
+
 export type RecipeParameter = {
     default?: string | null;
     description: string;
@@ -586,6 +619,14 @@ export type Role = string;
 
 export type RunNowResponse = {
     session_id: string;
+};
+
+export type ScanRecipeRequest = {
+    recipe: Recipe;
+};
+
+export type ScanRecipeResponse = {
+    has_security_warnings: boolean;
 };
 
 export type ScheduledJob = {
@@ -665,6 +706,7 @@ export type SessionMetadata = {
      * A short description of the session, typically 3 words or less
      */
     description: string;
+    extension_data?: ExtensionData;
     /**
      * The number of input tokens used in the session. Retrieved from the provider's last usage.
      */
@@ -1027,10 +1069,8 @@ export type GetAutoCompactThresholdResponses = {
     /**
      * Auto-compact threshold retrieved successfully
      */
-    200: number;
+    200: unknown;
 };
-
-export type GetAutoCompactThresholdResponse = GetAutoCompactThresholdResponses[keyof GetAutoCompactThresholdResponses];
 
 export type BackupConfigData = {
     body?: never;
@@ -1055,21 +1095,61 @@ export type BackupConfigResponses = {
 
 export type BackupConfigResponse = BackupConfigResponses[keyof BackupConfigResponses];
 
-export type GetCurrentModelData = {
-    body?: never;
+export type CreateCustomProviderData = {
+    body: CreateCustomProviderRequest;
     path?: never;
     query?: never;
-    url: '/config/current-model';
+    url: '/config/custom-providers';
 };
 
-export type GetCurrentModelResponses = {
+export type CreateCustomProviderErrors = {
     /**
-     * Current model retrieved successfully
+     * Invalid request
+     */
+    400: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type CreateCustomProviderResponses = {
+    /**
+     * Custom provider created successfully
      */
     200: string;
 };
 
-export type GetCurrentModelResponse = GetCurrentModelResponses[keyof GetCurrentModelResponses];
+export type CreateCustomProviderResponse = CreateCustomProviderResponses[keyof CreateCustomProviderResponses];
+
+export type RemoveCustomProviderData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/config/custom-providers/{id}';
+};
+
+export type RemoveCustomProviderErrors = {
+    /**
+     * Provider not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type RemoveCustomProviderResponses = {
+    /**
+     * Custom provider removed successfully
+     */
+    200: string;
+};
+
+export type RemoveCustomProviderResponse = RemoveCustomProviderResponses[keyof RemoveCustomProviderResponses];
 
 export type GetExtensionsData = {
     body?: never;
@@ -1215,6 +1295,42 @@ export type ProvidersResponses = {
 };
 
 export type ProvidersResponse2 = ProvidersResponses[keyof ProvidersResponses];
+
+export type GetProviderModelsData = {
+    body?: never;
+    path: {
+        /**
+         * Provider name (e.g., openai)
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/config/providers/{name}/models';
+};
+
+export type GetProviderModelsErrors = {
+    /**
+     * Unknown provider, provider not configured, or authentication error
+     */
+    400: unknown;
+    /**
+     * Rate limit exceeded
+     */
+    429: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type GetProviderModelsResponses = {
+    /**
+     * Models fetched successfully
+     */
+    200: Array<string>;
+};
+
+export type GetProviderModelsResponse = GetProviderModelsResponses[keyof GetProviderModelsResponses];
 
 export type ReadConfigData = {
     body: ConfigKeyQuery;
@@ -1443,6 +1559,37 @@ export type DecodeRecipeResponses = {
 
 export type DecodeRecipeResponse2 = DecodeRecipeResponses[keyof DecodeRecipeResponses];
 
+export type DeleteRecipeData = {
+    body: DeleteRecipeRequest;
+    path?: never;
+    query?: never;
+    url: '/recipes/delete';
+};
+
+export type DeleteRecipeErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Recipe not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type DeleteRecipeResponses = {
+    /**
+     * Recipe deleted successfully
+     */
+    204: void;
+};
+
+export type DeleteRecipeResponse = DeleteRecipeResponses[keyof DeleteRecipeResponses];
+
 export type EncodeRecipeData = {
     body: EncodeRecipeRequest;
     path?: never;
@@ -1465,6 +1612,49 @@ export type EncodeRecipeResponses = {
 };
 
 export type EncodeRecipeResponse2 = EncodeRecipeResponses[keyof EncodeRecipeResponses];
+
+export type ListRecipesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/recipes/list';
+};
+
+export type ListRecipesErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ListRecipesResponses = {
+    /**
+     * Get recipe list successfully
+     */
+    200: ListRecipeResponse;
+};
+
+export type ListRecipesResponse = ListRecipesResponses[keyof ListRecipesResponses];
+
+export type ScanRecipeData = {
+    body: ScanRecipeRequest;
+    path?: never;
+    query?: never;
+    url: '/recipes/scan';
+};
+
+export type ScanRecipeResponses = {
+    /**
+     * Recipe scanned successfully
+     */
+    200: ScanRecipeResponse;
+};
+
+export type ScanRecipeResponse2 = ScanRecipeResponses[keyof ScanRecipeResponses];
 
 export type CreateScheduleData = {
     body: CreateScheduleRequest;

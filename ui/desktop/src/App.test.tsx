@@ -15,6 +15,7 @@ Object.defineProperty(window, 'location', {
     search: '',
     href: 'http://localhost:3000',
     origin: 'http://localhost:3000',
+    pathname: '/',
   },
   writable: true,
 });
@@ -104,6 +105,7 @@ vi.mock('./contexts/ChatContext', () => ({
       recipeConfig: null,
     },
     setChat: vi.fn(),
+    setPairChat: vi.fn(), // Keep this from HEAD
     resetChat: vi.fn(),
     hasActiveSession: false,
     setRecipeConfig: vi.fn(),
@@ -115,6 +117,7 @@ vi.mock('./contexts/ChatContext', () => ({
     clearDraft: vi.fn(),
     contextKey: 'hub',
   }),
+  DEFAULT_CHAT_TITLE: 'New Chat', // Keep this from HEAD
 }));
 
 vi.mock('./contexts/DraftContext', () => ({
@@ -135,19 +138,6 @@ vi.mock('./components/GoosehintsModal', () => ({
 
 vi.mock('./components/AnnouncementModal', () => ({
   default: () => null,
-}));
-
-vi.mock('./hooks/useChat', () => ({
-  useChat: () => ({
-    chat: {
-      id: 'test-id',
-      title: 'Test Chat',
-      messages: [],
-      messageHistoryIndex: 0,
-      recipeConfig: null,
-    },
-    setChat: vi.fn(),
-  }),
 }));
 
 // Mock react-router-dom to avoid HashRouter issues in tests
@@ -207,6 +197,7 @@ describe('App Component - Brand New State', () => {
     vi.clearAllMocks();
     window.location.hash = '';
     window.location.search = '';
+    window.location.pathname = '/';
     window.sessionStorage.clear();
     window.localStorage.clear();
   });

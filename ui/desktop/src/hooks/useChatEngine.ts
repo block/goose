@@ -15,6 +15,7 @@ import {
   TextContent,
 } from '../types/message';
 import { ChatType } from '../types/chat';
+import { ChatState } from '../types/chatState';
 
 // Helper function to determine if a message is a user message
 const isUserMessage = (message: Message): boolean => {
@@ -100,7 +101,16 @@ export const useChatEngine = ({
     api: getApiUrl('/reply'),
     id: chat.id,
     initialMessages: chat.messages,
-    body: { session_id: chat.id, session_working_dir: window.appConfig.get('GOOSE_WORKING_DIR') },
+    body: {
+      session_id: chat.id,
+      session_working_dir: window.appConfig.get('GOOSE_WORKING_DIR'),
+      ...(chat.recipeConfig?.title
+        ? {
+            recipe_name: chat.recipeConfig.title,
+            recipe_version: chat.recipeConfig?.version ?? 'unknown',
+          }
+        : {}),
+    },
     onFinish: async (_message, _reason) => {
       stopPowerSaveBlocker();
 
@@ -211,10 +221,11 @@ export const useChatEngine = ({
         console.error('Error fetching session token count:', err);
       }
     };
-    if (chat.id) {
+    // Only fetch session tokens when chat state is idle to avoid resetting during streaming
+    if (chat.id && chatState === ChatState.Idle) {
       fetchSessionTokens();
     }
-  }, [chat.id, messages]);
+  }, [chat.id, messages, chatState]);
 
   // Update token counts when sessionMetadata changes from the message stream
   useEffect(() => {

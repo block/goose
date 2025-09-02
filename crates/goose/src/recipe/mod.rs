@@ -5,6 +5,7 @@ use std::fmt;
 
 use crate::agents::extension::ExtensionConfig;
 use crate::agents::types::RetryConfig;
+use crate::utils::contains_unicode_tags;
 use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -253,6 +254,25 @@ pub struct RecipeBuilder {
 }
 
 impl Recipe {
+    /// Returns true if harmful content is detected in instructions, prompt, or activities fields
+    pub fn check_for_security_warnings(&self) -> bool {
+        if [self.instructions.as_deref(), self.prompt.as_deref()]
+            .iter()
+            .flatten()
+            .any(|&field| contains_unicode_tags(field))
+        {
+            return true;
+        }
+
+        if let Some(activities) = &self.activities {
+            return activities
+                .iter()
+                .any(|activity| contains_unicode_tags(activity));
+        }
+
+        false
+    }
+
     /// Creates a new RecipeBuilder to construct a Recipe instance
     ///
     /// # Example
@@ -745,5 +765,42 @@ isGlobal: true"#;
         assert!(recipe.extensions.is_some());
         let extensions = recipe.extensions.unwrap();
         assert_eq!(extensions.len(), 0);
+    }
+
+    #[test]
+    fn test_check_for_security_warnings() {
+        let mut recipe = Recipe {
+            version: "1.0.0".to_string(),
+            title: "Test".to_string(),
+            description: "Test".to_string(),
+            instructions: Some("clean instructions".to_string()),
+            prompt: Some("clean prompt".to_string()),
+            extensions: None,
+            context: None,
+            settings: None,
+            activities: Some(vec!["clean activity 1".to_string()]),
+            author: None,
+            parameters: None,
+            response: None,
+            sub_recipes: None,
+            retry: None,
+        };
+
+        assert!(!recipe.check_for_security_warnings());
+
+        // Malicious activities
+        recipe.activities = Some(vec![
+            "clean activity".to_string(),
+            format!("malicious{}activity", '\u{E0041}'),
+        ]);
+        assert!(recipe.check_for_security_warnings());
+
+        // Malicious instructions
+        recipe.instructions = Some(format!("instructions{}", '\u{E0041}'));
+        assert!(recipe.check_for_security_warnings());
+
+        // Malicious prompt
+        recipe.prompt = Some(format!("prompt{}", '\u{E0042}'));
+        assert!(recipe.check_for_security_warnings());
     }
 }

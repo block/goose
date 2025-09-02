@@ -192,7 +192,7 @@ goose configure
 
 ---
 
-#### Set the [maximum number of turns](/docs/guides/smart-context-management#maximum-turns) allowed without user input (default: 1000)
+#### Set the [maximum number of turns](/docs/guides/sessions/smart-context-management#maximum-turns) allowed without user input (default: 1000)
 
     **Options:**
 
@@ -384,7 +384,7 @@ Execute commands from an instruction file or stdin. Check out the [full guide](/
 - **`--with-streamable-http-extension <URL>`**: Add remote extensions over Streaming HTTP (can be used multiple times in the same command)
 - **`--with-builtin <n>`**: Add builtin extensions by name (e.g., 'developer' or multiple: 'developer,github')
 - **`--debug`**: Output complete tool responses, detailed parameter values, and full file paths
-- **`--max-turns <NUMBER>`**: [Maximum number of turns](/docs/guides/smart-context-management#maximum-turns) allowed without user input (default: 1000)
+- **`--max-turns <NUMBER>`**: [Maximum number of turns](/docs/guides/sessions/smart-context-management#maximum-turns) allowed without user input (default: 1000)
 - **`--explain`**: Show a recipe's title, description, and parameters
 - **`--no-session`**: Run goose commands without creating or storing a session file
 - **`--max-turns <NUMBER>`**: Limit the maximum number of turns the agent can take before asking for user input to continue (default: 1000)

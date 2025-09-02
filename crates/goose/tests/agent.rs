@@ -592,6 +592,16 @@ mod final_output_tool_tests {
                     ProviderUsage::new("mock".to_string(), Usage::default()),
                 ))
             }
+
+            async fn complete_with_model(
+                &self,
+                _model_config: &ModelConfig,
+                system: &str,
+                messages: &[Message],
+                tools: &[Tool],
+            ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
+                self.complete(system, messages, tools).await
+            }
         }
 
         let agent = Agent::new();
@@ -619,7 +629,7 @@ mod final_output_tool_tests {
             }),
         );
         let (_, result) = agent
-            .dispatch_tool_call(tool_call, "request_id".to_string(), None)
+            .dispatch_tool_call(tool_call, "request_id".to_string(), None, &None)
             .await;
 
         assert!(result.is_ok(), "Tool call should succeed");
@@ -712,6 +722,16 @@ mod final_output_tool_tests {
                 _tools: &[Tool],
             ) -> Result<(Message, ProviderUsage), ProviderError> {
                 Err(ProviderError::NotImplemented("Not implemented".to_string()))
+            }
+
+            async fn complete_with_model(
+                &self,
+                _model_config: &ModelConfig,
+                system: &str,
+                messages: &[Message],
+                tools: &[Tool],
+            ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
+                self.complete(system, messages, tools).await
             }
         }
 
@@ -828,6 +848,16 @@ mod retry_tests {
                     ProviderUsage::new("mock".to_string(), Usage::default()),
                 ))
             }
+        }
+
+        async fn complete_with_model(
+            &self,
+            _model_config: &ModelConfig,
+            system: &str,
+            messages: &[Message],
+            tools: &[Tool],
+        ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
+            self.complete(system, messages, tools).await
         }
     }
 
@@ -1000,6 +1030,16 @@ mod max_turns_tests {
             );
 
             Ok((message, usage))
+        }
+
+        async fn complete_with_model(
+            &self,
+            _model_config: &ModelConfig,
+            system_prompt: &str,
+            messages: &[Message],
+            tools: &[Tool],
+        ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
+            self.complete(system_prompt, messages, tools).await
         }
 
         fn get_model_config(&self) -> ModelConfig {
