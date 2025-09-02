@@ -1066,6 +1066,7 @@ function parseRecipeDeeplink(url: string): string | undefined {
   const parsedUrl = new URL(url);
   let recipeDeeplink = parsedUrl.searchParams.get('config');
   if (recipeDeeplink && !url.includes(recipeDeeplink)) {
+    // URLSearchParams decodes + as space, which can break encoded configs
     // Parse raw query to preserve "+" characters in values like config
     const search = parsedUrl.search || '';
     // parse recipe deeplink from search params
