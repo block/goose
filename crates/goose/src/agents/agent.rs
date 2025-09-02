@@ -203,12 +203,6 @@ impl Agent {
         tool_inspection_manager
     }
 
-    pub async fn configure_tool_monitor(&self, _max_repetitions: Option<u32>) {
-        // This method is now deprecated - tool monitoring is handled through the inspection manager
-        // We keep it for backward compatibility but it doesn't do anything
-        tracing::warn!("configure_tool_monitor is deprecated - tool monitoring is now handled through the inspection manager");
-    }
-
     /// Reset the retry attempts counter to 0
     pub async fn reset_retry_attempts(&self) {
         self.retry_manager.reset_attempts().await;
