@@ -354,8 +354,7 @@ async fn delete_session(
     }
 
     // Delete the session file
-    std::fs::remove_file(&session_path)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    std::fs::remove_file(&session_path).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(StatusCode::OK)
 }
