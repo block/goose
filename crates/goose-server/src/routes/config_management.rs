@@ -824,28 +824,6 @@ pub async fn remove_custom_provider(
     Ok(Json(format!("Removed custom provider: {}", id)))
 }
 
-#[utoipa::path(
-    get,
-    path = "/config/auto-compact-threshold",
-    responses(
-        (status = 200, description = "Auto-compact threshold retrieved successfully", body = Value),
-    )
-)]
-pub async fn get_auto_compact_threshold(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-) -> Result<Json<Value>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
-    let config = Config::global();
-    let threshold = config
-        .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
-        .unwrap_or(0.8); // Default to 80%
-
-    Ok(Json(serde_json::json!({
-        "threshold": threshold
-    })))
-}
 
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
@@ -869,10 +847,6 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route(
             "/config/custom-providers/{id}",
             delete(remove_custom_provider),
-        )
-        .route(
-            "/config/auto-compact-threshold",
-            get(get_auto_compact_threshold),
         )
         .with_state(state)
 }

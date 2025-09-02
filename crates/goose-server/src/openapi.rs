@@ -370,7 +370,6 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::config_management::upsert_permissions,
         super::routes::config_management::create_custom_provider,
         super::routes::config_management::remove_custom_provider,
-        super::routes::config_management::get_auto_compact_threshold,
         super::routes::agent::get_tools,
         super::routes::agent::add_sub_recipes,
         super::routes::agent::extend_prompt,

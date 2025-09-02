@@ -1058,20 +1058,6 @@ export type ReadAllConfigResponses = {
 
 export type ReadAllConfigResponse = ReadAllConfigResponses[keyof ReadAllConfigResponses];
 
-export type GetAutoCompactThresholdData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/config/auto-compact-threshold';
-};
-
-export type GetAutoCompactThresholdResponses = {
-    /**
-     * Auto-compact threshold retrieved successfully
-     */
-    200: unknown;
-};
-
 export type BackupConfigData = {
     body?: never;
     path?: never;
