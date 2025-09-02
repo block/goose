@@ -128,6 +128,18 @@ fn process_extensions(
     None
 }
 
+// Helper function to apply recipe builder methods if value can be deserialized
+fn apply_if_ok<T: serde::de::DeserializeOwned>(
+    builder: RecipeBuilder,
+    value: Option<&Value>,
+    f: impl FnOnce(RecipeBuilder, T) -> RecipeBuilder,
+) -> RecipeBuilder {
+    match value.and_then(|v| serde_json::from_value(v.clone()).ok()) {
+        Some(parsed) => f(builder, parsed),
+        None => builder,
+    }
+}
+
 pub fn task_params_to_inline_recipe(
     task_param: &Value,
     loaded_extensions: &[String],
@@ -172,17 +184,6 @@ pub fn task_params_to_inline_recipe(
     }
 
     // Handle other optional fields
-    fn apply_if_ok<T: serde::de::DeserializeOwned>(
-        builder: RecipeBuilder,
-        value: Option<&Value>,
-        f: impl FnOnce(RecipeBuilder, T) -> RecipeBuilder,
-    ) -> RecipeBuilder {
-        match value.and_then(|v| serde_json::from_value(v.clone()).ok()) {
-            Some(parsed) => f(builder, parsed),
-            None => builder,
-        }
-    }
-
     builder = apply_if_ok(builder, task_param.get("settings"), RecipeBuilder::settings);
     builder = apply_if_ok(builder, task_param.get("response"), RecipeBuilder::response);
     builder = apply_if_ok(builder, task_param.get("retry"), RecipeBuilder::retry);

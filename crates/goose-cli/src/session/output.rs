@@ -413,13 +413,8 @@ fn render_text_editor_request(call: &ToolCall, debug: bool) {
 
 fn render_shell_request(call: &ToolCall, debug: bool) {
     print_tool_header(call);
-
-    match call.arguments.get("command") {
-        Some(Value::String(s)) => {
-            println!("{}: {}", style("command").dim(), style(s).green());
-        }
-        _ => print_params(&call.arguments, 0, debug),
-    }
+    print_params(&call.arguments, 0, debug);
+    println!();
 }
 
 fn render_dynamic_task_request(call: &ToolCall, debug: bool) {
