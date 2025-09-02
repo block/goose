@@ -12,7 +12,6 @@ workspace = true
 
 [dependencies]
 mcp-core = { path = "../mcp-core" }
-mcp-server = { path = "../mcp-server" }
 rmcp = { version = "0.6.0", features = ["server", "client", "transport-io", "macros"] }
 anyhow = "1.0.94"
 tokio = { version = "1", features = ["full"] }
@@ -29,7 +28,7 @@ schemars = "1.0"
 lazy_static = "1.5"
 shellexpand = "3.1.0"
 indoc = "2.0.5"
-xcap = "0.0.14"
+xcap = "0.7.0"
 reqwest = { version = "0.11", features = [
     "json",
     "rustls-tls-native-roots",

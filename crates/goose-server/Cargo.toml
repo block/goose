@@ -14,7 +14,6 @@ workspace = true
 goose = { path = "../goose" }
 mcp-core = { path = "../mcp-core" }
 goose-mcp = { path = "../goose-mcp" }
-mcp-server = { path = "../mcp-server" }
 rmcp = { workspace = true }
 schemars = "1.0"
 axum = { version = "0.8.1", features = ["ws", "macros"] }

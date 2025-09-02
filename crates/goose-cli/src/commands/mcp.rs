@@ -1,30 +1,11 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use goose_mcp::{
-    AutoVisualiserRouter, ComputerControllerRouter, DeveloperServer, MemoryRouter, TutorialRouter,
+    AutoVisualiserServer, ComputerControllerServer, DeveloperServer, MemoryServer, TutorialServer,
 };
-use mcp_server::router::RouterService;
-use mcp_server::{BoundedService, ByteTransport, Server};
 use rmcp::{transport::stdio, ServiceExt};
-use tokio::io::{stdin, stdout};
-
-use std::sync::Arc;
-use tokio::sync::Notify;
-
-#[cfg(unix)]
-use nix::sys::signal::{kill, Signal};
-#[cfg(unix)]
-use nix::unistd::getpgrp;
-#[cfg(unix)]
-use nix::unistd::Pid;
 
 pub async fn run_server(name: &str) -> Result<()> {
     crate::logging::setup_logging(Some(&format!("mcp-{name}")), None)?;
-
-    if name == "googledrive" || name == "google_drive" {
-        return Err(anyhow!(
-            "the built-in Google Drive extension has been removed"
-        ));
-    }
 
     tracing::info!("Starting MCP server");
 
@@ -39,44 +20,47 @@ pub async fn run_server(name: &str) -> Result<()> {
         service.waiting().await?;
         return Ok(());
     }
+    if name == "tutorial" {
+        let service = TutorialServer::new()
+            .serve(stdio())
+            .await
+            .inspect_err(|e| {
+                tracing::error!("serving error: {:?}", e);
+            })?;
 
-    let router: Option<Box<dyn BoundedService>> = match name {
-        "computercontroller" => Some(Box::new(RouterService(ComputerControllerRouter::new()))),
-        "autovisualiser" => Some(Box::new(RouterService(AutoVisualiserRouter::new()))),
-        "memory" => Some(Box::new(RouterService(MemoryRouter::new()))),
-        "tutorial" => Some(Box::new(RouterService(TutorialRouter::new()))),
-        _ => None,
-    };
-
-    let shutdown = Arc::new(Notify::new());
-    let shutdown_clone = shutdown.clone();
-
-    tokio::spawn(async move {
-        crate::signal::shutdown_signal().await;
-        shutdown_clone.notify_one();
-    });
-
-    let server = Server::new(router.unwrap_or_else(|| panic!("Unknown server requested {}", name)));
-    let transport = ByteTransport::new(stdin(), stdout());
-
-    tracing::info!("Server initialized and ready to handle requests");
-
-    tokio::select! {
-        result = server.run(transport) => {
-            Ok(result?)
-        }
-        _ = shutdown.notified() => {
-            // On Unix systems, kill the entire process group
-            #[cfg(unix)]
-            {
-                fn terminate_process_group() {
-                    let pgid = getpgrp();
-                    kill(Pid::from_raw(-pgid.as_raw()), Signal::SIGTERM)
-                        .expect("Failed to send SIGTERM to process group");
-                }
-                terminate_process_group();
-            }
-            Ok(())
-        }
+        service.waiting().await?;
+        return Ok(());
     }
+    if name == "memory" {
+        let service = MemoryServer::new().serve(stdio()).await.inspect_err(|e| {
+            tracing::error!("serving error: {:?}", e);
+        })?;
+
+        service.waiting().await?;
+        return Ok(());
+    }
+    if name == "computercontroller" {
+        let service = ComputerControllerServer::new()
+            .serve(stdio())
+            .await
+            .inspect_err(|e| {
+                tracing::error!("serving error: {:?}", e);
+            })?;
+
+        service.waiting().await?;
+        return Ok(());
+    }
+    if name == "autovisualiser" {
+        let service = AutoVisualiserServer::new()
+            .serve(stdio())
+            .await
+            .inspect_err(|e| {
+                tracing::error!("serving error: {:?}", e);
+            })?;
+
+        service.waiting().await?;
+        return Ok(());
+    }
+
+    panic!("Unknown server requested {}", name);
 }
