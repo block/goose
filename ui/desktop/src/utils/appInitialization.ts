@@ -157,7 +157,7 @@ const initializeForRecipe = async ({
   });
 
   toastService.dismiss(loadingToastId);
-  toastService.success({ title: 'Recipe ready!', msg: `${recipeConfig.title} is ready to use` });
+  toastService.success({ title: 'Recipe loaded', msg: `Recipe is ready to use` });
 
   setPairChat((prevChat) => ({
     ...prevChat,
