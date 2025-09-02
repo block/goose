@@ -824,7 +824,6 @@ pub async fn remove_custom_provider(
     Ok(Json(format!("Removed custom provider: {}", id)))
 }
 
-
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/config", get(read_all_config))
