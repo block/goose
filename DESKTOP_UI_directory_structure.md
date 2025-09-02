@@ -1,0 +1,47 @@
+# Directory structure of ui/desktop/src
+
+- components
+  - settings
+    - models
+      - modelInterface.ts
+      - predefinedModelsUtils.ts
+      - ModelsSection.tsx
+      - bottom_bar
+        - ModelsBottomBar.tsx
+      - subcomponents
+        - ModelSettingsButtons.tsx
+        - AddModelModal.tsx
+        - LeadWorkerSettings.tsx
+  - extensions
+  - alerts
+  - parameter
+  - Layout
+  - ui
+  - schedule
+  - GooseSidebar
+  - icons
+  - context_management
+  - conversation
+  - common
+  - bottom_menu
+- agent
+- api
+  - core
+  - client
+- assets
+  - battle-game
+- hooks
+- recipe
+- test
+- types
+- images
+  - loading-goose
+- contexts
+- scripts
+- tests
+  - e2e
+- announcements
+- platform
+  - windows
+- bin
+- styles
