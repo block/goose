@@ -540,6 +540,7 @@ where
                         role: Role::Assistant,
                         created: chrono::Utc::now().timestamp(),
                         content: contents,
+                        metadata: crate::conversation::message::MessageMetadata::default(),
                     }),
                     usage,
                 )
@@ -550,6 +551,7 @@ where
                         role: Role::Assistant,
                         created: chrono::Utc::now().timestamp(),
                         content: vec![MessageContent::text(text)],
+                        metadata: crate::conversation::message::MessageMetadata::default(),
                     }),
                     if chunk.choices[0].finish_reason.is_some() {
                         usage

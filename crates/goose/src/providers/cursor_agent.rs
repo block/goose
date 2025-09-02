@@ -219,6 +219,7 @@ impl CursorAgentProvider {
                             role: Role::Assistant,
                             created: chrono::Utc::now().timestamp(),
                             content: message_content,
+                            metadata: crate::conversation::message::MessageMetadata::default(),
                         };
 
                         let usage = Usage::default();
@@ -238,6 +239,7 @@ impl CursorAgentProvider {
             role: Role::Assistant,
             created: chrono::Utc::now().timestamp(),
             content: message_content,
+            metadata: crate::conversation::message::MessageMetadata::default(),
         };
         let usage = Usage::default();
 
@@ -371,6 +373,7 @@ impl CursorAgentProvider {
             role: Role::Assistant,
             created: chrono::Utc::now().timestamp(),
             content: vec![MessageContent::text(description.clone())],
+            metadata: crate::conversation::message::MessageMetadata::default(),
         };
 
         let usage = Usage::default();

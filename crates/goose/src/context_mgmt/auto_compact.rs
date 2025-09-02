@@ -177,17 +177,42 @@ pub async fn check_and_compact_messages(
     };
 
     // Perform the compaction on messages excluding the preserved user message
-    let (mut compacted_messages, _, summarization_usage) =
+    let (summary_messages, _, summarization_usage) =
         agent.summarize_context(messages_to_compact).await?;
 
+    // Create the final message list with updated visibility metadata:
+    // 1. Original messages before summary become user_visible but not agent_visible
+    // 2. Summary message becomes agent_visible but not user_visible
+    // 3. Messages after summary remain both user_visible and agent_visible
+    
+    let mut final_messages = Vec::new();
+    
+    // Add all original messages before compaction with updated visibility
+    // (user_visible=true, agent_visible=false)
+    for mut msg in messages_to_compact.iter().cloned() {
+        msg.metadata.user_visible = true;
+        msg.metadata.agent_visible = false;
+        final_messages.push(msg);
+    }
+    
+    // Add the summary message(s) with updated visibility
+    // (user_visible=false, agent_visible=true)
+    for msg in summary_messages.messages().iter().cloned() {
+        let mut updated_msg = msg;
+        updated_msg.metadata.user_visible = false;
+        updated_msg.metadata.agent_visible = true;
+        final_messages.push(updated_msg);
+    }
+    
     // Add back the preserved user message if it exists
+    // (keeps default visibility: both true)
     if let Some(user_message) = preserved_user_message {
-        compacted_messages.push(user_message);
+        final_messages.push(user_message);
     }
 
     Ok(AutoCompactResult {
         compacted: true,
-        messages: compacted_messages,
+        messages: Conversation::new_unvalidated(final_messages),
         summarization_usage,
     })
 }
