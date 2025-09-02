@@ -79,6 +79,10 @@ impl ToolInspector for RepetitionInspector {
         "repetition"
     }
 
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
     async fn inspect(
         &self,
         tool_requests: &[ToolRequest],

@@ -11,7 +11,7 @@ use tokio::sync::Mutex;
 
 /// Permission Inspector that handles tool permission checking
 pub struct PermissionInspector {
-    mode: String,
+    mode: Arc<Mutex<String>>,
     readonly_tools: HashSet<String>,
     regular_tools: HashSet<String>,
     permission_manager: Arc<Mutex<PermissionManager>>,
@@ -24,7 +24,7 @@ impl PermissionInspector {
         regular_tools: HashSet<String>,
     ) -> Self {
         Self {
-            mode,
+            mode: Arc::new(Mutex::new(mode)),
             readonly_tools,
             regular_tools,
             permission_manager: Arc::new(Mutex::new(PermissionManager::default())),
@@ -38,11 +38,17 @@ impl PermissionInspector {
         permission_manager: Arc<Mutex<PermissionManager>>,
     ) -> Self {
         Self {
-            mode,
+            mode: Arc::new(Mutex::new(mode)),
             readonly_tools,
             regular_tools,
             permission_manager,
         }
+    }
+
+    /// Update the mode of this permission inspector
+    pub async fn update_mode(&self, new_mode: String) {
+        let mut mode = self.mode.lock().await;
+        *mode = new_mode;
     }
 }
 
@@ -52,6 +58,10 @@ impl ToolInspector for PermissionInspector {
         "permission"
     }
 
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
     async fn inspect(
         &self,
         tool_requests: &[ToolRequest],
@@ -59,16 +69,17 @@ impl ToolInspector for PermissionInspector {
     ) -> Result<Vec<InspectionResult>> {
         let mut results = Vec::new();
         let permission_manager = self.permission_manager.lock().await;
+        let mode = self.mode.lock().await;
 
         for request in tool_requests {
             if let Ok(tool_call) = &request.tool_call {
                 let tool_name = &tool_call.name;
 
                 // Handle different modes
-                let action = if self.mode == "chat" {
+                let action = if *mode == "chat" {
                     // In chat mode, all tools are skipped (handled elsewhere)
                     continue;
-                } else if self.mode == "auto" {
+                } else if *mode == "auto" {
                     // In auto mode, all tools are approved
                     InspectionAction::Allow
                 } else {
@@ -83,7 +94,9 @@ impl ToolInspector for PermissionInspector {
                         }
                     }
                     // 2. Check if it's a readonly or regular tool (both pre-approved)
-                    else if self.readonly_tools.contains(tool_name) || self.regular_tools.contains(tool_name) {
+                    else if self.readonly_tools.contains(tool_name)
+                        || self.regular_tools.contains(tool_name)
+                    {
                         InspectionAction::Allow
                     }
                     // 4. Special case for extension management
@@ -100,7 +113,7 @@ impl ToolInspector for PermissionInspector {
 
                 let reason = match &action {
                     InspectionAction::Allow => {
-                        if self.mode == "auto" {
+                        if *mode == "auto" {
                             "Auto mode - all tools approved".to_string()
                         } else if self.readonly_tools.contains(tool_name) {
                             "Tool marked as read-only".to_string()

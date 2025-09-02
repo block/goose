@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use std::collections::HashMap;
 
 use crate::conversation::message::{Message, ToolRequest};
+use crate::permission::permission_inspector::PermissionInspector;
 use crate::permission::permission_judge::PermissionCheckResult;
 
 /// Result of inspecting a tool call
@@ -44,6 +45,9 @@ pub trait ToolInspector: Send + Sync {
     fn is_enabled(&self) -> bool {
         true
     }
+
+    /// Allow downcasting to concrete types
+    fn as_any(&self) -> &dyn std::any::Any;
 }
 
 /// Manages all tool inspectors and coordinates their results
@@ -109,6 +113,22 @@ impl ToolInspectionManager {
     /// Get list of registered inspector names
     pub fn inspector_names(&self) -> Vec<&'static str> {
         self.inspectors.iter().map(|i| i.name()).collect()
+    }
+
+    /// Update the permission inspector's mode
+    pub async fn update_permission_inspector_mode(&self, mode: String) {
+        for inspector in &self.inspectors {
+            if inspector.name() == "permission" {
+                // Downcast to PermissionInspector to access update_mode method
+                if let Some(permission_inspector) =
+                    inspector.as_any().downcast_ref::<PermissionInspector>()
+                {
+                    permission_inspector.update_mode(mode).await;
+                    return;
+                }
+            }
+        }
+        tracing::warn!("Permission inspector not found for mode update");
     }
 }
 
@@ -218,6 +238,10 @@ mod tests {
     impl ToolInspector for MockInspector {
         fn name(&self) -> &'static str {
             self.name
+        }
+
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
         }
 
         async fn inspect(

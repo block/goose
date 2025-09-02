@@ -262,6 +262,11 @@ impl Agent {
         let (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
         let goose_mode = Self::determine_goose_mode(session.as_ref(), config);
 
+        // Update permission inspector mode to match the session mode
+        self.tool_inspection_manager
+            .update_permission_inspector_mode(goose_mode.clone())
+            .await;
+
         Ok(ReplyContext {
             messages: conversation,
             tools,
@@ -1148,7 +1153,7 @@ impl Agent {
                                     let permission_results: Vec<_> = inspection_results.iter()
                                         .filter(|result| result.inspector_name == "permission")
                                         .collect();
-                                    
+
                                     for request in &remaining_requests {
                                         // Find the permission decision for this request
                                         if let Some(permission_result) = permission_results.iter()
@@ -1175,7 +1180,7 @@ impl Agent {
                                         .filter(|result| result.inspector_name != "permission")
                                         .cloned()
                                         .collect();
-                                    
+
                                     if !non_permission_results.is_empty() {
                                         permission_check_result = apply_inspection_results_to_permissions(
                                             permission_check_result,
@@ -1693,6 +1698,22 @@ mod tests {
             "Tool inspection manager should contain security inspector"
         );
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_permission_inspector_mode_update() -> Result<()> {
+        let agent = Agent::new();
+
+        // Test that we can update the permission inspector mode
+        agent
+            .tool_inspection_manager
+            .update_permission_inspector_mode("test_mode".to_string())
+            .await;
+
+        // The mode update should work without errors
+        // We can't easily test the internal state without more complex setup,
+        // but the fact that it doesn't panic or error is a good sign
         Ok(())
     }
 }
