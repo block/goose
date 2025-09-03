@@ -31,15 +31,12 @@ export function RecipeNameField({
         type="text"
         value={value}
         onChange={(e) => {
-          console.log('Input onChange triggered with:', e.target.value);
           // Allow typing normally, only filter out invalid characters but keep spaces
           const rawValue = e.target.value;
           const filtered = rawValue.replace(/[^a-zA-Z0-9\s-]/g, '');
-          console.log('Filtered value (keeping spaces):', filtered);
           onChange(filtered);
         }}
         onBlur={(e) => {
-          console.log('Input onBlur triggered with:', e.target.value);
           // Transform on blur: convert to lowercase and replace spaces with dashes
           const rawValue = e.target.value;
           const transformed = rawValue
@@ -49,7 +46,6 @@ export function RecipeNameField({
             .replace(/-+/g, '-')
             .replace(/^-+|-+$/g, '');
 
-          console.log('Transformed value on blur:', transformed);
           onChange(transformed);
           onBlur();
         }}

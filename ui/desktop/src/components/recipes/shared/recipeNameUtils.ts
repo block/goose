@@ -42,31 +42,24 @@ export const RECIPE_NAME_PLACEHOLDER = 'my-awesome-recipe';
  * This allows users to type normally (including spaces) and transforms the input in real-time
  */
 export function handleRecipeNameInput(value: string, onChange: (value: string) => void): void {
-  console.log('handleRecipeNameInput - input:', value); // Debug log
-
   // First, let's be more permissive and allow the space to be typed
   // Then transform it step by step
   let transformed = value;
 
   // Convert to lowercase
   transformed = transformed.toLowerCase();
-  console.log('After lowercase:', transformed);
 
   // Replace spaces with dashes (this should happen immediately when space is typed)
   transformed = transformed.replace(/\s/g, '-');
-  console.log('After space to dash:', transformed);
 
   // Remove invalid characters (but keep letters, numbers, and dashes)
   transformed = transformed.replace(/[^a-z0-9-]/g, '');
-  console.log('After removing invalid chars:', transformed);
 
   // Clean up multiple dashes
   transformed = transformed.replace(/-+/g, '-');
-  console.log('After cleaning dashes:', transformed);
 
   // Remove leading/trailing dashes
   transformed = transformed.replace(/^-+|-+$/g, '');
-  console.log('Final result:', transformed);
 
   onChange(transformed);
 }
