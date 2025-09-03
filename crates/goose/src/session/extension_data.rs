@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use utoipa::ToSchema;
+use crate::config::ExtensionConfig;
 
 /// Extension data containing all extension states
 /// Keys are in format "extension_name.version" (e.g., "todo.v0")
@@ -92,6 +93,24 @@ impl TodoState {
     /// Create a new TODO state
     pub fn new(content: String) -> Self {
         Self { content }
+    }
+}
+
+/// Enabled extensions state implementation for storing which extensions are active
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnabledExtensionsState {
+    pub extensions: Vec<ExtensionConfig>,
+}
+
+impl ExtensionState for EnabledExtensionsState {
+    const EXTENSION_NAME: &'static str = "enabled_extensions";
+    const VERSION: &'static str = "v0";
+}
+
+impl EnabledExtensionsState {
+    /// Create a new enabled extensions state
+    pub fn new(extensions: Vec<ExtensionConfig>) -> Self {
+        Self { extensions }
     }
 }
 

@@ -10,5 +10,5 @@ pub use storage::{
     SessionMetadata,
 };
 
-pub use extension_data::{ExtensionData, ExtensionState, TodoState};
+pub use extension_data::{EnabledExtensionsState, ExtensionData, ExtensionState, TodoState};
 pub use info::{get_valid_sorted_sessions, SessionInfo};

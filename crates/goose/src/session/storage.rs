@@ -66,7 +66,6 @@ pub struct SessionMetadata {
     pub accumulated_input_tokens: Option<i32>,
     /// The number of output tokens used in the session. Accumulated across all messages.
     pub accumulated_output_tokens: Option<i32>,
-
     /// Extension data containing extension states
     #[serde(default)]
     pub extension_data: ExtensionData,
