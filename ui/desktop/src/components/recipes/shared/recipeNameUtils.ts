@@ -36,30 +36,3 @@ export function generateRecipeNameFromTitle(title: string): string {
  * Common placeholder text for recipe name inputs
  */
 export const RECIPE_NAME_PLACEHOLDER = 'my-awesome-recipe';
-
-/**
- * Handle real-time input transformation for recipe name fields
- * This allows users to type normally (including spaces) and transforms the input in real-time
- */
-export function handleRecipeNameInput(value: string, onChange: (value: string) => void): void {
-  // First, let's be more permissive and allow the space to be typed
-  // Then transform it step by step
-  let transformed = value;
-
-  // Convert to lowercase
-  transformed = transformed.toLowerCase();
-
-  // Replace spaces with dashes (this should happen immediately when space is typed)
-  transformed = transformed.replace(/\s/g, '-');
-
-  // Remove invalid characters (but keep letters, numbers, and dashes)
-  transformed = transformed.replace(/[^a-z0-9-]/g, '');
-
-  // Clean up multiple dashes
-  transformed = transformed.replace(/-+/g, '-');
-
-  // Remove leading/trailing dashes
-  transformed = transformed.replace(/^-+|-+$/g, '');
-
-  onChange(transformed);
-}
