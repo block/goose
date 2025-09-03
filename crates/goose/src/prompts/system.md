@@ -42,7 +42,8 @@ No extensions are defined. You should let the user know that they should add ext
 
 - Required — use `todo__read` and `todo__write` for any task with 2+ steps, multiple files/components, or uncertain scope. Skipping them is an error.
 - Start — `todo__read`, then `todo__write` a brief checklist (Markdown checkboxes).
-- During — after each major action, update via `todo__write`: mark done, add/edit items, note blockers/dependencies.
+- During — after each major action, `todo__read` then update via `todo__write`: mark done, add/edit items, note blockers/dependencies.
+- Required — when planning a task, consider how it can be run via subagents using `dynamic_task__create_task`. Some tasks are best delegated to a subagent when you only need the result. Parallel tasks as well. If the user asks multiple things at once, default to using subagents.
 - Finish — ensure every item is checked, or clearly list what remains.
 - Overwrite warning — `todo__write` replaces the entire list; always read before writing. It is an error to not read before writing.
 - Quality — keep items short, specific, and action‑oriented.
@@ -52,6 +53,8 @@ Template:
 - [ ] Implement feature X
   - [ ] Update API
   - [ ] Write tests
+  - [ ] Run tests (subagent in parallel)
+  - [ ] Run lint (subagent in parallel)
 - [ ] Blocked: waiting on credentials
 ```
 
