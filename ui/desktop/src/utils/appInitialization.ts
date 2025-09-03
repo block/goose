@@ -9,12 +9,14 @@ import {
 } from '../components/ConfigContext';
 import { backupConfig, initConfig, readAllConfig, recoverConfig, validateConfig } from '../api';
 import { COST_TRACKING_ENABLED } from '../updates';
+import { toastService } from '../toasts';
 
 interface InitializationDependencies {
   getExtensions?: (b: boolean) => Promise<FixedExtensionEntry[]>;
   addExtension?: (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>;
   setPairChat: (chat: ChatType | ((prev: ChatType) => ChatType)) => void;
   setMessage: (message: string | null) => void;
+  setIsExtensionsLoading: (loading: boolean) => void;
   provider: string;
   model: string;
 }
@@ -24,6 +26,7 @@ export const initializeApp = async ({
   addExtension,
   setPairChat,
   setMessage,
+  setIsExtensionsLoading,
   provider,
   model,
 }: InitializationDependencies) => {
@@ -36,7 +39,13 @@ export const initializeApp = async ({
 
   if (resumeSessionId) {
     console.log('Session resume detected, letting useChat hook handle navigation');
-    await initializeForSessionResume({ getExtensions, addExtension, provider, model });
+    await initializeForSessionResume({
+      getExtensions,
+      addExtension,
+      setIsExtensionsLoading,
+      provider,
+      model,
+    });
     return;
   }
 
@@ -47,6 +56,7 @@ export const initializeApp = async ({
       getExtensions,
       addExtension,
       setPairChat,
+      setIsExtensionsLoading,
       provider,
       model,
     });
@@ -82,6 +92,7 @@ export const initializeApp = async ({
         initializeSystem(provider, model, {
           getExtensions,
           addExtension,
+          setIsExtensionsLoading,
         }),
       ];
 
@@ -115,15 +126,20 @@ export const initializeApp = async ({
 const initializeForSessionResume = async ({
   getExtensions,
   addExtension,
+  setIsExtensionsLoading,
   provider,
   model,
-}: Pick<InitializationDependencies, 'getExtensions' | 'addExtension' | 'provider' | 'model'>) => {
+}: Pick<
+  InitializationDependencies,
+  'getExtensions' | 'addExtension' | 'setIsExtensionsLoading' | 'provider' | 'model'
+>) => {
   await initConfig();
   await readAllConfig({ throwOnError: true });
 
   await initializeSystem(provider, model, {
     getExtensions,
     addExtension,
+    setIsExtensionsLoading,
   });
 };
 
@@ -132,21 +148,33 @@ const initializeForRecipe = async ({
   getExtensions,
   addExtension,
   setPairChat,
+  setIsExtensionsLoading,
   provider,
   model,
 }: Pick<
   InitializationDependencies,
-  'getExtensions' | 'addExtension' | 'setPairChat' | 'provider' | 'model'
+  'getExtensions' | 'addExtension' | 'setPairChat' | 'setIsExtensionsLoading' | 'provider' | 'model'
 > & {
   recipeConfig: Recipe;
 }) => {
+  toastService.configure({ silent: false });
+
+  const loadingToastId = toastService.loading({
+    title: `Loading recipe: ${recipeConfig.title}`,
+    msg: 'Setting up environment...',
+  });
+
   await initConfig();
   await readAllConfig({ throwOnError: true });
 
   await initializeSystem(provider, model, {
     getExtensions,
     addExtension,
+    setIsExtensionsLoading,
   });
+
+  toastService.dismiss(loadingToastId);
+  toastService.success({ title: 'Recipe loaded', msg: `Recipe is ready to use` });
 
   setPairChat((prevChat) => ({
     ...prevChat,
