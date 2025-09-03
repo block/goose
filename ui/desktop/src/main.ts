@@ -596,7 +596,7 @@ const createChat = async (
     y: mainWindowState.y,
     width: mainWindowState.width,
     height: mainWindowState.height,
-    minWidth: 750,
+    minWidth: 450,
     resizable: true,
     useContentSize: true,
     icon: path.join(__dirname, '../images/icon'),
