@@ -13,24 +13,27 @@ export type View =
   | 'settingsV2'
   | 'sessions'
   | 'schedules'
+  | 'sharedSession'
   | 'loading'
   | 'recipeEditor'
   | 'recipes'
   | 'permission';
 
+// TODO(Douwe): check these for usage, especially key: string for resetChat
 export type ViewOptions = {
   extensionId?: string;
   showEnvVars?: boolean;
   deepLinkConfig?: unknown;
-  resumedSession?: unknown;
   sessionDetails?: unknown;
   error?: string;
-  shareToken?: string;
   baseUrl?: string;
   config?: unknown;
   parentView?: View;
   parentViewOptions?: ViewOptions;
-  [key: string]: unknown;
+  disableAnimation?: boolean;
+  initialMessage?: string;
+  resetChat?: boolean;
+  shareToken?: string;
 };
 
 export const createNavigationHandler = (navigate: NavigateFunction) => {
@@ -59,6 +62,9 @@ export const createNavigationHandler = (navigate: NavigateFunction) => {
         break;
       case 'ConfigureProviders':
         navigate('/configure-providers', { state: options });
+        break;
+      case 'sharedSession':
+        navigate('/shared-session', { state: options });
         break;
       case 'recipeEditor':
         navigate('/recipe-editor', { state: options });

@@ -14,18 +14,19 @@
  * - Configurable batch size and delay
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Message } from '../types/message';
 import GooseMessage from './GooseMessage';
 import UserMessage from './UserMessage';
-import { ContextHandler } from './context_management/ContextHandler';
-import { useChatContextManager } from './context_management/ChatContextManager';
+import { CompactionMarker } from './context_management/CompactionMarker';
+import { useContextManager } from './context_management/ContextManager';
 import { NotificationEvent } from '../hooks/useMessageStream';
 import LoadingGoose from './LoadingGoose';
+import { ChatType } from '../types/chat';
 
 interface ProgressiveMessageListProps {
   messages: Message[];
-  chat?: { id: string; messageHistoryIndex: number }; // Make optional for session history
+  chat?: Pick<ChatType, 'sessionId' | 'messageHistoryIndex'>;
   toolCallNotifications?: Map<string, NotificationEvent[]>; // Make optional
   append?: (value: string) => void; // Make optional
   appendMessage?: (message: Message) => void; // Make optional
@@ -66,20 +67,15 @@ export default function ProgressiveMessageList({
     message.content.every((c) => c.type === 'toolResponse');
 
   // Try to use context manager, but don't require it for session history
-  let hasContextHandlerContent: ((message: Message) => boolean) | undefined;
-  let getContextHandlerType:
-    | ((message: Message) => 'contextLengthExceeded' | 'summarizationRequested')
-    | undefined;
+  let hasCompactionMarker: ((message: Message) => boolean) | undefined;
 
   try {
-    const contextManager = useChatContextManager();
-    hasContextHandlerContent = contextManager.hasContextHandlerContent;
-    getContextHandlerType = contextManager.getContextHandlerType;
+    const contextManager = useContextManager();
+    hasCompactionMarker = contextManager.hasCompactionMarker;
   } catch {
     // Context manager not available (e.g., in session history view)
-    // This is fine, we'll just skip context handler functionality
-    hasContextHandlerContent = undefined;
-    getContextHandlerType = undefined;
+    // This is fine, we'll just skip compaction marker functionality
+    hasCompactionMarker = undefined;
   }
 
   // Simple progressive loading - start immediately when component mounts if needed
@@ -157,8 +153,7 @@ export default function ProgressiveMessageList({
   // Render messages up to the current rendered count
   const renderMessages = useCallback(() => {
     const messagesToRender = messages.slice(0, renderedCount);
-
-    const renderedMessages = messagesToRender
+    return messagesToRender
       .map((message, index) => {
         // Use custom render function if provided
         if (renderMessage) {
@@ -175,7 +170,7 @@ export default function ProgressiveMessageList({
 
         const isUser = isUserMessage(message);
 
-        const result = (
+        return (
           <div
             key={message.id && `${message.id}-${message.content.length}`}
             className={`relative ${index === 0 ? 'mt-0' : 'mt-4'} ${isUser ? 'user' : 'assistant'}`}
@@ -183,14 +178,8 @@ export default function ProgressiveMessageList({
           >
             {isUser ? (
               <>
-                {hasContextHandlerContent && hasContextHandlerContent(message) ? (
-                  <ContextHandler
-                    messages={messages}
-                    messageId={message.id ?? message.created.toString()}
-                    chatId={chat.id}
-                    workingDir={window.appConfig.get('GOOSE_WORKING_DIR') as string}
-                    contextType={getContextHandlerType!(message)}
-                  />
+                {hasCompactionMarker && hasCompactionMarker(message) ? (
+                  <CompactionMarker message={message} />
                 ) : (
                   !hasOnlyToolResponses(message) && (
                     <UserMessage message={message} onMessageUpdate={onMessageUpdate} />
@@ -199,16 +188,11 @@ export default function ProgressiveMessageList({
               </>
             ) : (
               <>
-                {hasContextHandlerContent && hasContextHandlerContent(message) ? (
-                  <ContextHandler
-                    messages={messages}
-                    messageId={message.id ?? message.created.toString()}
-                    chatId={chat.id}
-                    workingDir={window.appConfig.get('GOOSE_WORKING_DIR') as string}
-                    contextType={getContextHandlerType!(message)}
-                  />
+                {hasCompactionMarker && hasCompactionMarker(message) ? (
+                  <CompactionMarker message={message} />
                 ) : (
                   <GooseMessage
+                    sessionId={chat.sessionId}
                     messageHistoryIndex={chat.messageHistoryIndex}
                     message={message}
                     messages={messages}
@@ -227,12 +211,8 @@ export default function ProgressiveMessageList({
             )}
           </div>
         );
-
-        return result;
       })
-      .filter(Boolean); // Filter out null values
-
-    return renderedMessages;
+      .filter(Boolean);
   }, [
     messages,
     renderedCount,
@@ -244,8 +224,7 @@ export default function ProgressiveMessageList({
     toolCallNotifications,
     isStreamingMessage,
     onMessageUpdate,
-    hasContextHandlerContent,
-    getContextHandlerType,
+    hasCompactionMarker,
   ]);
 
   return (

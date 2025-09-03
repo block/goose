@@ -41,6 +41,7 @@ use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::session;
+use crate::session::extension_data::ExtensionState;
 use crate::tool_monitor::{ToolCall, ToolMonitor};
 use crate::utils::is_token_cancelled;
 use mcp_core::ToolResult;
@@ -494,7 +495,10 @@ impl Agent {
             let todo_content = if let Some(path) = session_file_path {
                 session::storage::read_metadata(&path)
                     .ok()
-                    .and_then(|m| m.todo_content)
+                    .and_then(|m| {
+                        session::TodoState::from_extension_data(&m.extension_data)
+                            .map(|state| state.content)
+                    })
                     .unwrap_or_default()
             } else {
                 String::new()
@@ -531,7 +535,11 @@ impl Agent {
                 match session::storage::get_path(session_config.id.clone()) {
                     Ok(path) => match session::storage::read_metadata(&path) {
                         Ok(mut metadata) => {
-                            metadata.todo_content = Some(content);
+                            let todo_state = session::TodoState::new(content);
+                            todo_state
+                                .to_extension_data(&mut metadata.extension_data)
+                                .ok();
+
                             let path_clone = path.clone();
                             let metadata_clone = metadata.clone();
                             let update_result = tokio::task::spawn(async move {
@@ -946,7 +954,7 @@ impl Agent {
         // If we compacted, yield the compaction message and history replacement event
         if let Some(compaction_msg) = compaction_msg {
             return Ok(Box::pin(async_stream::try_stream! {
-                yield AgentEvent::Message(Message::assistant().with_text(compaction_msg));
+                yield AgentEvent::Message(Message::assistant().with_summarization_requested(compaction_msg));
                 yield AgentEvent::HistoryReplaced(messages.messages().clone());
 
                 // Continue with normal reply processing using compacted messages
@@ -1364,12 +1372,19 @@ impl Agent {
     }
 
     pub async fn create_recipe(&self, mut messages: Conversation) -> Result<Recipe> {
+        tracing::info!("Starting recipe creation with {} messages", messages.len());
+
         let extensions_info = self.extension_manager.get_extensions_info().await;
+        tracing::debug!("Retrieved {} extensions info", extensions_info.len());
 
         // Get model name from provider
-        let provider = self.provider().await?;
+        let provider = self.provider().await.map_err(|e| {
+            tracing::error!("Failed to get provider for recipe creation: {}", e);
+            e
+        })?;
         let model_config = provider.get_model_config();
         let model_name = &model_config.model_name;
+        tracing::debug!("Using model: {}", model_name);
 
         let prompt_manager = self.prompt_manager.lock().await;
         let system_prompt = prompt_manager.build_system_prompt(
@@ -1381,22 +1396,51 @@ impl Agent {
             Some(model_name),
             false,
         );
+        tracing::debug!(
+            "Built system prompt with {} characters",
+            system_prompt.len()
+        );
 
         let recipe_prompt = prompt_manager.get_recipe_prompt().await;
-        let tools = self.extension_manager.get_prefixed_tools(None).await?;
+        let tools = self
+            .extension_manager
+            .get_prefixed_tools(None)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to get tools for recipe creation: {}", e);
+                e
+            })?;
+        tracing::debug!("Retrieved {} tools for recipe creation", tools.len());
 
         messages.push(Message::user().with_text(recipe_prompt));
+        tracing::debug!(
+            "Added recipe prompt to messages, total messages: {}",
+            messages.len()
+        );
 
+        tracing::info!("Calling provider to generate recipe content");
         let (result, _usage) = self
             .provider
             .lock()
             .await
             .as_ref()
-            .unwrap()
+            .ok_or_else(|| {
+                let error = anyhow!("Provider not available during recipe creation");
+                tracing::error!("{}", error);
+                error
+            })?
             .complete(&system_prompt, messages.messages(), &tools)
-            .await?;
+            .await
+            .map_err(|e| {
+                tracing::error!("Provider completion failed during recipe creation: {}", e);
+                e
+            })?;
 
         let content = result.as_concat_text();
+        tracing::debug!(
+            "Provider returned content with {} characters",
+            content.len()
+        );
 
         // the response may be contained in ```json ```, strip that before parsing json
         let re = Regex::new(r"(?s)```[^\n]*\n(.*?)\n```").unwrap();
@@ -1406,10 +1450,17 @@ impl Agent {
             .unwrap_or(&content)
             .trim()
             .to_string();
+        tracing::debug!(
+            "Cleaned content for parsing: {}",
+            &clean_content[..std::cmp::min(200, clean_content.len())]
+        );
 
         // try to parse json response from the LLM
+        tracing::debug!("Attempting to parse recipe content as JSON");
         let (instructions, activities) =
             if let Ok(json_content) = serde_json::from_str::<Value>(&clean_content) {
+                tracing::debug!("Successfully parsed JSON content");
+
                 let instructions = json_content
                     .get("instructions")
                     .ok_or_else(|| anyhow!("Missing 'instructions' in json response"))?
@@ -1432,6 +1483,7 @@ impl Agent {
 
                 (instructions, activities)
             } else {
+                tracing::warn!("Failed to parse JSON, falling back to string parsing");
                 // If we can't get valid JSON, try string parsing
                 // Use split_once to get the content after "Instructions:".
                 let after_instructions = content
@@ -1491,6 +1543,12 @@ impl Agent {
             temperature: Some(model_config.temperature.unwrap_or(0.0)),
         };
 
+        tracing::debug!(
+            "Building recipe with {} activities and {} extensions",
+            activities.len(),
+            extension_configs.len()
+        );
+
         let recipe = Recipe::builder()
             .title("Custom recipe from chat")
             .description("a custom recipe instance from this chat session")
@@ -1500,8 +1558,12 @@ impl Agent {
             .settings(settings)
             .author(author)
             .build()
-            .expect("valid recipe");
+            .map_err(|e| {
+                tracing::error!("Failed to build recipe: {}", e);
+                anyhow!("Recipe build failed: {}", e)
+            })?;
 
+        tracing::info!("Recipe creation completed successfully");
         Ok(recipe)
     }
 }

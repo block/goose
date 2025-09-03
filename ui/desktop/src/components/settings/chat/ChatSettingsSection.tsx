@@ -49,7 +49,6 @@ export default function ChatSettingsSection() {
           <SchedulerSection />
         </CardContent>
       </Card>
-
       <Card className="pb-2 rounded-lg">
         <CardHeader className="pb-0">
           <CardTitle className="">Tool Selection Strategy (preview)</CardTitle>

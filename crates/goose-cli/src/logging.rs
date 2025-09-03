@@ -106,6 +106,7 @@ fn setup_logging_internal(
 
             // Create console logging layer for development - INFO and above only
             let console_layer = fmt::layer()
+                .with_writer(std::io::stderr)
                 .with_target(true)
                 .with_level(true)
                 .with_ansi(true)

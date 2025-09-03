@@ -231,6 +231,49 @@ async fn run_now_handler(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
+    let (recipe_display_name, recipe_version_opt) = match scheduler.list_scheduled_jobs().await {
+        Ok(jobs) => {
+            if let Some(job) = jobs.into_iter().find(|job| job.id == id) {
+                let recipe_display_name = std::path::Path::new(&job.source)
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| id.clone());
+
+                let recipe_version_opt = tokio::fs::read_to_string(&job.source)
+                    .await
+                    .ok()
+                    .and_then(|content| {
+                        goose::recipe::template_recipe::parse_recipe_content(
+                            &content,
+                            std::path::Path::new(&job.source)
+                                .parent()
+                                .unwrap_or_else(|| std::path::Path::new(""))
+                                .to_string_lossy()
+                                .to_string(),
+                        )
+                        .ok()
+                        .map(|(r, _)| r.version)
+                    });
+
+                (recipe_display_name, recipe_version_opt)
+            } else {
+                (id.clone(), None)
+            }
+        }
+        Err(_) => (id.clone(), None),
+    };
+
+    let recipe_version_tag = recipe_version_opt.as_deref().unwrap_or("");
+    tracing::info!(
+        counter.goose.recipe_runs = 1,
+        recipe_name = %recipe_display_name,
+        recipe_version = %recipe_version_tag,
+        session_type = "schedule",
+        interface = "server",
+        "Recipe execution started"
+    );
+
     tracing::info!("Server: Calling scheduler.run_now() for job '{}'", id);
 
     match scheduler.run_now(&id).await {

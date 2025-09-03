@@ -2,7 +2,7 @@ import { Message } from './message';
 import { Recipe } from '../recipe';
 
 export interface ChatType {
-  id: string;
+  sessionId: string;
   title: string;
   messageHistoryIndex: number;
   messages: Message[];

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useReducer, useRef, useState } from 'react';
 import useSWR from 'swr';
 import { createUserMessage, hasCompletedToolCalls, Message } from '../types/message';
-import { getSessionHistory } from '../api';
+import { getSessionHistory, SessionMetadata } from '../api';
 import { ChatState } from '../types/chatState';
 
 let messageIdCounter = 0;
@@ -14,19 +14,6 @@ function generateMessageId(): string {
 const TextDecoder = globalThis.TextDecoder;
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
-
-export interface SessionMetadata {
-  workingDir: string;
-  description: string;
-  scheduleId: string | null;
-  messageCount: number;
-  totalTokens: number | null;
-  inputTokens: number | null;
-  outputTokens: number | null;
-  accumulatedTotalTokens: number | null;
-  accumulatedInputTokens: number | null;
-  accumulatedOutputTokens: number | null;
-}
 
 export interface NotificationEvent {
   type: 'Notification';
@@ -347,40 +334,8 @@ export function useMessageStream({
                   }
 
                   case 'Error': {
-                    // Check if this is a token limit error (more specific detection)
-                    const errorMessage = parsedEvent.error;
-                    const isTokenLimitError =
-                      errorMessage &&
-                      ((errorMessage.toLowerCase().includes('token') &&
-                        errorMessage.toLowerCase().includes('limit')) ||
-                        (errorMessage.toLowerCase().includes('context') &&
-                          errorMessage.toLowerCase().includes('length') &&
-                          errorMessage.toLowerCase().includes('exceeded')));
-
-                    // If this is a token limit error, create a contextLengthExceeded message instead of throwing
-                    if (isTokenLimitError) {
-                      const contextMessage: Message = {
-                        id: generateMessageId(),
-                        role: 'assistant',
-                        created: Math.floor(Date.now() / 1000),
-                        content: [
-                          {
-                            type: 'contextLengthExceeded',
-                            msg: errorMessage,
-                          },
-                        ],
-                        display: true,
-                        sendToLLM: false,
-                      };
-
-                      currentMessages = [...currentMessages, contextMessage];
-                      mutate(currentMessages, false);
-
-                      // Clear any existing error state since we handled this as a context message
-                      setError(undefined);
-                      break; // Don't throw error, just add the message
-                    }
-
+                    // Always throw the error so it gets caught and sets the error state
+                    // This ensures the retry UI appears for ALL errors
                     throw new Error(parsedEvent.error);
                   }
 
@@ -401,21 +356,7 @@ export function useMessageStream({
                         });
 
                         if (sessionResponse.data?.metadata) {
-                          setSessionMetadata({
-                            workingDir: sessionResponse.data.metadata.working_dir,
-                            description: sessionResponse.data.metadata.description,
-                            scheduleId: sessionResponse.data.metadata.schedule_id || null,
-                            messageCount: sessionResponse.data.metadata.message_count,
-                            totalTokens: sessionResponse.data.metadata.total_tokens || null,
-                            inputTokens: sessionResponse.data.metadata.input_tokens || null,
-                            outputTokens: sessionResponse.data.metadata.output_tokens || null,
-                            accumulatedTotalTokens:
-                              sessionResponse.data.metadata.accumulated_total_tokens || null,
-                            accumulatedInputTokens:
-                              sessionResponse.data.metadata.accumulated_input_tokens || null,
-                            accumulatedOutputTokens:
-                              sessionResponse.data.metadata.accumulated_output_tokens || null,
-                          });
+                          setSessionMetadata(sessionResponse.data?.metadata);
                         }
                       } catch (error) {
                         console.error('Failed to fetch session metadata:', error);

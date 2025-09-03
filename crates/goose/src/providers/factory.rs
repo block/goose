@@ -10,6 +10,7 @@ use super::{
     databricks::DatabricksProvider,
     gcpvertexai::GcpVertexAIProvider,
     gemini_cli::GeminiCliProvider,
+    githubcopilot::GithubCopilotProvider,
     google::GoogleProvider,
     groq::GroqProvider,
     lead_worker::LeadWorkerProvider,
@@ -48,6 +49,7 @@ static REGISTRY: Lazy<RwLock<ProviderRegistry>> = Lazy::new(|| {
         registry.register::<DatabricksProvider, _>(DatabricksProvider::from_env);
         registry.register::<GcpVertexAIProvider, _>(GcpVertexAIProvider::from_env);
         registry.register::<GeminiCliProvider, _>(GeminiCliProvider::from_env);
+        registry.register::<GithubCopilotProvider, _>(GithubCopilotProvider::from_env);
         registry.register::<GoogleProvider, _>(GoogleProvider::from_env);
         registry.register::<GroqProvider, _>(GroqProvider::from_env);
         registry.register::<LiteLLMProvider, _>(LiteLLMProvider::from_env);

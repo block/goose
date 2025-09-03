@@ -8,6 +8,8 @@
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::providers::base::Provider;
+use crate::recipe::Recipe;
+use crate::session::extension_data::ExtensionData;
 use crate::utils::safe_truncate;
 use anyhow::Result;
 use chrono::Local;
@@ -64,11 +66,15 @@ pub struct SessionMetadata {
     pub accumulated_input_tokens: Option<i32>,
     /// The number of output tokens used in the session. Accumulated across all messages.
     pub accumulated_output_tokens: Option<i32>,
-    /// Session-scoped TODO list content
-    pub todo_content: Option<String>,
+
+    /// Extension data containing extension states
+    #[serde(default)]
+    pub extension_data: ExtensionData,
+
+    pub recipe: Option<Recipe>,
 }
 
-// Custom deserializer to handle old sessions without working_dir and todo_content
+// Custom deserializer to handle old sessions without working_dir
 impl<'de> Deserialize<'de> for SessionMetadata {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -78,7 +84,7 @@ impl<'de> Deserialize<'de> for SessionMetadata {
         struct Helper {
             description: String,
             message_count: usize,
-            schedule_id: Option<String>, // For backward compatibility
+            schedule_id: Option<String>,
             total_tokens: Option<i32>,
             input_tokens: Option<i32>,
             output_tokens: Option<i32>,
@@ -86,7 +92,9 @@ impl<'de> Deserialize<'de> for SessionMetadata {
             accumulated_input_tokens: Option<i32>,
             accumulated_output_tokens: Option<i32>,
             working_dir: Option<PathBuf>,
-            todo_content: Option<String>, // For backward compatibility
+            #[serde(default)]
+            extension_data: ExtensionData,
+            recipe: Option<Recipe>,
         }
 
         let helper = Helper::deserialize(deserializer)?;
@@ -108,7 +116,8 @@ impl<'de> Deserialize<'de> for SessionMetadata {
             accumulated_input_tokens: helper.accumulated_input_tokens,
             accumulated_output_tokens: helper.accumulated_output_tokens,
             working_dir,
-            todo_content: helper.todo_content,
+            extension_data: helper.extension_data,
+            recipe: helper.recipe,
         })
     }
 }
@@ -133,7 +142,8 @@ impl SessionMetadata {
             accumulated_total_tokens: None,
             accumulated_input_tokens: None,
             accumulated_output_tokens: None,
-            todo_content: None,
+            extension_data: ExtensionData::new(),
+            recipe: None,
         }
     }
 }
@@ -387,6 +397,7 @@ pub fn list_sessions() -> Result<Vec<(String, PathBuf)>> {
 }
 
 /// Generate a session ID using timestamp format (yyyymmdd_hhmmss)
+/// TODO(Douwe): make this actually be unique
 pub fn generate_session_id() -> String {
     Local::now().format("%Y%m%d_%H%M%S").to_string()
 }
@@ -1146,7 +1157,7 @@ pub async fn persist_messages_with_schedule_id(
 pub fn save_messages_with_metadata(
     session_file: &Path,
     metadata: &SessionMetadata,
-    messages: &Conversation,
+    conversation: &Conversation,
 ) -> Result<()> {
     use fs2::FileExt;
 
@@ -1154,10 +1165,10 @@ pub fn save_messages_with_metadata(
     let secure_path = get_path(Identifier::Path(session_file.to_path_buf()))?;
 
     // Security check: message count limit
-    if messages.len() > MAX_MESSAGE_COUNT {
+    if conversation.len() > MAX_MESSAGE_COUNT {
         tracing::warn!(
             "Message count exceeds limit during save: {}",
-            messages.len()
+            conversation.len()
         );
         return Err(anyhow::anyhow!("Too many messages to save"));
     }
@@ -1214,7 +1225,7 @@ pub fn save_messages_with_metadata(
         writeln!(writer)?;
 
         // Write all messages with progress tracking
-        for (i, message) in messages.iter().enumerate() {
+        for (i, message) in conversation.iter().enumerate() {
             serde_json::to_writer(&mut writer, &message).map_err(|e| {
                 tracing::error!("Failed to serialize message {}: {}", i, e);
                 anyhow::anyhow!("Failed to write session message")
