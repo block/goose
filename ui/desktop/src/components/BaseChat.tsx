@@ -41,7 +41,7 @@
  * while remaining flexible enough to support different UI contexts (Hub vs Pair).
  */
 
-import React, { useEffect, useContext, createContext, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { SearchView } from './conversation/SearchView';
 import { AgentHeader } from './AgentHeader';
@@ -63,31 +63,31 @@ import { useFileDrop } from '../hooks/useFileDrop';
 import { useCostTracking } from '../hooks/useCostTracking';
 import { Message } from '../types/message';
 import { ChatState } from '../types/chatState';
+import { ChatType } from '../types/chat';
+import { useToolCount } from './alerts/useToolCount';
 
 // Context for sharing current model info
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
 export const useCurrentModelInfo = () => useContext(CurrentModelContext);
-
-import { ChatType } from '../types/chat';
 
 interface BaseChatProps {
   chat: ChatType;
   setChat: (chat: ChatType) => void;
   setView: (view: View, viewOptions?: ViewOptions) => void;
   setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
-  enableLocalStorage?: boolean;
   onMessageStreamFinish?: () => void;
-  onMessageSubmit?: (message: string) => void; // Callback after message is submitted
+  onMessageSubmit?: (message: string) => void;
   renderHeader?: () => React.ReactNode;
   renderBeforeMessages?: () => React.ReactNode;
   renderAfterMessages?: () => React.ReactNode;
   customChatInputProps?: Record<string, unknown>;
   customMainLayoutProps?: Record<string, unknown>;
-  contentClassName?: string; // Add custom class for content area
-  disableSearch?: boolean; // Disable search functionality (for Hub)
-  showPopularTopics?: boolean; // Show popular chat topics in empty state (for Pair)
-  suppressEmptyState?: boolean; // Suppress empty state content (for transitions)
+  contentClassName?: string;
+  disableSearch?: boolean;
+  showPopularTopics?: boolean;
+  suppressEmptyState?: boolean;
   autoSubmit?: boolean;
+  loadingChat: boolean;
 }
 
 function BaseChatContent({
@@ -95,7 +95,6 @@ function BaseChatContent({
   setChat,
   setView,
   setIsGoosehintsModalOpen,
-  enableLocalStorage = false,
   onMessageStreamFinish,
   onMessageSubmit,
   renderHeader,
@@ -108,6 +107,7 @@ function BaseChatContent({
   showPopularTopics = false,
   suppressEmptyState = false,
   autoSubmit = false,
+  loadingChat = false,
 }: BaseChatProps) {
   const location = useLocation();
   const scrollRef = useRef<ScrollAreaHandle>(null);
@@ -131,7 +131,6 @@ function BaseChatContent({
     error,
     setMessages,
     input,
-    setInput: _setInput,
     handleSubmit: engineHandleSubmit,
     onStopGoose,
     sessionTokenCount,
@@ -158,7 +157,6 @@ function BaseChatContent({
         setHasStartedUsingRecipe(true);
       }
     },
-    enableLocalStorage,
   });
 
   // Use shared recipe manager
@@ -177,7 +175,7 @@ function BaseChatContent({
     handleRecipeAccept,
     handleRecipeCancel,
     hasSecurityWarnings,
-  } = useRecipeManager(messages, location.state);
+  } = useRecipeManager(chat, location.state?.recipeConfig);
 
   // Reset recipe usage tracking when recipe changes
   useEffect(() => {
@@ -250,6 +248,8 @@ function BaseChatContent({
 
     engineHandleSubmit(combinedTextFromInput);
   };
+
+  const toolCount = useToolCount(chat.sessionId);
 
   // Wrapper for append that tracks recipe usage
   const appendWithTracking = (text: string | Message) => {
@@ -324,13 +324,11 @@ function BaseChatContent({
             {/* Messages or RecipeActivities or Popular Topics */}
             {
               // Check if we should show splash instead of messages
-              (() => {
-                // Show splash if we have a recipe and user hasn't started using it yet, and recipe has been accepted
-                const shouldShowSplash =
-                  recipeConfig && recipeAccepted && !hasStartedUsingRecipe && !suppressEmptyState;
-
-                return shouldShowSplash;
-              })() ? (
+              // Show splash if we have a recipe and user hasn't started using it yet, and recipe has been accepted
+              loadingChat ? null : recipeConfig &&
+                recipeAccepted &&
+                !hasStartedUsingRecipe &&
+                !suppressEmptyState ? (
                 <>
                   {/* Show RecipeActivities when we have a recipe config and user hasn't started using it */}
                   {recipeConfig ? (
@@ -416,7 +414,7 @@ function BaseChatContent({
                                 null as Message | null
                               );
                               if (lastUserMessage) {
-                                append(lastUserMessage);
+                                await append(lastUserMessage);
                               }
                             }}
                           >
@@ -426,6 +424,7 @@ function BaseChatContent({
                       </div>
                     </>
                   )}
+
                   <div className="block h-8" />
                 </>
               ) : showPopularTopics ? (
@@ -439,10 +438,16 @@ function BaseChatContent({
           </ScrollArea>
 
           {/* Fixed loading indicator at bottom left of chat container */}
-          {(chatState !== ChatState.Idle || isCompacting) && (
+          {(chatState !== ChatState.Idle || loadingChat || isCompacting) && (
             <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
               <LoadingGoose
-                message={isCompacting ? 'goose is compacting the conversation...' : undefined}
+                message={
+                  loadingChat
+                    ? 'loading conversation...'
+                    : isCompacting
+                      ? 'goose is compacting the conversation...'
+                      : undefined
+                }
                 chatState={chatState}
               />
             </div>
@@ -453,6 +458,7 @@ function BaseChatContent({
           className={`relative z-10 ${disableAnimation ? '' : 'animate-[fadein_400ms_ease-in_forwards]'}`}
         >
           <ChatInput
+            sessionId={chat.sessionId}
             handleSubmit={handleSubmit}
             chatState={chatState}
             onStop={onStopGoose}
@@ -472,6 +478,7 @@ function BaseChatContent({
             recipeConfig={recipeConfig}
             recipeAccepted={recipeAccepted}
             initialPrompt={initialPrompt}
+            toolCount={toolCount || 0}
             autoSubmit={autoSubmit}
             setAncestorMessages={setAncestorMessages}
             append={append}

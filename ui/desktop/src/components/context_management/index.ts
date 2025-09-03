@@ -50,6 +50,7 @@ export async function manageContextFromBackend({
 }
 
 // Function to convert API Message to frontend Message
+// TODO(Douwe): get rid of this and use the API Message format everywhere
 export function convertApiMessageToFrontendMessage(
   apiMessage: ApiMessage,
   display?: boolean,

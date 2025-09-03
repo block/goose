@@ -1,5 +1,3 @@
-import { getApiUrl } from '../config';
-import { initializeAgent } from '../agent';
 import {
   initializeBundledExtensions,
   syncBundledExtensions,
@@ -7,16 +5,14 @@ import {
 } from '../components/settings/extensions';
 import { extractExtensionConfig } from '../components/settings/extensions/utils';
 import type { ExtensionConfig, FixedExtensionEntry } from '../components/ConfigContext';
-import { RecipeParameter, SubRecipe, updateSessionConfig, extendPrompt } from '../api';
 import { addSubRecipesToAgent } from '../recipe/add_sub_recipe_on_agent';
-
-export interface Provider {
-  id: string; // Lowercase key (e.g., "openai")
-  name: string; // Provider name (e.g., "OpenAI")
-  description: string; // Description of the provider
-  models: string[]; // List of supported models
-  requiredKeys: string[]; // List of required keys
-}
+import {
+  extendPrompt,
+  RecipeParameter,
+  SubRecipe,
+  updateAgentProvider,
+  updateSessionConfig,
+} from '../api';
 
 // Desktop-specific system prompt extension
 const desktopPrompt = `You are being accessed through the Goose Desktop application.
@@ -68,6 +64,7 @@ export const substituteParameters = (text: string, params: Record<string, string
  * This should be called after recipe parameters are collected
  */
 export const updateSystemPromptWithParameters = async (
+  sessionId: string,
   recipeParameters: Record<string, string>,
   recipeConfig?: {
     instructions?: string | null;
@@ -88,6 +85,7 @@ export const updateSystemPromptWithParameters = async (
     // Update the system prompt with substituted instructions
     const response = await extendPrompt({
       body: {
+        session_id: sessionId,
         extension: `${desktopPromptBot}\nIMPORTANT instructions for you to operate as agent:\n${substitutedInstructions}`,
       },
     });
@@ -105,11 +103,12 @@ export const updateSystemPromptWithParameters = async (
         }
       }
     }
-    await addSubRecipesToAgent(subRecipes);
+    await addSubRecipesToAgent(sessionId, subRecipes);
   }
 };
 
 export const initializeSystem = async (
+  sessionId: string,
   provider: string,
   model: string,
   options?: {
@@ -119,8 +118,26 @@ export const initializeSystem = async (
   }
 ) => {
   try {
-    console.log('initializing agent with provider', provider, 'model', model);
-    await initializeAgent({ provider, model });
+    console.log(
+      'initializing agent with provider',
+      provider,
+      'model',
+      model,
+      'sessionId',
+      sessionId
+    );
+    await updateAgentProvider({
+      body: {
+        session_id: sessionId,
+        provider,
+        model,
+      },
+      throwOnError: true,
+    });
+
+    if (!sessionId) {
+      console.log('This will not end well');
+    }
 
     // Get recipeConfig directly here
     const recipeConfig = window.appConfig?.get?.('recipe');
@@ -135,28 +152,21 @@ export const initializeSystem = async (
       prompt = `${desktopPromptBot}\nIMPORTANT instructions for you to operate as agent:\n${recipe_instructions}`;
     }
     // Extend the system prompt with desktop-specific information
-    const response = await fetch(getApiUrl('/agent/prompt'), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Secret-Key': await window.electron.getSecretKey(),
-      },
-      body: JSON.stringify({
+    await extendPrompt({
+      body: {
+        session_id: sessionId,
         extension: prompt,
-      }),
+      },
     });
-    if (!response.ok) {
-      console.warn(`Failed to extend system prompt: ${response.statusText}`);
-    } else {
-      console.log('Extended system prompt with desktop-specific information');
-    }
+
     if (!hasParameters && hasSubRecipes) {
-      await addSubRecipesToAgent(subRecipes);
+      await addSubRecipesToAgent(sessionId, subRecipes);
     }
     // Configure session with response config if present
     if (responseConfig?.json_schema) {
       const sessionConfigResponse = await updateSessionConfig({
         body: {
+          session_id: sessionId,
           response: responseConfig,
         },
       });

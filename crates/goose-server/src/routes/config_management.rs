@@ -858,8 +858,7 @@ mod tests {
         let test_state = AppState::new(
             Arc::new(goose::agents::Agent::default()),
             "test".to_string(),
-        )
-        .await;
+        );
         let sched_storage_path = choose_app_strategy(APP_STRATEGY.clone())
             .unwrap()
             .data_dir()

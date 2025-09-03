@@ -9,18 +9,18 @@ import {
   getPreferredModel,
   type PullProgress,
 } from '../utils/ollamaDetection';
-import { initializeSystem } from '../utils/providerUtils';
+//import { initializeSystem } from '../utils/providerUtils';
 import { toastService } from '../toasts';
 import { Ollama } from './icons';
 
 interface OllamaSetupProps {
   onSuccess: () => void;
   onCancel: () => void;
-  setIsExtensionsLoading?: (loading: boolean) => void;
 }
 
-export function OllamaSetup({ onSuccess, onCancel, setIsExtensionsLoading }: OllamaSetupProps) {
-  const { addExtension, getExtensions, upsert } = useConfig();
+export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
+  //const { addExtension, getExtensions, upsert } = useConfig();
+  const { upsert } = useConfig();
   const [isChecking, setIsChecking] = useState(true);
   const [ollamaDetected, setOllamaDetected] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
@@ -109,13 +109,6 @@ export function OllamaSetup({ onSuccess, onCancel, setIsExtensionsLoading }: Oll
       await upsert('GOOSE_PROVIDER', 'ollama', false);
       await upsert('GOOSE_MODEL', getPreferredModel(), false);
       await upsert('OLLAMA_HOST', 'localhost', false);
-
-      // Initialize the system with Ollama
-      await initializeSystem('ollama', getPreferredModel(), {
-        getExtensions,
-        addExtension,
-        setIsExtensionsLoading,
-      });
 
       toastService.success({
         title: 'Success!',

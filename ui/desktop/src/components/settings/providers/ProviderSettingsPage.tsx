@@ -3,22 +3,16 @@ import { ScrollArea } from '../../ui/scroll-area';
 import BackButton from '../../ui/BackButton';
 import ProviderGrid from './ProviderGrid';
 import { useConfig } from '../../ConfigContext';
-import { ProviderDetails } from '../../../api/types.gen';
-import { initializeSystem } from '../../../utils/providerUtils';
+import { ProviderDetails } from '../../../api';
 import { toastService } from '../../../toasts';
 
 interface ProviderSettingsProps {
   onClose: () => void;
   isOnboarding: boolean;
-  setIsExtensionsLoading?: (loading: boolean) => void;
 }
 
-export default function ProviderSettings({
-  onClose,
-  isOnboarding,
-  setIsExtensionsLoading,
-}: ProviderSettingsProps) {
-  const { getProviders, upsert, getExtensions, addExtension } = useConfig();
+export default function ProviderSettings({ onClose, isOnboarding }: ProviderSettingsProps) {
+  const { getProviders, upsert } = useConfig();
   const [loading, setLoading] = useState(true);
   const [providers, setProviders] = useState<ProviderDetails[]>([]);
   const initialLoadDone = useRef(false);
@@ -72,13 +66,6 @@ export default function ProviderSettings({
           console.log('Setting GOOSE_MODEL to', model)
         );
 
-        // initialize agent
-        await initializeSystem(provider.name, model, {
-          getExtensions,
-          addExtension,
-          setIsExtensionsLoading,
-        });
-
         toastService.configure({ silent: false });
         toastService.success({
           title: 'Success!',
@@ -98,7 +85,7 @@ export default function ProviderSettings({
         });
       }
     },
-    [onClose, upsert, getExtensions, addExtension, setIsExtensionsLoading]
+    [onClose, upsert]
   );
 
   return (

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription } from '../ui/card';
 import { getApiUrl } from '../../config';
 import { Greeting } from '../common/Greeting';
-import { fetchSessions, fetchSessionDetails, type Session } from '../../sessions';
+import { fetchSessions, type Session, resumeSession } from '../../sessions';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/button';
 import { ChatSmart } from '../icons/';
@@ -104,21 +104,13 @@ export function SessionInsights() {
     };
   }, []);
 
-  const handleSessionClick = async (sessionId: string) => {
+  const handleSessionClick = async (session: Session) => {
     try {
-      // Fetch the session details
-      const sessionDetails = await fetchSessionDetails(sessionId);
-
-      // Navigate to pair view with the resumed session
-      navigate('/pair', {
-        state: { resumedSession: sessionDetails },
-        replace: true,
-      });
+      resumeSession(session);
     } catch (error) {
-      console.error('Failed to load session:', error);
-      // Fallback to the sessions view if loading fails
+      console.error('Failed to start session:', error);
       navigate('/sessions', {
-        state: { selectedSessionId: sessionId },
+        state: { selectedSessionId: session.id },
         replace: true,
       });
     }
@@ -358,13 +350,13 @@ export function SessionInsights() {
                     <div
                       key={session.id}
                       className="flex items-center justify-between text-sm py-1 px-2 rounded-md hover:bg-background-muted cursor-pointer transition-colors session-item"
-                      onClick={() => handleSessionClick(session.id)}
+                      onClick={() => handleSessionClick(session)}
                       role="button"
                       tabIndex={0}
                       style={{ animationDelay: `${index * 0.1}s` }}
                       onKeyDown={async (e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
-                          await handleSessionClick(session.id);
+                          await handleSessionClick(session);
                         }
                       }}
                     >

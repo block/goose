@@ -413,7 +413,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                 <div className="flex items-center">
                   <Target className="w-3 h-3 mr-1" />
                   <span className="font-mono">
-                    {session.metadata.total_tokens.toLocaleString()}
+                    {(session.metadata.total_tokens || 0).toLocaleString()}
                   </span>
                 </div>
               )}

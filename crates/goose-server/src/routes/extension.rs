@@ -271,11 +271,7 @@ async fn add_extension(
         },
     };
 
-    // Get a reference to the agent
-    let agent = state
-        .get_agent()
-        .await
-        .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
+    let agent = state.get_agent().await;
     let response = agent.add_extension(extension_config).await;
 
     // Respond with the result.
@@ -305,11 +301,7 @@ async fn remove_extension(
 ) -> Result<Json<ExtensionResponse>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    // Get a reference to the agent
-    let agent = state
-        .get_agent()
-        .await
-        .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
+    let agent = state.get_agent().await;
     match agent.remove_extension(&name).await {
         Ok(_) => Ok(Json(ExtensionResponse {
             error: false,

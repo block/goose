@@ -5,7 +5,6 @@ import { SetupModal } from './SetupModal';
 import { startOpenRouterSetup } from '../utils/openRouterSetup';
 import { startTetrateSetup } from '../utils/tetrateSetup';
 import WelcomeGooseLogo from './WelcomeGooseLogo';
-import { initializeSystem } from '../utils/providerUtils';
 import { toastService } from '../toasts';
 import { OllamaSetup } from './OllamaSetup';
 
@@ -13,12 +12,12 @@ import { Goose } from './icons/Goose';
 import { OpenRouter } from './icons';
 
 interface ProviderGuardProps {
+  didSelectProvider: boolean;
   children: React.ReactNode;
-  setIsExtensionsLoading?: (loading: boolean) => void;
 }
 
-export default function ProviderGuard({ children, setIsExtensionsLoading }: ProviderGuardProps) {
-  const { read, getExtensions, addExtension } = useConfig();
+export default function ProviderGuard({ didSelectProvider, children }: ProviderGuardProps) {
+  const { read } = useConfig();
   const navigate = useNavigate();
   const [isChecking, setIsChecking] = useState(true);
   const [hasProvider, setHasProvider] = useState(false);
@@ -69,13 +68,6 @@ export default function ProviderGuard({ children, setIsExtensionsLoading }: Prov
         const model = (await read('GOOSE_MODEL', false)) ?? config.GOOSE_DEFAULT_MODEL;
 
         if (provider && model) {
-          // Initialize the system with the new provider/model
-          await initializeSystem(provider as string, model as string, {
-            getExtensions,
-            addExtension,
-            setIsExtensionsLoading,
-          });
-
           toastService.configure({ silent: false });
           toastService.success({
             title: 'Success!',
@@ -136,13 +128,6 @@ export default function ProviderGuard({ children, setIsExtensionsLoading }: Prov
         const model = (await read('GOOSE_MODEL', false)) ?? config.GOOSE_DEFAULT_MODEL;
 
         if (provider && model) {
-          // Initialize the system with the new provider/model
-          await initializeSystem(provider as string, model as string, {
-            getExtensions,
-            addExtension,
-            setIsExtensionsLoading,
-          });
-
           toastService.configure({ silent: false });
           toastService.success({
             title: 'Success!',
@@ -207,8 +192,11 @@ export default function ProviderGuard({ children, setIsExtensionsLoading }: Prov
     };
 
     checkProvider();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [read]);
+  }, [
+    navigate,
+    read,
+    didSelectProvider, // When the user makes a selection, re-trigger this check
+  ]);
 
   if (
     isChecking &&
@@ -270,7 +258,6 @@ export default function ProviderGuard({ children, setIsExtensionsLoading }: Prov
               setShowOllamaSetup(false);
               setShowFirstTimeSetup(true);
             }}
-            setIsExtensionsLoading={setIsExtensionsLoading}
           />
         </div>
       </div>
