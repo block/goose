@@ -2,6 +2,7 @@ use crate::agents::platform_tools::PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME;
 use crate::config::permission::PermissionLevel;
 use crate::config::PermissionManager;
 use crate::conversation::message::{Message, ToolRequest};
+use crate::permission::permission_judge::PermissionCheckResult;
 use crate::tool_inspection::{InspectionAction, InspectionResult, ToolInspector};
 use anyhow::Result;
 use async_trait::async_trait;
@@ -49,6 +50,69 @@ impl PermissionInspector {
     pub async fn update_mode(&self, new_mode: String) {
         let mut mode = self.mode.lock().await;
         *mode = new_mode;
+    }
+
+    /// Process inspection results into permission decisions
+    /// This method takes all inspection results and converts them into a PermissionCheckResult
+    /// that can be used by the agent to determine which tools to approve, deny, or ask for approval
+    pub fn process_inspection_results(
+        &self,
+        remaining_requests: &[ToolRequest],
+        inspection_results: &[InspectionResult],
+    ) -> PermissionCheckResult {
+        use crate::tool_inspection::apply_inspection_results_to_permissions;
+
+        // Start with permission inspector's decisions as the baseline
+        let mut permission_check_result = PermissionCheckResult {
+            approved: vec![],
+            needs_approval: vec![],
+            denied: vec![],
+        };
+
+        // Apply permission inspector results first (baseline behavior)
+        let permission_results: Vec<_> = inspection_results
+            .iter()
+            .filter(|result| result.inspector_name == "permission")
+            .collect();
+
+        for request in remaining_requests {
+            // Find the permission decision for this request
+            if let Some(permission_result) = permission_results
+                .iter()
+                .find(|result| result.tool_request_id == request.id)
+            {
+                match permission_result.action {
+                    InspectionAction::Allow => {
+                        permission_check_result.approved.push(request.clone());
+                    }
+                    InspectionAction::Deny => {
+                        permission_check_result.denied.push(request.clone());
+                    }
+                    InspectionAction::RequireApproval(_) => {
+                        permission_check_result.needs_approval.push(request.clone());
+                    }
+                }
+            } else {
+                // If no permission result found, default to needs approval for safety
+                permission_check_result.needs_approval.push(request.clone());
+            }
+        }
+
+        // Apply security and other inspector results as overrides
+        let non_permission_results: Vec<_> = inspection_results
+            .iter()
+            .filter(|result| result.inspector_name != "permission")
+            .cloned()
+            .collect();
+
+        if !non_permission_results.is_empty() {
+            permission_check_result = apply_inspection_results_to_permissions(
+                permission_check_result,
+                &non_permission_results,
+            );
+        }
+
+        permission_check_result
     }
 }
 

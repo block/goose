@@ -44,7 +44,7 @@ use crate::scheduler_trait::SchedulerTrait;
 use crate::security::security_inspector::SecurityInspector;
 use crate::session;
 use crate::session::extension_data::ExtensionState;
-use crate::tool_inspection::{apply_inspection_results_to_permissions, ToolInspectionManager};
+use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
 use mcp_core::ToolResult;
@@ -103,8 +103,6 @@ pub struct Agent {
     pub(super) tool_route_manager: ToolRouteManager,
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
     pub(super) retry_manager: RetryManager,
-    #[allow(dead_code)]
-    pub(super) todo_list: Arc<Mutex<String>>,
     pub(super) tool_inspection_manager: ToolInspectionManager,
 }
 
@@ -178,7 +176,6 @@ impl Agent {
             tool_route_manager: ToolRouteManager::new(),
             scheduler_service: Mutex::new(None),
             retry_manager: RetryManager::new(),
-            todo_list: Arc::new(Mutex::new(String::new())),
             tool_inspection_manager: Self::create_default_tool_inspection_manager(),
         }
     }
@@ -1132,12 +1129,22 @@ impl Agent {
                                         )
                                         .await?;
 
-                                    // Start with permission inspector's decisions as the baseline
-                                    let mut permission_check_result = PermissionCheckResult {
-                                        approved: vec![],
-                                        needs_approval: vec![],
-                                        denied: vec![],
-                                    };
+                                    // Process inspection results into permission decisions using the permission inspector
+                                    let permission_check_result = self.tool_inspection_manager
+                                        .process_inspection_results_with_permission_inspector(
+                                            &remaining_requests,
+                                            &inspection_results,
+                                        )
+                                        .unwrap_or_else(|| {
+                                            // Fallback if permission inspector not found - default to needs approval
+                                            let mut result = PermissionCheckResult {
+                                                approved: vec![],
+                                                needs_approval: vec![],
+                                                denied: vec![],
+                                            };
+                                            result.needs_approval.extend(remaining_requests.iter().cloned());
+                                            result
+                                        });
 
                                     // Track extension requests for special handling
                                     let mut enable_extension_request_ids = vec![];
@@ -1147,45 +1154,6 @@ impl Agent {
                                                 enable_extension_request_ids.push(request.id.clone());
                                             }
                                         }
-                                    }
-
-                                    // Apply permission inspector results first (baseline behavior)
-                                    let permission_results: Vec<_> = inspection_results.iter()
-                                        .filter(|result| result.inspector_name == "permission")
-                                        .collect();
-
-                                    for request in &remaining_requests {
-                                        // Find the permission decision for this request
-                                        if let Some(permission_result) = permission_results.iter()
-                                            .find(|result| result.tool_request_id == request.id) {
-                                            match permission_result.action {
-                                                crate::tool_inspection::InspectionAction::Allow => {
-                                                    permission_check_result.approved.push(request.clone());
-                                                }
-                                                crate::tool_inspection::InspectionAction::Deny => {
-                                                    permission_check_result.denied.push(request.clone());
-                                                }
-                                                crate::tool_inspection::InspectionAction::RequireApproval(_) => {
-                                                    permission_check_result.needs_approval.push(request.clone());
-                                                }
-                                            }
-                                        } else {
-                                            // If no permission result found, default to needs approval for safety
-                                            permission_check_result.needs_approval.push(request.clone());
-                                        }
-                                    }
-
-                                    // Apply security and other inspector results as overrides
-                                    let non_permission_results: Vec<_> = inspection_results.iter()
-                                        .filter(|result| result.inspector_name != "permission")
-                                        .cloned()
-                                        .collect();
-
-                                    if !non_permission_results.is_empty() {
-                                        permission_check_result = apply_inspection_results_to_permissions(
-                                            permission_check_result,
-                                            &non_permission_results,
-                                        );
                                     }
 
                                     let mut tool_futures = self.handle_approved_and_denied_tools(

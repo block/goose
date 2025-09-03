@@ -130,6 +130,29 @@ impl ToolInspectionManager {
         }
         tracing::warn!("Permission inspector not found for mode update");
     }
+
+    /// Process inspection results using the permission inspector
+    /// This delegates to the permission inspector's process_inspection_results method
+    pub fn process_inspection_results_with_permission_inspector(
+        &self,
+        remaining_requests: &[ToolRequest],
+        inspection_results: &[InspectionResult],
+    ) -> Option<PermissionCheckResult> {
+        for inspector in &self.inspectors {
+            if inspector.name() == "permission" {
+                if let Some(permission_inspector) =
+                    inspector.as_any().downcast_ref::<PermissionInspector>()
+                {
+                    return Some(
+                        permission_inspector
+                            .process_inspection_results(remaining_requests, inspection_results),
+                    );
+                }
+            }
+        }
+        tracing::warn!("Permission inspector not found for processing inspection results");
+        None
+    }
 }
 
 impl Default for ToolInspectionManager {
