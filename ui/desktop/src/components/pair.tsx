@@ -9,12 +9,21 @@ import 'react-toastify/dist/ReactToastify.css';
 import { cn } from '../utils';
 
 import { ChatType } from '../types/chat';
-import { Recipe } from '../recipe';
 
 export interface PairRouteState {
   resumeSessionId?: string;
-  recipeConfig?: Recipe;
   initialMessage?: string;
+}
+
+interface PairProps {
+  chat: ChatType;
+  setChat: (chat: ChatType) => void;
+  setView: (view: View, viewOptions?: ViewOptions) => void;
+  setIsGoosehintsModalOpen: (isOpen: boolean) => void;
+  setFatalError: (value: ((prevState: string | null) => string | null) | string | null) => void;
+  setAgentWaitingMessage: (msg: string | null) => void;
+  agentState: AgentState;
+  loadCurrentChat: (context: InitializationContext) => Promise<ChatType>;
 }
 
 export default function Pair({
@@ -26,25 +35,15 @@ export default function Pair({
   setAgentWaitingMessage,
   agentState,
   loadCurrentChat,
-  routeState,
-}: {
-  chat: ChatType;
-  setChat: (chat: ChatType) => void;
-  setView: (view: View, viewOptions?: ViewOptions) => void;
-  setIsGoosehintsModalOpen: (isOpen: boolean) => void;
-  setFatalError: (value: ((prevState: string | null) => string | null) | string | null) => void;
-  setAgentWaitingMessage: (msg: string | null) => void;
-  agentState: AgentState;
-  loadCurrentChat: (context: InitializationContext) => Promise<ChatType>;
-  routeState: PairRouteState;
-}) {
+  resumeSessionId,
+  initialMessage,
+}: PairProps & PairRouteState) {
   const isMobile = useIsMobile();
   const { state: sidebarState } = useSidebar();
   const [hasProcessedInitialInput, setHasProcessedInitialInput] = useState(false);
   const [shouldAutoSubmit, setShouldAutoSubmit] = useState(false);
   const [messageToSubmit, setMessageToSubmit] = useState<string | null>(null);
   const [isTransitioningFromHub, setIsTransitioningFromHub] = useState(false);
-  const [recipeResetOverride, setRecipeResetOverride] = useState(false);
   const [loadingChat, setLoadingChat] = useState(false);
 
   useEffect(() => {
@@ -52,12 +51,9 @@ export default function Pair({
       setLoadingChat(true);
       try {
         const chat = await loadCurrentChat({
-          resumeSessionId: routeState.resumeSessionId,
+          resumeSessionId: resumeSessionId,
           setAgentWaitingMessage,
         });
-        if (!chat.recipeConfig && agentState === 'initialized') {
-          setRecipeResetOverride(true);
-        }
         setChat(chat);
       } catch (error) {
         console.log(error);
@@ -73,26 +69,21 @@ export default function Pair({
     setFatalError,
     setAgentWaitingMessage,
     loadCurrentChat,
-    routeState.resumeSessionId,
-    routeState.recipeConfig,
+    resumeSessionId,
   ]);
 
   // Followed by sending the initialMessage if we have one. This will happen
   // only once, unless we reset the chat in step one.
   useEffect(() => {
-    if (
-      agentState !== AgentState.INITIALIZED ||
-      !routeState.initialMessage ||
-      hasProcessedInitialInput
-    ) {
+    if (agentState !== AgentState.INITIALIZED || !initialMessage || hasProcessedInitialInput) {
       return;
     }
 
     setIsTransitioningFromHub(true);
     setHasProcessedInitialInput(true);
-    setMessageToSubmit(routeState.initialMessage);
+    setMessageToSubmit(initialMessage);
     setShouldAutoSubmit(true);
-  }, [agentState, routeState.initialMessage, hasProcessedInitialInput]);
+  }, [agentState, initialMessage, hasProcessedInitialInput]);
 
   useEffect(() => {
     if (agentState === AgentState.NO_PROVIDER) {
@@ -111,10 +102,7 @@ export default function Pair({
   };
 
   const recipePrompt =
-    agentState === 'initialized' &&
-    !recipeResetOverride &&
-    chat.messages.length === 0 &&
-    recipeInitialPrompt;
+    agentState === 'initialized' && chat.messages.length === 0 && recipeInitialPrompt;
 
   const initialValue = messageToSubmit || recipePrompt || undefined;
 
@@ -136,7 +124,6 @@ export default function Pair({
       contentClassName={cn('pr-1 pb-10', (isMobile || sidebarState === 'collapsed') && 'pt-11')} // Use dynamic content class with mobile margin and sidebar state
       showPopularTopics={!isTransitioningFromHub} // Don't show popular topics while transitioning from Hub
       suppressEmptyState={isTransitioningFromHub} // Suppress all empty state content while transitioning from Hub
-      recipeResetOverride={recipeResetOverride}
     />
   );
 }

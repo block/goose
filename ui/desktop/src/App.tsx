@@ -82,6 +82,8 @@ const PairRouteWrapper = ({
   const setView = useMemo(() => createNavigationHandler(navigate), [navigate]);
   const routeState =
     (location.state as PairRouteState) || (window.history.state as PairRouteState) || {};
+  const [resumeSessionId] = useState(routeState.resumeSessionId);
+  const [initialMessage] = useState(routeState.initialMessage);
 
   return (
     <Pair
@@ -93,7 +95,8 @@ const PairRouteWrapper = ({
       setFatalError={setFatalError}
       setAgentWaitingMessage={setAgentWaitingMessage}
       setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-      routeState={routeState}
+      resumeSessionId={resumeSessionId}
+      initialMessage={initialMessage}
     />
   );
 };
@@ -121,23 +124,8 @@ const SchedulesRoute = () => {
   return <SchedulesView onClose={() => navigate('/')} />;
 };
 
-const RecipesRoute = ({ resetChat }: { resetChat: () => void }) => {
-  const navigate = useNavigate();
-
-  return (
-    <RecipesView
-      onLoadRecipe={(recipe) => {
-        // Navigate to pair view with the recipe configuration in state
-        resetChat();
-        const stateData: PairRouteState = {
-          recipeConfig: recipe,
-        };
-        navigate('/pair', {
-          state: stateData,
-        });
-      }}
-    />
-  );
+const RecipesRoute = () => {
+  return <RecipesView />;
 };
 
 const RecipeEditorRoute = () => {
@@ -378,11 +366,14 @@ export default function App() {
 
     const stateData: PairRouteState = {
       resumeSessionId: resumeSessionId || undefined,
-      recipeConfig: recipeFromAppConfig || undefined,
     };
     (async () => {
       try {
-        await loadCurrentChat({ setAgentWaitingMessage, ...stateData });
+        await loadCurrentChat({
+          setAgentWaitingMessage,
+          recipeConfig: recipeFromAppConfig || undefined,
+          ...stateData,
+        });
       } catch (e) {
         if (e instanceof NoProviderOrModelError) {
           // the onboarding flow will trigger
@@ -473,69 +464,6 @@ export default function App() {
       window.electron.off('open-shared-session', handleOpenSharedSession);
     };
   }, []);
-
-  // Handle recipe decode events from main process
-  useEffect(() => {
-    const handleLoadRecipeDeeplink = (_event: IpcRendererEvent, ...args: unknown[]) => {
-      const recipeDeeplink = args[0] as string;
-      const scheduledJobId = args[1] as string | undefined;
-
-      // Store the deeplink info in app config for processing
-      const config = window.electron.getConfig();
-      config.recipeDeeplink = recipeDeeplink;
-      if (scheduledJobId) {
-        config.scheduledJobId = scheduledJobId;
-      }
-
-      // Navigate to pair view to handle the recipe loading
-      if (window.location.hash !== '#/pair') {
-        window.location.hash = '#/pair';
-      }
-    };
-
-    const handleRecipeDecoded = (_event: IpcRendererEvent, ...args: unknown[]) => {
-      const decodedRecipe = args[0] as Recipe;
-
-      setChat((prevChat) => ({
-        ...prevChat,
-        recipeConfig: decodedRecipe,
-        title: decodedRecipe.title || 'Recipe Chat',
-        messages: [], // Start fresh for recipe
-        messageHistoryIndex: 0,
-      }));
-
-      const stateData: PairRouteState = {
-        recipeConfig: decodedRecipe,
-      };
-
-      resetChat();
-
-      // Navigate to pair view if not already there
-      if (window.location.hash !== '#/pair') {
-        window.location.hash = '#/pair';
-      }
-      window.history.replaceState(stateData, '', '#/pair');
-    };
-
-    const handleRecipeDecodeError = (_event: IpcRendererEvent, ...args: unknown[]) => {
-      const errorMessage = args[0] as string;
-      console.error('[App] Recipe decode error:', errorMessage);
-
-      // Show error to user - you could add a toast notification here
-      // For now, just log the error and navigate to recipes page
-      window.location.hash = '#/recipes';
-    };
-
-    window.electron.on('load-recipe-deeplink', handleLoadRecipeDeeplink);
-    window.electron.on('recipe-decoded', handleRecipeDecoded);
-    window.electron.on('recipe-decode-error', handleRecipeDecodeError);
-
-    return () => {
-      window.electron.off('load-recipe-deeplink', handleLoadRecipeDeeplink);
-      window.electron.off('recipe-decoded', handleRecipeDecoded);
-      window.electron.off('recipe-decode-error', handleRecipeDecodeError);
-    };
-  }, [setChat, resetChat]);
 
   useEffect(() => {
     console.log('Setting up keyboard shortcuts');
@@ -735,7 +663,7 @@ export default function App() {
                 <Route path="extensions" element={<ExtensionsRoute />} />
                 <Route path="sessions" element={<SessionsRoute />} />
                 <Route path="schedules" element={<SchedulesRoute />} />
-                <Route path="recipes" element={<RecipesRoute resetChat={resetChat} />} />
+                <Route path="recipes" element={<RecipesRoute />} />
                 <Route path="recipe-editor" element={<RecipeEditorRoute />} />
                 <Route
                   path="shared-session"

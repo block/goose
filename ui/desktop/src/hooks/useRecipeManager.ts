@@ -73,8 +73,6 @@ export const useRecipeManager = (chat: ChatType, recipeConfig?: Recipe | null) =
   const hasParameters = !!recipeParameters;
   const hasMessages = messages.length > 0;
   useEffect(() => {
-    // If we have parameters and they haven't been set yet, open the modal.
-    console.log('should open modal', requiresParameters, hasParameters, recipeAccepted);
     if (requiresParameters && recipeAccepted) {
       if (!hasParameters && !hasMessages) {
         setIsParameterModalOpen(true);

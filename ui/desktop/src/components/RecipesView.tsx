@@ -16,12 +16,7 @@ import { toastSuccess, toastError } from '../toasts';
 import { useEscapeKey } from '../hooks/useEscapeKey';
 import { deleteRecipe, RecipeManifestResponse } from '../api';
 
-interface RecipesViewProps {
-  onLoadRecipe?: (recipe: Recipe) => void;
-}
-
-// @ts-expect-error until we make onLoadRecipe work for loading recipes in the same window
-export default function RecipesView({ _onLoadRecipe }: RecipesViewProps = {}) {
+export default function RecipesView() {
   const [savedRecipes, setSavedRecipes] = useState<RecipeManifestResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSkeleton, setShowSkeleton] = useState(true);

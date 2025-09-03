@@ -134,12 +134,10 @@ export function useAgent(): UseAgentReturn {
           }
 
           agentWaitingMessage('Extensions are loading');
-          console.log(`calling initializeSystem with sessionId: ${agentSessionInfo.session_id}`);
           await initializeSystem(agentSessionInfo.session_id, provider as string, model as string, {
             getExtensions,
             addExtension,
           });
-          console.log('init system done!!');
 
           if (COST_TRACKING_ENABLED) {
             try {
@@ -194,7 +192,6 @@ const handleConfigRecovery = async () => {
   const shouldMigrateExtensions = !configVersion || parseInt(configVersion, 10) < 3;
 
   if (shouldMigrateExtensions) {
-    console.log('Performing extension migration...');
     try {
       await backupConfig({ throwOnError: true });
       await initConfig();
@@ -203,12 +200,10 @@ const handleConfigRecovery = async () => {
     }
   }
 
-  console.log('Attempting config recovery...');
   try {
     await validateConfig({ throwOnError: true });
     await readAllConfig({ throwOnError: true });
   } catch {
-    console.log('Config validation failed, attempting recovery...');
     try {
       await recoverConfig({ throwOnError: true });
       await readAllConfig({ throwOnError: true });
