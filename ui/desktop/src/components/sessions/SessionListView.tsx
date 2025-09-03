@@ -189,7 +189,6 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     // Delete confirmation modal state
     const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
     const [sessionToDelete, setSessionToDelete] = useState<Session | null>(null);
-    const [isDeleting, setIsDeleting] = useState(false);
 
     // Search state for debouncing
     const [searchTerm, setSearchTerm] = useState('');
@@ -377,20 +376,19 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     const handleConfirmDelete = useCallback(async () => {
       if (!sessionToDelete) return;
 
-      setIsDeleting(true);
+      setShowDeleteConfirmation(false);
+      const sessionToDeleteId = sessionToDelete.id;
+      const sessionName = sessionToDelete.metadata.description || sessionToDelete.id;
+      setSessionToDelete(null);
+
       try {
-        await deleteSession(sessionToDelete.id);
+        await deleteSession(sessionToDeleteId);
         toast.success('Session deleted successfully');
-        // Refresh the sessions list
         loadSessions();
       } catch (error) {
         console.error('Error deleting session:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        toast.error(`Failed to delete session: ${errorMessage}`);
-      } finally {
-        setIsDeleting(false);
-        setShowDeleteConfirmation(false);
-        setSessionToDelete(null);
+        toast.error(`Failed to delete session "${sessionName}": ${errorMessage}`);
       }
     }, [sessionToDelete, loadSessions]);
 
@@ -683,7 +681,6 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           confirmVariant="destructive"
           onConfirm={handleConfirmDelete}
           onCancel={handleCancelDelete}
-          isSubmitting={isDeleting}
         />
       </>
     );
