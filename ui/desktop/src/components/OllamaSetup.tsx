@@ -114,6 +114,7 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
       // await initializeSystem('ollama', getPreferredModel(), {
       //   getExtensions,
       //   addExtension,
+      //   setIsExtensionsLoading,
       // });
 
       toastService.success({

@@ -94,7 +94,6 @@ export default function ProviderSettings({ onClose, isOnboarding }: ProviderSett
       }
     },
     [onClose, upsert]
-    //[onClose, upsert, getExtensions, addExtension]
   );
 
   return (

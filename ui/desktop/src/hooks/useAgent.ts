@@ -29,6 +29,7 @@ export interface InitializationContext {
   recipeConfig?: Recipe;
   resumeSessionId?: string;
   setAgentWaitingMessage: (msg: string | null) => void;
+  setIsExtensionsLoading?: (isLoading: boolean) => void;
 }
 
 interface UseAgentReturn {
@@ -137,6 +138,7 @@ export function useAgent(): UseAgentReturn {
           await initializeSystem(agentSessionInfo.session_id, provider as string, model as string, {
             getExtensions,
             addExtension,
+            setIsExtensionsLoading: initContext.setIsExtensionsLoading,
           });
 
           if (COST_TRACKING_ENABLED) {

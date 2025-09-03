@@ -87,6 +87,7 @@ interface ChatInputProps {
   autoSubmit: boolean;
   setAncestorMessages?: (messages: Message[]) => void;
   append?: (message: Message) => void;
+  isExtensionsLoading?: boolean;
 }
 
 export default function ChatInput({
@@ -114,6 +115,7 @@ export default function ChatInput({
   autoSubmit = false,
   append,
   setAncestorMessages,
+  isExtensionsLoading = false,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -1128,6 +1130,25 @@ export default function ChatInput({
   const isAnyImageLoading = pastedImages.some((img) => img.isLoading);
   const isAnyDroppedFileLoading = allDroppedFiles.some((file) => file.isLoading);
 
+  const isSubmitButtonDisabled =
+    !hasSubmittableContent ||
+    isAnyImageLoading ||
+    isAnyDroppedFileLoading ||
+    isRecording ||
+    isTranscribing ||
+    isCompacting ||
+    !agentIsReady ||
+    isExtensionsLoading;
+
+  const isUserInputDisabled =
+    isAnyImageLoading ||
+    isAnyDroppedFileLoading ||
+    isRecording ||
+    isTranscribing ||
+    isCompacting ||
+    !agentIsReady ||
+    isExtensionsLoading;
+
   // Queue management functions - no storage persistence, only in-memory
   const handleRemoveQueuedMessage = (messageId: string) => {
     setQueuedMessages((prev) => prev.filter((msg) => msg.id !== messageId));
@@ -1242,6 +1263,7 @@ export default function ChatInput({
             onBlur={() => setIsFocused(false)}
             ref={textAreaRef}
             rows={1}
+            disabled={isUserInputDisabled}
             style={{
               maxHeight: `${maxHeight}px`,
               overflowY: 'auto',
@@ -1352,23 +1374,9 @@ export default function ChatInput({
                     size="sm"
                     shape="round"
                     variant="outline"
-                    disabled={
-                      !hasSubmittableContent ||
-                      isAnyImageLoading ||
-                      isAnyDroppedFileLoading ||
-                      isRecording ||
-                      isTranscribing ||
-                      isCompacting ||
-                      !agentIsReady
-                    }
+                    disabled={isSubmitButtonDisabled}
                     className={`rounded-full px-10 py-2 flex items-center gap-2 ${
-                      !hasSubmittableContent ||
-                      isAnyImageLoading ||
-                      isAnyDroppedFileLoading ||
-                      isRecording ||
-                      isTranscribing ||
-                      isCompacting ||
-                      !agentIsReady
+                      isSubmitButtonDisabled
                         ? 'bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600'
                         : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600 hover:cursor-pointer'
                     }`}
@@ -1380,17 +1388,19 @@ export default function ChatInput({
               </TooltipTrigger>
               <TooltipContent>
                 <p>
-                  {isCompacting
-                    ? 'Compacting conversation...'
-                    : isAnyImageLoading
-                      ? 'Waiting for images to save...'
-                      : isAnyDroppedFileLoading
-                        ? 'Processing dropped files...'
-                        : isRecording
-                          ? 'Recording...'
-                          : isTranscribing
-                            ? 'Transcribing...'
-                            : (chatContext?.agentWaitingMessage ?? 'Send')}
+                  {isExtensionsLoading
+                    ? 'Loading extensions...'
+                    : isCompacting
+                      ? 'Compacting conversation...'
+                      : isAnyImageLoading
+                        ? 'Waiting for images to save...'
+                        : isAnyDroppedFileLoading
+                          ? 'Processing dropped files...'
+                          : isRecording
+                            ? 'Recording...'
+                            : isTranscribing
+                              ? 'Transcribing...'
+                              : (chatContext?.agentWaitingMessage ?? 'Send')}
                 </p>
               </TooltipContent>
             </Tooltip>

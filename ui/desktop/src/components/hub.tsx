@@ -24,10 +24,12 @@ import { View, ViewOptions } from '../utils/navigationUtils';
 export default function Hub({
   setView,
   setIsGoosehintsModalOpen,
+  isExtensionsLoading,
   resetChat,
 }: {
   setView: (view: View, viewOptions?: ViewOptions) => void;
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
+  isExtensionsLoading: boolean;
   resetChat: () => void;
 }) {
   // Handle chat input submission - create new chat and navigate to pair
@@ -74,6 +76,7 @@ export default function Hub({
           disableAnimation={false}
           sessionCosts={undefined}
           setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+          isExtensionsLoading={isExtensionsLoading}
           toolCount={0}
         />
       </div>

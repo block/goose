@@ -114,6 +114,7 @@ export const initializeSystem = async (
   options?: {
     getExtensions?: (b: boolean) => Promise<FixedExtensionEntry[]>;
     addExtension?: (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>;
+    setIsExtensionsLoading?: (loading: boolean) => void;
   }
 ) => {
   try {
@@ -192,6 +193,8 @@ export const initializeSystem = async (
     // Add enabled extensions to agent in parallel
     const enabledExtensions = refreshedExtensions.filter((ext) => ext.enabled);
 
+    options?.setIsExtensionsLoading?.(true);
+
     const extensionLoadingPromises = enabledExtensions.map(async (extensionEntry) => {
       const extensionConfig = extractExtensionConfig(extensionEntry);
       const extensionName = extensionConfig.name;
@@ -208,8 +211,10 @@ export const initializeSystem = async (
     });
 
     await Promise.allSettled(extensionLoadingPromises);
+    options?.setIsExtensionsLoading?.(false);
   } catch (error) {
     console.error('Failed to initialize agent:', error);
+    options?.setIsExtensionsLoading?.(false);
     throw error;
   }
 };

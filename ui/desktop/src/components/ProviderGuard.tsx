@@ -17,7 +17,6 @@ interface ProviderGuardProps {
 }
 
 export default function ProviderGuard({ children }: ProviderGuardProps) {
-  //const { read, getExtensions, addExtension } = useConfig();
   const { read } = useConfig();
   const navigate = useNavigate();
   const [isChecking, setIsChecking] = useState(true);

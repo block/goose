@@ -43,9 +43,11 @@ import {
 // Route Components
 const HubRouteWrapper = ({
   setIsGoosehintsModalOpen,
+  isExtensionsLoading,
   resetChat,
 }: {
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
+  isExtensionsLoading: boolean;
   resetChat: () => void;
 }) => {
   const navigate = useNavigate();
@@ -55,6 +57,7 @@ const HubRouteWrapper = ({
     <Hub
       setView={setView}
       setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+      isExtensionsLoading={isExtensionsLoading}
       resetChat={resetChat}
     />
   );
@@ -299,6 +302,7 @@ export default function App() {
   const [agentWaitingMessage, setAgentWaitingMessage] = useState<string | null>(null);
   const [isLoadingSharedSession, setIsLoadingSharedSession] = useState(false);
   const [sharedSessionError, setSharedSessionError] = useState<string | null>(null);
+  const [isExtensionsLoading, setIsExtensionsLoading] = useState(false);
 
   const [didSyncUrlParams, setDidSyncUrlParams] = useState<boolean>(false);
 
@@ -371,6 +375,7 @@ export default function App() {
       try {
         await loadCurrentChat({
           setAgentWaitingMessage,
+          setIsExtensionsLoading,
           recipeConfig: recipeFromAppConfig || undefined,
           ...stateData,
         });
@@ -641,6 +646,7 @@ export default function App() {
                   element={
                     <HubRouteWrapper
                       setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+                      isExtensionsLoading={isExtensionsLoading}
                       resetChat={resetChatIfNecessary}
                     />
                   }
