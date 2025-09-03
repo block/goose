@@ -110,13 +110,6 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
       await upsert('GOOSE_MODEL', getPreferredModel(), false);
       await upsert('OLLAMA_HOST', 'localhost', false);
 
-      // Initialize the system with Ollama: Douwe: assume we don't need this
-      // await initializeSystem('ollama', getPreferredModel(), {
-      //   getExtensions,
-      //   addExtension,
-      //   setIsExtensionsLoading,
-      // });
-
       toastService.success({
         title: 'Success!',
         msg: `Connected to Ollama with ${getPreferredModel()} model.`,

@@ -211,12 +211,20 @@ const ConfigureProvidersRoute = () => {
   );
 };
 
-const WelcomeRoute = () => {
+interface WelcomeRouteProps {
+  onSelectProvider: () => void;
+}
+
+const WelcomeRoute = ({ onSelectProvider }: WelcomeRouteProps) => {
   const navigate = useNavigate();
+  const onClose = useCallback(() => {
+    onSelectProvider();
+    navigate('/');
+  }, [navigate, onSelectProvider]);
 
   return (
     <div className="w-screen h-screen bg-background-default">
-      <ProviderSettings onClose={() => navigate('/')} isOnboarding={true} />
+      <ProviderSettings onClose={onClose} isOnboarding={true} />
     </div>
   );
 };
@@ -309,6 +317,8 @@ export default function App() {
   const [viewType, setViewType] = useState<string | null>(null);
   const [resumeSessionId, setResumeSessionId] = useState<string | null>(null);
 
+  const [didSelectProvider, setDidSelectProvider] = useState<boolean>(false);
+
   const [recipeFromAppConfig, setRecipeFromAppConfig] = useState<Recipe | null>(
     (window.appConfig?.get('recipe') as Recipe) || null
   );
@@ -334,7 +344,6 @@ export default function App() {
 
   const setChat = useCallback<typeof _setChat>(
     (update) => {
-      //console.log('setChat called with:', update); // TODO(Douwe): Undo
       _setChat(update);
     },
     [_setChat]
@@ -624,12 +633,15 @@ export default function App() {
           <div className="relative w-screen h-screen overflow-hidden bg-background-muted flex flex-col">
             <div className="titlebar-drag-region" />
             <Routes>
-              <Route path="welcome" element={<WelcomeRoute />} />
+              <Route
+                path="welcome"
+                element={<WelcomeRoute onSelectProvider={() => setDidSelectProvider(true)} />}
+              />
               <Route path="configure-providers" element={<ConfigureProvidersRoute />} />
               <Route
                 path="/"
                 element={
-                  <ProviderGuard>
+                  <ProviderGuard didSelectProvider={didSelectProvider}>
                     <ChatProvider
                       chat={chat}
                       setChat={setChat}
