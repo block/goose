@@ -53,6 +53,7 @@
     "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/themes": "^3.2.1",
+    "@tanstack/react-form": "^1.19.3",
     "@types/react-router-dom": "^5.3.3",
     "ai": "^5.0.14",
     "class-variance-authority": "^0.7.1",
@@ -86,7 +87,8 @@
     "tailwindcss-animate": "^1.0.7",
     "tw-animate-css": "^1.3.6",
     "unist-util-visit": "^5.0.0",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@electron-forge/cli": "^7.8.3",
