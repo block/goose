@@ -30,8 +30,8 @@ import PermissionSettingsView from './components/settings/permission/PermissionS
 
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
 import { Recipe } from './recipe';
-import RecipesView from './components/RecipesView';
-import RecipeEditor from './components/RecipeEditor';
+import RecipesView from './components/recipes/RecipesView';
+import RecipeEditor from './components/recipes/RecipeEditor';
 import { createNavigationHandler, View, ViewOptions } from './utils/navigationUtils';
 import {
   AgentState,
