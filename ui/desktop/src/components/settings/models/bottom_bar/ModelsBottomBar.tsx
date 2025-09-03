@@ -19,7 +19,7 @@ import BottomMenuAlertPopover from '../../../bottom_menu/BottomMenuAlertPopover'
 import { Recipe } from '../../../../recipe';
 import { saveRecipe, generateRecipeFilename } from '../../../../recipe/recipeStorage';
 import { toastSuccess, toastError } from '../../../../toasts';
-import ViewRecipeModal from '../../../ViewRecipeModal';
+import ViewRecipeModal from '../../../recipes/ViewRecipeModal';
 
 interface ModelsBottomBarProps {
   sessionId: string | null;

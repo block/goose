@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react';
 import { useForm } from '@tanstack/react-form';
 import { z } from 'zod';
 import { FileText } from 'lucide-react';
-import { Button } from './ui/button';
-import { Recipe } from '../recipe';
-import { saveRecipe } from '../recipe/recipeStorage';
-import { toastSuccess, toastError } from '../toasts';
-import { useEscapeKey } from '../hooks/useEscapeKey';
+import { Button } from '../ui/button';
+import { Recipe } from '../../recipe';
+import { saveRecipe } from '../../recipe/recipeStorage';
+import { toastSuccess, toastError } from '../../toasts';
+import { useEscapeKey } from '../../hooks/useEscapeKey';
 
 interface CreateRecipeFormProps {
   isOpen: boolean;

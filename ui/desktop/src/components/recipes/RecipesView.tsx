@@ -1,15 +1,15 @@
 import { useState, useEffect } from 'react';
-import { listSavedRecipes, convertToLocaleDateString } from '../recipe/recipeStorage';
+import { listSavedRecipes, convertToLocaleDateString } from '../../recipe/recipeStorage';
 import { FileText, Trash2, Bot, Calendar, AlertCircle } from 'lucide-react';
-import { ScrollArea } from './ui/scroll-area';
-import { Card } from './ui/card';
-import { Button } from './ui/button';
-import { Skeleton } from './ui/skeleton';
-import { MainPanelLayout } from './Layout/MainPanelLayout';
-import { Recipe, generateDeepLink } from '../recipe';
-import { toastSuccess, toastError } from '../toasts';
-import { useEscapeKey } from '../hooks/useEscapeKey';
-import { deleteRecipe, RecipeManifestResponse } from '../api';
+import { ScrollArea } from '../ui/scroll-area';
+import { Card } from '../ui/card';
+import { Button } from '../ui/button';
+import { Skeleton } from '../ui/skeleton';
+import { MainPanelLayout } from '../Layout/MainPanelLayout';
+import { Recipe, generateDeepLink } from '../../recipe';
+import { toastSuccess, toastError } from '../../toasts';
+import { useEscapeKey } from '../../hooks/useEscapeKey';
+import { deleteRecipe, RecipeManifestResponse } from '../../api';
 import CreateRecipeForm, { CreateRecipeButton } from './CreateRecipeForm';
 import ImportRecipeForm, { ImportRecipeButton } from './ImportRecipeForm';
 
