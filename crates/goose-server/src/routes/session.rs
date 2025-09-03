@@ -1,7 +1,6 @@
 use super::utils::verify_secret_key;
 use chrono::DateTime;
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::state::AppState;
@@ -336,17 +335,11 @@ async fn delete_session(
 ) -> Result<StatusCode, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    // First, get all sessions and find the one with matching ID
-    let sessions = get_valid_sorted_sessions(SortOrder::Descending)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    // Find the session with the matching ID
-    let session_info = sessions
-        .iter()
-        .find(|s| s.id == session_id)
-        .ok_or(StatusCode::NOT_FOUND)?;
-
-    let session_path = PathBuf::from(&session_info.path);
+    // Get the session path
+    let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
+        Ok(path) => path,
+        Err(_) => return Err(StatusCode::BAD_REQUEST),
+    };
 
     // Check if session file exists
     if !session_path.exists() {
