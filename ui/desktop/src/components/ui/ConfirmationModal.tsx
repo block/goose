@@ -34,7 +34,7 @@ export function ConfirmationModal({
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription className="whitespace-pre-wrap">{message}</DialogDescription>
+          <DialogDescription>{message}</DialogDescription>
         </DialogHeader>
 
         <DialogFooter className="pt-2">
