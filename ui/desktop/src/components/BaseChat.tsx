@@ -121,6 +121,53 @@ function BaseChatContent({
 
   const { isCompacting, handleManualCompaction } = useContextManager();
 
+  // Timeout ref for debouncing auto-scroll
+  const autoScrollTimeoutRef = useRef<number | null>(null);
+
+  // Track if user was following when agent started responding
+  const wasFollowingRef = useRef<boolean>(true);
+
+  // Function to check if user is currently near bottom
+  const isNearBottom = React.useCallback(() => {
+    if (!scrollRef.current) return false;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const viewport = scrollRef.current as any;
+    if (!viewport.viewportRef?.current) return false;
+
+    const viewportElement = viewport.viewportRef.current;
+    const { scrollHeight, scrollTop, clientHeight } = viewportElement;
+    const scrollBottom = scrollTop + clientHeight;
+    const distanceFromBottom = scrollHeight - scrollBottom;
+
+    return distanceFromBottom <= 100;
+  }, []);
+
+  // Function to auto-scroll if user was following when agent started
+  const conditionalAutoScroll = React.useCallback(() => {
+    // Clear any existing timeout
+    if (autoScrollTimeoutRef.current) {
+      clearTimeout(autoScrollTimeoutRef.current);
+    }
+
+    // Debounce the auto-scroll to prevent jumpy behavior
+    autoScrollTimeoutRef.current = window.setTimeout(() => {
+      // Only auto-scroll if user was following when the agent started responding
+      if (wasFollowingRef.current && scrollRef.current) {
+        scrollRef.current.scrollToBottom();
+      }
+    }, 150); // 150ms debounce to prevent multiple rapid scrolls
+  }, []);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (autoScrollTimeoutRef.current) {
+        clearTimeout(autoScrollTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // Use shared chat engine
   const {
     messages,
@@ -148,10 +195,14 @@ function BaseChatContent({
     chat,
     setChat,
     onMessageStreamFinish: () => {
+      conditionalAutoScroll();
+
       // Call the original callback if provided
       onMessageStreamFinish?.();
     },
     onMessageSent: () => {
+      wasFollowingRef.current = isNearBottom();
+
       // Mark that user has started using the recipe
       if (recipeConfig) {
         setHasStartedUsingRecipe(true);
@@ -230,6 +281,20 @@ function BaseChatContent({
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty dependency array means this runs once on mount
+
+  // Auto-scroll when messages are loaded (for session resuming)
+  useEffect(() => {
+    if (messages.length > 0 && !loadingChat) {
+      const scrollTimeout = setTimeout(() => {
+        if (scrollRef.current?.scrollToBottom) {
+          scrollRef.current.scrollToBottom();
+        }
+      }, 500); // delay to ensure content is fully loaded
+
+      return () => clearTimeout(scrollTimeout);
+    }
+    return;
+  }, [messages.length, loadingChat]);
 
   // Handle submit
   const handleSubmit = (e: React.FormEvent) => {
