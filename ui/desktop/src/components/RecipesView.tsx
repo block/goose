@@ -1,22 +1,17 @@
 import { useState, useEffect } from 'react';
-import { useForm } from '@tanstack/react-form';
-import { z } from 'zod';
-import {
-  listSavedRecipes,
-  saveRecipe,
-  generateRecipeFilename,
-  convertToLocaleDateString,
-} from '../recipe/recipeStorage';
-import { FileText, Trash2, Bot, Calendar, AlertCircle, Download } from 'lucide-react';
+import { listSavedRecipes, convertToLocaleDateString } from '../recipe/recipeStorage';
+import { FileText, Trash2, Bot, Calendar, AlertCircle } from 'lucide-react';
 import { ScrollArea } from './ui/scroll-area';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Skeleton } from './ui/skeleton';
 import { MainPanelLayout } from './Layout/MainPanelLayout';
-import { Recipe, decodeRecipe, generateDeepLink } from '../recipe';
+import { Recipe, generateDeepLink } from '../recipe';
 import { toastSuccess, toastError } from '../toasts';
 import { useEscapeKey } from '../hooks/useEscapeKey';
 import { deleteRecipe, RecipeManifestResponse } from '../api';
+import CreateRecipeForm, { CreateRecipeButton } from './CreateRecipeForm';
+import ImportRecipeForm, { ImportRecipeButton } from './ImportRecipeForm';
 
 export default function RecipesView() {
   const [savedRecipes, setSavedRecipes] = useState<RecipeManifestResponse[]>([]);
@@ -26,31 +21,18 @@ export default function RecipesView() {
   const [selectedRecipe, setSelectedRecipe] = useState<RecipeManifestResponse | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [showContent, setShowContent] = useState(false);
-  const [showImportDialog, setShowImportDialog] = useState(false);
-  const [importDeeplink, setImportDeeplink] = useState('');
-  const [importRecipeName, setImportRecipeName] = useState('');
-  const [importGlobal, setImportGlobal] = useState(true);
-  const [importing, setImporting] = useState(false);
   const [previewDeeplink, setPreviewDeeplink] = useState<string>('');
 
-  // Create Recipe state
+  // Form dialog states
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [creating, setCreating] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
 
   useEffect(() => {
     loadSavedRecipes();
   }, []);
 
-  // Handle Esc key for modals
+  // Handle Esc key for preview modal
   useEscapeKey(showPreview, () => setShowPreview(false));
-  useEscapeKey(showImportDialog, () => {
-    setShowImportDialog(false);
-    setImportDeeplink('');
-    setImportRecipeName('');
-  });
-  useEscapeKey(showCreateDialog, () => {
-    setShowCreateDialog(false);
-  });
 
   // Minimum loading time to prevent skeleton flash
   useEffect(() => {
@@ -150,209 +132,6 @@ export default function RecipesView() {
       console.error('Failed to generate deeplink for preview:', error);
       setPreviewDeeplink('Error generating deeplink');
     }
-  };
-
-  // Function to parse deeplink and extract recipe
-  const parseDeeplink = async (deeplink: string): Promise<Recipe | null> => {
-    try {
-      const cleanLink = deeplink.trim();
-
-      if (!cleanLink.startsWith('goose://recipe?config=')) {
-        throw new Error('Invalid deeplink format. Expected: goose://recipe?config=...');
-      }
-
-      const recipeEncoded = cleanLink.replace('goose://recipe?config=', '');
-
-      if (!recipeEncoded) {
-        throw new Error('No recipe configuration found in deeplink');
-      }
-      const recipe = await decodeRecipe(recipeEncoded);
-
-      if (!recipe.title || !recipe.description) {
-        throw new Error('Recipe is missing required fields (title, description)');
-      }
-
-      if (!recipe.instructions && !recipe.prompt) {
-        throw new Error('Recipe must have either instructions or prompt');
-      }
-
-      return recipe;
-    } catch (error) {
-      console.error('Failed to parse deeplink:', error);
-      return null;
-    }
-  };
-
-  const handleImportRecipe = async () => {
-    if (!importDeeplink.trim() || !importRecipeName.trim()) {
-      return;
-    }
-
-    setImporting(true);
-    try {
-      const recipe = await parseDeeplink(importDeeplink.trim());
-
-      if (!recipe) {
-        throw new Error('Invalid deeplink or recipe format');
-      }
-
-      await saveRecipe(recipe, {
-        name: importRecipeName.trim(),
-        global: importGlobal,
-      });
-
-      // Reset dialog state
-      setShowImportDialog(false);
-      setImportDeeplink('');
-      setImportRecipeName('');
-
-      await loadSavedRecipes();
-
-      toastSuccess({
-        title: importRecipeName.trim(),
-        msg: 'Recipe imported successfully',
-      });
-    } catch (error) {
-      console.error('Failed to import recipe:', error);
-
-      toastError({
-        title: 'Import Failed',
-        msg: `Failed to import recipe: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        traceback: error instanceof Error ? error.message : String(error),
-      });
-    } finally {
-      setImporting(false);
-    }
-  };
-
-  const handleImportClick = () => {
-    setImportDeeplink('');
-    setImportRecipeName('');
-    setImportGlobal(true);
-    setShowImportDialog(true);
-  };
-
-  // Auto-generate recipe name when deeplink changes
-  const handleDeeplinkChange = async (value: string) => {
-    setImportDeeplink(value);
-
-    if (value.trim()) {
-      try {
-        const recipe = await parseDeeplink(value.trim());
-        if (recipe && recipe.title) {
-          const suggestedName = generateRecipeFilename(recipe);
-          setImportRecipeName(suggestedName);
-        }
-      } catch (error) {
-        // Silently handle parsing errors during auto-suggest
-        console.log('Could not parse deeplink for auto-suggest:', error);
-      }
-    }
-  };
-
-  // Define Zod schema for the entire form
-  const createRecipeSchema = z.object({
-    title: z.string().min(3, 'Title must be at least 3 characters'),
-    description: z.string().min(10, 'Description must be at least 10 characters'),
-    instructions: z.string().min(20, 'Instructions must be at least 20 characters'),
-    prompt: z.string(),
-    activities: z.string(),
-    recipeName: z.string().min(3, 'Recipe name must be at least 3 characters'),
-    global: z.boolean(),
-  });
-
-  const createRecipeForm = useForm({
-    defaultValues: {
-      title: '',
-      description: '',
-      instructions: '',
-      prompt: '',
-      activities: '',
-      recipeName: '',
-      global: true,
-    },
-    validators: {
-      onChange: createRecipeSchema,
-    },
-    onSubmit: async ({ value }) => {
-      setCreating(true);
-      try {
-        // Parse activities from comma-separated string
-        const activities = value.activities
-          .split(',')
-          .map((activity) => activity.trim())
-          .filter((activity) => activity.length > 0);
-
-        // Create the recipe object
-        const recipe: Recipe = {
-          title: value.title.trim(),
-          description: value.description.trim(),
-          instructions: value.instructions.trim(),
-          prompt: value.prompt.trim() || undefined,
-          activities: activities.length > 0 ? activities : undefined,
-        };
-
-        await saveRecipe(recipe, {
-          name: value.recipeName.trim(),
-          global: value.global,
-        });
-
-        // Reset dialog state
-        setShowCreateDialog(false);
-        createRecipeForm.reset();
-
-        await loadSavedRecipes();
-
-        toastSuccess({
-          title: value.recipeName.trim(),
-          msg: 'Recipe created successfully',
-        });
-      } catch (error) {
-        console.error('Failed to create recipe:', error);
-
-        toastError({
-          title: 'Create Failed',
-          msg: `Failed to create recipe: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          traceback: error instanceof Error ? error.message : String(error),
-        });
-      } finally {
-        setCreating(false);
-      }
-    },
-  });
-
-  // Create Recipe handlers
-  const handleCreateClick = () => {
-    // Reset form with example values
-    createRecipeForm.setFieldValue('title', 'Python Development Assistant');
-    createRecipeForm.setFieldValue(
-      'description',
-      'A helpful assistant for Python development tasks including coding, debugging, and code review.'
-    );
-    createRecipeForm.setFieldValue(
-      'instructions',
-      `You are an expert Python developer assistant. Help users with:
-
-1. Writing clean, efficient Python code
-2. Debugging and troubleshooting issues
-3. Code review and optimization suggestions
-4. Best practices and design patterns
-5. Testing and documentation
-
-Always provide clear explanations and working code examples.
-
-Parameters you can use:
-- {{project_type}}: The type of Python project (web, data science, CLI, etc.)
-- {{python_version}}: Target Python version`
-    );
-    createRecipeForm.setFieldValue(
-      'prompt',
-      'What Python development task can I help you with today?'
-    );
-    createRecipeForm.setFieldValue('activities', 'coding, debugging, testing, documentation');
-    createRecipeForm.setFieldValue('recipeName', '');
-    createRecipeForm.setFieldValue('global', true);
-    setShowCreateDialog(true);
   };
 
   // Render a recipe item
@@ -492,24 +271,8 @@ Parameters you can use:
               <div className="flex justify-between items-center mb-1">
                 <h1 className="text-4xl font-light">Recipes</h1>
                 <div className="flex gap-2">
-                  <Button
-                    onClick={handleCreateClick}
-                    variant="outline"
-                    size="sm"
-                    className="flex items-center gap-2"
-                  >
-                    <FileText className="w-4 h-4" />
-                    Create Recipe
-                  </Button>
-                  <Button
-                    onClick={handleImportClick}
-                    variant="default"
-                    size="sm"
-                    className="flex items-center gap-2"
-                  >
-                    <Download className="w-4 h-4" />
-                    Import Recipe
-                  </Button>
+                  <CreateRecipeButton onClick={() => setShowCreateDialog(true)} />
+                  <ImportRecipeButton onClick={() => setShowImportDialog(true)} />
                 </div>
               </div>
               <p className="text-sm text-text-muted mb-1">
@@ -931,393 +694,18 @@ Parameters you can use:
         </div>
       )}
 
-      {/* Import Recipe Dialog */}
-      {showImportDialog && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50">
-          <div className="bg-background-default border border-border-subtle rounded-lg p-6 w-[500px] max-w-[90vw]">
-            <h3 className="text-lg font-medium text-text-standard mb-4">Import Recipe</h3>
+      {/* Use the extracted form components */}
+      <ImportRecipeForm
+        isOpen={showImportDialog}
+        onClose={() => setShowImportDialog(false)}
+        onSuccess={loadSavedRecipes}
+      />
 
-            <div className="space-y-4">
-              <div>
-                <label
-                  htmlFor="import-deeplink"
-                  className="block text-sm font-medium text-text-standard mb-2"
-                >
-                  Recipe Deeplink
-                </label>
-                <textarea
-                  id="import-deeplink"
-                  value={importDeeplink}
-                  onChange={(e) => handleDeeplinkChange(e.target.value)}
-                  className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                  placeholder="Paste your goose://recipe?config=... deeplink here"
-                  rows={3}
-                  autoFocus
-                />
-                <p className="text-xs text-text-muted mt-1">
-                  Paste a recipe deeplink starting with "goose://recipe?config="
-                </p>
-              </div>
-
-              <div>
-                <label
-                  htmlFor="import-recipe-name"
-                  className="block text-sm font-medium text-text-standard mb-2"
-                >
-                  Recipe Name
-                </label>
-                <input
-                  id="import-recipe-name"
-                  type="text"
-                  value={importRecipeName}
-                  onChange={(e) => setImportRecipeName(e.target.value)}
-                  className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Enter a name for the imported recipe"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-text-standard mb-2">
-                  Save Location
-                </label>
-                <div className="space-y-2">
-                  <label className="flex items-center">
-                    <input
-                      type="radio"
-                      name="import-save-location"
-                      checked={importGlobal}
-                      onChange={() => setImportGlobal(true)}
-                      className="mr-2"
-                    />
-                    <span className="text-sm text-text-standard">
-                      Global - Available across all Goose sessions
-                    </span>
-                  </label>
-                  <label className="flex items-center">
-                    <input
-                      type="radio"
-                      name="import-save-location"
-                      checked={!importGlobal}
-                      onChange={() => setImportGlobal(false)}
-                      className="mr-2"
-                    />
-                    <span className="text-sm text-text-standard">
-                      Directory - Available in the working directory
-                    </span>
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-end space-x-3 mt-6">
-              <Button
-                onClick={() => {
-                  setShowImportDialog(false);
-                  setImportDeeplink('');
-                  setImportRecipeName('');
-                }}
-                variant="ghost"
-                disabled={importing}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleImportRecipe}
-                disabled={!importDeeplink.trim() || !importRecipeName.trim() || importing}
-                variant="default"
-              >
-                {importing ? 'Importing...' : 'Import Recipe'}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Create Recipe Dialog */}
-      {showCreateDialog && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50">
-          <div className="bg-background-default border border-border-subtle rounded-lg p-6 w-[700px] max-w-[90vw] max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-medium text-text-standard mb-4">Create New Recipe</h3>
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                createRecipeForm.handleSubmit();
-              }}
-            >
-              <div className="space-y-4">
-                <createRecipeForm.Field name="title">
-                  {(field) => (
-                    <div>
-                      <label
-                        htmlFor="create-title"
-                        className="block text-sm font-medium text-text-standard mb-2"
-                      >
-                        Title <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        id="create-title"
-                        type="text"
-                        value={field.state.value}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          field.handleChange(value);
-                          // Auto-generate recipe name when title changes
-                          if (value.trim()) {
-                            const suggestedName = value
-                              .toLowerCase()
-                              .replace(/[^a-zA-Z0-9\s-]/g, '')
-                              .replace(/\s+/g, '-')
-                              .trim();
-                            createRecipeForm.setFieldValue('recipeName', suggestedName);
-                          }
-                        }}
-                        onBlur={field.handleBlur}
-                        className={`w-full p-3 border rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                          field.state.meta.errors.length > 0
-                            ? 'border-red-500'
-                            : 'border-border-subtle'
-                        }`}
-                        placeholder="Recipe title"
-                        autoFocus
-                      />
-                      {field.state.meta.errors.length > 0 && (
-                        <p className="text-red-500 text-sm mt-1">
-                          {typeof field.state.meta.errors[0] === 'string'
-                            ? field.state.meta.errors[0]
-                            : field.state.meta.errors[0]?.message ||
-                              String(field.state.meta.errors[0])}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </createRecipeForm.Field>
-
-                <createRecipeForm.Field name="description">
-                  {(field) => (
-                    <div>
-                      <label
-                        htmlFor="create-description"
-                        className="block text-sm font-medium text-text-standard mb-2"
-                      >
-                        Description <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        id="create-description"
-                        type="text"
-                        value={field.state.value}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        onBlur={field.handleBlur}
-                        className={`w-full p-3 border rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                          field.state.meta.errors.length > 0
-                            ? 'border-red-500'
-                            : 'border-border-subtle'
-                        }`}
-                        placeholder="Brief description of what this recipe does"
-                      />
-                      {field.state.meta.errors.length > 0 && (
-                        <p className="text-red-500 text-sm mt-1">
-                          {typeof field.state.meta.errors[0] === 'string'
-                            ? field.state.meta.errors[0]
-                            : field.state.meta.errors[0]?.message ||
-                              String(field.state.meta.errors[0])}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </createRecipeForm.Field>
-
-                <createRecipeForm.Field name="instructions">
-                  {(field) => (
-                    <div>
-                      <label
-                        htmlFor="create-instructions"
-                        className="block text-sm font-medium text-text-standard mb-2"
-                      >
-                        Instructions <span className="text-red-500">*</span>
-                      </label>
-                      <textarea
-                        id="create-instructions"
-                        value={field.state.value}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        onBlur={field.handleBlur}
-                        className={`w-full p-3 border rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono text-sm ${
-                          field.state.meta.errors.length > 0
-                            ? 'border-red-500'
-                            : 'border-border-subtle'
-                        }`}
-                        placeholder="Detailed instructions for the AI agent..."
-                        rows={8}
-                      />
-                      <p className="text-xs text-text-muted mt-1">
-                        Use {`{{parameter_name}}`} to define parameters that users can fill in
-                      </p>
-                      {field.state.meta.errors.length > 0 && (
-                        <p className="text-red-500 text-sm mt-1">
-                          {typeof field.state.meta.errors[0] === 'string'
-                            ? field.state.meta.errors[0]
-                            : field.state.meta.errors[0]?.message ||
-                              String(field.state.meta.errors[0])}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </createRecipeForm.Field>
-
-                <createRecipeForm.Field name="prompt">
-                  {(field) => (
-                    <div>
-                      <label
-                        htmlFor="create-prompt"
-                        className="block text-sm font-medium text-text-standard mb-2"
-                      >
-                        Initial Prompt (Optional)
-                      </label>
-                      <textarea
-                        id="create-prompt"
-                        value={field.state.value}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        onBlur={field.handleBlur}
-                        className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                        placeholder="First message to send when the recipe starts..."
-                        rows={3}
-                      />
-                    </div>
-                  )}
-                </createRecipeForm.Field>
-
-                <createRecipeForm.Field name="activities">
-                  {(field) => (
-                    <div>
-                      <label
-                        htmlFor="create-activities"
-                        className="block text-sm font-medium text-text-standard mb-2"
-                      >
-                        Activities (Optional)
-                      </label>
-                      <input
-                        id="create-activities"
-                        type="text"
-                        value={field.state.value}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        onBlur={field.handleBlur}
-                        className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="coding, debugging, testing, documentation (comma-separated)"
-                      />
-                      <p className="text-xs text-text-muted mt-1">
-                        Comma-separated list of activities this recipe helps with
-                      </p>
-                    </div>
-                  )}
-                </createRecipeForm.Field>
-
-                <createRecipeForm.Field name="recipeName">
-                  {(field) => (
-                    <div>
-                      <label
-                        htmlFor="create-recipe-name"
-                        className="block text-sm font-medium text-text-standard mb-2"
-                      >
-                        Recipe Name <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        id="create-recipe-name"
-                        type="text"
-                        value={field.state.value}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        onBlur={field.handleBlur}
-                        className={`w-full p-3 border rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                          field.state.meta.errors.length > 0
-                            ? 'border-red-500'
-                            : 'border-border-subtle'
-                        }`}
-                        placeholder="File name for the recipe"
-                      />
-                      {field.state.meta.errors.length > 0 && (
-                        <p className="text-red-500 text-sm mt-1">
-                          {typeof field.state.meta.errors[0] === 'string'
-                            ? field.state.meta.errors[0]
-                            : field.state.meta.errors[0]?.message ||
-                              String(field.state.meta.errors[0])}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </createRecipeForm.Field>
-
-                <createRecipeForm.Field name="global">
-                  {(field) => (
-                    <div>
-                      <label className="block text-sm font-medium text-text-standard mb-2">
-                        Save Location
-                      </label>
-                      <div className="space-y-2">
-                        <label className="flex items-center">
-                          <input
-                            type="radio"
-                            name="create-save-location"
-                            checked={field.state.value === true}
-                            onChange={() => field.handleChange(true)}
-                            className="mr-2"
-                          />
-                          <span className="text-sm text-text-standard">
-                            Global - Available across all Goose sessions
-                          </span>
-                        </label>
-                        <label className="flex items-center">
-                          <input
-                            type="radio"
-                            name="create-save-location"
-                            checked={field.state.value === false}
-                            onChange={() => field.handleChange(false)}
-                            className="mr-2"
-                          />
-                          <span className="text-sm text-text-standard">
-                            Directory - Available in the working directory
-                          </span>
-                        </label>
-                      </div>
-                    </div>
-                  )}
-                </createRecipeForm.Field>
-              </div>
-
-              <div className="flex justify-end space-x-3 mt-6">
-                <Button
-                  type="button"
-                  onClick={() => {
-                    setShowCreateDialog(false);
-                    createRecipeForm.reset();
-                  }}
-                  variant="ghost"
-                  disabled={creating}
-                >
-                  Cancel
-                </Button>
-                <createRecipeForm.Subscribe
-                  selector={(state) => [state.canSubmit, state.isSubmitting, state.isValid]}
-                >
-                  {([canSubmit, isSubmitting, isValid]) => {
-                    // Debug logging to see what's happening
-                    console.log('Form state:', { canSubmit, isSubmitting, isValid });
-
-                    return (
-                      <Button
-                        type="submit"
-                        disabled={!canSubmit || creating || isSubmitting}
-                        variant="default"
-                      >
-                        {creating || isSubmitting ? 'Creating...' : 'Create Recipe'}
-                      </Button>
-                    );
-                  }}
-                </createRecipeForm.Subscribe>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <CreateRecipeForm
+        isOpen={showCreateDialog}
+        onClose={() => setShowCreateDialog(false)}
+        onSuccess={loadSavedRecipes}
+      />
     </>
   );
 }
