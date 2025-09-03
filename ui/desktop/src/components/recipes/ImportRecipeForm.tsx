@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useForm } from '@tanstack/react-form';
+import { z } from 'zod';
 import { Download } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Recipe, decodeRecipe } from '../../recipe';
@@ -12,18 +14,24 @@ interface ImportRecipeFormProps {
   onSuccess: () => void;
 }
 
+// Define Zod schema for the import form
+const importRecipeSchema = z.object({
+  deeplink: z
+    .string()
+    .min(1, 'Deeplink is required')
+    .refine(
+      (value) => value.trim().startsWith('goose://recipe?config='),
+      'Invalid deeplink format. Expected: goose://recipe?config=...'
+    ),
+  recipeName: z.string().min(3, 'Recipe name must be at least 3 characters'),
+  global: z.boolean(),
+});
+
 export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportRecipeFormProps) {
-  const [importDeeplink, setImportDeeplink] = useState('');
-  const [importRecipeName, setImportRecipeName] = useState('');
-  const [importGlobal, setImportGlobal] = useState(true);
   const [importing, setImporting] = useState(false);
 
   // Handle Esc key for modal
-  useEscapeKey(isOpen, () => {
-    onClose();
-    setImportDeeplink('');
-    setImportRecipeName('');
-  });
+  useEscapeKey(isOpen, onClose);
 
   // Function to parse deeplink and extract recipe
   const parseDeeplink = async (deeplink: string): Promise<Recipe | null> => {
@@ -56,68 +64,101 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
     }
   };
 
-  const handleImportRecipe = async () => {
-    if (!importDeeplink.trim() || !importRecipeName.trim()) {
-      return;
-    }
+  const importRecipeForm = useForm({
+    defaultValues: {
+      deeplink: '',
+      recipeName: '',
+      global: true,
+    },
+    validators: {
+      onChange: importRecipeSchema,
+    },
+    onSubmit: async ({ value }) => {
+      setImporting(true);
+      try {
+        const recipe = await parseDeeplink(value.deeplink.trim());
 
-    setImporting(true);
-    try {
-      const recipe = await parseDeeplink(importDeeplink.trim());
+        if (!recipe) {
+          throw new Error('Invalid deeplink or recipe format');
+        }
 
-      if (!recipe) {
-        throw new Error('Invalid deeplink or recipe format');
+        await saveRecipe(recipe, {
+          name: value.recipeName.trim(),
+          global: value.global,
+        });
+
+        // Reset dialog state
+        importRecipeForm.reset({
+          deeplink: '',
+          recipeName: '',
+          global: true,
+        });
+        onClose();
+
+        onSuccess();
+
+        toastSuccess({
+          title: value.recipeName.trim(),
+          msg: 'Recipe imported successfully',
+        });
+      } catch (error) {
+        console.error('Failed to import recipe:', error);
+
+        toastError({
+          title: 'Import Failed',
+          msg: `Failed to import recipe: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          traceback: error instanceof Error ? error.message : String(error),
+        });
+      } finally {
+        setImporting(false);
       }
-
-      await saveRecipe(recipe, {
-        name: importRecipeName.trim(),
-        global: importGlobal,
-      });
-
-      // Reset dialog state
-      onClose();
-      setImportDeeplink('');
-      setImportRecipeName('');
-
-      onSuccess();
-
-      toastSuccess({
-        title: importRecipeName.trim(),
-        msg: 'Recipe imported successfully',
-      });
-    } catch (error) {
-      console.error('Failed to import recipe:', error);
-
-      toastError({
-        title: 'Import Failed',
-        msg: `Failed to import recipe: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        traceback: error instanceof Error ? error.message : String(error),
-      });
-    } finally {
-      setImporting(false);
-    }
-  };
+    },
+  });
 
   const handleClose = () => {
+    // Reset form to default values
+    importRecipeForm.reset({
+      deeplink: '',
+      recipeName: '',
+      global: true,
+    });
     onClose();
-    setImportDeeplink('');
-    setImportRecipeName('');
   };
 
+  // Store reference to recipe name field for programmatic updates
+  let recipeNameFieldRef: { handleChange: (value: string) => void } | null = null;
+
   // Auto-generate recipe name when deeplink changes
-  const handleDeeplinkChange = async (value: string) => {
-    setImportDeeplink(value);
+  const handleDeeplinkChange = async (
+    value: string,
+    field: { handleChange: (value: string) => void }
+  ) => {
+    // Use the proper field change handler to trigger validation
+    field.handleChange(value);
 
     if (value.trim()) {
       try {
         const recipe = await parseDeeplink(value.trim());
         if (recipe && recipe.title) {
           const suggestedName = generateRecipeFilename(recipe);
-          setImportRecipeName(suggestedName);
+
+          // Use the recipe name field's handleChange method if available
+          if (recipeNameFieldRef) {
+            recipeNameFieldRef.handleChange(suggestedName);
+          } else {
+            importRecipeForm.setFieldValue('recipeName', suggestedName);
+          }
         }
       } catch (error) {
         // Silently handle parsing errors during auto-suggest
         console.log('Could not parse deeplink for auto-suggest:', error);
+      }
+    } else {
+      // Clear the recipe name when deeplink is empty
+      if (recipeNameFieldRef) {
+        recipeNameFieldRef.handleChange('');
+      } else {
+        importRecipeForm.setFieldValue('recipeName', '');
       }
     }
   };
@@ -129,90 +170,142 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
       <div className="bg-background-default border border-border-subtle rounded-lg p-6 w-[500px] max-w-[90vw]">
         <h3 className="text-lg font-medium text-text-standard mb-4">Import Recipe</h3>
 
-        <div className="space-y-4">
-          <div>
-            <label
-              htmlFor="import-deeplink"
-              className="block text-sm font-medium text-text-standard mb-2"
-            >
-              Recipe Deeplink
-            </label>
-            <textarea
-              id="import-deeplink"
-              value={importDeeplink}
-              onChange={(e) => handleDeeplinkChange(e.target.value)}
-              className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-              placeholder="Paste your goose://recipe?config=... deeplink here"
-              rows={3}
-              autoFocus
-            />
-            <p className="text-xs text-text-muted mt-1">
-              Paste a recipe deeplink starting with "goose://recipe?config="
-            </p>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            importRecipeForm.handleSubmit();
+          }}
+        >
+          <div className="space-y-4">
+            <importRecipeForm.Field name="deeplink">
+              {(field) => (
+                <div>
+                  <label
+                    htmlFor="import-deeplink"
+                    className="block text-sm font-medium text-text-standard mb-2"
+                  >
+                    Recipe Deeplink <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    id="import-deeplink"
+                    value={field.state.value}
+                    onChange={(e) => handleDeeplinkChange(e.target.value, field)}
+                    onBlur={field.handleBlur}
+                    className={`w-full p-3 border rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none ${
+                      field.state.meta.errors.length > 0 ? 'border-red-500' : 'border-border-subtle'
+                    }`}
+                    placeholder="Paste your goose://recipe?config=... deeplink here"
+                    rows={3}
+                    autoFocus
+                  />
+                  <p className="text-xs text-text-muted mt-1">
+                    Paste a recipe deeplink starting with "goose://recipe?config="
+                  </p>
+                  {field.state.meta.errors.length > 0 && (
+                    <p className="text-red-500 text-sm mt-1">
+                      {typeof field.state.meta.errors[0] === 'string'
+                        ? field.state.meta.errors[0]
+                        : field.state.meta.errors[0]?.message || String(field.state.meta.errors[0])}
+                    </p>
+                  )}
+                </div>
+              )}
+            </importRecipeForm.Field>
+
+            <importRecipeForm.Field name="recipeName">
+              {(field) => {
+                // Store reference to the field for programmatic updates
+                recipeNameFieldRef = field;
+
+                return (
+                  <div>
+                    <label
+                      htmlFor="import-recipe-name"
+                      className="block text-sm font-medium text-text-standard mb-2"
+                    >
+                      Recipe Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      id="import-recipe-name"
+                      type="text"
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      onBlur={field.handleBlur}
+                      className={`w-full p-3 border rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        field.state.meta.errors.length > 0
+                          ? 'border-red-500'
+                          : 'border-border-subtle'
+                      }`}
+                      placeholder="Enter a name for the imported recipe"
+                    />
+                    {field.state.meta.errors.length > 0 && (
+                      <p className="text-red-500 text-sm mt-1">
+                        {typeof field.state.meta.errors[0] === 'string'
+                          ? field.state.meta.errors[0]
+                          : field.state.meta.errors[0]?.message ||
+                            String(field.state.meta.errors[0])}
+                      </p>
+                    )}
+                  </div>
+                );
+              }}
+            </importRecipeForm.Field>
+
+            <importRecipeForm.Field name="global">
+              {(field) => (
+                <div>
+                  <label className="block text-sm font-medium text-text-standard mb-2">
+                    Save Location
+                  </label>
+                  <div className="space-y-2">
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="import-save-location"
+                        checked={field.state.value === true}
+                        onChange={() => field.handleChange(true)}
+                        className="mr-2"
+                      />
+                      <span className="text-sm text-text-standard">
+                        Global - Available across all Goose sessions
+                      </span>
+                    </label>
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="import-save-location"
+                        checked={field.state.value === false}
+                        onChange={() => field.handleChange(false)}
+                        className="mr-2"
+                      />
+                      <span className="text-sm text-text-standard">
+                        Directory - Available in the working directory
+                      </span>
+                    </label>
+                  </div>
+                </div>
+              )}
+            </importRecipeForm.Field>
           </div>
 
-          <div>
-            <label
-              htmlFor="import-recipe-name"
-              className="block text-sm font-medium text-text-standard mb-2"
-            >
-              Recipe Name
-            </label>
-            <input
-              id="import-recipe-name"
-              type="text"
-              value={importRecipeName}
-              onChange={(e) => setImportRecipeName(e.target.value)}
-              className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Enter a name for the imported recipe"
-            />
+          <div className="flex justify-end space-x-3 mt-6">
+            <Button type="button" onClick={handleClose} variant="ghost" disabled={importing}>
+              Cancel
+            </Button>
+            <importRecipeForm.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>
+              {([canSubmit, isSubmitting]) => (
+                <Button
+                  type="submit"
+                  disabled={!canSubmit || importing || isSubmitting}
+                  variant="default"
+                >
+                  {importing || isSubmitting ? 'Importing...' : 'Import Recipe'}
+                </Button>
+              )}
+            </importRecipeForm.Subscribe>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-text-standard mb-2">
-              Save Location
-            </label>
-            <div className="space-y-2">
-              <label className="flex items-center">
-                <input
-                  type="radio"
-                  name="import-save-location"
-                  checked={importGlobal}
-                  onChange={() => setImportGlobal(true)}
-                  className="mr-2"
-                />
-                <span className="text-sm text-text-standard">
-                  Global - Available across all Goose sessions
-                </span>
-              </label>
-              <label className="flex items-center">
-                <input
-                  type="radio"
-                  name="import-save-location"
-                  checked={!importGlobal}
-                  onChange={() => setImportGlobal(false)}
-                  className="mr-2"
-                />
-                <span className="text-sm text-text-standard">
-                  Directory - Available in the working directory
-                </span>
-              </label>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex justify-end space-x-3 mt-6">
-          <Button onClick={handleClose} variant="ghost" disabled={importing}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleImportRecipe}
-            disabled={!importDeeplink.trim() || !importRecipeName.trim() || importing}
-            variant="default"
-          >
-            {importing ? 'Importing...' : 'Import Recipe'}
-          </Button>
-        </div>
+        </form>
       </div>
     </div>
   );
