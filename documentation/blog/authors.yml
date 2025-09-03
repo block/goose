@@ -161,3 +161,12 @@ jeuston:
   socials:
     linkedin: joeeuston
     github: joeeuston-dev
+
+ewann:
+  name: Ewan Nisbet
+  title: Open Source Contributor
+  image_url: https://avatars.githubusercontent.com/u/4255819?v=4
+  page: true
+  socials:
+    linkedin: ewannisbet
+    github: ewann
