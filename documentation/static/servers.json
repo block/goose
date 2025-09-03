@@ -274,15 +274,13 @@
     "description": "GitHub repository management and operations",
     "url": "https://api.githubcopilot.com/mcp/",
     "link": "https://github.com/github/github-mcp-server",
-    "installation_notes": "This extension requires manual configuration to connect to GitHub's remote MCP server using a personal access token.",
+    "installation_notes": "This is a remote extension. Configure using the endpoint URL in Goose settings.",
     "is_builtin": false,
     "endorsed": true,
-    "show_install_link": false,
-    "show_install_command": false,
     "environmentVariables": [
       {
         "name": "GITHUB_PERSONAL_ACCESS_TOKEN",
-        "description": "Grants programmatic access to your GitHub repositories.",
+        "description": "Required environment variable",
         "required": true
       }
     ],

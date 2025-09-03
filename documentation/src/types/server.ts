@@ -9,8 +9,6 @@ export interface MCPServer {
   installation_notes: string;
   is_builtin: boolean;
   endorsed: boolean;
-  show_install_link?: boolean;
-  show_install_command?: boolean;
   environmentVariables: {
     name: string;
     description: string;
