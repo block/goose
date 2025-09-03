@@ -4,9 +4,11 @@ import { z } from 'zod';
 import { Download } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Recipe, decodeRecipe } from '../../recipe';
-import { saveRecipe, generateRecipeFilename } from '../../recipe/recipeStorage';
+import { saveRecipe } from '../../recipe/recipeStorage';
 import { toastSuccess, toastError } from '../../toasts';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
+import { RecipeNameField, recipeNameSchema } from './shared/RecipeNameField';
+import { generateRecipeNameFromTitle } from './shared/recipeNameUtils';
 
 interface ImportRecipeFormProps {
   isOpen: boolean;
@@ -23,7 +25,7 @@ const importRecipeSchema = z.object({
       (value) => value.trim().startsWith('goose://recipe?config='),
       'Invalid deeplink format. Expected: goose://recipe?config=...'
     ),
-  recipeName: z.string().min(3, 'Recipe name must be at least 3 characters'),
+  recipeName: recipeNameSchema,
   global: z.boolean(),
 });
 
@@ -140,7 +142,7 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
       try {
         const recipe = await parseDeeplink(value.trim());
         if (recipe && recipe.title) {
-          const suggestedName = generateRecipeFilename(recipe);
+          const suggestedName = generateRecipeNameFromTitle(recipe.title);
 
           // Use the recipe name field's handleChange method if available
           if (recipeNameFieldRef) {
@@ -219,35 +221,15 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
                 recipeNameFieldRef = field;
 
                 return (
-                  <div>
-                    <label
-                      htmlFor="import-recipe-name"
-                      className="block text-sm font-medium text-text-standard mb-2"
-                    >
-                      Recipe Name <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      id="import-recipe-name"
-                      type="text"
-                      value={field.state.value}
-                      onChange={(e) => field.handleChange(e.target.value)}
-                      onBlur={field.handleBlur}
-                      className={`w-full p-3 border rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                        field.state.meta.errors.length > 0
-                          ? 'border-red-500'
-                          : 'border-border-subtle'
-                      }`}
-                      placeholder="Enter a name for the imported recipe"
-                    />
-                    {field.state.meta.errors.length > 0 && (
-                      <p className="text-red-500 text-sm mt-1">
-                        {typeof field.state.meta.errors[0] === 'string'
-                          ? field.state.meta.errors[0]
-                          : field.state.meta.errors[0]?.message ||
-                            String(field.state.meta.errors[0])}
-                      </p>
+                  <RecipeNameField
+                    id="import-recipe-name"
+                    value={field.state.value}
+                    onChange={field.handleChange}
+                    onBlur={field.handleBlur}
+                    errors={field.state.meta.errors.map((error) =>
+                      typeof error === 'string' ? error : error?.message || String(error)
                     )}
-                  </div>
+                  />
                 );
               }}
             </importRecipeForm.Field>

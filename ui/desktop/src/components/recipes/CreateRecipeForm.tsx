@@ -7,6 +7,8 @@ import { Recipe } from '../../recipe';
 import { saveRecipe } from '../../recipe/recipeStorage';
 import { toastSuccess, toastError } from '../../toasts';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
+import { RecipeNameField, recipeNameSchema } from './shared/RecipeNameField';
+import { generateRecipeNameFromTitle } from './shared/recipeNameUtils';
 
 interface CreateRecipeFormProps {
   isOpen: boolean;
@@ -21,7 +23,7 @@ const createRecipeSchema = z.object({
   instructions: z.string().min(20, 'Instructions must be at least 20 characters'),
   prompt: z.string(),
   activities: z.string(),
-  recipeName: z.string().min(3, 'Recipe name must be at least 3 characters'),
+  recipeName: recipeNameSchema,
   global: z.boolean(),
 });
 
@@ -129,7 +131,7 @@ Parameters you can use:
         'What Python development task can I help you with today?'
       );
       createRecipeForm.setFieldValue('activities', 'coding, debugging, testing, documentation');
-      createRecipeForm.setFieldValue('recipeName', '');
+      createRecipeForm.setFieldValue('recipeName', 'python-development-assistant');
       createRecipeForm.setFieldValue('global', true);
     }
   }, [isOpen, createRecipeForm]);
@@ -181,11 +183,7 @@ Parameters you can use:
                       field.handleChange(value);
                       // Auto-generate recipe name when title changes
                       if (value.trim()) {
-                        const suggestedName = value
-                          .toLowerCase()
-                          .replace(/[^a-zA-Z0-9\s-]/g, '')
-                          .replace(/\s+/g, '-')
-                          .trim();
+                        const suggestedName = generateRecipeNameFromTitle(value);
                         createRecipeForm.setFieldValue('recipeName', suggestedName);
                       }
                     }}
@@ -321,32 +319,15 @@ Parameters you can use:
 
             <createRecipeForm.Field name="recipeName">
               {(field) => (
-                <div>
-                  <label
-                    htmlFor="create-recipe-name"
-                    className="block text-sm font-medium text-text-standard mb-2"
-                  >
-                    Recipe Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    id="create-recipe-name"
-                    type="text"
-                    value={field.state.value}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                    onBlur={field.handleBlur}
-                    className={`w-full p-3 border rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      field.state.meta.errors.length > 0 ? 'border-red-500' : 'border-border-subtle'
-                    }`}
-                    placeholder="File name for the recipe"
-                  />
-                  {field.state.meta.errors.length > 0 && (
-                    <p className="text-red-500 text-sm mt-1">
-                      {typeof field.state.meta.errors[0] === 'string'
-                        ? field.state.meta.errors[0]
-                        : field.state.meta.errors[0]?.message || String(field.state.meta.errors[0])}
-                    </p>
+                <RecipeNameField
+                  id="create-recipe-name"
+                  value={field.state.value}
+                  onChange={field.handleChange}
+                  onBlur={field.handleBlur}
+                  errors={field.state.meta.errors.map((error) =>
+                    typeof error === 'string' ? error : error?.message || String(error)
                   )}
-                </div>
+                />
               )}
             </createRecipeForm.Field>
 
