@@ -5,7 +5,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 /// Default maximum number of turns for task execution
-pub const DEFAULT_SUBAGENT_MAX_TURNS: usize = 10;
+pub const DEFAULT_SUBAGENT_MAX_TURNS: usize = 25;
 
 /// Environment variable name for configuring max turns
 pub const GOOSE_SUBAGENT_MAX_TURNS_ENV_VAR: &str = "GOOSE_SUBAGENT_MAX_TURNS";
