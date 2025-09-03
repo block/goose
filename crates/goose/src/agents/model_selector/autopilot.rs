@@ -215,8 +215,9 @@ impl AutoPilot {
         let premade_rules = Self::load_premade_rules();
 
         // Try to load user models configuration from config.yaml
-        let user_models: Vec<ModelConfig> =
-            config.get_param("models").unwrap_or_else(|_| Vec::new());
+        let user_models: Vec<ModelConfig> = config
+            .get_param("x-advanced-models")
+            .unwrap_or_else(|_| Vec::new());
 
         // Merge configs - user provides provider/model, rules come from premade or user override
         let models = Self::merge_configs(premade_rules, user_models);
