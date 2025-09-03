@@ -26,6 +26,7 @@ jobs:
         GOOSE_PROVIDER: ${{ vars.GOOSE_PROVIDER || 'openai' }}
         GOOSE_MODEL: ${{ vars.GOOSE_MODEL || 'gpt-4o' }}
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        HOME: /tmp/goose-home
 
     steps:
       - name: Checkout code
@@ -41,6 +42,10 @@ jobs:
       - name: Find untested code and create working test
         id: find_untested
         run: |
+          # Ensure the HOME directory structure exists
+          mkdir -p $HOME/.local/share/goose/sessions
+          mkdir -p $HOME/.config/goose
+
           # Create analysis and test creation script
           cat << 'EOF' > /tmp/create_working_test.txt
           Your task is to find ONE untested function in the Rust codebase and create a working test for it.
