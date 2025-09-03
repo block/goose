@@ -1,6 +1,14 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo, startTransition } from 'react';
-import { MessageSquareText, Target, AlertCircle, Calendar, Folder, Edit2 } from 'lucide-react';
-import { fetchSessions, updateSessionMetadata, type Session } from '../../sessions';
+import {
+  MessageSquareText,
+  Target,
+  AlertCircle,
+  Calendar,
+  Folder,
+  Edit2,
+  Trash2,
+} from 'lucide-react';
+import { fetchSessions, updateSessionMetadata, deleteSession, type Session } from '../../sessions';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
@@ -12,6 +20,7 @@ import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { groupSessionsByDate, type DateGroup } from '../../utils/dateUtils';
 import { Skeleton } from '../ui/skeleton';
 import { toast } from 'react-toastify';
+import { ConfirmationModal } from '../ui/ConfirmationModal';
 
 interface EditSessionModalProps {
   session: Session | null;
@@ -176,6 +185,10 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     // Edit modal state
     const [showEditModal, setShowEditModal] = useState(false);
     const [editingSession, setEditingSession] = useState<Session | null>(null);
+
+    // Delete confirmation modal state
+    const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+    const [sessionToDelete, setSessionToDelete] = useState<Session | null>(null);
 
     // Search state for debouncing
     const [searchTerm, setSearchTerm] = useState('');
@@ -355,12 +368,43 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       setShowEditModal(true);
     }, []);
 
+    const handleDeleteSession = useCallback((session: Session) => {
+      setSessionToDelete(session);
+      setShowDeleteConfirmation(true);
+    }, []);
+
+    const handleConfirmDelete = useCallback(async () => {
+      if (!sessionToDelete) return;
+
+      setShowDeleteConfirmation(false);
+      const sessionToDeleteId = sessionToDelete.id;
+      const sessionName = sessionToDelete.metadata.description || sessionToDelete.id;
+      setSessionToDelete(null);
+
+      try {
+        await deleteSession(sessionToDeleteId);
+        toast.success('Session deleted successfully');
+        loadSessions();
+      } catch (error) {
+        console.error('Error deleting session:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        toast.error(`Failed to delete session "${sessionName}": ${errorMessage}`);
+      }
+    }, [sessionToDelete, loadSessions]);
+
+    const handleCancelDelete = useCallback(() => {
+      setShowDeleteConfirmation(false);
+      setSessionToDelete(null);
+    }, []);
+
     const SessionItem = React.memo(function SessionItem({
       session,
       onEditClick,
+      onDeleteClick,
     }: {
       session: Session;
       onEditClick: (session: Session) => void;
+      onDeleteClick: (session: Session) => void;
     }) {
       const handleEditClick = useCallback(
         (e: React.MouseEvent) => {
@@ -368,6 +412,14 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           onEditClick(session);
         },
         [onEditClick, session]
+      );
+
+      const handleDeleteClick = useCallback(
+        (e: React.MouseEvent) => {
+          e.stopPropagation(); // Prevent card click
+          onDeleteClick(session);
+        },
+        [onDeleteClick, session]
       );
 
       const handleCardClick = useCallback(() => {
@@ -380,16 +432,25 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           className="session-item h-full py-3 px-4 hover:shadow-default cursor-pointer transition-all duration-150 flex flex-col justify-between relative group"
           ref={(el) => setSessionRefs(session.id, el)}
         >
-          <button
-            onClick={handleEditClick}
-            className="absolute top-3 right-4 p-2 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-            title="Edit session name"
-          >
-            <Edit2 className="w-3 h-3 text-textSubtle hover:text-textStandard" />
-          </button>
+          <div className="absolute top-3 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              onClick={handleEditClick}
+              className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+              title="Edit session name"
+            >
+              <Edit2 className="w-3 h-3 text-textSubtle hover:text-textStandard" />
+            </button>
+            <button
+              onClick={handleDeleteClick}
+              className="p-2 rounded hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer transition-colors"
+              title="Delete session"
+            >
+              <Trash2 className="w-3 h-3 text-red-500 hover:text-red-600" />
+            </button>
+          </div>
 
           <div className="flex-1">
-            <h3 className="text-base mb-1 pr-6 break-words">
+            <h3 className="text-base mb-1 pr-16 break-words">
               {session.metadata.description || session.id}
             </h3>
 
@@ -505,7 +566,12 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
                 {group.sessions.map((session) => (
-                  <SessionItem key={session.id} session={session} onEditClick={handleEditSession} />
+                  <SessionItem
+                    key={session.id}
+                    session={session}
+                    onEditClick={handleEditSession}
+                    onDeleteClick={handleDeleteSession}
+                  />
                 ))}
               </div>
             </div>
@@ -604,6 +670,17 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           isOpen={showEditModal}
           onClose={handleModalClose}
           onSave={handleModalSave}
+        />
+
+        <ConfirmationModal
+          isOpen={showDeleteConfirmation}
+          title="Delete Session"
+          message={`Are you sure you want to delete the session "${sessionToDelete?.metadata.description || sessionToDelete?.id}"? This action cannot be undone.`}
+          confirmLabel="Delete Session"
+          cancelLabel="Cancel"
+          confirmVariant="destructive"
+          onConfirm={handleConfirmDelete}
+          onCancel={handleCancelDelete}
         />
       </>
     );

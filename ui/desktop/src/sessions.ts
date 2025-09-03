@@ -151,3 +151,30 @@ export function resumeSession(session: SessionDetails | Session) {
     resumedSessionId
   );
 }
+
+/**
+ * Deletes a specific session
+ * @param sessionId The ID of the session to delete
+ * @returns Promise that resolves when the deletion is complete
+ */
+export async function deleteSession(sessionId: string): Promise<void> {
+  try {
+    const url = getApiUrl(`/sessions/${sessionId}/delete`);
+    const secretKey = await window.electron.getSecretKey();
+
+    const response = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        'X-Secret-Key': secretKey,
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to delete session: ${response.statusText} - ${errorText}`);
+    }
+  } catch (error) {
+    console.error(`Error deleting session ${sessionId}:`, error);
+    throw error;
+  }
+}

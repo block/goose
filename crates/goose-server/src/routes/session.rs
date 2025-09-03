@@ -7,7 +7,7 @@ use crate::state::AppState;
 use axum::{
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
-    routing::{get, put},
+    routing::{delete, get, put},
     Json, Router,
 };
 use goose::conversation::message::Message;
@@ -310,11 +310,54 @@ async fn update_session_metadata(
     Ok(StatusCode::OK)
 }
 
+#[utoipa::path(
+    delete,
+    path = "/sessions/{session_id}/delete",
+    params(
+        ("session_id" = String, Path, description = "Unique identifier for the session")
+    ),
+    responses(
+        (status = 200, description = "Session deleted successfully"),
+        (status = 401, description = "Unauthorized - Invalid or missing API key"),
+        (status = 404, description = "Session not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "Session Management"
+)]
+// Delete a session
+async fn delete_session(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(session_id): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
+    // Get the session path
+    let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
+        Ok(path) => path,
+        Err(_) => return Err(StatusCode::BAD_REQUEST),
+    };
+
+    // Check if session file exists
+    if !session_path.exists() {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    // Delete the session file
+    std::fs::remove_file(&session_path).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(StatusCode::OK)
+}
+
 // Configure routes for this module
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/sessions", get(list_sessions))
         .route("/sessions/{session_id}", get(get_session_history))
+        .route("/sessions/{session_id}/delete", delete(delete_session))
         .route("/sessions/insights", get(get_session_insights))
         .route(
             "/sessions/{session_id}/metadata",
