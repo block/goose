@@ -6,6 +6,7 @@ import { confirmPermission } from '../api';
 import { Button } from './ui/button';
 
 const ALLOW_ONCE = 'allow_once';
+const ALWAYS_ALLOW = 'always_allow';
 const DENY = 'deny';
 
 // Global state to track tool confirmation decisions
@@ -76,6 +77,8 @@ export default function ToolConfirmation({
 
     if (action === ALLOW_ONCE) {
       newActionDisplay = 'allowed once';
+    } else if (action === ALWAYS_ALLOW) {
+      newActionDisplay = 'always allowed';
     } else {
       newActionDisplay = 'denied';
     }
@@ -134,7 +137,7 @@ export default function ToolConfirmation({
       {clicked ? (
         <div className="goose-message-tool bg-background-default border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-2 pb-2 flex items-center justify-between">
           <div className="flex items-center">
-            {status === 'allow_once' && (
+            {(status === 'allow_once' || status === 'always_allow') && (
               <svg
                 className="w-5 h-5 text-gray-500"
                 xmlns="http://www.w3.org/2000/svg"
@@ -191,6 +194,16 @@ export default function ToolConfirmation({
           >
             Allow Once
           </Button>
+          {/* Only show "Always Allow" if there's no security message (no security finding) */}
+          {!prompt && (
+            <Button
+              className="rounded-full"
+              variant="secondary"
+              onClick={() => handleButtonClick(ALWAYS_ALLOW)}
+            >
+              Always Allow
+            </Button>
+          )}
           <Button
             className="rounded-full"
             variant="outline"

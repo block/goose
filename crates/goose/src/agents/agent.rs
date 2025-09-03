@@ -1668,20 +1668,4 @@ mod tests {
 
         Ok(())
     }
-
-    #[tokio::test]
-    async fn test_permission_inspector_mode_update() -> Result<()> {
-        let agent = Agent::new();
-
-        // Test that we can update the permission inspector mode
-        agent
-            .tool_inspection_manager
-            .update_permission_inspector_mode("test_mode".to_string())
-            .await;
-
-        // The mode update should work without errors
-        // We can't easily test the internal state without more complex setup,
-        // but the fact that it doesn't panic or error is a good sign
-        Ok(())
-    }
 }

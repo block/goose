@@ -951,12 +951,22 @@ impl Session {
                                 };
 
                                 // Get confirmation from user
-                                let permission_result = cliclack::select(prompt)
-                                    .item(Permission::AllowOnce, "Allow", "Allow the tool call once")
-                                    .item(Permission::AlwaysAllow, "Always Allow", "Always allow the tool call")
-                                    .item(Permission::DenyOnce, "Deny", "Deny the tool call")
-                                    .item(Permission::Cancel, "Cancel", "Cancel the AI response and tool call")
-                                    .interact();
+                                let permission_result = if confirmation.prompt.is_none() {
+                                    // No security message - show all options including "Always Allow"
+                                    cliclack::select(prompt)
+                                        .item(Permission::AllowOnce, "Allow", "Allow the tool call once")
+                                        .item(Permission::AlwaysAllow, "Always Allow", "Always allow the tool call")
+                                        .item(Permission::DenyOnce, "Deny", "Deny the tool call")
+                                        .item(Permission::Cancel, "Cancel", "Cancel the AI response and tool call")
+                                        .interact()
+                                } else {
+                                    // Security message present - don't show "Always Allow"
+                                    cliclack::select(prompt)
+                                        .item(Permission::AllowOnce, "Allow", "Allow the tool call once")
+                                        .item(Permission::DenyOnce, "Deny", "Deny the tool call")
+                                        .item(Permission::Cancel, "Cancel", "Cancel the AI response and tool call")
+                                        .interact()
+                                };
 
                                 let permission = match permission_result {
                                     Ok(p) => p, // If Ok, use the selected permission
