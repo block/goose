@@ -1299,6 +1299,7 @@ async fn run_scheduled_job_internal(
                             accumulated_input_tokens: None,
                             accumulated_output_tokens: None,
                             extension_data: crate::session::ExtensionData::new(),
+                            recipe: None,
                         };
                         if let Err(e_fb) = crate::session::storage::save_messages_with_metadata(
                             &session_file_path,

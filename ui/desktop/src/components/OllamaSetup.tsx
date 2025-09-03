@@ -9,7 +9,7 @@ import {
   getPreferredModel,
   type PullProgress,
 } from '../utils/ollamaDetection';
-import { initializeSystem } from '../utils/providerUtils';
+//import { initializeSystem } from '../utils/providerUtils';
 import { toastService } from '../toasts';
 import { Ollama } from './icons';
 
@@ -19,7 +19,8 @@ interface OllamaSetupProps {
 }
 
 export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
-  const { addExtension, getExtensions, upsert } = useConfig();
+  //const { addExtension, getExtensions, upsert } = useConfig();
+  const { upsert } = useConfig();
   const [isChecking, setIsChecking] = useState(true);
   const [ollamaDetected, setOllamaDetected] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
@@ -109,12 +110,6 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
       await upsert('GOOSE_MODEL', getPreferredModel(), false);
       await upsert('OLLAMA_HOST', 'localhost', false);
 
-      // Initialize the system with Ollama
-      await initializeSystem('ollama', getPreferredModel(), {
-        getExtensions,
-        addExtension,
-      });
-
       toastService.success({
         title: 'Success!',
         msg: `Connected to Ollama with ${getPreferredModel()} model.`,
@@ -157,7 +152,9 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
       {ollamaDetected ? (
         <div className="space-y-4">
           <div className="flex items-start mb-16">
-            <span className="inline-block px-2 py-1 text-xs font-medium bg-green-600 text-white rounded-full">Ollama is detected and running</span>
+            <span className="inline-block px-2 py-1 text-xs font-medium bg-green-600 text-white rounded-full">
+              Ollama is detected and running
+            </span>
           </div>
 
           {modelStatus === 'checking' ? (
@@ -185,14 +182,10 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
           ) : modelStatus === 'downloading' ? (
             <div className="space-y-4">
               <div className="bg-background-info/10 border border-border-info rounded-lg p-4">
-                <p className="text-text-info text-sm">
-                  Downloading {getPreferredModel()}...
-                </p>
+                <p className="text-text-info text-sm">Downloading {getPreferredModel()}...</p>
                 {downloadProgress && (
                   <>
-                    <p className="text-text-muted text-xs mt-2">
-                      {downloadProgress.status}
-                    </p>
+                    <p className="text-text-muted text-xs mt-2">{downloadProgress.status}</p>
                     {downloadProgress.total && downloadProgress.completed && (
                       <div className="mt-3">
                         <div className="bg-background-muted rounded-full h-2 overflow-hidden">
@@ -225,7 +218,9 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
       ) : (
         <div className="space-y-4">
           <div className="flex items-start mb-16">
-            <span className="inline-block px-2 py-1 text-xs font-medium bg-orange-600 text-white rounded-full">Ollama is not detected on your system</span>
+            <span className="inline-block px-2 py-1 text-xs font-medium bg-orange-600 text-white rounded-full">
+              Ollama is not detected on your system
+            </span>
           </div>
 
           {isPolling ? (

@@ -254,7 +254,7 @@ Here are some ideas for next steps:
 [openai-key]: https://platform.openai.com/api-keys
 [getting-started]: /docs/category/getting-started
 [providers]: /docs/getting-started/providers
-[managing-sessions]: /docs/guides/managing-goose-sessions
+[managing-sessions]: /docs/guides/sessions/session-management
 [contributing]: https://github.com/block/goose/blob/main/CONTRIBUTING.md
 [quick-tips]: /docs/guides/tips
 [extensions-guide]: /docs/getting-started/using-extensions

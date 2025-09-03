@@ -270,6 +270,7 @@ mod tests {
             accumulated_input_tokens: Some(50),
             accumulated_output_tokens: Some(50),
             extension_data: crate::session::ExtensionData::new(),
+            recipe: None,
         }
     }
 

@@ -459,7 +459,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
           setSelectedSessionDetails(null);
           setSessionDetailsError(null);
         }}
-        onRetry={() => loadAndShowSessionDetails(selectedSessionDetails.session_id)}
+        onRetry={() => loadAndShowSessionDetails(selectedSessionDetails?.sessionId)}
         showActionButtons={true}
       />
     );

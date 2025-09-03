@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useReducer, useRef, useState } from 'react';
 import useSWR from 'swr';
 import { createUserMessage, hasCompletedToolCalls, Message } from '../types/message';
-import { getSessionHistory } from '../api';
+import { getSessionHistory, SessionMetadata } from '../api';
 import { ChatState } from '../types/chatState';
 
 let messageIdCounter = 0;
@@ -14,19 +14,6 @@ function generateMessageId(): string {
 const TextDecoder = globalThis.TextDecoder;
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
-
-export interface SessionMetadata {
-  workingDir: string;
-  description: string;
-  scheduleId: string | null;
-  messageCount: number;
-  totalTokens: number | null;
-  inputTokens: number | null;
-  outputTokens: number | null;
-  accumulatedTotalTokens: number | null;
-  accumulatedInputTokens: number | null;
-  accumulatedOutputTokens: number | null;
-}
 
 export interface NotificationEvent {
   type: 'Notification';
@@ -369,21 +356,7 @@ export function useMessageStream({
                         });
 
                         if (sessionResponse.data?.metadata) {
-                          setSessionMetadata({
-                            workingDir: sessionResponse.data.metadata.working_dir,
-                            description: sessionResponse.data.metadata.description,
-                            scheduleId: sessionResponse.data.metadata.schedule_id || null,
-                            messageCount: sessionResponse.data.metadata.message_count,
-                            totalTokens: sessionResponse.data.metadata.total_tokens || null,
-                            inputTokens: sessionResponse.data.metadata.input_tokens || null,
-                            outputTokens: sessionResponse.data.metadata.output_tokens || null,
-                            accumulatedTotalTokens:
-                              sessionResponse.data.metadata.accumulated_total_tokens || null,
-                            accumulatedInputTokens:
-                              sessionResponse.data.metadata.accumulated_input_tokens || null,
-                            accumulatedOutputTokens:
-                              sessionResponse.data.metadata.accumulated_output_tokens || null,
-                          });
+                          setSessionMetadata(sessionResponse.data?.metadata);
                         }
                       } catch (error) {
                         console.error('Failed to fetch session metadata:', error);

@@ -1,7 +1,7 @@
-import { Card } from './ui/card';
+import { Card } from '../ui/card';
 import { gsap } from 'gsap';
-import GooseLogo from './GooseLogo';
-import MarkdownContent from './MarkdownContent';
+import GooseLogo from '../GooseLogo';
+import MarkdownContent from '../MarkdownContent';
 
 // Register GSAP plugins
 gsap.registerPlugin();

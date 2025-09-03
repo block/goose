@@ -8,7 +8,7 @@ mod large_response_handler;
 pub mod model_selector;
 pub mod platform_tools;
 pub mod prompt_manager;
-mod recipe_tools;
+pub mod recipe_tools;
 mod reply_parts;
 pub mod retry;
 mod router_tool_selector;

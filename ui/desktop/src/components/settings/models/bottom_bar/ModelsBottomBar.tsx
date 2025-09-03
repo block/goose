@@ -1,7 +1,7 @@
 import { Sliders, ChefHat, Bot, Eye, Save } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
-import { AddModelModal } from '../subcomponents/AddModelModal';
+import { SwitchModelModal } from '../subcomponents/SwitchModelModal';
 import { LeadWorkerSettings } from '../subcomponents/LeadWorkerSettings';
 import { View } from '../../../../utils/navigationUtils';
 import {
@@ -19,9 +19,10 @@ import BottomMenuAlertPopover from '../../../bottom_menu/BottomMenuAlertPopover'
 import { Recipe } from '../../../../recipe';
 import { saveRecipe, generateRecipeFilename } from '../../../../recipe/recipeStorage';
 import { toastSuccess, toastError } from '../../../../toasts';
-import ViewRecipeModal from '../../../ViewRecipeModal';
+import ViewRecipeModal from '../../../recipes/ViewRecipeModal';
 
 interface ModelsBottomBarProps {
+  sessionId: string | null;
   dropdownRef: React.RefObject<HTMLDivElement>;
   setView: (view: View) => void;
   alerts: Alert[];
@@ -30,6 +31,7 @@ interface ModelsBottomBarProps {
 }
 
 export default function ModelsBottomBar({
+  sessionId,
   dropdownRef,
   setView,
   alerts,
@@ -284,7 +286,11 @@ export default function ModelsBottomBar({
       </DropdownMenu>
 
       {isAddModelModalOpen ? (
-        <AddModelModal setView={setView} onClose={() => setIsAddModelModalOpen(false)} />
+        <SwitchModelModal
+          sessionId={sessionId}
+          setView={setView}
+          onClose={() => setIsAddModelModalOpen(false)}
+        />
       ) : null}
 
       {isLeadWorkerModalOpen ? (
