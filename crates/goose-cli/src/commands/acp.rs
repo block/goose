@@ -17,6 +17,7 @@ use tracing::{error, info, warn};
 struct GooseSession {
     agent: Agent,
     messages: Conversation,
+    tool_call_ids: HashMap<String, String>, // Maps internal tool IDs to ACP tool call IDs
 }
 
 /// Goose ACP Agent implementation that connects to real Goose agents
@@ -148,6 +149,7 @@ impl acp::Agent for GooseAcpAgent {
         let session = GooseSession {
             agent,
             messages: Conversation::new_unvalidated(Vec::new()),
+            tool_call_ids: HashMap::new(),
         };
 
         // Store the session
@@ -167,6 +169,7 @@ impl acp::Agent for GooseAcpAgent {
         Err(acp::Error::method_not_found())
     }
 
+    #[allow(clippy::too_many_lines)]
     async fn prompt(
         &self,
         arguments: acp::PromptRequest,
@@ -220,22 +223,96 @@ impl acp::Agent for GooseAcpAgent {
                     // Add to conversation
                     session.messages.push(message.clone());
 
-                    // Stream the response text to the client
+                    // Process message content, including tool calls
                     for content_item in &message.content {
-                        if let MessageContent::Text(text) = content_item {
-                            let (tx, rx) = oneshot::channel();
-                            self.session_update_tx
-                                .send((
-                                    SessionNotification {
-                                        session_id: arguments.session_id.clone(),
-                                        update: acp::SessionUpdate::AgentMessageChunk {
-                                            content: text.text.clone().into(),
+                        match content_item {
+                            MessageContent::Text(text) => {
+                                // Stream text to the client
+                                let (tx, rx) = oneshot::channel();
+                                self.session_update_tx
+                                    .send((
+                                        SessionNotification {
+                                            session_id: arguments.session_id.clone(),
+                                            update: acp::SessionUpdate::AgentMessageChunk {
+                                                content: text.text.clone().into(),
+                                            },
                                         },
-                                    },
-                                    tx,
-                                ))
-                                .map_err(|_| acp::Error::internal_error())?;
-                            rx.await.map_err(|_| acp::Error::internal_error())?;
+                                        tx,
+                                    ))
+                                    .map_err(|_| acp::Error::internal_error())?;
+                                rx.await.map_err(|_| acp::Error::internal_error())?;
+                            }
+                            MessageContent::ToolRequest(tool_request) => {
+                                // Generate ACP tool call ID and track mapping
+                                let acp_tool_id = format!("tool_{}", uuid::Uuid::new_v4());
+                                session
+                                    .tool_call_ids
+                                    .insert(tool_request.id.clone(), acp_tool_id.clone());
+
+                                // Extract tool name from the ToolCall if successful
+                                let tool_name = match &tool_request.tool_call {
+                                    Ok(tool_call) => tool_call.name.clone(),
+                                    Err(_) => "unknown".to_string(),
+                                };
+
+                                // Send tool call notification
+                                let (tx, rx) = oneshot::channel();
+                                self.session_update_tx
+                                    .send((
+                                        SessionNotification {
+                                            session_id: arguments.session_id.clone(),
+                                            update: acp::SessionUpdate::ToolCall(acp::ToolCall {
+                                                id: acp::ToolCallId(acp_tool_id.clone().into()),
+                                                title: format!("Calling tool: {}", tool_name),
+                                                kind: acp::ToolKind::default(),
+                                                status: acp::ToolCallStatus::Pending,
+                                                content: Vec::new(),
+                                                locations: Vec::new(),
+                                                raw_input: None,
+                                                raw_output: None,
+                                            }),
+                                        },
+                                        tx,
+                                    ))
+                                    .map_err(|_| acp::Error::internal_error())?;
+                                rx.await.map_err(|_| acp::Error::internal_error())?;
+
+                                // No need for separate update - status is already set to Pending
+                            }
+                            MessageContent::ToolResponse(tool_response) => {
+                                // Look up the ACP tool call ID
+                                if let Some(acp_tool_id) =
+                                    session.tool_call_ids.get(&tool_response.id)
+                                {
+                                    // Send completed status update
+                                    let (tx, rx) = oneshot::channel();
+                                    self.session_update_tx
+                                        .send((
+                                            SessionNotification {
+                                                session_id: arguments.session_id.clone(),
+                                                update: acp::SessionUpdate::ToolCallUpdate(
+                                                    acp::ToolCallUpdate {
+                                                        id: acp::ToolCallId(
+                                                            acp_tool_id.clone().into(),
+                                                        ),
+                                                        fields: acp::ToolCallUpdateFields {
+                                                            status: Some(
+                                                                acp::ToolCallStatus::Completed,
+                                                            ),
+                                                            ..Default::default()
+                                                        },
+                                                    },
+                                                ),
+                                            },
+                                            tx,
+                                        ))
+                                        .map_err(|_| acp::Error::internal_error())?;
+                                    rx.await.map_err(|_| acp::Error::internal_error())?;
+                                }
+                            }
+                            _ => {
+                                // Ignore other content types for now
+                            }
                         }
                     }
                 }
