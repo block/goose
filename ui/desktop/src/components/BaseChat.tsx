@@ -273,7 +273,7 @@ function BaseChatContent({
       'Initial messages when resuming session: ' + JSON.stringify(chat.messages, null, 2)
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Empty dependency array means this runs once on mount
+  }, []);
 
   // Auto-scroll when messages are loaded (for session resuming)
   useEffect(() => {
