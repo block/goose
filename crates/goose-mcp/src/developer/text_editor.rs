@@ -226,7 +226,7 @@ pub async fn apply_diff(
     } else {
         format!("```diff\n{}\n```", diff_content)
     };
-    
+
     let patches = parse_diffs(&wrapped_diff).map_err(|e| match e {
         PatchError::MissingFileHeader => ErrorData::new(
             ErrorCode::INVALID_PARAMS,
