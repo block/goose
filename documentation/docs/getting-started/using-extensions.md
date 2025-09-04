@@ -17,7 +17,7 @@ Check out the [step-by-step tutorials](/docs/category/mcp-servers) for adding an
 :::
 
 :::info Malware Scan
-Goose automatically checks external extensions (`uvx` and `npx`) for known malware before activation. If a malicious package is detected, the [extension will be blocked](#extension-blocked-for-security-reasons) with a clear error message.
+Goose automatically checks external extensions (`uvx` and `npx`) for known malware before activation. If a malicious package is detected, the [extension will be blocked](/docs/troubleshooting#malicious-package-detected) with a clear error message.
 :::
 
 ## Built-in Extensions
@@ -634,22 +634,9 @@ goose session --with-extension "GITHUB_PERSONAL_ACCESS_TOKEN=<YOUR_TOKEN> npx -y
 Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`.
 :::
 
-#### Extension blocked for security reasons
-
-If you see an error about a "blocked malicious package" when trying to use an extension, it means Goose detected malware in a package used by the extension. The error message will contain details about the package, for example:
-
-```
-Blocked malicious package: package-name@1.0.0 (npm). OSV MAL advisories: MAL-2024-1234
-```
-
-Steps to resolve:
-1. **Find an alternative**: Look for similar extensions in the [extensions directory][extensions-directory]
-2. **Check the package name**: Verify you're using the correct, official package name
-3. **Report false positives**: If you believe this is an error, please [open an issue](https://github.com/block/goose/issues)
-
-This security check only applies to locally-executed external extensions that use PyPI (`uvx`) or NPM (`npx`). The check uses real-time data from the OSV database; if the security service is unavailable, extensions will still install normally.
-
-As a best practice, only install extensions from trusted, official sources.
+:::info Malware Scan
+Goose automatically checks external extensions (`uvx` and `npx`) for known malware before activation. If a malicious package is detected, the [extension will be blocked](/docs/troubleshooting#malicious-package-detected) with a clear error message.
+:::
 
 ### Remote Extensions over SSE
 
@@ -683,4 +670,4 @@ goose session --with-streamable-http-extension "https://example.com/streamable"
 
 Goose extensions are implemented with MCP, a standard protocol that allows AI models and agents to securely connect with local or remote resources. Learn how to build your own [extension as an MCP server](https://modelcontextprotocol.io/quickstart/server).
 
-[extensions-directory]: https://block.github.io/goose/v1/extensions
+[extensions-directory]: https://block.github.io/goose/extensions/
