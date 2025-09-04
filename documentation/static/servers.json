@@ -341,6 +341,17 @@
     "environmentVariables": []
   },
   {
+    "id": "i-ching",
+    "name": "I Ching",
+    "description": "I Ching divination readings with Wilhelm-Baynes translation - provides traditional three coins method divination with complete hexagram meanings, judgments, and line interpretations",
+    "command": "i-ching-mcp-server",
+    "link": "https://github.com/threemachines/i-ching",
+    "installation_notes": "Install from crates.io using: cargo install i-ching",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
     "id": "jetbrains",
     "name": "JetBrains",
     "description": "Integrate Goose with any JetBrains IDE",
