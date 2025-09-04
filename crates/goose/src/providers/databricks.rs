@@ -322,9 +322,7 @@ impl Provider for DatabricksProvider {
             .insert("stream".to_string(), Value::Bool(true));
 
         let path = self.get_endpoint_path(&model_config.model_name, false);
-
-        // Try to make the request with retry logic
-        let response_result = self
+        let response = self
             .with_retry(|| async {
                 let resp = self.api_client.response_post(&path, &payload).await?;
                 if !resp.status().is_success() {
@@ -383,36 +381,23 @@ impl Provider for DatabricksProvider {
                 }
                 Ok(resp)
             })
-            .await;
+            .await?;
 
-        // Handle context length exceeded by returning a stream with the error message
-        match response_result {
-            Err(ProviderError::ContextLengthExceeded(msg)) => {
-                // Return a stream that yields a single message with ContextLengthExceeded content
-                Ok(Box::pin(try_stream! {
-                    let error_message = Message::assistant().with_context_length_exceeded(msg);
-                    yield (Some(error_message), None);
-                }))
+        let stream = response.bytes_stream().map_err(io::Error::other);
+
+        let model = self.model.clone();
+        Ok(Box::pin(try_stream! {
+            let stream_reader = StreamReader::new(stream);
+            let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
+
+            let message_stream = response_to_streaming_message(framed);
+            pin!(message_stream);
+            while let Some(message) = message_stream.next().await {
+                let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
+                super::utils::emit_debug_trace(&model, &payload, &message, &usage.as_ref().map(|f| f.usage).unwrap_or_default());
+                yield (message, usage);
             }
-            Err(e) => Err(e),
-            Ok(response) => {
-                let stream = response.bytes_stream().map_err(io::Error::other);
-
-                let model = self.model.clone();
-                Ok(Box::pin(try_stream! {
-                    let stream_reader = StreamReader::new(stream);
-                    let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
-
-                    let message_stream = response_to_streaming_message(framed);
-                    pin!(message_stream);
-                    while let Some(message) = message_stream.next().await {
-                        let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-                        super::utils::emit_debug_trace(&model, &payload, &message, &usage.as_ref().map(|f| f.usage).unwrap_or_default());
-                        yield (message, usage);
-                    }
-                }))
-            }
-        }
+        }))
     }
 
     fn supports_streaming(&self) -> bool {
