@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { Input } from '../../ui/input';
 
 interface ConversationLimitsDropdownProps {
@@ -24,24 +24,27 @@ export const ConversationLimitsDropdown = ({
         onClick={toggleExpanded}
         className="w-full flex items-center justify-between py-2 px-2 hover:bg-background-muted rounded-lg transition-all group"
       >
-        <div className="flex items-center gap-2">
-          {isExpanded ? (
-            <ChevronDown className="w-4 h-4 text-textSubtle" />
-          ) : (
-            <ChevronRight className="w-4 h-4 text-textSubtle" />
-          )}
-          <h3 className="text-textStandard font-medium">Conversation Limits</h3>
-        </div>
-        <div className="text-xs text-textSubtle">
-          {isExpanded ? 'Hide' : 'Show'} settings
-        </div>
+        <h3 className="text-textStandard font-medium">Conversation Limits</h3>
+        
+        {/* Animated Chevron */}
+        <ChevronDown 
+          className={`w-4 h-4 text-textSubtle transition-transform duration-200 ease-in-out ${
+            isExpanded ? 'rotate-180' : 'rotate-0'
+          }`} 
+        />
       </button>
 
-      {/* Dropdown Content */}
-      {isExpanded && (
-        <div className="mt-2 ml-6 space-y-3 pb-2">
+      {/* Animated Dropdown Content */}
+      <div 
+        className={`overflow-hidden transition-all duration-300 ease-in-out ${
+          isExpanded 
+            ? 'max-h-96 opacity-100 mt-2' 
+            : 'max-h-0 opacity-0 mt-0'
+        }`}
+      >
+        <div className="ml-6 space-y-3 pb-2">
           {/* Max Turns Setting */}
-          <div className="flex items-center justify-between py-2 px-4 bg-background-subtle rounded-lg">
+          <div className="flex items-center justify-between py-2 px-4 bg-background-subtle rounded-lg transform transition-all duration-200 ease-in-out">
             <div>
               <h4 className="text-textStandard text-sm">Max Turns</h4>
               <p className="text-xs text-textSubtle mt-[2px]">
@@ -60,7 +63,7 @@ export const ConversationLimitsDropdown = ({
 
           {/* Future conversation limit settings can be added here */}
           {/* Example placeholder for future settings:
-          <div className="flex items-center justify-between py-2 px-4 bg-background-subtle rounded-lg opacity-50">
+          <div className="flex items-center justify-between py-2 px-4 bg-background-subtle rounded-lg opacity-50 transform transition-all duration-200 ease-in-out">
             <div>
               <h4 className="text-textStandard text-sm">Max Context Length</h4>
               <p className="text-xs text-textSubtle mt-[2px]">
@@ -76,7 +79,7 @@ export const ConversationLimitsDropdown = ({
           </div>
           */}
         </div>
-      )}
+      </div>
     </div>
   );
 };
