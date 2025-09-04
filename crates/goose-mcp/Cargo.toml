@@ -60,8 +60,10 @@ hyper = "1"
 serde_with = "3"
 which = "6.0"
 glob = "0.3"
-patcher = "0.2.1"
+mpatch = "0.2.0"
 path_trav = "2.0.1"
+env_logger = "0.11"
+log = "0.4"
 
 
 [dev-dependencies]

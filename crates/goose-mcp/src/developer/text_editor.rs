@@ -1,8 +1,6 @@
 use anyhow::Result;
 use indoc::formatdoc;
-use patcher::{
-    ApplyResult, MultifilePatch, MultifilePatcher, Patch as PatcherPatch, PatchAlgorithm, Patcher,
-};
+use mpatch::{apply_patch, parse_diffs, PatchError};
 use path_trav::PathTrav;
 use std::{
     collections::HashMap,
@@ -109,28 +107,8 @@ fn validate_path_safety(base_dir: &Path, target_path: &Path) -> Result<(), Error
     Ok(())
 }
 
-/// Clean path string by removing a/ or b/ prefixes commonly found in git diffs
-fn clean_diff_path(path: &str) -> String {
-    path.strip_prefix("a/")
-        .or_else(|| path.strip_prefix("b/"))
-        .unwrap_or(path)
-        .to_string()
-}
-
-/// Represents a parsed diff with metadata
-struct ParsedDiff {
-    multipatch: MultifilePatch,
-    is_single_file: bool,
-}
-
-/// Context for applying a diff
-struct DiffContext {
-    base_dir: PathBuf,
-    target_path: Option<PathBuf>, // For single file case
-}
-
 /// Results from applying a diff
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct DiffResults {
     files_created: usize,
     files_modified: usize,
@@ -154,238 +132,6 @@ fn validate_diff_size(diff_content: &str) -> Result<(), ErrorData> {
         ));
     }
     Ok(())
-}
-
-/// Parses the diff content and determines its type
-fn parse_diff(diff_content: &str) -> Result<ParsedDiff, ErrorData> {
-    let (multipatch, is_single_file) = if diff_content.contains("diff --git") {
-        // Multi-file git diff
-        let mp = MultifilePatch::parse(diff_content).map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                format!("Invalid diff format: {}", e),
-                None,
-            )
-        })?;
-        (mp, false)
-    } else {
-        // Single file unified diff
-        let patch = PatcherPatch::parse(diff_content).map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                format!("Invalid diff format: {}", e),
-                None,
-            )
-        })?;
-        (MultifilePatch::new(vec![patch]), true)
-    };
-
-    Ok(ParsedDiff {
-        multipatch,
-        is_single_file,
-    })
-}
-
-/// Validates the number of files in the diff
-fn validate_file_count(parsed: &ParsedDiff) -> Result<(), ErrorData> {
-    if parsed.multipatch.patches.len() > MAX_FILES_IN_DIFF {
-        return Err(ErrorData::new(
-            ErrorCode::INVALID_PARAMS,
-            format!(
-                "Too many files in diff ({}). Maximum is {} files.",
-                parsed.multipatch.patches.len(),
-                MAX_FILES_IN_DIFF
-            ),
-            None,
-        ));
-    }
-    Ok(())
-}
-
-/// Prepares the context for applying the diff
-fn prepare_diff_context(base_path: &Path, parsed: &ParsedDiff) -> Result<DiffContext, ErrorData> {
-    let (base_dir, target_path) = if parsed.is_single_file && !base_path.is_dir() {
-        // Single file case: use the file's parent directory as base
-        (
-            base_path.parent().unwrap_or(Path::new(".")).to_path_buf(),
-            Some(base_path.to_path_buf()),
-        )
-    } else {
-        // Multi-file case or directory: use provided path as base
-        (base_path.to_path_buf(), None)
-    };
-
-    Ok(DiffContext {
-        base_dir,
-        target_path,
-    })
-}
-
-/// Validates paths and saves file history
-fn validate_and_save_history(
-    context: &DiffContext,
-    parsed: &ParsedDiff,
-    file_history: &std::sync::Arc<std::sync::Mutex<HashMap<PathBuf, Vec<String>>>>,
-) -> Result<(), ErrorData> {
-    for patch in &parsed.multipatch.patches {
-        // Clean the paths (remove a/ b/ prefixes)
-        let old_path_str = clean_diff_path(&patch.old_file);
-        let new_path_str = clean_diff_path(&patch.new_file);
-
-        // Handle special case for single file
-        let (old_path, new_path) = if let Some(ref target) = context.target_path {
-            (target.clone(), target.clone())
-        } else {
-            (
-                context.base_dir.join(&old_path_str),
-                context.base_dir.join(&new_path_str),
-            )
-        };
-
-        // Skip /dev/null paths
-        if old_path_str != "/dev/null" && new_path_str != "/dev/null" {
-            // Validate path safety
-            validate_path_safety(&context.base_dir, &new_path)?;
-
-            // Save history for existing files
-            if old_path.exists() {
-                save_file_history(&old_path, file_history)?;
-            }
-        } else if new_path_str != "/dev/null" {
-            // New file case
-            validate_path_safety(&context.base_dir, &new_path)?;
-        }
-    }
-    Ok(())
-}
-
-/// Applies the patches to the filesystem
-async fn apply_patches(
-    context: &DiffContext,
-    parsed: &ParsedDiff,
-) -> Result<DiffResults, ErrorData> {
-    // Special handling for single file
-    if let Some(ref target_path) = context.target_path {
-        return apply_single_file_patch(target_path, &parsed.multipatch.patches[0]).await;
-    }
-
-    // Multi-file case
-    let patcher = MultifilePatcher::with_root(parsed.multipatch.clone(), &context.base_dir);
-    let results = patcher.apply_and_write(false).map_err(|e| {
-        ErrorData::new(
-            ErrorCode::INTERNAL_ERROR,
-            format!("Failed to apply patches: {}", e),
-            None,
-        )
-    })?;
-
-    process_apply_results(results)
-}
-
-/// Applies a single file patch
-async fn apply_single_file_patch(
-    target_path: &Path,
-    patch: &PatcherPatch,
-) -> Result<DiffResults, ErrorData> {
-    let file_existed = target_path.exists();
-    let content = if file_existed {
-        std::fs::read_to_string(target_path).map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!("Failed to read '{}': {}", target_path.display(), e),
-                None,
-            )
-        })?
-    } else {
-        String::new()
-    };
-
-    let patcher_obj = Patcher::new(patch.clone());
-    let new_content = patcher_obj.apply(&content, false).map_err(|e| {
-        ErrorData::new(
-            ErrorCode::INTERNAL_ERROR,
-            format!(
-                "Failed to apply diff to '{}': {}. The diff may be for a different version of the file.",
-                target_path.display(),
-                e
-            ),
-            None,
-        )
-    })?;
-
-    // Write the result
-    std::fs::write(target_path, new_content).map_err(|e| {
-        ErrorData::new(
-            ErrorCode::INTERNAL_ERROR,
-            format!("Failed to write '{}': {}", target_path.display(), e),
-            None,
-        )
-    })?;
-
-    // Count changes from the patch
-    // The patcher crate uses 'chunks' not 'hunks', and doesn't expose Line types directly
-    // We'll count from the diff text itself for single files
-    let lines_added = 0; // Will be counted from diff_content in apply_diff
-    let lines_removed = 0; // Will be counted from diff_content in apply_diff
-
-    Ok(DiffResults {
-        files_created: if file_existed { 0 } else { 1 },
-        files_modified: if file_existed { 1 } else { 0 },
-        files_deleted: 0,
-        lines_added,
-        lines_removed,
-        errors: Vec::new(),
-    })
-}
-
-/// Processes the results from applying patches
-pub fn process_apply_results(results: Vec<ApplyResult>) -> Result<DiffResults, ErrorData> {
-    let mut diff_results = DiffResults {
-        files_created: 0,
-        files_modified: 0,
-        files_deleted: 0,
-        lines_added: 0,
-        lines_removed: 0,
-        errors: Vec::new(),
-    };
-
-    for result in results {
-        match result {
-            ApplyResult::Applied(file) => {
-                if file.is_new {
-                    diff_results.files_created += 1;
-                } else {
-                    diff_results.files_modified += 1;
-                }
-            }
-            ApplyResult::Deleted(_path) => {
-                diff_results.files_deleted += 1;
-            }
-            ApplyResult::Failed(path, err) => {
-                diff_results
-                    .errors
-                    .push(format!("Failed to process '{}': {}", path, err));
-            }
-            ApplyResult::Skipped(reason) => {
-                // Add skipped files to errors so the LLM can see them
-                diff_results.errors.push(format!("Skipped: {}", reason));
-            }
-        }
-    }
-
-    // Check for errors
-    if !diff_results.errors.is_empty() {
-        return Err(ErrorData::new(
-            ErrorCode::INTERNAL_ERROR,
-            format!(
-                "Failed to apply some patches:\n{}",
-                diff_results.errors.join("\n")
-            ),
-            None,
-        ));
-    }
-
-    Ok(diff_results)
 }
 
 /// Counts line changes from the diff content
@@ -457,35 +203,175 @@ fn generate_summary(results: &DiffResults, is_single_file: bool, base_path: &Pat
     ]
 }
 
-/// Applies any diff (single or multi-file) atomically with rollback on failure
+/// Applies any diff (single or multi-file) using mpatch for fuzzy matching
 pub async fn apply_diff(
     base_path: &Path,
     diff_content: &str,
     file_history: &std::sync::Arc<std::sync::Mutex<HashMap<PathBuf, Vec<String>>>>,
 ) -> Result<Vec<Content>, ErrorData> {
+    // Initialize env_logger for mpatch logging (only once)
+    static LOGGER_INIT: std::sync::Once = std::sync::Once::new();
+    LOGGER_INIT.call_once(|| {
+        let _ = env_logger::builder()
+            .filter_level(log::LevelFilter::Info)
+            .try_init();
+    });
+
     // Validate size
     validate_diff_size(diff_content)?;
 
-    // Parse the diff
-    let parsed = parse_diff(diff_content)?;
-    validate_file_count(&parsed)?;
+    // Parse patches using mpatch - wrap in markdown block if not already wrapped
+    let wrapped_diff = if diff_content.contains("```diff") || diff_content.contains("```patch") {
+        diff_content.to_string()
+    } else {
+        format!("```diff\n{}\n```", diff_content)
+    };
+    
+    let patches = parse_diffs(&wrapped_diff).map_err(|e| match e {
+        PatchError::MissingFileHeader => ErrorData::new(
+            ErrorCode::INVALID_PARAMS,
+            "Invalid diff format: Missing file header (e.g., '--- a/path/to/file')".to_string(),
+            None,
+        ),
+        PatchError::Io { path, source } => ErrorData::new(
+            ErrorCode::INTERNAL_ERROR,
+            format!("I/O error processing {}: {}", path.display(), source),
+            None,
+        ),
+        PatchError::PathTraversal(path) => ErrorData::new(
+            ErrorCode::INVALID_PARAMS,
+            format!(
+                "Security: Path '{}' would escape the base directory",
+                path.display()
+            ),
+            None,
+        ),
+        PatchError::TargetNotFound(path) => ErrorData::new(
+            ErrorCode::INTERNAL_ERROR,
+            format!("Target file not found: {}", path.display()),
+            None,
+        ),
+    })?;
 
-    // Prepare context
-    let context = prepare_diff_context(base_path, &parsed)?;
+    // Validate file count
+    if patches.len() > MAX_FILES_IN_DIFF {
+        return Err(ErrorData::new(
+            ErrorCode::INVALID_PARAMS,
+            format!(
+                "Too many files in diff ({}). Maximum is {} files.",
+                patches.len(),
+                MAX_FILES_IN_DIFF
+            ),
+            None,
+        ));
+    }
 
-    // Validate paths and save history
-    validate_and_save_history(&context, &parsed, file_history)?;
+    // Determine base directory
+    let base_dir = if base_path.is_file() {
+        base_path.parent().unwrap_or(Path::new(".")).to_path_buf()
+    } else {
+        base_path.to_path_buf()
+    };
 
-    // Apply the patches
-    let mut results = apply_patches(&context, &parsed).await?;
+    // Apply all patches with fuzzy matching
+    let mut results = DiffResults::default();
+    let mut failed_hunks = Vec::new();
 
-    // Count line changes from the diff content (for both single and multi-file)
+    for patch in &patches {
+        let file_path = base_dir.join(&patch.file_path);
+
+        // Validate path safety
+        validate_path_safety(&base_dir, &file_path)?;
+
+        // Save history before modifying
+        let file_existed = file_path.exists();
+        if file_existed {
+            save_file_history(&file_path, file_history)?;
+        }
+
+        // Apply patch with fuzzy matching (70% similarity threshold)
+        let success = apply_patch(&patch, &base_dir, false, 0.7).map_err(|e| match e {
+            PatchError::Io { path, source } => ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to process '{}': {}", path.display(), source),
+                None,
+            ),
+            PatchError::PathTraversal(path) => ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                format!(
+                    "Security: Path '{}' would escape the base directory",
+                    path.display()
+                ),
+                None,
+            ),
+            PatchError::TargetNotFound(path) => ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!(
+                    "File '{}' not found and patch doesn't create it",
+                    path.display()
+                ),
+                None,
+            ),
+            PatchError::MissingFileHeader => ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Invalid patch format".to_string(),
+                None,
+            ),
+        })?;
+
+        if !success {
+            // Collect information about failed hunks for better error reporting
+            let hunk_count = patch.hunks.len();
+            let context_preview = patch
+                .hunks
+                .first()
+                .and_then(|h| {
+                    let match_block = h.get_match_block();
+                    match_block.first().map(|s| s.to_string())
+                })
+                .unwrap_or_else(|| "(empty context)".to_string());
+
+            failed_hunks.push(format!(
+                "Failed to apply some hunks to '{}' ({} hunks total). First expected line: '{}'",
+                patch.file_path.display(),
+                hunk_count,
+                context_preview
+            ));
+        }
+
+        // Update statistics
+        if file_existed {
+            results.files_modified += 1;
+        } else {
+            results.files_created += 1;
+        }
+    }
+
+    // Report any partial failures
+    if !failed_hunks.is_empty() {
+        let error_msg = format!(
+            "Some patches were only partially applied (fuzzy matching at 70% similarity):\n\n{}\n\n\
+            The files have been modified but some hunks couldn't find their context.\n\
+            This usually happens when:\n\
+            • The file has changed significantly from when the diff was created\n\
+            • Line numbers in the diff are incorrect\n\
+            • The context lines don't match exactly\n\n\
+            Review the changes and use 'undo_edit' if needed.",
+            failed_hunks.join("\n")
+        );
+
+        // Return a warning but don't fail completely
+        eprintln!("Warning: {}", error_msg);
+    }
+
+    // Count line changes
     let (lines_added, lines_removed) = count_line_changes(diff_content);
     results.lines_added = lines_added;
     results.lines_removed = lines_removed;
 
-    // Generate and return summary
-    Ok(generate_summary(&results, parsed.is_single_file, base_path))
+    // Generate summary
+    let is_single_file = patches.len() == 1;
+    Ok(generate_summary(&results, is_single_file, base_path))
 }
 
 // Helper method to validate and calculate view range indices
