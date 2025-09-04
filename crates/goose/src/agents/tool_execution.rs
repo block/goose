@@ -8,7 +8,6 @@ use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
 use crate::config::permission::PermissionLevel;
-use crate::config::PermissionManager;
 use crate::permission::Permission;
 use mcp_core::ToolResult;
 use rmcp::model::{Content, ServerNotification};

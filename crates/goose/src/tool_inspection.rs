@@ -132,14 +132,19 @@ impl ToolInspectionManager {
     }
 
     /// Update the permission manager for a specific tool
-    pub async fn update_permission_manager(&self, tool_name: &str, permission_level: crate::config::permission::PermissionLevel) {
+    pub async fn update_permission_manager(
+        &self,
+        tool_name: &str,
+        permission_level: crate::config::permission::PermissionLevel,
+    ) {
         for inspector in &self.inspectors {
             if inspector.name() == "permission" {
                 // Downcast to PermissionInspector to access permission manager
                 if let Some(permission_inspector) =
                     inspector.as_any().downcast_ref::<PermissionInspector>()
                 {
-                    let mut permission_manager = permission_inspector.permission_manager.lock().await;
+                    let mut permission_manager =
+                        permission_inspector.permission_manager.lock().await;
                     permission_manager.update_user_permission(tool_name, permission_level);
                     return;
                 }
