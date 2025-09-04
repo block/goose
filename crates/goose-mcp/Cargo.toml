@@ -62,6 +62,7 @@ which = "6.0"
 glob = "0.3"
 diffy = "0.4"
 patcher = "0.2.1"
+path_trav = "2.0.1"
 
 
 [dev-dependencies]

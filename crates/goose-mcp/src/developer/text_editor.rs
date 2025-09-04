@@ -3,6 +3,7 @@ use indoc::formatdoc;
 use patcher::{
     ApplyResult, MultifilePatch, MultifilePatcher, Patch as PatcherPatch, PatchAlgorithm, Patcher,
 };
+use path_trav::PathTrav;
 use std::{
     collections::HashMap,
     fs::File,
@@ -24,45 +25,50 @@ pub const MAX_FILES_IN_DIFF: usize = 100; // Maximum files in a multi-file diff
 
 /// Validates paths to prevent directory traversal attacks
 fn validate_path_safety(base_dir: &Path, target_path: &Path) -> Result<(), ErrorData> {
-    // Resolve to absolute paths
-    let base = base_dir.canonicalize().map_err(|e| {
-        ErrorData::new(
-            ErrorCode::INTERNAL_ERROR,
-            format!("Failed to resolve base directory: {}", e),
-            None,
-        )
-    })?;
-
-    // For new files, we need to check the parent directory
-    let target_abs = if target_path.exists() {
-        target_path.canonicalize().map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!("Failed to resolve target path: {}", e),
-                None,
-            )
-        })?
-    } else {
-        // For non-existent files, resolve the parent and append the filename
-        let parent = target_path.parent().ok_or_else(|| {
-            ErrorData::new(
+    // Use path_trav for traversal detection
+    match base_dir.is_path_trav(target_path) {
+        Ok(true) => {
+            return Err(ErrorData::new(
                 ErrorCode::INVALID_PARAMS,
-                "Invalid target path".to_string(),
+                format!(
+                    "Path '{}' is outside the base directory. This could be a security risk.",
+                    target_path.display()
+                ),
                 None,
-            )
-        })?;
-
-        if parent.exists() {
-            let parent_abs = parent.canonicalize().map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to resolve parent directory: {}", e),
-                    None,
-                )
-            })?;
-            parent_abs.join(target_path.file_name().unwrap())
-        } else {
-            // If parent doesn't exist, just check the path doesn't contain ..
+            ));
+        }
+        Ok(false) => {
+            // Path is safe from traversal
+        }
+        Err(e) if e == std::io::ErrorKind::NotFound => {
+            // For non-existent files, check the parent directory
+            if let Some(parent) = target_path.parent() {
+                // Check if parent directory would be outside base
+                if let Ok(true) = base_dir.is_path_trav(parent) {
+                    return Err(ErrorData::new(
+                        ErrorCode::INVALID_PARAMS,
+                        format!(
+                            "Path '{}' would be outside the base directory. This could be a security risk.",
+                            target_path.display()
+                        ),
+                        None,
+                    ));
+                }
+                // Also check for .. components in the path itself
+                if target_path
+                    .components()
+                    .any(|c| matches!(c, std::path::Component::ParentDir))
+                {
+                    return Err(ErrorData::new(
+                        ErrorCode::INVALID_PARAMS,
+                        "Path traversal detected: paths cannot contain '..'".to_string(),
+                        None,
+                    ));
+                }
+            }
+        }
+        Err(_e) => {
+            // For other errors, check if the path contains .. components
             if target_path
                 .components()
                 .any(|c| matches!(c, std::path::Component::ParentDir))
@@ -73,23 +79,11 @@ fn validate_path_safety(base_dir: &Path, target_path: &Path) -> Result<(), Error
                     None,
                 ));
             }
-            base_dir.join(target_path)
+            // If no .. components, assume it's safe (might be a new file)
         }
-    };
-
-    // Check that target is within base directory
-    if !target_abs.starts_with(&base) {
-        return Err(ErrorData::new(
-            ErrorCode::INVALID_PARAMS,
-            format!(
-                "Path '{}' is outside the base directory. This could be a security risk.",
-                target_path.display()
-            ),
-            None,
-        ));
     }
 
-    // Check for symlinks
+    // Still need custom symlink check
     if target_path.exists()
         && target_path
             .symlink_metadata()
