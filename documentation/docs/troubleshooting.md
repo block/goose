@@ -230,7 +230,7 @@ Blocked malicious package: package-name@1.0.0 (npm). OSV MAL advisories: MAL-202
 ```
 
 Steps to resolve:
-1. **Find an alternative**: Look for similar extensions in the [extensions directory][extensions-directory]
+1. **Find an alternative**: Look for similar extensions in the [extensions directory][extensions-directory] or [PulseMCP](https://www.pulsemcp.com/servers)
 2. **Optional verification**: Verify the source of the blocked extension or the package name/publisher
 3. **Report false positives**: If you believe this is an error, please [open an issue](https://github.com/block/goose/issues)
 

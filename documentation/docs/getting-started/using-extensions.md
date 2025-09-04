@@ -12,12 +12,10 @@ Extensions are add-ons that provide a way to extend the functionality of Goose b
 Extensions are based on the [Model Context Protocol (MCP)](https://github.com/modelcontextprotocol), so you can connect
 Goose to a wide ecosystem of capabilities.
 
+Goose automatically checks external extensions for known malware before activation. If a malicious package is detected, the [extension will be blocked](/docs/troubleshooting#malicious-package-detected) with a clear error message.
+
 :::tip Tutorials
 Check out the [step-by-step tutorials](/docs/category/mcp-servers) for adding and using several Goose Extensions
-:::
-
-:::info Malware Scan
-Goose automatically checks external extensions (`uvx` and `npx`) for known malware before activation. If a malicious package is detected, the [extension will be blocked](/docs/troubleshooting#malicious-package-detected) with a clear error message.
 :::
 
 ## Built-in Extensions
@@ -634,9 +632,6 @@ goose session --with-extension "GITHUB_PERSONAL_ACCESS_TOKEN=<YOUR_TOKEN> npx -y
 Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`.
 :::
 
-:::info Malware Scan
-Goose automatically checks external extensions (`uvx` and `npx`) for known malware before activation. If a malicious package is detected, the [extension will be blocked](/docs/troubleshooting#malicious-package-detected) with a clear error message.
-:::
 
 ### Remote Extensions over SSE
 
