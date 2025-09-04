@@ -1,3 +1,5 @@
+pub mod acp;
+pub mod acp_tui;
 pub mod bench;
 pub mod configure;
 pub mod info;
