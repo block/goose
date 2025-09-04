@@ -99,6 +99,47 @@ export GOOSE_PLANNER_PROVIDER="openai"
 export GOOSE_PLANNER_MODEL="gpt-4"
 ```
 
+### Provider Retries
+
+Configurable retry parameters for LLM providers. 
+
+#### AWS Bedrock
+
+| Variable | Purpose | Default |
+|---------------------|-------------|---------|
+| `BEDROCK_MAX_RETRIES` | The max number of retry attempts before giving up | 6 |
+| `BEDROCK_INITIAL_RETRY_INTERVAL_MS` | How long to wait (in milliseconds) before the first retry | 2000 |
+| `BEDROCK_BACKOFF_MULTIPLIER` | The factor by which the retry interval increases after each attempt | 2 (doubles every time) |
+| `BEDROCK_MAX_RETRY_INTERVAL_MS` | The cap on the retry interval in milliseconds |  120000 |
+
+**Examples**
+
+```bash
+export BEDROCK_MAX_RETRIES=10                    # 10 retry attempts
+export BEDROCK_INITIAL_RETRY_INTERVAL_MS=1000    # start with 1 second before first retry
+export BEDROCK_BACKOFF_MULTIPLIER=3              # each retry waits 3x longer than the previous
+export BEDROCK_MAX_RETRY_INTERVAL_MS=300000      # cap the maximum retry delay at 5 min
+```
+
+#### Databricks
+
+| Variable | Purpose | Default |
+|---------------------|-------------|---------|
+| `DATABRICKS_MAX_RETRIES` | The max number of retry attempts before giving up | 3 |
+| `DATABRICKS_INITIAL_RETRY_INTERVAL_MS` | How long to wait (in milliseconds) before the first retry | 1000 |
+| `DATABRICKS_BACKOFF_MULTIPLIER` | The factor by which the retry interval increases after each attempt | 2 (doubles every time) |
+| `DATABRICKS_MAX_RETRY_INTERVAL_MS` | The cap on the retry interval in milliseconds |  30000 |
+
+**Examples**
+
+```bash
+export DATABRICKS_MAX_RETRIES=5                      # 5 retry attempts
+export DATABRICKS_INITIAL_RETRY_INTERVAL_MS=500      # start with 0.5 second before first retry
+export DATABRICKS_BACKOFF_MULTIPLIER=2               # each retry waits 2x longer than the previous
+export DATABRICKS_MAX_RETRY_INTERVAL_MS=60000        # cap the maximum retry delay at 1 min
+```
+
+
 ## Session Management
 
 These variables control how Goose manages conversation sessions and context.
