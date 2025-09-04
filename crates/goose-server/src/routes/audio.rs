@@ -413,8 +413,7 @@ mod tests {
         let state = AppState::new(
             Arc::new(goose::agents::Agent::new()),
             "test-secret".to_string(),
-        )
-        .await;
+        );
         let app = routes(state);
 
         // Test without auth header
@@ -440,8 +439,7 @@ mod tests {
         let state = AppState::new(
             Arc::new(goose::agents::Agent::new()),
             "test-secret".to_string(),
-        )
-        .await;
+        );
         let app = routes(state);
 
         // Create a large base64 string (simulating > 25MB audio)
@@ -470,8 +468,7 @@ mod tests {
         let state = AppState::new(
             Arc::new(goose::agents::Agent::new()),
             "test-secret".to_string(),
-        )
-        .await;
+        );
         let app = routes(state);
 
         let request = Request::builder()
@@ -500,8 +497,7 @@ mod tests {
         let state = AppState::new(
             Arc::new(goose::agents::Agent::new()),
             "test-secret".to_string(),
-        )
-        .await;
+        );
         let app = routes(state);
 
         let request = Request::builder()

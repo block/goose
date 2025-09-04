@@ -202,7 +202,7 @@ if (process.platform === 'win32') {
             const recentDirs = loadRecentDirs();
             const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
-            const recipeDeeplink = parsedUrl.searchParams.get('config');
+            const recipeDeeplink = parseRecipeDeeplink(protocolUrl);
             const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
 
             createChat(
@@ -319,6 +319,8 @@ async function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
   pendingDeepLink = null;
 }
 
+let windowDeeplinkURL: string | null = null;
+
 app.on('open-url', async (_event, url) => {
   if (process.platform !== 'win32') {
     const parsedUrl = new URL(url);
@@ -329,7 +331,10 @@ app.on('open-url', async (_event, url) => {
     console.log('[Main] Received open-url event:', url);
     if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
       console.log('[Main] Detected bot/recipe URL, creating new chat window');
-      const recipeDeeplink = parsedUrl.searchParams.get('config');
+      let recipeDeeplink = parseRecipeDeeplink(url);
+      if (recipeDeeplink) {
+        windowDeeplinkURL = url;
+      }
       const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
 
       // Create a new window directly
@@ -591,7 +596,7 @@ const createChat = async (
     y: mainWindowState.y,
     width: mainWindowState.width,
     height: mainWindowState.height,
-    minWidth: 750,
+    minWidth: 450,
     resizable: true,
     useContentSize: true,
     icon: path.join(__dirname, '../images/icon'),
@@ -605,7 +610,7 @@ const createChat = async (
       additionalArguments: [
         JSON.stringify({
           ...appConfig, // Use the potentially updated appConfig
-          GOOSE_PORT: port, // Ensure this specific window gets the correct port
+          GOOSE_PORT: port,
           GOOSE_WORKING_DIR: working_dir,
           REQUEST_DIR: dir,
           GOOSE_BASE_URL_SHARE: sharingUrl,
@@ -628,7 +633,6 @@ const createChat = async (
   // renders in english right now, this feels like the correct set of language codes
   // for the moment.
   //
-  // TODO: Load language codes from a setting if we ever have i18n/l10n
   mainWindow.webContents.session.setSpellCheckerLanguages(['en-US', 'en-GB']);
   mainWindow.webContents.on('context-menu', (_event, params) => {
     const menu = new Menu();
@@ -1037,11 +1041,51 @@ const openDirectoryDialog = async (): Promise<OpenDialogReturnValue> => {
     }
 
     addRecentDir(dirToAdd);
+
+    let recipeDeeplink: string | undefined = undefined;
+    if (windowDeeplinkURL) {
+      recipeDeeplink = parseRecipeDeeplink(windowDeeplinkURL);
+    }
     // Create a new window with the selected directory
-    await createChat(app, undefined, dirToAdd);
+    await createChat(
+      app,
+      undefined,
+      dirToAdd,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      recipeDeeplink
+    );
   }
   return result;
 };
+
+function parseRecipeDeeplink(url: string): string | undefined {
+  const parsedUrl = new URL(url);
+  let recipeDeeplink = parsedUrl.searchParams.get('config');
+  if (recipeDeeplink && !url.includes(recipeDeeplink)) {
+    // URLSearchParams decodes + as space, which can break encoded configs
+    // Parse raw query to preserve "+" characters in values like config
+    const search = parsedUrl.search || '';
+    // parse recipe deeplink from search params
+    const configMatch = search.match(/(?:[?&])config=([^&]*)/);
+    // get recipe deeplink from config match
+    let recipeDeeplinkTmp = configMatch ? configMatch[1] : null;
+    if (recipeDeeplinkTmp) {
+      try {
+        recipeDeeplink = decodeURIComponent(recipeDeeplinkTmp);
+      } catch {
+        // Leave as-is if decoding fails
+        return undefined;
+      }
+    }
+  }
+  if (recipeDeeplink) {
+    return recipeDeeplink;
+  }
+  return undefined;
+}
 
 // Global error handler
 const handleFatalError = (error: Error) => {

@@ -13,7 +13,7 @@ workspace = true
 [dependencies]
 mcp-core = { path = "../mcp-core" }
 mcp-server = { path = "../mcp-server" }
-rmcp = { workspace = true }
+rmcp = { version = "0.6.0", features = ["server", "client", "transport-io", "macros"] }
 anyhow = "1.0.94"
 tokio = { version = "1", features = ["full"] }
 tokio-stream = { version = "0.1", features = ["io-util"] }
@@ -25,6 +25,7 @@ base64 = "0.21"
 thiserror = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+schemars = "1.0"
 lazy_static = "1.5"
 shellexpand = "3.1.0"
 indoc = "2.0.5"

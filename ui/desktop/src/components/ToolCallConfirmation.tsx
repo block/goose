@@ -23,12 +23,14 @@ const toolConfirmationState = new Map<
 import { ToolConfirmationRequestMessageContent } from '../types/message';
 
 interface ToolConfirmationProps {
+  sessionId: string;
   isCancelledMessage: boolean;
   isClicked: boolean;
   toolConfirmationContent: ToolConfirmationRequestMessageContent;
 }
 
 export default function ToolConfirmation({
+  sessionId,
   isCancelledMessage,
   isClicked,
   toolConfirmationContent,
@@ -70,12 +72,12 @@ export default function ToolConfirmation({
     }
   }, [isClicked, clicked, status, toolName, toolConfirmationId]);
 
-  const handleButtonClick = async (action: string) => {
-    const newClicked = true;
-    const newStatus = action;
-    let newActionDisplay = '';
+  const handleButtonClick = async (newStatus: string) => {
+    let newActionDisplay;
 
-    if (action === ALLOW_ONCE) {
+    if (newStatus === ALWAYS_ALLOW) {
+      newActionDisplay = 'always allowed';
+    } else if (newStatus === ALLOW_ONCE) {
       newActionDisplay = 'allowed once';
     } else if (action === ALWAYS_ALLOW) {
       newActionDisplay = 'always allowed';
@@ -84,20 +86,25 @@ export default function ToolConfirmation({
     }
 
     // Update local state
-    setClicked(newClicked);
+    setClicked(true);
     setStatus(newStatus);
     setActionDisplay(newActionDisplay);
 
     // Store in global state for persistence across navigation
     toolConfirmationState.set(toolConfirmationId, {
-      clicked: newClicked,
+      clicked: true,
       status: newStatus,
       actionDisplay: newActionDisplay,
     });
 
     try {
       const response = await confirmPermission({
-        body: { id: toolConfirmationId, action, principal_type: 'Tool' },
+        body: {
+          session_id: sessionId,
+          id: toolConfirmationId,
+          action: newStatus,
+          principal_type: 'Tool',
+        },
       });
       if (response.error) {
         console.error('Failed to confirm permission:', response.error);
