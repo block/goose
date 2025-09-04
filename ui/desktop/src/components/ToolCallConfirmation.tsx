@@ -79,8 +79,8 @@ export default function ToolConfirmation({
       newActionDisplay = 'always allowed';
     } else if (newStatus === ALLOW_ONCE) {
       newActionDisplay = 'allowed once';
-    } else if (action === ALWAYS_ALLOW) {
-      newActionDisplay = 'always allowed';
+    } else if (newStatus === DENY) {
+      newActionDisplay = 'denied';
     } else {
       newActionDisplay = 'denied';
     }
