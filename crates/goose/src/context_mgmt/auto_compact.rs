@@ -459,8 +459,9 @@ mod tests {
             );
         }
 
-        // Should have fewer messages (summarized)
-        assert!(result.messages.len() <= messages.len());
+        // After visibility implementation, we keep all messages plus summary
+        // Original messages become user_visible only, summary becomes agent_visible only
+        assert!(result.messages.len() > messages.len());
     }
 
     #[tokio::test]
@@ -645,8 +646,9 @@ mod tests {
         // Verify the compacted messages are returned
         assert!(!result.messages.is_empty());
 
-        // Should have fewer messages after compaction
-        assert!(result.messages.len() <= messages.len());
+        // After visibility implementation, we keep all messages plus summary
+        // Original messages become user_visible only, summary becomes agent_visible only
+        assert!(result.messages.len() > messages.len());
     }
 
     #[tokio::test]
