@@ -262,13 +262,16 @@ impl Agent {
             }
         }
 
-        let filtered_message = Message {
-            id: response.id.clone(),
-            role: response.role.clone(),
-            created: response.created,
-            content: filtered_content,
-            metadata: response.metadata.clone(),
-        };
+        let mut filtered_message = Message::new(
+            response.role.clone(),
+            response.created,
+            filtered_content,
+        );
+        
+        // Preserve the ID if it exists
+        if let Some(id) = response.id.clone() {
+            filtered_message = filtered_message.with_id(id);
+        }
 
         // Categorize tool requests
         let mut frontend_requests = Vec::new();
