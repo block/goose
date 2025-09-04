@@ -112,22 +112,16 @@ function BaseChatContent({
   const location = useLocation();
   const scrollRef = useRef<ScrollAreaHandle>(null);
 
-  // Get disableAnimation from location state
   const disableAnimation = location.state?.disableAnimation || false;
-
-  // Track if user has started using the current recipe
   const [hasStartedUsingRecipe, setHasStartedUsingRecipe] = React.useState(false);
   const [currentRecipeTitle, setCurrentRecipeTitle] = React.useState<string | null>(null);
-
   const { isCompacting, handleManualCompaction } = useContextManager();
 
   // Timeout ref for debouncing auto-scroll
   const autoScrollTimeoutRef = useRef<number | null>(null);
-
   // Track if user was following when agent started responding
   const wasFollowingRef = useRef<boolean>(true);
 
-  // Function to check if user is currently near bottom
   const isNearBottom = React.useCallback(() => {
     if (!scrollRef.current) return false;
 
@@ -150,16 +144,15 @@ function BaseChatContent({
       clearTimeout(autoScrollTimeoutRef.current);
     }
 
-    // Debounce the auto-scroll to prevent jumpy behavior
+    // Debounce the auto-scroll to prevent jumpy behavior and prevent multiple rapid scrolls
     autoScrollTimeoutRef.current = window.setTimeout(() => {
       // Only auto-scroll if user was following when the agent started responding
       if (wasFollowingRef.current && scrollRef.current) {
         scrollRef.current.scrollToBottom();
       }
-    }, 150); // 150ms debounce to prevent multiple rapid scrolls
+    }, 150);
   }, []);
 
-  // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
       if (autoScrollTimeoutRef.current) {
