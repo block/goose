@@ -54,7 +54,7 @@ export const VoiceDictationToggle = () => {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-1">
       {/* Enable/Disable Toggle */}
       <div className="flex items-center justify-between py-2 px-2 hover:bg-background-muted rounded-lg transition-all">
         <div>
@@ -68,13 +68,21 @@ export const VoiceDictationToggle = () => {
         </div>
       </div>
 
-      {/* Provider Selection and Configuration (conditional) */}
-      {settings.enabled && (
-        <ProviderSelector 
-          settings={settings}
-          onProviderChange={handleProviderChange}
-        />
-      )}
+      {/* Animated Provider Selection and Configuration */}
+      <div 
+        className={`overflow-hidden transition-all duration-300 ease-in-out ${
+          settings.enabled 
+            ? 'max-h-96 opacity-100 mt-2' 
+            : 'max-h-0 opacity-0 mt-0'
+        }`}
+      >
+        <div className="space-y-3 pb-2">
+          <ProviderSelector 
+            settings={settings}
+            onProviderChange={handleProviderChange}
+          />
+        </div>
+      </div>
     </div>
   );
 };
