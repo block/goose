@@ -1,7 +1,6 @@
 use anyhow::Result;
 use indoc::formatdoc;
 use mpatch::{apply_patch, parse_diffs, PatchError};
-use path_trav::PathTrav;
 use std::{
     collections::HashMap,
     fs::File,
@@ -23,85 +22,72 @@ pub const MAX_FILES_IN_DIFF: usize = 100; // Maximum files in a multi-file diff
 
 /// Validates paths to prevent directory traversal attacks
 fn validate_path_safety(base_dir: &Path, target_path: &Path) -> Result<(), ErrorData> {
-    // Use path_trav for traversal detection
-    match base_dir.is_path_trav(target_path) {
-        Ok(true) => {
+    // Check for .. components
+    if target_path
+        .components()
+        .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
+        return Err(ErrorData::new(
+            ErrorCode::INVALID_PARAMS,
+            "Path traversal detected: paths cannot contain '..'".to_string(),
+            None,
+        ));
+    }
+
+    // Try to canonicalize and check if within base
+    if let (Ok(canonical_target), Ok(canonical_base)) =
+        (target_path.canonicalize(), base_dir.canonicalize())
+    {
+        if !canonical_target.starts_with(&canonical_base) {
             return Err(ErrorData::new(
                 ErrorCode::INVALID_PARAMS,
                 format!(
-                    "Path '{}' is outside the base directory. This could be a security risk.",
+                    "Path '{}' is outside the base directory",
                     target_path.display()
                 ),
                 None,
             ));
         }
-        Ok(false) => {
-            // Path is safe from traversal
-        }
-        Err(std::io::ErrorKind::NotFound) => {
-            // For non-existent files, check the parent directory
-            if let Some(parent) = target_path.parent() {
-                // Check if parent directory would be outside base
-                if let Ok(true) = base_dir.is_path_trav(parent) {
+    } else if !target_path.exists() {
+        // For new files, check parent directory
+        if let Some(parent) = target_path.parent() {
+            if let (Ok(canonical_parent), Ok(canonical_base)) =
+                (parent.canonicalize(), base_dir.canonicalize())
+            {
+                if !canonical_parent.starts_with(&canonical_base) {
                     return Err(ErrorData::new(
                         ErrorCode::INVALID_PARAMS,
                         format!(
-                            "Path '{}' would be outside the base directory. This could be a security risk.",
+                            "Path '{}' would be outside the base directory",
                             target_path.display()
                         ),
                         None,
                     ));
                 }
-                // Also check for .. components in the path itself
-                if target_path
-                    .components()
-                    .any(|c| matches!(c, std::path::Component::ParentDir))
-                {
-                    return Err(ErrorData::new(
-                        ErrorCode::INVALID_PARAMS,
-                        "Path traversal detected: paths cannot contain '..'".to_string(),
-                        None,
-                    ));
-                }
             }
-        }
-        Err(_e) => {
-            // For other errors, check if the path contains .. components
-            if target_path
-                .components()
-                .any(|c| matches!(c, std::path::Component::ParentDir))
-            {
-                return Err(ErrorData::new(
-                    ErrorCode::INVALID_PARAMS,
-                    "Path traversal detected: paths cannot contain '..'".to_string(),
-                    None,
-                ));
-            }
-            // If no .. components, assume it's safe (might be a new file)
         }
     }
 
-    // Still need custom symlink check
-    if target_path.exists()
-        && target_path
-            .symlink_metadata()
-            .map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to check symlink status: {}", e),
-                    None,
-                )
-            })?
-            .is_symlink()
-    {
-        return Err(ErrorData::new(
-            ErrorCode::INVALID_PARAMS,
-            format!(
-                "Cannot modify symlink '{}'. Please operate on the actual file.",
-                target_path.display()
-            ),
-            None,
-        ));
+    // Check for symlinks
+    if target_path.exists() {
+        let metadata = target_path.symlink_metadata().map_err(|e| {
+            ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to check symlink status: {}", e),
+                None,
+            )
+        })?;
+
+        if metadata.is_symlink() {
+            return Err(ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                format!(
+                    "Cannot modify symlink '{}'. Please operate on the actual file.",
+                    target_path.display()
+                ),
+                None,
+            ));
+        }
     }
 
     Ok(())
@@ -209,14 +195,6 @@ pub async fn apply_diff(
     diff_content: &str,
     file_history: &std::sync::Arc<std::sync::Mutex<HashMap<PathBuf, Vec<String>>>>,
 ) -> Result<Vec<Content>, ErrorData> {
-    // Initialize env_logger for mpatch logging (only once)
-    static LOGGER_INIT: std::sync::Once = std::sync::Once::new();
-    LOGGER_INIT.call_once(|| {
-        let _ = env_logger::builder()
-            .filter_level(log::LevelFilter::Info)
-            .try_init();
-    });
-
     // Validate size
     validate_diff_size(diff_content)?;
 
@@ -360,8 +338,8 @@ pub async fn apply_diff(
             failed_hunks.join("\n")
         );
 
-        // Return a warning but don't fail completely
-        eprintln!("Warning: {}", error_msg);
+        // Use tracing for warning instead of eprintln
+        tracing::warn!("{}", error_msg);
     }
 
     // Count line changes

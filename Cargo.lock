@@ -2734,7 +2734,6 @@ dependencies = [
  "base64 0.21.7",
  "chrono",
  "docx-rs",
- "env_logger",
  "etcetera",
  "glob",
  "http-body-util",
@@ -2745,14 +2744,12 @@ dependencies = [
  "indoc",
  "keyring",
  "lazy_static",
- "log",
  "lopdf",
  "mcp-core",
  "mcp-server",
  "mpatch",
  "oauth2",
  "once_cell",
- "path_trav",
  "regex",
  "reqwest 0.11.27",
  "rmcp",
@@ -4688,15 +4685,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "path_trav"
-version = "2.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2e2bea98f8b978cb759a1be731dff1a815d78f2d83630de14311678d513ffad"
-dependencies = [
- "substring",
-]
-
-[[package]]
 name = "pathdiff"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6175,15 +6163,6 @@ name = "strsim"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
-
-[[package]]
-name = "substring"
-version = "1.4.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "42ee6433ecef213b2e72f587ef64a2f5943e7cd16fbd82dbe8bc07486c534c86"
-dependencies = [
- "autocfg",
-]
 
 [[package]]
 name = "subtle"
