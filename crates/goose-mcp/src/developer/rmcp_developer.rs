@@ -1425,6 +1425,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(write_params).await.unwrap();
@@ -1438,6 +1439,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         let view_result = server.text_editor(view_params).await.unwrap();
@@ -1475,6 +1477,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(write_params).await.unwrap();
@@ -1488,6 +1491,7 @@ mod tests {
             old_str: Some("world".to_string()),
             new_str: Some("Rust".to_string()),
             insert_line: None,
+            diff: None,
         });
 
         let replace_result = server.text_editor(replace_params).await.unwrap();
@@ -1534,6 +1538,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         let result = server.text_editor(view_params).await;
@@ -1563,6 +1568,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(write_params).await.unwrap();
@@ -1576,6 +1582,7 @@ mod tests {
             old_str: Some("Original".to_string()),
             new_str: Some("Modified".to_string()),
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(replace_params).await.unwrap();
@@ -1593,6 +1600,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         let undo_result = server.text_editor(undo_params).await.unwrap();
@@ -1672,6 +1680,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         let result = server.text_editor(write_params).await;
@@ -1691,6 +1700,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         let result = server.text_editor(write_params).await;
@@ -1810,6 +1820,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(write_params).await.unwrap();
@@ -1823,6 +1834,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         let view_result = server.text_editor(view_params).await.unwrap();
@@ -1869,6 +1881,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(write_params).await.unwrap();
@@ -1882,6 +1895,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         let view_result = server.text_editor(view_params).await.unwrap();
@@ -1927,6 +1941,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(write_params).await.unwrap();
@@ -1940,6 +1955,7 @@ mod tests {
             old_str: None,
             new_str: Some("Line 1".to_string()),
             insert_line: Some(0),
+            diff: None,
         });
 
         let insert_result = server.text_editor(insert_params).await.unwrap();
@@ -1982,6 +1998,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(write_params).await.unwrap();
@@ -1995,6 +2012,7 @@ mod tests {
             old_str: None,
             new_str: Some("Line 3".to_string()),
             insert_line: Some(2),
+            diff: None,
         });
 
         let insert_result = server.text_editor(insert_params).await.unwrap();
@@ -2135,6 +2153,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(write_params).await.unwrap();
@@ -2148,6 +2167,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         let result = server.text_editor(view_params).await;
@@ -2176,6 +2196,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(write_params).await.unwrap();
@@ -2189,6 +2210,7 @@ mod tests {
             old_str: None,
             new_str: None, // Missing required parameter
             insert_line: Some(1),
+            diff: None,
         });
 
         let result = server.text_editor(insert_params).await;
@@ -2206,6 +2228,7 @@ mod tests {
             old_str: None,
             new_str: Some("New text".to_string()),
             insert_line: None, // Missing required parameter
+            diff: None,
         });
 
         let result = server.text_editor(insert_params).await;
@@ -2286,6 +2309,7 @@ Additional instructions here.
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(write_params).await.unwrap();
@@ -2299,6 +2323,7 @@ Additional instructions here.
             old_str: None,
             new_str: Some("Line 4".to_string()),
             insert_line: Some(3),
+            diff: None,
         });
 
         let insert_result = server.text_editor(insert_params).await.unwrap();
@@ -2341,6 +2366,7 @@ Additional instructions here.
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(write_params).await.unwrap();
@@ -2354,6 +2380,7 @@ Additional instructions here.
             old_str: None,
             new_str: Some("Line 4".to_string()),
             insert_line: Some(-1),
+            diff: None,
         });
 
         let insert_result = server.text_editor(insert_params).await.unwrap();
@@ -2396,6 +2423,7 @@ Additional instructions here.
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(write_params).await.unwrap();
@@ -2409,6 +2437,7 @@ Additional instructions here.
             old_str: None,
             new_str: Some("Line 11".to_string()),
             insert_line: Some(10),
+            diff: None,
         });
 
         let result = server.text_editor(insert_params).await;
@@ -2439,6 +2468,7 @@ Additional instructions here.
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(write_params).await.unwrap();
@@ -2452,6 +2482,7 @@ Additional instructions here.
             old_str: None,
             new_str: Some("Inserted Line".to_string()),
             insert_line: Some(1),
+            diff: None,
         });
 
         server.text_editor(insert_params).await.unwrap();
@@ -2465,6 +2496,7 @@ Additional instructions here.
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         let undo_result = server.text_editor(undo_params).await.unwrap();
@@ -2503,6 +2535,7 @@ Additional instructions here.
             old_str: None,
             new_str: Some("New line".to_string()),
             insert_line: Some(0),
+            diff: None,
         });
 
         let result = server.text_editor(insert_params).await;

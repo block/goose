@@ -68,73 +68,50 @@ pub enum PreparedChange {
     },
 }
 
-/// Validates if a string is a properly formatted unified diff
-pub fn is_valid_unified_diff(content: &str) -> bool {
-    let lines: Vec<&str> = content.lines().collect();
 
-    if lines.len() < 4 {
-        return false;
+
+/// Parses any diff format (single or multi-file) into individual file patches
+pub fn parse_diff(diff_content: &str) -> Result<Vec<FilePatch>, ErrorData> {
+    // If it starts with "diff --git", use git format parsing
+    if diff_content.contains("diff --git") {
+        return parse_git_format_diff(diff_content);
     }
 
-    let mut idx = 0;
+    // Otherwise, treat as single unified diff
+    parse_unified_format_diff(diff_content)
+}
 
-    // Optional git diff header
-    if lines[idx].starts_with("diff --git") {
-        idx += 1;
-        while idx < lines.len()
-            && (lines[idx].starts_with("index ")
-                || lines[idx].starts_with("new file mode")
-                || lines[idx].starts_with("deleted file mode"))
-        {
-            idx += 1;
-        }
+/// Parses a single-file unified diff (without git headers) into a FilePatch
+fn parse_unified_format_diff(diff_content: &str) -> Result<Vec<FilePatch>, ErrorData> {
+    // Size validation
+    if diff_content.len() > MAX_DIFF_SIZE {
+        return Err(ErrorData::new(
+            ErrorCode::INVALID_PARAMS,
+            format!(
+                "Diff is too large ({} bytes). Maximum size is {} bytes (1MB).",
+                diff_content.len(),
+                MAX_DIFF_SIZE
+            ),
+            None,
+        ));
     }
 
-    // Required: --- and +++ headers
-    if idx >= lines.len() || !DIFF_HEADER_RE.is_match(lines[idx]) {
-        return false;
-    }
-    idx += 1;
+    // For single-file unified diffs, we don't have file paths in the diff
+    // The caller will need to provide the target path
+    let patch = FilePatch {
+        old_path: PathBuf::from("a/file"), // Placeholder, will be overridden
+        new_path: PathBuf::from("b/file"), // Placeholder, will be overridden
+        diff_content: diff_content.to_string(),
+        is_new_file: false,
+        is_deletion: false,
+        is_rename: false,
+    };
 
-    if idx >= lines.len() || !DIFF_HEADER_NEW_RE.is_match(lines[idx]) {
-        return false;
-    }
-    idx += 1;
-
-    // Required: At least one hunk with changes
-    let mut found_hunk = false;
-    let mut found_change = false;
-
-    while idx < lines.len() {
-        if HUNK_HEADER_RE.is_match(lines[idx]) {
-            found_hunk = true;
-            idx += 1;
-
-            while idx < lines.len() {
-                let line = lines[idx];
-
-                if HUNK_HEADER_RE.is_match(line) {
-                    break;
-                }
-
-                if line.starts_with('+') || line.starts_with('-') {
-                    found_change = true;
-                } else if !line.starts_with(' ') && !line.is_empty() {
-                    return false;
-                }
-
-                idx += 1;
-            }
-        } else {
-            idx += 1;
-        }
-    }
-
-    found_hunk && found_change
+    Ok(vec![patch])
 }
 
 /// Parses a multi-file diff (git diff format) into individual file patches
-pub fn parse_multi_file_diff(diff_content: &str) -> Result<Vec<FilePatch>, ErrorData> {
+fn parse_git_format_diff(diff_content: &str) -> Result<Vec<FilePatch>, ErrorData> {
     // Size validation
     if diff_content.len() > MAX_DIFF_SIZE {
         return Err(ErrorData::new(
@@ -349,14 +326,27 @@ fn validate_path_safety(base_dir: &Path, target_path: &Path) -> Result<(), Error
     Ok(())
 }
 
-/// Applies a multi-file diff atomically with rollback on failure
-pub async fn apply_multi_file_diff(
-    base_dir: &Path,
+/// Applies any diff (single or multi-file) atomically with rollback on failure
+pub async fn apply_diff(
+    base_path: &Path,
     diff_content: &str,
     file_history: &std::sync::Arc<std::sync::Mutex<HashMap<PathBuf, Vec<String>>>>,
 ) -> Result<Vec<Content>, ErrorData> {
-    // Parse the multi-file diff
-    let patches = parse_multi_file_diff(diff_content)?;
+    // Parse the diff (handles both single and multi-file)
+    let mut patches = parse_diff(diff_content)?;
+
+    // Determine base directory and handle single-file optimization
+    let base_dir = if patches.len() == 1 && !base_path.is_dir() {
+        // Single file case: use the file's parent directory as base
+        // and update the patch to use the actual file path
+        let parent = base_path.parent().unwrap_or(Path::new("."));
+        patches[0].old_path = base_path.to_path_buf();
+        patches[0].new_path = base_path.to_path_buf();
+        parent
+    } else {
+        // Multi-file case or directory: use provided path as base
+        base_path
+    };
 
     // Prepare all changes first (validation phase)
     let mut prepared_changes: Vec<PreparedChange> = Vec::new();
@@ -749,133 +739,7 @@ pub async fn apply_multi_file_diff(
     ])
 }
 
-pub async fn apply_single_file_diff(
-    path: &PathBuf,
-    diff_content: &str,
-    file_history: &std::sync::Arc<
-        std::sync::Mutex<std::collections::HashMap<PathBuf, Vec<String>>>,
-    >,
-) -> Result<Vec<Content>, ErrorData> {
-    // Validate file exists
-    if !path.exists() {
-        return Err(ErrorData::new(
-            ErrorCode::INVALID_PARAMS,
-            format!(
-                "Cannot apply diff: file '{}' does not exist. \
-                Please create the file first with 'write' command or verify the path.",
-                path.display()
-            ),
-            None,
-        ));
-    }
 
-    // Save current state for undo
-    save_file_history(path, file_history)?;
-
-    // Read current content
-    let original_content = std::fs::read_to_string(path).map_err(|e| {
-        ErrorData::new(
-            ErrorCode::INTERNAL_ERROR,
-            format!("Failed to read file '{}': {}", path.display(), e),
-            None,
-        )
-    })?;
-
-    // Parse the diff
-    let patch = Patch::from_str(diff_content).map_err(|e| {
-        ErrorData::new(
-            ErrorCode::INVALID_PARAMS,
-            format!(
-                "Invalid diff format: {}. \
-                Please ensure the diff is in unified format (like 'git diff' output).",
-                e
-            ),
-            None,
-        )
-    })?;
-
-    // Apply the patch
-    let patched_content = apply(&original_content, &patch).map_err(|e| {
-        let line_count = original_content.lines().count();
-        ErrorData::new(
-            ErrorCode::INTERNAL_ERROR,
-            format!(
-                "Failed to apply diff to '{}': {}. \
-                This usually happens when:\n\
-                1. The diff was created for a different version of the file\n\
-                2. The line numbers in the diff don't match the current file (current: {} lines)\n\
-                3. The context lines in the diff don't match the file content\n\
-                \n\
-                Try using 'view' to see the current file content and ensure your diff matches.",
-                path.display(),
-                e,
-                line_count
-            ),
-            None,
-        )
-    })?;
-
-    // Atomic write using temp file
-    let parent_dir = path.parent().unwrap_or(Path::new("."));
-    let temp_file = NamedTempFile::new_in(parent_dir).map_err(|e| {
-        ErrorData::new(
-            ErrorCode::INTERNAL_ERROR,
-            format!("Failed to create temporary file: {}", e),
-            None,
-        )
-    })?;
-
-    std::fs::write(temp_file.path(), patched_content.as_bytes()).map_err(|e| {
-        ErrorData::new(
-            ErrorCode::INTERNAL_ERROR,
-            format!("Failed to write patched content: {}", e),
-            None,
-        )
-    })?;
-
-    // Atomically replace the original file
-    temp_file.persist(path).map_err(|e| {
-        ErrorData::new(
-            ErrorCode::INTERNAL_ERROR,
-            format!(
-                "Failed to save changes to '{}': {}. \
-                The original file has not been modified.",
-                path.display(),
-                e.error
-            ),
-            None,
-        )
-    })?;
-
-    // Calculate stats for feedback
-    let lines_added = diff_content
-        .lines()
-        .filter(|l| l.starts_with('+') && !l.starts_with("+++"))
-        .count();
-    let lines_removed = diff_content
-        .lines()
-        .filter(|l| l.starts_with('-') && !l.starts_with("---"))
-        .count();
-
-    Ok(vec![
-        Content::text(format!(
-            "Successfully applied diff to {} (+{} lines, -{} lines)",
-            path.display(),
-            lines_added,
-            lines_removed
-        ))
-        .with_audience(vec![Role::Assistant]),
-        Content::text(format!(
-            "Applied unified diff to {}:\n  Added {} lines\n  Removed {} lines\n\
-            Use 'undo_edit' to revert if needed.",
-            path.display(),
-            lines_added,
-            lines_removed
-        ))
-        .with_audience(vec![Role::User])
-        .with_priority(0.2),
-    ])
-}
 
 // Helper method to validate and calculate view range indices
 pub fn calculate_view_range(
@@ -1133,30 +997,8 @@ pub async fn text_editor_replace(
             ));
         }
 
-        // Check if it's a multi-file diff (git diff format)
-        if diff_content.contains("diff --git") {
-            // Multi-file diff detected - use the base directory from the path
-            let base_dir = path.parent().unwrap_or(Path::new("."));
-            return apply_multi_file_diff(base_dir, diff_content, file_history).await;
-        }
-
-        // Single file diff
-        if !is_valid_unified_diff(diff_content) {
-            return Err(ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                format!(
-                    "Invalid unified diff format. Expected format:\n\
-                    --- a/file.txt\n\
-                    +++ b/file.txt\n\
-                    @@ -1,2 +1,2 @@\n\
-                     context\n\
-                    -old line\n\
-                    +new line"
-                ),
-                None,
-            ));
-        }
-        return apply_single_file_diff(path, diff_content, file_history).await;
+        // All diffs now go through the unified handler
+        return apply_diff(path, diff_content, file_history).await;
     }
     // Check if file exists and is active
     if !path.exists() {
