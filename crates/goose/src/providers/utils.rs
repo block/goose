@@ -44,7 +44,7 @@ pub fn convert_image(image: &ImageContent, image_format: &ImageFormat) -> Value 
     }
 }
 
-pub fn check_context_length_exceeded(text: &str) -> bool {
+fn check_context_length_exceeded(text: &str) -> bool {
     let check_phrases = [
         "too long",
         "context length",

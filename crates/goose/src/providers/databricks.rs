@@ -17,7 +17,7 @@ use super::formats::databricks::{create_request, response_to_message};
 use super::oauth;
 use super::retry::ProviderRetry;
 use super::utils::{
-    check_context_length_exceeded, get_model, handle_response_openai_compat, ImageFormat,
+    get_model, handle_response_openai_compat, map_http_error_to_provider_error, ImageFormat,
 };
 use crate::config::ConfigError;
 use crate::conversation::message::Message;
@@ -331,16 +331,9 @@ impl Provider for DatabricksProvider {
                     let status = resp.status();
                     let error_text = resp.text().await.unwrap_or_default();
 
-                    // Check if it's a context length error
-                    if check_context_length_exceeded(&error_text) {
-                        return Err(ProviderError::ContextLengthExceeded(error_text));
-                    }
-
-                    // Default to generic error
-                    return Err(ProviderError::RequestFailed(format!(
-                        "HTTP {}: {}",
-                        status, error_text
-                    )));
+                    // Parse as JSON if possible to pass to map_http_error_to_provider_error
+                    let json_payload = serde_json::from_str::<Value>(&error_text).ok();
+                    return Err(map_http_error_to_provider_error(status, json_payload));
                 }
                 Ok(resp)
             })
