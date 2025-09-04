@@ -416,13 +416,8 @@ fn render_text_editor_request(call: &ToolCall, debug: bool) {
 
 fn render_shell_request(call: &ToolCall, debug: bool) {
     print_tool_header(call);
-
-    match call.arguments.get("command") {
-        Some(Value::String(s)) => {
-            println!("{}: {}", style("command").dim(), style(s).green());
-        }
-        _ => print_params(&call.arguments, 0, debug),
-    }
+    print_params(&call.arguments, 0, debug);
+    println!();
 }
 
 fn render_dynamic_task_request(call: &ToolCall, debug: bool) {
@@ -442,10 +437,36 @@ fn render_dynamic_task_request(call: &ToolCall, debug: bool) {
                             // For strings, print the full content without truncation
                             println!("        {}: {}", style(key).dim(), style(s).green());
                         }
+                        Value::Array(arr) => {
+                            // For arrays, print each item on its own line
+                            println!("        {}:", style(key).dim());
+                            for item in arr {
+                                if let Value::String(s) = item {
+                                    println!("            - {}", style(s).green());
+                                } else if let Value::Object(_) = item {
+                                    // For objects in arrays, print them with indentation
+                                    print!("            - ");
+                                    print_params(item, 3, debug);
+                                } else {
+                                    println!(
+                                        "            - {}",
+                                        style(format!("{}", item)).green()
+                                    );
+                                }
+                            }
+                        }
+                        Value::Object(_) => {
+                            // For objects, print them with proper indentation
+                            println!("        {}:", style(key).dim());
+                            print_params(value, 2, debug);
+                        }
                         _ => {
-                            // For everything else, use print_params
-                            print!("        ");
-                            print_params(value, 0, debug);
+                            // For other types (numbers, booleans, null)
+                            println!(
+                                "        {}: {}",
+                                style(key).dim(),
+                                style(format!("{}", value)).green()
+                            );
                         }
                     }
                 }

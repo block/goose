@@ -55,6 +55,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument};
 
 use super::final_output_tool::FinalOutputTool;
+use super::model_selector::autopilot::AutoPilot;
 use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::subagent_task_config::TaskConfig;
@@ -102,6 +103,7 @@ pub struct Agent {
     pub(super) tool_route_manager: ToolRouteManager,
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
     pub(super) retry_manager: RetryManager,
+    pub(super) autopilot: Mutex<AutoPilot>,
 }
 
 #[derive(Clone, Debug)]
@@ -178,6 +180,7 @@ impl Agent {
             tool_route_manager: ToolRouteManager::new(),
             scheduler_service: Mutex::new(None),
             retry_manager,
+            autopilot: Mutex::new(AutoPilot::new()),
         }
     }
 
@@ -434,8 +437,14 @@ impl Agent {
             };
         }
 
-        let sub_recipe_manager = self.sub_recipe_manager.lock().await;
-        let result: ToolCallResult = if sub_recipe_manager.is_sub_recipe_tool(&tool_call.name) {
+        debug!("WAITING_TOOL_START: {}", tool_call.name);
+        let result: ToolCallResult = if self
+            .sub_recipe_manager
+            .lock()
+            .await
+            .is_sub_recipe_tool(&tool_call.name)
+        {
+            let sub_recipe_manager = self.sub_recipe_manager.lock().await;
             sub_recipe_manager
                 .dispatch_sub_recipe_tool_call(
                     &tool_call.name,
@@ -455,7 +464,18 @@ impl Agent {
             )
             .await
         } else if tool_call.name == DYNAMIC_TASK_TOOL_NAME_PREFIX {
-            create_dynamic_task(tool_call.arguments.clone(), &self.tasks_manager).await
+            // Get loaded extensions for shortname resolution
+            let loaded_extensions = self
+                .extension_manager
+                .list_extensions()
+                .await
+                .unwrap_or_default();
+            create_dynamic_task(
+                tool_call.arguments.clone(),
+                &self.tasks_manager,
+                loaded_extensions,
+            )
+            .await
         } else if tool_call.name == PLATFORM_READ_RESOURCE_TOOL_NAME {
             // Check if the tool is read_resource and handle it separately
             ToolCallResult::from(
@@ -601,6 +621,8 @@ impl Agent {
                 )))
             })
         };
+
+        debug!("WAITING_TOOL_END: {}", tool_call.name);
 
         (
             request_id,
@@ -1030,6 +1052,20 @@ impl Agent {
                     break;
                 }
 
+                {
+                    let mut autopilot = self.autopilot.lock().await;
+                    if let Some((new_provider, role, model)) = autopilot.check_for_switch(&messages, self.provider().await?).await? {
+                        debug!("AutoPilot switching to {} role with model {}", role, model);
+                        self.update_provider(new_provider).await?;
+
+                        yield AgentEvent::ModelChange {
+                            model: model.clone(),
+                            mode: format!("autopilot:{}", role),
+                        };
+                    }
+                }
+
+
                 let mut stream = Self::stream_response_from_provider(
                     self.provider().await?,
                     &system_prompt,
@@ -1207,11 +1243,29 @@ impl Agent {
                                 messages_to_add.push(final_message_tool_resp);
                             }
                         }
-                        Err(ProviderError::ContextLengthExceeded(_)) => {
-                            yield AgentEvent::Message(Message::assistant().with_context_length_exceeded(
-                                    "The context length of the model has been exceeded. Please start a new session and try again.",
-                                ));
-                            break;
+                        Err(ProviderError::ContextLengthExceeded(error_msg)) => {
+                            info!("Context length exceeded, attempting compaction");
+
+                            match auto_compact::perform_compaction(self, messages.messages()).await {
+                                Ok(compact_result) => {
+                                    messages = compact_result.messages;
+
+                                    yield AgentEvent::Message(
+                                        Message::assistant().with_summarization_requested(
+                                            "Context limit reached. Conversation has been automatically compacted to continue."
+                                        )
+                                    );
+                                    yield AgentEvent::HistoryReplaced(messages.messages().to_vec());
+
+                                    continue;
+                                }
+                                Err(_) => {
+                                    yield AgentEvent::Message(Message::assistant().with_context_length_exceeded(
+                                        format!("Context length exceeded and cannot summarize: {}. Unable to continue.", error_msg)
+                                    ));
+                                    break;
+                                }
+                            }
                         }
                         Err(e) => {
                             error!("Error: {}", e);
