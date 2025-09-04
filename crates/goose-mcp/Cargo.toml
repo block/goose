@@ -61,6 +61,7 @@ serde_with = "3"
 which = "6.0"
 glob = "0.3"
 diffy = "0.4"
+patcher = "0.2.1"
 
 
 [dev-dependencies]

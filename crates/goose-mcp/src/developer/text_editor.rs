@@ -1,15 +1,14 @@
 use anyhow::Result;
-use diffy::{apply, Patch};
 use indoc::formatdoc;
-use once_cell::sync::Lazy;
-use regex::Regex;
+use patcher::{
+    ApplyResult, MultifilePatch, MultifilePatcher, Patch as PatcherPatch, PatchAlgorithm, Patcher,
+};
 use std::{
     collections::HashMap,
     fs::File,
     io::Read,
     path::{Path, PathBuf},
 };
-use tempfile::NamedTempFile;
 use url::Url;
 
 use rmcp::model::{Content, ErrorCode, ErrorData, Role};
@@ -22,216 +21,6 @@ use super::shell::normalize_line_endings;
 pub const LINE_READ_LIMIT: usize = 2000;
 pub const MAX_DIFF_SIZE: usize = 1024 * 1024; // 1MB max diff size
 pub const MAX_FILES_IN_DIFF: usize = 100; // Maximum files in a multi-file diff
-
-// Compile regexes once at startup for performance
-static DIFF_HEADER_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^--- .+$").unwrap());
-
-static DIFF_HEADER_NEW_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^\+\+\+ .+$").unwrap());
-
-static HUNK_HEADER_RE: Lazy<Regex> = Lazy::new(|| {
-    // Matches: @@ -start,count +start,count @@ optional context
-    Regex::new(r"^@@\s+-\d+(?:,\d+)?\s+\+\d+(?:,\d+)?\s+@@").unwrap()
-});
-
-static GIT_DIFF_HEADER_RE: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"^diff --git a/(.+) b/(.+)$").unwrap());
-
-/// Represents a single file's patch in a multi-file diff
-#[derive(Debug, Clone)]
-pub struct FilePatch {
-    pub old_path: PathBuf,
-    pub new_path: PathBuf,
-    pub diff_content: String,
-    pub is_new_file: bool,
-    pub is_deletion: bool,
-    pub is_rename: bool,
-}
-
-/// Represents a prepared change for atomic application
-#[derive(Debug)]
-pub enum PreparedChange {
-    Create {
-        path: PathBuf,
-        content: String,
-    },
-    Modify {
-        path: PathBuf,
-        content: String,
-    },
-    Delete {
-        path: PathBuf,
-    },
-    Rename {
-        old_path: PathBuf,
-        new_path: PathBuf,
-        content: String,
-    },
-}
-
-
-
-/// Parses any diff format (single or multi-file) into individual file patches
-pub fn parse_diff(diff_content: &str) -> Result<Vec<FilePatch>, ErrorData> {
-    // If it starts with "diff --git", use git format parsing
-    if diff_content.contains("diff --git") {
-        return parse_git_format_diff(diff_content);
-    }
-
-    // Otherwise, treat as single unified diff
-    parse_unified_format_diff(diff_content)
-}
-
-/// Parses a single-file unified diff (without git headers) into a FilePatch
-fn parse_unified_format_diff(diff_content: &str) -> Result<Vec<FilePatch>, ErrorData> {
-    // Size validation
-    if diff_content.len() > MAX_DIFF_SIZE {
-        return Err(ErrorData::new(
-            ErrorCode::INVALID_PARAMS,
-            format!(
-                "Diff is too large ({} bytes). Maximum size is {} bytes (1MB).",
-                diff_content.len(),
-                MAX_DIFF_SIZE
-            ),
-            None,
-        ));
-    }
-
-    // For single-file unified diffs, we don't have file paths in the diff
-    // The caller will need to provide the target path
-    let patch = FilePatch {
-        old_path: PathBuf::from("a/file"), // Placeholder, will be overridden
-        new_path: PathBuf::from("b/file"), // Placeholder, will be overridden
-        diff_content: diff_content.to_string(),
-        is_new_file: false,
-        is_deletion: false,
-        is_rename: false,
-    };
-
-    Ok(vec![patch])
-}
-
-/// Parses a multi-file diff (git diff format) into individual file patches
-fn parse_git_format_diff(diff_content: &str) -> Result<Vec<FilePatch>, ErrorData> {
-    // Size validation
-    if diff_content.len() > MAX_DIFF_SIZE {
-        return Err(ErrorData::new(
-            ErrorCode::INVALID_PARAMS,
-            format!(
-                "Diff is too large ({} bytes). Maximum size is {} bytes (1MB).",
-                diff_content.len(),
-                MAX_DIFF_SIZE
-            ),
-            None,
-        ));
-    }
-
-    let lines: Vec<&str> = diff_content.lines().collect();
-    let mut patches: Vec<FilePatch> = Vec::new();
-    let mut i = 0;
-
-    while i < lines.len() {
-        // Look for git diff header
-        if let Some(captures) = GIT_DIFF_HEADER_RE.captures(lines[i]) {
-            let old_path = PathBuf::from(captures.get(1).unwrap().as_str());
-            let new_path = PathBuf::from(captures.get(2).unwrap().as_str());
-
-            let mut is_new_file = false;
-            let mut is_deletion = false;
-            let mut is_rename = false;
-
-            // Move past the diff header
-            i += 1;
-
-            // Parse metadata lines
-            while i < lines.len() {
-                let line = lines[i];
-                if line.starts_with("new file mode") {
-                    is_new_file = true;
-                } else if line.starts_with("deleted file mode") {
-                    is_deletion = true;
-                } else if line.starts_with("rename from") || line.starts_with("rename to") {
-                    is_rename = true;
-                } else if line.starts_with("index ") || line.starts_with("similarity index") {
-                    // Skip these metadata lines
-                } else if line.starts_with("---") {
-                    // Found the start of the actual diff content
-                    break;
-                } else if line.starts_with("diff --git") {
-                    // Found the next file, back up
-                    i -= 1;
-                    break;
-                }
-                i += 1;
-            }
-
-            // Collect the diff content for this file
-            let _diff_start = i;
-            let mut diff_lines = Vec::new();
-
-            // For file deletions with no content changes
-            if is_deletion && i < lines.len() && !lines[i].starts_with("---") {
-                // Pure deletion, no diff content
-                patches.push(FilePatch {
-                    old_path: old_path.clone(),
-                    new_path: new_path.clone(),
-                    diff_content: String::new(),
-                    is_new_file,
-                    is_deletion,
-                    is_rename,
-                });
-                continue;
-            }
-
-            // Collect lines until we hit the next diff header or end
-            while i < lines.len() {
-                let line = lines[i];
-                if line.starts_with("diff --git") {
-                    break;
-                }
-                diff_lines.push(line);
-                i += 1;
-            }
-
-            // Only add if we have actual diff content (or it's a special operation)
-            if !diff_lines.is_empty() || is_new_file || is_deletion || is_rename {
-                patches.push(FilePatch {
-                    old_path,
-                    new_path,
-                    diff_content: diff_lines.join("\n"),
-                    is_new_file,
-                    is_deletion,
-                    is_rename,
-                });
-            }
-        } else {
-            // Skip lines that aren't part of a git diff
-            i += 1;
-        }
-    }
-
-    // Validate number of files
-    if patches.len() > MAX_FILES_IN_DIFF {
-        return Err(ErrorData::new(
-            ErrorCode::INVALID_PARAMS,
-            format!(
-                "Too many files in diff ({}). Maximum is {} files.",
-                patches.len(),
-                MAX_FILES_IN_DIFF
-            ),
-            None,
-        ));
-    }
-
-    if patches.is_empty() {
-        return Err(ErrorData::new(
-            ErrorCode::INVALID_PARAMS,
-            "No valid file patches found in diff. Expected git diff format.".to_string(),
-            None,
-        ));
-    }
-
-    Ok(patches)
-}
 
 /// Validates paths to prevent directory traversal attacks
 fn validate_path_safety(base_dir: &Path, target_path: &Path) -> Result<(), ErrorData> {
@@ -326,407 +115,252 @@ fn validate_path_safety(base_dir: &Path, target_path: &Path) -> Result<(), Error
     Ok(())
 }
 
+/// Clean path string by removing a/ or b/ prefixes commonly found in git diffs
+fn clean_diff_path(path: &str) -> String {
+    path.strip_prefix("a/")
+        .or_else(|| path.strip_prefix("b/"))
+        .unwrap_or(path)
+        .to_string()
+}
+
 /// Applies any diff (single or multi-file) atomically with rollback on failure
 pub async fn apply_diff(
     base_path: &Path,
     diff_content: &str,
     file_history: &std::sync::Arc<std::sync::Mutex<HashMap<PathBuf, Vec<String>>>>,
 ) -> Result<Vec<Content>, ErrorData> {
-    // Parse the diff (handles both single and multi-file)
-    let mut patches = parse_diff(diff_content)?;
+    // Size validation
+    if diff_content.len() > MAX_DIFF_SIZE {
+        return Err(ErrorData::new(
+            ErrorCode::INVALID_PARAMS,
+            format!(
+                "Diff is too large ({} bytes). Maximum size is {} bytes (1MB).",
+                diff_content.len(),
+                MAX_DIFF_SIZE
+            ),
+            None,
+        ));
+    }
 
-    // Determine base directory and handle single-file optimization
-    let base_dir = if patches.len() == 1 && !base_path.is_dir() {
+    // Parse the diff using patcher
+    let (multipatch, is_single_file) = if diff_content.contains("diff --git") {
+        // Multi-file git diff
+        let mp = MultifilePatch::parse(diff_content).map_err(|e| {
+            ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                format!("Invalid diff format: {}", e),
+                None,
+            )
+        })?;
+        (mp, false)
+    } else {
+        // Single file unified diff
+        let patch = PatcherPatch::parse(diff_content).map_err(|e| {
+            ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                format!("Invalid diff format: {}", e),
+                None,
+            )
+        })?;
+        (MultifilePatch::new(vec![patch]), true)
+    };
+
+    // Validate number of files
+    if multipatch.patches.len() > MAX_FILES_IN_DIFF {
+        return Err(ErrorData::new(
+            ErrorCode::INVALID_PARAMS,
+            format!(
+                "Too many files in diff ({}). Maximum is {} files.",
+                multipatch.patches.len(),
+                MAX_FILES_IN_DIFF
+            ),
+            None,
+        ));
+    }
+
+    // Determine base directory
+    let base_dir = if is_single_file && !base_path.is_dir() {
         // Single file case: use the file's parent directory as base
-        // and update the patch to use the actual file path
-        let parent = base_path.parent().unwrap_or(Path::new("."));
-        patches[0].old_path = base_path.to_path_buf();
-        patches[0].new_path = base_path.to_path_buf();
-        parent
+        base_path.parent().unwrap_or(Path::new("."))
     } else {
         // Multi-file case or directory: use provided path as base
         base_path
     };
 
-    // Prepare all changes first (validation phase)
-    let mut prepared_changes: Vec<PreparedChange> = Vec::new();
-    let mut files_to_save_history: Vec<PathBuf> = Vec::new();
+    // Pre-validate all paths and save history
+    for patch in &multipatch.patches {
+        // Clean the paths (remove a/ b/ prefixes)
+        let old_path_str = clean_diff_path(&patch.old_file);
+        let new_path_str = clean_diff_path(&patch.new_file);
 
-    for patch in &patches {
-        let target_path = base_dir.join(&patch.new_path);
-
-        // Validate path safety
-        validate_path_safety(base_dir, &target_path)?;
-
-        if patch.is_deletion {
-            // Handle file deletion
-            if !target_path.exists() {
-                return Err(ErrorData::new(
-                    ErrorCode::INVALID_PARAMS,
-                    format!(
-                        "Cannot delete '{}': file does not exist",
-                        target_path.display()
-                    ),
-                    None,
-                ));
-            }
-            files_to_save_history.push(target_path.clone());
-            prepared_changes.push(PreparedChange::Delete { path: target_path });
-        } else if patch.is_new_file {
-            // Handle new file creation
-            if target_path.exists() {
-                return Err(ErrorData::new(
-                    ErrorCode::INVALID_PARAMS,
-                    format!(
-                        "Cannot create '{}': file already exists",
-                        target_path.display()
-                    ),
-                    None,
-                ));
-            }
-
-            // For new files, we need to apply an empty-to-content diff
-            let empty_content = String::new();
-            let patch_obj = Patch::from_str(&patch.diff_content).map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INVALID_PARAMS,
-                    format!(
-                        "Invalid diff for new file '{}': {}",
-                        target_path.display(),
-                        e
-                    ),
-                    None,
-                )
-            })?;
-
-            let new_content = apply(&empty_content, &patch_obj).map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!(
-                        "Failed to create content for new file '{}': {}",
-                        target_path.display(),
-                        e
-                    ),
-                    None,
-                )
-            })?;
-
-            prepared_changes.push(PreparedChange::Create {
-                path: target_path,
-                content: new_content,
-            });
-        } else if patch.is_rename {
-            // Handle file rename
-            let old_path = base_dir.join(&patch.old_path);
-            if !old_path.exists() {
-                return Err(ErrorData::new(
-                    ErrorCode::INVALID_PARAMS,
-                    format!(
-                        "Cannot rename '{}': file does not exist",
-                        old_path.display()
-                    ),
-                    None,
-                ));
-            }
-            if target_path.exists() {
-                return Err(ErrorData::new(
-                    ErrorCode::INVALID_PARAMS,
-                    format!(
-                        "Cannot rename to '{}': target already exists",
-                        target_path.display()
-                    ),
-                    None,
-                ));
-            }
-
-            files_to_save_history.push(old_path.clone());
-
-            // Read content and apply any modifications
-            let content = std::fs::read_to_string(&old_path).map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to read '{}': {}", old_path.display(), e),
-                    None,
-                )
-            })?;
-
-            let final_content = if !patch.diff_content.is_empty() {
-                // Apply modifications during rename
-                let patch_obj = Patch::from_str(&patch.diff_content).map_err(|e| {
-                    ErrorData::new(
-                        ErrorCode::INVALID_PARAMS,
-                        format!("Invalid diff for rename '{}': {}", target_path.display(), e),
-                        None,
-                    )
-                })?;
-
-                apply(&content, &patch_obj).map_err(|e| {
-                    ErrorData::new(
-                        ErrorCode::INTERNAL_ERROR,
-                        format!(
-                            "Failed to apply changes during rename '{}': {}",
-                            target_path.display(),
-                            e
-                        ),
-                        None,
-                    )
-                })?
-            } else {
-                content
-            };
-
-            prepared_changes.push(PreparedChange::Rename {
-                old_path,
-                new_path: target_path,
-                content: final_content,
-            });
+        // Handle special case for single file
+        let (old_path, new_path) = if is_single_file && !base_path.is_dir() {
+            (base_path.to_path_buf(), base_path.to_path_buf())
         } else {
-            // Handle regular file modification
-            if !target_path.exists() {
-                return Err(ErrorData::new(
-                    ErrorCode::INVALID_PARAMS,
-                    format!(
-                        "Cannot modify '{}': file does not exist",
-                        target_path.display()
-                    ),
-                    None,
-                ));
+            (base_dir.join(&old_path_str), base_dir.join(&new_path_str))
+        };
+
+        // Skip /dev/null paths
+        if old_path_str != "/dev/null" && new_path_str != "/dev/null" {
+            // Validate path safety
+            validate_path_safety(base_dir, &new_path)?;
+
+            // Save history for existing files
+            if old_path.exists() {
+                save_file_history(&old_path, file_history)?;
             }
-
-            files_to_save_history.push(target_path.clone());
-
-            // Read current content
-            let original_content = std::fs::read_to_string(&target_path).map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to read '{}': {}", target_path.display(), e),
-                    None,
-                )
-            })?;
-
-            // Parse and apply the patch
-            let patch_obj = Patch::from_str(&patch.diff_content).map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INVALID_PARAMS,
-                    format!("Invalid diff for '{}': {}", target_path.display(), e),
-                    None,
-                )
-            })?;
-
-            let patched_content = apply(&original_content, &patch_obj).map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!(
-                        "Failed to apply diff to '{}': {}. \
-                        The diff may be for a different version of the file.",
-                        target_path.display(),
-                        e
-                    ),
-                    None,
-                )
-            })?;
-
-            prepared_changes.push(PreparedChange::Modify {
-                path: target_path,
-                content: patched_content,
-            });
+        } else if new_path_str != "/dev/null" {
+            // New file case
+            validate_path_safety(base_dir, &new_path)?;
         }
     }
 
-    // Save history for all files that will be modified/deleted
-    for path in &files_to_save_history {
-        save_file_history(path, file_history)?;
-    }
+    // Apply the patches using patcher's built-in functionality
+    let patcher = if is_single_file && !base_path.is_dir() {
+        // For single file, we need to handle it specially
+        // Read the file content and apply the patch directly
+        let content = if base_path.exists() {
+            std::fs::read_to_string(base_path).map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Failed to read '{}': {}", base_path.display(), e),
+                    None,
+                )
+            })?
+        } else {
+            String::new()
+        };
 
-    // Apply all changes atomically
-    let mut temp_files: Vec<(NamedTempFile, PathBuf)> = Vec::new();
-    let mut created_files: Vec<PathBuf> = Vec::new();
-
-    // Try to apply all changes
-    for change in &prepared_changes {
-        match change {
-            PreparedChange::Create { path, content } | PreparedChange::Modify { path, content } => {
-                // Create parent directory if needed
-                if let Some(parent) = path.parent() {
-                    if !parent.exists() {
-                        std::fs::create_dir_all(parent).map_err(|e| {
-                            ErrorData::new(
-                                ErrorCode::INTERNAL_ERROR,
-                                format!("Failed to create directory '{}': {}", parent.display(), e),
-                                None,
-                            )
-                        })?;
-                    }
-                }
-
-                // Write to temp file
-                let temp_file = NamedTempFile::new_in(path.parent().unwrap_or(Path::new(".")))
-                    .map_err(|e| {
-                        ErrorData::new(
-                            ErrorCode::INTERNAL_ERROR,
-                            format!("Failed to create temp file for '{}': {}", path.display(), e),
-                            None,
-                        )
-                    })?;
-
-                std::fs::write(temp_file.path(), content.as_bytes()).map_err(|e| {
-                    // Clean up any created files on error
-                    for created in &created_files {
-                        let _ = std::fs::remove_file(created);
-                    }
-                    ErrorData::new(
-                        ErrorCode::INTERNAL_ERROR,
-                        format!("Failed to write content for '{}': {}", path.display(), e),
-                        None,
-                    )
-                })?;
-
-                temp_files.push((temp_file, path.clone()));
-
-                if matches!(change, PreparedChange::Create { .. }) {
-                    created_files.push(path.clone());
-                }
-            }
-            PreparedChange::Delete { .. } => {
-                // Deletions will be handled after all writes succeed
-            }
-            PreparedChange::Rename {
-                old_path: _,
-                new_path,
-                content,
-            } => {
-                // Create parent directory if needed
-                if let Some(parent) = new_path.parent() {
-                    if !parent.exists() {
-                        std::fs::create_dir_all(parent).map_err(|e| {
-                            ErrorData::new(
-                                ErrorCode::INTERNAL_ERROR,
-                                format!("Failed to create directory '{}': {}", parent.display(), e),
-                                None,
-                            )
-                        })?;
-                    }
-                }
-
-                // Write new content to temp file
-                let temp_file = NamedTempFile::new_in(new_path.parent().unwrap_or(Path::new(".")))
-                    .map_err(|e| {
-                        ErrorData::new(
-                            ErrorCode::INTERNAL_ERROR,
-                            format!(
-                                "Failed to create temp file for rename '{}': {}",
-                                new_path.display(),
-                                e
-                            ),
-                            None,
-                        )
-                    })?;
-
-                std::fs::write(temp_file.path(), content.as_bytes()).map_err(|e| {
-                    ErrorData::new(
-                        ErrorCode::INTERNAL_ERROR,
-                        format!(
-                            "Failed to write content for rename '{}': {}",
-                            new_path.display(),
-                            e
-                        ),
-                        None,
-                    )
-                })?;
-
-                temp_files.push((temp_file, new_path.clone()));
-            }
-        }
-    }
-
-    // Persist all temp files atomically
-    for (temp_file, target_path) in temp_files {
-        temp_file.persist(&target_path).map_err(|e| {
-            // Try to clean up created files on error
-            for created in &created_files {
-                let _ = std::fs::remove_file(created);
-            }
+        let patch = &multipatch.patches[0];
+        let patcher_obj = Patcher::new(patch.clone());
+        let new_content = patcher_obj.apply(&content, false).map_err(|e| {
             ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
                 format!(
-                    "Failed to save changes to '{}': {}",
-                    target_path.display(),
-                    e.error
+                    "Failed to apply diff to '{}': {}. The diff may be for a different version of the file.",
+                    base_path.display(),
+                    e
                 ),
                 None,
             )
         })?;
-    }
 
-    // Handle deletions and rename cleanup after all writes succeed
-    for change in &prepared_changes {
-        match change {
-            PreparedChange::Delete { path } => {
-                std::fs::remove_file(path).map_err(|e| {
-                    ErrorData::new(
-                        ErrorCode::INTERNAL_ERROR,
-                        format!("Failed to delete '{}': {}", path.display(), e),
-                        None,
-                    )
-                })?;
-            }
-            PreparedChange::Rename { old_path, .. } => {
-                std::fs::remove_file(old_path).map_err(|e| {
-                    ErrorData::new(
-                        ErrorCode::INTERNAL_ERROR,
-                        format!("Failed to remove old file '{}': {}", old_path.display(), e),
-                        None,
-                    )
-                })?;
-            }
-            _ => {}
-        }
-    }
+        // Write the result
+        std::fs::write(base_path, new_content).map_err(|e| {
+            ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to write '{}': {}", base_path.display(), e),
+                None,
+            )
+        })?;
 
-    // Calculate statistics
-    let mut files_created = 0;
-    let mut files_modified = 0;
-    let mut files_deleted = 0;
-    let mut files_renamed = 0;
-    let mut total_lines_added = 0;
-    let mut total_lines_removed = 0;
-
-    for (patch, change) in patches.iter().zip(prepared_changes.iter()) {
-        match change {
-            PreparedChange::Create { .. } => files_created += 1,
-            PreparedChange::Modify { .. } => files_modified += 1,
-            PreparedChange::Delete { .. } => files_deleted += 1,
-            PreparedChange::Rename { .. } => files_renamed += 1,
-        }
-
-        // Count line changes
-        total_lines_added += patch
-            .diff_content
+        // Generate summary for single file
+        let lines_added = diff_content
             .lines()
             .filter(|l| l.starts_with('+') && !l.starts_with("+++"))
             .count();
-        total_lines_removed += patch
-            .diff_content
+        let lines_removed = diff_content
             .lines()
             .filter(|l| l.starts_with('-') && !l.starts_with("---"))
             .count();
+
+        let summary = format!(
+            "Successfully applied diff to {}:\n• Lines added: {}\n• Lines removed: {}",
+            base_path.display(),
+            lines_added,
+            lines_removed
+        );
+
+        return Ok(vec![
+            Content::text(summary.clone()).with_audience(vec![Role::Assistant]),
+            Content::text(format!(
+                "{}\n\nUse 'undo_edit' to revert if needed.",
+                summary
+            ))
+            .with_audience(vec![Role::User])
+            .with_priority(0.2),
+        ]);
+    } else {
+        MultifilePatcher::with_root(multipatch, base_dir)
+    };
+
+    // Apply patches and write to files
+    let results = patcher.apply_and_write(false).map_err(|e| {
+        ErrorData::new(
+            ErrorCode::INTERNAL_ERROR,
+            format!("Failed to apply patches: {}", e),
+            None,
+        )
+    })?;
+
+    // Process results and generate summary
+    let mut files_created = 0;
+    let mut files_modified = 0;
+    let mut files_deleted = 0;
+    let mut errors = Vec::new();
+
+    for result in results {
+        match result {
+            ApplyResult::Applied(file) => {
+                if file.is_new {
+                    files_created += 1;
+                } else {
+                    files_modified += 1;
+                }
+            }
+            ApplyResult::Deleted(_path) => {
+                files_deleted += 1;
+            }
+            ApplyResult::Failed(path, err) => {
+                errors.push(format!("Failed to process '{}': {}", path, err));
+            }
+            ApplyResult::Skipped(reason) => {
+                // Log skipped files if needed
+                eprintln!("Skipped: {}", reason);
+            }
+        }
     }
 
-    let summary = format!(
-        "Successfully applied multi-file diff:\n\
-        • Files created: {}\n\
-        • Files modified: {}\n\
-        • Files deleted: {}\n\
-        • Files renamed: {}\n\
-        • Lines added: {}\n\
-        • Lines removed: {}",
-        files_created,
-        files_modified,
-        files_deleted,
-        files_renamed,
-        total_lines_added,
-        total_lines_removed
-    );
+    // Count line changes from the diff itself (more accurate)
+    let total_lines_added = diff_content
+        .lines()
+        .filter(|l| l.starts_with('+') && !l.starts_with("+++"))
+        .count();
+    let total_lines_removed = diff_content
+        .lines()
+        .filter(|l| l.starts_with('-') && !l.starts_with("---"))
+        .count();
+
+    // Check for errors
+    if !errors.is_empty() {
+        return Err(ErrorData::new(
+            ErrorCode::INTERNAL_ERROR,
+            format!("Failed to apply some patches:\n{}", errors.join("\n")),
+            None,
+        ));
+    }
+
+    let summary = if files_created + files_modified + files_deleted > 1 {
+        format!(
+            "Successfully applied multi-file diff:\n\
+            • Files created: {}\n\
+            • Files modified: {}\n\
+            • Files deleted: {}\n\
+            • Lines added: {}\n\
+            • Lines removed: {}",
+            files_created, files_modified, files_deleted, total_lines_added, total_lines_removed
+        )
+    } else {
+        format!(
+            "Successfully applied diff:\n\
+            • Files created: {}\n\
+            • Files modified: {}\n\
+            • Files deleted: {}\n\
+            • Lines added: {}\n\
+            • Lines removed: {}",
+            files_created, files_modified, files_deleted, total_lines_added, total_lines_removed
+        )
+    };
 
     Ok(vec![
         Content::text(summary.clone()).with_audience(vec![Role::Assistant]),
@@ -738,8 +372,6 @@ pub async fn apply_diff(
         .with_priority(0.2),
     ])
 }
-
-
 
 // Helper method to validate and calculate view range indices
 pub fn calculate_view_range(
@@ -997,7 +629,6 @@ pub async fn text_editor_replace(
             ));
         }
 
-        // All diffs now go through the unified handler
         return apply_diff(path, diff_content, file_history).await;
     }
     // Check if file exists and is active
