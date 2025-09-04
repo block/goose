@@ -15,7 +15,7 @@ pub struct PermissionInspector {
     mode: Arc<Mutex<String>>,
     readonly_tools: HashSet<String>,
     regular_tools: HashSet<String>,
-    permission_manager: Arc<Mutex<PermissionManager>>,
+    pub permission_manager: Arc<Mutex<PermissionManager>>,
 }
 
 impl PermissionInspector {

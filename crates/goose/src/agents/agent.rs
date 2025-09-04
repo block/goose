@@ -31,7 +31,7 @@ use crate::agents::tool_route_manager::ToolRouteManager;
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, ToolResultReceiver};
-use crate::config::{Config, ExtensionConfigManager};
+use crate::config::{Config, ExtensionConfigManager, PermissionManager};
 use crate::context_mgmt::auto_compact;
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::permission::permission_inspector::PermissionInspector;

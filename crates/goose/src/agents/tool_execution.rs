@@ -56,8 +56,6 @@ impl Agent {
         inspection_results: &'a [crate::tool_inspection::InspectionResult],
     ) -> BoxStream<'a, anyhow::Result<Message>> {
         try_stream! {
-            // Create a permission manager for this approval session
-            let mut permission_manager = PermissionManager::default();
             for request in tool_requests.iter() {
                 if let Ok(tool_call) = request.tool_call.clone() {
                     // Find the corresponding inspection result for this tool request
@@ -97,8 +95,11 @@ impl Agent {
                                     ),
                                 }));
 
+                                // Update the shared permission manager when user selects "Always Allow"
                                 if confirmation.permission == Permission::AlwaysAllow {
-                                    permission_manager.update_user_permission(&tool_call.name, PermissionLevel::AlwaysAllow);
+                                    self.tool_inspection_manager
+                                        .update_permission_manager(&tool_call.name, PermissionLevel::AlwaysAllow)
+                                        .await;
                                 }
                             } else {
                                 // User declined - add declined response
