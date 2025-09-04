@@ -16,7 +16,9 @@ use super::errors::ProviderError;
 use super::formats::databricks::{create_request, response_to_message};
 use super::oauth;
 use super::retry::ProviderRetry;
-use super::utils::{get_model, handle_response_openai_compat, ImageFormat};
+use super::utils::{
+    check_context_length_exceeded, get_model, handle_response_openai_compat, ImageFormat,
+};
 use crate::config::ConfigError;
 use crate::conversation::message::Message;
 use crate::impl_provider_default;
@@ -225,14 +227,6 @@ impl DatabricksProvider {
         })
     }
 
-    fn check_context_length_exceeded(error_text: &str) -> bool {
-        let lower = error_text.to_lowercase();
-        lower.contains("context limit")
-            || lower.contains("exceed")
-            || lower.contains("too long")
-            || lower.contains("input is too long")
-    }
-
     fn get_endpoint_path(&self, model_name: &str, is_embedding: bool) -> String {
         if is_embedding {
             "serving-endpoints/text-embedding-3-small/invocations".to_string()
@@ -338,7 +332,7 @@ impl Provider for DatabricksProvider {
                     let error_text = resp.text().await.unwrap_or_default();
 
                     // Check if it's a context length error
-                    if Self::check_context_length_exceeded(&error_text) {
+                    if check_context_length_exceeded(&error_text) {
                         return Err(ProviderError::ContextLengthExceeded(error_text));
                     }
 
