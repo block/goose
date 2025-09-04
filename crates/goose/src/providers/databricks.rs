@@ -225,6 +225,14 @@ impl DatabricksProvider {
         })
     }
 
+    fn check_context_length_exceeded(error_text: &str) -> bool {
+        let lower = error_text.to_lowercase();
+        lower.contains("context limit")
+            || lower.contains("exceed")
+            || lower.contains("too long")
+            || lower.contains("input is too long")
+    }
+
     fn get_endpoint_path(&self, model_name: &str, is_embedding: bool) -> String {
         if is_embedding {
             "serving-endpoints/text-embedding-3-small/invocations".to_string()
@@ -329,47 +337,8 @@ impl Provider for DatabricksProvider {
                     let status = resp.status();
                     let error_text = resp.text().await.unwrap_or_default();
 
-                    // Try to parse as JSON to get structured error
-                    if let Ok(error_json) = serde_json::from_str::<Value>(&error_text) {
-                        // Check for context length errors in various formats
-                        if let Some(error_obj) = error_json.get("error") {
-                            let error_msg = error_obj
-                                .get("message")
-                                .and_then(|m| m.as_str())
-                                .unwrap_or(&error_text);
-
-                            // Check for context length exceeded patterns
-                            if error_msg.to_lowercase().contains("context length")
-                                || error_msg.to_lowercase().contains("too long")
-                                || error_msg.to_lowercase().contains("exceeds")
-                                || error_msg.to_lowercase().contains("token")
-                            {
-                                return Err(ProviderError::ContextLengthExceeded(
-                                    error_msg.to_string(),
-                                ));
-                            }
-                        }
-
-                        // Also check top-level message field
-                        if let Some(msg) = error_json.get("message").and_then(|m| m.as_str()) {
-                            if msg.to_lowercase().contains("context length")
-                                || msg.to_lowercase().contains("too long")
-                                || msg.to_lowercase().contains("exceeds")
-                                || msg.to_lowercase().contains("token")
-                            {
-                                return Err(ProviderError::ContextLengthExceeded(msg.to_string()));
-                            }
-                        }
-                    }
-
-                    // Check raw text for context length patterns
-                    let error_lower = error_text.to_lowercase();
-                    if error_lower.contains("context length")
-                        || error_lower.contains("too long")
-                        || error_lower.contains("exceeds")
-                        || error_lower.contains("maximum context")
-                        || error_lower.contains("token limit")
-                    {
+                    // Check if it's a context length error
+                    if Self::check_context_length_exceeded(&error_text) {
                         return Err(ProviderError::ContextLengthExceeded(error_text));
                     }
 
