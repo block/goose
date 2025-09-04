@@ -761,9 +761,10 @@ const createChat = async (
     mainWindow.loadURL(`${MAIN_WINDOW_VITE_DEV_SERVER_URL}/#/${queryParams}`);
   } else {
     // In production, we need to use a proper file protocol URL with correct base path
-    const indexPath = path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html/#/`);
+    const indexPath = path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`);
     mainWindow.loadFile(indexPath, {
       search: queryParams ? queryParams.slice(1) : undefined,
+      hash: '/',
     });
   }
 
