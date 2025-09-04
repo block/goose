@@ -75,6 +75,10 @@ pub struct TextEditorParams {
 
     /// The line number after which to insert text (0 for beginning). Required for `insert` command.
     pub insert_line: Option<i64>,
+
+    /// A unified diff to apply. When provided with `str_replace`, this takes precedence over old_str/new_str.
+    /// Supports both single-file and multi-file diffs (git diff format).
+    pub diff: Option<String>,
 }
 
 /// Parameters for the shell tool
@@ -699,29 +703,46 @@ impl DeveloperServer {
                 Ok(CallToolResult::success(content))
             }
             "str_replace" => {
-                let old_str = params.old_str.ok_or_else(|| {
-                    ErrorData::new(
-                        ErrorCode::INVALID_PARAMS,
-                        "Missing 'old_str' parameter for str_replace command".to_string(),
-                        None,
+                // Check if diff parameter is provided
+                if let Some(ref diff) = params.diff {
+                    // When diff is provided, old_str and new_str are not required
+                    let content = text_editor_replace(
+                        &path,
+                        "", // old_str not used with diff
+                        "", // new_str not used with diff
+                        Some(diff),
+                        &self.editor_model,
+                        &self.file_history,
                     )
-                })?;
-                let new_str = params.new_str.ok_or_else(|| {
-                    ErrorData::new(
-                        ErrorCode::INVALID_PARAMS,
-                        "Missing 'new_str' parameter for str_replace command".to_string(),
+                    .await?;
+                    Ok(CallToolResult::success(content))
+                } else {
+                    // Traditional str_replace with old_str and new_str
+                    let old_str = params.old_str.ok_or_else(|| {
+                        ErrorData::new(
+                            ErrorCode::INVALID_PARAMS,
+                            "Missing 'old_str' parameter for str_replace command".to_string(),
+                            None,
+                        )
+                    })?;
+                    let new_str = params.new_str.ok_or_else(|| {
+                        ErrorData::new(
+                            ErrorCode::INVALID_PARAMS,
+                            "Missing 'new_str' parameter for str_replace command".to_string(),
+                            None,
+                        )
+                    })?;
+                    let content = text_editor_replace(
+                        &path,
+                        &old_str,
+                        &new_str,
                         None,
+                        &self.editor_model,
+                        &self.file_history,
                     )
-                })?;
-                let content = text_editor_replace(
-                    &path,
-                    &old_str,
-                    &new_str,
-                    &self.editor_model,
-                    &self.file_history,
-                )
-                .await?;
-                Ok(CallToolResult::success(content))
+                    .await?;
+                    Ok(CallToolResult::success(content))
+                }
             }
             "insert" => {
                 let insert_line = params.insert_line.ok_or_else(|| {
