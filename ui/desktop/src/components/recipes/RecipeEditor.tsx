@@ -1,22 +1,22 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Recipe, generateDeepLink } from '../recipe';
-import { Parameter } from '../recipe/index';
+import { Recipe, generateDeepLink } from '../../recipe';
+import { Parameter } from '../../recipe/index';
 
-import { Geese } from './icons/Geese';
-import Copy from './icons/Copy';
+import { Geese } from '../icons/Geese';
+import Copy from '../icons/Copy';
 import { Check, Save, Calendar } from 'lucide-react';
-import { ExtensionConfig, useConfig } from './ConfigContext';
-import { FixedExtensionEntry } from './ConfigContext';
+import { ExtensionConfig, useConfig } from '../ConfigContext';
+import { FixedExtensionEntry } from '../ConfigContext';
 import RecipeActivityEditor from './RecipeActivityEditor';
 import RecipeInfoModal from './RecipeInfoModal';
 import RecipeExpandableInfo from './RecipeExpandableInfo';
-import { ScheduleFromRecipeModal } from './schedule/ScheduleFromRecipeModal';
-import ParameterInput from './parameter/ParameterInput';
-import { saveRecipe, generateRecipeFilename } from '../recipe/recipeStorage';
-import { toastSuccess, toastError } from '../toasts';
-import { Button } from './ui/button';
-import { useEscapeKey } from '../hooks/useEscapeKey';
+import { ScheduleFromRecipeModal } from '../schedule/ScheduleFromRecipeModal';
+import ParameterInput from '../parameter/ParameterInput';
+import { saveRecipe, generateRecipeFilename } from '../../recipe/recipeStorage';
+import { toastSuccess, toastError } from '../../toasts';
+import { Button } from '../ui/button';
+import { useEscapeKey } from '../../hooks/useEscapeKey';
 
 interface RecipeEditorProps {
   config?: Recipe;

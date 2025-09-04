@@ -742,9 +742,6 @@ p > code.bg-inline-code {
   will-change: width;
 }
 
-
-
-
 /* Subtle back-and-forth shimmer animation for onboarding card */
 @keyframes shimmer {
   0% {
