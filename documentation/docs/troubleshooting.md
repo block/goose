@@ -221,6 +221,25 @@ This creates a symbolic link that allows Goose to find Node.js in the expected l
 
 ---
 
+### Malicious Package Detected 
+
+If you see an error about a "blocked malicious package" when trying to use an extension, it means the extension was blocked because malware was detected in a package used by the extension. The error message will contain details about the package, for example:
+
+```
+Blocked malicious package: package-name@1.0.0 (npm). OSV MAL advisories: MAL-2024-1234
+```
+
+Steps to resolve:
+1. **Find an alternative**: Look for similar extensions in the [extensions directory][extensions-directory] or [PulseMCP](https://www.pulsemcp.com/servers)
+2. **Optional verification**: Verify the source of the blocked extension or the package name/publisher
+3. **Report false positives**: If you believe this is an error, please [open an issue](https://github.com/block/goose/issues)
+
+This security check only applies to locally-executed external extensions that use PyPI (`uvx`) or NPM (`npx`). The check uses real-time data from the OSV database; if the security service is unavailable, extensions will still install normally.
+
+As a best practice, only install extensions from trusted, official sources.
+
+---
+
 ### macOS Permission Issues
 
 If you encounter an issue where the Goose Desktop app shows no window on launch, it may be due to file and folder permissions. This typically happens because Goose needs read and write access to the `~/.config` directory to create its log directory and file. 
@@ -351,3 +370,4 @@ If you have questions, run into issues, or just need to brainstorm ideas join th
 [discord]: https://discord.gg/block-opensource
 [goosehints]: /docs/guides/using-goosehints
 [configure-llm-provider]: /docs/getting-started/providers
+[extensions-directory]: https://block.github.io/goose/extensions/
