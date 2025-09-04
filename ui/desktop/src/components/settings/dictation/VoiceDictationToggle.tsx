@@ -15,7 +15,6 @@ export const VoiceDictationToggle = () => {
   });
   const { getProviders } = useConfig();
 
-  // Load settings from localStorage
   useEffect(() => {
     const loadSettings = async () => {
       const savedSettings = localStorage.getItem(DICTATION_SETTINGS_KEY);
@@ -55,7 +54,6 @@ export const VoiceDictationToggle = () => {
 
   return (
     <div className="space-y-1">
-      {/* Enable/Disable Toggle */}
       <div className="flex items-center justify-between py-2 px-2 hover:bg-background-muted rounded-lg transition-all">
         <div>
           <h3 className="text-text-default">Enable Voice Dictation</h3>
@@ -68,7 +66,6 @@ export const VoiceDictationToggle = () => {
         </div>
       </div>
 
-      {/* Animated Provider Selection and Configuration */}
       <div 
         className={`overflow-hidden transition-all duration-300 ease-in-out ${
           settings.enabled 

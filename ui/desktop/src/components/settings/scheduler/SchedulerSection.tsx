@@ -28,7 +28,6 @@ export default function SchedulerSection({ onSchedulingEngineChange }: Scheduler
   const [schedulingEngine, setSchedulingEngine] = useState<SchedulingEngine>('builtin-cron');
 
   useEffect(() => {
-    // Load current scheduling engine setting
     const loadSchedulingEngine = async () => {
       try {
         const settings = (await window.electron.getSettings()) as Settings | null;
@@ -47,10 +46,8 @@ export default function SchedulerSection({ onSchedulingEngineChange }: Scheduler
     try {
       setSchedulingEngine(engine);
 
-      // Save the setting
       await window.electron.setSchedulingEngine(engine);
 
-      // Notify parent component
       if (onSchedulingEngineChange) {
         onSchedulingEngineChange(engine);
       }
@@ -61,7 +58,6 @@ export default function SchedulerSection({ onSchedulingEngineChange }: Scheduler
 
   return (
     <div className="space-y-1">
-      {/* Scheduling Engine Options */}
       {schedulingEngineOptions.map((option) => {
         const isChecked = schedulingEngine === option.key;
         
@@ -103,7 +99,6 @@ export default function SchedulerSection({ onSchedulingEngineChange }: Scheduler
         );
       })}
 
-      {/* Information Panel */}
       <div className="mt-4 p-3 bg-background-subtle rounded-md">
         <p className="text-xs text-text-muted">
           <strong>Note:</strong> Changing the scheduling engine will apply to new Goose sessions.

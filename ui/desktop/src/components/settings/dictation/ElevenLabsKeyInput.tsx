@@ -10,7 +10,6 @@ export const ElevenLabsKeyInput = () => {
   const elevenLabsApiKeyRef = useRef('');
   const { upsert, read } = useConfig();
 
-  // Load ElevenLabs API key from secure storage
   useEffect(() => {
     const loadKey = async () => {
       setIsLoadingKey(true);
@@ -29,7 +28,7 @@ export const ElevenLabsKeyInput = () => {
     loadKey();
   }, [read]);
 
-  // Save ElevenLabs key on unmount if it has changed
+  // Save key on unmount to avoid losing unsaved changes
   useEffect(() => {
     return () => {
       if (elevenLabsApiKeyRef.current) {

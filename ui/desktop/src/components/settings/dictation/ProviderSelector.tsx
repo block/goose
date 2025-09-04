@@ -15,7 +15,6 @@ export const ProviderSelector = ({ settings, onProviderChange }: ProviderSelecto
   const [showProviderDropdown, setShowProviderDropdown] = useState(false);
   const { getProviders } = useConfig();
 
-  // Check if OpenAI is configured
   useEffect(() => {
     const checkOpenAIKey = async () => {
       try {
@@ -66,7 +65,6 @@ export const ProviderSelector = ({ settings, onProviderChange }: ProviderSelecto
 
   return (
     <div className="space-y-4">
-      {/* Provider Selection */}
       <div className="flex items-center justify-between py-2 px-2 hover:bg-background-muted rounded-lg transition-all">
         <div>
           <h3 className="text-text-default">Dictation Provider</h3>
@@ -106,10 +104,8 @@ export const ProviderSelector = ({ settings, onProviderChange }: ProviderSelecto
         </div>
       </div>
 
-      {/* ElevenLabs API Key Input */}
       {settings.provider === 'elevenlabs' && <ElevenLabsKeyInput />}
 
-      {/* Provider Information */}
       <ProviderInfo provider={settings.provider} />
     </div>
   );
