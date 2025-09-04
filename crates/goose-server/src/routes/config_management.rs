@@ -316,64 +316,7 @@ pub async fn providers(
 ) -> Result<Json<Vec<ProviderDetails>>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    let mut providers_metadata = get_providers();
-
-    let custom_providers_dir = goose::config::custom_providers::custom_providers_dir();
-
-    if custom_providers_dir.exists() {
-        if let Ok(entries) = std::fs::read_dir(&custom_providers_dir) {
-            for entry in entries.flatten() {
-                if let Some(extension) = entry.path().extension() {
-                    if extension == "json" {
-                        if let Ok(content) = std::fs::read_to_string(entry.path()) {
-                            if let Ok(custom_provider) = serde_json::from_str::<
-                                goose::config::custom_providers::CustomProviderConfig,
-                            >(&content)
-                            {
-                                // CustomProviderConfig => ProviderMetadata
-                                let default_model = custom_provider
-                                    .models
-                                    .first()
-                                    .map(|m| m.name.clone())
-                                    .unwrap_or_default();
-
-                                let metadata = goose::providers::base::ProviderMetadata {
-                                    name: custom_provider.name.clone(),
-                                    display_name: custom_provider.display_name.clone(),
-                                    description: custom_provider
-                                        .description
-                                        .clone()
-                                        .unwrap_or_else(|| {
-                                            format!("{} (custom)", custom_provider.display_name)
-                                        }),
-                                    default_model,
-                                    known_models: custom_provider.models.clone(),
-                                    model_doc_link: "Custom provider".to_string(),
-                                    config_keys: vec![
-                                        goose::providers::base::ConfigKey::new(
-                                            &custom_provider.api_key_env,
-                                            true,
-                                            true,
-                                            None,
-                                        ),
-                                        goose::providers::base::ConfigKey::new(
-                                            "CUSTOM_PROVIDER_BASE_URL",
-                                            true,
-                                            false,
-                                            Some(&custom_provider.base_url),
-                                        ),
-                                    ],
-                                };
-                                providers_metadata.push(metadata);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    let providers_response: Vec<ProviderDetails> = providers_metadata
+    let providers_response: Vec<ProviderDetails> = get_providers()
         .into_iter()
         .map(|metadata| {
             let is_configured = check_provider_configured(&metadata);
