@@ -174,8 +174,8 @@ export default function DictationSection() {
       {/* Enable/Disable Toggle */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-text-default">Enable Voice Dictation</h3>
-          <p className="text-xs text-text-muted max-w-md mt-[2px]">
+          <h3 className="text-textStandard">Enable Voice Dictation</h3>
+          <p className="text-xs text-textSubtle max-w-md mt-[2px]">
             Show microphone button for voice input
           </p>
         </div>
@@ -189,25 +189,25 @@ export default function DictationSection() {
         <>
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-text-default">Dictation Provider</h3>
-              <p className="text-xs text-text-muted max-w-md mt-[2px]">
+              <h3 className="text-textStandard">Dictation Provider</h3>
+              <p className="text-xs text-textSubtle max-w-md mt-[2px]">
                 Choose how voice is converted to text
               </p>
             </div>
             <div className="relative">
               <button
                 onClick={handleDropdownToggle}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm border border-border-subtle rounded-md hover:border-border-default transition-colors text-text-default bg-background-default"
+                className="flex items-center gap-2 px-3 py-1.5 text-sm border border-borderSubtle rounded-md hover:border-borderStandard transition-colors text-textStandard bg-background-default"
               >
                 {getProviderLabel(settings.provider)}
                 <ChevronDown className="w-4 h-4" />
               </button>
 
               {showProviderDropdown && (
-                <div className="absolute right-0 mt-1 w-48 bg-background-default border border-border-default rounded-md shadow-lg z-10">
+                <div className="absolute right-0 mt-1 w-48 bg-background-default border border-borderStandard rounded-md shadow-lg z-10">
                   <button
                     onClick={() => handleProviderChange('openai')}
-                    className="w-full px-3 py-2 text-left text-sm transition-colors first:rounded-t-md hover:bg-background-subtle text-text-default"
+                    className="w-full px-3 py-2 text-left text-sm transition-colors first:rounded-t-md hover:bg-bgSubtle text-textStandard"
                   >
                     OpenAI Whisper
                     {!hasOpenAIKey && <span className="text-xs ml-1">(not configured)</span>}
@@ -217,7 +217,7 @@ export default function DictationSection() {
                   {/* ElevenLabs option */}
                   <button
                     onClick={() => handleProviderChange('elevenlabs')}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-background-subtle transition-colors text-text-default last:rounded-b-md"
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-bgSubtle transition-colors text-textStandard last:rounded-b-md"
                   >
                     ElevenLabs
                     {settings.provider === 'elevenlabs' && <span className="float-right">✓</span>}
@@ -231,8 +231,8 @@ export default function DictationSection() {
           {showElevenLabsKey && (
             <div className="mb-4">
               <div className="mb-2">
-                <h3 className="text-text-default">ElevenLabs API Key</h3>
-                <p className="text-xs text-text-muted max-w-md mt-[2px]">
+                <h3 className="text-textStandard">ElevenLabs API Key</h3>
+                <p className="text-xs text-textSubtle max-w-md mt-[2px]">
                   Required for ElevenLabs voice recognition
                   {hasElevenLabsKey && <span className="text-green-600 ml-2">(Configured)</span>}
                 </p>
@@ -252,28 +252,28 @@ export default function DictationSection() {
           )}
 
           {/* Provider-specific information */}
-          <div className="mt-4 p-3 bg-background-subtle rounded-md">
+          <div className="mt-4 p-3 bg-bgSubtle rounded-md">
             {settings.provider === 'openai' && (
-              <p className="text-xs text-text-muted">
+              <p className="text-xs text-textSubtle">
                 Uses OpenAI's Whisper API for high-quality transcription. Requires an OpenAI API key
                 configured in the Models section.
               </p>
             )}
             {settings.provider === 'elevenlabs' && (
               <div>
-                <p className="text-xs text-text-muted">
+                <p className="text-xs text-textSubtle">
                   Uses ElevenLabs speech-to-text API for high-quality transcription.
                 </p>
-                <p className="text-xs text-text-muted mt-2">
+                <p className="text-xs text-textSubtle mt-2">
                   <strong>Features:</strong>
                 </p>
-                <ul className="text-xs text-text-muted ml-4 mt-1 list-disc">
+                <ul className="text-xs text-textSubtle ml-4 mt-1 list-disc">
                   <li>Advanced voice processing</li>
                   <li>High accuracy transcription</li>
                   <li>Multiple language support</li>
                   <li>Fast processing</li>
                 </ul>
-                <p className="text-xs text-text-muted mt-2">
+                <p className="text-xs text-textSubtle mt-2">
                   <strong>Note:</strong> Requires an ElevenLabs API key with speech-to-text access.
                 </p>
               </div>
