@@ -55,6 +55,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument};
 
 use super::final_output_tool::FinalOutputTool;
+use super::model_selector::autopilot::AutoPilot;
 use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::subagent_task_config::TaskConfig;
@@ -102,6 +103,7 @@ pub struct Agent {
     pub(super) tool_route_manager: ToolRouteManager,
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
     pub(super) retry_manager: RetryManager,
+    pub(super) autopilot: Mutex<AutoPilot>,
 }
 
 #[derive(Clone, Debug)]
@@ -178,6 +180,7 @@ impl Agent {
             tool_route_manager: ToolRouteManager::new(),
             scheduler_service: Mutex::new(None),
             retry_manager,
+            autopilot: Mutex::new(AutoPilot::new()),
         }
     }
 
@@ -1040,6 +1043,20 @@ impl Agent {
                     ));
                     break;
                 }
+
+                {
+                    let mut autopilot = self.autopilot.lock().await;
+                    if let Some((new_provider, role, model)) = autopilot.check_for_switch(&messages, self.provider().await?).await? {
+                        debug!("AutoPilot switching to {} role with model {}", role, model);
+                        self.update_provider(new_provider).await?;
+
+                        yield AgentEvent::ModelChange {
+                            model: model.clone(),
+                            mode: format!("autopilot:{}", role),
+                        };
+                    }
+                }
+
 
                 let mut stream = Self::stream_response_from_provider(
                     self.provider().await?,
