@@ -535,15 +535,16 @@ export default function ChatInput({
 
   // Listen for threshold change events from AlertBox
   useEffect(() => {
-    const handleThresholdChange = (event: Event) => {
-      const customEvent = event as CustomEvent<{ threshold: number }>;
-      setAutoCompactThreshold(customEvent.detail.threshold);
+    const handleThresholdChange = (event: CustomEvent<{ threshold: number }>) => {
+      setAutoCompactThreshold(event.detail.threshold);
     };
 
-    window.addEventListener('autoCompactThresholdChanged', handleThresholdChange);
-    
+    // Type assertion to handle the mismatch between CustomEvent and EventListener
+    const eventListener = handleThresholdChange as (event: globalThis.Event) => void;
+    window.addEventListener('autoCompactThresholdChanged', eventListener);
+
     return () => {
-      window.removeEventListener('autoCompactThresholdChanged', handleThresholdChange);
+      window.removeEventListener('autoCompactThresholdChanged', eventListener);
     };
   }, []);
 
@@ -590,7 +591,16 @@ export default function ChatInput({
     }
     // We intentionally omit setView as it shouldn't trigger a re-render of alerts
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [numTokens, toolCount, tokenLimit, isTokenLimitLoaded, addAlert, isCompacting, clearAlerts, autoCompactThreshold]);
+  }, [
+    numTokens,
+    toolCount,
+    tokenLimit,
+    isTokenLimitLoaded,
+    addAlert,
+    isCompacting,
+    clearAlerts,
+    autoCompactThreshold,
+  ]);
 
   // Cleanup effect for component unmount - prevent memory leaks
   useEffect(() => {
