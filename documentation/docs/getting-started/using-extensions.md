@@ -17,7 +17,7 @@ Check out the [step-by-step tutorials](/docs/category/mcp-servers) for adding an
 :::
 
 :::info Malware Scan
-Goose automatically checks external extensions (`uvx` and `npm`) for known malware before activation. If a malicious package is detected, the [extension will be blocked](#extension-blocked-for-security-reasons) with a clear error message.
+Goose automatically checks external extensions (`uvx` and `npx`) for known malware before activation. If a malicious package is detected, the [extension will be blocked](#extension-blocked-for-security-reasons) with a clear error message.
 :::
 
 ## Built-in Extensions
