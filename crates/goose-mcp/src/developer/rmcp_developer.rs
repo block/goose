@@ -3,7 +3,7 @@ use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use include_dir::{include_dir, Dir};
 use indoc::{formatdoc, indoc};
 use rmcp::{
-    handler::server::{router::tool::ToolRouter, tool::Parameters},
+    handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
         CallToolResult, Content, ErrorCode, ErrorData, GetPromptRequestParam, GetPromptResult,
         Implementation, ListPromptsResult, LoggingLevel, LoggingMessageNotificationParam,
@@ -1242,7 +1242,7 @@ impl DeveloperServer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rmcp::handler::server::tool::Parameters;
+    use rmcp::handler::server::wrapper::Parameters;
     use rmcp::model::NumberOrString;
     use rmcp::service::serve_directly;
     use serial_test::serial;
