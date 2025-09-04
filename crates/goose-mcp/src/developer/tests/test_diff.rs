@@ -330,4 +330,63 @@ diff --git a/file2.txt b/file2.txt
             "modified2"
         );
     }
+
+    #[test]
+    fn test_process_apply_results_with_skipped() {
+        use crate::developer::text_editor::process_apply_results;
+        use patcher::{ApplyResult, PatchedFile};
+
+        // Create a mix of results including skipped files
+        let results = vec![
+            ApplyResult::Applied(PatchedFile {
+                path: "file1.txt".to_string(),
+                content: "modified content".to_string(),
+                is_new: false,
+                is_deleted: false,
+            }),
+            ApplyResult::Skipped("file2.txt: already up to date".to_string()),
+            ApplyResult::Applied(PatchedFile {
+                path: "file3.txt".to_string(),
+                content: "new content".to_string(),
+                is_new: true,
+                is_deleted: false,
+            }),
+        ];
+
+        let processed = process_apply_results(results);
+
+        // Should return an error because we have skipped files in the errors list
+        assert!(processed.is_err());
+        let err = processed.unwrap_err();
+        assert!(err.message.contains("Skipped: file2.txt"));
+        assert!(err.message.contains("already up to date"));
+    }
+
+    #[test]
+    fn test_process_apply_results_with_failures() {
+        use crate::developer::text_editor::process_apply_results;
+        use patcher::{ApplyResult, Error as PatcherError, PatchedFile};
+
+        // Create results with actual failures
+        let results = vec![
+            ApplyResult::Applied(PatchedFile {
+                path: "file1.txt".to_string(),
+                content: "modified content".to_string(),
+                is_new: false,
+                is_deleted: false,
+            }),
+            ApplyResult::Failed(
+                "file2.txt".to_string(),
+                PatcherError::ApplyError("context mismatch".to_string()),
+            ),
+        ];
+
+        let processed = process_apply_results(results);
+
+        // Should return an error with the failure details
+        assert!(processed.is_err());
+        let err = processed.unwrap_err();
+        assert!(err.message.contains("Failed to process 'file2.txt'"));
+        assert!(err.message.contains("context mismatch"));
+    }
 }

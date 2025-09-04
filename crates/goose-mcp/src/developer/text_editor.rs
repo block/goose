@@ -130,7 +130,8 @@ struct DiffContext {
 }
 
 /// Results from applying a diff
-struct DiffResults {
+#[derive(Debug)]
+pub struct DiffResults {
     files_created: usize,
     files_modified: usize,
     files_deleted: usize,
@@ -338,7 +339,7 @@ async fn apply_single_file_patch(
 }
 
 /// Processes the results from applying patches
-fn process_apply_results(results: Vec<ApplyResult>) -> Result<DiffResults, ErrorData> {
+pub fn process_apply_results(results: Vec<ApplyResult>) -> Result<DiffResults, ErrorData> {
     let mut diff_results = DiffResults {
         files_created: 0,
         files_modified: 0,
@@ -366,8 +367,8 @@ fn process_apply_results(results: Vec<ApplyResult>) -> Result<DiffResults, Error
                     .push(format!("Failed to process '{}': {}", path, err));
             }
             ApplyResult::Skipped(reason) => {
-                // Log skipped files if needed
-                eprintln!("Skipped: {}", reason);
+                // Add skipped files to errors so the LLM can see them
+                diff_results.errors.push(format!("Skipped: {}", reason));
             }
         }
     }
