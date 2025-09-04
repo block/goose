@@ -12,14 +12,12 @@ interface ContextManagerActions {
   handleAutoCompaction: (
     messages: Message[],
     setMessages: (messages: Message[]) => void,
-    append: (message: Message) => void,
-    setAncestorMessages?: (messages: Message[]) => void
+    append: (message: Message) => void
   ) => Promise<void>;
   handleManualCompaction: (
     messages: Message[],
     setMessages: (messages: Message[]) => void,
-    append?: (message: Message) => void,
-    setAncestorMessages?: (messages: Message[]) => void
+    append?: (message: Message) => void
   ) => Promise<void>;
   hasCompactionMarker: (message: Message) => boolean;
 }
@@ -39,8 +37,7 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
       messages: Message[],
       setMessages: (messages: Message[]) => void,
       append: (message: Message) => void,
-      isManual: boolean = false,
-      setAncestorMessages?: (messages: Message[]) => void
+      isManual: boolean = false
     ) => {
       setIsCompacting(true);
       setCompactionError(null);
@@ -53,29 +50,10 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
         });
 
         // Convert API messages to frontend messages
-        const convertedMessages = summaryResponse.messages.map((apiMessage) => {
-          const isCompactionMarker = apiMessage.content.some(
-            (content) => content.type === 'summarizationRequested'
-          );
-
-          if (isCompactionMarker) {
-            // show to user but not model
-            return convertApiMessageToFrontendMessage(apiMessage, true, false);
-          }
-
-          // show to model but not user
-          return convertApiMessageToFrontendMessage(apiMessage, false, true);
-        });
-
-        // Store the original messages as ancestor messages so they can still be scrolled to
-        if (setAncestorMessages) {
-          const ancestorMessages = messages.map((msg) => ({
-            ...msg,
-            display: msg.display === false ? false : true,
-            sendToLLM: false,
-          }));
-          setAncestorMessages(ancestorMessages);
-        }
+        // The server now handles all visibility - we just display what we receive
+        const convertedMessages = summaryResponse.messages.map((apiMessage) =>
+          convertApiMessageToFrontendMessage(apiMessage)
+        );
 
         // Replace messages with the server-provided messages
         setMessages(convertedMessages);
@@ -109,8 +87,6 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
               msg: 'Compaction failed. Please try again or start a new session.',
             },
           ],
-          display: true,
-          sendToLLM: false,
         };
 
         setMessages([...messages, errorMarker]);
@@ -124,10 +100,9 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
     async (
       messages: Message[],
       setMessages: (messages: Message[]) => void,
-      append: (message: Message) => void,
-      setAncestorMessages?: (messages: Message[]) => void
+      append: (message: Message) => void
     ) => {
-      await performCompaction(messages, setMessages, append, false, setAncestorMessages);
+      await performCompaction(messages, setMessages, append, false);
     },
     [performCompaction]
   );
@@ -136,16 +111,9 @@ export const ContextManagerProvider: React.FC<{ children: React.ReactNode }> = (
     async (
       messages: Message[],
       setMessages: (messages: Message[]) => void,
-      append?: (message: Message) => void,
-      setAncestorMessages?: (messages: Message[]) => void
+      append?: (message: Message) => void
     ) => {
-      await performCompaction(
-        messages,
-        setMessages,
-        append || (() => {}),
-        true,
-        setAncestorMessages
-      );
+      await performCompaction(messages, setMessages, append || (() => {}), true);
     },
     [performCompaction]
   );

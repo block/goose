@@ -125,7 +125,6 @@ function BaseChatContent({
   const {
     messages,
     filteredMessages,
-    setAncestorMessages,
     append,
     chatState,
     error,
@@ -196,14 +195,13 @@ function BaseChatContent({
         console.log('Switching from recipe:', previousTitle, 'to:', newTitle);
         setHasStartedUsingRecipe(false);
         setMessages([]);
-        setAncestorMessages([]);
       } else if (isInitialRecipeLoad) {
         setHasStartedUsingRecipe(false);
       } else if (hasExistingConversation) {
         setHasStartedUsingRecipe(true);
       }
     }
-  }, [recipeConfig?.title, currentRecipeTitle, messages.length, setMessages, setAncestorMessages]);
+  }, [recipeConfig?.title, currentRecipeTitle, messages.length, setMessages]);
 
   // Handle recipe auto-execution
   useEffect(() => {
@@ -397,12 +395,7 @@ function BaseChatContent({
                             onClick={async () => {
                               clearError();
 
-                              await handleManualCompaction(
-                                messages,
-                                setMessages,
-                                append,
-                                setAncestorMessages
-                              );
+                              await handleManualCompaction(messages, setMessages, append);
                             }}
                           >
                             Summarize Conversation
@@ -473,7 +466,6 @@ function BaseChatContent({
             recipeAccepted={recipeAccepted}
             initialPrompt={initialPrompt}
             autoSubmit={autoSubmit}
-            setAncestorMessages={setAncestorMessages}
             append={append}
             {...customChatInputProps}
           />

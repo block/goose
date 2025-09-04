@@ -108,8 +108,6 @@ export interface Message {
   role: Role;
   created: number;
   content: MessageContent[];
-  display?: boolean;
-  sendToLLM?: boolean;
 }
 
 // Helper functions to create messages

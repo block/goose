@@ -119,7 +119,7 @@ export async function fetchSessionDetails(sessionId: string): Promise<SessionDet
       session_id: response.data.sessionId,
       metadata: ensureWorkingDir(response.data.metadata),
       messages: response.data.messages.map((message: ApiMessage) =>
-        convertApiMessageToFrontendMessage(message, true, true)
+        convertApiMessageToFrontendMessage(message)
       ), // slight diffs between backend and frontend Message obj
     };
   } catch (error) {
