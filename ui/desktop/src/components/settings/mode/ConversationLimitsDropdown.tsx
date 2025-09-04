@@ -24,11 +24,11 @@ export const ConversationLimitsDropdown = ({
         onClick={toggleExpanded}
         className="w-full flex items-center justify-between py-2 px-2 hover:bg-background-muted rounded-lg transition-all group"
       >
-        <h3 className="text-textStandard font-medium">Conversation Limits</h3>
+        <h3 className="text-text-default font-medium">Conversation Limits</h3>
         
         {/* Animated Chevron */}
         <ChevronDown 
-          className={`w-4 h-4 text-textSubtle transition-transform duration-200 ease-in-out ${
+          className={`w-4 h-4 text-text-muted transition-transform duration-200 ease-in-out ${
             isExpanded ? 'rotate-180' : 'rotate-0'
           }`} 
         />
@@ -46,8 +46,8 @@ export const ConversationLimitsDropdown = ({
           {/* Max Turns Setting */}
           <div className="flex items-center justify-between py-2 px-2 bg-background-subtle rounded-lg transform transition-all duration-200 ease-in-out">
             <div>
-              <h4 className="text-textStandard text-sm">Max Turns</h4>
-              <p className="text-xs text-textSubtle mt-[2px]">
+              <h4 className="text-text-default text-sm">Max Turns</h4>
+              <p className="text-xs text-text-muted mt-[2px]">
                 Maximum agent turns before Goose asks for user input
               </p>
             </div>
@@ -65,8 +65,8 @@ export const ConversationLimitsDropdown = ({
           {/* Example placeholder for future settings:
           <div className="flex items-center justify-between py-2 px-2 bg-background-subtle rounded-lg opacity-50 transform transition-all duration-200 ease-in-out">
             <div>
-              <h4 className="text-textStandard text-sm">Max Context Length</h4>
-              <p className="text-xs text-textSubtle mt-[2px]">
+              <h4 className="text-text-default text-sm">Max Context Length</h4>
+              <p className="text-xs text-text-muted mt-[2px]">
                 Maximum context length before auto-compacting (Coming Soon)
               </p>
             </div>
