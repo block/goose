@@ -1,6 +1,6 @@
 use anyhow::Ok;
 
-use crate::conversation::message::Message;
+use crate::conversation::message::{Message, MessageMetadata};
 use crate::conversation::Conversation;
 use crate::token_counter::create_async_token_counter;
 
@@ -90,11 +90,11 @@ impl Agent {
             final_token_counts.push(0);
         }
 
-        // Add the compaction marker (agent_visible=true, user_visible=false)
+        // Add the compaction marker (user_visible=true, agent_visible=false)
         let compaction_marker = Message::assistant()
             .with_summarization_requested("Conversation compacted and summarized")
-            .agent_only();
-        let compaction_marker_tokens: usize = 8;
+            .with_metadata(MessageMetadata::user_only());
+        let compaction_marker_tokens: usize = 0; // Not counted since agent_visible=false
         final_messages.push(compaction_marker);
         final_token_counts.push(compaction_marker_tokens);
 
@@ -111,13 +111,11 @@ impl Agent {
         final_messages.push(summary_msg);
         final_token_counts.push(summary_tokens);
 
-        // Add an assistant message to continue the conversation (both user_visible and agent_visible)
-        let assistant_message = Message::assistant().with_text("
-            The previous message contains a summary that was prepared because a context limit was reached.
-            Do not mention that you read a summary or that conversation summarization occurred
-            Just continue the conversation naturally based on the summarized context
-        ");
-        let assistant_message_tokens: usize = 41;
+        // Add an assistant message to continue the conversation (agent_visible=true, user_visible=false)
+        let assistant_message = Message::assistant()
+            .with_text("The previous message contains a summary that was prepared because a context limit was reached.")
+            .with_metadata(MessageMetadata::agent_only());
+        let assistant_message_tokens: usize = 0; // Not counted since it's for agent context only
         final_messages.push(assistant_message);
         final_token_counts.push(assistant_message_tokens);
 
