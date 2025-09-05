@@ -150,6 +150,12 @@ pub fn register_custom_providers(
 
     for config in configs {
         let config_clone = config.clone();
+        // Use a unique base URL key per custom provider to avoid collisions in the
+        // global config/keyring. Previously this used the constant
+        // "CUSTOM_PROVIDER_BASE_URL" for every provider which caused different
+        // providers to read/write the same key and mix up values stored in the
+        // keyring or config file.
+        let base_url_key = format!("{}_BASE_URL", config.name.to_uppercase());
         let description = config
             .description
             .clone()
@@ -176,7 +182,7 @@ pub fn register_custom_providers(
             ProviderEngine::OpenAI => {
                 let config_keys = vec![
                     crate::providers::base::ConfigKey::new(&config.api_key_env, true, true, None),
-                    crate::providers::base::ConfigKey::new("CUSTOM_PROVIDER_BASE_URL", true, false, Some(&config.base_url)),
+                    crate::providers::base::ConfigKey::new(&base_url_key, true, false, Some(&config.base_url)),
                 ];
                 registry.register_with_name::<OpenAiProvider, _>(
                     config.name.clone(),
@@ -193,7 +199,7 @@ pub fn register_custom_providers(
             ProviderEngine::Ollama => {
                 let config_keys = vec![
                     crate::providers::base::ConfigKey::new(&config.api_key_env, true, true, None),
-                    crate::providers::base::ConfigKey::new("CUSTOM_PROVIDER_BASE_URL", true, false, Some(&config.base_url)),
+                    crate::providers::base::ConfigKey::new(&base_url_key, true, false, Some(&config.base_url)),
                 ];
                 registry.register_with_name::<OllamaProvider, _>(
                     config.name.clone(),
@@ -210,7 +216,7 @@ pub fn register_custom_providers(
             ProviderEngine::Anthropic => {
                 let config_keys = vec![
                     crate::providers::base::ConfigKey::new(&config.api_key_env, true, true, None),
-                    crate::providers::base::ConfigKey::new("CUSTOM_PROVIDER_BASE_URL", true, false, Some(&config.base_url)),
+                    crate::providers::base::ConfigKey::new(&base_url_key, true, false, Some(&config.base_url)),
                 ];
                 registry.register_with_name::<AnthropicProvider, _>(
                     config.name.clone(),
