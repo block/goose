@@ -148,6 +148,16 @@ pub fn register_custom_providers(
 ) -> Result<()> {
     let configs = load_custom_providers(dir)?;
 
+    // Detect legacy shared key usage in keyring/config that could override
+    // per-provider base URLs. Historically a single key name
+    // "CUSTOM_PROVIDER_BASE_URL" was used for all providers which could
+    // result in cross-provider collisions if stored in the keyring. If that
+    // legacy key exists, log a warning so operators can remove/migrate it.
+    let global_config = crate::config::Config::global();
+    if let Ok(val) = global_config.get_secret("CUSTOM_PROVIDER_BASE_URL") {
+        tracing::warn!("Detected legacy shared key 'CUSTOM_PROVIDER_BASE_URL' in secret storage. This can cause custom providers to use the wrong base_url. Value: {}. Please remove or migrate this key to per-provider keys.", val);
+    }
+
     for config in configs {
         let config_clone = config.clone();
         // Use a unique base URL key per custom provider to avoid collisions in the
