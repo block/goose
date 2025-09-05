@@ -112,7 +112,15 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
     onSubmit: async ({ value }) => {
       setImporting(true);
       try {
-        const recipe = await parseDeeplink(value.deeplink.trim());
+        let recipe: Recipe | null = null;
+
+        // Parse recipe from either deeplink or YAML file
+        if (value.deeplink && value.deeplink.trim()) {
+          recipe = await parseDeeplink(value.deeplink.trim());
+        } else if (value.yamlFile) {
+          const fileContent = await value.yamlFile.text();
+          recipe = await parseYamlFile(fileContent);
+        }
 
         if (!recipe) {
           throw new Error('Invalid deeplink or recipe format');
