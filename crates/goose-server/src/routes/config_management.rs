@@ -771,7 +771,11 @@ pub async fn update_custom_provider(
 ) -> Result<Json<String>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    let custom_providers_dir = crate::config::custom_providers::custom_providers_dir();
+    // Log incoming update for debugging
+    let payload_value = serde_json::to_value(&request).unwrap_or(serde_json::Value::Null);
+    tracing::info!(id = %id, payload = ?payload_value, "update_custom_provider called");
+
+    let custom_providers_dir = goose::config::custom_providers::custom_providers_dir();
     let file_path = custom_providers_dir.join(format!("{}.json", id));
 
     if !file_path.exists() {
@@ -780,7 +784,7 @@ pub async fn update_custom_provider(
 
     // Read existing config
     let content = std::fs::read_to_string(&file_path).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let mut config: crate::config::custom_providers::CustomProviderConfig =
+    let mut config: goose::config::custom_providers::CustomProviderConfig =
         serde_json::from_str(&content).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     // Update fields if provided
@@ -793,7 +797,7 @@ pub async fn update_custom_provider(
     if let Some(models) = request.models {
         config.models = models
             .into_iter()
-            .map(|m| crate::providers::base::ModelInfo::new(m, 128000))
+            .map(|m| goose::providers::base::ModelInfo::new(m, 128000))
             .collect();
     }
     if let Some(s) = request.supports_streaming {
@@ -802,7 +806,7 @@ pub async fn update_custom_provider(
 
     // Persist API key into secrets if provided
     if let Some(api_key) = request.api_key {
-        let cfg = crate::config::Config::global();
+        let cfg = goose::config::Config::global();
         if let Err(e) = cfg.set_secret(&config.api_key_env, serde_json::Value::String(api_key)) {
             tracing::error!("Failed to set secret for {}: {}", config.api_key_env, e);
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
@@ -816,7 +820,7 @@ pub async fn update_custom_provider(
     std::fs::rename(&tmp, &file_path).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     // Refresh in-memory providers
-    if let Err(e) = crate::providers::refresh_custom_providers() {
+    if let Err(e) = goose::providers::refresh_custom_providers() {
         tracing::warn!("Failed to refresh custom providers after update: {}", e);
     }
 
@@ -870,7 +874,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/custom-providers", post(create_custom_provider))
         .route(
             "/config/custom-providers/{id}",
-            delete(remove_custom_provider),
+            delete(remove_custom_provider).put(update_custom_provider),
         )
         .with_state(state)
 }
