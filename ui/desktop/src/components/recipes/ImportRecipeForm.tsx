@@ -38,7 +38,7 @@ const importRecipeSchema = z
     global: z.boolean(),
   })
   .refine((data) => (data.deeplink && data.deeplink.trim()) || data.yamlFile, {
-    message: 'Either deeplink or YAML file is required',
+    message: 'Either of deeplink or YAML file are required',
     path: ['deeplink'],
   });
 
@@ -115,7 +115,6 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
           }
           recipe = parsedRecipe;
         } else {
-          // yamlFile must exist due to Zod validation
           const fileContent = await value.yamlFile!.text();
           recipe = await parseYamlFile(fileContent);
         }
@@ -203,7 +202,7 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
     }
   };
 
-  const handleFileChange = async (file: File | undefined) => {
+  const handleYamlFileChange = async (file: File | undefined) => {
     importRecipeForm.setFieldValue('yamlFile', file || null);
 
     if (file) {
@@ -300,7 +299,7 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
                     htmlFor="import-yaml-file"
                     className="block text-sm font-medium text-text-standard mb-3"
                   >
-                    YAML File
+                    Recipe YAML File
                   </label>
                   <div className="relative">
                     <Input
@@ -308,7 +307,7 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
                       type="file"
                       accept=".yaml,.yml"
                       onChange={(e) => {
-                        handleFileChange(e.target.files?.[0]);
+                        handleYamlFileChange(e.target.files?.[0]);
                       }}
                       onBlur={field.handleBlur}
                       className={`${field.state.meta.errors.length > 0 ? 'border-red-500' : ''}`}
