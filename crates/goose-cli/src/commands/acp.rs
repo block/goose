@@ -68,17 +68,17 @@ impl acp::Agent for GooseAcpAgent {
         arguments: acp::InitializeRequest,
     ) -> Result<acp::InitializeResponse, acp::Error> {
         info!("ACP: Received initialize request {:?}", arguments);
-        
+
         // Advertise Goose's capabilities
         let agent_capabilities = acp::AgentCapabilities {
             load_session: false, // TODO: Implement session persistence
             prompt_capabilities: acp::PromptCapabilities {
-                image: true,  // Goose supports image inputs via providers
-                audio: false, // TODO: Add audio support when providers support it
+                image: true,            // Goose supports image inputs via providers
+                audio: false,           // TODO: Add audio support when providers support it
                 embedded_context: true, // Goose can handle embedded context resources
             },
         };
-        
+
         Ok(acp::InitializeResponse {
             protocol_version: acp::V1,
             agent_capabilities,
@@ -178,24 +178,17 @@ impl acp::Agent for GooseAcpAgent {
 
     async fn load_session(&self, arguments: acp::LoadSessionRequest) -> Result<(), acp::Error> {
         info!("ACP: Received load session request {:?}", arguments);
-        
-        // TODO: Implement session loading using Goose's existing session storage
-        // 1. Load session from disk using session::read_messages or similar
-        // 2. Stream all messages back as session/update notifications
-        // 3. Store the loaded session in self.sessions
-        //
-        // The ACP spec requires streaming the entire conversation history back to the client
-        // as session/update notifications (both user_message_chunk and agent_message_chunk types)
+        // For now, will start a new session. We could use goose session storage as an enhancement
+        // we would need to map ACP session IDs to goose session ids (which by default are auto generated)
+        // normal goose session restore in CLI doesn't load conversation visually.
         //
         // Example flow:
         // - Load session file by session_id (might need to map ACP session IDs to Goose session paths)
         // - For each message in history:
         //   - If user message: send user_message_chunk notification
-        //   - If assistant message: send agent_message_chunk notification  
+        //   - If assistant message: send agent_message_chunk notification
         //   - If tool calls/responses: send appropriate notifications
-        // - Create GooseSession with loaded agent and messages
-        // - Store in self.sessions HashMap
-        
+
         // For now, we don't support loading previous sessions
         Err(acp::Error::method_not_found())
     }
@@ -216,7 +209,7 @@ impl acp::Agent for GooseAcpAgent {
 
         // Convert ACP prompt to Goose message
         let mut user_message = Message::user();
-        
+
         // Process all content blocks from the prompt
         for block in arguments.prompt {
             match block {
@@ -253,7 +246,7 @@ impl acp::Agent for GooseAcpAgent {
         // Create and store cancellation token for this prompt
         let cancel_token = CancellationToken::new();
         session.cancel_token = Some(cancel_token.clone());
-        
+
         // Get agent's reply through the Goose agent
         let mut stream = session
             .agent
@@ -276,7 +269,7 @@ impl acp::Agent for GooseAcpAgent {
                 was_cancelled = true;
                 break;
             }
-            
+
             match event {
                 Ok(goose::agents::AgentEvent::Message(message)) => {
                     // Add to conversation
@@ -312,27 +305,18 @@ impl acp::Agent for GooseAcpAgent {
                                 let (tool_name, locations) = match &tool_request.tool_call {
                                     Ok(tool_call) => {
                                         let name = tool_call.name.clone();
-                                        
+
                                         // Extract file locations from certain tools for client tracking
                                         let mut locs = Vec::new();
                                         if name == "developer__text_editor" {
                                             // Try to extract the path from the arguments
                                             let args = &tool_call.arguments;
-                                            if let Some(path_str) = args.get("path").and_then(|p| p.as_str()) {
+                                            if let Some(path_str) =
+                                                args.get("path").and_then(|p| p.as_str())
+                                            {
                                                 locs.push(acp::ToolCallLocation {
                                                     path: path_str.into(),
-                                                    line: None, // Line info can be added if available
-                                                    /* 
-                                                    line: args.get("insert_line")
-                                                        .or(args.get("view_range"))
-                                                        .and_then(|v| {
-                                                            // For view_range, use the first line
-                                                            if let Some(arr) = v.as_array() {
-                                                                arr.get(0).and_then(|n| n.as_u64().map(|n| n as u32))
-                                                            } else {
-                                                                v.as_u64().map(|n| n as u32)
-                                                            }
-                                                        }),*/
+                                                    line: Some(1),
                                                 });
                                             }
                                         }
@@ -376,7 +360,7 @@ impl acp::Agent for GooseAcpAgent {
                                     } else {
                                         acp::ToolCallStatus::Failed
                                     };
-                                    
+
                                     // Send status update (completed or failed)
                                     let (tx, rx) = oneshot::channel();
                                     self.session_update_tx
@@ -447,11 +431,11 @@ impl acp::Agent for GooseAcpAgent {
 
     async fn cancel(&self, args: acp::CancelNotification) -> Result<(), acp::Error> {
         info!("ACP: Received cancel request {:?}", args);
-        
+
         // Get the session and cancel its active operation
         let session_id = args.session_id.0.to_string();
         let mut sessions = self.sessions.lock().await;
-        
+
         if let Some(session) = sessions.get_mut(&session_id) {
             if let Some(ref token) = session.cancel_token {
                 info!("Cancelling active prompt for session {}", session_id);
@@ -460,7 +444,7 @@ impl acp::Agent for GooseAcpAgent {
         } else {
             warn!("Cancel request for non-existent session: {}", session_id);
         }
-        
+
         Ok(())
     }
 }
