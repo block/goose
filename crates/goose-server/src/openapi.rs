@@ -9,7 +9,7 @@ use goose::session::info::SessionInfo;
 use goose::session::SessionMetadata;
 use rmcp::model::{
     Annotations, Content, EmbeddedResource, ImageContent, RawEmbeddedResource, RawImageContent,
-    RawTextContent, ResourceContents, Role, TextContent, Tool, ToolAnnotations,
+    RawResource, RawTextContent, ResourceContents, Role, TextContent, Tool, ToolAnnotations,
 };
 use utoipa::{OpenApi, ToSchema};
 
@@ -319,6 +319,7 @@ derive_utoipa!(TextContent as TextContentSchema);
 derive_utoipa!(RawTextContent as RawTextContentSchema);
 derive_utoipa!(RawImageContent as RawImageContentSchema);
 derive_utoipa!(RawEmbeddedResource as RawEmbeddedResourceSchema);
+derive_utoipa!(RawResource as RawResourceSchema);
 derive_utoipa!(Tool as ToolSchema);
 derive_utoipa!(ToolAnnotations as ToolAnnotationsSchema);
 derive_utoipa!(Annotations as AnnotationsSchema);
@@ -425,6 +426,7 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         RawTextContentSchema,
         RawImageContentSchema,
         RawEmbeddedResourceSchema,
+        RawResourceSchema,
         AnnotatedSchema,
         ToolResponse,
         ToolRequest,

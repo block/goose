@@ -39,6 +39,7 @@
     "start-alpha-gui": "ALPHA=true npm run start-gui"
   },
   "dependencies": {
+    "@tanstack/react-form": "^0.13.0",
     "@ai-sdk/openai": "^2.0.14",
     "@ai-sdk/ui-utils": "^1.2.11",
     "@mcp-ui/client": "^5.9.0",

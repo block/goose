@@ -21,7 +21,9 @@ rmcp = { workspace = true, features = [
     "reqwest",
     "transport-child-process",
     "transport-sse-client",
+    "transport-sse-client-reqwest",
     "transport-streamable-http-client",
+    "transport-streamable-http-client-reqwest",
 ] }
 anyhow = "1.0"
 thiserror = "1.0"

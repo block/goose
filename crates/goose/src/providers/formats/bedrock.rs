@@ -124,6 +124,9 @@ pub fn to_bedrock_tool_result_content_block(
         RawContent::Image(image) => {
             bedrock::ToolResultContentBlock::Image(to_bedrock_image(&image.data, &image.mime_type)?)
         }
+        RawContent::ResourceLink(_link) => {
+            bedrock::ToolResultContentBlock::Text("[Resource link]".to_string())
+        }
         RawContent::Resource(resource) => match &resource.resource {
             ResourceContents::TextResourceContents { text, .. } => {
                 match to_bedrock_document(tool_use_id, &resource.resource)? {
@@ -381,6 +384,7 @@ mod tests {
             let image = RawImageContent {
                 data: TEST_IMAGE_BASE64.to_string(),
                 mime_type: mime_type.to_string(),
+                meta: None,
             }
             .no_annotation();
 
@@ -396,6 +400,7 @@ mod tests {
         let image = RawImageContent {
             data: TEST_IMAGE_BASE64.to_string(),
             mime_type: "image/bmp".to_string(),
+            meta: None,
         }
         .no_annotation();
 
@@ -411,6 +416,7 @@ mod tests {
         let image = RawImageContent {
             data: "invalid_base64_data!!!".to_string(),
             mime_type: "image/png".to_string(),
+            meta: None,
         }
         .no_annotation();
 
@@ -425,6 +431,7 @@ mod tests {
         let image = RawImageContent {
             data: TEST_IMAGE_BASE64.to_string(),
             mime_type: "image/png".to_string(),
+            meta: None,
         }
         .no_annotation();
 
