@@ -437,8 +437,14 @@ impl Agent {
             };
         }
 
-        let sub_recipe_manager = self.sub_recipe_manager.lock().await;
-        let result: ToolCallResult = if sub_recipe_manager.is_sub_recipe_tool(&tool_call.name) {
+        debug!("WAITING_TOOL_START: {}", tool_call.name);
+        let result: ToolCallResult = if self
+            .sub_recipe_manager
+            .lock()
+            .await
+            .is_sub_recipe_tool(&tool_call.name)
+        {
+            let sub_recipe_manager = self.sub_recipe_manager.lock().await;
             sub_recipe_manager
                 .dispatch_sub_recipe_tool_call(
                     &tool_call.name,
@@ -615,6 +621,8 @@ impl Agent {
                 )))
             })
         };
+
+        debug!("WAITING_TOOL_END: {}", tool_call.name);
 
         (
             request_id,
