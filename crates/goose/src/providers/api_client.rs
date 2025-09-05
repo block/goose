@@ -184,14 +184,31 @@ impl fmt::Debug for AuthMethod {
 }
 
 impl ApiResponse {
-    pub async fn from_response(mut response: Response) -> Result<Self> {
+    /// Parse a `reqwest::Response` into an ApiResponse. Optionally accepts the
+    /// original request payload (as JSON string) and a provider hint so we can
+    /// log all three (request payload, URL and response body) when an error
+    /// occurs. This helps debugging when the desktop auto-starts the server
+    /// and you cannot enable debug logging easily.
+    pub async fn from_response(
+        mut response: Response,
+        request_payload: Option<&str>,
+        provider_hint: Option<&str>,
+    ) -> Result<Self> {
         let status = response.status();
 
         // Capture URL and raw body text for debugging when there is an error
         let url = response.url().clone();
         let text_body = response.text().await.ok();
+
         if !status.is_success() {
-            tracing::error!(%url, status = %status, body = %text_body.as_deref().unwrap_or("<empty>"), "LLM_RESPONSE_ERROR");
+            tracing::error!(
+                %url,
+                status = %status,
+                provider = %provider_hint.unwrap_or("<unknown>"),
+                request = %request_payload.unwrap_or("<unknown>"),
+                response = %text_body.as_deref().unwrap_or("<empty>"),
+                "LLM_RESPONSE_ERROR"
+            );
         }
 
         // If the body is valid JSON, parse it into payload; otherwise use None
@@ -348,8 +365,10 @@ impl<'a> ApiRequestBuilder<'a> {
     }
 
     pub async fn api_post(self, payload: &Value) -> Result<ApiResponse> {
+        let payload_str = serde_json::to_string(payload).unwrap_or_else(|_| "{}".to_string());
+        let provider_hint = self.client.host.as_str();
         let response = self.response_post(payload).await?;
-        ApiResponse::from_response(response).await
+        ApiResponse::from_response(response, Some(&payload_str), Some(provider_hint)).await
     }
 
     pub async fn response_post(self, payload: &Value) -> Result<Response> {
@@ -376,8 +395,10 @@ impl<'a> ApiRequestBuilder<'a> {
     }
 
     pub async fn api_get(self) -> Result<ApiResponse> {
+        // GET doesn't always have a payload, but keep consistency
+        let provider_hint = self.client.host.as_str();
         let response = self.response_get().await?;
-        ApiResponse::from_response(response).await
+        ApiResponse::from_response(response, None, Some(provider_hint)).await
     }
 
     pub async fn response_get(self) -> Result<Response> {
