@@ -28,7 +28,7 @@ export default function ChatSettingsSection() {
         </CardContent>
       </Card>
 
-      {/* Voice Dictation - now integrated directly without redundant Card wrapper */}
+
       <Card className="pb-2 rounded-lg">
         <CardContent className="px-2">
           <DictationSection />
