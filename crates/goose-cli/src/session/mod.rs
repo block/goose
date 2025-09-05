@@ -1311,6 +1311,8 @@ impl Session {
                 }
             }
         }
+
+        output::display_timestamp();
         println!();
 
         Ok(())
