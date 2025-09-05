@@ -180,24 +180,38 @@ export default function ProviderConfigurationModal() {
 
         try {
           const secretKey = await window.electron.getSecretKey();
-          // Get base host/port from electron main-provided config or appConfig
-          const mainCfg =
+
+          // Determine server base URL. Prefer electron main-provided config, then appConfig,
+          // then the page origin if it is http(s), otherwise fallback to localhost default.
+          const electronCfg =
             window.electron && window.electron.getConfig ? window.electron.getConfig() : null;
-          const host = mainCfg?.GOOSE_API_HOST ?? window.appConfig?.get('GOSE_API_HOST');
-          const port = mainCfg?.GOSE_PORT ?? window.appConfig?.get('GOSE_PORT');
-          if (!host || !port) {
-            console.error(
-              '[ProviderConfiguationModal] missing GOOSE_API_HOST/GOOSE_PORT; cannot call server PUT'
-            );
-            return;
+          const hostCfg = electronCfg?.GOOSE_API_HOST ?? window.appConfig?.get('GOSE_API_HOST');
+          const portCfg = electronCfg?.GOOSE_PORT ?? window.appConfig?.get('GOSE_PORT');
+
+          let base: string | null = null;
+          if (hostCfg) {
+            base = String(hostCfg);
+            if (!base.startsWith('http://') && !base.startsWith('https://')) {
+              base = `http://${base}`;
+            }
+            base = base.replace(/\/+$/g, '');
+          } else if (
+            window.location &&
+            window.location.origin &&
+            (window.location.origin.startsWith('http://') ||
+              window.location.origin.startsWith('https://'))
+          ) {
+            base = window.location.origin.replace(/\/+$/g, '');
+          } else {
+            // Last resort fallback (best-effort). This will often be correct in dev.
+            base = 'http://127.0.0.1:17123';
           }
-          let base = String(host);
-          if (!base.startsWith('http://') && !base.startsWith('https://')) {
-            base = `http://${base}`;
-          }
-          base = base.replace(/\/+$/g, '');
-          const url = `${base}:${port}/config/custom-providers/${currentProvider.name}`;
+
+          const url = portCfg
+            ? `${base}:${portCfg}/config/custom-providers/${currentProvider.name}`
+            : `${base}/config/custom-providers/${currentProvider.name}`;
           console.info('[ProviderConfiguationModal] PUT', url, payload);
+
           const res = await fetch(url, {
             method: 'PUT',
             headers: {
