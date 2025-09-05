@@ -154,7 +154,7 @@ pub fn register_custom_providers(
     // result in cross-provider collisions if stored in the keyring. If that
     // legacy key exists, log a warning so operators can remove/migrate it.
     let global_config = crate::config::Config::global();
-    if let Ok(val) = global_config.get_secret("CUSTOM_PROVIDER_BASE_URL") {
+    if let Ok(val) = global_config.get_secret::<String>("CUSTOM_PROVIDER_BASE_URL") {
         tracing::warn!("Detected legacy shared key 'CUSTOM_PROVIDER_BASE_URL' in secret storage. This can cause custom providers to use the wrong base_url. Value: {}.", val);
         // Attempt to remove the legacy shared key from secret storage. This is
         // a best-effort cleanup to prevent custom providers from picking up a

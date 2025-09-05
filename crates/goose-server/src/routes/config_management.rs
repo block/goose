@@ -3,7 +3,7 @@ use crate::routes::utils::check_provider_configured;
 use crate::state::AppState;
 use axum::{
     extract::{Path, State},
-    routing::{delete, get, post},
+    routing::{delete, get, post, put},
     Json, Router,
 };
 use etcetera::{choose_app_strategy, AppStrategy};
@@ -84,6 +84,15 @@ pub struct CreateCustomProviderRequest {
     pub api_url: String,
     pub api_key: String,
     pub models: Vec<String>,
+    pub supports_streaming: Option<bool>,
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct UpdateCustomProviderRequest {
+    pub display_name: Option<String>,
+    pub api_url: Option<String>,
+    pub api_key: Option<String>,
+    pub models: Option<Vec<String>>,
     pub supports_streaming: Option<bool>,
 }
 

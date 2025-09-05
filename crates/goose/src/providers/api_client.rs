@@ -190,7 +190,7 @@ impl ApiResponse {
     /// occurs. This helps debugging when the desktop auto-starts the server
     /// and you cannot enable debug logging easily.
     pub async fn from_response(
-        mut response: Response,
+        response: Response,
         request_payload: Option<&str>,
         provider_hint: Option<&str>,
     ) -> Result<Self> {
@@ -198,6 +198,7 @@ impl ApiResponse {
 
         // Capture URL and raw body text for debugging when there is an error
         let url = response.url().clone();
+        let response = response;
         let text_body = response.text().await.ok();
 
         if !status.is_success() {
@@ -334,9 +335,20 @@ impl ApiClient {
             base_url.set_path(&format!("{}/", base_path));
         }
 
-        base_url
+        // Join the requested path onto the base URL.
+        let mut joined = base_url
             .join(path)
-            .map_err(|e| anyhow::anyhow!("Failed to construct URL: {}", e))
+            .map_err(|e| anyhow::anyhow!("Failed to construct URL: {}", e))?;
+
+        // If the caller's path does not explicitly end with a slash, ensure we
+        // do not introduce a trailing slash on the final URL. Some remote APIs
+        // treat a trailing slash as a different endpoint and return 404.
+        if !path.ends_with('/') {
+            let url_str = joined.as_str().trim_end_matches('/').to_string();
+            joined = Url::parse(&url_str).map_err(|e| anyhow::anyhow!("Failed to normalize URL: {}", e))?;
+        }
+
+        Ok(joined)
     }
 
     async fn get_oauth_token(&self, config: &OAuthConfig) -> Result<String> {
