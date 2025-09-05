@@ -3,6 +3,7 @@ import { useForm } from '@tanstack/react-form';
 import { z } from 'zod';
 import { Download } from 'lucide-react';
 import { Button } from '../ui/button';
+import { Input } from '../ui/input';
 import { Recipe, decodeRecipe } from '../../recipe';
 import { saveRecipe } from '../../recipe/recipeStorage';
 import { toastSuccess, toastError } from '../../toasts';
@@ -214,6 +215,42 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
                 </div>
               )}
             </importRecipeForm.Field>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-border-subtle" />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-background-default text-text-muted"></span>
+              </div>
+            </div>
+
+            <div>
+              <label
+                htmlFor="import-yaml-file"
+                className="block text-sm font-medium text-text-standard mb-3"
+              >
+                YAML
+              </label>
+              <div className="relative">
+                <Input
+                  id="import-yaml-file"
+                  type="file"
+                  accept=".yaml,.yml"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      // TODO: Handle file selection in Task 3
+                      console.log('File selected:', file.name);
+                    }
+                  }}
+                />
+              </div>
+            </div>
+
+            <p className="text-xs text-text-muted">
+              Ensure you review contents of YAML files before adding them to your goose interface.
+            </p>
 
             <importRecipeForm.Field name="recipeName">
               {(field) => {
