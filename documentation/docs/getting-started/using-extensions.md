@@ -12,10 +12,11 @@ Extensions are add-ons that provide a way to extend the functionality of Goose b
 Extensions are based on the [Model Context Protocol (MCP)](https://github.com/modelcontextprotocol), so you can connect
 Goose to a wide ecosystem of capabilities.
 
+Goose automatically checks external extensions for known malware before activation. If a malicious package is detected, the [extension will be blocked](/docs/troubleshooting#malicious-package-detected) with a clear error message.
+
 :::tip Tutorials
 Check out the [step-by-step tutorials](/docs/category/mcp-servers) for adding and using several Goose Extensions
 :::
-
 
 ## Built-in Extensions
 Out of the box, Goose is installed with a few extensions but with only the `Developer` extension enabled by default.
@@ -664,4 +665,4 @@ goose session --with-streamable-http-extension "https://example.com/streamable"
 
 Goose extensions are implemented with MCP, a standard protocol that allows AI models and agents to securely connect with local or remote resources. Learn how to build your own [extension as an MCP server](https://modelcontextprotocol.io/quickstart/server).
 
-[extensions-directory]: https://block.github.io/goose/v1/extensions
+[extensions-directory]: https://block.github.io/goose/extensions/
