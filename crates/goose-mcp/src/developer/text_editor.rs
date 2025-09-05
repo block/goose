@@ -188,6 +188,85 @@ fn generate_summary(results: &DiffResults, is_single_file: bool, base_path: &Pat
     ]
 }
 
+/// Applies a single patch and updates results
+fn apply_single_patch(
+    patch: &mpatch::Patch,
+    base_dir: &Path,
+    file_history: &std::sync::Arc<std::sync::Mutex<HashMap<PathBuf, Vec<String>>>>,
+    results: &mut DiffResults,
+    failed_hunks: &mut Vec<String>,
+) -> Result<(), ErrorData> {
+    let file_path = base_dir.join(&patch.file_path);
+
+    // Validate path safety
+    validate_path_safety(base_dir, &file_path)?;
+
+    // Save history before modifying
+    let file_existed = file_path.exists();
+    if file_existed {
+        save_file_history(&file_path, file_history)?;
+    }
+
+    // Apply patch with fuzzy matching (70% similarity threshold)
+    let success = apply_patch(patch, base_dir, false, 0.7).map_err(|e| match e {
+        PatchError::Io { path, source } => ErrorData::new(
+            ErrorCode::INTERNAL_ERROR,
+            format!("Failed to process '{}': {}", path.display(), source),
+            None,
+        ),
+        PatchError::PathTraversal(path) => ErrorData::new(
+            ErrorCode::INVALID_PARAMS,
+            format!(
+                "Security: Path '{}' would escape the base directory",
+                path.display()
+            ),
+            None,
+        ),
+        PatchError::TargetNotFound(path) => ErrorData::new(
+            ErrorCode::INTERNAL_ERROR,
+            format!(
+                "File '{}' not found and patch doesn't create it",
+                path.display()
+            ),
+            None,
+        ),
+        PatchError::MissingFileHeader => ErrorData::new(
+            ErrorCode::INVALID_PARAMS,
+            "Invalid patch format".to_string(),
+            None,
+        ),
+    })?;
+
+    if !success {
+        // Collect information about failed hunks for better error reporting
+        let hunk_count = patch.hunks.len();
+        let context_preview = patch
+            .hunks
+            .first()
+            .and_then(|h| {
+                let match_block = h.get_match_block();
+                match_block.first().map(|s| s.to_string())
+            })
+            .unwrap_or_else(|| "(empty context)".to_string());
+
+        failed_hunks.push(format!(
+            "Failed to apply some hunks to '{}' ({} hunks total). First expected line: '{}'",
+            patch.file_path.display(),
+            hunk_count,
+            context_preview
+        ));
+    }
+
+    // Update statistics
+    if file_existed {
+        results.files_modified += 1;
+    } else {
+        results.files_created += 1;
+    }
+
+    Ok(())
+}
+
 /// Applies any diff (single or multi-file) using mpatch for fuzzy matching
 pub async fn apply_diff(
     base_path: &Path,
@@ -255,73 +334,13 @@ pub async fn apply_diff(
     let mut failed_hunks = Vec::new();
 
     for patch in &patches {
-        let file_path = base_dir.join(&patch.file_path);
-
-        // Validate path safety
-        validate_path_safety(&base_dir, &file_path)?;
-
-        // Save history before modifying
-        let file_existed = file_path.exists();
-        if file_existed {
-            save_file_history(&file_path, file_history)?;
-        }
-
-        // Apply patch with fuzzy matching (70% similarity threshold)
-        let success = apply_patch(&patch, &base_dir, false, 0.7).map_err(|e| match e {
-            PatchError::Io { path, source } => ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!("Failed to process '{}': {}", path.display(), source),
-                None,
-            ),
-            PatchError::PathTraversal(path) => ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                format!(
-                    "Security: Path '{}' would escape the base directory",
-                    path.display()
-                ),
-                None,
-            ),
-            PatchError::TargetNotFound(path) => ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!(
-                    "File '{}' not found and patch doesn't create it",
-                    path.display()
-                ),
-                None,
-            ),
-            PatchError::MissingFileHeader => ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                "Invalid patch format".to_string(),
-                None,
-            ),
-        })?;
-
-        if !success {
-            // Collect information about failed hunks for better error reporting
-            let hunk_count = patch.hunks.len();
-            let context_preview = patch
-                .hunks
-                .first()
-                .and_then(|h| {
-                    let match_block = h.get_match_block();
-                    match_block.first().map(|s| s.to_string())
-                })
-                .unwrap_or_else(|| "(empty context)".to_string());
-
-            failed_hunks.push(format!(
-                "Failed to apply some hunks to '{}' ({} hunks total). First expected line: '{}'",
-                patch.file_path.display(),
-                hunk_count,
-                context_preview
-            ));
-        }
-
-        // Update statistics
-        if file_existed {
-            results.files_modified += 1;
-        } else {
-            results.files_created += 1;
-        }
+        apply_single_patch(
+            patch,
+            &base_dir,
+            file_history,
+            &mut results,
+            &mut failed_hunks,
+        )?;
     }
 
     // Report any partial failures

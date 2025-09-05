@@ -1415,6 +1415,7 @@ mod tests {
                 old_str: None,
                 new_str: None,
                 insert_line: None,
+                diff: None,
             });
 
             let result = server.text_editor(view_params).await;
@@ -1441,6 +1442,7 @@ mod tests {
                 old_str: None,
                 new_str: None,
                 insert_line: None,
+                diff: None,
             });
 
             let result = server.text_editor(view_params).await;
@@ -1882,6 +1884,7 @@ mod tests {
                 new_str: None,
                 view_range: None,
                 insert_line: None,
+                diff: None,
             }))
             .await;
 
@@ -1905,6 +1908,7 @@ mod tests {
                 new_str: None,
                 view_range: None,
                 insert_line: None,
+                diff: None,
             }))
             .await;
 
@@ -2126,6 +2130,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(write_params).await.unwrap();
@@ -2139,6 +2144,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         let result = server.text_editor(view_params).await;
@@ -2445,6 +2451,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(write_params).await.unwrap();
@@ -2458,6 +2465,7 @@ mod tests {
             old_str: None,
             new_str: None, // Missing required parameter
             insert_line: Some(1),
+            diff: None,
         });
 
         let result = server.text_editor(insert_params).await;
@@ -2475,6 +2483,7 @@ mod tests {
             old_str: None,
             new_str: Some("New text".to_string()),
             insert_line: None, // Missing required parameter
+            diff: None,
         });
 
         let result = server.text_editor(insert_params).await;
@@ -2606,6 +2615,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(write_params).await.unwrap();
@@ -2619,6 +2629,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         let result = server.text_editor(view_params).await;
@@ -2643,6 +2654,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         let result = server.text_editor(view_params).await;
@@ -2674,6 +2686,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         let result = server.text_editor(view_params).await;
@@ -2704,6 +2717,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(write_params).await.unwrap();
@@ -2717,6 +2731,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         let result = server.text_editor(view_params).await;
@@ -2763,6 +2778,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(write_params).await.unwrap();
@@ -2776,6 +2792,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         let result = server.text_editor(view_params).await;
