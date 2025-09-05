@@ -4,7 +4,7 @@
  * @vitest-environment jsdom
  */
 import React from 'react';
-import { render, waitFor } from '@testing-library/react';
+import { screen, render, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { AppInner } from './App';
 
@@ -279,10 +279,7 @@ describe('App Component - Brand New State', () => {
       expect(mockElectron.reactReady).toHaveBeenCalled();
     });
 
-    // Should navigate to settings route
-    await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/settings', { state: {} });
-    });
+    expect(screen.getByText(/^Select an AI model provider/)).toBeInTheDocument();
   });
 
   it('should not redirect to /welcome when provider is configured', async () => {
