@@ -661,56 +661,6 @@ const createChat = async (
     menu.popup();
   });
 
-  // Store config in localStorage for future windows
-  const windowConfig = {
-    ...appConfig, // Use the potentially updated appConfig here as well
-    GOOSE_PORT: port, // Ensure this specific window's config gets the correct port
-    GOOSE_WORKING_DIR: working_dir,
-    REQUEST_DIR: dir,
-    GOOSE_BASE_URL_SHARE: sharingUrl,
-    recipe: recipe,
-  };
-
-  // We need to wait for the window to load before we can access localStorage
-  mainWindow.webContents.on('did-finish-load', () => {
-    const configStr = JSON.stringify(windowConfig).replace(/'/g, "\\'");
-    mainWindow.webContents
-      .executeJavaScript(
-        `
-      (function() {
-        function setConfig() {
-          try {
-            if (document.readyState === 'complete' && window.localStorage) {
-              localStorage.setItem('gooseConfig', '${configStr}');
-              return true;
-            }
-          } catch (e) {
-            console.warn('[Renderer] localStorage access failed:', e);
-          }
-          return false;
-        }
-
-        // If document is already complete, try immediately
-        if (document.readyState === 'complete') {
-          if (!setConfig()) {
-            console.error('[Renderer] Failed to set localStorage config despite document being ready');
-          }
-        } else {
-          // Wait for document to be fully ready
-          document.addEventListener('DOMContentLoaded', () => {
-            if (!setConfig()) {
-              console.error('[Renderer] Failed to set localStorage config after DOMContentLoaded');
-            }
-          });
-        }
-      })();
-    `
-      )
-      .catch((error) => {
-        console.error('Failed to execute localStorage script:', error);
-      });
-  });
-
   // Handle new window creation for links
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     // Open all links in external browser
@@ -815,31 +765,8 @@ const createChat = async (
             decodedRecipe.isScheduledExecution = true;
           }
 
-          // Update the window config with the decoded recipe
-          const updatedConfig = {
-            ...windowConfig,
-            recipe: decodedRecipe,
-          };
-
           // Send the decoded recipe to the renderer process
           mainWindow.webContents.send('recipe-decoded', decodedRecipe);
-
-          // Update localStorage with the decoded recipe
-          const configStr = JSON.stringify(updatedConfig).replace(/'/g, "\\'");
-          mainWindow.webContents
-            .executeJavaScript(
-              `
-            try {
-              localStorage.setItem('gooseConfig', '${configStr}');
-              console.log('[Renderer] Recipe decoded and config updated');
-            } catch (e) {
-              console.error('[Renderer] Failed to update config with decoded recipe:', e);
-            }
-          `
-            )
-            .catch((error) => {
-              console.error('[Main] Failed to update localStorage with decoded recipe:', error);
-            });
         } else {
           console.error('[Main] Failed to decode recipe from deeplink');
           // Send error to renderer
