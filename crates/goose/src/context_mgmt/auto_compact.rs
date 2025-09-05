@@ -255,6 +255,7 @@ mod tests {
                     vec![MessageContent::Text(
                         RawTextContent {
                             text: "Summary of conversation".to_string(),
+                            meta: None,
                         }
                         .no_annotation(),
                     )],

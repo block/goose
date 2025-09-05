@@ -374,6 +374,7 @@ pub fn load_image_file(path: &str) -> Result<ImageContent, ProviderError> {
     Ok(RawImageContent {
         mime_type: mime_type.to_string(),
         data,
+        meta: None,
     }
     .no_annotation())
 }
