@@ -526,7 +526,6 @@ const createChat = async (
   scheduledJobId?: string // Scheduled job ID if applicable
 ) => {
   // Initialize variables for process and configuration
-  console.log('createChat', `recipe=${recipe}`);
   let port = 0;
   let working_dir = '';
   let goosedProcess: import('child_process').ChildProcess | null = null;

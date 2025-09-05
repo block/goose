@@ -358,7 +358,6 @@ export function AppInner() {
     if (loadingHub) {
       (async () => {
         try {
-          console.log('pre-initializing an agent');
           await loadCurrentChat({
             setAgentWaitingMessage,
             setIsExtensionsLoading,
