@@ -718,6 +718,8 @@ pub async fn get_current_model(
 
 #[utoipa::path(
     post,
+
+
     path = "/config/custom-providers",
     request_body = CreateCustomProviderRequest,
     responses(
@@ -748,6 +750,77 @@ pub async fn create_custom_provider(
     }
 
     Ok(Json(format!("Custom provider added - ID: {}", config.id())))
+}
+
+#[utoipa::path(
+    put,
+    path = "/config/custom-providers/{id}",
+    request_body = UpdateCustomProviderRequest,
+    responses(
+        (status = 200, description = "Custom provider updated successfully", body = String),
+        (status = 400, description = "Invalid request"),
+        (status = 404, description = "Provider not found"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn update_custom_provider(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    axum::extract::Path(id): axum::extract::Path<String>,
+    Json(request): Json<UpdateCustomProviderRequest>,
+) -> Result<Json<String>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
+    let custom_providers_dir = crate::config::custom_providers::custom_providers_dir();
+    let file_path = custom_providers_dir.join(format!("{}.json", id));
+
+    if !file_path.exists() {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    // Read existing config
+    let content = std::fs::read_to_string(&file_path).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let mut config: crate::config::custom_providers::CustomProviderConfig =
+        serde_json::from_str(&content).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Update fields if provided
+    if let Some(display_name) = request.display_name {
+        config.display_name = display_name;
+    }
+    if let Some(api_url) = request.api_url {
+        config.base_url = api_url;
+    }
+    if let Some(models) = request.models {
+        config.models = models
+            .into_iter()
+            .map(|m| crate::providers::base::ModelInfo::new(m, 128000))
+            .collect();
+    }
+    if let Some(s) = request.supports_streaming {
+        config.supports_streaming = Some(s);
+    }
+
+    // Persist API key into secrets if provided
+    if let Some(api_key) = request.api_key {
+        let cfg = crate::config::Config::global();
+        if let Err(e) = cfg.set_secret(&config.api_key_env, serde_json::Value::String(api_key)) {
+            tracing::error!("Failed to set secret for {}: {}", config.api_key_env, e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    // Save updated JSON atomically
+    let tmp = file_path.with_extension("json.tmp");
+    let json_content = serde_json::to_string_pretty(&config).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    std::fs::write(&tmp, &json_content).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    std::fs::rename(&tmp, &file_path).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Refresh in-memory providers
+    if let Err(e) = crate::providers::refresh_custom_providers() {
+        tracing::warn!("Failed to refresh custom providers after update: {}", e);
+    }
+
+    Ok(Json(format!("Updated custom provider: {}", id)))
 }
 
 #[utoipa::path(
