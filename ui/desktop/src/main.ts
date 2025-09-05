@@ -15,6 +15,7 @@ import {
   Tray,
 } from 'electron';
 import { Buffer } from 'node:buffer';
+import { screen } from 'electron';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import started from 'electron-squirrel-startup';
@@ -2137,6 +2138,32 @@ app.whenReady().then(async () => {
   ipcMain.on('restart-app', () => {
     app.relaunch();
     app.exit(0);
+  });
+
+  // Handle sidecar toggling to resize window
+  ipcMain.on('sidecar-toggled', (event, isOpen: boolean) => {
+    try {
+      const win = BrowserWindow.fromWebContents(event.sender);
+      if (!win) return;
+      const bounds = win.getBounds();
+      const TARGET_DELTA = 420; // pixels reserved for sidecar
+      if (isOpen) {
+        // Enlarge window width by TARGET_DELTA up to available screen
+        const display = screen.getDisplayMatching(bounds);
+        const maxWidth = display.workArea.width;
+        const newWidth = Math.min(bounds.width + TARGET_DELTA, maxWidth);
+        if (newWidth !== bounds.width) {
+          win.setSize(newWidth, bounds.height, true);
+        }
+      } else {
+        const newWidth = Math.max(bounds.width - TARGET_DELTA, 750);
+        if (newWidth !== bounds.width) {
+          win.setSize(newWidth, bounds.height, true);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to handle sidecar toggle resize', e);
+    }
   });
 
   // Handler for getting app version
