@@ -6,12 +6,14 @@ use goose::conversation::message::{Message, MessageContent};
 use goose::conversation::Conversation;
 use goose::providers::create;
 use std::collections::{HashMap, HashSet};
+use std::fs;
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot, Mutex};
 use tokio::task::JoinSet;
 use tokio_util::compat::{TokioAsyncReadCompatExt as _, TokioAsyncWriteCompatExt as _};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
+use url::Url;
 
 /// Represents a single Goose session for ACP
 struct GooseSession {
@@ -26,6 +28,22 @@ struct GooseAcpAgent {
     session_update_tx: mpsc::UnboundedSender<(acp::SessionNotification, oneshot::Sender<()>)>,
     sessions: Arc<Mutex<HashMap<String, GooseSession>>>,
     provider: Arc<dyn goose::providers::base::Provider>,
+}
+
+fn read_resource_link(link: acp::ResourceLink) -> Option<String> {
+    let url = Url::parse(&link.uri).ok()?;
+    if url.scheme() == "file" {
+        let path = url.to_file_path().ok()?;
+        let contents = fs::read_to_string(&path).ok()?;
+
+        Some(format!(
+            "\n\n# {}\n```\n{}\n```",
+            path.to_string_lossy(),
+            contents
+        ))
+    } else {
+        None
+    }
 }
 
 impl GooseAcpAgent {
@@ -234,9 +252,12 @@ impl acp::Agent for GooseAcpAgent {
                         }
                     }
                 }
-                _ => {
-                    // Ignore unsupported content types for now
+                acp::ContentBlock::ResourceLink(link) => {
+                    if let Some(text) = read_resource_link(link) {
+                        user_message = user_message.with_text(text)
+                    }
                 }
+                acp::ContentBlock::Audio(..) => (),
             }
         }
 
@@ -492,4 +513,52 @@ pub async fn run_acp_agent() -> Result<()> {
         .await?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use agent_client_protocol::ResourceLink;
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    use crate::commands::acp::read_resource_link;
+
+    fn new_resource_link(content: &str) -> anyhow::Result<(ResourceLink, NamedTempFile)> {
+        let mut file = NamedTempFile::new()?;
+        file.write_all(content.as_bytes())?;
+
+        let link = ResourceLink {
+            annotations: None,
+            description: None,
+            mime_type: None,
+            name: file
+                .path()
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .to_string(),
+            size: None,
+            title: None,
+            uri: format!("file://{}", file.path().to_str().unwrap()),
+        };
+        Ok((link, file))
+    }
+
+    #[test]
+    fn test_read_resource_link_non_file_scheme() {
+        let (link, file) = new_resource_link("print(\"hello, world\")").unwrap();
+
+        let result = read_resource_link(link).unwrap();
+        let expected = format!(
+            "
+
+# {}
+```
+print(\"hello, world\")
+```",
+            file.path().to_str().unwrap(),
+        );
+
+        assert_eq!(result, expected,)
+    }
 }
