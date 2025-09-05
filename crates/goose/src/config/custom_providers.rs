@@ -155,7 +155,20 @@ pub fn register_custom_providers(
     // legacy key exists, log a warning so operators can remove/migrate it.
     let global_config = crate::config::Config::global();
     if let Ok(val) = global_config.get_secret("CUSTOM_PROVIDER_BASE_URL") {
-        tracing::warn!("Detected legacy shared key 'CUSTOM_PROVIDER_BASE_URL' in secret storage. This can cause custom providers to use the wrong base_url. Value: {}. Please remove or migrate this key to per-provider keys.", val);
+        tracing::warn!("Detected legacy shared key 'CUSTOM_PROVIDER_BASE_URL' in secret storage. This can cause custom providers to use the wrong base_url. Value: {}.", val);
+        // Attempt to remove the legacy shared key from secret storage. This is
+        // a best-effort cleanup to prevent custom providers from picking up a
+        // wrong global base_url. If deletion fails, log the error and continue
+        // without panicking.
+        match global_config.delete_secret("CUSTOM_PROVIDER_BASE_URL") {
+            Ok(_) => tracing::info!(
+                "Removed legacy secret key 'CUSTOM_PROVIDER_BASE_URL' from secret storage."
+            ),
+            Err(e) => tracing::error!(
+                "Failed to remove legacy secret key 'CUSTOM_PROVIDER_BASE_URL': {}",
+                e
+            ),
+        }
     }
 
     for config in configs {
@@ -192,7 +205,12 @@ pub fn register_custom_providers(
             ProviderEngine::OpenAI => {
                 let config_keys = vec![
                     crate::providers::base::ConfigKey::new(&config.api_key_env, true, true, None),
-                    crate::providers::base::ConfigKey::new(&base_url_key, true, false, Some(&config.base_url)),
+                    crate::providers::base::ConfigKey::new(
+                        &base_url_key,
+                        true,
+                        false,
+                        Some(&config.base_url),
+                    ),
                 ];
                 registry.register_with_name::<OpenAiProvider, _>(
                     config.name.clone(),
@@ -209,7 +227,12 @@ pub fn register_custom_providers(
             ProviderEngine::Ollama => {
                 let config_keys = vec![
                     crate::providers::base::ConfigKey::new(&config.api_key_env, true, true, None),
-                    crate::providers::base::ConfigKey::new(&base_url_key, true, false, Some(&config.base_url)),
+                    crate::providers::base::ConfigKey::new(
+                        &base_url_key,
+                        true,
+                        false,
+                        Some(&config.base_url),
+                    ),
                 ];
                 registry.register_with_name::<OllamaProvider, _>(
                     config.name.clone(),
@@ -226,7 +249,12 @@ pub fn register_custom_providers(
             ProviderEngine::Anthropic => {
                 let config_keys = vec![
                     crate::providers::base::ConfigKey::new(&config.api_key_env, true, true, None),
-                    crate::providers::base::ConfigKey::new(&base_url_key, true, false, Some(&config.base_url)),
+                    crate::providers::base::ConfigKey::new(
+                        &base_url_key,
+                        true,
+                        false,
+                        Some(&config.base_url),
+                    ),
                 ];
                 registry.register_with_name::<AnthropicProvider, _>(
                     config.name.clone(),
