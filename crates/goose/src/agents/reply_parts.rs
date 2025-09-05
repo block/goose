@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use async_stream::try_stream;
 use futures::stream::StreamExt;
+use tracing::debug;
 
 use super::super::agents::Agent;
 use crate::conversation::message::{Message, MessageContent, ToolRequest};
@@ -173,14 +174,18 @@ impl Agent {
         let provider = provider.clone();
 
         let mut stream = if provider.supports_streaming() {
-            provider
+            debug!("WAITING_LLM_STREAM_START");
+            let msg_stream = provider
                 .stream(
                     system_prompt.as_str(),
                     messages_for_provider.messages(),
                     &tools,
                 )
-                .await?
+                .await?;
+            debug!("WAITING_LLM_STREAM_END");
+            msg_stream
         } else {
+            debug!("WAITING_LLM_START");
             let (message, mut usage) = provider
                 .complete(
                     system_prompt.as_str(),
@@ -188,6 +193,7 @@ impl Agent {
                     &tools,
                 )
                 .await?;
+            debug!("WAITING_LLM_END");
 
             // Ensure we have token counts for non-streaming case
             usage

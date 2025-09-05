@@ -3,6 +3,7 @@ use clap::{Args, Parser, Subcommand};
 
 use goose::config::{Config, ExtensionConfig};
 
+use crate::commands::acp::run_acp_agent;
 use crate::commands::bench::agent_generator;
 use crate::commands::configure::handle_configure;
 use crate::commands::info::handle_info;
@@ -290,6 +291,10 @@ enum Command {
     /// Manage system prompts and behaviors
     #[command(about = "Run one of the mcp servers bundled with goose")]
     Mcp { name: String },
+
+    /// Run Goose as an ACP (Agent Client Protocol) agent
+    #[command(about = "Run Goose as an ACP agent server on stdio")]
+    Acp {},
 
     /// Start or resume interactive chat sessions
     #[command(
@@ -709,6 +714,7 @@ pub async fn cli() -> Result<()> {
         Some(Command::Configure {}) => "configure",
         Some(Command::Info { .. }) => "info",
         Some(Command::Mcp { .. }) => "mcp",
+        Some(Command::Acp {}) => "acp",
         Some(Command::Session { .. }) => "session",
         Some(Command::Project {}) => "project",
         Some(Command::Projects) => "projects",
@@ -738,6 +744,10 @@ pub async fn cli() -> Result<()> {
         }
         Some(Command::Mcp { name }) => {
             let _ = run_server(&name).await;
+        }
+        Some(Command::Acp {}) => {
+            let _ = run_acp_agent().await;
+            return Ok(());
         }
         Some(Command::Session {
             command,

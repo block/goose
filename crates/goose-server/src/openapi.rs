@@ -9,7 +9,7 @@ use goose::session::info::SessionInfo;
 use goose::session::SessionMetadata;
 use rmcp::model::{
     Annotations, Content, EmbeddedResource, ImageContent, RawEmbeddedResource, RawImageContent,
-    RawTextContent, ResourceContents, Role, TextContent, Tool, ToolAnnotations,
+    RawResource, RawTextContent, ResourceContents, Role, TextContent, Tool, ToolAnnotations,
 };
 use utoipa::{OpenApi, ToSchema};
 
@@ -319,6 +319,7 @@ derive_utoipa!(TextContent as TextContentSchema);
 derive_utoipa!(RawTextContent as RawTextContentSchema);
 derive_utoipa!(RawImageContent as RawImageContentSchema);
 derive_utoipa!(RawEmbeddedResource as RawEmbeddedResourceSchema);
+derive_utoipa!(RawResource as RawResourceSchema);
 derive_utoipa!(Tool as ToolSchema);
 derive_utoipa!(ToolAnnotations as ToolAnnotationsSchema);
 derive_utoipa!(Annotations as AnnotationsSchema);
@@ -370,6 +371,8 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::config_management::upsert_permissions,
         super::routes::config_management::create_custom_provider,
         super::routes::config_management::remove_custom_provider,
+        super::routes::agent::start_agent,
+        super::routes::agent::resume_agent,
         super::routes::agent::get_tools,
         super::routes::agent::add_sub_recipes,
         super::routes::agent::extend_prompt,
@@ -423,6 +426,7 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         RawTextContentSchema,
         RawImageContentSchema,
         RawEmbeddedResourceSchema,
+        RawResourceSchema,
         AnnotatedSchema,
         ToolResponse,
         ToolRequest,
@@ -486,6 +490,10 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::agent::UpdateProviderRequest,
         super::routes::agent::SessionConfigRequest,
         super::routes::agent::GetToolsQuery,
+        super::routes::agent::UpdateRouterToolSelectorRequest,
+        super::routes::agent::StartAgentRequest,
+        super::routes::agent::ResumeAgentRequest,
+        super::routes::agent::StartAgentResponse,
         super::routes::agent::ErrorResponse,
     ))
 )]

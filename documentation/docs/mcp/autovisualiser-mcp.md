@@ -5,8 +5,11 @@ description: Add automatic data visualization to Goose
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
 import ImageCarousel from '@site/src/components/ImageCarousel';
+
+<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/txh6DlzPwNo" />
 
 The Auto Visualiser extension enables Goose to automatically generate interactive data visualizations directly in your conversation. This built-in extension leverages MCP-UI to create charts, graphs, maps, and other visual representations of your data without requiring manual requests.
 

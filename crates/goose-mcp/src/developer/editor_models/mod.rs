@@ -9,7 +9,7 @@ pub use openai_compatible_editor::OpenAICompatibleEditor;
 pub use relace_editor::RelaceEditor;
 
 /// Enum for different editor models that can perform intelligent code editing
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum EditorModel {
     MorphLLM(MorphLLMEditor),
     OpenAICompatible(OpenAICompatibleEditor),

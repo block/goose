@@ -120,6 +120,50 @@ pub async fn check_compaction_needed(
     })
 }
 
+/// Perform compaction on messages without checking thresholds
+///
+/// This function directly performs compaction on the provided messages.
+/// If the most recent message is a user message, it will be preserved by removing it
+/// before compaction and adding it back afterwards.
+///
+/// # Arguments
+/// * `agent` - The agent to use for context management
+/// * `messages` - The current message history
+///
+/// # Returns
+/// * `AutoCompactResult` containing the compacted messages and metadata
+pub async fn perform_compaction(agent: &Agent, messages: &[Message]) -> Result<AutoCompactResult> {
+    info!("Performing message compaction");
+
+    // Check if the most recent message is a user message
+    let (messages_to_compact, preserved_user_message) = if let Some(last_message) = messages.last()
+    {
+        if matches!(last_message.role, rmcp::model::Role::User) {
+            // Remove the last user message before compaction
+            (&messages[..messages.len() - 1], Some(last_message.clone()))
+        } else {
+            (messages, None)
+        }
+    } else {
+        (messages, None)
+    };
+
+    // Perform the compaction on messages excluding the preserved user message
+    let (mut compacted_messages, _, summarization_usage) =
+        agent.summarize_context(messages_to_compact).await?;
+
+    // Add back the preserved user message if it exists
+    if let Some(user_message) = preserved_user_message {
+        compacted_messages.push(user_message);
+    }
+
+    Ok(AutoCompactResult {
+        compacted: true,
+        messages: compacted_messages,
+        summarization_usage,
+    })
+}
+
 /// Check if messages need compaction and compact them if necessary
 ///
 /// This is a convenience wrapper function that combines checking and compaction.
@@ -261,6 +305,7 @@ mod tests {
                     vec![MessageContent::Text(
                         RawTextContent {
                             text: "Summary of conversation".to_string(),
+                            meta: None,
                         }
                         .no_annotation(),
                     )],
@@ -295,6 +340,7 @@ mod tests {
             accumulated_input_tokens: Some(50),
             accumulated_output_tokens: Some(50),
             extension_data: crate::session::ExtensionData::new(),
+            recipe: None,
         }
     }
 

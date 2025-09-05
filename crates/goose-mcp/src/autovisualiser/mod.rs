@@ -642,6 +642,7 @@ impl AutoVisualiserRouter {
             uri: "ui://sankey/diagram".to_string(),
             mime_type: Some("text/html".to_string()),
             blob: base64_encoded,
+            meta: None,
         };
 
         Ok(vec![
@@ -686,6 +687,7 @@ impl AutoVisualiserRouter {
             uri: "ui://radar/chart".to_string(),
             mime_type: Some("text/html".to_string()),
             blob: base64_encoded,
+            meta: None,
         };
 
         Ok(vec![
@@ -730,6 +732,7 @@ impl AutoVisualiserRouter {
             uri: "ui://treemap/visualization".to_string(),
             mime_type: Some("text/html".to_string()),
             blob: base64_encoded,
+            meta: None,
         };
 
         Ok(vec![
@@ -774,6 +777,7 @@ impl AutoVisualiserRouter {
             uri: "ui://chord/diagram".to_string(),
             mime_type: Some("text/html".to_string()),
             blob: base64_encoded,
+            meta: None,
         };
 
         Ok(vec![
@@ -818,6 +822,7 @@ impl AutoVisualiserRouter {
             uri: "ui://donut/chart".to_string(),
             mime_type: Some("text/html".to_string()),
             blob: base64_encoded,
+            meta: None,
         };
 
         Ok(vec![
@@ -879,6 +884,7 @@ impl AutoVisualiserRouter {
             uri: "ui://map/visualization".to_string(),
             mime_type: Some("text/html".to_string()),
             blob: base64_encoded,
+            meta: None,
         };
 
         Ok(vec![
@@ -923,6 +929,7 @@ impl AutoVisualiserRouter {
             uri: "ui://chart/interactive".to_string(),
             mime_type: Some("text/html".to_string()),
             blob: base64_encoded,
+            meta: None,
         };
 
         Ok(vec![
@@ -1175,8 +1182,8 @@ mod tests {
         assert_eq!(content[0].audience().unwrap(), &vec![Role::User]);
 
         // Check it's a resource with HTML content
-        // Content is Annotated<RawContent>, deref to get RawContent
-        if let RawContent::Resource(resource) = &**&content[0] {
+        // Content is Annotated<RawContent>, access underlying RawContent via *
+        if let RawContent::Resource(resource) = &*content[0] {
             if let ResourceContents::BlobResourceContents { uri, mime_type, .. } =
                 &resource.resource
             {
@@ -1212,12 +1219,13 @@ mod tests {
         assert_eq!(content[0].audience().unwrap(), &vec![Role::User]);
 
         // Check it's a resource with HTML content
-        // Content is Annotated<RawContent>, deref to get RawContent
-        if let RawContent::Resource(resource) = &**&content[0] {
+        // Content is Annotated<RawContent>, access underlying RawContent via *
+        if let RawContent::Resource(resource) = &*content[0] {
             if let ResourceContents::BlobResourceContents {
                 uri,
                 mime_type,
                 blob,
+                ..
             } = &resource.resource
             {
                 assert_eq!(uri, "ui://radar/chart");

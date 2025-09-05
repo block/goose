@@ -114,7 +114,7 @@ describe('useChatEngine', () => {
       });
 
       const mockChat: ChatType = {
-        id: 'test-chat',
+        sessionId: 'test-chat',
         messages: initialMessages,
         title: 'Test Chat',
         messageHistoryIndex: 0,

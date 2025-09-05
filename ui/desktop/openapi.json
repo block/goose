@@ -85,6 +85,45 @@
         }
       }
     },
+    "/agent/resume": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "resume_agent",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResumeAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Agent started successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartAgentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid working directory"
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/agent/session_config": {
       "post": {
         "tags": [
@@ -124,6 +163,45 @@
         }
       }
     },
+    "/agent/start": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "start_agent",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Agent started successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartAgentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid working directory"
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/agent/tools": {
       "get": {
         "tags": [
@@ -139,6 +217,15 @@
             "schema": {
               "type": "string",
               "nullable": true
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "query",
+            "description": "Required session ID to scope tools to a specific session",
+            "required": true,
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -209,6 +296,16 @@
           "super::routes::agent"
         ],
         "operationId": "update_router_tool_selector",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRouterToolSelectorRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "Tool selection strategy updated successfully",
@@ -1414,9 +1511,13 @@
       "AddSubRecipesRequest": {
         "type": "object",
         "required": [
-          "sub_recipes"
+          "sub_recipes",
+          "session_id"
         ],
         "properties": {
+          "session_id": {
+            "type": "string"
+          },
           "sub_recipes": {
             "type": "array",
             "items": {
@@ -1458,12 +1559,12 @@
               "$ref": "#/components/schemas/Role"
             }
           },
-          "priority": {
-            "type": "number"
-          },
-          "timestamp": {
+          "lastModified": {
             "type": "string",
             "format": "date-time"
+          },
+          "priority": {
+            "type": "number"
           }
         }
       },
@@ -1580,6 +1681,13 @@
             "allOf": [
               {
                 "$ref": "#/components/schemas/Annotated"
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RawResource"
               }
             ]
           }
@@ -1792,6 +1900,10 @@
           "resource"
         ],
         "properties": {
+          "_meta": {
+            "type": "object",
+            "additionalProperties": true
+          },
           "annotations": {
             "anyOf": [
               {
@@ -1850,10 +1962,14 @@
       "ExtendPromptRequest": {
         "type": "object",
         "required": [
-          "extension"
+          "extension",
+          "session_id"
         ],
         "properties": {
           "extension": {
+            "type": "string"
+          },
+          "session_id": {
             "type": "string"
           }
         }
@@ -2265,10 +2381,16 @@
       },
       "GetToolsQuery": {
         "type": "object",
+        "required": [
+          "session_id"
+        ],
         "properties": {
           "extension_name": {
             "type": "string",
             "nullable": true
+          },
+          "session_id": {
+            "type": "string"
           }
         }
       },
@@ -2279,6 +2401,10 @@
           "mimeType"
         ],
         "properties": {
+          "_meta": {
+            "type": "object",
+            "additionalProperties": true
+          },
           "annotations": {
             "anyOf": [
               {
@@ -2644,7 +2770,8 @@
         "type": "object",
         "required": [
           "id",
-          "action"
+          "action",
+          "session_id"
         ],
         "properties": {
           "action": {
@@ -2655,6 +2782,9 @@
           },
           "principal_type": {
             "$ref": "#/components/schemas/PrincipalType"
+          },
+          "session_id": {
+            "type": "string"
           }
         }
       },
@@ -2762,6 +2892,10 @@
           "resource"
         ],
         "properties": {
+          "_meta": {
+            "type": "object",
+            "additionalProperties": true
+          },
           "resource": {
             "$ref": "#/components/schemas/ResourceContents"
           }
@@ -2774,10 +2908,39 @@
           "mimeType"
         ],
         "properties": {
+          "_meta": {
+            "type": "object",
+            "additionalProperties": true
+          },
           "data": {
             "type": "string"
           },
           "mimeType": {
+            "type": "string"
+          }
+        }
+      },
+      "RawResource": {
+        "type": "object",
+        "required": [
+          "uri",
+          "name"
+        ],
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "mimeType": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "uri": {
             "type": "string"
           }
         }
@@ -2788,6 +2951,10 @@
           "text"
         ],
         "properties": {
+          "_meta": {
+            "type": "object",
+            "additionalProperties": true
+          },
           "text": {
             "type": "string"
           }
@@ -2987,6 +3154,10 @@
               "text"
             ],
             "properties": {
+              "_meta": {
+                "type": "object",
+                "additionalProperties": true
+              },
               "mimeType": {
                 "type": "string"
               },
@@ -3005,6 +3176,10 @@
               "blob"
             ],
             "properties": {
+              "_meta": {
+                "type": "object",
+                "additionalProperties": true
+              },
               "blob": {
                 "type": "string"
               },
@@ -3023,6 +3198,17 @@
         "properties": {
           "json_schema": {
             "nullable": true
+          }
+        }
+      },
+      "ResumeAgentRequest": {
+        "type": "object",
+        "required": [
+          "session_id"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
           }
         }
       },
@@ -3156,6 +3342,9 @@
       },
       "SessionConfigRequest": {
         "type": "object",
+        "required": [
+          "session_id"
+        ],
         "properties": {
           "response": {
             "allOf": [
@@ -3164,6 +3353,9 @@
               }
             ],
             "nullable": true
+          },
+          "session_id": {
+            "type": "string"
           }
         }
       },
@@ -3342,6 +3534,14 @@
             "description": "The number of output tokens used in the session. Retrieved from the provider's last usage.",
             "nullable": true
           },
+          "recipe": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Recipe"
+              }
+            ],
+            "nullable": true
+          },
           "schedule_id": {
             "type": "string",
             "description": "ID of the schedule that triggered this session, if any",
@@ -3385,6 +3585,47 @@
             "type": "number",
             "format": "float",
             "nullable": true
+          }
+        }
+      },
+      "StartAgentRequest": {
+        "type": "object",
+        "required": [
+          "working_dir"
+        ],
+        "properties": {
+          "recipe": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Recipe"
+              }
+            ],
+            "nullable": true
+          },
+          "working_dir": {
+            "type": "string"
+          }
+        }
+      },
+      "StartAgentResponse": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "metadata",
+          "messages"
+        ],
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Message"
+            }
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/SessionMetadata"
+          },
+          "session_id": {
+            "type": "string"
           }
         }
       },
@@ -3462,6 +3703,10 @@
           "text"
         ],
         "properties": {
+          "_meta": {
+            "type": "object",
+            "additionalProperties": true
+          },
           "annotations": {
             "anyOf": [
               {
@@ -3645,7 +3890,8 @@
       "UpdateProviderRequest": {
         "type": "object",
         "required": [
-          "provider"
+          "provider",
+          "session_id"
         ],
         "properties": {
           "model": {
@@ -3653,6 +3899,20 @@
             "nullable": true
           },
           "provider": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          }
+        }
+      },
+      "UpdateRouterToolSelectorRequest": {
+        "type": "object",
+        "required": [
+          "session_id"
+        ],
+        "properties": {
+          "session_id": {
             "type": "string"
           }
         }

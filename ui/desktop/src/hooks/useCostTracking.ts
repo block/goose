@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useModelAndProvider } from '../components/ModelAndProviderContext';
 import { getCostForModel } from '../utils/costDatabase';
-import { SessionMetadata } from './useMessageStream';
+import { SessionMetadata } from '../api';
 
 interface UseCostTrackingProps {
   sessionInputTokens: number;

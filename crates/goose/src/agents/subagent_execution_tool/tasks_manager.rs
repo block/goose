@@ -4,6 +4,8 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::agents::subagent_execution_tool::task_types::Task;
+#[cfg(test)]
+use crate::agents::subagent_execution_tool::task_types::TaskType;
 
 #[derive(Debug, Clone)]
 pub struct TasksManager {
@@ -60,7 +62,7 @@ mod tests {
     fn create_test_task(id: &str, sub_recipe_name: &str) -> Task {
         Task {
             id: id.to_string(),
-            task_type: "sub_recipe".to_string(),
+            task_type: TaskType::SubRecipe,
             payload: json!({
                 "sub_recipe": {
                     "name": sub_recipe_name,
