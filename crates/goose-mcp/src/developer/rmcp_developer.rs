@@ -76,8 +76,8 @@ pub struct TextEditorParams {
     /// The line number after which to insert text (0 for beginning). Required for `insert` command.
     pub insert_line: Option<i64>,
 
-    /// A unified diff to apply. When provided with `str_replace`, this takes precedence over old_str/new_str.
-    /// Supports both single-file and multi-file diffs (git diff format).
+    /// A unified diff to apply. Use this over old_str/new_str - more reliable, handles multiple files, takes precedence.
+    /// Example: "--- a/file\n+++ b/file\n@@ -1,3 +1,3 @@\n context\n-old\n+new\n context" (context lines ensure accuracy)
     pub diff: Option<String>,
 }
 
