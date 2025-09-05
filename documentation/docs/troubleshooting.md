@@ -104,6 +104,13 @@ For detailed steps on updating your LLM provider, refer to the [Installation][in
 
 ---
 
+### New Recipe Warning
+
+The first time you run a given recipe in Goose Desktop, you'll see a `New Recipe Warning` dialog that allows you to review the recipe's title, description, and instructions. If you trust the recipe, click `Trust and Execute` to continue. You won't be prompted again for the same recipe unless it changes.
+
+This warning helps protect against inadvertently executing potentially harmful recipe code.
+
+---
 ### Uninstall Goose or Remove Cached Data
 
 You may need to uninstall Goose or clear existing data before re-installing. Goose stores data in a few places. Secrets, such as API keys, are stored exclusively in the system keychain.
