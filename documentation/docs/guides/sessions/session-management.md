@@ -56,6 +56,7 @@ In your first session, Goose prompts you to [set up an LLM (Large Language Model
         | New Session in Current Directory | `Cmd+N`  | `Ctrl+N`  |
         | New Session in Different Directory  | `Cmd+O` | `Ctrl+O` |
         | Focus Goose Window | `Cmd+Option+Shift+G` | `Ctrl+Alt+Shift+G` |
+        | Toggle Sidebar | `Cmd+B` | `Ctrl+B` |
 
     </TabItem>
     <TabItem value="cli" label="Goose CLI">
