@@ -234,7 +234,7 @@ You can turn your current Goose session into a reusable recipe that includes the
          3. Find your recipe in the Recipe Library
          4. Click `Use` next to the recipe you want to open
 
-  2. The first time you run a recipe, a warning dialog displays the recipe's title, description, and instructions for you to review. If you trust the recipe, click `Trust and Execute` to continue. You won't be prompted again for the same recipe unless it changes.
+  2. The first time you run a recipe, a warning dialog displays the recipe's title, description, and instructions for you to review. If you trust the recipe content, click `Trust and Execute` to continue. You won't be prompted again for the same recipe unless it changes.
 
   3. If the recipe contains parameters, enter your values in the `Recipe Parameters` dialog and click `Start Recipe`.
   
