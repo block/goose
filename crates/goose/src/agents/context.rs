@@ -81,11 +81,11 @@ impl Agent {
         let mut final_messages = Vec::new();
         let mut final_token_counts = Vec::new();
 
-        // Add all original messages with updated visibility (user_visible=true, agent_visible=false)
-        for mut msg in messages.iter().cloned() {
-            msg.metadata.user_visible = true;
-            msg.metadata.agent_visible = false;
-            final_messages.push(msg);
+        // Add all original messages with updated visibility (preserve user_visible, set agent_visible=false)
+        for msg in messages.iter().cloned() {
+            let updated_metadata = msg.metadata.with_agent_invisible();
+            let updated_msg = msg.with_metadata(updated_metadata);
+            final_messages.push(updated_msg);
             // Token count doesn't matter for agent_visible=false messages, but we'll use 0
             final_token_counts.push(0);
         }
@@ -99,9 +99,7 @@ impl Agent {
         final_token_counts.push(compaction_marker_tokens);
 
         // Add the summary message (agent_visible=true, user_visible=false)
-        let mut summary_msg = summary_message;
-        summary_msg.metadata.user_visible = false;
-        summary_msg.metadata.agent_visible = true;
+        let summary_msg = summary_message.with_metadata(MessageMetadata::agent_only());
         // For token counting purposes, we use the output tokens (the actual summary content)
         // since that's what will be in the context going forward
         let summary_tokens = summarization_usage

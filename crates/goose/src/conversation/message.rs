@@ -373,7 +373,7 @@ impl From<PromptMessage> for Message {
     }
 }
 
-#[derive(ToSchema, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(ToSchema, Clone, Copy, PartialEq, Serialize, Deserialize)]
 /// Metadata for message visibility
 #[serde(rename_all = "camelCase")]
 pub struct MessageMetadata {
@@ -409,6 +409,38 @@ impl MessageMetadata {
             user_visible: true,
             agent_visible: false,
         }
+    }
+
+    /// Create metadata for messages visible to neither user nor agent (archived)
+    pub fn invisible() -> Self {
+        MessageMetadata {
+            user_visible: false,
+            agent_visible: false,
+        }
+    }
+
+    /// Return a copy with agent_visible set to false
+    pub fn with_agent_invisible(mut self) -> Self {
+        self.agent_visible = false;
+        self
+    }
+
+    /// Return a copy with user_visible set to false
+    pub fn with_user_invisible(mut self) -> Self {
+        self.user_visible = false;
+        self
+    }
+
+    /// Return a copy with agent_visible set to true
+    pub fn with_agent_visible(mut self) -> Self {
+        self.agent_visible = true;
+        self
+    }
+
+    /// Return a copy with user_visible set to true
+    pub fn with_user_visible(mut self) -> Self {
+        self.user_visible = true;
+        self
     }
 }
 
@@ -1128,6 +1160,11 @@ mod tests {
         assert!(user_only_metadata.user_visible);
         assert!(!user_only_metadata.agent_visible);
 
+        // Test MessageMetadata::invisible()
+        let invisible_metadata = MessageMetadata::invisible();
+        assert!(!invisible_metadata.user_visible);
+        assert!(!invisible_metadata.agent_visible);
+
         // Test using them with messages
         let agent_msg = Message::assistant()
             .with_text("Agent only message")
@@ -1140,5 +1177,41 @@ mod tests {
             .with_metadata(MessageMetadata::user_only());
         assert!(user_msg.is_user_visible());
         assert!(!user_msg.is_agent_visible());
+
+        let invisible_msg = Message::user()
+            .with_text("Invisible message")
+            .with_metadata(MessageMetadata::invisible());
+        assert!(!invisible_msg.is_user_visible());
+        assert!(!invisible_msg.is_agent_visible());
+    }
+
+    #[test]
+    fn test_message_metadata_builder_methods() {
+        // Test with_agent_invisible
+        let metadata = MessageMetadata::default().with_agent_invisible();
+        assert!(metadata.user_visible);
+        assert!(!metadata.agent_visible);
+
+        // Test with_user_invisible
+        let metadata = MessageMetadata::default().with_user_invisible();
+        assert!(!metadata.user_visible);
+        assert!(metadata.agent_visible);
+
+        // Test with_agent_visible
+        let metadata = MessageMetadata::invisible().with_agent_visible();
+        assert!(!metadata.user_visible);
+        assert!(metadata.agent_visible);
+
+        // Test with_user_visible
+        let metadata = MessageMetadata::invisible().with_user_visible();
+        assert!(metadata.user_visible);
+        assert!(!metadata.agent_visible);
+
+        // Test chaining
+        let metadata = MessageMetadata::invisible()
+            .with_user_visible()
+            .with_agent_visible();
+        assert!(metadata.user_visible);
+        assert!(metadata.agent_visible);
     }
 }

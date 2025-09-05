@@ -14,7 +14,7 @@ use rmcp::model::{
 use utoipa::{OpenApi, ToSchema};
 
 use goose::conversation::message::{
-    ContextLengthExceeded, FrontendToolRequest, Message, MessageContent, RedactedThinkingContent,
+    ContextLengthExceeded, FrontendToolRequest, Message, MessageContent, MessageMetadata, RedactedThinkingContent,
     SummarizationRequested, ThinkingContent, ToolConfirmationRequest, ToolRequest, ToolResponse,
 };
 use utoipa::openapi::schema::{
@@ -418,6 +418,7 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::session::SessionHistoryResponse,
         Message,
         MessageContent,
+        MessageMetadata,
         ContentSchema,
         EmbeddedResourceSchema,
         ImageContentSchema,

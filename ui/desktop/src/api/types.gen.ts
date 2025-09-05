@@ -360,6 +360,7 @@ export type Message = {
     content: Array<MessageContent>;
     created?: number;
     id?: string | null;
+    metadata?: MessageMetadata;
     role: Role;
 };
 
@@ -387,6 +388,20 @@ export type MessageContent = (TextContent & {
 }) | (SummarizationRequested & {
     type: 'summarizationRequested';
 });
+
+/**
+ * Metadata for message visibility
+ */
+export type MessageMetadata = {
+    /**
+     * Whether the message should be included in the agent's context window
+     */
+    agentVisible?: boolean;
+    /**
+     * Whether the message should be visible to the user in the UI
+     */
+    userVisible?: boolean;
+};
 
 /**
  * Information about a model's capabilities

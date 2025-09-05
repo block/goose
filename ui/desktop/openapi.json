@@ -2502,6 +2502,9 @@
             "type": "string",
             "nullable": true
           },
+          "metadata": {
+            "$ref": "#/components/schemas/MessageMetadata"
+          },
           "role": {
             "$ref": "#/components/schemas/Role"
           }
@@ -2723,6 +2726,20 @@
         "description": "Content passed inside a message, which can be both simple content and tool content",
         "discriminator": {
           "propertyName": "type"
+        }
+      },
+      "MessageMetadata": {
+        "type": "object",
+        "description": "Metadata for message visibility",
+        "properties": {
+          "agentVisible": {
+            "type": "boolean",
+            "description": "Whether the message should be included in the agent's context window"
+          },
+          "userVisible": {
+            "type": "boolean",
+            "description": "Whether the message should be visible to the user in the UI"
+          }
         }
       },
       "ModelInfo": {
