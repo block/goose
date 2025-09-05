@@ -514,3 +514,51 @@ pub async fn run_acp_agent() -> Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use agent_client_protocol::ResourceLink;
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    use crate::commands::acp::read_resource_link;
+
+    fn new_resource_link(content: &str) -> anyhow::Result<(ResourceLink, NamedTempFile)> {
+        let mut file = NamedTempFile::new()?;
+        file.write_all(content.as_bytes())?;
+
+        let link = ResourceLink {
+            annotations: None,
+            description: None,
+            mime_type: None,
+            name: file
+                .path()
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .to_string(),
+            size: None,
+            title: None,
+            uri: format!("file://{}", file.path().to_str().unwrap()),
+        };
+        Ok((link, file))
+    }
+
+    #[test]
+    fn test_read_resource_link_non_file_scheme() {
+        let (link, file) = new_resource_link("print(\"hello, world\")").unwrap();
+
+        let result = read_resource_link(link).unwrap();
+        let expected = format!(
+            "
+
+# {}
+```
+print(\"hello, world\")
+```",
+            file.path().to_str().unwrap(),
+        );
+
+        assert_eq!(result, expected,)
+    }
+}
