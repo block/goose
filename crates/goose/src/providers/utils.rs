@@ -64,6 +64,30 @@ fn check_context_length_exceeded(text: &str) -> bool {
         .any(|phrase| text_lower.contains(phrase))
 }
 
+/// Extract error message from Databricks' nested error format
+/// Handles format like: {"error_code":"BAD_REQUEST","message":"{\"external_model_provider\":\"databricks-model-serving\",\"external_model_error\":{\"error_code\":\"BAD_REQUEST\",\"message\":\"{\\\"message\\\":\\\"Input is too long for requested model.\\\"}\"}}"}
+fn extract_databricks_error_message(payload: &Value) -> Option<String> {
+    // First try to get the message field
+    if let Some(message_str) = payload.get("message").and_then(|m| m.as_str()) {
+        // Try to parse the nested JSON in the message field
+        if let Ok(nested_json) = serde_json::from_str::<Value>(message_str) {
+            // Look for external_model_error.message
+            if let Some(external_error) = nested_json.get("external_model_error") {
+                if let Some(error_message) = external_error.get("message").and_then(|m| m.as_str()) {
+                    // Try to parse the innermost JSON
+                    if let Ok(innermost_json) = serde_json::from_str::<Value>(error_message) {
+                        if let Some(final_message) = innermost_json.get("message").and_then(|m| m.as_str()) {
+                            return Some(final_message.to_string());
+                        }
+                    }
+                    return Some(error_message.to_string());
+                }
+            }
+        }
+    }
+    None
+}
+
 pub fn map_http_error_to_provider_error(
     status: StatusCode,
     payload: Option<Value>,
@@ -82,6 +106,13 @@ pub fn map_http_error_to_provider_error(
         StatusCode::BAD_REQUEST => {
             let mut error_msg = "Unknown error".to_string();
             if let Some(payload) = &payload {
+                // Check for Databricks-specific nested error format first
+                if let Some(databricks_error) = extract_databricks_error_message(payload) {
+                    if check_context_length_exceeded(&databricks_error) {
+                        return ProviderError::ContextLengthExceeded(databricks_error);
+                    }
+                }
+                
                 let payload_str = payload.to_string();
                 if check_context_length_exceeded(&payload_str) {
                     ProviderError::ContextLengthExceeded(payload_str)
