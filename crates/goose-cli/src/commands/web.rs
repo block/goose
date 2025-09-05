@@ -2,12 +2,15 @@ use anyhow::Result;
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        State,
+        Request, State,
     },
+    http::StatusCode,
+    middleware::{self, Next},
     response::{Html, IntoResponse, Response},
     routing::get,
     Json, Router,
 };
+use base64::Engine;
 use futures::{sink::SinkExt, stream::StreamExt};
 use goose::agents::{Agent, AgentEvent};
 use goose::conversation::message::Message as GooseMessage;
@@ -27,6 +30,7 @@ struct AppState {
     agent: Arc<Agent>,
     sessions: SessionStore,
     cancellations: CancellationStore,
+    auth_token: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -77,7 +81,62 @@ enum WebSocketMessage {
     Complete { message: String },
 }
 
-pub async fn handle_web(port: u16, host: String, open: bool) -> Result<()> {
+async fn auth_middleware(
+    State(state): State<AppState>,
+    req: Request,
+    next: Next,
+) -> Result<Response, StatusCode> {
+    // Skip auth for health check
+    if req.uri().path() == "/api/health" {
+        return Ok(next.run(req).await);
+    }
+
+    // If no auth token is configured, skip authentication entirely
+    let Some(ref expected_token) = state.auth_token else {
+        return Ok(next.run(req).await);
+    };
+
+    // Check for Bearer token first
+    if let Some(auth_header) = req.headers().get("authorization") {
+        if let Ok(auth_str) = auth_header.to_str() {
+            if let Some(token) = auth_str.strip_prefix("Bearer ") {
+                if token == expected_token {
+                    return Ok(next.run(req).await);
+                }
+            }
+
+            // Check for Basic auth (password-only, ignore username)
+            if let Some(basic_token) = auth_str.strip_prefix("Basic ") {
+                if let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(basic_token) {
+                    if let Ok(credentials) = String::from_utf8(decoded) {
+                        // Split on first colon, ignore username, check password
+                        if let Some((_, password)) = credentials.split_once(':') {
+                            if password == expected_token {
+                                return Ok(next.run(req).await);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Authentication failed - return 401 with WWW-Authenticate header
+    let mut response = Response::new("Authentication required".into());
+    *response.status_mut() = StatusCode::UNAUTHORIZED;
+    response.headers_mut().insert(
+        "WWW-Authenticate",
+        "Basic realm=\"Goose Web Interface\"".parse().unwrap(),
+    );
+    Ok(response)
+}
+
+pub async fn handle_web(
+    port: u16,
+    host: String,
+    open: bool,
+    auth_token: Option<String>,
+) -> Result<()> {
     // Setup logging
     crate::logging::setup_logging(Some("goose-web"), None)?;
 
@@ -125,6 +184,7 @@ pub async fn handle_web(port: u16, host: String, open: bool) -> Result<()> {
         agent: Arc::new(agent),
         sessions: Arc::new(RwLock::new(std::collections::HashMap::new())),
         cancellations: Arc::new(RwLock::new(std::collections::HashMap::new())),
+        auth_token,
     };
 
     // Build router
@@ -136,6 +196,10 @@ pub async fn handle_web(port: u16, host: String, open: bool) -> Result<()> {
         .route("/api/sessions", get(list_sessions))
         .route("/api/sessions/{session_id}", get(get_session))
         .route("/static/{*path}", get(serve_static))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        ))
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)
