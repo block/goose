@@ -701,7 +701,7 @@ const createChat = async (
     welcome: '/welcome',
   };
 
-  if (recipe !== undefined) {
+  if (recipe !== undefined || recipeDeeplink !== undefined) {
     appPath = '/pair';
   } else if (viewType) {
     appPath = routeMap[viewType] || '/';
