@@ -12,14 +12,14 @@ cargo build
 
 ### Build
 ```bash
-cargo build                    # debug
+cargo build                   # debug
 cargo build --release         # release  
 just release-binary           # release + openapi
 ```
 
 ### Test
 ```bash
-cargo test                    # all tests
+cargo test                   # all tests
 cargo test -p goose          # specific crate
 cargo test --package goose --test mcp_integration_test
 just record-mcp-tests        # record MCP
@@ -42,8 +42,8 @@ cd ui/desktop && npm test    # test UI
 ## Structure
 ```
 crates/
-├── goose              # core logic
-├── goose-bench        # benchmarking
+├── goose             # core logic
+├── goose-bench       # benchmarking
 ├── goose-cli         # CLI entry
 ├── goose-server      # backend (binary: goosed)
 ├── goose-mcp         # MCP extensions
