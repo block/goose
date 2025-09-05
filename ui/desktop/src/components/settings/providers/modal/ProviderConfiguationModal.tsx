@@ -107,13 +107,83 @@ export default function ProviderConfigurationModal() {
     }
 
     try {
-      // Wait for the submission to complete
+      // If this is a custom provider, call the server update endpoint which
+      // writes provider settings to the JSON file (not the global config.yaml).
+      const isCustomProvider = currentProvider.name.startsWith('custom_');
+      if (isCustomProvider) {
+        // Build update payload by mapping known parameter names
+        type UpdatePayload = {
+          api_key?: string;
+          api_url?: string;
+          models?: string[];
+          supports_streaming?: boolean;
+          display_name?: string;
+        };
+        const payload: UpdatePayload = {};
+        for (const param of currentProvider.metadata.config_keys || []) {
+          const value = configValues[param.name];
+          if (value === undefined) continue;
+          const lower = param.name.toLowerCase();
+          if (lower.includes('api_key')) {
+            payload.api_key = String(value);
+          } else if (
+            lower.includes('api_url') ||
+            lower.includes('host') ||
+            lower.includes('base_url')
+          ) {
+            payload.api_url = String(value);
+          } else if (lower.includes('models')) {
+            // accept comma-separated models or array
+            if (Array.isArray(value)) {
+              payload.models = value;
+            } else {
+              payload.models = String(value)
+                .split(',')
+                .map((m) => m.trim())
+                .filter(Boolean);
+            }
+          } else if (param.name.toLowerCase().includes('supports_streaming')) {
+            payload.supports_streaming = String(value).toLowerCase() === 'true';
+          }
+        }
+
+        // allow display_name override from a form field
+        if (configValues['display_name']) {
+          payload.display_name = String(configValues['display_name']);
+        }
+
+        try {
+          const secretKey = await window.electron.getSecretKey();
+          const res = await fetch(`/config/custom-providers/${currentProvider.name}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Secret-Key': secretKey,
+            },
+            body: JSON.stringify(payload),
+          });
+
+          if (!res.ok) {
+            const txt = await res.text();
+            throw new Error(`Update failed: ${res.status} ${txt}`);
+          }
+        } catch (err) {
+          console.error('Failed to update custom provider:', err);
+          // Keep modal open
+          return;
+        }
+
+        // Close modal and call onSubmit so callers refresh provider list
+        closeModal();
+        if (modalProps.onSubmit) {
+          modalProps.onSubmit(configValues as FormValues);
+        }
+        return;
+      }
+
+      // Fallback for built-in providers: use existing submit handler
       await SubmitHandler(upsert, currentProvider, configValues);
-
-      // Close the modal before triggering refreshes to avoid UI issues
       closeModal();
-
-      // Call onSubmit callback if provided (from modal props)
       if (modalProps.onSubmit) {
         modalProps.onSubmit(configValues as FormValues);
       }
