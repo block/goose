@@ -353,14 +353,26 @@ impl<'a> ApiRequestBuilder<'a> {
     }
 
     pub async fn response_post(self, payload: &Value) -> Result<Response> {
-        // Log the JSON payload being sent to the LLM
-        tracing::debug!(
-            "LLM_REQUEST: {}",
-            serde_json::to_string(payload).unwrap_or_else(|_| "{}".to_string())
-        );
+        // Log the JSON payload being sent to the LLM and the final URL being called
+        let payload_str = serde_json::to_string(payload).unwrap_or_else(|_| "{}".to_string());
+        tracing::debug!(payload = %payload_str, path = %self.path, "LLM_REQUEST");
 
-        let request = self.send_request(|url, client| client.post(url)).await?;
-        Ok(request.json(payload).send().await?)
+        let request_builder = self.send_request(|url, client| client.post(url)).await?;
+        // For additional visibility, attempt to extract the final URL from the builder
+        // Note: reqwest RequestBuilder does not expose final URL before send, so we build the
+        // request to get the URL for logging. This consumes the builder into a Request.
+        match request_builder.try_clone() {
+            Some(rb) => {
+                if let Ok(req) = rb.json(payload).build() {
+                    tracing::debug!(url = %req.url(), "LLM_OUTGOING_URL");
+                }
+            }
+            None => {
+                tracing::debug!(path = %self.path, "LLM_OUTGOING_PATH_NO_CLONE");
+            }
+        }
+
+        Ok(request_builder.json(payload).send().await?)
     }
 
     pub async fn api_get(self) -> Result<ApiResponse> {
