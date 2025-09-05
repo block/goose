@@ -310,29 +310,161 @@ impl Agent {
 
         metadata.schedule_id = session_config.schedule_id.clone();
 
-        metadata.total_tokens = usage.usage.total_tokens;
-        metadata.input_tokens = usage.usage.input_tokens;
-        metadata.output_tokens = usage.usage.output_tokens;
+        let old_total_tokens = metadata.total_tokens.unwrap_or(0);
+        let old_input_tokens = metadata.input_tokens.unwrap_or(0);
+        let old_output_tokens = metadata.output_tokens.unwrap_or(0);
+
+        // For streaming providers, the usage values provided are cumulative totals for the current response.
+        // We should use the maximum of the current value and the new value to handle streaming updates correctly.
+        let take_max = |current: Option<i32>, new: Option<i32>| -> Option<i32> {
+            match (current, new) {
+                (Some(c), Some(n)) => Some(c.max(n)),
+                (Some(c), None) => Some(c),
+                (None, Some(n)) => Some(n),
+                (None, None) => None,
+            }
+        };
+
+        // Update the current usage values with the maximum (for streaming, this captures the final values)
+        metadata.total_tokens = take_max(metadata.total_tokens, usage.usage.total_tokens);
+        metadata.input_tokens = take_max(metadata.input_tokens, usage.usage.input_tokens);
+        metadata.output_tokens = take_max(metadata.output_tokens, usage.usage.output_tokens);
 
         metadata.message_count = messages_length + 1;
 
-        let accumulate = |a: Option<i32>, b: Option<i32>| -> Option<i32> {
-            match (a, b) {
-                (Some(x), Some(y)) => Some(x + y),
-                _ => a.or(b),
-            }
-        };
-        metadata.accumulated_total_tokens =
-            accumulate(metadata.accumulated_total_tokens, usage.usage.total_tokens);
-        metadata.accumulated_input_tokens =
-            accumulate(metadata.accumulated_input_tokens, usage.usage.input_tokens);
-        metadata.accumulated_output_tokens = accumulate(
+        let update_accumulated =
+            |accumulated: Option<i32>, old_current: i32, new_current: Option<i32>| -> Option<i32> {
+                match new_current {
+                    Some(new_val) => Some(accumulated.unwrap_or(0) - old_current + new_val),
+                    None => accumulated,
+                }
+            };
+
+        metadata.accumulated_total_tokens = update_accumulated(
+            metadata.accumulated_total_tokens,
+            old_total_tokens,
+            metadata.total_tokens,
+        );
+        metadata.accumulated_input_tokens = update_accumulated(
+            metadata.accumulated_input_tokens,
+            old_input_tokens,
+            metadata.input_tokens,
+        );
+        metadata.accumulated_output_tokens = update_accumulated(
             metadata.accumulated_output_tokens,
-            usage.usage.output_tokens,
+            old_output_tokens,
+            metadata.output_tokens,
         );
 
         session::storage::update_metadata(&session_file_path, &metadata).await?;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::providers::base::{ProviderUsage, Usage};
+    use crate::session;
+    use tempfile::tempdir;
+
+    #[tokio::test]
+    async fn test_non_streaming_token_usage_compatibility() {
+        let temp_dir = tempdir().unwrap();
+        let session_file = temp_dir.path().join("test_session.jsonl");
+        let session_config = crate::agents::types::SessionConfig {
+            id: session::Identifier::Path(session_file.clone()),
+            working_dir: temp_dir.path().to_path_buf(),
+            schedule_id: None,
+            execution_mode: None,
+            max_turns: None,
+            retry_config: None,
+        };
+
+        let usage1 = ProviderUsage::new(
+            "test-model".to_string(),
+            Usage::new(Some(50), Some(50), Some(100)),
+        );
+
+        Agent::update_session_metrics(&session_config, &usage1, 1)
+            .await
+            .unwrap();
+
+        let metadata1 = session::storage::read_metadata(&session_file).unwrap();
+        assert_eq!(metadata1.total_tokens, Some(100));
+        assert_eq!(metadata1.input_tokens, Some(50));
+        assert_eq!(metadata1.output_tokens, Some(50));
+        assert_eq!(metadata1.accumulated_total_tokens, Some(100));
+        assert_eq!(metadata1.accumulated_input_tokens, Some(50));
+        assert_eq!(metadata1.accumulated_output_tokens, Some(50));
+        assert_eq!(metadata1.message_count, 2);
+
+        let usage2 = ProviderUsage::new(
+            "test-model".to_string(),
+            Usage::new(Some(75), Some(75), Some(150)),
+        );
+
+        Agent::update_session_metrics(&session_config, &usage2, 2)
+            .await
+            .unwrap();
+
+        let metadata2 = session::storage::read_metadata(&session_file).unwrap();
+        assert_eq!(metadata2.total_tokens, Some(150));
+        assert_eq!(metadata2.input_tokens, Some(75));
+        assert_eq!(metadata2.output_tokens, Some(75));
+        assert_eq!(metadata2.accumulated_total_tokens, Some(150));
+        assert_eq!(metadata2.accumulated_input_tokens, Some(75));
+        assert_eq!(metadata2.accumulated_output_tokens, Some(75));
+        assert_eq!(metadata2.message_count, 3); // 2 + 1
+    }
+
+    #[tokio::test]
+    async fn test_streaming_token_usage_fix() {
+        let temp_dir = tempdir().unwrap();
+        let session_file = temp_dir.path().join("test_streaming_session.jsonl");
+
+        let session_config = crate::agents::types::SessionConfig {
+            id: session::Identifier::Path(session_file.clone()),
+            working_dir: temp_dir.path().to_path_buf(),
+            schedule_id: None,
+            execution_mode: None,
+            max_turns: None,
+            retry_config: None,
+        };
+
+        let usage1 = ProviderUsage::new(
+            "test-model".to_string(),
+            Usage::new(Some(5), Some(5), Some(10)),
+        );
+        Agent::update_session_metrics(&session_config, &usage1, 1)
+            .await
+            .unwrap();
+
+        let metadata1 = session::storage::read_metadata(&session_file).unwrap();
+        assert_eq!(metadata1.total_tokens, Some(10));
+
+        let usage2 = ProviderUsage::new(
+            "test-model".to_string(),
+            Usage::new(Some(10), Some(10), Some(20)),
+        );
+        Agent::update_session_metrics(&session_config, &usage2, 1)
+            .await
+            .unwrap();
+
+        let metadata2 = session::storage::read_metadata(&session_file).unwrap();
+        assert_eq!(metadata2.total_tokens, Some(20));
+        assert_eq!(metadata2.accumulated_total_tokens, Some(20));
+
+        // In streaming mode, some providers returns None for usage.
+        // Ensure that the accumulated tokens are not reset to 0.
+        let usage3 = ProviderUsage::new("test-model".to_string(), Usage::new(None, None, None));
+        Agent::update_session_metrics(&session_config, &usage3, 1)
+            .await
+            .unwrap();
+
+        let metadata3 = session::storage::read_metadata(&session_file).unwrap();
+        assert_eq!(metadata3.total_tokens, Some(20));
+        assert_eq!(metadata3.accumulated_total_tokens, Some(20));
     }
 }
