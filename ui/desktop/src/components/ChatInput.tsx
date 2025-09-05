@@ -28,6 +28,7 @@ import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
 import { Recipe } from '../recipe';
 import MessageQueue from './MessageQueue';
 import { detectInterruption } from '../utils/interruptionDetector';
+import { getApiUrl } from '../config';
 
 interface QueuedMessage {
   id: string;
@@ -141,6 +142,7 @@ export default function ChatInput({
   const { getCurrentModelAndProvider, currentModel, currentProvider } = useModelAndProvider();
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
   const [isTokenLimitLoaded, setIsTokenLimitLoaded] = useState(false);
+  const [autoCompactThreshold, setAutoCompactThreshold] = useState<number>(0.8); // Default to 80%
 
   // Draft functionality - get chat context and global draft context
   // We need to handle the case where ChatInput is used without ChatProvider (e.g., in Hub)
@@ -497,6 +499,55 @@ export default function ChatInput({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentModel, currentProvider]);
 
+  // Load auto-compact threshold
+  const loadAutoCompactThreshold = useCallback(async () => {
+    try {
+      const secretKey = await window.electron.getSecretKey();
+      const response = await fetch(getApiUrl('/config/read'), {
+        method: 'POST',
+        headers: {
+          'X-Secret-Key': secretKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          key: 'GOOSE_AUTO_COMPACT_THRESHOLD',
+          is_secret: false,
+        }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Loaded auto-compact threshold from config:', data);
+        if (data !== undefined && data !== null) {
+          setAutoCompactThreshold(data);
+          console.log('Set auto-compact threshold to:', data);
+        }
+      } else {
+        console.error('Failed to fetch auto-compact threshold, status:', response.status);
+      }
+    } catch (err) {
+      console.error('Error fetching auto-compact threshold:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAutoCompactThreshold();
+  }, [loadAutoCompactThreshold]);
+
+  // Listen for threshold change events from AlertBox
+  useEffect(() => {
+    const handleThresholdChange = (event: CustomEvent<{ threshold: number }>) => {
+      setAutoCompactThreshold(event.detail.threshold);
+    };
+
+    // Type assertion to handle the mismatch between CustomEvent and EventListener
+    const eventListener = handleThresholdChange as (event: globalThis.Event) => void;
+    window.addEventListener('autoCompactThresholdChanged', eventListener);
+
+    return () => {
+      window.removeEventListener('autoCompactThresholdChanged', eventListener);
+    };
+  }, []);
+
   // Handle tool count alerts and token usage
   useEffect(() => {
     clearAlerts();
@@ -522,6 +573,7 @@ export default function ChatInput({
           handleManualCompaction(messages, setMessages, append, setAncestorMessages);
         },
         compactIcon: <ScrollText size={12} />,
+        autoCompactThreshold: autoCompactThreshold,
       });
     }
 
@@ -539,7 +591,16 @@ export default function ChatInput({
     }
     // We intentionally omit setView as it shouldn't trigger a re-render of alerts
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [numTokens, toolCount, tokenLimit, isTokenLimitLoaded, addAlert, isCompacting, clearAlerts]);
+  }, [
+    numTokens,
+    toolCount,
+    tokenLimit,
+    isTokenLimitLoaded,
+    addAlert,
+    isCompacting,
+    clearAlerts,
+    autoCompactThreshold,
+  ]);
 
   // Cleanup effect for component unmount - prevent memory leaks
   useEffect(() => {
