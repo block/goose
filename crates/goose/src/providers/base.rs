@@ -336,14 +336,14 @@ pub trait Provider: Send + Sync {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let model_config = self.get_model_config();
-        
+
         // Filter messages to only include agent_visible ones
         let agent_visible_messages: Vec<Message> = messages
             .iter()
             .filter(|m| m.is_agent_visible())
             .cloned()
             .collect();
-        
+
         self.complete_with_model(&model_config, system, &agent_visible_messages, tools)
             .await
     }

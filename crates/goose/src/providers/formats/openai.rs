@@ -539,12 +539,12 @@ where
                     chrono::Utc::now().timestamp(),
                     contents,
                 );
-                
+
                 // Add ID if present
                 if let Some(id) = chunk.id {
                     msg = msg.with_id(id);
                 }
-                
+
                 yield (
                     Some(msg),
                     usage,
@@ -555,12 +555,12 @@ where
                     chrono::Utc::now().timestamp(),
                     vec![MessageContent::text(text)],
                 );
-                
+
                 // Add ID if present
                 if let Some(id) = chunk.id {
                     msg = msg.with_id(id);
                 }
-                
+
                 yield (
                     Some(msg),
                     if chunk.choices[0].finish_reason.is_some() {

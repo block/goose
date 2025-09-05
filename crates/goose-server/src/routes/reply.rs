@@ -313,7 +313,7 @@ async fn reply_handler(
                             }
 
                             all_messages.push(message.clone());
-                            
+
                             // Only send message to client if it's user_visible
                             if message.is_user_visible() {
                                 stream_event(MessageEvent::Message { message }, &tx, &cancel_token).await;

@@ -1018,7 +1018,7 @@ mod tests {
     #[test]
     fn test_message_metadata_defaults() {
         let message = Message::user().with_text("Test");
-        
+
         // By default, messages should be both user and agent visible
         assert!(message.is_user_visible());
         assert!(message.is_agent_visible());

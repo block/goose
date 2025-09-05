@@ -228,9 +228,9 @@ pub async fn check_and_compact_messages(
     // 1. Original messages before summary become user_visible but not agent_visible
     // 2. Summary message becomes agent_visible but not user_visible
     // 3. Messages after summary remain both user_visible and agent_visible
-    
+
     let mut final_messages = Vec::new();
-    
+
     // Add all original messages before compaction with updated visibility
     // (user_visible=true, agent_visible=false)
     for mut msg in messages_to_compact.iter().cloned() {
@@ -238,7 +238,7 @@ pub async fn check_and_compact_messages(
         msg.metadata.agent_visible = false;
         final_messages.push(msg);
     }
-    
+
     // Add the summary message(s) with updated visibility
     // (user_visible=false, agent_visible=true)
     for msg in summary_messages.messages().iter().cloned() {
@@ -247,7 +247,7 @@ pub async fn check_and_compact_messages(
         updated_msg.metadata.agent_visible = true;
         final_messages.push(updated_msg);
     }
-    
+
     // Add back the preserved user message if it exists
     // (keeps default visibility: both true)
     if let Some(user_message) = preserved_user_message {
