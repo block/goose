@@ -5,6 +5,7 @@ description: Add automatic data visualization to Goose
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
 import ImageCarousel from '@site/src/components/ImageCarousel';
 
