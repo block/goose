@@ -53,7 +53,7 @@ export default function Pair({
       setLoadingChat(true);
       try {
         const chat = await loadCurrentChat({
-          resumeSessionId: resumeSessionId,
+          resumeSessionId,
           setAgentWaitingMessage,
         });
         setChat(chat);

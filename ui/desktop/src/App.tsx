@@ -36,7 +36,6 @@ import { ModelAndProviderProvider } from './components/ModelAndProviderContext';
 import PermissionSettingsView from './components/settings/permission/PermissionSetting';
 
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
-import { Recipe } from './recipe';
 import RecipesView from './components/recipes/RecipesView';
 import RecipeEditor from './components/recipes/RecipeEditor';
 import { createNavigationHandler, View, ViewOptions } from './utils/navigationUtils';
@@ -92,8 +91,10 @@ const PairRouteWrapper = ({
   const setView = useMemo(() => createNavigationHandler(navigate), [navigate]);
   const routeState =
     (location.state as PairRouteState) || (window.history.state as PairRouteState) || {};
-  const [resumeSessionId] = useState(routeState.resumeSessionId);
+  const [searchParams] = useSearchParams();
   const [initialMessage] = useState(routeState.initialMessage);
+
+  const resumeSessionId = searchParams.get('resumeSessionId') ?? undefined;
 
   return (
     <Pair
@@ -139,24 +140,18 @@ const RecipesRoute = () => {
 };
 
 const RecipeEditorRoute = () => {
-  const location = useLocation();
-
   // Check for config from multiple sources:
-  // 1. Location state (from navigation)
-  // 2. localStorage (from "View Recipe" button)
-  // 3. Window electron config (from deeplinks)
-  let config = location.state?.config;
-
-  if (!config) {
-    const storedConfig = localStorage.getItem('viewRecipeConfig');
-    if (storedConfig) {
-      try {
-        config = JSON.parse(storedConfig);
-        // Clear the stored config after using it
-        localStorage.removeItem('viewRecipeConfig');
-      } catch (error) {
-        console.error('Failed to parse stored recipe config:', error);
-      }
+  // 1. localStorage (from "View Recipe" button)
+  // 2. Window electron config (from deeplinks)
+  let config;
+  const storedConfig = localStorage.getItem('viewRecipeConfig');
+  if (storedConfig) {
+    try {
+      config = JSON.parse(storedConfig);
+      // Clear the stored config after using it
+      localStorage.removeItem('viewRecipeConfig');
+    } catch (error) {
+      console.error('Failed to parse stored recipe config:', error);
     }
   }
 
@@ -322,13 +317,8 @@ export function AppInner() {
 
   const navigate = useNavigate();
 
-  const [recipeFromAppConfig, setRecipeFromAppConfig] = useState<Recipe | null>(
-    (window.appConfig?.get('recipe') as Recipe) || null
-  );
-
-  const [searchParams, setSearchParams] = useSearchParams();
-  const viewType = searchParams.get('view') || null;
-  const resumeSessionId = searchParams.get('resumeSessionId') || null;
+  const location = useLocation();
+  const [_searchParams, setSearchParams] = useSearchParams();
 
   const [chat, setChat] = useState<ChatType>({
     sessionId: generateSessionId(),
@@ -346,7 +336,6 @@ export function AppInner() {
         prev.delete('resumeSessionId');
         return prev;
       });
-      setRecipeFromAppConfig(null);
       resetChat();
     }
   }, [chat.messages.length, setSearchParams, resetChat]);
@@ -364,64 +353,26 @@ export function AppInner() {
   }, []);
 
   // Handle URL parameters and deeplinks on app startup
+  const loadingHub = location.pathname === '/';
   useEffect(() => {
-    const stateData: PairRouteState = {
-      resumeSessionId: resumeSessionId || undefined,
-    };
-    (async () => {
-      try {
-        await loadCurrentChat({
-          setAgentWaitingMessage,
-          setIsExtensionsLoading,
-          recipeConfig: recipeFromAppConfig || undefined,
-          ...stateData,
-        });
-      } catch (e) {
-        if (e instanceof NoProviderOrModelError) {
-          // the onboarding flow will trigger
-        } else {
-          throw e;
+    if (loadingHub) {
+      (async () => {
+        try {
+          console.log('pre-initializing an agent');
+          await loadCurrentChat({
+            setAgentWaitingMessage,
+            setIsExtensionsLoading,
+          });
+        } catch (e) {
+          if (e instanceof NoProviderOrModelError) {
+            // the onboarding flow will trigger
+          } else {
+            throw e;
+          }
         }
-      }
-    })();
-
-    if (resumeSessionId || recipeFromAppConfig) {
-      navigate('/pair', { replace: true, state: { resumeSessionId } });
-      return;
+      })();
     }
-    if (viewType) {
-      let state = {};
-      if (viewType === 'recipeEditor' && recipeFromAppConfig) {
-        state = { config: recipeFromAppConfig };
-      }
-      const routeMap: Record<string, string> = {
-        chat: '/',
-        pair: '/pair',
-        settings: '/settings',
-        sessions: '/sessions',
-        schedules: '/schedules',
-        recipes: '/recipes',
-        permission: '/permission',
-        ConfigureProviders: '/configure-providers',
-        sharedSession: '/shared-session',
-        recipeEditor: '/recipe-editor',
-        welcome: '/welcome',
-      };
-
-      const route = routeMap[viewType];
-      if (route) {
-        navigate(route, { state });
-      }
-    }
-  }, [
-    recipeFromAppConfig,
-    resetChat,
-    loadCurrentChat,
-    setAgentWaitingMessage,
-    resumeSessionId,
-    viewType,
-    navigate,
-  ]);
+  }, [resetChat, loadCurrentChat, setAgentWaitingMessage, navigate, loadingHub]);
 
   useEffect(() => {
     const handleOpenSharedSession = async (_event: IpcRendererEvent, ...args: unknown[]) => {
@@ -545,26 +496,26 @@ export function AppInner() {
         navigate(`/${newView}`);
       }
     };
-    const viewFromUrl = searchParams.get('view');
-    if (viewFromUrl) {
-      const windowConfig = window.electron.getConfig();
-      if (viewFromUrl === 'recipeEditor') {
-        const initialViewOptions = {
-          recipeConfig: JSON.stringify(windowConfig?.recipeConfig),
-          view: viewFromUrl,
-        };
-        window.history.replaceState(
-          {},
-          '',
-          `/recipe-editor?${new URLSearchParams(initialViewOptions).toString()}`
-        );
-      } else {
-        window.history.replaceState({}, '', `/${viewFromUrl}`);
-      }
-    }
+    // const viewFromUrl = searchParams.get('view');
+    // if (viewFromUrl) {
+    //   const windowConfig = window.electron.getConfig();
+    //   if (viewFromUrl === 'recipeEditor') {
+    //     const initialViewOptions = {
+    //       recipeConfig: JSON.stringify(windowConfig?.recipeConfig),
+    //       view: viewFromUrl,
+    //     };
+    //     window.history.replaceState(
+    //       {},
+    //       '',
+    //       `/recipe-editor?${new URLSearchParams(initialViewOptions).toString()}`
+    //     );
+    //   } else {
+    //     window.history.replaceState({}, '', `/${viewFromUrl}`);
+    //   }
+    // }
     window.electron.on('set-view', handleSetView);
     return () => window.electron.off('set-view', handleSetView);
-  }, [navigate, searchParams]);
+  }, [navigate]);
 
   useEffect(() => {
     const handleFocusInput = (_event: IpcRendererEvent, ..._args: unknown[]) => {
