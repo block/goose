@@ -1856,6 +1856,18 @@ app.whenReady().then(async () => {
     fileMenu.submenu.insert(
       0,
       new MenuItem({
+        label: 'New Chat',
+        accelerator: 'CmdOrCtrl+T',
+        click() {
+          const focusedWindow = BrowserWindow.getFocusedWindow();
+          if (focusedWindow) focusedWindow.webContents.send('set-view', '');
+        },
+      })
+    );
+
+    fileMenu.submenu.insert(
+      1,
+      new MenuItem({
         label: 'New Chat Window',
         accelerator: process.platform === 'darwin' ? 'Cmd+N' : 'Ctrl+N',
         click() {
@@ -1866,7 +1878,7 @@ app.whenReady().then(async () => {
 
     // Open goose to specific dir and set that as its working space
     fileMenu.submenu.insert(
-      1,
+      2,
       new MenuItem({
         label: 'Open Directory...',
         accelerator: 'CmdOrCtrl+O',
@@ -1878,7 +1890,7 @@ app.whenReady().then(async () => {
     const recentFilesSubmenu = buildRecentFilesMenu();
     if (recentFilesSubmenu.length > 0) {
       fileMenu.submenu.insert(
-        2,
+        3,
         new MenuItem({
           label: 'Recent Directories',
           submenu: recentFilesSubmenu,
@@ -1886,7 +1898,7 @@ app.whenReady().then(async () => {
       );
     }
 
-    fileMenu.submenu.insert(3, new MenuItem({ type: 'separator' }));
+    fileMenu.submenu.insert(4, new MenuItem({ type: 'separator' }));
 
     // The Close Window item is here.
 
