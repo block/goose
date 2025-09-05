@@ -496,23 +496,7 @@ export function AppInner() {
         navigate(`/${newView}`);
       }
     };
-    // const viewFromUrl = searchParams.get('view');
-    // if (viewFromUrl) {
-    //   const windowConfig = window.electron.getConfig();
-    //   if (viewFromUrl === 'recipeEditor') {
-    //     const initialViewOptions = {
-    //       recipeConfig: JSON.stringify(windowConfig?.recipeConfig),
-    //       view: viewFromUrl,
-    //     };
-    //     window.history.replaceState(
-    //       {},
-    //       '',
-    //       `/recipe-editor?${new URLSearchParams(initialViewOptions).toString()}`
-    //     );
-    //   } else {
-    //     window.history.replaceState({}, '', `/${viewFromUrl}`);
-    //   }
-    // }
+
     window.electron.on('set-view', handleSetView);
     return () => window.electron.off('set-view', handleSetView);
   }, [navigate]);
