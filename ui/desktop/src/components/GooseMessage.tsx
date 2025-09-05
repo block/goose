@@ -298,8 +298,7 @@ export default function GooseMessage({
             sessionId={sessionId}
             isCancelledMessage={messageIndex == messageHistoryIndex - 1}
             isClicked={messageIndex < messageHistoryIndex}
-            toolConfirmationId={toolConfirmationContent.id}
-            toolName={toolConfirmationContent.toolName}
+            toolConfirmationContent={toolConfirmationContent}
           />
         )}
       </div>
