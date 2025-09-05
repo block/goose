@@ -59,6 +59,10 @@ pub struct TextEditorParams {
     /// The operation to perform. Allowed options are: `view`, `write`, `str_replace`, `insert`, `undo_edit`.
     pub command: String,
 
+    /// Unified diff to apply. Supports editing multiple files simultaneously. Cannot create or delete files
+    /// Example: "--- a/file\n+++ b/file\n@@ -1,3 +1,3 @@\n context\n-old\n+new\n context"
+    pub diff: Option<String>,
+
     /// Optional array of two integers specifying the start and end line numbers to view.
     /// Line numbers are 1-indexed, and -1 for the end line means read to the end of the file.
     /// This parameter only applies when viewing files, not directories.
@@ -75,10 +79,6 @@ pub struct TextEditorParams {
 
     /// The line number after which to insert text (0 for beginning). Required for `insert` command.
     pub insert_line: Option<i64>,
-
-    /// A unified diff to apply. Always use over old_str/new_str whenever possible - Cannot create or delete files
-    /// Example: "--- a/file\n+++ b/file\n@@ -1,3 +1,3 @@\n context\n-old\n+new\n context" (context lines ensure accuracy)
-    pub diff: Option<String>,
 }
 
 /// Parameters for the shell tool
@@ -250,7 +250,8 @@ impl ServerHandler for DeveloperServer {
                 To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning, -1 for end) 
                 and `new_str` (the text to insert).
 
-                To use the edit_file command, you must specify both `old_str` and `new_str` 
+                To use the str_replace command, prefer the `diff` parameter for reliability, or use both `old_str` and `new_str`.
+
                 {}
                 
             "#, editor.get_str_replace_description()}
@@ -264,16 +265,16 @@ impl ServerHandler for DeveloperServer {
                 The `command` parameter specifies the operation to perform. Allowed options are:
                 - `view`: View the content of a file.
                 - `write`: Create or overwrite a file with the given content
-                - `str_replace`: Replace a string in a file with a new string.
+                - `str_replace`: Replace text in a file.
                 - `insert`: Insert text at a specific line location in the file.
                 - `undo_edit`: Undo the last edit made to a file.
 
                 To use the write command, you must specify `file_text` which will become the new content of the file. Be careful with
                 existing files! This is a full overwrite, so you must include everything - not just sections you are modifying.
 
-                To use the str_replace command, you must specify both `old_str` and `new_str` - the `old_str` needs to exactly match one
-                unique section of the original file, including any whitespace. Make sure to include enough context that the match is not
-                ambiguous. The entire original string will be replaced with `new_str`.
+                To use the str_replace command, prefer `diff` parameter (unified diff format) or use both `old_str` and `new_str`.
+                When using old_str/new_str, the old_str must exactly match only one instance of the string in the file including whitespace.
+                Make sure to include enough context that the match is not ambiguous.
 
                 To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning, -1 for end) 
                 and `new_str` (the text to insert).
@@ -658,7 +659,7 @@ impl DeveloperServer {
     /// - `undo_edit`: Undo the last edit made to a file.
     #[tool(
         name = "text_editor",
-        description = "Perform text editing operations on files. Commands: view (show file content), write (create/overwrite file), str_replace (AI-enhanced replace text when configured, fallback to literal replacement), insert (insert at line), undo_edit (undo last change)."
+        description = "Perform text editing operations on files. Commands: view (show file content), write (create/overwrite file), str_replace (edit file), insert (insert at line), undo_edit (undo last change)."
     )]
     pub async fn text_editor(
         &self,
