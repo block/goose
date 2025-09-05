@@ -184,9 +184,21 @@ impl fmt::Debug for AuthMethod {
 }
 
 impl ApiResponse {
-    pub async fn from_response(response: Response) -> Result<Self> {
+    pub async fn from_response(mut response: Response) -> Result<Self> {
         let status = response.status();
-        let payload = response.json().await.ok();
+
+        // Capture URL and raw body text for debugging when there is an error
+        let url = response.url().clone();
+        let text_body = response.text().await.ok();
+        if !status.is_success() {
+            tracing::error!(%url, status = %status, body = %text_body.as_deref().unwrap_or("<empty>"), "LLM_RESPONSE_ERROR");
+        }
+
+        // If the body is valid JSON, parse it into payload; otherwise use None
+        let payload = text_body
+            .as_deref()
+            .and_then(|t| serde_json::from_str::<Value>(t).ok());
+
         Ok(Self { status, payload })
     }
 }
