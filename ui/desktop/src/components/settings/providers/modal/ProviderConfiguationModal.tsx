@@ -152,6 +152,32 @@ export default function ProviderConfigurationModal() {
           payload.display_name = String(configValues['display_name']);
         }
 
+        // Fallback: try to detect any explicit per-provider base url key like CUSTOM_<ID>_BASE_URL
+        if (!payload.api_url) {
+          for (const k of Object.keys(configValues)) {
+            if (k.toUpperCase().endsWith('_BASE_URL') || k.toLowerCase().includes('base_url')) {
+              payload.api_url = String(configValues[k]);
+              break;
+            }
+          }
+        }
+
+        // If payload is still empty, warn and return
+        if (
+          !payload.api_url &&
+          !payload.api_key &&
+          !payload.models &&
+          !payload.display_name &&
+          payload.supports_streaming === undefined
+        ) {
+          console.warn(
+            '[ProviderConfiguationModal] nothing to update for custom provider',
+            currentProvider.name
+          );
+          // Keep modal open to let user edit fields
+          return;
+        }
+
         try {
           const secretKey = await window.electron.getSecretKey();
           const res = await fetch(`/config/custom-providers/${currentProvider.name}`, {
