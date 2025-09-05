@@ -180,7 +180,25 @@ export default function ProviderConfigurationModal() {
 
         try {
           const secretKey = await window.electron.getSecretKey();
-          const res = await fetch(`/config/custom-providers/${currentProvider.name}`, {
+          // Get base host/port from electron main-provided config or appConfig
+          const mainCfg =
+            window.electron && window.electron.getConfig ? window.electron.getConfig() : null;
+          const host = mainCfg?.GOOSE_API_HOST ?? window.appConfig?.get('GOSE_API_HOST');
+          const port = mainCfg?.GOSE_PORT ?? window.appConfig?.get('GOSE_PORT');
+          if (!host || !port) {
+            console.error(
+              '[ProviderConfiguationModal] missing GOOSE_API_HOST/GOOSE_PORT; cannot call server PUT'
+            );
+            return;
+          }
+          let base = String(host);
+          if (!base.startsWith('http://') && !base.startsWith('https://')) {
+            base = `http://${base}`;
+          }
+          base = base.replace(/\/+$/g, '');
+          const url = `${base}:${port}/config/custom-providers/${currentProvider.name}`;
+          console.info('[ProviderConfiguationModal] PUT', url, payload);
+          const res = await fetch(url, {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
