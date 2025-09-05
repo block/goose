@@ -174,36 +174,51 @@ pub fn register_custom_providers(
 
         match config.engine {
             ProviderEngine::OpenAI => {
+                let config_keys = vec![
+                    crate::providers::base::ConfigKey::new(&config.api_key_env, true, true, None),
+                    crate::providers::base::ConfigKey::new("CUSTOM_PROVIDER_BASE_URL", true, false, Some(&config.base_url)),
+                ];
                 registry.register_with_name::<OpenAiProvider, _>(
                     config.name.clone(),
                     config.display_name.clone(),
                     description,
                     default_model,
                     known_models,
+                    config_keys,
                     move |model: ModelConfig| {
                         OpenAiProvider::from_custom_config(model, config_clone.clone())
                     },
                 );
             }
             ProviderEngine::Ollama => {
+                let config_keys = vec![
+                    crate::providers::base::ConfigKey::new(&config.api_key_env, true, true, None),
+                    crate::providers::base::ConfigKey::new("CUSTOM_PROVIDER_BASE_URL", true, false, Some(&config.base_url)),
+                ];
                 registry.register_with_name::<OllamaProvider, _>(
                     config.name.clone(),
                     config.display_name.clone(),
                     description,
                     default_model,
                     known_models,
+                    config_keys,
                     move |model: ModelConfig| {
                         OllamaProvider::from_custom_config(model, config_clone.clone())
                     },
                 );
             }
             ProviderEngine::Anthropic => {
+                let config_keys = vec![
+                    crate::providers::base::ConfigKey::new(&config.api_key_env, true, true, None),
+                    crate::providers::base::ConfigKey::new("CUSTOM_PROVIDER_BASE_URL", true, false, Some(&config.base_url)),
+                ];
                 registry.register_with_name::<AnthropicProvider, _>(
                     config.name.clone(),
                     config.display_name.clone(),
                     description,
                     default_model,
                     known_models,
+                    config_keys,
                     move |model: ModelConfig| {
                         AnthropicProvider::from_custom_config(model, config_clone.clone())
                     },
