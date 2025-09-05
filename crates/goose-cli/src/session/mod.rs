@@ -264,18 +264,43 @@ impl Session {
     /// # Arguments
     /// * `extension_url` - URL of the server
     pub async fn add_streamable_http_extension(&mut self, extension_url: String) -> Result<()> {
+        use base64::{engine::general_purpose, Engine as _};
+
         let name: String = rand::thread_rng()
             .sample_iter(&Alphanumeric)
             .take(8)
             .map(char::from)
             .collect();
 
+        let mut headers = HashMap::new();
+        let mut uri = extension_url.clone();
+
+        // URI parsing for auth headers
+        if let Some(scheme_end) = extension_url.find("://") {
+            let auth_start = scheme_end + 3;
+            if let Some(at_pos) = extension_url[auth_start..].find('@') {
+                let at_pos = auth_start + at_pos;
+                let auth = &extension_url[auth_start..at_pos];
+                let rest = &extension_url[at_pos+1..];
+                uri = format!("{}://{}", &extension_url[..scheme_end], rest);
+
+                if auth.contains(':') {
+                    // Basic auth
+                    let encoded = general_purpose::STANDARD.encode(auth);
+                    headers.insert("Authorization".to_string(), format!("Basic {}", encoded));
+                } else {
+                    // Bearer token
+                    headers.insert("Authorization".to_string(), format!("Bearer {}", auth));
+                }
+            }
+        }
+
         let config = ExtensionConfig::StreamableHttp {
             name,
-            uri: extension_url,
+            uri,
             envs: Envs::new(HashMap::new()),
             env_keys: Vec::new(),
-            headers: HashMap::new(),
+            headers,
             description: Some(goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string()),
             // TODO: should set timeout
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
