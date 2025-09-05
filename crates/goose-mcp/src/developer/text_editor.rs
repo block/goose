@@ -172,10 +172,10 @@ fn generate_summary(results: &DiffResults, is_single_file: bool, base_path: &Pat
     };
 
     let user_message = if is_single_file {
-        format!("{}\n\nUse 'undo_edit' to revert if needed.", summary)
+        format!("{}\n\nUse 'undo_edit' to revert if needed.\n\n", summary)
     } else {
         format!(
-            "{}\n\nUse 'undo_edit' on individual files to revert if needed.",
+            "{}\n\nUse 'undo_edit' on individual files to revert if needed.\n\n",
             summary
         )
     };
