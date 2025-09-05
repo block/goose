@@ -101,7 +101,6 @@ pub struct DiffResults {
     files_deleted: usize,
     lines_added: usize,
     lines_removed: usize,
-    errors: Vec<String>,
 }
 
 /// Validates the size of the diff content
