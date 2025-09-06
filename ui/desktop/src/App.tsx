@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { IpcRendererEvent } from 'electron';
-import { HashRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import {
+  HashRouter,
+  Routes,
+  Route,
+  useNavigate,
+  useLocation,
+  useSearchParams,
+} from 'react-router-dom';
 import { openSharedSessionFromDeepLink } from './sessionLinks';
 import { type SharedSessionDetails } from './sharedSessions';
 import { ErrorUI } from './components/ErrorBoundary';
@@ -29,7 +36,6 @@ import { ModelAndProviderProvider } from './components/ModelAndProviderContext';
 import PermissionSettingsView from './components/settings/permission/PermissionSetting';
 
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
-import { Recipe } from './recipe';
 import RecipesView from './components/recipes/RecipesView';
 import RecipeEditor from './components/recipes/RecipeEditor';
 import { createNavigationHandler, View, ViewOptions } from './utils/navigationUtils';
@@ -85,8 +91,10 @@ const PairRouteWrapper = ({
   const setView = useMemo(() => createNavigationHandler(navigate), [navigate]);
   const routeState =
     (location.state as PairRouteState) || (window.history.state as PairRouteState) || {};
-  const [resumeSessionId] = useState(routeState.resumeSessionId);
+  const [searchParams] = useSearchParams();
   const [initialMessage] = useState(routeState.initialMessage);
+
+  const resumeSessionId = searchParams.get('resumeSessionId') ?? undefined;
 
   return (
     <Pair
@@ -132,24 +140,18 @@ const RecipesRoute = () => {
 };
 
 const RecipeEditorRoute = () => {
-  const location = useLocation();
-
   // Check for config from multiple sources:
-  // 1. Location state (from navigation)
-  // 2. localStorage (from "View Recipe" button)
-  // 3. Window electron config (from deeplinks)
-  let config = location.state?.config;
-
-  if (!config) {
-    const storedConfig = localStorage.getItem('viewRecipeConfig');
-    if (storedConfig) {
-      try {
-        config = JSON.parse(storedConfig);
-        // Clear the stored config after using it
-        localStorage.removeItem('viewRecipeConfig');
-      } catch (error) {
-        console.error('Failed to parse stored recipe config:', error);
-      }
+  // 1. localStorage (from "View Recipe" button)
+  // 2. Window electron config (from deeplinks)
+  let config;
+  const storedConfig = localStorage.getItem('viewRecipeConfig');
+  if (storedConfig) {
+    try {
+      config = JSON.parse(storedConfig);
+      // Clear the stored config after using it
+      localStorage.removeItem('viewRecipeConfig');
+    } catch (error) {
+      console.error('Failed to parse stored recipe config:', error);
     }
   }
 
@@ -304,37 +306,21 @@ const ExtensionsRoute = () => {
   );
 };
 
-export default function App() {
+export function AppInner() {
   const [fatalError, setFatalError] = useState<string | null>(null);
   const [isGoosehintsModalOpen, setIsGoosehintsModalOpen] = useState(false);
   const [agentWaitingMessage, setAgentWaitingMessage] = useState<string | null>(null);
   const [isLoadingSharedSession, setIsLoadingSharedSession] = useState(false);
   const [sharedSessionError, setSharedSessionError] = useState<string | null>(null);
   const [isExtensionsLoading, setIsExtensionsLoading] = useState(false);
-
-  const [didSyncUrlParams, setDidSyncUrlParams] = useState<boolean>(false);
-
-  const [viewType, setViewType] = useState<string | null>(null);
-  const [resumeSessionId, setResumeSessionId] = useState<string | null>(null);
-
   const [didSelectProvider, setDidSelectProvider] = useState<boolean>(false);
 
-  const [recipeFromAppConfig, setRecipeFromAppConfig] = useState<Recipe | null>(
-    (window.appConfig?.get('recipe') as Recipe) || null
-  );
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
+  const location = useLocation();
+  const [_searchParams, setSearchParams] = useSearchParams();
 
-    const viewType = urlParams.get('view') || null;
-    const resumeSessionId = urlParams.get('resumeSessionId') || null;
-
-    setViewType(viewType);
-    setResumeSessionId(resumeSessionId);
-    setDidSyncUrlParams(true);
-  }, []);
-
-  const [chat, _setChat] = useState<ChatType>({
+  const [chat, setChat] = useState<ChatType>({
     sessionId: generateSessionId(),
     title: 'Pair Chat',
     messages: [],
@@ -342,22 +328,17 @@ export default function App() {
     recipeConfig: null,
   });
 
-  const setChat = useCallback<typeof _setChat>(
-    (update) => {
-      _setChat(update);
-    },
-    [_setChat]
-  );
-
   const { addExtension } = useConfig();
   const { agentState, loadCurrentChat, resetChat } = useAgent();
   const resetChatIfNecessary = useCallback(() => {
     if (chat.messages.length > 0) {
-      setResumeSessionId(null);
-      setRecipeFromAppConfig(null);
+      setSearchParams((prev) => {
+        prev.delete('resumeSessionId');
+        return prev;
+      });
       resetChat();
     }
-  }, [resetChat, chat.messages.length]);
+  }, [chat.messages.length, setSearchParams, resetChat]);
 
   useEffect(() => {
     console.log('Sending reactReady signal to Electron');
@@ -372,77 +353,25 @@ export default function App() {
   }, []);
 
   // Handle URL parameters and deeplinks on app startup
+  const loadingHub = location.pathname === '/';
   useEffect(() => {
-    if (!didSyncUrlParams) {
-      return;
-    }
-
-    const stateData: PairRouteState = {
-      resumeSessionId: resumeSessionId || undefined,
-    };
-    (async () => {
-      try {
-        await loadCurrentChat({
-          setAgentWaitingMessage,
-          setIsExtensionsLoading,
-          recipeConfig: recipeFromAppConfig || undefined,
-          ...stateData,
-        });
-      } catch (e) {
-        if (e instanceof NoProviderOrModelError) {
-          // the onboarding flow will trigger
-        } else {
-          throw e;
+    if (loadingHub) {
+      (async () => {
+        try {
+          await loadCurrentChat({
+            setAgentWaitingMessage,
+            setIsExtensionsLoading,
+          });
+        } catch (e) {
+          if (e instanceof NoProviderOrModelError) {
+            // the onboarding flow will trigger
+          } else {
+            throw e;
+          }
         }
-      }
-    })();
-
-    if (resumeSessionId || recipeFromAppConfig) {
-      window.location.hash = '#/pair';
-      window.history.replaceState(stateData, '', '#/pair');
-      return;
+      })();
     }
-
-    if (!viewType) {
-      if (window.location.hash === '' || window.location.hash === '#') {
-        window.location.hash = '#/';
-        window.history.replaceState({}, '', '#/');
-      }
-    } else {
-      if (viewType === 'recipeEditor' && recipeFromAppConfig) {
-        window.location.hash = '#/recipe-editor';
-        window.history.replaceState({ config: recipeFromAppConfig }, '', '#/recipe-editor');
-      } else {
-        const routeMap: Record<string, string> = {
-          chat: '#/',
-          pair: '#/pair',
-          settings: '#/settings',
-          sessions: '#/sessions',
-          schedules: '#/schedules',
-          recipes: '#/recipes',
-          permission: '#/permission',
-          ConfigureProviders: '#/configure-providers',
-          sharedSession: '#/shared-session',
-          recipeEditor: '#/recipe-editor',
-          welcome: '#/welcome',
-        };
-
-        const route = routeMap[viewType];
-        if (route) {
-          window.location.hash = route;
-          window.history.replaceState({}, '', route);
-        }
-      }
-    }
-  }, [
-    recipeFromAppConfig,
-    resetChat,
-    loadCurrentChat,
-    setAgentWaitingMessage,
-    didSyncUrlParams,
-    resumeSessionId,
-    viewType,
-  ]);
+  }, [resetChat, loadCurrentChat, setAgentWaitingMessage, navigate, loadingHub]);
 
   useEffect(() => {
     const handleOpenSharedSession = async (_event: IpcRendererEvent, ...args: unknown[]) => {
@@ -451,24 +380,19 @@ export default function App() {
       setIsLoadingSharedSession(true);
       setSharedSessionError(null);
       try {
-        await openSharedSessionFromDeepLink(link, (_view: View, _options?: ViewOptions) => {
-          // Navigate to shared session view with the session data
-          window.location.hash = '#/shared-session';
-          if (_options) {
-            window.history.replaceState(_options, '', '#/shared-session');
-          }
+        await openSharedSessionFromDeepLink(link, (_view: View, options?: ViewOptions) => {
+          navigate('/shared-session', { state: options });
         });
       } catch (error) {
         console.error('Unexpected error opening shared session:', error);
         // Navigate to shared session view with error
-        window.location.hash = '#/shared-session';
         const shareToken = link.replace('goose://sessions/', '');
         const options = {
           sessionDetails: null,
           error: error instanceof Error ? error.message : 'Unknown error',
           shareToken,
         };
-        window.history.replaceState(options, '', '#/shared-session');
+        navigate('/shared-session', { state: options });
       } finally {
         setIsLoadingSharedSession(false);
       }
@@ -477,7 +401,7 @@ export default function App() {
     return () => {
       window.electron.off('open-shared-session', handleOpenSharedSession);
     };
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     console.log('Setting up keyboard shortcuts');
@@ -566,32 +490,15 @@ export default function App() {
       );
 
       if (section && newView === 'settings') {
-        window.location.hash = `#/settings?section=${section}`;
+        navigate(`/settings?section=${section}`);
       } else {
-        window.location.hash = `#/${newView}`;
+        navigate(`/${newView}`);
       }
     };
-    const urlParams = new URLSearchParams(window.location.search);
-    const viewFromUrl = urlParams.get('view');
-    if (viewFromUrl) {
-      const windowConfig = window.electron.getConfig();
-      if (viewFromUrl === 'recipeEditor') {
-        const initialViewOptions = {
-          recipeConfig: JSON.stringify(windowConfig?.recipeConfig),
-          view: viewFromUrl,
-        };
-        window.history.replaceState(
-          {},
-          '',
-          `/recipe-editor?${new URLSearchParams(initialViewOptions).toString()}`
-        );
-      } else {
-        window.history.replaceState({}, '', `/${viewFromUrl}`);
-      }
-    }
+
     window.electron.on('set-view', handleSetView);
     return () => window.electron.off('set-view', handleSetView);
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     const handleFocusInput = (_event: IpcRendererEvent, ..._args: unknown[]) => {
@@ -611,98 +518,106 @@ export default function App() {
   }
 
   return (
-    <DraftProvider>
-      <ModelAndProviderProvider>
-        <HashRouter>
-          <ToastContainer
-            aria-label="Toast notifications"
-            toastClassName={() =>
-              `relative min-h-16 mb-4 p-2 rounded-lg
+    <>
+      <ToastContainer
+        aria-label="Toast notifications"
+        toastClassName={() =>
+          `relative min-h-16 mb-4 p-2 rounded-lg
                flex justify-between overflow-hidden cursor-pointer
                text-text-on-accent bg-background-inverse
               `
-            }
-            style={{ width: '380px' }}
-            className="mt-6"
-            position="top-right"
-            autoClose={3000}
-            closeOnClick
-            pauseOnHover
+        }
+        style={{ width: '380px' }}
+        className="mt-6"
+        position="top-right"
+        autoClose={3000}
+        closeOnClick
+        pauseOnHover
+      />
+      <ExtensionInstallModal addExtension={addExtension} />
+      <div className="relative w-screen h-screen overflow-hidden bg-background-muted flex flex-col">
+        <div className="titlebar-drag-region" />
+        <Routes>
+          <Route
+            path="welcome"
+            element={<WelcomeRoute onSelectProvider={() => setDidSelectProvider(true)} />}
           />
-          <ExtensionInstallModal addExtension={addExtension} />
-          <div className="relative w-screen h-screen overflow-hidden bg-background-muted flex flex-col">
-            <div className="titlebar-drag-region" />
-            <Routes>
-              <Route
-                path="welcome"
-                element={<WelcomeRoute onSelectProvider={() => setDidSelectProvider(true)} />}
-              />
-              <Route path="configure-providers" element={<ConfigureProvidersRoute />} />
-              <Route
-                path="/"
-                element={
-                  <ProviderGuard didSelectProvider={didSelectProvider}>
-                    <ChatProvider
-                      chat={chat}
-                      setChat={setChat}
-                      contextKey="hub"
-                      agentWaitingMessage={agentWaitingMessage}
-                    >
-                      <AppLayout setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
-                    </ChatProvider>
-                  </ProviderGuard>
-                }
-              >
-                <Route
-                  index
-                  element={
-                    <HubRouteWrapper
-                      setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-                      isExtensionsLoading={isExtensionsLoading}
-                      resetChat={resetChatIfNecessary}
-                    />
-                  }
+          <Route path="configure-providers" element={<ConfigureProvidersRoute />} />
+          <Route
+            path="/"
+            element={
+              <ProviderGuard didSelectProvider={didSelectProvider}>
+                <ChatProvider
+                  chat={chat}
+                  setChat={setChat}
+                  contextKey="hub"
+                  agentWaitingMessage={agentWaitingMessage}
+                >
+                  <AppLayout setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
+                </ChatProvider>
+              </ProviderGuard>
+            }
+          >
+            <Route
+              index
+              element={
+                <HubRouteWrapper
+                  setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+                  isExtensionsLoading={isExtensionsLoading}
+                  resetChat={resetChatIfNecessary}
                 />
-                <Route
-                  path="pair"
-                  element={
-                    <PairRouteWrapper
-                      chat={chat}
-                      setChat={setChat}
-                      agentState={agentState}
-                      loadCurrentChat={loadCurrentChat}
-                      setFatalError={setFatalError}
-                      setAgentWaitingMessage={setAgentWaitingMessage}
-                      setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-                    />
-                  }
-                />
-                <Route path="settings" element={<SettingsRoute />} />
-                <Route path="extensions" element={<ExtensionsRoute />} />
-                <Route path="sessions" element={<SessionsRoute />} />
-                <Route path="schedules" element={<SchedulesRoute />} />
-                <Route path="recipes" element={<RecipesRoute />} />
-                <Route path="recipe-editor" element={<RecipeEditorRoute />} />
-                <Route
-                  path="shared-session"
-                  element={
-                    <SharedSessionRouteWrapper
-                      isLoadingSharedSession={isLoadingSharedSession}
-                      setIsLoadingSharedSession={setIsLoadingSharedSession}
-                      sharedSessionError={sharedSessionError}
-                    />
-                  }
-                />
-                <Route path="permission" element={<PermissionRoute />} />
-              </Route>
-            </Routes>
-          </div>
-          {isGoosehintsModalOpen && (
-            <GoosehintsModal
-              directory={window.appConfig?.get('GOOSE_WORKING_DIR') as string}
-              setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+              }
             />
-          )}
+            <Route
+              path="pair"
+              element={
+                <PairRouteWrapper
+                  chat={chat}
+                  setChat={setChat}
+                  agentState={agentState}
+                  loadCurrentChat={loadCurrentChat}
+                  setFatalError={setFatalError}
+                  setAgentWaitingMessage={setAgentWaitingMessage}
+                  setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+                />
+              }
+            />
+            <Route path="settings" element={<SettingsRoute />} />
+            <Route path="extensions" element={<ExtensionsRoute />} />
+            <Route path="sessions" element={<SessionsRoute />} />
+            <Route path="schedules" element={<SchedulesRoute />} />
+            <Route path="recipes" element={<RecipesRoute />} />
+            <Route path="recipe-editor" element={<RecipeEditorRoute />} />
+            <Route
+              path="shared-session"
+              element={
+                <SharedSessionRouteWrapper
+                  isLoadingSharedSession={isLoadingSharedSession}
+                  setIsLoadingSharedSession={setIsLoadingSharedSession}
+                  sharedSessionError={sharedSessionError}
+                />
+              }
+            />
+            <Route path="permission" element={<PermissionRoute />} />
+          </Route>
+        </Routes>
+      </div>
+      {isGoosehintsModalOpen && (
+        <GoosehintsModal
+          directory={window.appConfig?.get('GOOSE_WORKING_DIR') as string}
+          setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+        />
+      )}
+    </>
+  );
+}
+
+export default function App() {
+  return (
+    <DraftProvider>
+      <ModelAndProviderProvider>
+        <HashRouter>
+          <AppInner />
         </HashRouter>
         <AnnouncementModal />
       </ModelAndProviderProvider>

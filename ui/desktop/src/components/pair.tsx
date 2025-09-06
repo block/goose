@@ -9,6 +9,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import { cn } from '../utils';
 
 import { ChatType } from '../types/chat';
+import { useSearchParams } from 'react-router-dom';
 
 export interface PairRouteState {
   resumeSessionId?: string;
@@ -45,16 +46,21 @@ export default function Pair({
   const [messageToSubmit, setMessageToSubmit] = useState<string | null>(null);
   const [isTransitioningFromHub, setIsTransitioningFromHub] = useState(false);
   const [loadingChat, setLoadingChat] = useState(false);
+  const [_searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {
     const initializeFromState = async () => {
       setLoadingChat(true);
       try {
         const chat = await loadCurrentChat({
-          resumeSessionId: resumeSessionId,
+          resumeSessionId,
           setAgentWaitingMessage,
         });
         setChat(chat);
+        setSearchParams((prev) => {
+          prev.set('resumeSessionId', chat.sessionId);
+          return prev;
+        });
       } catch (error) {
         console.log(error);
         setFatalError(`Agent init failure: ${error instanceof Error ? error.message : '' + error}`);
@@ -70,6 +76,7 @@ export default function Pair({
     setAgentWaitingMessage,
     loadCurrentChat,
     resumeSessionId,
+    setSearchParams,
   ]);
 
   // Followed by sending the initialMessage if we have one. This will happen

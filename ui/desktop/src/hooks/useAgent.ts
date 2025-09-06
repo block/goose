@@ -49,12 +49,16 @@ export function useAgent(): UseAgentReturn {
   const [agentState, setAgentState] = useState<AgentState>(AgentState.UNINITIALIZED);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const initPromiseRef = useRef<Promise<ChatType> | null>(null);
+  const [recipeFromAppConfig, setRecipeFromAppConfig] = useState<Recipe | null>(
+    (window.appConfig.get('recipe') as Recipe) || null
+  );
 
   const { getExtensions, addExtension, read } = useConfig();
 
   const resetChat = useCallback(() => {
     setSessionId(null);
     setAgentState(AgentState.UNINITIALIZED);
+    setRecipeFromAppConfig(null);
   }, []);
 
   const agentIsInitialized = agentState === AgentState.INITIALIZED;
@@ -112,7 +116,7 @@ export function useAgent(): UseAgentReturn {
             : await startAgent({
                 body: {
                   working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
-                  recipe: initContext.recipeConfig,
+                  recipe: recipeFromAppConfig ?? initContext.recipeConfig,
                 },
                 throwOnError: true,
               });
@@ -179,7 +183,7 @@ export function useAgent(): UseAgentReturn {
       initPromiseRef.current = initPromise;
       return initPromise;
     },
-    [getExtensions, addExtension, read, agentIsInitialized, sessionId]
+    [agentIsInitialized, sessionId, read, recipeFromAppConfig, getExtensions, addExtension]
   );
 
   return {
