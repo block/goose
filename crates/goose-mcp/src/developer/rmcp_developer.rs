@@ -971,13 +971,21 @@ impl DeveloperServer {
         Ok(())
     }
 
-    /// Analyze code structure in files or directories.
+    /// Analyze code structure and relationships.
     ///
-    /// Provides semantic understanding of code including functions, classes,
-    /// and their relationships. Supports Python, Rust, JavaScript, Go, and Java.
+    /// Modes:
+    /// - auto: Smart selection (default)
+    /// - structure: Metrics only
+    /// - semantic: With call graphs
+    /// - focused: Track symbol across files
+    ///
+    /// Examples:
+    /// analyze(path="file.py") -> semantic analysis
+    /// analyze(path="src/", mode="structure") -> quick overview
+    /// analyze(path="src/", mode="focused", focus="main") -> find all main() calls
     #[tool(
         name = "analyze",
-        description = "Analyze code structure in files or directories. Shows functions, classes, imports, and relationships. Supports Python, Rust, JavaScript, Go, and Java."
+        description = "Analyze code structure. Modes: auto (smart default), structure (metrics), semantic (call graphs), focused (track symbol). Examples: analyze(path=\"file.py\"), analyze(path=\"src/\", mode=\"focused\", focus=\"main\")"
     )]
     pub async fn analyze(
         &self,
