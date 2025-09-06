@@ -286,7 +286,7 @@ const config: Config = {
           {
             from: '/docs/guides/isolated-development-environments',
             to: '/docs/tutorials/isolated-development-environments'
-          }         
+          }
         ],
       },
     ],
@@ -323,7 +323,7 @@ const config: Config = {
           label: "Tutorials",
         },
         {
-          to: "/docs/category/mcp-servers",
+          to: "/docs/mcp/",
           position: "left",
           label: "MCPs",
         },

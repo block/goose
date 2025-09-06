@@ -15,7 +15,7 @@ Goose to a wide ecosystem of capabilities.
 Goose automatically checks external extensions for known malware before activation. If a malicious package is detected, the [extension will be blocked](/docs/troubleshooting#malicious-package-detected) with a clear error message.
 
 :::tip Tutorials
-Check out the [step-by-step tutorials](/docs/category/mcp-servers) for adding and using several Goose Extensions
+Check out the [step-by-step tutorials](/docs/mcp) for adding and using several Goose Extensions
 :::
 
 ## Built-in Extensions
