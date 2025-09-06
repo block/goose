@@ -46,10 +46,10 @@ jobs:
       version: ${{ needs.prepare-version.outputs.version }}
 
   # ------------------------------------
-  # 3) Upload Install CLI Script (we only need to do this once)
+  # 3) Upload Install CLI Scripts (we only need to do this once)
   # ------------------------------------
   install-script:
-    name: Upload Install Script
+    name: Upload Install Scripts
     runs-on: ubuntu-latest
     needs: [build-cli]
     steps:
@@ -58,6 +58,10 @@ jobs:
         with:
           name: download_cli.sh
           path: download_cli.sh
+      - uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # pin@v4
+        with:
+          name: download_cli.ps1
+          path: download_cli.ps1
 
   # ------------------------------------------------------------
   # 4) Bundle Desktop App (macOS only) - builds goosed and Electron app
@@ -121,6 +125,7 @@ jobs:
             *.deb
             *.rpm
             download_cli.sh
+            download_cli.ps1
           allowUpdates: true
           omitBody: true
           omitPrereleaseDuringUpdate: true

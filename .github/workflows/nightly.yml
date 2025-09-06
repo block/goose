@@ -34,7 +34,7 @@ jobs:
       version: ${{ needs.prepare-version.outputs.version }}
 
   install-script:
-    name: Upload Install Script
+    name: Upload Install Scripts
     runs-on: ubuntu-latest
     needs: [build-cli]
     steps:
@@ -43,6 +43,10 @@ jobs:
         with:
           name: download_cli.sh
           path: download_cli.sh
+      - uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # pin@v4
+        with:
+          name: download_cli.ps1
+          path: download_cli.ps1
 
   bundle-desktop:
     needs: [prepare-version]
@@ -93,6 +97,7 @@ jobs:
             *.deb
             *.rpm
             download_cli.sh
+            download_cli.ps1
           allowUpdates: true
           omitBody: true
           omitPrereleaseDuringUpdate: true
