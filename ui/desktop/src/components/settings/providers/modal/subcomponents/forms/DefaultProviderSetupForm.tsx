@@ -84,15 +84,8 @@ export default function DefaultProviderSetupForm({
     // correct configuration values for the selected provider.
   }, [parameters, read, setConfigValues, configValues]);
 
-  // Filter parameters to only show required ones
-  const requiredParameters = useMemo(() => {
-    return parameters.filter((param) => param.required === true);
-  }, [parameters]);
-
-  // TODO: show all params, not just required ones
-  // const allParameters = useMemo(() => {
-  //   return parameters;
-  // }, [parameters]);
+  // Show all parameters (required and optional)
+  const visibleParameters = useMemo(() => parameters, [parameters]);
 
   // Helper function to generate appropriate placeholder text
   const getPlaceholder = (parameter: ConfigKey): string => {
@@ -131,15 +124,15 @@ export default function DefaultProviderSetupForm({
     return <div className="text-center py-4">Loading configuration values...</div>;
   }
 
-  console.log('required params', requiredParameters);
+  console.log('visible params', visibleParameters);
   return (
     <div className="mt-4 space-y-4">
-      {requiredParameters.length === 0 ? (
+      {visibleParameters.length === 0 ? (
         <div className="text-center text-gray-500">
-          No required configuration for this provider.
+          No configuration required for this provider.
         </div>
       ) : (
-        requiredParameters.map((parameter) => (
+        visibleParameters.map((parameter) => (
           <div key={parameter.name}>
             <label className="block text-sm font-medium text-textStandard mb-1">
               {getFieldLabel(parameter)}
