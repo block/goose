@@ -6,7 +6,7 @@ use rmcp::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet, VecDeque},
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
     time::SystemTime,
@@ -107,6 +107,198 @@ enum EntryType {
 
 // Type alias for complex query results
 type ElementQueryResult = (Vec<FunctionInfo>, Vec<ClassInfo>, Vec<String>);
+
+// Minimal graph structure for focus mode only
+#[derive(Debug, Clone)]
+struct CallGraph {
+    // Map from symbol name to its callers: Vec<(file, line, caller_function)>
+    callers: HashMap<String, Vec<(PathBuf, usize, String)>>,
+    // Map from symbol name to what it calls: Vec<(file, line, callee_function)>
+    callees: HashMap<String, Vec<(PathBuf, usize, String)>>,
+    // Map from symbol to its definition locations
+    definitions: HashMap<String, Vec<(PathBuf, usize)>>,
+}
+
+impl CallGraph {
+    fn new() -> Self {
+        Self {
+            callers: HashMap::new(),
+            callees: HashMap::new(),
+            definitions: HashMap::new(),
+        }
+    }
+
+    fn build_from_results(results: &[(PathBuf, AnalysisResult)]) -> Self {
+        let mut graph = Self::new();
+
+        for (file_path, result) in results {
+            // Record definitions
+            for func in &result.functions {
+                graph
+                    .definitions
+                    .entry(func.name.clone())
+                    .or_default()
+                    .push((file_path.clone(), func.line));
+            }
+
+            for class in &result.classes {
+                graph
+                    .definitions
+                    .entry(class.name.clone())
+                    .or_default()
+                    .push((file_path.clone(), class.line));
+            }
+
+            // Record call relationships
+            for call in &result.calls {
+                let caller = call
+                    .caller_name
+                    .clone()
+                    .unwrap_or_else(|| "<module>".to_string());
+
+                // Add to callers map (who calls this function)
+                graph
+                    .callers
+                    .entry(call.callee_name.clone())
+                    .or_default()
+                    .push((file_path.clone(), call.line, caller.clone()));
+
+                // Add to callees map (what this function calls)
+                if caller != "<module>" {
+                    graph.callees.entry(caller).or_default().push((
+                        file_path.clone(),
+                        call.line,
+                        call.callee_name.clone(),
+                    ));
+                }
+            }
+        }
+
+        graph
+    }
+}
+
+#[derive(Debug, Clone)]
+struct CallChain {
+    path: Vec<(PathBuf, usize, String, String)>, // (file, line, from, to)
+}
+
+impl CallGraph {
+    fn find_incoming_chains(&self, symbol: &str, max_depth: u32) -> Vec<CallChain> {
+        if max_depth == 0 {
+            return vec![];
+        }
+
+        let mut chains = Vec::new();
+        let mut visited = HashSet::new();
+        let mut queue = VecDeque::new();
+
+        // Start with direct callers
+        if let Some(direct_callers) = self.callers.get(symbol) {
+            for (file, line, caller) in direct_callers {
+                let initial_path = vec![(file.clone(), *line, caller.clone(), symbol.to_string())];
+
+                if max_depth == 1 {
+                    chains.push(CallChain { path: initial_path });
+                } else {
+                    queue.push_back((caller.clone(), initial_path, 1));
+                }
+            }
+        }
+
+        // BFS to find deeper chains
+        while let Some((current_symbol, path, depth)) = queue.pop_front() {
+            if depth >= max_depth {
+                chains.push(CallChain { path });
+                continue;
+            }
+
+            // Avoid cycles
+            if visited.contains(&current_symbol) {
+                chains.push(CallChain { path }); // Still record the path we found
+                continue;
+            }
+            visited.insert(current_symbol.clone());
+
+            // Find who calls the current symbol
+            if let Some(callers) = self.callers.get(&current_symbol) {
+                for (file, line, caller) in callers {
+                    let mut new_path =
+                        vec![(file.clone(), *line, caller.clone(), current_symbol.clone())];
+                    new_path.extend(path.clone());
+
+                    if depth + 1 >= max_depth {
+                        chains.push(CallChain { path: new_path });
+                    } else {
+                        queue.push_back((caller.clone(), new_path, depth + 1));
+                    }
+                }
+            } else {
+                // No more callers, this is a chain end
+                chains.push(CallChain { path });
+            }
+        }
+
+        chains
+    }
+
+    fn find_outgoing_chains(&self, symbol: &str, max_depth: u32) -> Vec<CallChain> {
+        if max_depth == 0 {
+            return vec![];
+        }
+
+        let mut chains = Vec::new();
+        let mut visited = HashSet::new();
+        let mut queue = VecDeque::new();
+
+        // Start with what this symbol calls
+        if let Some(direct_callees) = self.callees.get(symbol) {
+            for (file, line, callee) in direct_callees {
+                let initial_path = vec![(file.clone(), *line, symbol.to_string(), callee.clone())];
+
+                if max_depth == 1 {
+                    chains.push(CallChain { path: initial_path });
+                } else {
+                    queue.push_back((callee.clone(), initial_path, 1));
+                }
+            }
+        }
+
+        // BFS to find deeper chains
+        while let Some((current_symbol, path, depth)) = queue.pop_front() {
+            if depth >= max_depth {
+                chains.push(CallChain { path });
+                continue;
+            }
+
+            // Avoid cycles
+            if visited.contains(&current_symbol) {
+                chains.push(CallChain { path });
+                continue;
+            }
+            visited.insert(current_symbol.clone());
+
+            // Find what the current symbol calls
+            if let Some(callees) = self.callees.get(&current_symbol) {
+                for (file, line, callee) in callees {
+                    let mut new_path = path.clone();
+                    new_path.push((file.clone(), *line, current_symbol.clone(), callee.clone()));
+
+                    if depth + 1 >= max_depth {
+                        chains.push(CallChain { path: new_path });
+                    } else {
+                        queue.push_back((callee.clone(), new_path, depth + 1));
+                    }
+                }
+            } else {
+                // No more callees, this is a chain end
+                chains.push(CallChain { path });
+            }
+        }
+
+        chains
+    }
+}
 
 /// Code analyzer with caching and tree-sitter parsing
 #[derive(Clone)]
@@ -1217,11 +1409,11 @@ impl CodeAnalyzer {
         &self,
         path: &Path,
         focus_symbol: &str,
-        _follow_depth: u32,
+        follow_depth: u32, // NOW WE ACTUALLY USE THIS!
         max_depth: u32,
         ignore_patterns: &Gitignore,
     ) -> Result<String, ErrorData> {
-        // Collect all files to analyze
+        // Step 1: Collect all files to analyze (UNCHANGED)
         let files_to_analyze = if path.is_file() {
             vec![path.to_path_buf()]
         } else {
@@ -1229,154 +1421,211 @@ impl CodeAnalyzer {
                 .await?
         };
 
-        // Track symbol occurrences across all files
-        let (definitions, call_paths, references) = self
-            .track_symbol_occurrences(&files_to_analyze, focus_symbol)
-            .await?;
+        // Step 2: Analyze all files and collect results (REUSE EXISTING)
+        let mut all_results = Vec::new();
+        for file_path in &files_to_analyze {
+            let result = self.analyze_file(file_path, "semantic").await?;
+            all_results.push((file_path.clone(), result));
+        }
 
-        // Format the output
-        self.format_focused_output(
+        // Step 3: Build the call graph (NEW)
+        let graph = CallGraph::build_from_results(&all_results);
+
+        // Step 4: Find call chains based on follow_depth (NEW)
+        let incoming_chains = if follow_depth > 0 {
+            graph.find_incoming_chains(focus_symbol, follow_depth)
+        } else {
+            vec![]
+        };
+
+        let outgoing_chains = if follow_depth > 0 {
+            graph.find_outgoing_chains(focus_symbol, follow_depth)
+        } else {
+            vec![]
+        };
+
+        // Step 5: Get definitions from graph (SIMPLIFIED)
+        let definitions = graph
+            .definitions
+            .get(focus_symbol)
+            .cloned()
+            .unwrap_or_default();
+
+        // Step 6: Format the enhanced output (MODIFIED)
+        self.format_focused_output_with_chains(
             path,
             focus_symbol,
+            follow_depth,
             &files_to_analyze,
             &definitions,
-            &call_paths,
-            &references,
+            &incoming_chains,
+            &outgoing_chains,
         )
     }
 
-    // Track occurrences of a symbol across files
-    async fn track_symbol_occurrences(
+    // Format focused analysis output with enhanced call chains
+    #[allow(clippy::too_many_arguments)]
+    fn format_focused_output_with_chains(
         &self,
-        files: &[PathBuf],
+        _path: &Path,
         focus_symbol: &str,
-    ) -> Result<
-        (
-            Vec<(PathBuf, usize, String)>,
-            Vec<(PathBuf, String, usize, PathBuf, String, usize)>,
-            Vec<(PathBuf, usize, String)>,
-        ),
-        ErrorData,
-    > {
-        let mut definitions = Vec::new();
-        let mut call_paths = Vec::new();
-        let mut references = Vec::new();
-
-        for file_path in files {
-            let result = self.analyze_file(file_path, "semantic").await?;
-
-            // Find definitions
-            for func in &result.functions {
-                if func.name == focus_symbol {
-                    definitions.push((file_path.clone(), func.line, format!("{}()", func.name)));
-                }
-            }
-
-            for class in &result.classes {
-                if class.name == focus_symbol {
-                    definitions.push((
-                        file_path.clone(),
-                        class.line,
-                        format!("class {}", class.name),
-                    ));
-                }
-            }
-
-            // Find calls and references
-            for call in &result.calls {
-                if call.callee_name == focus_symbol {
-                    let caller = call
-                        .caller_name
-                        .clone()
-                        .unwrap_or_else(|| "<module>".to_string());
-                    references.push((file_path.clone(), call.line, call.context.clone()));
-
-                    // Try to find where the callee is defined
-                    for (def_file, def_line, _) in &definitions {
-                        call_paths.push((
-                            file_path.clone(),
-                            caller.clone(),
-                            call.line,
-                            def_file.clone(),
-                            focus_symbol.to_string(),
-                            *def_line,
-                        ));
-                    }
-                }
-            }
-        }
-
-        Ok((definitions, call_paths, references))
-    }
-
-    // Format focused analysis output
-    fn format_focused_output(
-        &self,
-        path: &Path,
-        focus_symbol: &str,
-        files_to_analyze: &[PathBuf],
-        definitions: &[(PathBuf, usize, String)],
-        call_paths: &[(PathBuf, String, usize, PathBuf, String, usize)],
-        references: &[(PathBuf, usize, String)],
+        follow_depth: u32,
+        files_analyzed: &[PathBuf],
+        definitions: &[(PathBuf, usize)],
+        incoming_chains: &[CallChain],
+        outgoing_chains: &[CallChain],
     ) -> Result<String, ErrorData> {
         let mut output = format!("FOCUSED ANALYSIS: {}\n\n", focus_symbol);
 
-        // Format definitions
+        // Build file alias mapping
+        let mut all_files = HashSet::new();
+
+        // Collect all unique files from definitions
+        for (file, _) in definitions {
+            all_files.insert(file.clone());
+        }
+
+        // Collect all unique files from chains
+        for chain in incoming_chains {
+            for (file, _, _, _) in &chain.path {
+                all_files.insert(file.clone());
+            }
+        }
+        for chain in outgoing_chains {
+            for (file, _, _, _) in &chain.path {
+                all_files.insert(file.clone());
+            }
+        }
+
+        // Create file aliases
+        let mut file_map: HashMap<PathBuf, String> = HashMap::new();
+        let mut sorted_files: Vec<_> = all_files.into_iter().collect();
+        sorted_files.sort();
+
+        for (index, file) in sorted_files.iter().enumerate() {
+            // If only one file, use the filename; otherwise use F1, F2, etc.
+            let alias = if sorted_files.len() == 1 {
+                file.file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("unknown")
+                    .to_string()
+            } else {
+                format!("F{}", index + 1)
+            };
+            file_map.insert(file.clone(), alias);
+        }
+
+        // Section 1: Definitions
         if !definitions.is_empty() {
             output.push_str("DEFINITIONS:\n");
-            for (file, line, context) in definitions {
-                let relative_path = if path.is_dir() {
-                    file.strip_prefix(path).unwrap_or(file)
-                } else {
-                    file.as_path()
-                };
-                output.push_str(&format!(
-                    "{}:{} - {}\n",
-                    relative_path.display(),
-                    line,
-                    context
-                ));
+            for (file, line) in definitions {
+                let alias = file_map.get(file).cloned().unwrap_or_else(|| {
+                    file.file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("unknown")
+                        .to_string()
+                });
+                output.push_str(&format!("{}:{} - {}\n", alias, line, focus_symbol));
             }
             output.push('\n');
         }
 
-        // Format call paths
-        if !call_paths.is_empty() {
-            output.push_str("CALL PATHS:\n");
-            let mut unique_paths = std::collections::HashSet::new();
-            for (caller_file, caller_func, caller_line, _, callee_func, _) in call_paths {
-                let relative_path = if path.is_dir() {
-                    caller_file.strip_prefix(path).unwrap_or(caller_file)
-                } else {
-                    caller_file.as_path()
-                };
-                let path_str = format!(
-                    "{}:{} ({}) -> {}",
-                    relative_path.display(),
-                    caller_line,
-                    caller_func,
-                    callee_func
-                );
-                unique_paths.insert(path_str);
+        // Section 2: Incoming Call Chains
+        if !incoming_chains.is_empty() {
+            output.push_str(&format!("INCOMING CALL CHAINS (depth={}):\n", follow_depth));
+
+            // Group and deduplicate chains
+            let mut unique_chains = HashSet::new();
+            for chain in incoming_chains {
+                let chain_str = chain
+                    .path
+                    .iter()
+                    .map(|(file, line, from, to)| {
+                        let alias = file_map.get(file).cloned().unwrap_or_else(|| {
+                            file.file_name()
+                                .and_then(|n| n.to_str())
+                                .unwrap_or("unknown")
+                                .to_string()
+                        });
+                        format!("{}:{} ({} -> {})", alias, line, from, to)
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" -> ");
+                unique_chains.insert(chain_str);
             }
 
-            let mut sorted_paths: Vec<_> = unique_paths.into_iter().collect();
-            sorted_paths.sort();
+            let mut sorted_chains: Vec<_> = unique_chains.into_iter().collect();
+            sorted_chains.sort();
 
-            for path_str in sorted_paths {
-                output.push_str(&format!("{}\n", path_str));
+            for chain in sorted_chains {
+                output.push_str(&format!("{}\n", chain));
             }
             output.push('\n');
         }
 
-        // Summary
-        output.push_str(&format!(
-            "REFERENCES: {} files, {} locations\n",
-            files_to_analyze.len(),
-            references.len()
-        ));
+        // Section 3: Outgoing Call Chains
+        if !outgoing_chains.is_empty() {
+            output.push_str(&format!("OUTGOING CALL CHAINS (depth={}):\n", follow_depth));
 
-        if definitions.is_empty() && references.is_empty() {
+            let mut unique_chains = HashSet::new();
+            for chain in outgoing_chains {
+                let chain_str = chain
+                    .path
+                    .iter()
+                    .map(|(file, line, from, to)| {
+                        let alias = file_map.get(file).cloned().unwrap_or_else(|| {
+                            file.file_name()
+                                .and_then(|n| n.to_str())
+                                .unwrap_or("unknown")
+                                .to_string()
+                        });
+                        format!("{}:{} ({} -> {})", alias, line, from, to)
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" -> ");
+                unique_chains.insert(chain_str);
+            }
+
+            let mut sorted_chains: Vec<_> = unique_chains.into_iter().collect();
+            sorted_chains.sort();
+
+            for chain in sorted_chains {
+                output.push_str(&format!("{}\n", chain));
+            }
+            output.push('\n');
+        }
+
+        // Section 4: Summary Statistics
+        output.push_str("STATISTICS:\n");
+        output.push_str(&format!("  Files analyzed: {}\n", files_analyzed.len()));
+        output.push_str(&format!("  Definitions found: {}\n", definitions.len()));
+        output.push_str(&format!("  Incoming chains: {}\n", incoming_chains.len()));
+        output.push_str(&format!("  Outgoing chains: {}\n", outgoing_chains.len()));
+        output.push_str(&format!("  Follow depth: {}\n", follow_depth));
+
+        // Section 5: File Legend (only if we have files and used aliases)
+        if !file_map.is_empty()
+            && (sorted_files.len() > 1
+                || !incoming_chains.is_empty()
+                || !outgoing_chains.is_empty()
+                || !definitions.is_empty())
+        {
+            output.push_str("\nFILES:\n");
+            let mut legend_entries: Vec<_> = file_map.iter().collect();
+            legend_entries.sort_by_key(|(_, alias)| alias.as_str());
+
+            for (file_path, alias) in legend_entries {
+                // For single file, don't show legend if we used the filename as alias
+                if sorted_files.len() == 1
+                    && alias == file_path.file_name().and_then(|n| n.to_str()).unwrap_or("")
+                {
+                    continue;
+                }
+                output.push_str(&format!("  {}: {}\n", alias, file_path.display()));
+            }
+        }
+
+        if definitions.is_empty() && incoming_chains.is_empty() && outgoing_chains.is_empty() {
             output = format!(
                 "Symbol '{}' not found in any analyzed files.\n",
                 focus_symbol
