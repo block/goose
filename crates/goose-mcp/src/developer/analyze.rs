@@ -267,7 +267,7 @@ impl CodeAnalyzer {
 
                 let total_files = files.len();
                 let total_calls: usize = files.iter().map(|r| r.calls.len()).sum();
-                output.push_str(&format!("\nDIRECTORY SUMMARY:\n"));
+                output.push_str("\nDIRECTORY SUMMARY:\n");
                 output.push_str(&format!("Files analyzed: {}\n", total_files));
                 output.push_str(&format!("Total function calls found: {}\n", total_calls));
             }
@@ -837,68 +837,7 @@ impl CodeAnalyzer {
         None // No containing function found (module-level call)
     }
 
-    // Helper method to analyze a directory recursively
-    async fn analyze_directory(
-        &self,
-        path: &Path,
-        output: &mut String,
-        depth: u32,
-        max_depth: u32,
-        ignore_patterns: &Gitignore,
-    ) -> Result<(), ErrorData> {
-        // max_depth of 0 means unlimited depth
-        if max_depth > 0 && depth >= max_depth {
-            return Ok(());
-        }
 
-        let entries = std::fs::read_dir(path).map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!("Failed to read directory: {}", e),
-                None,
-            )
-        })?;
-
-        for entry in entries {
-            let entry = entry.map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to read directory entry: {}", e),
-                    None,
-                )
-            })?;
-
-            let entry_path = entry.path();
-
-            // Skip ignored paths
-            if self.is_ignored(&entry_path, ignore_patterns) {
-                continue;
-            }
-
-            if entry_path.is_file() {
-                // Only analyze supported file types
-                let lang = lang::get_language_identifier(&entry_path);
-                if !lang.is_empty() {
-                    let result = self.analyze_file(&entry_path, "structure").await?;
-                    if !result.functions.is_empty() || !result.classes.is_empty() {
-                        output.push_str(&self.format_analysis_result(&entry_path, &result));
-                    }
-                }
-            } else if entry_path.is_dir() {
-                // Recurse into subdirectory
-                Box::pin(self.analyze_directory(
-                    &entry_path,
-                    output,
-                    depth + 1,
-                    max_depth,
-                    ignore_patterns,
-                ))
-                .await?;
-            }
-        }
-
-        Ok(())
-    }
 
     // Helper method to format structure overview (new compact format)
     fn format_structure_overview(&self, path: &Path, result: &AnalysisResult) -> String {
@@ -1361,7 +1300,7 @@ impl CodeAnalyzer {
                     context
                 ));
             }
-            output.push_str("\n");
+            output.push('\n');
         }
 
         if !call_paths.is_empty() {
@@ -1390,7 +1329,7 @@ impl CodeAnalyzer {
             for path_str in sorted_paths {
                 output.push_str(&format!("{}\n", path_str));
             }
-            output.push_str("\n");
+            output.push('\n');
         }
 
         // Summary
