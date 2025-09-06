@@ -19,17 +19,27 @@ use super::lang;
 /// Parameters for the analyze tool
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct AnalyzeParams {
-    /// Path to analyze (file or directory)
+    /// Path to analyze (absolute path to file or directory)
+    /// - For files: Shows semantic analysis with functions, classes, imports
+    /// - For directories: Shows structure overview with file metrics
     pub path: String,
 
-    /// Focus on specific symbol to track across all files
+    /// Symbol name to track across files (case-sensitive, exact match)
+    /// When provided with a directory path, tracks this symbol's definitions
+    /// and call chains across all files in the directory.
+    /// Note: Focus mode requires a directory path, not a single file.
     pub focus: Option<String>,
 
-    /// How many call levels to trace in focused mode (default: 2)
+    /// How many levels of call chains to traverse in focused mode (default: 2)
+    /// - 0: Only show definitions, no call chains
+    /// - 1: Show direct callers and callees
+    /// - 2: Show callers of callers, callees of callees
+    /// - N: Traverse N levels deep in the call graph
     #[serde(default = "default_follow_depth")]
     pub follow_depth: u32,
 
-    /// Maximum directory depth for traversal (0=unlimited)
+    /// Maximum directory recursion depth (default: 3, use 0 for unlimited)
+    /// Controls how deep to traverse subdirectories when analyzing
     #[serde(default = "default_max_depth")]
     pub max_depth: u32,
 }
