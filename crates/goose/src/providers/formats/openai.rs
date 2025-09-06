@@ -540,6 +540,7 @@ where
                         role: Role::Assistant,
                         created: chrono::Utc::now().timestamp(),
                         content: contents,
+                        branching_metadata: None,
                     }),
                     usage,
                 )
@@ -550,6 +551,7 @@ where
                         role: Role::Assistant,
                         created: chrono::Utc::now().timestamp(),
                         content: vec![MessageContent::text(text)],
+                        branching_metadata: None,
                     }),
                     if chunk.choices[0].finish_reason.is_some() {
                         usage

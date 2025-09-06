@@ -14,8 +14,9 @@ use rmcp::model::{
 use utoipa::{OpenApi, ToSchema};
 
 use goose::conversation::message::{
-    ContextLengthExceeded, FrontendToolRequest, Message, MessageContent, RedactedThinkingContent,
-    SummarizationRequested, ThinkingContent, ToolConfirmationRequest, ToolRequest, ToolResponse,
+    BranchReference, BranchSource, BranchingMetadata, ContextLengthExceeded, FrontendToolRequest,
+    Message, MessageContent, RedactedThinkingContent, SummarizationRequested, ThinkingContent,
+    ToolConfirmationRequest, ToolRequest, ToolResponse,
 };
 use utoipa::openapi::schema::{
     AdditionalProperties, AnyOfBuilder, ArrayBuilder, ObjectBuilder, OneOfBuilder, Schema,
@@ -383,6 +384,8 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::context::manage_context,
         super::routes::session::list_sessions,
         super::routes::session::get_session_history,
+        super::routes::session::branch_session,
+        super::routes::session::update_session_metadata,
         super::routes::schedule::create_schedule,
         super::routes::schedule::list_schedules,
         super::routes::schedule::delete_schedule,
@@ -416,6 +419,9 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::context::ContextManageResponse,
         super::routes::session::SessionListResponse,
         super::routes::session::SessionHistoryResponse,
+        super::routes::session::BranchSessionRequest,
+        super::routes::session::BranchSessionResponse,
+        super::routes::session::UpdateSessionMetadataRequest,
         Message,
         MessageContent,
         ContentSchema,
@@ -435,6 +441,9 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         RedactedThinkingContent,
         FrontendToolRequest,
         ResourceContentsSchema,
+        BranchingMetadata,
+        BranchReference,
+        BranchSource,
         ContextLengthExceeded,
         SummarizationRequested,
         RoleSchema,

@@ -65,6 +65,7 @@ export function convertApiMessageToFrontendMessage(
     content: apiMessage.content
       .map((apiContent) => mapApiContentToFrontendMessageContent(apiContent))
       .filter((content): content is FrontendMessageContent => content !== null),
+    branchingMetadata: apiMessage.branchingMetadata,
   };
 }
 

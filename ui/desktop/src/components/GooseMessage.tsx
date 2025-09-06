@@ -23,8 +23,11 @@ import {
 } from '../types/message';
 import ToolCallConfirmation from './ToolCallConfirmation';
 import MessageCopyLink from './MessageCopyLink';
+import MessageBranchLink from './MessageBranchLink';
 import { NotificationEvent } from '../hooks/useMessageStream';
 import { cn } from '../utils';
+import BranchingIndicator from './BranchingIndicator';
+import { GitBranch } from 'lucide-react';
 
 interface GooseMessageProps {
   // messages up to this index are presumed to be "history" from a resumed session, this is used to track older tool confirmation requests
@@ -38,6 +41,8 @@ interface GooseMessageProps {
   append: (value: string) => void;
   appendMessage: (message: Message) => void;
   isStreaming?: boolean; // Whether this message is currently being streamed
+  onBranchFromMessage?: (messageId: string) => void;
+  onSessionClick?: (sessionId: string) => void;
 }
 
 export default function GooseMessage({
@@ -50,6 +55,8 @@ export default function GooseMessage({
   append,
   appendMessage,
   isStreaming = false,
+  onBranchFromMessage,
+  onSessionClick,
 }: GooseMessageProps) {
   const contentRef = useRef<HTMLDivElement | null>(null);
   // Track which tool confirmations we've already handled to prevent infinite loops
@@ -169,35 +176,35 @@ export default function GooseMessage({
     return responseMap;
   }, [messages, messageIndex, toolRequests]);
 
+  // Handle tool confirmations
   useEffect(() => {
-    // If the message is the last message in the resumed session and has tool confirmation, it means the tool confirmation
-    // is broken or cancelled, to contonue use the session, we need to append a tool response to avoid mismatch tool result error.
-    if (
-      messageIndex === messageHistoryIndex - 1 &&
-      hasToolConfirmation &&
-      toolConfirmationContent &&
-      !handledToolConfirmations.current.has(toolConfirmationContent.id)
-    ) {
-      // Only append the error message if there isn't already a response for this tool confirmation
-      const hasExistingResponse = messages.some((msg) =>
-        getToolResponses(msg).some((response) => response.id === toolConfirmationContent.id)
-      );
+    if (hasToolConfirmation && !handledToolConfirmations.current.has(toolConfirmationContent.id)) {
+      handledToolConfirmations.current.add(toolConfirmationContent.id);
 
-      if (!hasExistingResponse) {
-        // Mark this tool confirmation as handled to prevent infinite loop
-        handledToolConfirmations.current.add(toolConfirmationContent.id);
+      const handleConfirmation = async (confirmed: boolean) => {
+        if (confirmed) {
+          // User confirmed, proceed with the tool call
+          console.log(`Tool call ${toolConfirmationContent.id} confirmed`);
+        } else {
+          // User rejected, create an error response
+          const errorResponse = createToolErrorResponseMessage(
+            toolConfirmationContent.id,
+            'Tool call was rejected by the user'
+          );
+          appendMessage(errorResponse);
+        }
+      };
 
-        appendMessage(
-          createToolErrorResponseMessage(toolConfirmationContent.id, 'The tool call is cancelled.')
-        );
+      // Auto-handle if this is from message history (already processed)
+      if (messageIndex < messageHistoryIndex) {
+        handleConfirmation(true);
       }
     }
   }, [
-    messageIndex,
-    messageHistoryIndex,
     hasToolConfirmation,
     toolConfirmationContent,
-    messages,
+    messageIndex,
+    messageHistoryIndex,
     appendMessage,
   ]);
 
@@ -208,6 +215,13 @@ export default function GooseMessage({
 
   // Determine rendering logic based on chain membership and content
   const isFirstInChain = messageChain && messageChain[0] === messageIndex;
+
+  // Check if this message has branching metadata
+  const hasBranchingMetadata =
+    message.branchingMetadata &&
+    (message.branchingMetadata.branchedFrom ||
+      (message.branchingMetadata.branchesCreated &&
+        message.branchingMetadata.branchesCreated.length > 0));
 
   return (
     <div className="goose-message flex w-[90%] justify-start min-w-0">
@@ -241,13 +255,43 @@ export default function GooseMessage({
             {toolRequests.length === 0 && (
               <div className="relative flex justify-start">
                 {!isStreaming && (
-                  <div className="text-xs font-mono text-text-muted pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
+                  <div className="text-xs font-mono text-text-muted pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0 flex items-center gap-1">
                     {timestamp}
+                    {/* Subtle branch icons when not hovering */}
+                    {hasBranchingMetadata && (
+                      <>
+                        {message.branchingMetadata?.branchedFrom && (
+                          <GitBranch 
+                            className="h-3 w-3 opacity-60 rotate-180"
+                          />
+                        )}
+                        {message.branchingMetadata?.branchesCreated && 
+                         message.branchingMetadata.branchesCreated.length > 0 && (
+                          <GitBranch 
+                            className="h-3 w-3 opacity-60"
+                          />
+                        )}
+                      </>
+                    )}
                   </div>
                 )}
                 {message.content.every((content) => content.type === 'text') && !isStreaming && (
-                  <div className="absolute left-0 pt-1">
+                  <div className="absolute left-0 pt-1 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                     <MessageCopyLink text={displayText} contentRef={contentRef} />
+                    {/* Branch button */}
+                    {onBranchFromMessage && message.id && (
+                      <MessageBranchLink
+                        onBranchFromMessage={onBranchFromMessage}
+                        messageId={message.id}
+                      />
+                    )}
+                    {/* Branching indicator in hover state */}
+                    {hasBranchingMetadata && (
+                      <BranchingIndicator
+                        branchingMetadata={message.branchingMetadata!}
+                        onSessionClick={onSessionClick}
+                      />
+                    )}
                   </div>
                 )}
               </div>
@@ -285,8 +329,41 @@ export default function GooseMessage({
                     </div>
                   ))}
                 </div>
-                <div className="text-xs text-text-muted pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
+                <div className="text-xs text-text-muted pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0 flex items-center gap-1">
                   {!isStreaming && timestamp}
+                  {/* Subtle branch icons when not hovering */}
+                  {hasBranchingMetadata && (
+                    <>
+                      {message.branchingMetadata?.branchedFrom && (
+                        <GitBranch 
+                          className="h-3 w-3 opacity-60 rotate-180"
+                        />
+                      )}
+                      {message.branchingMetadata?.branchesCreated && 
+                       message.branchingMetadata.branchesCreated.length > 0 && (
+                        <GitBranch 
+                          className="h-3 w-3 opacity-60"
+                        />
+                      )}
+                    </>
+                  )}
+                </div>
+                {/* Hover state for tool requests */}
+                <div className="absolute left-0 top-1 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                  {/* Branch button */}
+                  {onBranchFromMessage && message.id && (
+                    <MessageBranchLink
+                      onBranchFromMessage={onBranchFromMessage}
+                      messageId={message.id}
+                    />
+                  )}
+                  {/* Branching indicator in hover state */}
+                  {hasBranchingMetadata && (
+                    <BranchingIndicator
+                      branchingMetadata={message.branchingMetadata!}
+                      onSessionClick={onSessionClick}
+                    />
+                  )}
                 </div>
               </div>
             ) : null}

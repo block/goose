@@ -41,7 +41,7 @@
  * while remaining flexible enough to support different UI contexts (Hub vs Pair).
  */
 
-import React, { createContext, useContext, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { SearchView } from './conversation/SearchView';
 import { AgentHeader } from './AgentHeader';
@@ -224,6 +224,65 @@ function BaseChatContent({
     sessionMetadata,
   });
 
+  // Handle session branching
+  const handleBranchFromMessage = useCallback(
+    async (messageId: string) => {
+      try {
+        // Find the message index by ID
+        const messageIndex = messages.findIndex((msg) => msg.id === messageId);
+        if (messageIndex === -1) {
+          console.error('Message not found for branching:', messageId);
+          return;
+        }
+
+        // Import branching utilities dynamically to avoid circular dependencies
+        const { createSessionBranch, openSessionInNewWindow, fetchSessionDetails } = await import(
+          '../utils/sessionBranch'
+        );
+
+        // Create the branch
+        const branchSessionId = await createSessionBranch(
+          chat.sessionId,
+          messageIndex,
+          `Branch from message ${messageIndex + 1}`
+        );
+
+        // Open the new branch in a new window
+        openSessionInNewWindow(branchSessionId);
+
+        // Refresh the current session to show updated branching metadata
+        try {
+          const updatedSessionDetails = await fetchSessionDetails(chat.sessionId);
+          if (updatedSessionDetails && updatedSessionDetails.messages) {
+            // Import the conversion function to convert API messages to frontend messages
+            const { convertApiMessageToFrontendMessage } = await import(
+              '../components/context_management'
+            );
+            const convertedMessages = updatedSessionDetails.messages.map((apiMessage) =>
+              convertApiMessageToFrontendMessage(apiMessage, true, true)
+            );
+            setMessages(convertedMessages);
+          }
+        } catch (refreshError) {
+          console.warn('Failed to refresh session after branching:', refreshError);
+          // Non-critical error - branching still worked, just UI won't update immediately
+        }
+      } catch (error) {
+        console.error('Failed to create branch:', error);
+        // Could show a toast notification here
+      }
+    },
+    [messages, chat.sessionId, setMessages]
+  );
+
+  // Handle session navigation
+  const handleSessionClick = useCallback((sessionId: string) => {
+    // Import session navigation utilities dynamically
+    import('../utils/sessionBranch').then(({ openSessionInNewWindow }) => {
+      openSessionInNewWindow(sessionId);
+    });
+  }, []);
+
   useEffect(() => {
     window.electron.logInfo(
       'Initial messages when resuming session: ' + JSON.stringify(chat.messages, null, 2)
@@ -361,6 +420,8 @@ function BaseChatContent({
                       isUserMessage={isUserMessage}
                       isStreamingMessage={chatState !== ChatState.Idle}
                       onMessageUpdate={onMessageUpdate}
+                      onBranchFromMessage={handleBranchFromMessage}
+                      onSessionClick={handleSessionClick}
                     />
                   ) : (
                     // Render messages with SearchView wrapper when search is enabled
@@ -377,6 +438,8 @@ function BaseChatContent({
                         isUserMessage={isUserMessage}
                         isStreamingMessage={chatState !== ChatState.Idle}
                         onMessageUpdate={onMessageUpdate}
+                        onBranchFromMessage={handleBranchFromMessage}
+                        onSessionClick={handleSessionClick}
                       />
                     </SearchView>
                   )}
