@@ -605,9 +605,9 @@ const createChat = async (
       spellcheck: true,
       preload: path.join(__dirname, 'preload.js'),
       // Enable features needed for Web Speech API
-      webSecurity: true,
-      nodeIntegration: false,
-      contextIsolation: true,
+      // webSecurity: true,
+      // nodeIntegration: false,
+      // contextIsolation: true,
       additionalArguments: [
         JSON.stringify({
           ...appConfig, // Use the potentially updated appConfig
@@ -1707,41 +1707,41 @@ app.whenReady().then(async () => {
   });
 
   // Add CSP headers to all sessions
-  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-    callback({
-      responseHeaders: {
-        ...details.responseHeaders,
-        'Content-Security-Policy':
-          "default-src 'self';" +
-          // Allow inline styles since we use them in our React components
-          "style-src 'self' 'unsafe-inline';" +
-          // Scripts from our app and inline scripts (for theme initialization)
-          "script-src 'self' 'unsafe-inline';" +
-          // Images from our app and data: URLs (for base64 images)
-          "img-src 'self' data: https:;" +
-          // Connect to our local API and specific external services
-          "connect-src 'self' http://127.0.0.1:* https://api.github.com https://github.com https://objects.githubusercontent.com" +
-          // Don't allow any plugins
-          "object-src 'none';" +
-          // Allow all frames (iframes)
-          "frame-src 'self' https: http:;" +
-          // Font sources - allow self, data URLs, and external fonts
-          "font-src 'self' data: https:;" +
-          // Media sources - allow microphone
-          "media-src 'self' mediastream:;" +
-          // Form actions
-          "form-action 'none';" +
-          // Base URI restriction
-          "base-uri 'self';" +
-          // Manifest files
-          "manifest-src 'self';" +
-          // Worker sources
-          "worker-src 'self';" +
-          // Upgrade insecure requests
-          'upgrade-insecure-requests;',
-      },
-    });
-  });
+  // session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+  //   callback({
+  //     responseHeaders: {
+  //       ...details.responseHeaders,
+  //       'Content-Security-Policy':
+  //         "default-src 'self';" +
+  //         // Allow inline styles since we use them in our React components
+  //         "style-src 'self' 'unsafe-inline';" +
+  //         // Scripts from our app and inline scripts (for theme initialization)
+  //         "script-src 'self' 'unsafe-inline';" +
+  //         // Images from our app and data: URLs (for base64 images)
+  //         "img-src 'self' data: https:;" +
+  //         // Connect to our local API and specific external services
+  //         "connect-src 'self' http://127.0.0.1:* https://api.github.com https://github.com https://objects.githubusercontent.com" +
+  //         // Don't allow any plugins
+  //         "object-src 'none';" +
+  //         // Allow all frames (iframes)
+  //         "frame-src 'self' https: http:;" +
+  //         // Font sources - allow self, data URLs, and external fonts
+  //         "font-src 'self' data: https:;" +
+  //         // Media sources - allow microphone
+  //         "media-src 'self' mediastream:;" +
+  //         // Form actions
+  //         "form-action 'none';" +
+  //         // Base URI restriction
+  //         "base-uri 'self';" +
+  //         // Manifest files
+  //         "manifest-src 'self';" +
+  //         // Worker sources
+  //         "worker-src 'self';" +
+  //         // Upgrade insecure requests
+  //         'upgrade-insecure-requests;',
+  //     },
+  //   });
+  // });
 
   // Register the default global hotkey
   registerGlobalHotkey('CommandOrControl+Alt+Shift+G');
