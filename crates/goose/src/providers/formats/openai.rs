@@ -36,6 +36,10 @@ struct Delta {
     content: Option<String>,
     role: Option<String>,
     tool_calls: Option<Vec<DeltaToolCall>>,
+    // Some providers put a 'name' (tool name) here instead of in tool_calls
+    name: Option<String>,
+    // OpenAI/variants may include a 'refusal' field with refusal details
+    refusal: Option<Value>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -413,7 +417,20 @@ fn ensure_valid_json_schema(schema: &mut Value) {
 }
 
 fn strip_data_prefix(line: &str) -> Option<&str> {
-    line.strip_prefix("data: ").map(|s| s.trim())
+    let s = line.trim();
+    // SSE style: "data: {json}"
+    if let Some(rest) = s.strip_prefix("data: ") {
+        return Some(rest.trim());
+    }
+    // Raw NDJSON/JSON per-line: "{...}" or "[...]"
+    if s.starts_with('{') || s.starts_with('[') {
+        return Some(s);
+    }
+    // Some providers send the done sentinel without the data: prefix
+    if s == "[DONE]" {
+        return Some(s);
+    }
+    None
 }
 
 pub fn response_to_streaming_message<S>(
@@ -426,7 +443,8 @@ where
         use futures::StreamExt;
 
         'outer: while let Some(response) = stream.next().await {
-            if response.as_ref().is_ok_and(|s| s == "data: [DONE]") {
+            // Accept both SSE style "data: [DONE]" and plain "[DONE]" sentinel
+            if response.as_ref().is_ok_and(|s| s.trim() == "data: [DONE]" || s.trim() == "[DONE]") {
                 break 'outer;
             }
             let response_str = response?;
