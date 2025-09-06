@@ -31,6 +31,7 @@ use tokio::{
 };
 use tokio_stream::{wrappers::SplitStream, StreamExt as _};
 
+use super::analyze::{AnalyzeParams, CodeAnalyzer};
 use super::editor_models::{create_editor_model, EditorModel};
 use super::goose_hints::load_hints::{load_hint_files, GOOSE_HINTS_FILENAME};
 use super::shell::{expand_path, get_shell_config, is_absolute_path};
@@ -159,13 +160,13 @@ fn load_prompt_files() -> HashMap<String, Prompt> {
 }
 
 /// Developer MCP Server using official RMCP SDK
-#[derive(Debug, Clone)]
 pub struct DeveloperServer {
     tool_router: ToolRouter<Self>,
     file_history: Arc<Mutex<HashMap<PathBuf, Vec<String>>>>,
     ignore_patterns: Gitignore,
     editor_model: Option<EditorModel>,
     prompts: HashMap<String, Prompt>,
+    code_analyzer: CodeAnalyzer,
 }
 
 #[tool_handler(router = self.tool_router)]
@@ -500,6 +501,7 @@ impl DeveloperServer {
             ignore_patterns,
             editor_model,
             prompts: load_prompt_files(),
+            code_analyzer: CodeAnalyzer::new(),
         }
     }
 
@@ -967,6 +969,33 @@ impl DeveloperServer {
         }
 
         Ok(())
+    }
+
+    /// Analyze code structure and relationships.
+    ///
+    /// Modes:
+    /// - auto: Smart selection (default)
+    /// - structure: Metrics only
+    /// - semantic: With call graphs
+    /// - focused: Track symbol across files
+    ///
+    /// Examples:
+    /// analyze(path="file.py") -> semantic analysis
+    /// analyze(path="src/", mode="structure") -> quick overview
+    /// analyze(path="src/", mode="focused", focus="main") -> find all main() calls
+    #[tool(
+        name = "analyze",
+        description = "Analyze code structure. Modes: auto (smart default), structure (metrics), semantic (call graphs), focused (track symbol). Examples: analyze(path=\"file.py\"), analyze(path=\"src/\", mode=\"focused\", focus=\"main\")"
+    )]
+    pub async fn analyze(
+        &self,
+        params: Parameters<AnalyzeParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let params = params.0;
+        let path = self.resolve_path(&params.path)?;
+        self.code_analyzer
+            .analyze(params, path, &self.ignore_patterns)
+            .await
     }
 
     /// Process an image file from disk.
