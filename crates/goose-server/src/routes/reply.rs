@@ -265,14 +265,17 @@ async fn reply_handler(
             Ok(stream) => stream,
             Err(e) => {
                 tracing::error!("Failed to start reply stream: {:?}", e);
-                stream_event(
-                    MessageEvent::Error {
-                        error: e.to_string(),
-                    },
+                let err_text = e.to_string();
+                // send Error event (for telemetry / UI error handling)
+                let _ = stream_event(
+                    MessageEvent::Error { error: err_text.clone() },
                     &task_tx,
                     &cancel_token,
                 )
                 .await;
+                // also send a visible assistant message so the UI shows it inline
+                let assistant_msg = Message::assistant().with_text(format!("Provider error: {}", err_text));
+                let _ = stream_event(MessageEvent::Message { message: assistant_msg }, &task_tx, &cancel_token).await;
                 return;
             }
         };

@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { SECRET_PRESENT_SENTINEL } from '../../../../utils/secretConstants';
+
 import {
   Dialog,
   DialogContent,
@@ -129,7 +131,11 @@ export default function ProviderConfigurationModal() {
           if (value === undefined) continue;
           const lower = param.name.toLowerCase();
           if (lower.includes('api_key')) {
-            payload.api_key = String(value);
+            // Don't send sentinel values that indicate "secret present" — only include
+            // the API key when the user explicitly provided/changed it.
+            if (value !== SECRET_PRESENT_SENTINEL) {
+              payload.api_key = String(value);
+            }
           } else if (
             lower.includes('api_url') ||
             lower.includes('host') ||

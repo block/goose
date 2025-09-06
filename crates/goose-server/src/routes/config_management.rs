@@ -87,7 +87,7 @@ pub struct CreateCustomProviderRequest {
     pub supports_streaming: Option<bool>,
 }
 
-#[derive(Deserialize, ToSchema)]
+#[derive(Deserialize, Serialize, ToSchema)]
 pub struct UpdateCustomProviderRequest {
     pub display_name: Option<String>,
     pub api_url: Option<String>,
@@ -113,6 +113,18 @@ pub async fn upsert_config(
     verify_secret_key(&headers, &state)?;
 
     let config = Config::global();
+
+    // Defensive guard: if this is a secret check and the client sent a boolean 'true' to
+    // indicate presence, do not write that boolean into the secret storage. Treat as a no-op.
+    if query.is_secret {
+        if let Value::Bool(b) = &query.value {
+            if *b {
+                tracing::info!(key = %query.key, "Skipping upsert for secret key with boolean true (presence-only)");
+                return Ok(Json(Value::String(format!("Skipped secret upsert for {} (presence-only)", query.key))));
+            }
+        }
+    }
+
     let result = config.set(&query.key, query.value, query.is_secret);
 
     match result {

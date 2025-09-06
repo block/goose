@@ -1,4 +1,8 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
+/* eslint-disable react-hooks/exhaustive-deps */
+
+import { SECRET_PRESENT_SENTINEL } from '../../../../../../utils/secretConstants';
+
 import { Input } from '../../../../../ui/input';
 import { useConfig } from '../../../../../ConfigContext'; // Adjust this import path as needed
 import { ProviderDetails, ConfigKey } from '../../../../../../api';
@@ -40,7 +44,11 @@ export default function DefaultProviderSetupForm({
         const configResponse = await read(configKey, parameter.secret || false);
 
         if (configResponse) {
-          newValues[parameter.name] = parameter.secret ? 'true' : String(configResponse);
+          // For secrets, mark that a value exists without exposing it. Use a sentinel
+          // so the submit handler can skip overwriting the secret unless the user changes it.
+          newValues[parameter.name] = parameter.secret
+            ? SECRET_PRESENT_SENTINEL
+            : String(configResponse);
         } else if (
           parameter.default !== undefined &&
           parameter.default !== null &&
@@ -68,13 +76,13 @@ export default function DefaultProviderSetupForm({
       ...newValues,
     }));
     setIsLoading(false);
-  }, [configValues, parameters, read, setConfigValues]);
+  }, [parameters, read, setConfigValues, configValues]);
 
   useEffect(() => {
     loadConfigValues();
     // Re-run when the provider parameters or read function change so we load the
     // correct configuration values for the selected provider.
-  }, [parameters, read]);
+  }, [parameters, read, setConfigValues, configValues]);
 
   // Filter parameters to only show required ones
   const requiredParameters = useMemo(() => {

@@ -21,7 +21,7 @@ export default function CustomProviderForm({ onSubmit, onCancel }: CustomProvide
   const [providerType, setProviderType] = useState('openai_compatible');
   const [displayName, setDisplayName] = useState('');
   const [apiUrl, setApiUrl] = useState('');
-  const [apiKey, setApiKey] = useState('');
+  const [apiKey, setApiKey] = useState(''); // for new creation flow (no sentinel expected)
   const [models, setModels] = useState('');
   const [isLocalModel, setIsLocalModel] = useState(false);
   const [supportsStreaming, setSupportsStreaming] = useState(true);

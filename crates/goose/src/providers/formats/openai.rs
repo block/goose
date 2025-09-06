@@ -455,9 +455,25 @@ where
                 continue
             }
 
-            let chunk: StreamingChunk = serde_json::from_str(line
-                .ok_or_else(|| anyhow!("unexpected stream format"))?)
-                .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
+            let line_str = line
+                .ok_or_else(|| anyhow!("unexpected stream format"))?;
+
+            // First parse into a generic JSON value so we can detect provider-specific
+            // error objects (some OpenAI-compatible endpoints emit {"object":"error",...}).
+            let v: Value = serde_json::from_str(line_str)
+                .map_err(|e| anyhow!("Failed to parse streaming JSON value: {}: {:?}", e, &line_str))?;
+
+            // Detect top-level error objects and surface as an immediate error
+            if v.get("object").and_then(|o| o.as_str()).map(|s| s == "error").unwrap_or(false)
+                || v.get("error").is_some()
+            {
+                let msg_opt = v.get("message").and_then(|m| m.as_str()).map(|s| s.to_string());
+                let msg = msg_opt.unwrap_or_else(|| v.to_string());
+                Err(anyhow!("LLM streaming error: {}", msg))?;
+            }
+
+            let chunk: StreamingChunk = serde_json::from_value(v.clone())
+                .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line_str))?;
 
             let usage = chunk.usage.as_ref().and_then(|u| {
                 chunk.model.as_ref().map(|model| {
