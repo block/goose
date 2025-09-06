@@ -448,6 +448,7 @@ where
                 break 'outer;
             }
             let response_str = response?;
+            tracing::debug!(raw_stream_line = %response_str, "LLM_STREAM_RAW_LINE");
             let line = strip_data_prefix(&response_str);
 
             if line.is_none() || line.is_some_and(|l| l.is_empty()) {
