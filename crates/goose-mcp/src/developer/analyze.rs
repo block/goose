@@ -22,20 +22,32 @@ pub struct AnalyzeParams {
     /// Path to analyze (file or directory)
     pub path: String,
 
-    /// Analysis depth: "structure" (fast) or "semantic" (detailed)
-    #[serde(default = "default_analysis_depth")]
-    pub depth: String,
+    /// Analysis mode: "auto" (default), "structure", "semantic", or "focused"
+    /// - auto: Structure for directories, semantic for files
+    /// - structure: File/function counts only
+    /// - semantic: Detailed with call graphs
+    /// - focused: Track symbol across all files (requires focus parameter)
+    #[serde(default = "default_analysis_mode")]
+    pub mode: String,
 
-    /// Focus on specific symbol
+    /// Focus on specific symbol (used with focused mode)
     pub focus: Option<String>,
 
-    /// Maximum directory depth
+    /// How many call levels to trace in focused mode (default: 2)
+    #[serde(default = "default_follow_depth")]
+    pub follow_depth: u32,
+
+    /// Maximum directory depth for traversal (0=unlimited)
     #[serde(default = "default_max_depth")]
     pub max_depth: u32,
 }
 
-fn default_analysis_depth() -> String {
-    "structure".to_string()
+fn default_analysis_mode() -> String {
+    "auto".to_string()
+}
+
+fn default_follow_depth() -> u32 {
+    2
 }
 
 fn default_max_depth() -> u32 {
@@ -149,37 +161,84 @@ impl CodeAnalyzer {
             ));
         }
 
+        // Determine the actual mode to use
+        let mode = self.determine_mode(&params, &path)?;
+
         let mut output = String::new();
+
+        // Add warning for semantic mode on directories
+        if path.is_dir() && mode == "semantic" {
+            output.push_str(
+                "⚠️ Warning: Semantic analysis on directories can produce large output.\n",
+            );
+            output.push_str("Consider using 'structure' mode or analyzing specific files.\n\n");
+        }
 
         if path.is_file() {
             // Analyze single file
-            let result = self.analyze_file(&path, &params.depth).await?;
+            let result = self.analyze_file(&path, &mode).await?;
             output.push_str(&self.format_analysis_result(&path, &result));
         } else {
             // Analyze directory
-            if params.depth == "structure" {
+            if mode == "structure" {
                 // For structure mode, collect all results and format with summary
                 let results = self
-                    .collect_directory_results(
-                        &path,
-                        0,
-                        params.max_depth,
-                        ignore_patterns,
-                        &params.depth,
-                    )
+                    .collect_directory_results(&path, 0, params.max_depth, ignore_patterns, &mode)
                     .await?;
-                output.push_str(&self.format_directory_structure(&path, &results, params.max_depth));
+                output.push_str(&self.format_directory_structure(
+                    &path,
+                    &results,
+                    params.max_depth,
+                ));
+            } else if mode == "focused" {
+                // Focused mode - requires focus parameter
+                if params.focus.is_none() {
+                    return Err(ErrorData::new(
+                        ErrorCode::INVALID_PARAMS,
+                        "Focused mode requires 'focus' parameter to specify the symbol to track"
+                            .to_string(),
+                        None,
+                    ));
+                }
+                // TODO: Implement focused mode in Phase 4
+                output.push_str("Focused mode not yet implemented\n");
             } else {
-                // For semantic mode, use the old detailed format
-                output.push_str(&format!("# Code Analysis: {}\n\n", path.display()));
-                self.analyze_directory(&path, &mut output, 0, params.max_depth, ignore_patterns)
+                // For semantic mode on directory, analyze each file with semantic analysis
+                output.push_str(&format!("DIRECTORY: {}\n\n", path.display()));
+                let results = self
+                    .collect_directory_results(&path, 0, params.max_depth, ignore_patterns, &mode)
                     .await?;
+
+                // Format each file's semantic analysis
+                for (file_path, entry) in &results {
+                    if let EntryType::File(result) = entry {
+                        output.push_str(&self.format_analysis_result(file_path, result));
+                        output.push_str("\n---\n\n");
+                    }
+                }
+
+                // Add summary at the end
+                let files: Vec<&AnalysisResult> = results
+                    .iter()
+                    .filter_map(|(_, entry)| match entry {
+                        EntryType::File(result) => Some(result),
+                        _ => None,
+                    })
+                    .collect();
+
+                let total_files = files.len();
+                let total_calls: usize = files.iter().map(|r| r.calls.len()).sum();
+                output.push_str(&format!("\nDIRECTORY SUMMARY:\n"));
+                output.push_str(&format!("Files analyzed: {}\n", total_files));
+                output.push_str(&format!("Total function calls found: {}\n", total_calls));
             }
         }
 
-        // If focus is specified, filter results
+        // If focus is specified with non-focused mode, filter results
         if let Some(focus) = &params.focus {
-            output = self.filter_by_focus(&output, focus);
+            if mode != "focused" {
+                output = self.filter_by_focus(&output, focus);
+            }
         }
 
         Ok(CallToolResult::success(vec![
@@ -188,6 +247,33 @@ impl CodeAnalyzer {
                 .with_audience(vec![Role::User])
                 .with_priority(0.0),
         ]))
+    }
+
+    // Helper method to determine the actual mode to use
+    fn determine_mode(&self, params: &AnalyzeParams, path: &Path) -> Result<String, ErrorData> {
+        let mode = &params.mode;
+
+        // Handle auto mode
+        if mode == "auto" {
+            if path.is_file() {
+                Ok("semantic".to_string())
+            } else {
+                Ok("structure".to_string())
+            }
+        } else {
+            // Validate mode
+            match mode.as_str() {
+                "structure" | "semantic" | "focused" => Ok(mode.clone()),
+                _ => Err(ErrorData::new(
+                    ErrorCode::INVALID_PARAMS,
+                    format!(
+                        "Invalid mode '{}'. Must be one of: auto, structure, semantic, focused",
+                        mode
+                    ),
+                    None,
+                )),
+            }
+        }
     }
 
     // Helper method to check if a path should be ignored
@@ -801,7 +887,7 @@ impl CodeAnalyzer {
         output
     }
 
-    // Helper method to format analysis results
+    // Helper method to format analysis results (optimized for LLMs)
     fn format_analysis_result(&self, path: &Path, result: &AnalysisResult) -> String {
         // Check if this is structure mode (no detailed data)
         if result.functions.is_empty()
@@ -815,90 +901,51 @@ impl CodeAnalyzer {
             return self.format_structure_overview(path, result);
         }
 
-        // Otherwise, use the detailed format (semantic mode)
-        let mut output = format!("\n## {}\n", path.display());
+        // Semantic mode - optimized format for LLMs
+        let mut output = format!("FILE: {}\n", path.display());
+        output.push_str(&format!(
+            "METRICS: {}L, {}F, {}C\n\n",
+            result.line_count, result.function_count, result.class_count
+        ));
 
-        // Add analysis mode indicator if semantic analysis was performed
-        if !result.calls.is_empty() || !result.references.is_empty() {
-            output.push_str("*Analysis Mode: Semantic (with call graph)*\n\n");
-        } else {
-            output.push('\n');
-        }
-
+        // List functions with line numbers
         if !result.functions.is_empty() {
-            output.push_str("### Functions:\n");
+            output.push_str("FUNCTIONS:\n");
             for func in &result.functions {
-                output.push_str(&format!("- `{}` (line {})\n", func.name, func.line));
-
-                // Add semantic information if available
-                if !result.calls.is_empty() {
-                    // Find calls made by this function
-                    let calls_from: Vec<&CallInfo> = result
-                        .calls
-                        .iter()
-                        .filter(|c| c.caller_name.as_ref() == Some(&func.name))
-                        .collect();
-
-                    if !calls_from.is_empty() {
-                        // Group calls by callee name to avoid duplicates
-                        let mut unique_callees: Vec<String> =
-                            calls_from.iter().map(|c| c.callee_name.clone()).collect();
-                        unique_callees.sort();
-                        unique_callees.dedup();
-
-                        output.push_str(&format!("  ↳ Calls: {}\n", unique_callees.join(", ")));
-                    }
-
-                    // Find who calls this function
-                    let called_by: Vec<&CallInfo> = result
-                        .calls
-                        .iter()
-                        .filter(|c| c.callee_name == func.name)
-                        .collect();
-
-                    if !called_by.is_empty() {
-                        let callers: Vec<String> = called_by
-                            .iter()
-                            .filter_map(|c| c.caller_name.as_ref())
-                            .cloned()
-                            .collect::<Vec<_>>();
-
-                        if !callers.is_empty() {
-                            let mut unique_callers = callers;
-                            unique_callers.sort();
-                            unique_callers.dedup();
-                            output.push_str(&format!(
-                                "  ↳ Called by: {}\n",
-                                unique_callers.join(", ")
-                            ));
-                        } else {
-                            output.push_str("  ↳ Called from: module level\n");
-                        }
-                    }
-                }
+                output.push_str(&format!("{} (line {})\n", func.name, func.line));
             }
             output.push('\n');
         }
 
+        // List classes/types
         if !result.classes.is_empty() {
-            output.push_str("### Classes/Types:\n");
+            output.push_str("CLASSES:\n");
             for class in &result.classes {
-                output.push_str(&format!("- `{}` (line {})\n", class.name, class.line));
+                output.push_str(&format!("{} (line {})\n", class.name, class.line));
             }
             output.push('\n');
         }
 
-        // Add call graph visualization for semantic analysis
+        // Add call relationships for semantic analysis
         if !result.calls.is_empty() {
-            output.push_str("### Call Graph:\n```\n");
-            output.push_str(&self.generate_ascii_call_graph(result));
-            output.push_str("```\n\n");
+            output.push_str(&self.format_call_relationships(result));
+            output.push('\n');
         }
 
-        if !result.imports.is_empty() && result.imports.len() <= 10 {
-            output.push_str("### Imports:\n");
-            for import in &result.imports {
-                output.push_str(&format!("- {}\n", import));
+        // Only show imports if there are few of them
+        if !result.imports.is_empty() && result.imports.len() <= 5 {
+            output.push_str("IMPORTS:\n");
+            for import in &result.imports.iter().take(5).collect::<Vec<_>>() {
+                // Simplify import display
+                let simplified = if import.len() > 50 {
+                    format!("{}...", &import[..47])
+                } else {
+                    import.to_string()
+                };
+                output.push_str(&format!("{}\n", simplified));
+            }
+            if result.imports.len() > 5 {
+                output.push_str(&format!("... and {} more\n", result.imports.len() - 5));
             }
             output.push('\n');
         }
@@ -906,54 +953,43 @@ impl CodeAnalyzer {
         output
     }
 
-    // Helper method to generate ASCII call graph
-    fn generate_ascii_call_graph(&self, result: &AnalysisResult) -> String {
-        let mut graph = String::new();
+    // Helper method to format call relationships as flat list (optimized for LLMs)
+    fn format_call_relationships(&self, result: &AnalysisResult) -> String {
+        let mut output = String::new();
 
-        // Group calls by caller
-        let mut call_map: std::collections::HashMap<String, Vec<String>> =
-            std::collections::HashMap::new();
+        if result.calls.is_empty() {
+            output.push_str("No function calls detected\n");
+            return output;
+        }
+
+        // Create a deduplicated list of relationships with line numbers
+        let mut relationships: Vec<String> = Vec::new();
+        let mut seen = std::collections::HashSet::new();
 
         for call in &result.calls {
             let caller = call
                 .caller_name
                 .clone()
                 .unwrap_or_else(|| "<module>".to_string());
-            call_map
-                .entry(caller)
-                .or_default()
-                .push(call.callee_name.clone());
-        }
+            let relationship = format!("{} (line {}) -> {}", caller, call.line, call.callee_name);
 
-        // Sort and deduplicate callees for each caller
-        for callees in call_map.values_mut() {
-            callees.sort();
-            callees.dedup();
-        }
-
-        // Generate the graph
-        let mut callers: Vec<_> = call_map.keys().cloned().collect();
-        callers.sort();
-
-        for caller in callers {
-            if let Some(callees) = call_map.get(&caller) {
-                graph.push_str(&format!("{}\n", caller));
-                for (i, callee) in callees.iter().enumerate() {
-                    let prefix = if i == callees.len() - 1 {
-                        "└─"
-                    } else {
-                        "├─"
-                    };
-                    graph.push_str(&format!("  {} {}\n", prefix, callee));
-                }
+            // Only add unique relationships
+            let key = format!("{}:{}", caller, call.callee_name);
+            if seen.insert(key) {
+                relationships.push(relationship);
             }
         }
 
-        if graph.is_empty() {
-            graph.push_str("(No function calls detected)\n");
+        // Sort for consistent output
+        relationships.sort();
+
+        // Format as simple list
+        output.push_str("CALL RELATIONSHIPS:\n");
+        for rel in relationships {
+            output.push_str(&format!("{}\n", rel));
         }
 
-        graph
+        output
     }
 
     // Helper method to collect all results from a directory
