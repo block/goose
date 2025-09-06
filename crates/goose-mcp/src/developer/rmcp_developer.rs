@@ -204,6 +204,11 @@ impl ServerHandler for DeveloperServer {
             You can use the shell tool to run any command that would work on the relevant operating system.
             Use the shell tool as needed to locate files or interact with the project.
 
+            Use the `analyze` tool aggressively to explore directory structures and understand codebases -
+            its semantic mode reveals call graphs and dependencies while focused mode tracks specific symbols across files.
+            Leverage `analyze` through `return_last_only=true` subagents for deep codebase understanding with lean context
+            - delegate analysis, retain summaries
+
             Your windows/screen tools can be used for visual debugging. You should not use these tools unless
             prompted to, but you can mention they are available if they are relevant.
 

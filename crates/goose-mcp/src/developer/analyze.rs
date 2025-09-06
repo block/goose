@@ -117,6 +117,9 @@ enum EntryType {
     SymlinkDir(PathBuf),
 }
 
+// Type alias for complex query results
+type ElementQueryResult = (Vec<FunctionInfo>, Vec<ClassInfo>, Vec<String>);
+
 /// Code analyzer with caching and tree-sitter parsing
 pub struct CodeAnalyzer {
     parser_cache: Arc<Mutex<HashMap<String, Arc<Mutex<Parser>>>>>,
@@ -146,8 +149,40 @@ impl CodeAnalyzer {
         path: PathBuf,
         ignore_patterns: &Gitignore,
     ) -> Result<CallToolResult, ErrorData> {
+        // Validate path
+        self.validate_path(&path, ignore_patterns)?;
+
+        // Determine the actual mode to use
+        let mode = self.determine_mode(&params, &path)?;
+
+        // Process based on path type and mode
+        let mut output = if path.is_file() {
+            self.analyze_file_with_mode(&path, &mode, &params, ignore_patterns)
+                .await?
+        } else {
+            self.analyze_directory_with_mode(&path, &mode, &params, ignore_patterns)
+                .await?
+        };
+
+        // If focus is specified with non-focused mode, filter results
+        if let Some(focus) = &params.focus {
+            if mode != "focused" {
+                output = self.filter_by_focus(&output, focus);
+            }
+        }
+
+        Ok(CallToolResult::success(vec![
+            Content::text(output.clone()).with_audience(vec![Role::Assistant]),
+            Content::text(output)
+                .with_audience(vec![Role::User])
+                .with_priority(0.0),
+        ]))
+    }
+
+    // Helper to validate path
+    fn validate_path(&self, path: &Path, ignore_patterns: &Gitignore) -> Result<(), ErrorData> {
         // Check if path is ignored
-        if self.is_ignored(&path, ignore_patterns) {
+        if self.is_ignored(path, ignore_patterns) {
             return Err(ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
                 format!(
@@ -167,125 +202,133 @@ impl CodeAnalyzer {
             ));
         }
 
-        // Determine the actual mode to use
-        let mode = self.determine_mode(&params, &path)?;
+        Ok(())
+    }
 
+    // Helper to analyze file based on mode
+    async fn analyze_file_with_mode(
+        &self,
+        path: &Path,
+        mode: &str,
+        params: &AnalyzeParams,
+        ignore_patterns: &Gitignore,
+    ) -> Result<String, ErrorData> {
+        if mode == "focused" {
+            self.validate_and_run_focused(path, params, ignore_patterns)
+                .await
+        } else {
+            let result = self.analyze_file(path, mode).await?;
+            Ok(self.format_analysis_result(path, &result))
+        }
+    }
+
+    // Helper to analyze directory based on mode
+    async fn analyze_directory_with_mode(
+        &self,
+        path: &Path,
+        mode: &str,
+        params: &AnalyzeParams,
+        ignore_patterns: &Gitignore,
+    ) -> Result<String, ErrorData> {
         let mut output = String::new();
 
         // Add warning for semantic mode on directories
-        if path.is_dir() && mode == "semantic" {
+        if mode == "semantic" {
             output.push_str(
                 "⚠️ Warning: Semantic analysis on directories can produce large output.\n",
             );
             output.push_str("Consider using 'structure' mode or analyzing specific files.\n\n");
         }
 
-        if path.is_file() {
-            // Check if we're in focused mode
-            if mode == "focused" {
-                // Focused mode - requires focus parameter
-                if params.focus.is_none() {
-                    return Err(ErrorData::new(
-                        ErrorCode::INVALID_PARAMS,
-                        "Focused mode requires 'focus' parameter to specify the symbol to track"
-                            .to_string(),
-                        None,
-                    ));
-                }
-                let focus_symbol = params.focus.as_ref().unwrap();
-                let focused_result = self
-                    .analyze_focused(
-                        &path,
-                        focus_symbol,
-                        params.follow_depth,
-                        params.max_depth,
-                        ignore_patterns,
-                    )
+        match mode {
+            "structure" => {
+                let results = self
+                    .collect_directory_results(path, 0, params.max_depth, ignore_patterns, mode)
                     .await?;
-                output.push_str(&focused_result);
-            } else {
-                // Regular file analysis
-                let result = self.analyze_file(&path, &mode).await?;
-                output.push_str(&self.format_analysis_result(&path, &result));
+                output.push_str(&self.format_directory_structure(path, &results, params.max_depth));
             }
-        } else {
-            // Analyze directory
-            if mode == "structure" {
-                // For structure mode, collect all results and format with summary
-                let results = self
-                    .collect_directory_results(&path, 0, params.max_depth, ignore_patterns, &mode)
-                    .await?;
-                output.push_str(&self.format_directory_structure(
-                    &path,
-                    &results,
-                    params.max_depth,
-                ));
-            } else if mode == "focused" {
-                // Focused mode - requires focus parameter
-                if params.focus.is_none() {
-                    return Err(ErrorData::new(
-                        ErrorCode::INVALID_PARAMS,
-                        "Focused mode requires 'focus' parameter to specify the symbol to track"
-                            .to_string(),
-                        None,
-                    ));
-                }
-                let focus_symbol = params.focus.as_ref().unwrap();
+            "focused" => {
                 let focused_result = self
-                    .analyze_focused(
-                        &path,
-                        focus_symbol,
-                        params.follow_depth,
-                        params.max_depth,
-                        ignore_patterns,
-                    )
+                    .validate_and_run_focused(path, params, ignore_patterns)
                     .await?;
                 output.push_str(&focused_result);
-            } else {
-                // For semantic mode on directory, analyze each file with semantic analysis
-                output.push_str(&format!("DIRECTORY: {}\n\n", path.display()));
-                let results = self
-                    .collect_directory_results(&path, 0, params.max_depth, ignore_patterns, &mode)
-                    .await?;
-
-                // Format each file's semantic analysis
-                for (file_path, entry) in &results {
-                    if let EntryType::File(result) = entry {
-                        output.push_str(&self.format_analysis_result(file_path, result));
-                        output.push_str("\n---\n\n");
-                    }
-                }
-
-                // Add summary at the end
-                let files: Vec<&AnalysisResult> = results
-                    .iter()
-                    .filter_map(|(_, entry)| match entry {
-                        EntryType::File(result) => Some(result),
-                        _ => None,
-                    })
-                    .collect();
-
-                let total_files = files.len();
-                let total_calls: usize = files.iter().map(|r| r.calls.len()).sum();
-                output.push_str("\nDIRECTORY SUMMARY:\n");
-                output.push_str(&format!("Files analyzed: {}\n", total_files));
-                output.push_str(&format!("Total function calls found: {}\n", total_calls));
+            }
+            _ => {
+                // Semantic mode on directory
+                output.push_str(
+                    &self
+                        .analyze_directory_semantic(path, params, ignore_patterns)
+                        .await?,
+                );
             }
         }
 
-        // If focus is specified with non-focused mode, filter results
-        if let Some(focus) = &params.focus {
-            if mode != "focused" {
-                output = self.filter_by_focus(&output, focus);
+        Ok(output)
+    }
+
+    // Helper to validate focused mode and run it
+    async fn validate_and_run_focused(
+        &self,
+        path: &Path,
+        params: &AnalyzeParams,
+        ignore_patterns: &Gitignore,
+    ) -> Result<String, ErrorData> {
+        // Focused mode - requires focus parameter
+        if params.focus.is_none() {
+            return Err(ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Focused mode requires 'focus' parameter to specify the symbol to track"
+                    .to_string(),
+                None,
+            ));
+        }
+        let focus_symbol = params.focus.as_ref().unwrap();
+        self.analyze_focused(
+            path,
+            focus_symbol,
+            params.follow_depth,
+            params.max_depth,
+            ignore_patterns,
+        )
+        .await
+    }
+
+    // Helper for semantic directory analysis
+    async fn analyze_directory_semantic(
+        &self,
+        path: &Path,
+        params: &AnalyzeParams,
+        ignore_patterns: &Gitignore,
+    ) -> Result<String, ErrorData> {
+        let mut output = format!("DIRECTORY: {}\n\n", path.display());
+        let results = self
+            .collect_directory_results(path, 0, params.max_depth, ignore_patterns, "semantic")
+            .await?;
+
+        // Format each file's semantic analysis
+        for (file_path, entry) in &results {
+            if let EntryType::File(result) = entry {
+                output.push_str(&self.format_analysis_result(file_path, result));
+                output.push_str("\n---\n\n");
             }
         }
 
-        Ok(CallToolResult::success(vec![
-            Content::text(output.clone()).with_audience(vec![Role::Assistant]),
-            Content::text(output)
-                .with_audience(vec![Role::User])
-                .with_priority(0.0),
-        ]))
+        // Add summary at the end
+        let files: Vec<&AnalysisResult> = results
+            .iter()
+            .filter_map(|(_, entry)| match entry {
+                EntryType::File(result) => Some(result),
+                _ => None,
+            })
+            .collect();
+
+        let total_files = files.len();
+        let total_calls: usize = files.iter().map(|r| r.calls.len()).sum();
+        output.push_str("\nDIRECTORY SUMMARY:\n");
+        output.push_str(&format!("Files analyzed: {}\n", total_files));
+        output.push_str(&format!("Total function calls found: {}\n", total_calls));
+
+        Ok(output)
     }
 
     // Helper method to determine the actual mode to use
@@ -510,12 +553,35 @@ impl CodeAnalyzer {
         source: &str,
         language: &str,
     ) -> Result<AnalysisResult, ErrorData> {
-        let mut functions = Vec::new();
-        let mut classes = Vec::new();
-        let mut imports = Vec::new();
+        // Get language-specific query
+        let query_str = self.get_element_query(language);
+        if query_str.is_empty() {
+            return Ok(self.empty_analysis_result());
+        }
 
-        // Create queries based on language
-        let query_str = match language {
+        // Parse and process the query
+        let (functions, classes, imports) = self.process_element_query(tree, source, query_str)?;
+
+        // Detect main function
+        let main_line = functions.iter().find(|f| f.name == "main").map(|f| f.line);
+
+        Ok(AnalysisResult {
+            functions: functions.clone(),
+            classes: classes.clone(),
+            imports: imports.clone(),
+            calls: vec![],
+            references: vec![],
+            function_count: functions.len(),
+            class_count: classes.len(),
+            line_count: 0, // Will be set later
+            import_count: imports.len(),
+            main_line,
+        })
+    }
+
+    // Get language-specific query for elements
+    fn get_element_query(&self, language: &str) -> &'static str {
+        match language {
             "python" => {
                 r#"
                 (function_definition name: (identifier) @func)
@@ -554,21 +620,20 @@ impl CodeAnalyzer {
                 (import_declaration) @import
             "#
             }
-            _ => {
-                return Ok(AnalysisResult {
-                    functions: vec![],
-                    classes: vec![],
-                    imports: vec![],
-                    calls: vec![],
-                    references: vec![],
-                    function_count: 0,
-                    class_count: 0,
-                    line_count: 0,
-                    import_count: 0,
-                    main_line: None,
-                })
-            }
-        };
+            _ => "",
+        }
+    }
+
+    // Process element query and extract functions, classes, imports
+    fn process_element_query(
+        &self,
+        tree: &Tree,
+        source: &str,
+        query_str: &str,
+    ) -> Result<ElementQueryResult, ErrorData> {
+        let mut functions = Vec::new();
+        let mut classes = Vec::new();
+        let mut imports = Vec::new();
 
         let query = Query::new(&tree.language(), query_str).map_err(|e| {
             ErrorData::new(
@@ -610,21 +675,23 @@ impl CodeAnalyzer {
             }
         }
 
-        // Detect main function
-        let main_line = functions.iter().find(|f| f.name == "main").map(|f| f.line);
+        Ok((functions, classes, imports))
+    }
 
-        Ok(AnalysisResult {
-            functions: functions.clone(),
-            classes: classes.clone(),
-            imports: imports.clone(),
+    // Create empty analysis result
+    fn empty_analysis_result(&self) -> AnalysisResult {
+        AnalysisResult {
+            functions: vec![],
+            classes: vec![],
+            imports: vec![],
             calls: vec![],
             references: vec![],
-            function_count: functions.len(),
-            class_count: classes.len(),
-            line_count: 0, // Will be set later
-            import_count: imports.len(),
-            main_line,
-        })
+            function_count: 0,
+            class_count: 0,
+            line_count: 0,
+            import_count: 0,
+            main_line: None,
+        }
     }
 
     // Helper method to get language-specific query for finding function calls
@@ -836,8 +903,6 @@ impl CodeAnalyzer {
 
         None // No containing function found (module-level call)
     }
-
-
 
     // Helper method to format structure overview (new compact format)
     fn format_structure_overview(&self, path: &Path, result: &AnalysisResult) -> String {
@@ -1212,27 +1277,48 @@ impl CodeAnalyzer {
         max_depth: u32,
         ignore_patterns: &Gitignore,
     ) -> Result<String, ErrorData> {
-        let mut output = String::new();
-
-        output.push_str(&format!("FOCUSED ANALYSIS: {}\n\n", focus_symbol));
-
         // Collect all files to analyze
         let files_to_analyze = if path.is_file() {
-            // Single file mode
             vec![path.to_path_buf()]
         } else {
-            // Directory mode - collect all supported files
             self.collect_files_for_focused(path, 0, max_depth, ignore_patterns)
                 .await?
         };
 
-        // Track definitions and calls across all files
-        let mut definitions: Vec<(PathBuf, usize, String)> = Vec::new(); // (file, line, context)
-        let mut call_paths: Vec<(PathBuf, String, usize, PathBuf, String, usize)> = Vec::new(); // (caller_file, caller_func, caller_line, callee_file, callee_func, callee_line)
-        let mut references: Vec<(PathBuf, usize, String)> = Vec::new(); // (file, line, context)
+        // Track symbol occurrences across all files
+        let (definitions, call_paths, references) = self
+            .track_symbol_occurrences(&files_to_analyze, focus_symbol)
+            .await?;
 
-        // Analyze each file for the focus symbol
-        for file_path in &files_to_analyze {
+        // Format the output
+        self.format_focused_output(
+            path,
+            focus_symbol,
+            &files_to_analyze,
+            &definitions,
+            &call_paths,
+            &references,
+        )
+    }
+
+    // Track occurrences of a symbol across files
+    async fn track_symbol_occurrences(
+        &self,
+        files: &[PathBuf],
+        focus_symbol: &str,
+    ) -> Result<
+        (
+            Vec<(PathBuf, usize, String)>,
+            Vec<(PathBuf, String, usize, PathBuf, String, usize)>,
+            Vec<(PathBuf, usize, String)>,
+        ),
+        ErrorData,
+    > {
+        let mut definitions = Vec::new();
+        let mut call_paths = Vec::new();
+        let mut references = Vec::new();
+
+        for file_path in files {
             let result = self.analyze_file(file_path, "semantic").await?;
 
             // Find definitions
@@ -1273,21 +1359,28 @@ impl CodeAnalyzer {
                         ));
                     }
                 }
-
-                // Also check if the caller is our focus symbol
-                if let Some(ref caller_name) = call.caller_name {
-                    if caller_name == focus_symbol {
-                        // This function calls something else
-                        // We could track this for follow_depth > 1
-                    }
-                }
             }
         }
 
-        // Format output in path notation
+        Ok((definitions, call_paths, references))
+    }
+
+    // Format focused analysis output
+    fn format_focused_output(
+        &self,
+        path: &Path,
+        focus_symbol: &str,
+        files_to_analyze: &[PathBuf],
+        definitions: &[(PathBuf, usize, String)],
+        call_paths: &[(PathBuf, String, usize, PathBuf, String, usize)],
+        references: &[(PathBuf, usize, String)],
+    ) -> Result<String, ErrorData> {
+        let mut output = format!("FOCUSED ANALYSIS: {}\n\n", focus_symbol);
+
+        // Format definitions
         if !definitions.is_empty() {
             output.push_str("DEFINITIONS:\n");
-            for (file, line, context) in &definitions {
+            for (file, line, context) in definitions {
                 let relative_path = if path.is_dir() {
                     file.strip_prefix(path).unwrap_or(file)
                 } else {
@@ -1303,11 +1396,11 @@ impl CodeAnalyzer {
             output.push('\n');
         }
 
+        // Format call paths
         if !call_paths.is_empty() {
             output.push_str("CALL PATHS:\n");
-            // Deduplicate and sort call paths
             let mut unique_paths = std::collections::HashSet::new();
-            for (caller_file, caller_func, caller_line, _, callee_func, _) in &call_paths {
+            for (caller_file, caller_func, caller_line, _, callee_func, _) in call_paths {
                 let relative_path = if path.is_dir() {
                     caller_file.strip_prefix(path).unwrap_or(caller_file)
                 } else {
