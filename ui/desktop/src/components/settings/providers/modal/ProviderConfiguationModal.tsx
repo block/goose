@@ -18,6 +18,7 @@ import OllamaForm from './subcomponents/forms/OllamaForm';
 import { useConfig } from '../../../ConfigContext';
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import { AlertTriangle } from 'lucide-react';
+import { toast } from 'react-toastify';
 import { ConfigKey, removeCustomProvider } from '../../../../api';
 
 interface FormValues {
@@ -231,7 +232,25 @@ export default function ProviderConfigurationModal() {
           return;
         }
 
-        // Close modal and call onSubmit so callers refresh provider list
+        // Show a success toast with expandable details and call onSubmit so callers refresh provider list
+        try {
+          const details = JSON.stringify(payload, null, 2);
+          toast.success(
+            <div>
+              <strong>Custom provider updated</strong>
+              <div className="text-sm text-muted">Changes were saved to the provider JSON.</div>
+              <details className="mt-2">
+                <summary className="cursor-pointer">Show details</summary>
+                <pre className="whitespace-pre-wrap text-xs mt-2">{details}</pre>
+              </details>
+            </div>
+          );
+        } catch (e) {
+          console.warn('Failed to render toast with details:', e);
+          // Fallback: simple console log
+          console.info('Custom provider updated:', payload);
+        }
+
         closeModal();
         if (modalProps.onSubmit) {
           modalProps.onSubmit(configValues as FormValues);
