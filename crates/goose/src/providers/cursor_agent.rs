@@ -214,12 +214,11 @@ impl CursorAgentProvider {
                         };
 
                         let message_content = vec![MessageContent::text(text_content)];
-                        let response_message = Message {
-                            id: None,
-                            role: Role::Assistant,
-                            created: chrono::Utc::now().timestamp(),
-                            content: message_content,
-                        };
+                        let response_message = Message::new(
+                            Role::Assistant,
+                            chrono::Utc::now().timestamp(),
+                            message_content,
+                        );
 
                         let usage = Usage::default();
 
@@ -233,12 +232,11 @@ impl CursorAgentProvider {
         let response_text = lines.join("\n");
 
         let message_content = vec![MessageContent::text(response_text)];
-        let response_message = Message {
-            id: None,
-            role: Role::Assistant,
-            created: chrono::Utc::now().timestamp(),
-            content: message_content,
-        };
+        let response_message = Message::new(
+            Role::Assistant,
+            chrono::Utc::now().timestamp(),
+            message_content,
+        );
         let usage = Usage::default();
 
         Ok((response_message, usage))
@@ -366,12 +364,11 @@ impl CursorAgentProvider {
             println!("================================");
         }
 
-        let message = Message {
-            id: None,
-            role: Role::Assistant,
-            created: chrono::Utc::now().timestamp(),
-            content: vec![MessageContent::text(description.clone())],
-        };
+        let message = Message::new(
+            Role::Assistant,
+            chrono::Utc::now().timestamp(),
+            vec![MessageContent::text(description.clone())],
+        );
 
         let usage = Usage::default();
 

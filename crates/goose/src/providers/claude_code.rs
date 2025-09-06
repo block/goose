@@ -282,12 +282,11 @@ impl ClaudeCodeProvider {
 
         let message_content = vec![MessageContent::text(combined_text)];
 
-        let response_message = Message {
-            id: None,
-            role: Role::Assistant,
-            created: chrono::Utc::now().timestamp(),
-            content: message_content,
-        };
+        let response_message = Message::new(
+            Role::Assistant,
+            chrono::Utc::now().timestamp(),
+            message_content,
+        );
 
         Ok((response_message, usage))
     }
@@ -433,12 +432,11 @@ impl ClaudeCodeProvider {
             println!("================================");
         }
 
-        let message = Message {
-            id: None,
-            role: Role::Assistant,
-            created: chrono::Utc::now().timestamp(),
-            content: vec![MessageContent::text(description.clone())],
-        };
+        let message = Message::new(
+            Role::Assistant,
+            chrono::Utc::now().timestamp(),
+            vec![MessageContent::text(description.clone())],
+        );
 
         let usage = Usage::default();
 

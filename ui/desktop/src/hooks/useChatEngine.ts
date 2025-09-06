@@ -40,7 +40,6 @@ export const useChatEngine = ({
 }: UseChatEngineProps) => {
   const [lastInteractionTime, setLastInteractionTime] = useState<number>(Date.now());
   const [sessionTokenCount, setSessionTokenCount] = useState<number>(0);
-  const [ancestorMessages, setAncestorMessages] = useState<Message[]>([]);
   const [sessionInputTokens, setSessionInputTokens] = useState<number>(0);
   const [sessionOutputTokens, setSessionOutputTokens] = useState<number>(0);
   const [localInputTokens, setLocalInputTokens] = useState<number>(0);
@@ -353,8 +352,6 @@ export const useChatEngine = ({
         // Create tool responses for all interrupted tool requests
 
         let responseMessage: Message = {
-          display: true,
-          sendToLLM: true,
           role: 'user',
           created: Date.now(),
           content: [],
@@ -381,11 +378,12 @@ export const useChatEngine = ({
     }
   }, [stop, messages, _setInput, setMessages, stopPowerSaveBlocker]);
 
+  // Since server now handles all filtering, we just use messages directly
   const filteredMessages = useMemo(() => {
-    return [...ancestorMessages, ...messages].filter((message) => message.display ?? true);
-  }, [ancestorMessages, messages]);
+    return messages;
+  }, [messages]);
 
-  // Generate command history from filtered messages
+  // Generate command history from messages
   const commandHistory = useMemo(() => {
     return filteredMessages
       .reduce<string[]>((history, message) => {
@@ -445,8 +443,6 @@ export const useChatEngine = ({
     // Core message data
     messages,
     filteredMessages,
-    ancestorMessages,
-    setAncestorMessages,
 
     // Message stream controls
     append,

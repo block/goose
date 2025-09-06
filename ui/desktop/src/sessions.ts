@@ -98,14 +98,19 @@ export async function fetchSessionDetails(sessionId: string): Promise<SessionDet
     path: { session_id: sessionId },
   });
 
-  // Convert the SessionHistoryResponse to a SessionDetails object
-  return {
-    sessionId: response.data.sessionId,
-    metadata: ensureWorkingDir(response.data.metadata),
-    messages: response.data.messages.map((message: ApiMessage) =>
-      convertApiMessageToFrontendMessage(message, true, true)
-    ), // slight diffs between backend and frontend Message obj
-  };
+  try {
+    // Convert the SessionHistoryResponse to a SessionDetails object
+    return {
+      sessionId: response.data.sessionId,
+      metadata: ensureWorkingDir(response.data.metadata),
+      messages: response.data.messages.map((message: ApiMessage) =>
+        convertApiMessageToFrontendMessage(message)
+      ), // slight diffs between backend and frontend Message obj
+    };
+  } catch (error) {
+    console.error(`Error fetching session details for ${sessionId}:`, error);
+    throw error;
+  }
 }
 
 /**

@@ -23,16 +23,12 @@ describe('ContextManager', () => {
       role: 'user',
       created: 1000,
       content: [{ type: 'text', text: 'Hello' }],
-      display: true,
-      sendToLLM: true,
     },
     {
       id: '2',
       role: 'assistant',
       created: 2000,
       content: [{ type: 'text', text: 'Hi there!' }],
-      display: true,
-      sendToLLM: true,
     },
   ];
 
@@ -41,13 +37,10 @@ describe('ContextManager', () => {
     role: 'assistant',
     created: 3000,
     content: [{ type: 'text', text: 'This is a summary of the conversation.' }],
-    display: false,
-    sendToLLM: true,
   };
 
   const mockSetMessages = vi.fn();
   const mockAppend = vi.fn();
-  const mockSetAncestorMessages = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -84,8 +77,6 @@ describe('ContextManager', () => {
         role: 'assistant',
         created: 1000,
         content: [{ type: 'summarizationRequested', msg: 'Compaction marker' }],
-        display: true,
-        sendToLLM: false,
       };
 
       expect(result.current.hasCompactionMarker(messageWithMarker)).toBe(true);
@@ -98,8 +89,6 @@ describe('ContextManager', () => {
         role: 'user',
         created: 1000,
         content: [{ type: 'text', text: 'Hello' }],
-        display: true,
-        sendToLLM: true,
       };
 
       expect(result.current.hasCompactionMarker(regularMessage)).toBe(false);
@@ -115,8 +104,6 @@ describe('ContextManager', () => {
           { type: 'text', text: 'Some text' },
           { type: 'summarizationRequested', msg: 'Compaction marker' },
         ],
-        display: true,
-        sendToLLM: false,
       };
 
       expect(result.current.hasCompactionMarker(mixedMessage)).toBe(true);
@@ -156,8 +143,6 @@ describe('ContextManager', () => {
         role: 'assistant',
         created: 3000,
         content: [{ type: 'summarizationRequested', msg: 'Conversation compacted and summarized' }],
-        display: true,
-        sendToLLM: false,
       };
 
       const mockContinuationMessage: Message = {
@@ -170,25 +155,18 @@ describe('ContextManager', () => {
             text: 'The previous message contains a summary that was prepared because a context limit was reached. Do not mention that you read a summary or that conversation summarization occurred Just continue the conversation naturally based on the summarized context',
           },
         ],
-        display: false,
-        sendToLLM: true,
       };
 
       // Mock the conversion function to return different messages based on call order
       mockConvertApiMessageToFrontendMessage
-        .mockReturnValueOnce(mockCompactionMarker) // First call - compaction marker (display: true, sendToLLM: false)
-        .mockReturnValueOnce(mockSummaryMessage) // Second call - summary (display: false, sendToLLM: true)
-        .mockReturnValueOnce(mockContinuationMessage); // Third call - continuation (display: false, sendToLLM: true)
+        .mockReturnValueOnce(mockCompactionMarker) // First call - compaction marker
+        .mockReturnValueOnce(mockSummaryMessage) // Second call - summary
+        .mockReturnValueOnce(mockContinuationMessage); // Third call - continuation
 
       const { result } = renderContextManager();
 
       await act(async () => {
-        await result.current.handleAutoCompaction(
-          mockMessages,
-          mockSetMessages,
-          mockAppend,
-          mockSetAncestorMessages
-        );
+        await result.current.handleAutoCompaction(mockMessages, mockSetMessages, mockAppend);
       });
 
       expect(mockManageContextFromBackend).toHaveBeenCalledWith({
@@ -203,17 +181,13 @@ describe('ContextManager', () => {
           content: [
             { type: 'summarizationRequested', msg: 'Conversation compacted and summarized' },
           ],
-        }),
-        true, // display: true
-        false // sendToLLM: false
+        })
       );
       expect(mockConvertApiMessageToFrontendMessage).toHaveBeenNthCalledWith(
         2,
         expect.objectContaining({
           content: [{ type: 'text', text: 'Summary content' }],
-        }),
-        false, // display: false
-        true // sendToLLM: true
+        })
       );
       expect(mockConvertApiMessageToFrontendMessage).toHaveBeenNthCalledWith(
         3,
@@ -224,24 +198,7 @@ describe('ContextManager', () => {
               text: expect.stringContaining('The previous message contains a summary'),
             },
           ],
-        }),
-        false, // display: false
-        true // sendToLLM: true
-      );
-
-      expect(mockSetAncestorMessages).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({
-            id: '1',
-            display: true,
-            sendToLLM: false,
-          }),
-          expect.objectContaining({
-            id: '2',
-            display: true,
-            sendToLLM: false,
-          }),
-        ])
+        })
       );
 
       // Expect setMessages to be called with all 3 converted messages
@@ -268,12 +225,7 @@ describe('ContextManager', () => {
       const { result } = renderContextManager();
 
       await act(async () => {
-        await result.current.handleAutoCompaction(
-          mockMessages,
-          mockSetMessages,
-          mockAppend,
-          mockSetAncestorMessages
-        );
+        await result.current.handleAutoCompaction(mockMessages, mockSetMessages, mockAppend);
       });
 
       expect(result.current.compactionError).toBe('Backend error');
@@ -304,12 +256,7 @@ describe('ContextManager', () => {
 
       // Start compaction
       act(() => {
-        result.current.handleAutoCompaction(
-          mockMessages,
-          mockSetMessages,
-          mockAppend,
-          mockSetAncestorMessages
-        );
+        result.current.handleAutoCompaction(mockMessages, mockSetMessages, mockAppend);
       });
 
       // Should be compacting
@@ -336,8 +283,8 @@ describe('ContextManager', () => {
       // Should no longer be compacting
       expect(result.current.isCompacting).toBe(false);
     });
+
     it('preserves display: false for ancestor messages', async () => {
-      // Backend returns no new messages; we're validating ancestor behavior only
       mockManageContextFromBackend.mockResolvedValue({ messages: [], tokenCounts: [] });
 
       const hiddenMessage: Message = {
@@ -345,8 +292,6 @@ describe('ContextManager', () => {
         role: 'user',
         created: 1500,
         content: [{ type: 'text', text: 'Secret' }],
-        display: false,
-        sendToLLM: true,
       };
 
       const visibleMessage: Message = {
@@ -354,8 +299,6 @@ describe('ContextManager', () => {
         role: 'assistant',
         created: 1600,
         content: [{ type: 'text', text: 'Public' }],
-        display: true,
-        sendToLLM: true,
       };
 
       const messages: Message[] = [hiddenMessage, visibleMessage];
@@ -363,20 +306,8 @@ describe('ContextManager', () => {
       const { result } = renderContextManager();
 
       await act(async () => {
-        await result.current.handleAutoCompaction(
-          messages,
-          mockSetMessages,
-          mockAppend,
-          mockSetAncestorMessages
-        );
+        await result.current.handleAutoCompaction(messages, mockSetMessages, mockAppend);
       });
-
-      expect(mockSetAncestorMessages).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({ id: 'hidden-1', display: false, sendToLLM: false }),
-          expect.objectContaining({ id: 'visible-1', display: true, sendToLLM: false }),
-        ])
-      );
 
       // No server messages -> setMessages called with empty list
       expect(mockSetMessages).toHaveBeenCalledWith([]);
@@ -416,8 +347,6 @@ describe('ContextManager', () => {
         role: 'assistant',
         created: 3000,
         content: [{ type: 'summarizationRequested', msg: 'Conversation compacted and summarized' }],
-        display: true,
-        sendToLLM: false,
       };
 
       const mockContinuationMessage: Message = {
@@ -430,8 +359,6 @@ describe('ContextManager', () => {
             text: 'The previous message contains a summary that was prepared because a context limit was reached. Do not mention that you read a summary or that conversation summarization occurred Just continue the conversation naturally based on the summarized context',
           },
         ],
-        display: false,
-        sendToLLM: true,
       };
 
       mockConvertApiMessageToFrontendMessage
@@ -442,12 +369,7 @@ describe('ContextManager', () => {
       const { result } = renderContextManager();
 
       await act(async () => {
-        await result.current.handleManualCompaction(
-          mockMessages,
-          mockSetMessages,
-          mockAppend,
-          mockSetAncestorMessages
-        );
+        await result.current.handleManualCompaction(mockMessages, mockSetMessages, mockAppend);
       });
 
       expect(mockManageContextFromBackend).toHaveBeenCalledWith({
@@ -490,8 +412,7 @@ describe('ContextManager', () => {
         await result.current.handleManualCompaction(
           mockMessages,
           mockSetMessages,
-          undefined, // No append function
-          mockSetAncestorMessages
+          undefined // No append function
         );
       });
 
@@ -538,8 +459,6 @@ describe('ContextManager', () => {
         role: 'assistant',
         created: 3000,
         content: [{ type: 'summarizationRequested', msg: 'Conversation compacted and summarized' }],
-        display: true,
-        sendToLLM: false,
       };
 
       const mockContinuationMessage: Message = {
@@ -552,8 +471,6 @@ describe('ContextManager', () => {
             text: 'The previous message contains a summary that was prepared because a context limit was reached. Do not mention that you read a summary or that conversation summarization occurred Just continue the conversation naturally based on the summarized context',
           },
         ],
-        display: false,
-        sendToLLM: true,
       };
 
       mockConvertApiMessageToFrontendMessage
@@ -564,12 +481,7 @@ describe('ContextManager', () => {
       const { result } = renderContextManager();
 
       await act(async () => {
-        await result.current.handleManualCompaction(
-          mockMessages,
-          mockSetMessages,
-          mockAppend, // Provide append function
-          mockSetAncestorMessages
-        );
+        await result.current.handleManualCompaction(mockMessages, mockSetMessages, mockAppend);
       });
 
       // Verify all three messages are set
@@ -596,12 +508,7 @@ describe('ContextManager', () => {
       const { result } = renderContextManager();
 
       await act(async () => {
-        await result.current.handleAutoCompaction(
-          mockMessages,
-          mockSetMessages,
-          mockAppend,
-          mockSetAncestorMessages
-        );
+        await result.current.handleAutoCompaction(mockMessages, mockSetMessages, mockAppend);
       });
 
       expect(result.current.compactionError).toBe('Unknown error during compaction');
@@ -625,8 +532,6 @@ describe('ContextManager', () => {
         role: 'assistant',
         created: 3000,
         content: [{ type: 'toolResponse', id: 'test', toolResult: { status: 'success' } }],
-        display: false,
-        sendToLLM: true,
       };
 
       mockConvertApiMessageToFrontendMessage.mockReturnValue(mockMessageWithoutText);
@@ -634,12 +539,7 @@ describe('ContextManager', () => {
       const { result } = renderContextManager();
 
       await act(async () => {
-        await result.current.handleAutoCompaction(
-          mockMessages,
-          mockSetMessages,
-          mockAppend,
-          mockSetAncestorMessages
-        );
+        await result.current.handleAutoCompaction(mockMessages, mockSetMessages, mockAppend);
       });
 
       // Should complete without error even if content is not text

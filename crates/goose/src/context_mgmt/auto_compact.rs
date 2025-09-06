@@ -207,8 +207,35 @@ pub async fn check_and_compact_messages(
         check_result.usage_ratio * 100.0
     );
 
-    // Use perform_compaction to do the actual work
-    perform_compaction(agent, messages).await
+    // Check if the most recent message is a user message
+    let (messages_to_compact, preserved_user_message) = if let Some(last_message) = messages.last()
+    {
+        if matches!(last_message.role, rmcp::model::Role::User) {
+            // Remove the last user message before auto-compaction
+            (&messages[..messages.len() - 1], Some(last_message.clone()))
+        } else {
+            (messages, None)
+        }
+    } else {
+        (messages, None)
+    };
+
+    // Perform the compaction on messages excluding the preserved user message
+    // The summarize_context method already handles the visibility properly
+    let (mut summary_messages, _, summarization_usage) =
+        agent.summarize_context(messages_to_compact).await?;
+
+    // Add back the preserved user message if it exists
+    // (keeps default visibility: both true)
+    if let Some(user_message) = preserved_user_message {
+        summary_messages.push(user_message);
+    }
+
+    Ok(AutoCompactResult {
+        compacted: true,
+        messages: summary_messages,
+        summarization_usage,
+    })
 }
 
 #[cfg(test)]
@@ -455,8 +482,9 @@ mod tests {
             );
         }
 
-        // Should have fewer messages (summarized)
-        assert!(result.messages.len() <= messages.len());
+        // After visibility implementation, we keep all messages plus summary
+        // Original messages become user_visible only, summary becomes agent_visible only
+        assert!(result.messages.len() > messages.len());
     }
 
     #[tokio::test]
@@ -641,8 +669,9 @@ mod tests {
         // Verify the compacted messages are returned
         assert!(!result.messages.is_empty());
 
-        // Should have fewer messages after compaction
-        assert!(result.messages.len() <= messages.len());
+        // After visibility implementation, we keep all messages plus summary
+        // Original messages become user_visible only, summary becomes agent_visible only
+        assert!(result.messages.len() > messages.len());
     }
 
     #[tokio::test]

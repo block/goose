@@ -534,23 +534,35 @@ where
                     }
                 }
 
+                let mut msg = Message::new(
+                    Role::Assistant,
+                    chrono::Utc::now().timestamp(),
+                    contents,
+                );
+
+                // Add ID if present
+                if let Some(id) = chunk.id {
+                    msg = msg.with_id(id);
+                }
+
                 yield (
-                    Some(Message {
-                        id: chunk.id,
-                        role: Role::Assistant,
-                        created: chrono::Utc::now().timestamp(),
-                        content: contents,
-                    }),
+                    Some(msg),
                     usage,
                 )
             } else if let Some(text) = &chunk.choices[0].delta.content {
+                let mut msg = Message::new(
+                    Role::Assistant,
+                    chrono::Utc::now().timestamp(),
+                    vec![MessageContent::text(text)],
+                );
+
+                // Add ID if present
+                if let Some(id) = chunk.id {
+                    msg = msg.with_id(id);
+                }
+
                 yield (
-                    Some(Message {
-                        id: chunk.id,
-                        role: Role::Assistant,
-                        created: chrono::Utc::now().timestamp(),
-                        content: vec![MessageContent::text(text)],
-                    }),
+                    Some(msg),
                     if chunk.choices[0].finish_reason.is_some() {
                         usage
                     } else {

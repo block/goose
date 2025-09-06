@@ -50,15 +50,8 @@ export async function manageContextFromBackend({
 }
 
 // Function to convert API Message to frontend Message
-// TODO(Douwe): get rid of this and use the API Message format everywhere
-export function convertApiMessageToFrontendMessage(
-  apiMessage: ApiMessage,
-  display?: boolean,
-  sendToLLM?: boolean
-): FrontendMessage {
+export function convertApiMessageToFrontendMessage(apiMessage: ApiMessage): FrontendMessage {
   return {
-    display: display ?? true,
-    sendToLLM: sendToLLM ?? true,
     id: generateId(),
     role: apiMessage.role as Role,
     created: apiMessage.created ?? Math.floor(Date.now() / 1000),
@@ -150,7 +143,5 @@ export function createSummarizationRequestMessage(
         msg: requestMessage,
       },
     ],
-    sendToLLM: false,
-    display: true,
   };
 }

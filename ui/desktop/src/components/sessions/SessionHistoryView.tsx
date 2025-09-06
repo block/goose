@@ -42,7 +42,7 @@ const isUserMessage = (message: Message): boolean => {
 };
 
 const filterMessagesForDisplay = (messages: Message[]): Message[] => {
-  return messages.filter((message) => message.display ?? true);
+  return messages;
 };
 
 interface SessionHistoryViewProps {
