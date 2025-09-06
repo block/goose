@@ -13,37 +13,67 @@ import styles from '@site/src/components/Card/styles.module.css';
 </p>
 
 <div className={styles.categorySection}>
-  <h2 className={styles.categoryTitle}>📚 Ollama Guides</h2>
+  <h2 className={styles.categoryTitle}>📚 Recommended Models</h2>
   <div className={styles.cardGrid}>
     <Card 
       title="Recommended Models"
       description="Community-drive list of local models known to work with Goose"
       link="/docs/guides/local-models/recommended-models"
     />
+  </div>
+</div>
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>📚 Ollama Guides</h2>
+  <div className={styles.cardGrid}>
     <Card 
-      title="Ollama Setup Notes"
-      description="Using Ollama with Goose"
+      title="Using Ollama with Goose - Start Here"
+      description="Using Ollama with Goose - Start Here"
       link="/docs/guides/local-models/ollama-notes"
     />
+    <!-- <Card 
+      title="MacOS Notes"
+      description="Recommendations for MacOS for local models with Goose"
+      link="/docs/guides/local-models/macos"
+    /> -->
+    <Card 
+      title="Ollama on MacOS"
+      description="Recommendations for Ollama on MacOS for local models with Goose"
+      link="/docs/guides/local-models/macos-ollama"
+    />
+    <Card 
+      title="Ollama on Windows"
+      description="Recommendations for Ollama on Windows for local models with Goose"
+      link="/docs/guides/local-models/windows-ollama"
+    />
+    <Card 
+      title="Ollama on Linux"
+      description="Recommendations for Ollama on Linux for local models with Goose"
+      link="/docs/guides/local-models/linux-ollama"
+    />
+  </div>
+</div>
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>📚 llama.cpp Guides</h2>
+  <div className={styles.cardGrid}>
     <Card 
       title="llama.cpp Setup Notes"
-      description="Using llama.cpp with Goose"
+      description="Using llama.cpp with Goose - Start Here"
       link="/docs/guides/local-models/llama-cpp-notes"
     />
+  </div>
+</div>
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>📚 Operating System Specifics</h2>
+  <div className={styles.cardGrid}>
     <Card 
-      title="Mac Hardware Notes"
-      description="Recommendations for Mac hardware setup for local models with Goose"
-      link="/docs/guides/local-models/mac-hardware"
+      title="MacOS"
+      description="Operating System Specifics - MacOS - all Providers"
+      link="/docs/guides/local-models/macos"
+      slug="MacOS"
     />
-    <Card 
-      title="Windows Hardware Notes"
-      description="Recommendations for Windows hardware setup for local models with Goose"
-      link="/docs/guides/local-models/windows-hardware"
-    />
-    <Card 
-      title="Linux Hardware Notes"
-      description="Recommendations for Linux hardware setup for local models with Goose"
-      link="/docs/guides/local-models/linux-hardware"
-    />
+
   </div>
 </div>

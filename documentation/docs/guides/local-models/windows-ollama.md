@@ -1,5 +1,5 @@
 ---
-sidebar_position: 6
+sidebar_position: 5
 title: Ollama on Windows
 description: "Goose and Ollama setup on Windows"
 ---

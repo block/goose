@@ -1,7 +1,7 @@
 ---
 sidebar_position: 3
-title: Ollama Recommendations
-description: "Goose and Ollama setup and Models"
+title: Using llama-cpp with Goose - Start Here
+description: "Using llama-cpp with Goose - Start Here"
 ---
 
 import Tabs from '@theme/Tabs';
