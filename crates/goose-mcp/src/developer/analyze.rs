@@ -193,6 +193,16 @@ struct CallChain {
     path: Vec<(PathBuf, usize, String, String)>, // (file, line, from, to)
 }
 
+// Data structure to pass to format_focused_output_with_chains
+struct FocusedAnalysisData<'a> {
+    focus_symbol: &'a str,
+    follow_depth: u32,
+    files_analyzed: &'a [PathBuf],
+    definitions: &'a [(PathBuf, usize)],
+    incoming_chains: &'a [CallChain],
+    outgoing_chains: &'a [CallChain],
+}
+
 impl CallGraph {
     fn find_incoming_chains(&self, symbol: &str, max_depth: u32) -> Vec<CallChain> {
         if max_depth == 0 {
@@ -1462,58 +1472,112 @@ impl CodeAnalyzer {
             .unwrap_or_default();
 
         // Step 6: Format the enhanced output (MODIFIED)
-        self.format_focused_output_with_chains(
-            path,
+        let focus_data = FocusedAnalysisData {
             focus_symbol,
             follow_depth,
-            &files_to_analyze,
-            &definitions,
-            &incoming_chains,
-            &outgoing_chains,
-        )
+            files_analyzed: &files_to_analyze,
+            definitions: &definitions,
+            incoming_chains: &incoming_chains,
+            outgoing_chains: &outgoing_chains,
+        };
+        self.format_focused_output_with_chains(&focus_data)
     }
 
     // Format focused analysis output with enhanced call chains
-    #[allow(clippy::too_many_arguments)]
     fn format_focused_output_with_chains(
         &self,
-        _path: &Path,
-        focus_symbol: &str,
-        follow_depth: u32,
-        files_analyzed: &[PathBuf],
-        definitions: &[(PathBuf, usize)],
-        incoming_chains: &[CallChain],
-        outgoing_chains: &[CallChain],
+        focus_data: &FocusedAnalysisData,
     ) -> Result<String, ErrorData> {
+        let focus_symbol = focus_data.focus_symbol;
+        let follow_depth = focus_data.follow_depth;
+        let files_analyzed = focus_data.files_analyzed;
+        let definitions = focus_data.definitions;
+        let incoming_chains = focus_data.incoming_chains;
+        let outgoing_chains = focus_data.outgoing_chains;
         let mut output = format!("FOCUSED ANALYSIS: {}\n\n", focus_symbol);
 
         // Build file alias mapping
+        let (file_map, sorted_files) = self.build_file_aliases(
+            definitions,
+            incoming_chains,
+            outgoing_chains,
+        );
+
+        // Section 1: Definitions
+        self.append_definitions(&mut output, definitions, &file_map, focus_symbol);
+
+        // Section 2: Incoming Call Chains
+        self.append_call_chains(
+            &mut output,
+            incoming_chains,
+            &file_map,
+            follow_depth,
+            true,
+        );
+
+        // Section 3: Outgoing Call Chains
+        self.append_call_chains(
+            &mut output,
+            outgoing_chains,
+            &file_map,
+            follow_depth,
+            false,
+        );
+
+        // Section 4: Summary Statistics
+        self.append_statistics(
+            &mut output,
+            files_analyzed,
+            definitions,
+            incoming_chains,
+            outgoing_chains,
+            follow_depth,
+        );
+
+        // Section 5: File Legend
+        self.append_file_legend(
+            &mut output,
+            &file_map,
+            &sorted_files,
+            definitions,
+            incoming_chains,
+            outgoing_chains,
+        );
+
+        if definitions.is_empty() && incoming_chains.is_empty() && outgoing_chains.is_empty() {
+            output = format!(
+                "Symbol '{}' not found in any analyzed files.\n",
+                focus_symbol
+            );
+        }
+
+        Ok(output)
+    }
+
+    // Helper: Build file alias mapping
+    fn build_file_aliases(
+        &self,
+        definitions: &[(PathBuf, usize)],
+        incoming_chains: &[CallChain],
+        outgoing_chains: &[CallChain],
+    ) -> (HashMap<PathBuf, String>, Vec<PathBuf>) {
         let mut all_files = HashSet::new();
 
-        // Collect all unique files from definitions
         for (file, _) in definitions {
             all_files.insert(file.clone());
         }
 
-        // Collect all unique files from chains
-        for chain in incoming_chains {
-            for (file, _, _, _) in &chain.path {
-                all_files.insert(file.clone());
-            }
-        }
-        for chain in outgoing_chains {
+        for chain in incoming_chains.iter().chain(outgoing_chains.iter()) {
             for (file, _, _, _) in &chain.path {
                 all_files.insert(file.clone());
             }
         }
 
-        // Create file aliases
-        let mut file_map: HashMap<PathBuf, String> = HashMap::new();
         let mut sorted_files: Vec<_> = all_files.into_iter().collect();
         sorted_files.sort();
 
+        let mut file_map = HashMap::new();
         for (index, file) in sorted_files.iter().enumerate() {
-            // If only one file, use the filename; otherwise use F1, F2, etc.
             let alias = if sorted_files.len() == 1 {
                 file.file_name()
                     .and_then(|n| n.to_str())
@@ -1525,7 +1589,17 @@ impl CodeAnalyzer {
             file_map.insert(file.clone(), alias);
         }
 
-        // Section 1: Definitions
+        (file_map, sorted_files)
+    }
+
+    // Helper: Append definitions section
+    fn append_definitions(
+        &self,
+        output: &mut String,
+        definitions: &[(PathBuf, usize)],
+        file_map: &HashMap<PathBuf, String>,
+        focus_symbol: &str,
+    ) {
         if !definitions.is_empty() {
             output.push_str("DEFINITIONS:\n");
             for (file, line) in definitions {
@@ -1539,28 +1613,24 @@ impl CodeAnalyzer {
             }
             output.push('\n');
         }
+    }
 
-        // Section 2: Incoming Call Chains
-        if !incoming_chains.is_empty() {
-            output.push_str(&format!("INCOMING CALL CHAINS (depth={}):\n", follow_depth));
+    // Helper: Append call chains section
+    fn append_call_chains(
+        &self,
+        output: &mut String,
+        chains: &[CallChain],
+        file_map: &HashMap<PathBuf, String>,
+        follow_depth: u32,
+        is_incoming: bool,
+    ) {
+        if !chains.is_empty() {
+            let chain_type = if is_incoming { "INCOMING" } else { "OUTGOING" };
+            output.push_str(&format!("{} CALL CHAINS (depth={}):\n", chain_type, follow_depth));
 
-            // Group and deduplicate chains
             let mut unique_chains = HashSet::new();
-            for chain in incoming_chains {
-                let chain_str = chain
-                    .path
-                    .iter()
-                    .map(|(file, line, from, to)| {
-                        let alias = file_map.get(file).cloned().unwrap_or_else(|| {
-                            file.file_name()
-                                .and_then(|n| n.to_str())
-                                .unwrap_or("unknown")
-                                .to_string()
-                        });
-                        format!("{}:{} ({} -> {})", alias, line, from, to)
-                    })
-                    .collect::<Vec<_>>()
-                    .join(" -> ");
+            for chain in chains {
+                let chain_str = self.format_chain_path(&chain.path, file_map);
                 unique_chains.insert(chain_str);
             }
 
@@ -1572,48 +1642,56 @@ impl CodeAnalyzer {
             }
             output.push('\n');
         }
+    }
 
-        // Section 3: Outgoing Call Chains
-        if !outgoing_chains.is_empty() {
-            output.push_str(&format!("OUTGOING CALL CHAINS (depth={}):\n", follow_depth));
+    // Helper: Format a single chain path
+    fn format_chain_path(
+        &self,
+        path: &[(PathBuf, usize, String, String)],
+        file_map: &HashMap<PathBuf, String>,
+    ) -> String {
+        path.iter()
+            .map(|(file, line, from, to)| {
+                let alias = file_map.get(file).cloned().unwrap_or_else(|| {
+                    file.file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("unknown")
+                        .to_string()
+                });
+                format!("{}:{} ({} -> {})", alias, line, from, to)
+            })
+            .collect::<Vec<_>>()
+            .join(" -> ")
+    }
 
-            let mut unique_chains = HashSet::new();
-            for chain in outgoing_chains {
-                let chain_str = chain
-                    .path
-                    .iter()
-                    .map(|(file, line, from, to)| {
-                        let alias = file_map.get(file).cloned().unwrap_or_else(|| {
-                            file.file_name()
-                                .and_then(|n| n.to_str())
-                                .unwrap_or("unknown")
-                                .to_string()
-                        });
-                        format!("{}:{} ({} -> {})", alias, line, from, to)
-                    })
-                    .collect::<Vec<_>>()
-                    .join(" -> ");
-                unique_chains.insert(chain_str);
-            }
-
-            let mut sorted_chains: Vec<_> = unique_chains.into_iter().collect();
-            sorted_chains.sort();
-
-            for chain in sorted_chains {
-                output.push_str(&format!("{}\n", chain));
-            }
-            output.push('\n');
-        }
-
-        // Section 4: Summary Statistics
+    // Helper: Append statistics section
+    fn append_statistics(
+        &self,
+        output: &mut String,
+        files_analyzed: &[PathBuf],
+        definitions: &[(PathBuf, usize)],
+        incoming_chains: &[CallChain],
+        outgoing_chains: &[CallChain],
+        follow_depth: u32,
+    ) {
         output.push_str("STATISTICS:\n");
         output.push_str(&format!("  Files analyzed: {}\n", files_analyzed.len()));
         output.push_str(&format!("  Definitions found: {}\n", definitions.len()));
         output.push_str(&format!("  Incoming chains: {}\n", incoming_chains.len()));
         output.push_str(&format!("  Outgoing chains: {}\n", outgoing_chains.len()));
         output.push_str(&format!("  Follow depth: {}\n", follow_depth));
+    }
 
-        // Section 5: File Legend (only if we have files and used aliases)
+    // Helper: Append file legend section
+    fn append_file_legend(
+        &self,
+        output: &mut String,
+        file_map: &HashMap<PathBuf, String>,
+        sorted_files: &[PathBuf],
+        definitions: &[(PathBuf, usize)],
+        incoming_chains: &[CallChain],
+        outgoing_chains: &[CallChain],
+    ) {
         if !file_map.is_empty()
             && (sorted_files.len() > 1
                 || !incoming_chains.is_empty()
@@ -1625,7 +1703,6 @@ impl CodeAnalyzer {
             legend_entries.sort_by_key(|(_, alias)| alias.as_str());
 
             for (file_path, alias) in legend_entries {
-                // For single file, don't show legend if we used the filename as alias
                 if sorted_files.len() == 1
                     && alias == file_path.file_name().and_then(|n| n.to_str()).unwrap_or("")
                 {
@@ -1634,15 +1711,6 @@ impl CodeAnalyzer {
                 output.push_str(&format!("  {}: {}\n", alias, file_path.display()));
             }
         }
-
-        if definitions.is_empty() && incoming_chains.is_empty() && outgoing_chains.is_empty() {
-            output = format!(
-                "Symbol '{}' not found in any analyzed files.\n",
-                focus_symbol
-            );
-        }
-
-        Ok(output)
     }
 
     // Helper to collect all files for focused analysis
