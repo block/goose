@@ -62,10 +62,10 @@ const ProviderCards = memo(function ProviderCards({
   const configureProviderViaModal = useCallback(
     (provider: ProviderDetails) => {
       openModal(provider, {
-        onSubmit: () => {
+        onSubmit: async () => {
           // Only refresh if the function is provided
           if (refreshProviders) {
-            refreshProviders();
+            await refreshProviders();
           }
         },
         onDelete: (_values: unknown) => {
