@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-/* eslint-disable react-hooks/exhaustive-deps */
 
 import { SECRET_PRESENT_SENTINEL } from '../../../../../../utils/secretConstants';
 
@@ -14,6 +13,8 @@ interface DefaultProviderSetupFormProps {
   setConfigValues: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   provider: ProviderDetails;
   validationErrors: ValidationErrors;
+  // Optional callback invoked when a field is edited so parent can clear errors
+  onFieldChange?: (name: string, value: string) => void;
 }
 
 export default function DefaultProviderSetupForm({
@@ -21,6 +22,7 @@ export default function DefaultProviderSetupForm({
   setConfigValues,
   provider,
   validationErrors = {},
+  onFieldChange,
 }: DefaultProviderSetupFormProps) {
   const parameters = useMemo(
     () => provider.metadata.config_keys || [],
@@ -29,60 +31,59 @@ export default function DefaultProviderSetupForm({
   const [isLoading, setIsLoading] = useState(true);
   const { read } = useConfig();
 
-  console.log('configValues default form', configValues);
-
   // Initialize values when the component mounts or provider changes
   const loadConfigValues = useCallback(async () => {
-    setIsLoading(true);
-    const newValues = { ...configValues };
+    // If there are no parameters, nothing to load
+    if (parameters.length === 0) {
+      setIsLoading(false);
+      return;
+    }
 
-    // Try to load actual values from config for each parameter that is not secret
+    setIsLoading(true);
+
+    // Collect responses per parameter without relying on current configValues
+    const responses: Record<string, string> = {};
+
     for (const parameter of parameters) {
       try {
-        // Check if there's a stored value in the config system
         const configKey = `${parameter.name}`;
         const configResponse = await read(configKey, parameter.secret || false);
 
         if (configResponse) {
-          // For secrets, mark that a value exists without exposing it. Use a sentinel
-          // so the submit handler can skip overwriting the secret unless the user changes it.
-          newValues[parameter.name] = parameter.secret
+          responses[parameter.name] = parameter.secret
             ? SECRET_PRESENT_SENTINEL
             : String(configResponse);
-        } else if (
-          parameter.default !== undefined &&
-          parameter.default !== null &&
-          !configValues[parameter.name]
-        ) {
-          // Fall back to default value if no config value exists
-          newValues[parameter.name] = String(parameter.default);
+        } else if (parameter.default !== undefined && parameter.default !== null) {
+          responses[parameter.name] = String(parameter.default);
         }
       } catch (error) {
         console.error(`Failed to load config for ${parameter.name}:`, error);
-        // Fall back to default if read operation fails
-        if (
-          parameter.default !== undefined &&
-          parameter.default !== null &&
-          !configValues[parameter.name]
-        ) {
-          newValues[parameter.name] = String(parameter.default);
+        if (parameter.default !== undefined && parameter.default !== null) {
+          responses[parameter.name] = String(parameter.default);
         }
       }
     }
 
-    // Update state with loaded values
-    setConfigValues((prev) => ({
-      ...prev,
-      ...newValues,
-    }));
-    setIsLoading(false);
-  }, [parameters, read, setConfigValues, configValues]);
+    // Merge responses into state but do not overwrite user-entered values
+    setConfigValues((prev) => {
+      const merged = { ...prev };
+      for (const k of Object.keys(responses)) {
+        if (merged[k] === undefined || merged[k] === null || merged[k] === '') {
+          merged[k] = responses[k];
+        }
+      }
+      return merged;
+    });
 
+    setIsLoading(false);
+  }, [parameters, read, setConfigValues]);
+
+  // Load configuration once on mount (modal open). Parent will remount the component
+  // when provider changes so a mount-time load is sufficient and avoids loops.
   useEffect(() => {
     loadConfigValues();
-    // Re-run when the provider parameters or read function change so we load the
-    // correct configuration values for the selected provider.
-  }, [parameters, read, setConfigValues, configValues]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Show all parameters (required and optional)
   const visibleParameters = useMemo(() => parameters, [parameters]);
@@ -120,13 +121,24 @@ export default function DefaultProviderSetupForm({
       .trim();
   };
 
-  if (isLoading) {
-    return <div className="text-center py-4">Loading configuration values...</div>;
-  }
+  const handleChange = (parameter: ConfigKey, value: string) => {
+    setConfigValues((prev) => ({
+      ...prev,
+      [parameter.name]: value,
+    }));
 
-  console.log('visible params', visibleParameters);
+    // Let parent clear any validation errors for this field and any submission error
+    if (onFieldChange) onFieldChange(parameter.name, value);
+  };
+
   return (
     <div className="mt-4 space-y-4">
+      {isLoading && (
+        <div className="text-center py-2 text-sm text-textSubtle">
+          Loading configuration values...
+        </div>
+      )}
+
       {visibleParameters.length === 0 ? (
         <div className="text-center text-gray-500">
           No configuration required for this provider.
@@ -142,11 +154,7 @@ export default function DefaultProviderSetupForm({
               type={parameter.secret ? 'password' : 'text'}
               value={configValues[parameter.name] || ''}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                console.log(`Setting ${parameter.name} to:`, e.target.value);
-                setConfigValues((prev) => ({
-                  ...prev,
-                  [parameter.name]: e.target.value,
-                }));
+                handleChange(parameter, e.target.value);
               }}
               placeholder={getPlaceholder(parameter)}
               className={`w-full h-14 px-4 font-regular rounded-lg shadow-none ${
