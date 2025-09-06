@@ -263,16 +263,45 @@ export default function ProviderConfigurationModal() {
 
           const details = JSON.stringify(detailsObj, null, 2);
 
-          toast.success(
+          // Create a toast and ensure it does not auto-close while the details are expanded.
+          // We capture the returned toast id and pause/resume the auto-close timer when the <details>
+          // element is toggled. Also disable closeOnClick so clicking the summary doesn't dismiss it.
+          let toastId: number | string | undefined;
+
+          type DetailsToggleEvent = React.SyntheticEvent & { currentTarget: { open?: boolean } };
+
+          const onDetailsToggle = (e: DetailsToggleEvent) => {
+            const isOpen = !!e.currentTarget?.open;
+            if (!toastId) return;
+            try {
+              if (isOpen) {
+                // Pause the toast auto-close while details are open
+                // Best-effort pause (may not exist on this runtime or in types)
+                (toast as unknown as { pause?: (id?: string | number) => void }).pause?.(toastId);
+              } else {
+                // Resume when collapsed
+                // Best-effort resume (may not exist on this runtime or in types)
+                (toast as unknown as { resume?: (id?: string | number) => void }).resume?.(toastId);
+              }
+            } catch (err) {
+              // best-effort; ignore if pause/resume unavailable
+              void err;
+            }
+          };
+
+          const content = (
             <div>
               <strong>Custom provider updated</strong>
               <div className="text-sm text-muted">Changes were saved to the provider JSON.</div>
-              <details className="mt-2">
+              <details className="mt-2" onToggle={onDetailsToggle}>
                 <summary className="cursor-pointer">Show details</summary>
                 <pre className="whitespace-pre-wrap text-xs mt-2">{details}</pre>
               </details>
             </div>
           );
+
+          // Prevent clicking the details from closing the toast and give it a short autoClose by default
+          toastId = toast.success(content, { closeOnClick: false, autoClose: 5000 });
         } catch (err) {
           console.warn('Failed to render toast with details:', err);
           // Fallback: simple console log
