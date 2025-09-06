@@ -157,7 +157,7 @@ impl Default for SessionMetadata {
 // The single app name used for all Goose applications
 const APP_NAME: &str = "goose";
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum Identifier {
     Name(String),
     Path(PathBuf),

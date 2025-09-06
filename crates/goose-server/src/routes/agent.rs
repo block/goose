@@ -102,6 +102,15 @@ pub struct ErrorResponse {
     error: String,
 }
 
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct AgentStatsResponse {
+    agents_created: usize,
+    agents_cleaned: usize,
+    cache_hits: usize,
+    cache_misses: usize,
+    active_agents: usize,
+}
+
 #[utoipa::path(
     post,
     path = "/agent/start",
@@ -120,7 +129,7 @@ async fn start_agent(
 ) -> Result<Json<StartAgentResponse>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    state.reset().await;
+    // No longer reset the global agent - each session gets its own
 
     let session_id = session::generate_session_id();
     let counter = state.session_counter.fetch_add(1, Ordering::SeqCst) + 1;
@@ -214,7 +223,11 @@ async fn add_sub_recipes(
 ) -> Result<Json<AddSubRecipesResponse>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    let agent = state.get_agent().await;
+    let session_id = session::Identifier::Name(payload.session_id.clone());
+    let agent = state.get_agent(session_id).await.map_err(|e| {
+        tracing::error!("Failed to get agent for session: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
     agent.add_sub_recipes(payload.sub_recipes.clone()).await;
     Ok(Json(AddSubRecipesResponse { success: true }))
 }
@@ -236,7 +249,11 @@ async fn extend_prompt(
 ) -> Result<Json<ExtendPromptResponse>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    let agent = state.get_agent().await;
+    let session_id = session::Identifier::Name(payload.session_id.clone());
+    let agent = state.get_agent(session_id).await.map_err(|e| {
+        tracing::error!("Failed to get agent for session: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
     agent.extend_system_prompt(payload.extension.clone()).await;
     Ok(Json(ExtendPromptResponse { success: true }))
 }
@@ -264,7 +281,11 @@ async fn get_tools(
 
     let config = Config::global();
     let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
-    let agent = state.get_agent().await;
+    let session_id = session::Identifier::Name(query.session_id.clone());
+    let agent = state.get_agent(session_id).await.map_err(|e| {
+        tracing::error!("Failed to get agent for session: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
     let permission_manager = PermissionManager::default();
 
     let mut tools: Vec<ToolInfo> = agent
@@ -319,7 +340,11 @@ async fn update_agent_provider(
 ) -> Result<StatusCode, impl IntoResponse> {
     verify_secret_key(&headers, &state).map_err(|e| (e, String::new()))?;
 
-    let agent = state.get_agent().await;
+    let session_id = session::Identifier::Name(payload.session_id.clone());
+    let agent = state.get_agent(session_id).await.map_err(|e| {
+        tracing::error!("Failed to get agent for session: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, String::new())
+    })?;
     let config = Config::global();
     let model = match payload
         .model
@@ -365,7 +390,7 @@ async fn update_agent_provider(
 async fn update_router_tool_selector(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(_payload): Json<UpdateRouterToolSelectorRequest>,
+    Json(payload): Json<UpdateRouterToolSelectorRequest>,
 ) -> Result<Json<String>, Json<ErrorResponse>> {
     verify_secret_key(&headers, &state).map_err(|_| {
         Json(ErrorResponse {
@@ -373,7 +398,13 @@ async fn update_router_tool_selector(
         })
     })?;
 
-    let agent = state.get_agent().await;
+    let session_id = session::Identifier::Name(payload.session_id.clone());
+    let agent = state.get_agent(session_id).await.map_err(|e| {
+        tracing::error!("Failed to get agent for session: {}", e);
+        Json(ErrorResponse {
+            error: format!("Failed to get agent: {}", e),
+        })
+    })?;
     agent
         .update_router_tool_selector(None, Some(true))
         .await
@@ -411,7 +442,13 @@ async fn update_session_config(
         })
     })?;
 
-    let agent = state.get_agent().await;
+    let session_id = session::Identifier::Name(payload.session_id.clone());
+    let agent = state.get_agent(session_id).await.map_err(|e| {
+        tracing::error!("Failed to get agent for session: {}", e);
+        Json(ErrorResponse {
+            error: format!("Failed to get agent: {}", e),
+        })
+    })?;
     if let Some(response) = payload.response {
         agent.add_final_output_tool(response).await;
 
@@ -422,6 +459,55 @@ async fn update_session_config(
     } else {
         Ok(Json("Nothing provided to update.".to_string()))
     }
+}
+
+#[utoipa::path(
+    get,
+    path = "/agent/stats",
+    responses(
+        (status = 200, description = "Agent statistics retrieved successfully", body = AgentStatsResponse),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+async fn get_agent_stats(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Result<Json<AgentStatsResponse>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
+    let metrics = state.get_agent_metrics().await;
+
+    Ok(Json(AgentStatsResponse {
+        agents_created: metrics.agents_created,
+        agents_cleaned: metrics.agents_cleaned,
+        cache_hits: metrics.cache_hits,
+        cache_misses: metrics.cache_misses,
+        active_agents: metrics.active_agents,
+    }))
+}
+
+#[utoipa::path(
+    post,
+    path = "/agent/cleanup",
+    responses(
+        (status = 200, description = "Agent cleanup completed successfully", body = String),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+async fn cleanup_agents(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Result<Json<String>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
+    let cleaned = state.cleanup_idle_agents().await.map_err(|e| {
+        tracing::error!("Failed to cleanup agents: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(Json(format!("Cleaned up {} idle agents", cleaned)))
 }
 
 pub fn routes(state: Arc<AppState>) -> Router {
@@ -437,5 +523,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         )
         .route("/agent/session_config", post(update_session_config))
         .route("/agent/add_sub_recipes", post(add_sub_recipes))
+        .route("/agent/stats", get(get_agent_stats))
+        .route("/agent/cleanup", post(cleanup_agents))
         .with_state(state)
 }

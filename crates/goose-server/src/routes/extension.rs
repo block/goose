@@ -111,6 +111,17 @@ async fn add_extension(
         serde_json::to_string_pretty(&raw.0).unwrap()
     );
 
+    // Extract session_id from the raw request
+    let session_id = raw
+        .0
+        .get("session_id")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| {
+            tracing::warn!("No session_id provided in extension request, using default");
+            "default".to_string()
+        });
+
     // Try to parse into our enum
     let request: ExtensionConfigRequest = match serde_json::from_value(raw.0.clone()) {
         Ok(req) => req,
@@ -271,7 +282,12 @@ async fn add_extension(
         },
     };
 
-    let agent = state.get_agent().await;
+    use goose::session;
+    let session_identifier = session::Identifier::Name(session_id);
+    let agent = state.get_agent(session_identifier).await.map_err(|e| {
+        tracing::error!("Failed to get agent for session: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
     let response = agent.add_extension(extension_config).await;
 
     // Respond with the result.
@@ -297,11 +313,37 @@ async fn add_extension(
 async fn remove_extension(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(name): Json<String>,
+    raw: axum::extract::Json<serde_json::Value>,
 ) -> Result<Json<ExtensionResponse>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    let agent = state.get_agent().await;
+    // Extract name and session_id from the raw request
+    let name = raw
+        .0
+        .get("name")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| {
+            // For backward compatibility, try to parse as just a string
+            raw.0.as_str().map(|s| s.to_string()).unwrap_or_default()
+        });
+
+    let session_id = raw
+        .0
+        .get("session_id")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| {
+            tracing::warn!("No session_id provided in remove extension request, using default");
+            "default".to_string()
+        });
+
+    use goose::session;
+    let session_identifier = session::Identifier::Name(session_id);
+    let agent = state.get_agent(session_identifier).await.map_err(|e| {
+        tracing::error!("Failed to get agent for session: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
     match agent.remove_extension(&name).await {
         Ok(_) => Ok(Json(ExtensionResponse {
             error: false,

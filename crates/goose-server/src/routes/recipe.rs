@@ -27,6 +27,8 @@ pub struct CreateRecipeRequest {
     activities: Option<Vec<String>>,
     #[serde(default)]
     author: Option<AuthorRequest>,
+    // Session ID for the recipe creation
+    session_id: String,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -116,7 +118,16 @@ async fn create_recipe(
         request.messages.len()
     );
 
-    let agent = state.get_agent().await;
+    use goose::session;
+    let session_id = session::Identifier::Name(request.session_id.clone());
+    let agent = state.get_agent(session_id).await.map_err(|e| {
+        tracing::error!("Failed to get agent for session: {}", e);
+        let error_response = CreateRecipeResponse {
+            recipe: None,
+            error: Some(format!("Failed to get agent: {}", e)),
+        };
+        (StatusCode::INTERNAL_SERVER_ERROR, Json(error_response))
+    })?;
 
     // Create base recipe from agent state and messages
     let recipe_result = agent

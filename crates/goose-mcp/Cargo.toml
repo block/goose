@@ -60,6 +60,7 @@ hyper = "1"
 serde_with = "3"
 which = "6.0"
 glob = "0.3"
+lru = "0.12"
 
 
 [dev-dependencies]
