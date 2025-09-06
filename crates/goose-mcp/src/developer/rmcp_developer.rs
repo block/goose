@@ -160,6 +160,7 @@ fn load_prompt_files() -> HashMap<String, Prompt> {
 }
 
 /// Developer MCP Server using official RMCP SDK
+#[derive(Clone)]
 pub struct DeveloperServer {
     tool_router: ToolRouter<Self>,
     file_history: Arc<Mutex<HashMap<PathBuf, Vec<String>>>>,
@@ -204,8 +205,7 @@ impl ServerHandler for DeveloperServer {
             You can use the shell tool to run any command that would work on the relevant operating system.
             Use the shell tool as needed to locate files or interact with the project.
 
-            Use the `analyze` tool aggressively to explore directory structures and understand codebases -
-            its semantic mode reveals call graphs and dependencies while focused mode tracks specific symbols across files.
+            Use the `analyze` tool aggressively to explore directory structures and understand codebases.
             Leverage `analyze` through `return_last_only=true` subagents for deep codebase understanding with lean context
             - delegate analysis, retain summaries
 
@@ -978,19 +978,18 @@ impl DeveloperServer {
 
     /// Analyze code structure and relationships.
     ///
-    /// Modes:
-    /// - auto: Smart selection (default)
-    /// - structure: Metrics only
-    /// - semantic: With call graphs
-    /// - focused: Track symbol across files
+    /// Automatically selects the appropriate analysis:
+    /// - Files: Semantic analysis with call graphs
+    /// - Directories: Structure overview with metrics
+    /// - With focus parameter: Track symbol across files
     ///
     /// Examples:
     /// analyze(path="file.py") -> semantic analysis
-    /// analyze(path="src/", mode="structure") -> quick overview
-    /// analyze(path="src/", mode="focused", focus="main") -> find all main() calls
+    /// analyze(path="src/") -> structure overview
+    /// analyze(path="src/", focus="main") -> track main() across files
     #[tool(
         name = "analyze",
-        description = "Analyze code structure. Modes: auto (smart default), structure (metrics), semantic (call graphs), focused (track symbol). Examples: analyze(path=\"file.py\"), analyze(path=\"src/\", mode=\"focused\", focus=\"main\")"
+        description = "Analyze code structure. Files get semantic analysis (call graphs), directories get structure overview (metrics), focus parameter tracks symbol across files. Examples: analyze(path=\"file.py\"), analyze(path=\"src/\", focus=\"main\")"
     )]
     pub async fn analyze(
         &self,
@@ -1337,6 +1336,7 @@ mod tests {
             let running_service = serve_directly(server.clone(), create_test_transport(), None);
             let peer = running_service.peer().clone();
 
+            // Test directly on the server instead of using peer.call_tool
             let result = server
                 .shell(
                     Parameters(ShellParams {
