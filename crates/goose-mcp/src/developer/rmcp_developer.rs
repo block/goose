@@ -59,6 +59,10 @@ pub struct TextEditorParams {
     /// The operation to perform. Allowed options are: `view`, `write`, `str_replace`, `insert`, `undo_edit`.
     pub command: String,
 
+    /// Unified diff to apply. Supports editing multiple files simultaneously. Cannot create or delete files
+    /// Example: "--- a/file\n+++ b/file\n@@ -1,3 +1,3 @@\n context\n-old\n+new\n context"
+    pub diff: Option<String>,
+
     /// Optional array of two integers specifying the start and end line numbers to view.
     /// Line numbers are 1-indexed, and -1 for the end line means read to the end of the file.
     /// This parameter only applies when viewing files, not directories.
@@ -246,7 +250,8 @@ impl ServerHandler for DeveloperServer {
                 To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning, -1 for end) 
                 and `new_str` (the text to insert).
 
-                To use the edit_file command, you must specify both `old_str` and `new_str` 
+                To use the str_replace command, prefer the `diff` parameter for reliability, or use both `old_str` and `new_str`.
+
                 {}
                 
             "#, editor.get_str_replace_description()}
@@ -260,16 +265,16 @@ impl ServerHandler for DeveloperServer {
                 The `command` parameter specifies the operation to perform. Allowed options are:
                 - `view`: View the content of a file.
                 - `write`: Create or overwrite a file with the given content
-                - `str_replace`: Replace a string in a file with a new string.
+                - `str_replace`: Replace text in a file.
                 - `insert`: Insert text at a specific line location in the file.
                 - `undo_edit`: Undo the last edit made to a file.
 
                 To use the write command, you must specify `file_text` which will become the new content of the file. Be careful with
                 existing files! This is a full overwrite, so you must include everything - not just sections you are modifying.
 
-                To use the str_replace command, you must specify both `old_str` and `new_str` - the `old_str` needs to exactly match one
-                unique section of the original file, including any whitespace. Make sure to include enough context that the match is not
-                ambiguous. The entire original string will be replaced with `new_str`.
+                To use the str_replace command, prefer `diff` parameter (unified diff format) or use both `old_str` and `new_str`.
+                When using old_str/new_str, the old_str must exactly match only one instance of the string in the file including whitespace.
+                Make sure to include enough context that the match is not ambiguous.
 
                 To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning, -1 for end) 
                 and `new_str` (the text to insert).
@@ -654,7 +659,7 @@ impl DeveloperServer {
     /// - `undo_edit`: Undo the last edit made to a file.
     #[tool(
         name = "text_editor",
-        description = "Perform text editing operations on files. Commands: view (show file content), write (create/overwrite file), str_replace (AI-enhanced replace text when configured, fallback to literal replacement), insert (insert at line), undo_edit (undo last change)."
+        description = "Perform text editing operations on files. Commands: view (show file content), write (create/overwrite file), str_replace (edit file), insert (insert at line), undo_edit (undo last change)."
     )]
     pub async fn text_editor(
         &self,
@@ -699,29 +704,46 @@ impl DeveloperServer {
                 Ok(CallToolResult::success(content))
             }
             "str_replace" => {
-                let old_str = params.old_str.ok_or_else(|| {
-                    ErrorData::new(
-                        ErrorCode::INVALID_PARAMS,
-                        "Missing 'old_str' parameter for str_replace command".to_string(),
-                        None,
+                // Check if diff parameter is provided
+                if let Some(ref diff) = params.diff {
+                    // When diff is provided, old_str and new_str are not required
+                    let content = text_editor_replace(
+                        &path,
+                        "", // old_str not used with diff
+                        "", // new_str not used with diff
+                        Some(diff),
+                        &self.editor_model,
+                        &self.file_history,
                     )
-                })?;
-                let new_str = params.new_str.ok_or_else(|| {
-                    ErrorData::new(
-                        ErrorCode::INVALID_PARAMS,
-                        "Missing 'new_str' parameter for str_replace command".to_string(),
+                    .await?;
+                    Ok(CallToolResult::success(content))
+                } else {
+                    // Traditional str_replace with old_str and new_str
+                    let old_str = params.old_str.ok_or_else(|| {
+                        ErrorData::new(
+                            ErrorCode::INVALID_PARAMS,
+                            "Missing 'old_str' parameter for str_replace command".to_string(),
+                            None,
+                        )
+                    })?;
+                    let new_str = params.new_str.ok_or_else(|| {
+                        ErrorData::new(
+                            ErrorCode::INVALID_PARAMS,
+                            "Missing 'new_str' parameter for str_replace command".to_string(),
+                            None,
+                        )
+                    })?;
+                    let content = text_editor_replace(
+                        &path,
+                        &old_str,
+                        &new_str,
                         None,
+                        &self.editor_model,
+                        &self.file_history,
                     )
-                })?;
-                let content = text_editor_replace(
-                    &path,
-                    &old_str,
-                    &new_str,
-                    &self.editor_model,
-                    &self.file_history,
-                )
-                .await?;
-                Ok(CallToolResult::success(content))
+                    .await?;
+                    Ok(CallToolResult::success(content))
+                }
             }
             "insert" => {
                 let insert_line = params.insert_line.ok_or_else(|| {
@@ -1394,6 +1416,7 @@ mod tests {
                 old_str: None,
                 new_str: None,
                 insert_line: None,
+                diff: None,
             });
 
             let result = server.text_editor(view_params).await;
@@ -1420,6 +1443,7 @@ mod tests {
                 old_str: None,
                 new_str: None,
                 insert_line: None,
+                diff: None,
             });
 
             let result = server.text_editor(view_params).await;
@@ -1450,6 +1474,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(write_params).await.unwrap();
@@ -1463,6 +1488,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         let view_result = server.text_editor(view_params).await.unwrap();
@@ -1500,6 +1526,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(write_params).await.unwrap();
@@ -1513,6 +1540,7 @@ mod tests {
             old_str: Some("world".to_string()),
             new_str: Some("Rust".to_string()),
             insert_line: None,
+            diff: None,
         });
 
         let replace_result = server.text_editor(replace_params).await.unwrap();
@@ -1557,6 +1585,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(write_params).await.unwrap();
@@ -1570,6 +1599,7 @@ mod tests {
             old_str: Some("Original".to_string()),
             new_str: Some("Modified".to_string()),
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(replace_params).await.unwrap();
@@ -1587,6 +1617,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         let undo_result = server.text_editor(undo_params).await.unwrap();
@@ -1666,6 +1697,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         let result = server.text_editor(write_params).await;
@@ -1685,6 +1717,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         let result = server.text_editor(write_params).await;
@@ -1816,8 +1849,8 @@ mod tests {
         let instructions = server_info.instructions.unwrap_or_default();
 
         // Should use traditional description with str_replace command
-        assert!(instructions.contains("Replace a string in a file with a new string"));
-        assert!(instructions.contains("the `old_str` needs to exactly match one"));
+        assert!(instructions.contains("Replace text in a file"));
+        assert!(instructions.contains("the old_str must exactly match only one instance"));
         assert!(instructions.contains("str_replace"));
 
         // Should not contain editor API description or edit_file command
@@ -1852,6 +1885,7 @@ mod tests {
                 new_str: None,
                 view_range: None,
                 insert_line: None,
+                diff: None,
             }))
             .await;
 
@@ -1875,6 +1909,7 @@ mod tests {
                 new_str: None,
                 view_range: None,
                 insert_line: None,
+                diff: None,
             }))
             .await;
 
@@ -1975,6 +2010,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(write_params).await.unwrap();
@@ -1988,6 +2024,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         let view_result = server.text_editor(view_params).await.unwrap();
@@ -2034,6 +2071,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(write_params).await.unwrap();
@@ -2047,6 +2085,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         let view_result = server.text_editor(view_params).await.unwrap();
@@ -2092,6 +2131,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(write_params).await.unwrap();
@@ -2105,6 +2145,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         let result = server.text_editor(view_params).await;
@@ -2134,6 +2175,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(write_params).await.unwrap();
@@ -2147,6 +2189,7 @@ mod tests {
             old_str: None,
             new_str: Some("Line 1".to_string()),
             insert_line: Some(0),
+            diff: None,
         });
 
         let insert_result = server.text_editor(insert_params).await.unwrap();
@@ -2189,6 +2232,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(write_params).await.unwrap();
@@ -2202,6 +2246,7 @@ mod tests {
             old_str: None,
             new_str: Some("Line 3".to_string()),
             insert_line: Some(2),
+            diff: None,
         });
 
         let insert_result = server.text_editor(insert_params).await.unwrap();
@@ -2249,6 +2294,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(write_params).await.unwrap();
@@ -2262,6 +2308,7 @@ mod tests {
             old_str: None,
             new_str: Some("Line 4".to_string()),
             insert_line: Some(3),
+            diff: None,
         });
 
         let insert_result = server.text_editor(insert_params).await.unwrap();
@@ -2304,6 +2351,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(write_params).await.unwrap();
@@ -2317,6 +2365,7 @@ mod tests {
             old_str: None,
             new_str: Some("Line 4".to_string()),
             insert_line: Some(-1),
+            diff: None,
         });
 
         let insert_result = server.text_editor(insert_params).await.unwrap();
@@ -2359,6 +2408,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(write_params).await.unwrap();
@@ -2372,6 +2422,7 @@ mod tests {
             old_str: None,
             new_str: Some("Line 11".to_string()),
             insert_line: Some(10),
+            diff: None,
         });
 
         let result = server.text_editor(insert_params).await;
@@ -2401,6 +2452,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(write_params).await.unwrap();
@@ -2414,6 +2466,7 @@ mod tests {
             old_str: None,
             new_str: None, // Missing required parameter
             insert_line: Some(1),
+            diff: None,
         });
 
         let result = server.text_editor(insert_params).await;
@@ -2431,6 +2484,7 @@ mod tests {
             old_str: None,
             new_str: Some("New text".to_string()),
             insert_line: None, // Missing required parameter
+            diff: None,
         });
 
         let result = server.text_editor(insert_params).await;
@@ -2460,6 +2514,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(write_params).await.unwrap();
@@ -2473,6 +2528,7 @@ mod tests {
             old_str: None,
             new_str: Some("Inserted Line".to_string()),
             insert_line: Some(1),
+            diff: None,
         });
 
         server.text_editor(insert_params).await.unwrap();
@@ -2486,6 +2542,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         let undo_result = server.text_editor(undo_params).await.unwrap();
@@ -2524,6 +2581,7 @@ mod tests {
             old_str: None,
             new_str: Some("New line".to_string()),
             insert_line: Some(0),
+            diff: None,
         });
 
         let result = server.text_editor(insert_params).await;
@@ -2558,6 +2616,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(write_params).await.unwrap();
@@ -2571,6 +2630,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         let result = server.text_editor(view_params).await;
@@ -2595,6 +2655,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         let result = server.text_editor(view_params).await;
@@ -2626,6 +2687,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         let result = server.text_editor(view_params).await;
@@ -2656,6 +2718,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(write_params).await.unwrap();
@@ -2669,6 +2732,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         let result = server.text_editor(view_params).await;
@@ -2715,6 +2779,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         server.text_editor(write_params).await.unwrap();
@@ -2728,6 +2793,7 @@ mod tests {
             old_str: None,
             new_str: None,
             insert_line: None,
+            diff: None,
         });
 
         let result = server.text_editor(view_params).await;
