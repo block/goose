@@ -97,6 +97,14 @@ enum ReferenceType {
     Assignment,
 }
 
+// Entry type for directory results - cleaner than overloading AnalysisResult
+#[derive(Debug, Clone)]
+enum EntryType {
+    File(AnalysisResult),
+    Directory,
+    SymlinkDir(PathBuf),
+}
+
 /// Code analyzer with caching and tree-sitter parsing
 pub struct CodeAnalyzer {
     parser_cache: Arc<Mutex<HashMap<String, Arc<Mutex<Parser>>>>>,
@@ -160,7 +168,7 @@ impl CodeAnalyzer {
                         &params.depth,
                     )
                     .await?;
-                output.push_str(&self.format_directory_structure(&path, &results));
+                output.push_str(&self.format_directory_structure(&path, &results, params.max_depth));
             } else {
                 // For semantic mode, use the old detailed format
                 output.push_str(&format!("# Code Analysis: {}\n\n", path.display()));
@@ -713,7 +721,8 @@ impl CodeAnalyzer {
         max_depth: u32,
         ignore_patterns: &Gitignore,
     ) -> Result<(), ErrorData> {
-        if depth >= max_depth {
+        // max_depth of 0 means unlimited depth
+        if max_depth > 0 && depth >= max_depth {
             return Ok(());
         }
 
@@ -955,10 +964,11 @@ impl CodeAnalyzer {
         max_depth: u32,
         ignore_patterns: &Gitignore,
         analysis_depth: &str,
-    ) -> Result<Vec<(PathBuf, AnalysisResult)>, ErrorData> {
+    ) -> Result<Vec<(PathBuf, EntryType)>, ErrorData> {
         let mut results = Vec::new();
 
-        if depth >= max_depth {
+        // max_depth of 0 means unlimited depth
+        if max_depth > 0 && depth >= max_depth {
             return Ok(results);
         }
 
@@ -986,27 +996,52 @@ impl CodeAnalyzer {
                 continue;
             }
 
-            if entry_path.is_file() {
+            // Get metadata without following symlinks
+            let metadata = entry.metadata().map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Failed to get metadata: {}", e),
+                    None,
+                )
+            })?;
+
+            if metadata.is_symlink() {
+                // Check if symlink points to a directory
+                if let Ok(target_meta) = std::fs::metadata(&entry_path) {
+                    if target_meta.is_dir() {
+                        // Get the symlink target
+                        if let Ok(target) = std::fs::read_link(&entry_path) {
+                            results.push((entry_path, EntryType::SymlinkDir(target)));
+                        }
+                    }
+                }
+                // Skip if symlink points to file or is broken
+            } else if metadata.is_dir() {
+                if max_depth > 0 && depth + 1 >= max_depth {
+                    // At max depth, just mark as directory
+                    results.push((entry_path, EntryType::Directory));
+                } else {
+                    // Recurse into subdirectory
+                    let mut sub_results = Box::pin(self.collect_directory_results(
+                        &entry_path,
+                        depth + 1,
+                        max_depth,
+                        ignore_patterns,
+                        analysis_depth,
+                    ))
+                    .await?;
+                    results.append(&mut sub_results);
+                }
+            } else if metadata.is_file() {
                 // Only analyze supported file types
                 let lang = lang::get_language_identifier(&entry_path);
                 if !lang.is_empty() {
                     let result = self.analyze_file(&entry_path, analysis_depth).await?;
                     if result.function_count > 0 || result.class_count > 0 || result.line_count > 0
                     {
-                        results.push((entry_path, result));
+                        results.push((entry_path, EntryType::File(result)));
                     }
                 }
-            } else if entry_path.is_dir() {
-                // Recurse into subdirectory
-                let mut sub_results = Box::pin(self.collect_directory_results(
-                    &entry_path,
-                    depth + 1,
-                    max_depth,
-                    ignore_patterns,
-                    analysis_depth,
-                ))
-                .await?;
-                results.append(&mut sub_results);
             }
         }
 
@@ -1017,31 +1052,49 @@ impl CodeAnalyzer {
     fn format_directory_structure(
         &self,
         base_path: &Path,
-        results: &[(PathBuf, AnalysisResult)],
+        results: &[(PathBuf, EntryType)],
+        max_depth: u32,
     ) -> String {
         let mut output = String::new();
 
-        // Calculate totals
-        let total_files = results.len();
-        let total_lines: usize = results.iter().map(|(_, r)| r.line_count).sum();
-        let total_functions: usize = results.iter().map(|(_, r)| r.function_count).sum();
-        let total_classes: usize = results.iter().map(|(_, r)| r.class_count).sum();
+        // Calculate totals (only from files)
+        let files: Vec<&AnalysisResult> = results
+            .iter()
+            .filter_map(|(_, entry)| match entry {
+                EntryType::File(result) => Some(result),
+                _ => None,
+            })
+            .collect();
+
+        let total_files = files.len();
+        let total_lines: usize = files.iter().map(|r| r.line_count).sum();
+        let total_functions: usize = files.iter().map(|r| r.function_count).sum();
+        let total_classes: usize = files.iter().map(|r| r.class_count).sum();
 
         // Calculate language distribution
         let mut language_lines: HashMap<String, usize> = HashMap::new();
-        for (path, result) in results {
-            let lang = lang::get_language_identifier(path);
-            if !lang.is_empty() && result.line_count > 0 {
-                *language_lines.entry(lang.to_string()).or_insert(0) += result.line_count;
+        for (path, entry) in results {
+            if let EntryType::File(result) = entry {
+                let lang = lang::get_language_identifier(path);
+                if !lang.is_empty() && result.line_count > 0 {
+                    *language_lines.entry(lang.to_string()).or_insert(0) += result.line_count;
+                }
             }
         }
 
-        // Format summary
+        // Format summary with depth indicator
         output.push_str("SUMMARY:\n");
-        output.push_str(&format!(
-            "Total: {} files, {}L, {}F, {}C\n",
-            total_files, total_lines, total_functions, total_classes
-        ));
+        if max_depth == 0 {
+            output.push_str(&format!(
+                "Shown: {} files, {}L, {}F, {}C (unlimited depth)\n",
+                total_files, total_lines, total_functions, total_classes
+            ));
+        } else {
+            output.push_str(&format!(
+                "Shown: {} files, {}L, {}F, {}C (max_depth={})\n",
+                total_files, total_lines, total_functions, total_classes, max_depth
+            ));
+        }
 
         // Format language percentages
         if !language_lines.is_empty() && total_lines > 0 {
@@ -1065,11 +1118,34 @@ impl CodeAnalyzer {
         let mut sorted_results = results.to_vec();
         sorted_results.sort_by(|a, b| a.0.cmp(&b.0));
 
-        // Format each file
-        for (path, result) in sorted_results {
+        // Format each entry
+        for (path, entry) in sorted_results {
             // Make path relative to base_path
             let relative_path = path.strip_prefix(base_path).unwrap_or(&path);
-            output.push_str(&self.format_structure_overview(relative_path, &result));
+
+            match entry {
+                EntryType::File(result) => {
+                    output.push_str(&self.format_structure_overview(relative_path, &result));
+                }
+                EntryType::Directory => {
+                    output.push_str(&format!("{}/\n", relative_path.display()));
+                }
+                EntryType::SymlinkDir(target) => {
+                    // Make target relative if possible for cleaner display
+                    let target_display = if target.is_relative() {
+                        target.display().to_string()
+                    } else if let Ok(rel) = target.strip_prefix(base_path) {
+                        rel.display().to_string()
+                    } else {
+                        target.display().to_string()
+                    };
+                    output.push_str(&format!(
+                        "{}/ → {}\n",
+                        relative_path.display(),
+                        target_display
+                    ));
+                }
+            }
         }
 
         output
