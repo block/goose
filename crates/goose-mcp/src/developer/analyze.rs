@@ -50,6 +50,12 @@ struct AnalysisResult {
     // Semantic analysis fields
     calls: Vec<CallInfo>,
     references: Vec<ReferenceInfo>,
+    // Structure mode fields (for compact overview)
+    function_count: usize,
+    class_count: usize,
+    line_count: usize,
+    import_count: usize,
+    main_line: Option<usize>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -143,9 +149,24 @@ impl CodeAnalyzer {
             output.push_str(&self.format_analysis_result(&path, &result));
         } else {
             // Analyze directory
-            output.push_str(&format!("# Code Analysis: {}\n\n", path.display()));
-            self.analyze_directory(&path, &mut output, 0, params.max_depth, ignore_patterns)
-                .await?;
+            if params.depth == "structure" {
+                // For structure mode, collect all results and format with summary
+                let results = self
+                    .collect_directory_results(
+                        &path,
+                        0,
+                        params.max_depth,
+                        ignore_patterns,
+                        &params.depth,
+                    )
+                    .await?;
+                output.push_str(&self.format_directory_structure(&path, &results));
+            } else {
+                // For semantic mode, use the old detailed format
+                output.push_str(&format!("# Code Analysis: {}\n\n", path.display()));
+                self.analyze_directory(&path, &mut output, 0, params.max_depth, ignore_patterns)
+                    .await?;
+            }
         }
 
         // If focus is specified, filter results
@@ -202,6 +223,9 @@ impl CodeAnalyzer {
             )
         })?;
 
+        // Count lines
+        let line_count = content.lines().count();
+
         // Get language
         let language = lang::get_language_identifier(path);
         if language.is_empty() {
@@ -212,6 +236,11 @@ impl CodeAnalyzer {
                 imports: vec![],
                 calls: vec![],
                 references: vec![],
+                function_count: 0,
+                class_count: 0,
+                line_count,
+                import_count: 0,
+                main_line: None,
             });
         }
 
@@ -229,6 +258,11 @@ impl CodeAnalyzer {
                 imports: vec![],
                 calls: vec![],
                 references: vec![],
+                function_count: 0,
+                class_count: 0,
+                line_count,
+                import_count: 0,
+                main_line: None,
             });
         }
 
@@ -248,7 +282,10 @@ impl CodeAnalyzer {
         };
 
         // Extract information based on language
-        let result = self.extract_code_elements_with_depth(&tree, &content, language, depth)?;
+        let mut result = self.extract_code_elements_with_depth(&tree, &content, language, depth)?;
+
+        // Add line count to the result
+        result.line_count = line_count;
 
         // Cache the result
         {
@@ -307,8 +344,15 @@ impl CodeAnalyzer {
         // First get the structural analysis
         let mut result = self.extract_code_elements(tree, source, language)?;
 
-        // If semantic depth is requested, also extract calls
-        if depth == "semantic" {
+        // For structure mode, clear the detailed vectors but keep the counts
+        if depth == "structure" {
+            // The counts are already set in extract_code_elements
+            // Clear the detailed data to save memory/tokens
+            result.functions.clear();
+            result.classes.clear();
+            result.imports.clear();
+        } else if depth == "semantic" {
+            // For semantic mode, also extract calls
             let calls = self.extract_calls(tree, source, language)?;
             result.calls = calls;
 
@@ -384,6 +428,11 @@ impl CodeAnalyzer {
                     imports: vec![],
                     calls: vec![],
                     references: vec![],
+                    function_count: 0,
+                    class_count: 0,
+                    line_count: 0,
+                    import_count: 0,
+                    main_line: None,
                 })
             }
         };
@@ -428,12 +477,20 @@ impl CodeAnalyzer {
             }
         }
 
+        // Detect main function
+        let main_line = functions.iter().find(|f| f.name == "main").map(|f| f.line);
+
         Ok(AnalysisResult {
-            functions,
-            classes,
-            imports,
+            functions: functions.clone(),
+            classes: classes.clone(),
+            imports: imports.clone(),
             calls: vec![],
             references: vec![],
+            function_count: functions.len(),
+            class_count: classes.len(),
+            line_count: 0, // Will be set later
+            import_count: imports.len(),
+            main_line,
         })
     }
 
@@ -709,8 +766,47 @@ impl CodeAnalyzer {
         Ok(())
     }
 
+    // Helper method to format structure overview (new compact format)
+    fn format_structure_overview(&self, path: &Path, result: &AnalysisResult) -> String {
+        let mut output = String::new();
+
+        // Format as: path [LOC, FUNCTIONS, CLASSES] <FLAGS>
+        output.push_str(&format!("{} [{}L", path.display(), result.line_count));
+
+        if result.function_count > 0 {
+            output.push_str(&format!(", {}F", result.function_count));
+        }
+
+        if result.class_count > 0 {
+            output.push_str(&format!(", {}C", result.class_count));
+        }
+
+        output.push(']');
+
+        // Add FLAGS if any
+        if let Some(main_line) = result.main_line {
+            output.push_str(&format!(" main:{}", main_line));
+        }
+
+        output.push('\n');
+        output
+    }
+
     // Helper method to format analysis results
     fn format_analysis_result(&self, path: &Path, result: &AnalysisResult) -> String {
+        // Check if this is structure mode (no detailed data)
+        if result.functions.is_empty()
+            && result.classes.is_empty()
+            && result.imports.is_empty()
+            && result.calls.is_empty()
+            && result.references.is_empty()
+            && (result.function_count > 0 || result.class_count > 0 || result.line_count > 0)
+        {
+            // Structure mode - use compact format
+            return self.format_structure_overview(path, result);
+        }
+
+        // Otherwise, use the detailed format (semantic mode)
         let mut output = format!("\n## {}\n", path.display());
 
         // Add analysis mode indicator if semantic analysis was performed
@@ -849,6 +945,134 @@ impl CodeAnalyzer {
         }
 
         graph
+    }
+
+    // Helper method to collect all results from a directory
+    async fn collect_directory_results(
+        &self,
+        path: &Path,
+        depth: u32,
+        max_depth: u32,
+        ignore_patterns: &Gitignore,
+        analysis_depth: &str,
+    ) -> Result<Vec<(PathBuf, AnalysisResult)>, ErrorData> {
+        let mut results = Vec::new();
+
+        if depth >= max_depth {
+            return Ok(results);
+        }
+
+        let entries = std::fs::read_dir(path).map_err(|e| {
+            ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to read directory: {}", e),
+                None,
+            )
+        })?;
+
+        for entry in entries {
+            let entry = entry.map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Failed to read directory entry: {}", e),
+                    None,
+                )
+            })?;
+
+            let entry_path = entry.path();
+
+            // Skip ignored paths
+            if self.is_ignored(&entry_path, ignore_patterns) {
+                continue;
+            }
+
+            if entry_path.is_file() {
+                // Only analyze supported file types
+                let lang = lang::get_language_identifier(&entry_path);
+                if !lang.is_empty() {
+                    let result = self.analyze_file(&entry_path, analysis_depth).await?;
+                    if result.function_count > 0 || result.class_count > 0 || result.line_count > 0
+                    {
+                        results.push((entry_path, result));
+                    }
+                }
+            } else if entry_path.is_dir() {
+                // Recurse into subdirectory
+                let mut sub_results = Box::pin(self.collect_directory_results(
+                    &entry_path,
+                    depth + 1,
+                    max_depth,
+                    ignore_patterns,
+                    analysis_depth,
+                ))
+                .await?;
+                results.append(&mut sub_results);
+            }
+        }
+
+        Ok(results)
+    }
+
+    // Helper method to format directory structure with summary
+    fn format_directory_structure(
+        &self,
+        base_path: &Path,
+        results: &[(PathBuf, AnalysisResult)],
+    ) -> String {
+        let mut output = String::new();
+
+        // Calculate totals
+        let total_files = results.len();
+        let total_lines: usize = results.iter().map(|(_, r)| r.line_count).sum();
+        let total_functions: usize = results.iter().map(|(_, r)| r.function_count).sum();
+        let total_classes: usize = results.iter().map(|(_, r)| r.class_count).sum();
+
+        // Calculate language distribution
+        let mut language_lines: HashMap<String, usize> = HashMap::new();
+        for (path, result) in results {
+            let lang = lang::get_language_identifier(path);
+            if !lang.is_empty() && result.line_count > 0 {
+                *language_lines.entry(lang.to_string()).or_insert(0) += result.line_count;
+            }
+        }
+
+        // Format summary
+        output.push_str("SUMMARY:\n");
+        output.push_str(&format!(
+            "Total: {} files, {}L, {}F, {}C\n",
+            total_files, total_lines, total_functions, total_classes
+        ));
+
+        // Format language percentages
+        if !language_lines.is_empty() && total_lines > 0 {
+            let mut languages: Vec<_> = language_lines.iter().collect();
+            languages.sort_by(|a, b| b.1.cmp(a.1)); // Sort by lines descending
+
+            let lang_str: Vec<String> = languages
+                .iter()
+                .map(|(lang, lines)| {
+                    let percentage = (**lines as f64 / total_lines as f64 * 100.0) as u32;
+                    format!("{} ({}%)", lang, percentage)
+                })
+                .collect();
+
+            output.push_str(&format!("Languages: {}\n", lang_str.join(", ")));
+        }
+
+        output.push_str("\nPATH [LOC, FUNCTIONS, CLASSES] <FLAGS>\n");
+
+        // Sort results by path for consistent output
+        let mut sorted_results = results.to_vec();
+        sorted_results.sort_by(|a, b| a.0.cmp(&b.0));
+
+        // Format each file
+        for (path, result) in sorted_results {
+            // Make path relative to base_path
+            let relative_path = path.strip_prefix(base_path).unwrap_or(&path);
+            output.push_str(&self.format_structure_overview(relative_path, &result));
+        }
+
+        output
     }
 
     // Helper method to filter results by focus symbol
