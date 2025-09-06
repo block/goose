@@ -35,7 +35,7 @@ const customFormsMap: Record<string, unknown> = {
 
 export default function ProviderConfigurationModal() {
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
-  const { upsert, remove } = useConfig();
+  const { upsert, remove, getProviders } = useConfig();
   const { getCurrentModelAndProvider } = useModelAndProvider();
   const { isOpen, currentProvider, modalProps, closeModal } = useProviderModal();
   const [configValues, setConfigValues] = useState<Record<string, string>>({});
@@ -86,6 +86,9 @@ export default function ProviderConfigurationModal() {
     setValidationErrors({});
 
     // Validation logic
+
+    // Response body placeholder used for toast details
+    let responseBody: string = '';
     const parameters = currentProvider.metadata.config_keys || [];
     const errors: Record<string, string> = {};
 
@@ -213,6 +216,10 @@ export default function ProviderConfigurationModal() {
             : `${base}/config/custom-providers/${currentProvider.name}`;
           console.info('[ProviderConfiguationModal] PUT', url, payload);
 
+          // Response body placeholder (declared in outer scope so it can be used below)
+          let responseBody = '';
+
+          // Execute update request and capture response body for richer feedback
           const res = await fetch(url, {
             method: 'PUT',
             headers: {
@@ -222,9 +229,16 @@ export default function ProviderConfigurationModal() {
             body: JSON.stringify(payload),
           });
 
+          // Read the response text (may be empty or JSON)
+          try {
+            responseBody = await res.text();
+          } catch {
+            // ignore
+            responseBody = '';
+          }
+
           if (!res.ok) {
-            const txt = await res.text();
-            throw new Error(`Update failed: ${res.status} ${txt}`);
+            throw new Error(`Update failed: ${res.status} ${responseBody}`);
           }
         } catch (err) {
           console.error('Failed to update custom provider:', err);
@@ -232,9 +246,23 @@ export default function ProviderConfigurationModal() {
           return;
         }
 
-        // Show a success toast with expandable details and call onSubmit so callers refresh provider list
+        // Show a success toast with expandable details (include server response) and refresh providers
         try {
-          const details = JSON.stringify(payload, null, 2);
+          let parsedResponse: unknown = responseBody;
+          try {
+            parsedResponse = responseBody ? JSON.parse(responseBody) : '';
+          } catch (parseErr) {
+            // ignore parse errors
+            void parseErr;
+          }
+
+          const detailsObj = {
+            request: payload,
+            response: parsedResponse,
+          };
+
+          const details = JSON.stringify(detailsObj, null, 2);
+
           toast.success(
             <div>
               <strong>Custom provider updated</strong>
@@ -245,16 +273,29 @@ export default function ProviderConfigurationModal() {
               </details>
             </div>
           );
-        } catch (e) {
-          console.warn('Failed to render toast with details:', e);
+        } catch (err) {
+          console.warn('Failed to render toast with details:', err);
           // Fallback: simple console log
-          console.info('Custom provider updated:', payload);
+          console.info('Custom provider updated:', payload, 'response:', responseBody);
+        }
+
+        // Prefer caller-provided refresh callback, but also refresh global provider list as a fallback
+        if (modalProps.onSubmit) {
+          try {
+            modalProps.onSubmit(configValues as FormValues);
+          } catch (e) {
+            console.warn('modalProps.onSubmit threw an error:', e);
+          }
+        }
+
+        try {
+          // Force the shared provider list to refresh so any consumers update
+          await getProviders(true);
+        } catch (e) {
+          console.warn('Failed to refresh global providers after update:', e);
         }
 
         closeModal();
-        if (modalProps.onSubmit) {
-          modalProps.onSubmit(configValues as FormValues);
-        }
         return;
       }
 
