@@ -463,13 +463,39 @@ where
             let v: Value = serde_json::from_str(line_str)
                 .map_err(|e| anyhow!("Failed to parse streaming JSON value: {}: {:?}", e, &line_str))?;
 
-            // Detect top-level error objects and surface as an immediate error
+            // Detect top-level error objects and yield a structured error message so the UI
+            // can render provider errors consistently during streaming. Previously we returned
+            // Err(...) which terminated the stream without providing a message object to the
+            // frontend; that made debugging custom providers difficult because the UI had no
+            // provider response to display.
             if v.get("object").and_then(|o| o.as_str()).map(|s| s == "error").unwrap_or(false)
                 || v.get("error").is_some()
             {
-                let msg_opt = v.get("message").and_then(|m| m.as_str()).map(|s| s.to_string());
-                let msg = msg_opt.unwrap_or_else(|| v.to_string());
-                Err(anyhow!("LLM streaming error: {}", msg))?;
+                // Build a helpful text representation including status-like fields when available
+                let mut details = String::new();
+                // Attempt to include an explicit "message" field if present
+                if let Some(m) = v.get("message") {
+                    details.push_str(&format!("message: {}\n", m));
+                }
+                // Include any nested error object
+                if let Some(err_obj) = v.get("error") {
+                    details.push_str(&format!("error: {}\n", err_obj));
+                }
+                // Include the full JSON payload as a last resort
+                details.push_str(&format!("raw: {}", v));
+
+                // Construct a Message that contains the error details so the UI can display it.
+                // Use assistant role so it is shown where other assistant output appears, but
+                // include the error text so renderers can style it as an error.
+                let mut msg_text = format!("LLM streaming error encountered. See details below:\n{}", details);
+
+                let message = Message::assistant().with_content(MessageContent::text(msg_text));
+
+                // Yield the error message along with any usage info collected so far.
+                yield (Some(message), None);
+
+                // After yielding the error message, stop processing the stream.
+                break 'outer;
             }
 
             let chunk: StreamingChunk = serde_json::from_value(v.clone())
