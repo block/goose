@@ -192,6 +192,19 @@ impl Formatter {
     ) -> String {
         let mut output = String::new();
 
+        // Add summary section
+        Self::append_summary(&mut output, results, max_depth);
+
+        output.push_str("\nPATH [LOC, FUNCTIONS, CLASSES] <FLAGS>\n");
+
+        // Add tree structure
+        Self::append_tree_structure(&mut output, base_path, results);
+
+        output
+    }
+
+    /// Append summary section with statistics
+    fn append_summary(output: &mut String, results: &[(PathBuf, EntryType)], max_depth: u32) {
         // Calculate totals (only from files)
         let files: Vec<&AnalysisResult> = results
             .iter()
@@ -206,17 +219,6 @@ impl Formatter {
         let total_functions: usize = files.iter().map(|r| r.function_count).sum();
         let total_classes: usize = files.iter().map(|r| r.class_count).sum();
 
-        // Calculate language distribution
-        let mut language_lines: HashMap<String, usize> = HashMap::new();
-        for (path, entry) in results {
-            if let EntryType::File(result) = entry {
-                let lang = lang::get_language_identifier(path);
-                if !lang.is_empty() && result.line_count > 0 {
-                    *language_lines.entry(lang.to_string()).or_insert(0) += result.line_count;
-                }
-            }
-        }
-
         // Format summary with depth indicator
         output.push_str("SUMMARY:\n");
         if max_depth == 0 {
@@ -229,6 +231,27 @@ impl Formatter {
                 "Shown: {} files, {}L, {}F, {}C (max_depth={})\n",
                 total_files, total_lines, total_functions, total_classes, max_depth
             ));
+        }
+
+        // Add language distribution
+        Self::append_language_stats(output, results, total_lines);
+    }
+
+    /// Append language statistics
+    fn append_language_stats(
+        output: &mut String,
+        results: &[(PathBuf, EntryType)],
+        total_lines: usize,
+    ) {
+        // Calculate language distribution
+        let mut language_lines: HashMap<String, usize> = HashMap::new();
+        for (path, entry) in results {
+            if let EntryType::File(result) = entry {
+                let lang = lang::get_language_identifier(path);
+                if !lang.is_empty() && result.line_count > 0 {
+                    *language_lines.entry(lang.to_string()).or_insert(0) += result.line_count;
+                }
+            }
         }
 
         // Format language percentages
@@ -246,9 +269,14 @@ impl Formatter {
 
             output.push_str(&format!("Languages: {}\n", lang_str.join(", ")));
         }
+    }
 
-        output.push_str("\nPATH [LOC, FUNCTIONS, CLASSES] <FLAGS>\n");
-
+    /// Append tree structure for directory contents
+    fn append_tree_structure(
+        output: &mut String,
+        base_path: &Path,
+        results: &[(PathBuf, EntryType)],
+    ) {
         // Sort results by path for consistent output
         let mut sorted_results = results.to_vec();
         sorted_results.sort_by(|a, b| a.0.cmp(&b.0));
@@ -258,82 +286,108 @@ impl Formatter {
 
         // Format each entry with tree-style indentation
         for (path, entry) in sorted_results {
-            // Make path relative to base_path
-            let relative_path = path.strip_prefix(base_path).unwrap_or(&path);
+            Self::format_tree_entry(output, base_path, &path, &entry, &mut printed_dirs);
+        }
+    }
 
-            // Get path components for determining structure
-            let components: Vec<_> = relative_path.components().collect();
-            if components.is_empty() {
-                continue;
-            }
+    /// Format a single tree entry
+    fn format_tree_entry(
+        output: &mut String,
+        base_path: &Path,
+        path: &Path,
+        entry: &EntryType,
+        printed_dirs: &mut HashSet<PathBuf>,
+    ) {
+        // Make path relative to base_path
+        let relative_path = path.strip_prefix(base_path).unwrap_or(path);
 
-            // Print parent directories if not already printed
-            for i in 0..components.len().saturating_sub(1) {
-                let parent_path: PathBuf = components[..=i].iter().collect();
-                if !printed_dirs.contains(&parent_path) {
-                    let indent = "  ".repeat(i);
-                    let dir_name = components[i].as_os_str().to_string_lossy();
-                    output.push_str(&format!("{}{}/\n", indent, dir_name));
-                    printed_dirs.insert(parent_path);
-                }
-            }
+        // Get path components for determining structure
+        let components: Vec<_> = relative_path.components().collect();
+        if components.is_empty() {
+            return;
+        }
 
-            // Determine indentation level for this entry
-            let indent_level = components.len().saturating_sub(1);
-            let indent = "  ".repeat(indent_level);
-
-            // Get the file/directory name (last component)
-            let name = components
-                .last()
-                .map(|c| c.as_os_str().to_string_lossy().to_string())
-                .unwrap_or_else(|| relative_path.display().to_string());
-
-            match entry {
-                EntryType::File(result) => {
-                    output.push_str(&format!("{}{} [{}L", indent, name, result.line_count));
-                    if result.function_count > 0 {
-                        output.push_str(&format!(", {}F", result.function_count));
-                    }
-                    if result.class_count > 0 {
-                        output.push_str(&format!(", {}C", result.class_count));
-                    }
-                    output.push(']');
-                    if let Some(main_line) = result.main_line {
-                        output.push_str(&format!(" main:{}", main_line));
-                    }
-                    output.push('\n');
-                }
-                EntryType::Directory => {
-                    // Only print if not already printed as a parent
-                    if !printed_dirs.contains(relative_path) {
-                        output.push_str(&format!("{}{}/\n", indent, name));
-                        printed_dirs.insert(relative_path.to_path_buf());
-                    }
-                }
-                EntryType::SymlinkDir(target) => {
-                    let target_display = if target.is_relative() {
-                        target.display().to_string()
-                    } else if let Ok(rel) = target.strip_prefix(base_path) {
-                        rel.display().to_string()
-                    } else {
-                        target.display().to_string()
-                    };
-                    output.push_str(&format!("{}{}/ -> {}\n", indent, name, target_display));
-                }
-                EntryType::SymlinkFile(target) => {
-                    let target_display = if target.is_relative() {
-                        target.display().to_string()
-                    } else if let Ok(rel) = target.strip_prefix(base_path) {
-                        rel.display().to_string()
-                    } else {
-                        target.display().to_string()
-                    };
-                    output.push_str(&format!("{}{} -> {}\n", indent, name, target_display));
-                }
+        // Print parent directories if not already printed
+        for i in 0..components.len().saturating_sub(1) {
+            let parent_path: PathBuf = components[..=i].iter().collect();
+            if !printed_dirs.contains(&parent_path) {
+                let indent = "  ".repeat(i);
+                let dir_name = components[i].as_os_str().to_string_lossy();
+                output.push_str(&format!("{}{}/\n", indent, dir_name));
+                printed_dirs.insert(parent_path);
             }
         }
 
-        output
+        // Determine indentation level for this entry
+        let indent_level = components.len().saturating_sub(1);
+        let indent = "  ".repeat(indent_level);
+
+        // Get the file/directory name (last component)
+        let name = components
+            .last()
+            .map(|c| c.as_os_str().to_string_lossy().to_string())
+            .unwrap_or_else(|| relative_path.display().to_string());
+
+        // Format based on entry type
+        Self::format_entry_line(
+            output,
+            &indent,
+            &name,
+            entry,
+            base_path,
+            relative_path,
+            printed_dirs,
+        );
+    }
+
+    /// Format the line for a specific entry type
+    fn format_entry_line(
+        output: &mut String,
+        indent: &str,
+        name: &str,
+        entry: &EntryType,
+        base_path: &Path,
+        relative_path: &Path,
+        printed_dirs: &mut HashSet<PathBuf>,
+    ) {
+        match entry {
+            EntryType::File(result) => {
+                output.push_str(&format!("{}{} [{}L", indent, name, result.line_count));
+                if result.function_count > 0 {
+                    output.push_str(&format!(", {}F", result.function_count));
+                }
+                if result.class_count > 0 {
+                    output.push_str(&format!(", {}C", result.class_count));
+                }
+                output.push(']');
+                if let Some(main_line) = result.main_line {
+                    output.push_str(&format!(" main:{}", main_line));
+                }
+                output.push('\n');
+            }
+            EntryType::Directory => {
+                // Only print if not already printed as a parent
+                if !printed_dirs.contains(relative_path) {
+                    output.push_str(&format!("{}{}/\n", indent, name));
+                    printed_dirs.insert(relative_path.to_path_buf());
+                }
+            }
+            EntryType::SymlinkDir(target) | EntryType::SymlinkFile(target) => {
+                let is_dir = matches!(entry, EntryType::SymlinkDir(_));
+                let target_display = if target.is_relative() {
+                    target.display().to_string()
+                } else if let Ok(rel) = target.strip_prefix(base_path) {
+                    rel.display().to_string()
+                } else {
+                    target.display().to_string()
+                };
+                let suffix = if is_dir { "/" } else { "" };
+                output.push_str(&format!(
+                    "{}{}{} -> {}\n",
+                    indent, name, suffix, target_display
+                ));
+            }
+        }
     }
 
     /// Format focused analysis output with call chains
