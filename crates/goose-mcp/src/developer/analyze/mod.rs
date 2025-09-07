@@ -6,6 +6,9 @@ pub mod parser;
 pub mod traversal;
 pub mod types;
 
+#[cfg(test)]
+mod tests;
+
 use ignore::gitignore::Gitignore;
 use rmcp::model::{CallToolResult, ErrorCode, ErrorData};
 use std::path::{Path, PathBuf};
@@ -299,85 +302,5 @@ impl CodeAnalyzer {
         };
 
         Ok(Formatter::format_focused_output(&focus_data))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::fs;
-    use tempfile::TempDir;
-
-    fn create_test_gitignore() -> Gitignore {
-        Gitignore::empty()
-    }
-
-    #[tokio::test]
-    async fn test_analyze_python_file() {
-        let temp_dir = TempDir::new().unwrap();
-        let file_path = temp_dir.path().join("test.py");
-        fs::write(&file_path, "def main():\n    pass").unwrap();
-
-        let analyzer = CodeAnalyzer::new();
-        let params = AnalyzeParams {
-            path: file_path.to_string_lossy().to_string(),
-            focus: None,
-            follow_depth: 2,
-            max_depth: 3,
-        };
-
-        let ignore = create_test_gitignore();
-        let result = analyzer.analyze(params, file_path, &ignore).await;
-
-        assert!(result.is_ok());
-    }
-
-    #[tokio::test]
-    async fn test_analyze_directory() {
-        let temp_dir = TempDir::new().unwrap();
-        let dir_path = temp_dir.path();
-
-        // Create test files
-        fs::write(dir_path.join("test1.rs"), "fn main() {}").unwrap();
-        fs::write(dir_path.join("test2.py"), "def test(): pass").unwrap();
-
-        let analyzer = CodeAnalyzer::new();
-        let params = AnalyzeParams {
-            path: dir_path.to_string_lossy().to_string(),
-            focus: None,
-            follow_depth: 2,
-            max_depth: 3,
-        };
-
-        let ignore = create_test_gitignore();
-        let result = analyzer
-            .analyze(params, dir_path.to_path_buf(), &ignore)
-            .await;
-
-        assert!(result.is_ok());
-    }
-
-    #[tokio::test]
-    async fn test_focused_analysis() {
-        let temp_dir = TempDir::new().unwrap();
-        let file_path = temp_dir.path().join("test.py");
-        fs::write(
-            &file_path,
-            "def main():\n    helper()\n\ndef helper():\n    pass",
-        )
-        .unwrap();
-
-        let analyzer = CodeAnalyzer::new();
-        let params = AnalyzeParams {
-            path: file_path.to_string_lossy().to_string(),
-            focus: Some("helper".to_string()),
-            follow_depth: 1,
-            max_depth: 3,
-        };
-
-        let ignore = create_test_gitignore();
-        let result = analyzer.analyze(params, file_path, &ignore).await;
-
-        assert!(result.is_ok());
     }
 }

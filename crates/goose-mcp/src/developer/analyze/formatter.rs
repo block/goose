@@ -41,7 +41,7 @@ impl Formatter {
     }
 
     /// Format structure overview (compact format)
-    fn format_structure_overview(path: &Path, result: &AnalysisResult) -> String {
+    pub fn format_structure_overview(path: &Path, result: &AnalysisResult) -> String {
         let mut output = String::new();
 
         // Format as: path [LOC, FUNCTIONS, CLASSES] <FLAGS>
@@ -67,7 +67,7 @@ impl Formatter {
     }
 
     /// Format semantic analysis result (dense matrix format)
-    fn format_semantic_result(path: &Path, result: &AnalysisResult) -> String {
+    pub fn format_semantic_result(path: &Path, result: &AnalysisResult) -> String {
         let mut output = format!(
             "FILE: {} [{}L, {}F, {}C]\n\n",
             path.display(),
@@ -598,75 +598,5 @@ impl Formatter {
         } else {
             filtered
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::developer::analyze::types::{ClassInfo, FunctionInfo};
-
-    fn create_test_result() -> AnalysisResult {
-        AnalysisResult {
-            functions: vec![
-                FunctionInfo {
-                    name: "main".to_string(),
-                    line: 10,
-                    params: vec![],
-                },
-                FunctionInfo {
-                    name: "helper".to_string(),
-                    line: 20,
-                    params: vec![],
-                },
-            ],
-            classes: vec![ClassInfo {
-                name: "TestClass".to_string(),
-                line: 5,
-                methods: vec![],
-            }],
-            imports: vec!["use std::fs".to_string()],
-            calls: vec![],
-            references: vec![],
-            function_count: 2,
-            class_count: 1,
-            line_count: 100,
-            import_count: 1,
-            main_line: Some(10),
-        }
-    }
-
-    #[test]
-    fn test_format_structure_overview() {
-        let result = create_test_result();
-        let output = Formatter::format_structure_overview(Path::new("test.rs"), &result);
-
-        assert!(output.contains("[100L, 2F, 1C]"));
-        assert!(output.contains("main:10"));
-    }
-
-    #[test]
-    fn test_format_semantic_result() {
-        let result = create_test_result();
-        let output = Formatter::format_semantic_result(Path::new("test.rs"), &result);
-
-        assert!(output.contains("FILE: test.rs"));
-        assert!(output.contains("C: TestClass:5"));
-        assert!(output.contains("F: main:10 helper:20"));
-        assert!(output.contains("I: use std::fs"));
-    }
-
-    #[test]
-    fn test_filter_by_focus() {
-        // The filter_by_focus function includes the whole section when it finds a match
-        // This is the expected behavior - if a symbol is found in a file, show the whole file section
-        let output = "## test.rs\nfunction main at line 10\nfunction helper at line 20\n## other.rs\nfunction foo at line 5\n";
-        let filtered = Formatter::filter_by_focus(output, "main");
-
-        assert!(filtered.contains("main"));
-        // The test was incorrect - when we find 'main' in test.rs, we include the whole test.rs section
-        // including 'helper'. This is the intended behavior.
-        assert!(filtered.contains("helper")); // Changed from assert!(!filtered.contains("helper"))
-        assert!(!filtered.contains("foo")); // But we don't include other.rs
     }
 }

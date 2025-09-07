@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 /// Parameters for the analyze tool
-#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AnalyzeParams {
     /// Absolute path. Step 1: Directory for overview. Step 2: File for details. Step 3: Directory with focus param for call graphs
     pub path: String,
