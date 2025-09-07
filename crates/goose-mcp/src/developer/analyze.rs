@@ -1274,6 +1274,7 @@ impl CodeAnalyzer {
     }
 
     // Helper method to format directory structure with summary
+    #[allow(clippy::too_many_lines)]
     fn format_directory_structure(
         &self,
         base_path: &Path,
@@ -1343,20 +1344,64 @@ impl CodeAnalyzer {
         let mut sorted_results = results.to_vec();
         sorted_results.sort_by(|a, b| a.0.cmp(&b.0));
 
-        // Format each entry
+        // Track which directories we've already printed to avoid duplicates
+        let mut printed_dirs = HashSet::new();
+
+        // Format each entry with tree-style indentation
         for (path, entry) in sorted_results {
             // Make path relative to base_path
             let relative_path = path.strip_prefix(base_path).unwrap_or(&path);
 
+            // Get path components for determining structure
+            let components: Vec<_> = relative_path.components().collect();
+            if components.is_empty() {
+                continue;
+            }
+
+            // Print parent directories if not already printed
+            for i in 0..components.len().saturating_sub(1) {
+                let parent_path: PathBuf = components[..=i].iter().collect();
+                if !printed_dirs.contains(&parent_path) {
+                    let indent = "  ".repeat(i);
+                    let dir_name = components[i].as_os_str().to_string_lossy();
+                    output.push_str(&format!("{}{}/\n", indent, dir_name));
+                    printed_dirs.insert(parent_path);
+                }
+            }
+
+            // Determine indentation level for this entry
+            let indent_level = components.len().saturating_sub(1);
+            let indent = "  ".repeat(indent_level);
+
+            // Get the file/directory name (last component)
+            let name = components
+                .last()
+                .map(|c| c.as_os_str().to_string_lossy().to_string())
+                .unwrap_or_else(|| relative_path.display().to_string());
+
             match entry {
                 EntryType::File(result) => {
-                    output.push_str(&self.format_structure_overview(relative_path, &result));
+                    output.push_str(&format!("{}{} [{}L", indent, name, result.line_count));
+                    if result.function_count > 0 {
+                        output.push_str(&format!(", {}F", result.function_count));
+                    }
+                    if result.class_count > 0 {
+                        output.push_str(&format!(", {}C", result.class_count));
+                    }
+                    output.push(']');
+                    if let Some(main_line) = result.main_line {
+                        output.push_str(&format!(" main:{}", main_line));
+                    }
+                    output.push('\n');
                 }
                 EntryType::Directory => {
-                    output.push_str(&format!("{}/\n", relative_path.display()));
+                    // Only print if not already printed as a parent
+                    if !printed_dirs.contains(relative_path) {
+                        output.push_str(&format!("{}{}/\n", indent, name));
+                        printed_dirs.insert(relative_path.to_path_buf());
+                    }
                 }
                 EntryType::SymlinkDir(target) => {
-                    // Make target relative if possible for cleaner display
                     let target_display = if target.is_relative() {
                         target.display().to_string()
                     } else if let Ok(rel) = target.strip_prefix(base_path) {
@@ -1364,11 +1409,7 @@ impl CodeAnalyzer {
                     } else {
                         target.display().to_string()
                     };
-                    output.push_str(&format!(
-                        "{}/ → {}\n",
-                        relative_path.display(),
-                        target_display
-                    ));
+                    output.push_str(&format!("{}{}/ -> {}\n", indent, name, target_display));
                 }
             }
         }
