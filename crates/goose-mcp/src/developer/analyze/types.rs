@@ -111,7 +111,7 @@ pub struct FocusedAnalysisData<'a> {
 }
 
 /// Analysis modes
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum AnalysisMode {
     Structure, // Directory overview
     Semantic,  // File details

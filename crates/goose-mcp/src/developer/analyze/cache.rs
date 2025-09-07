@@ -9,7 +9,7 @@ use crate::developer::analyze::types::AnalysisResult;
 /// Cache for analysis results
 #[derive(Clone)]
 pub struct AnalysisCache {
-    cache: Arc<Mutex<LruCache<CacheKey, AnalysisResult>>>,
+    cache: Arc<Mutex<LruCache<CacheKey, Arc<AnalysisResult>>>>,
     #[allow(dead_code)]
     max_size: usize,
 }
@@ -46,7 +46,7 @@ impl AnalysisCache {
 
         if let Some(result) = cache.get(&key) {
             tracing::trace!("Cache hit for {:?}", path);
-            Some(result.clone())
+            Some((**result).clone())
         } else {
             tracing::trace!("Cache miss for {:?}", path);
             None
@@ -62,7 +62,7 @@ impl AnalysisCache {
         };
 
         tracing::trace!("Caching result for {:?}", path);
-        cache.put(key, result);
+        cache.put(key, Arc::new(result));
     }
 
     /// Clear all cached entries

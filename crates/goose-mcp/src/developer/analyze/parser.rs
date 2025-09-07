@@ -148,15 +148,15 @@ impl ElementExtractor {
         let main_line = functions.iter().find(|f| f.name == "main").map(|f| f.line);
 
         Ok(AnalysisResult {
-            functions: functions.clone(),
-            classes: classes.clone(),
-            imports: imports.clone(),
-            calls: vec![],
-            references: vec![],
             function_count: functions.len(),
             class_count: classes.len(),
-            line_count: 0, // Will be set by caller
             import_count: imports.len(),
+            functions,
+            classes,
+            imports,
+            calls: vec![],
+            references: vec![],
+            line_count: 0,
             main_line,
         })
     }

@@ -13,9 +13,10 @@ pub struct Formatter;
 impl Formatter {
     /// Main entry point for formatting results
     pub fn format_results(output: String) -> Vec<Content> {
+        let user_output = output.clone(); // Only one clone needed
         vec![
-            Content::text(output.clone()).with_audience(vec![Role::Assistant]),
-            Content::text(output)
+            Content::text(output).with_audience(vec![Role::Assistant]),
+            Content::text(user_output)
                 .with_audience(vec![Role::User])
                 .with_priority(0.0),
         ]

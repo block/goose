@@ -206,13 +206,12 @@ impl CodeAnalyzer {
 
         // Clone self to avoid lifetime issues in the closure
         let analyzer = self.clone();
-        let mode_clone = mode.clone();
+        let mode = *mode;
 
         // Collect directory results
         let results = traverser
             .collect_directory_results(path, params.max_depth, move |file_path| {
                 let analyzer = analyzer.clone();
-                let mode = mode_clone.clone();
                 let file_path = file_path.to_path_buf();
                 async move { analyzer.analyze_file(&file_path, &mode).await }
             })
