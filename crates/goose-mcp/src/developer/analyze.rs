@@ -103,6 +103,7 @@ enum EntryType {
     File(AnalysisResult),
     Directory,
     SymlinkDir(PathBuf),
+    SymlinkFile(PathBuf),
 }
 
 // Type alias for complex query results
@@ -1231,16 +1232,24 @@ impl CodeAnalyzer {
             })?;
 
             if metadata.is_symlink() {
-                // Check if symlink points to a directory
-                if let Ok(target_meta) = std::fs::metadata(&entry_path) {
-                    if target_meta.is_dir() {
-                        // Get the symlink target
-                        if let Ok(target) = std::fs::read_link(&entry_path) {
-                            results.push((entry_path, EntryType::SymlinkDir(target)));
+                // Get the symlink target
+                if let Ok(target) = std::fs::read_link(&entry_path) {
+                    // Check what the symlink points to (if it exists)
+                    match std::fs::metadata(&entry_path) {
+                        Ok(target_meta) => {
+                            if target_meta.is_dir() {
+                                results.push((entry_path, EntryType::SymlinkDir(target)));
+                            } else if target_meta.is_file() {
+                                // Handle file symlinks
+                                results.push((entry_path, EntryType::SymlinkFile(target)));
+                            }
+                        }
+                        Err(_) => {
+                            // Broken symlink - skip as per current behavior
                         }
                     }
                 }
-                // Skip if symlink points to file or is broken
+                // Skip further processing of symlinks
             } else if metadata.is_dir() {
                 if max_depth > 0 && depth + 1 >= max_depth {
                     // At max depth, just mark as directory
@@ -1410,6 +1419,16 @@ impl CodeAnalyzer {
                         target.display().to_string()
                     };
                     output.push_str(&format!("{}{}/ -> {}\n", indent, name, target_display));
+                }
+                EntryType::SymlinkFile(target) => {
+                    let target_display = if target.is_relative() {
+                        target.display().to_string()
+                    } else if let Ok(rel) = target.strip_prefix(base_path) {
+                        rel.display().to_string()
+                    } else {
+                        target.display().to_string()
+                    };
+                    output.push_str(&format!("{}{} -> {}\n", indent, name, target_display));
                 }
             }
         }
