@@ -989,7 +989,7 @@ impl DeveloperServer {
     /// analyze(path="src/", focus="main") -> track main() across files
     #[tool(
         name = "analyze",
-        description = "Analyze code structure. Files get semantic analysis with call graphs (functions called >3 times show •N for N calls). Directories get structure overview (metrics). Focus parameter tracks symbol across files with follow_depth controlling call chain traversal depth. Examples: analyze(path=\"file.py\"), analyze(path=\"src/\", focus=\"main\")"
+        description = "Analyze code structure in three modes: 1) Directory overview (file tree with LOC/function/class counts), 2) File details (functions, classes, imports), 3) Symbol focus (call graphs across directory). Typical flow: analyze directory → inspect specific files → focus on symbols of interest. Functions called >3 times show •N."
     )]
     pub async fn analyze(
         &self,

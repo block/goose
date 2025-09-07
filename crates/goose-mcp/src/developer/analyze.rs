@@ -19,27 +19,17 @@ use super::lang;
 /// Parameters for the analyze tool
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct AnalyzeParams {
-    /// Path to analyze (absolute path to file or directory)
-    /// - For files: Shows semantic analysis with functions, classes, imports
-    /// - For directories: Shows structure overview with file metrics
+    /// Absolute path. Step 1: Directory for overview. Step 2: File for details. Step 3: Directory with focus param for call graphs
     pub path: String,
 
-    /// Symbol name to track across files (case-sensitive, exact match)
-    /// When provided with a directory path, tracks this symbol's definitions
-    /// and call chains across all files in the directory.
-    /// Note: Focus mode requires a directory path, not a single file.
+    /// Symbol name for call graph analysis (Step 3). Requires directory path. Shows who calls it and what it calls
     pub focus: Option<String>,
 
-    /// How many levels of call chains to traverse in focused mode (default: 2)
-    /// - 0: Only show definitions, no call chains
-    /// - 1: Show direct callers and callees
-    /// - 2: Show callers of callers, callees of callees
-    /// - N: Traverse N levels deep in the call graph
+    /// Call graph depth. 0=where defined, 1=direct callers/callees, 2+=transitive chains
     #[serde(default = "default_follow_depth")]
     pub follow_depth: u32,
 
-    /// Maximum directory recursion depth (default: 3, use 0 for unlimited)
-    /// Controls how deep to traverse subdirectories when analyzing
+    /// Directory recursion limit. 0=unlimited (warning: fails on binary files)
     #[serde(default = "default_max_depth")]
     pub max_depth: u32,
 }
@@ -1497,32 +1487,17 @@ impl CodeAnalyzer {
         let mut output = format!("FOCUSED ANALYSIS: {}\n\n", focus_symbol);
 
         // Build file alias mapping
-        let (file_map, sorted_files) = self.build_file_aliases(
-            definitions,
-            incoming_chains,
-            outgoing_chains,
-        );
+        let (file_map, sorted_files) =
+            self.build_file_aliases(definitions, incoming_chains, outgoing_chains);
 
         // Section 1: Definitions
         self.append_definitions(&mut output, definitions, &file_map, focus_symbol);
 
         // Section 2: Incoming Call Chains
-        self.append_call_chains(
-            &mut output,
-            incoming_chains,
-            &file_map,
-            follow_depth,
-            true,
-        );
+        self.append_call_chains(&mut output, incoming_chains, &file_map, follow_depth, true);
 
         // Section 3: Outgoing Call Chains
-        self.append_call_chains(
-            &mut output,
-            outgoing_chains,
-            &file_map,
-            follow_depth,
-            false,
-        );
+        self.append_call_chains(&mut output, outgoing_chains, &file_map, follow_depth, false);
 
         // Section 4: Summary Statistics
         self.append_statistics(
@@ -1626,7 +1601,10 @@ impl CodeAnalyzer {
     ) {
         if !chains.is_empty() {
             let chain_type = if is_incoming { "INCOMING" } else { "OUTGOING" };
-            output.push_str(&format!("{} CALL CHAINS (depth={}):\n", chain_type, follow_depth));
+            output.push_str(&format!(
+                "{} CALL CHAINS (depth={}):\n",
+                chain_type, follow_depth
+            ));
 
             let mut unique_chains = HashSet::new();
             for chain in chains {
