@@ -6,8 +6,10 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Once;
 
+#[allow(dead_code)]
 static INIT: Once = Once::new();
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub enum DisplayServer {
     X11,
@@ -15,6 +17,7 @@ pub enum DisplayServer {
     Unknown,
 }
 
+#[allow(dead_code)]
 pub struct LinuxAutomation {
     display_server: DisplayServer,
 }

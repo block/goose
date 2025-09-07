@@ -10,6 +10,7 @@ use crate::developer::analyze::types::AnalysisResult;
 #[derive(Clone)]
 pub struct AnalysisCache {
     cache: Arc<Mutex<LruCache<CacheKey, AnalysisResult>>>,
+    #[allow(dead_code)]
     max_size: usize,
 }
 

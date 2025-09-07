@@ -14,13 +14,19 @@ pub struct CallGraph {
     pub definitions: HashMap<String, Vec<(PathBuf, usize)>>,
 }
 
-impl CallGraph {
-    pub fn new() -> Self {
+impl Default for CallGraph {
+    fn default() -> Self {
         Self {
             callers: HashMap::new(),
             callees: HashMap::new(),
             definitions: HashMap::new(),
         }
+    }
+}
+
+impl CallGraph {
+    pub fn new() -> Self {
+        Self::default()
     }
 
     pub fn build_from_results(results: &[(PathBuf, AnalysisResult)]) -> Self {

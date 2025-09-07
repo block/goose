@@ -78,7 +78,18 @@ impl<'a> FileTraverser<'a> {
     ) -> Result<Vec<PathBuf>, ErrorData> {
         let mut files = Vec::new();
 
+        // Check if we're at a file (base case)
+        if path.is_file() {
+            let lang = lang::get_language_identifier(path);
+            if !lang.is_empty() {
+                tracing::trace!("Including file {:?} (language: {})", path, lang);
+                files.push(path.to_path_buf());
+            }
+            return Ok(files);
+        }
+
         // max_depth of 0 means unlimited depth
+        // current_depth starts at 0, max_depth is the number of directory levels to traverse
         if max_depth > 0 && current_depth >= max_depth {
             tracing::trace!("Reached max depth {} at {:?}", max_depth, path);
             return Ok(files);
@@ -273,12 +284,28 @@ mod tests {
 
     #[tokio::test]
     async fn test_is_ignored() {
-        let ignore = create_test_gitignore();
+        // Create a temporary directory for testing
+        let temp_dir = TempDir::new().unwrap();
+        let dir_path = temp_dir.path();
+        
+        // Create actual files and directories to test
+        fs::write(dir_path.join("test.log"), "log content").unwrap();
+        fs::create_dir(dir_path.join("node_modules")).unwrap();
+        fs::create_dir(dir_path.join("src")).unwrap();
+        fs::write(dir_path.join("src").join("main.rs"), "fn main() {}").unwrap();
+        
+        // Create gitignore relative to temp dir
+        let mut builder = ignore::gitignore::GitignoreBuilder::new(dir_path);
+        builder.add_line(None, "*.log").unwrap();
+        builder.add_line(None, "node_modules/").unwrap();
+        let ignore = builder.build().unwrap();
+        
         let traverser = FileTraverser::new(&ignore);
 
-        assert!(traverser.is_ignored(Path::new("test.log")));
-        assert!(traverser.is_ignored(Path::new("node_modules/package.json")));
-        assert!(!traverser.is_ignored(Path::new("src/main.rs")));
+        // Test with actual paths relative to the gitignore base
+        assert!(traverser.is_ignored(&dir_path.join("test.log")));
+        assert!(traverser.is_ignored(&dir_path.join("node_modules")));
+        assert!(!traverser.is_ignored(&dir_path.join("src").join("main.rs")));
     }
 
     #[tokio::test]
@@ -326,10 +353,15 @@ mod tests {
         let dir_path = temp_dir.path();
 
         // Create nested structure
+        // Root level (depth 0)
+        fs::write(dir_path.join("root.rs"), "").unwrap();
+        
+        // Level 1 (depth 1)
         let level1 = dir_path.join("level1");
         fs::create_dir(&level1).unwrap();
         fs::write(level1.join("file1.rs"), "").unwrap();
 
+        // Level 2 (depth 2)
         let level2 = level1.join("level2");
         fs::create_dir(&level2).unwrap();
         fs::write(level2.join("file2.rs"), "").unwrap();
@@ -337,13 +369,18 @@ mod tests {
         let ignore = Gitignore::empty();
         let traverser = FileTraverser::new(&ignore);
 
-        // With max_depth=1, should only find file1.rs
+        // With max_depth=1, should find root.rs and file1.rs (stops before level2)
         let files = traverser.collect_files_for_focused(dir_path, 1).await.unwrap();
-        assert_eq!(files.len(), 1);
-        assert!(files[0].ends_with("file1.rs"));
+        assert_eq!(files.len(), 2, "max_depth=1 should find 2 files");
+        assert!(files.iter().any(|p| p.ends_with("root.rs")));
+        assert!(files.iter().any(|p| p.ends_with("file1.rs")));
 
-        // With max_depth=2, should find both files
+        // With max_depth=2, should find all three files
         let files = traverser.collect_files_for_focused(dir_path, 2).await.unwrap();
-        assert_eq!(files.len(), 2);
+        assert_eq!(files.len(), 3, "max_depth=2 should find all 3 files");
+        
+        // With max_depth=0 (unlimited), should also find all three files
+        let files = traverser.collect_files_for_focused(dir_path, 0).await.unwrap();
+        assert_eq!(files.len(), 3, "max_depth=0 (unlimited) should find all 3 files");
     }
 }
