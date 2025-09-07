@@ -46,7 +46,7 @@ impl CodeAnalyzer {
     }
 
     /// Main analyze entry point
-    pub async fn analyze(
+    pub fn analyze(
         &self,
         params: AnalyzeParams,
         path: PathBuf,
@@ -66,24 +66,22 @@ impl CodeAnalyzer {
 
         // Process based on path type and mode
         let mut output = match mode {
-            AnalysisMode::Focused => self.analyze_focused(&path, &params, &traverser).await?,
+            AnalysisMode::Focused => self.analyze_focused(&path, &params, &traverser)?,
             AnalysisMode::Semantic => {
                 if path.is_file() {
-                    let result = self.analyze_file(&path, &mode).await?;
+                    let result = self.analyze_file(&path, &mode)?;
                     Formatter::format_analysis_result(&path, &result, &mode)
                 } else {
                     // Semantic mode on directory - analyze all files
-                    self.analyze_directory(&path, &params, &traverser, &mode)
-                        .await?
+                    self.analyze_directory(&path, &params, &traverser, &mode)?
                 }
             }
             AnalysisMode::Structure => {
                 if path.is_file() {
-                    let result = self.analyze_file(&path, &mode).await?;
+                    let result = self.analyze_file(&path, &mode)?;
                     Formatter::format_analysis_result(&path, &result, &mode)
                 } else {
-                    self.analyze_directory(&path, &params, &traverser, &mode)
-                        .await?
+                    self.analyze_directory(&path, &params, &traverser, &mode)?
                 }
             }
         };
@@ -115,11 +113,7 @@ impl CodeAnalyzer {
     }
 
     /// Analyze a single file
-    async fn analyze_file(
-        &self,
-        path: &Path,
-        mode: &AnalysisMode,
-    ) -> Result<AnalysisResult, ErrorData> {
+    fn analyze_file(&self, path: &Path, mode: &AnalysisMode) -> Result<AnalysisResult, ErrorData> {
         tracing::debug!("Analyzing file {:?} in {:?} mode", path, mode);
 
         // Check cache first
@@ -195,7 +189,7 @@ impl CodeAnalyzer {
     }
 
     /// Analyze a directory
-    async fn analyze_directory(
+    fn analyze_directory(
         &self,
         path: &Path,
         params: &AnalyzeParams,
@@ -204,18 +198,12 @@ impl CodeAnalyzer {
     ) -> Result<String, ErrorData> {
         tracing::debug!("Analyzing directory {:?} in {:?} mode", path, mode);
 
-        // Clone self to avoid lifetime issues in the closure
-        let analyzer = self.clone();
         let mode = *mode;
 
-        // Collect directory results
-        let results = traverser
-            .collect_directory_results(path, params.max_depth, move |file_path| {
-                let analyzer = analyzer.clone();
-                let file_path = file_path.to_path_buf();
-                async move { analyzer.analyze_file(&file_path, &mode).await }
-            })
-            .await?;
+        // Collect directory results with parallel processing
+        let results = traverser.collect_directory_results(path, params.max_depth, |file_path| {
+            self.analyze_file(file_path, &mode)
+        })?;
 
         // Format based on mode
         Ok(Formatter::format_directory_structure(
@@ -226,7 +214,7 @@ impl CodeAnalyzer {
     }
 
     /// Focused mode analysis - track a symbol across files
-    async fn analyze_focused(
+    fn analyze_focused(
         &self,
         path: &Path,
         params: &AnalyzeParams,
@@ -248,9 +236,7 @@ impl CodeAnalyzer {
         let files_to_analyze = if path.is_file() {
             vec![path.to_path_buf()]
         } else {
-            traverser
-                .collect_files_for_focused(path, params.max_depth)
-                .await?
+            traverser.collect_files_for_focused(path, params.max_depth)?
         };
 
         tracing::debug!(
@@ -258,14 +244,16 @@ impl CodeAnalyzer {
             files_to_analyze.len()
         );
 
-        // Step 2: Analyze all files and collect results
-        let mut all_results = Vec::new();
-        for file_path in &files_to_analyze {
-            let result = self
-                .analyze_file(file_path, &AnalysisMode::Semantic)
-                .await?;
-            all_results.push((file_path.clone(), result));
-        }
+        // Step 2: Analyze all files and collect results using parallel processing
+        use rayon::prelude::*;
+        let all_results: Result<Vec<_>, _> = files_to_analyze
+            .par_iter()
+            .map(|file_path| {
+                self.analyze_file(file_path, &AnalysisMode::Semantic)
+                    .map(|result| (file_path.clone(), result))
+            })
+            .collect();
+        let all_results = all_results?;
 
         // Step 3: Build the call graph
         let graph = CallGraph::build_from_results(&all_results);

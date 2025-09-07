@@ -1,4 +1,5 @@
 use ignore::gitignore::Gitignore;
+use rayon::prelude::*;
 use rmcp::model::{ErrorCode, ErrorData};
 use std::path::{Path, PathBuf};
 
@@ -52,7 +53,7 @@ impl<'a> FileTraverser<'a> {
     }
 
     /// Collect all files for focused analysis
-    pub async fn collect_files_for_focused(
+    pub fn collect_files_for_focused(
         &self,
         path: &Path,
         max_depth: u32,
@@ -67,14 +68,14 @@ impl<'a> FileTraverser<'a> {
             tracing::warn!("Unlimited depth traversal requested for {:?}", path);
         }
 
-        let files = self.collect_files_recursive(path, 0, max_depth).await?;
+        let files = self.collect_files_recursive(path, 0, max_depth)?;
 
         tracing::info!("Collected {} files from {:?}", files.len(), path);
         Ok(files)
     }
 
     /// Recursively collect files
-    async fn collect_files_recursive(
+    fn collect_files_recursive(
         &self,
         path: &Path,
         current_depth: u32,
@@ -133,12 +134,8 @@ impl<'a> FileTraverser<'a> {
                 }
             } else if entry_path.is_dir() {
                 // Recurse into subdirectory
-                let mut sub_files = Box::pin(self.collect_files_recursive(
-                    &entry_path,
-                    current_depth + 1,
-                    max_depth,
-                ))
-                .await?;
+                let mut sub_files =
+                    self.collect_files_recursive(&entry_path, current_depth + 1, max_depth)?;
                 files.append(&mut sub_files);
             }
         }
@@ -146,130 +143,29 @@ impl<'a> FileTraverser<'a> {
         Ok(files)
     }
 
-    /// Collect directory results for analysis
-    pub async fn collect_directory_results<F, Fut>(
+    /// Collect directory results for analysis with parallel processing
+    pub fn collect_directory_results<F>(
         &self,
         path: &Path,
         max_depth: u32,
-        mut analyze_file: F,
+        analyze_file: F,
     ) -> Result<Vec<(PathBuf, EntryType)>, ErrorData>
     where
-        F: FnMut(&Path) -> Fut,
-        Fut: std::future::Future<Output = Result<AnalysisResult, ErrorData>>,
+        F: Fn(&Path) -> Result<AnalysisResult, ErrorData> + Sync,
     {
         tracing::debug!("Collecting directory results from {:?}", path);
 
-        self.collect_directory_recursive(path, 0, max_depth, &mut analyze_file)
-            .await
-    }
+        // First collect all files to analyze
+        let files_to_analyze = self.collect_files_recursive(path, 0, max_depth)?;
 
-    /// Recursively collect directory results
-    async fn collect_directory_recursive<F, Fut>(
-        &self,
-        path: &Path,
-        depth: u32,
-        max_depth: u32,
-        analyze_file: &mut F,
-    ) -> Result<Vec<(PathBuf, EntryType)>, ErrorData>
-    where
-        F: FnMut(&Path) -> Fut,
-        Fut: std::future::Future<Output = Result<AnalysisResult, ErrorData>>,
-    {
-        let mut results = Vec::new();
+        // Then analyze them in parallel using Rayon
+        let results: Result<Vec<_>, ErrorData> = files_to_analyze
+            .par_iter()
+            .map(|file_path| {
+                analyze_file(file_path).map(|result| (file_path.clone(), EntryType::File(result)))
+            })
+            .collect();
 
-        // max_depth of 0 means unlimited depth
-        if max_depth > 0 && depth >= max_depth {
-            return Ok(results);
-        }
-
-        let entries = std::fs::read_dir(path).map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!("Failed to read directory: {}", e),
-                None,
-            )
-        })?;
-
-        for entry in entries {
-            let entry = entry.map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to read directory entry: {}", e),
-                    None,
-                )
-            })?;
-
-            let entry_path = entry.path();
-
-            // Skip ignored paths
-            if self.is_ignored(&entry_path) {
-                continue;
-            }
-
-            // Get metadata without following symlinks
-            let metadata = entry.metadata().map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to get metadata: {}", e),
-                    None,
-                )
-            })?;
-
-            if metadata.is_symlink() {
-                // Get the symlink target
-                if let Ok(target) = std::fs::read_link(&entry_path) {
-                    // Check what the symlink points to (if it exists)
-                    match std::fs::metadata(&entry_path) {
-                        Ok(target_meta) => {
-                            if target_meta.is_dir() {
-                                results.push((entry_path, EntryType::SymlinkDir(target)));
-                            } else if target_meta.is_file() {
-                                results.push((entry_path, EntryType::SymlinkFile(target)));
-                            }
-                        }
-                        Err(_) => {
-                            // Broken symlink - skip
-                            tracing::trace!("Skipping broken symlink {:?}", entry_path);
-                        }
-                    }
-                }
-            } else if metadata.is_dir() {
-                if max_depth > 0 && depth + 1 >= max_depth {
-                    // At max depth, just mark as directory
-                    results.push((entry_path, EntryType::Directory));
-                } else {
-                    // Recurse into subdirectory
-                    let mut sub_results = Box::pin(self.collect_directory_recursive(
-                        &entry_path,
-                        depth + 1,
-                        max_depth,
-                        analyze_file,
-                    ))
-                    .await?;
-                    results.append(&mut sub_results);
-                }
-            } else if metadata.is_file() {
-                // Only analyze supported file types
-                let lang = lang::get_language_identifier(&entry_path);
-                if !lang.is_empty() {
-                    match analyze_file(&entry_path).await {
-                        Ok(result) => {
-                            if result.function_count > 0
-                                || result.class_count > 0
-                                || result.line_count > 0
-                            {
-                                results.push((entry_path, EntryType::File(result)));
-                            }
-                        }
-                        Err(e) => {
-                            tracing::warn!("Failed to analyze {:?}: {}", entry_path, e);
-                            // Continue with other files
-                        }
-                    }
-                }
-            }
-        }
-
-        Ok(results)
+        results
     }
 }

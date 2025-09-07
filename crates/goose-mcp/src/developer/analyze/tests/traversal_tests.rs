@@ -7,8 +7,8 @@ use std::fs;
 use std::path::Path;
 use tempfile::TempDir;
 
-#[tokio::test]
-async fn test_is_ignored() {
+#[test]
+fn test_is_ignored() {
     // Create a temporary directory for testing
     let temp_dir = TempDir::new().unwrap();
     let dir_path = temp_dir.path();
@@ -29,8 +29,8 @@ async fn test_is_ignored() {
     assert!(!traverser.is_ignored(&dir_path.join("test.rs")));
 }
 
-#[tokio::test]
-async fn test_validate_path() {
+#[test]
+fn test_validate_path() {
     let ignore = create_test_gitignore();
     let traverser = FileTraverser::new(&ignore);
 
@@ -43,8 +43,8 @@ async fn test_validate_path() {
     assert!(traverser.validate_path(Path::new("test.log")).is_err());
 }
 
-#[tokio::test]
-async fn test_collect_files() {
+#[test]
+fn test_collect_files() {
     let temp_dir = TempDir::new().unwrap();
     let dir_path = temp_dir.path();
 
@@ -63,7 +63,6 @@ async fn test_collect_files() {
 
     let files = traverser
         .collect_files_for_focused(dir_path, 0)
-        .await
         .unwrap();
 
     // Should find .rs and .py files but not .txt
@@ -73,8 +72,8 @@ async fn test_collect_files() {
     assert!(files.iter().any(|p| p.ends_with("lib.rs")));
 }
 
-#[tokio::test]
-async fn test_max_depth() {
+#[test]
+fn test_max_depth() {
     let temp_dir = TempDir::new().unwrap();
     let dir_path = temp_dir.path();
 
@@ -102,13 +101,11 @@ async fn test_max_depth() {
     // With a small max_depth, we should find fewer files
     let files_limited = traverser
         .collect_files_for_focused(dir_path, 2)
-        .await
         .unwrap();
 
     // With unlimited depth, we should find all files
     let files_unlimited = traverser
         .collect_files_for_focused(dir_path, 0)
-        .await
         .unwrap();
 
     // The unlimited search should find more files than the limited one
@@ -128,8 +125,8 @@ async fn test_max_depth() {
     );
 }
 
-#[tokio::test]
-async fn test_symlink_handling() {
+#[test]
+fn test_symlink_handling() {
     let temp_dir = TempDir::new().unwrap();
     let dir_path = temp_dir.path();
 
@@ -153,7 +150,6 @@ async fn test_symlink_handling() {
     // Collect files - symlinks should be handled appropriately
     let files = traverser
         .collect_files_for_focused(dir_path, 0)
-        .await
         .unwrap();
 
     // Should find the actual files
@@ -161,8 +157,8 @@ async fn test_symlink_handling() {
     assert!(files.iter().any(|p| p.ends_with("inner.rs")));
 }
 
-#[tokio::test]
-async fn test_empty_directory() {
+#[test]
+fn test_empty_directory() {
     let temp_dir = TempDir::new().unwrap();
     let dir_path = temp_dir.path();
 
@@ -171,14 +167,13 @@ async fn test_empty_directory() {
 
     let files = traverser
         .collect_files_for_focused(dir_path, 0)
-        .await
         .unwrap();
 
     assert_eq!(files.len(), 0);
 }
 
-#[tokio::test]
-async fn test_gitignore_patterns() {
+#[test]
+fn test_gitignore_patterns() {
     let temp_dir = TempDir::new().unwrap();
     let dir_path = temp_dir.path();
 
@@ -197,7 +192,6 @@ async fn test_gitignore_patterns() {
 
     let files = traverser
         .collect_files_for_focused(dir_path, 0)
-        .await
         .unwrap();
 
     // Should find .rs and .py files, but not .log files

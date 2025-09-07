@@ -2795,6 +2795,7 @@ dependencies = [
  "mcp-server",
  "oauth2",
  "once_cell",
+ "rayon",
  "regex",
  "reqwest 0.11.27",
  "rmcp",

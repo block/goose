@@ -999,7 +999,6 @@ impl DeveloperServer {
         let path = self.resolve_path(&params.path)?;
         self.code_analyzer
             .analyze(params, path, &self.ignore_patterns)
-            .await
     }
 
     /// Process an image file from disk.

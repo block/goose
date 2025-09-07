@@ -2,7 +2,6 @@
 
 use crate::developer::analyze::types::{AnalysisResult, CallInfo, ClassInfo, FunctionInfo};
 use ignore::gitignore::Gitignore;
-use std::path::PathBuf;
 
 /// Create a test AnalysisResult with sample data
 pub fn create_test_result() -> AnalysisResult {
@@ -79,6 +78,7 @@ pub fn create_test_gitignore() -> Gitignore {
 }
 
 /// Create a test gitignore with custom base path
+#[allow(dead_code)]
 pub fn create_test_gitignore_at(base_path: &std::path::Path) -> Gitignore {
     let mut builder = ignore::gitignore::GitignoreBuilder::new(base_path);
     builder.add_line(None, "*.log").unwrap();

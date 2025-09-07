@@ -5,8 +5,8 @@ use crate::developer::analyze::{types::AnalyzeParams, CodeAnalyzer};
 use std::fs;
 use tempfile::TempDir;
 
-#[tokio::test]
-async fn test_analyze_python_file() {
+#[test]
+fn test_analyze_python_file() {
     let temp_dir = TempDir::new().unwrap();
     let file_path = temp_dir.path().join("test.py");
     fs::write(&file_path, "def main():\n    pass").unwrap();
@@ -20,7 +20,7 @@ async fn test_analyze_python_file() {
     };
 
     let ignore = create_test_gitignore();
-    let result = analyzer.analyze(params, file_path, &ignore).await;
+    let result = analyzer.analyze(params, file_path, &ignore);
 
     assert!(result.is_ok());
     let result = result.unwrap();
@@ -29,8 +29,8 @@ async fn test_analyze_python_file() {
     assert!(!result.content.is_empty());
 }
 
-#[tokio::test]
-async fn test_analyze_directory() {
+#[test]
+fn test_analyze_directory() {
     let temp_dir = TempDir::new().unwrap();
     let dir_path = temp_dir.path();
 
@@ -48,8 +48,7 @@ async fn test_analyze_directory() {
 
     let ignore = create_test_gitignore();
     let result = analyzer
-        .analyze(params, dir_path.to_path_buf(), &ignore)
-        .await;
+        .analyze(params, dir_path.to_path_buf(), &ignore);
 
     assert!(result.is_ok());
     let result = result.unwrap();
@@ -65,8 +64,8 @@ async fn test_analyze_directory() {
     }
 }
 
-#[tokio::test]
-async fn test_focused_analysis() {
+#[test]
+fn test_focused_analysis() {
     let temp_dir = TempDir::new().unwrap();
     let file_path = temp_dir.path().join("test.py");
     fs::write(
@@ -84,7 +83,7 @@ async fn test_focused_analysis() {
     };
 
     let ignore = create_test_gitignore();
-    let result = analyzer.analyze(params, file_path, &ignore).await;
+    let result = analyzer.analyze(params, file_path, &ignore);
 
     assert!(result.is_ok());
     let result = result.unwrap();
@@ -96,8 +95,8 @@ async fn test_focused_analysis() {
     }
 }
 
-#[tokio::test]
-async fn test_analyze_with_cache() {
+#[test]
+fn test_analyze_with_cache() {
     let temp_dir = TempDir::new().unwrap();
     let file_path = temp_dir.path().join("test.rs");
     fs::write(&file_path, "fn main() {\n    println!(\"Hello\");\n}").unwrap();
@@ -115,11 +114,11 @@ async fn test_analyze_with_cache() {
     // First analysis - should cache
     let result1 = analyzer
         .analyze(params.clone(), file_path.clone(), &ignore)
-        .await;
+        ;
     assert!(result1.is_ok());
 
     // Second analysis - should use cache
-    let result2 = analyzer.analyze(params, file_path, &ignore).await;
+    let result2 = analyzer.analyze(params, file_path, &ignore);
     assert!(result2.is_ok());
 
     // Results should be identical
@@ -128,8 +127,8 @@ async fn test_analyze_with_cache() {
     assert_eq!(content1, content2);
 }
 
-#[tokio::test]
-async fn test_analyze_unsupported_file() {
+#[test]
+fn test_analyze_unsupported_file() {
     let temp_dir = TempDir::new().unwrap();
     let file_path = temp_dir.path().join("test.txt");
     fs::write(&file_path, "This is not code").unwrap();
@@ -143,14 +142,14 @@ async fn test_analyze_unsupported_file() {
     };
 
     let ignore = create_test_gitignore();
-    let result = analyzer.analyze(params, file_path, &ignore).await;
+    let result = analyzer.analyze(params, file_path, &ignore);
 
     // Should succeed but return minimal information
     assert!(result.is_ok());
 }
 
-#[tokio::test]
-async fn test_analyze_nonexistent_path() {
+#[test]
+fn test_analyze_nonexistent_path() {
     let analyzer = CodeAnalyzer::new();
     let params = AnalyzeParams {
         path: "/nonexistent/path".to_string(),
@@ -162,14 +161,14 @@ async fn test_analyze_nonexistent_path() {
     let ignore = create_test_gitignore();
     let result = analyzer
         .analyze(params, "/nonexistent/path".into(), &ignore)
-        .await;
+        ;
 
     // Should return an error
     assert!(result.is_err());
 }
 
-#[tokio::test]
-async fn test_focused_without_symbol() {
+#[test]
+fn test_focused_without_symbol() {
     let temp_dir = TempDir::new().unwrap();
     let file_path = temp_dir.path().join("test.py");
     fs::write(&file_path, "def main(): pass").unwrap();
@@ -185,7 +184,7 @@ async fn test_focused_without_symbol() {
     };
 
     let ignore = create_test_gitignore();
-    let result = analyzer.analyze(params, file_path, &ignore).await;
+    let result = analyzer.analyze(params, file_path, &ignore);
 
     assert!(result.is_ok());
     let result = result.unwrap();
@@ -198,8 +197,8 @@ async fn test_focused_without_symbol() {
     }
 }
 
-#[tokio::test]
-async fn test_nested_directory_analysis() {
+#[test]
+fn test_nested_directory_analysis() {
     let temp_dir = TempDir::new().unwrap();
     let dir_path = temp_dir.path();
 
@@ -223,7 +222,7 @@ async fn test_nested_directory_analysis() {
     let ignore = create_test_gitignore();
     let result = analyzer
         .analyze(params, dir_path.to_path_buf(), &ignore)
-        .await;
+        ;
 
     assert!(result.is_ok());
     let result = result.unwrap();
