@@ -28,6 +28,7 @@ impl Default for LinuxAutomation {
     }
 }
 
+#[allow(dead_code)]
 impl LinuxAutomation {
     pub fn new() -> Self {
         let automation = LinuxAutomation {

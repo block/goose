@@ -127,7 +127,7 @@ impl AnalysisMode {
         }
     }
 
-    pub fn from_str(s: &str) -> Self {
+    pub fn parse(s: &str) -> Self {
         match s {
             "structure" => AnalysisMode::Structure,
             "semantic" => AnalysisMode::Semantic,
