@@ -38,8 +38,8 @@ Designed for maximum flexibility, goose works with any LLM and supports multi-mo
 
 # Goose Around with Us
 - [Discord](https://discord.gg/block-opensource)
-- [YouTube](https://www.youtube.com/@blockopensource)
-- [LinkedIn](https://www.linkedin.com/company/block-opensource)
-- [Twitter/X](https://x.com/blockopensource)
+- [YouTube](https://www.youtube.com/@goose-oss)
+- [LinkedIn](https://www.linkedin.com/company/goose-oss)
+- [Twitter/X](https://x.com/goose_oss)
 - [Bluesky](https://bsky.app/profile/opensource.block.xyz)
 - [Nostr](https://njump.me/opensource@block.xyz)
