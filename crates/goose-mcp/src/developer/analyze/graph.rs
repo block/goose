@@ -87,8 +87,12 @@ impl CallGraph {
     }
 
     pub fn find_incoming_chains(&self, symbol: &str, max_depth: u32) -> Vec<CallChain> {
-        tracing::trace!("Finding incoming chains for {} with depth {}", symbol, max_depth);
-        
+        tracing::trace!(
+            "Finding incoming chains for {} with depth {}",
+            symbol,
+            max_depth
+        );
+
         if max_depth == 0 {
             return vec![];
         }
@@ -148,8 +152,12 @@ impl CallGraph {
     }
 
     pub fn find_outgoing_chains(&self, symbol: &str, max_depth: u32) -> Vec<CallChain> {
-        tracing::trace!("Finding outgoing chains for {} with depth {}", symbol, max_depth);
-        
+        tracing::trace!(
+            "Finding outgoing chains for {} with depth {}",
+            symbol,
+            max_depth
+        );
+
         if max_depth == 0 {
             return vec![];
         }
@@ -246,20 +254,18 @@ mod tests {
 
     #[test]
     fn test_simple_call_chain() {
-        let results = vec![
-            (
-                PathBuf::from("test.rs"),
-                create_test_result(vec!["a", "b", "c"], vec![("a", "b"), ("b", "c")]),
-            ),
-        ];
+        let results = vec![(
+            PathBuf::from("test.rs"),
+            create_test_result(vec!["a", "b", "c"], vec![("a", "b"), ("b", "c")]),
+        )];
 
         let graph = CallGraph::build_from_results(&results);
-        
+
         // Test incoming chains for 'c'
         let chains = graph.find_incoming_chains("c", 2);
         assert_eq!(chains.len(), 1);
         assert_eq!(chains[0].path.len(), 2); // b->c, a->b
-        
+
         // Test outgoing chains for 'a'
         let chains = graph.find_outgoing_chains("a", 2);
         assert_eq!(chains.len(), 1);
@@ -268,15 +274,13 @@ mod tests {
 
     #[test]
     fn test_circular_dependency() {
-        let results = vec![
-            (
-                PathBuf::from("test.rs"),
-                create_test_result(vec!["a", "b"], vec![("a", "b"), ("b", "a")]),
-            ),
-        ];
+        let results = vec![(
+            PathBuf::from("test.rs"),
+            create_test_result(vec!["a", "b"], vec![("a", "b"), ("b", "a")]),
+        )];
 
         let graph = CallGraph::build_from_results(&results);
-        
+
         // Should handle cycles without infinite loop
         let chains = graph.find_incoming_chains("a", 3);
         assert!(!chains.is_empty());

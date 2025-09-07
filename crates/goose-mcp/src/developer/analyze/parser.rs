@@ -96,8 +96,12 @@ impl ElementExtractor {
         language: &str,
         depth: &str,
     ) -> Result<AnalysisResult, ErrorData> {
-        tracing::trace!("Extracting elements from {} code with depth {}", language, depth);
-        
+        tracing::trace!(
+            "Extracting elements from {} code with depth {}",
+            language,
+            depth
+        );
+
         // First get the structural analysis
         let mut result = Self::extract_elements(tree, source, language)?;
 
@@ -506,13 +510,13 @@ mod tests {
     #[test]
     fn test_parser_caching() {
         let manager = ParserManager::new();
-        
+
         // First call creates parser
         let parser1 = manager.get_or_create_parser("python").unwrap();
-        
+
         // Second call should return cached parser
         let parser2 = manager.get_or_create_parser("python").unwrap();
-        
+
         // They should be the same Arc
         assert!(Arc::ptr_eq(&parser1, &parser2));
     }
@@ -521,7 +525,7 @@ mod tests {
     fn test_parse_python() {
         let manager = ParserManager::new();
         let content = "def hello():\n    pass";
-        
+
         let tree = manager.parse(content, "python").unwrap();
         assert!(tree.root_node().child_count() > 0);
     }

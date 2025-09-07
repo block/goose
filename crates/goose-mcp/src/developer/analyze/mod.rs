@@ -17,9 +17,7 @@ use self::formatter::Formatter;
 use self::graph::CallGraph;
 use self::parser::{ElementExtractor, ParserManager};
 use self::traversal::FileTraverser;
-use self::types::{
-    AnalysisMode, AnalysisResult, AnalyzeParams, FocusedAnalysisData,
-};
+use self::types::{AnalysisMode, AnalysisResult, AnalyzeParams, FocusedAnalysisData};
 
 /// Code analyzer with caching and tree-sitter parsing
 #[derive(Clone)]
@@ -52,29 +50,28 @@ impl CodeAnalyzer {
         ignore_patterns: &Gitignore,
     ) -> Result<CallToolResult, ErrorData> {
         tracing::info!("Starting analysis of {:?} with params {:?}", path, params);
-        
+
         let traverser = FileTraverser::new(ignore_patterns);
-        
+
         // Validate path
         traverser.validate_path(&path)?;
 
         // Determine the actual mode to use
         let mode = self.determine_mode(&params, &path);
-        
+
         tracing::debug!("Using analysis mode: {:?}", mode);
 
         // Process based on path type and mode
         let mut output = match mode {
-            AnalysisMode::Focused => {
-                self.analyze_focused(&path, &params, &traverser).await?
-            }
+            AnalysisMode::Focused => self.analyze_focused(&path, &params, &traverser).await?,
             AnalysisMode::Semantic => {
                 if path.is_file() {
                     let result = self.analyze_file(&path, &mode).await?;
                     Formatter::format_analysis_result(&path, &result, &mode)
                 } else {
                     // Semantic mode on directory - analyze all files
-                    self.analyze_directory(&path, &params, &traverser, &mode).await?
+                    self.analyze_directory(&path, &params, &traverser, &mode)
+                        .await?
                 }
             }
             AnalysisMode::Structure => {
@@ -82,7 +79,8 @@ impl CodeAnalyzer {
                     let result = self.analyze_file(&path, &mode).await?;
                     Formatter::format_analysis_result(&path, &result, &mode)
                 } else {
-                    self.analyze_directory(&path, &params, &traverser, &mode).await?
+                    self.analyze_directory(&path, &params, &traverser, &mode)
+                        .await?
                 }
             }
         };
@@ -120,7 +118,7 @@ impl CodeAnalyzer {
         mode: &AnalysisMode,
     ) -> Result<AnalysisResult, ErrorData> {
         tracing::debug!("Analyzing file {:?} in {:?} mode", path, mode);
-        
+
         // Check cache first
         let metadata = std::fs::metadata(path).map_err(|e| {
             tracing::error!("Failed to get file metadata for {:?}: {}", path, e);
@@ -202,20 +200,18 @@ impl CodeAnalyzer {
         mode: &AnalysisMode,
     ) -> Result<String, ErrorData> {
         tracing::debug!("Analyzing directory {:?} in {:?} mode", path, mode);
-        
+
         // Clone self to avoid lifetime issues in the closure
         let analyzer = self.clone();
         let mode_clone = mode.clone();
-        
+
         // Collect directory results
         let results = traverser
             .collect_directory_results(path, params.max_depth, move |file_path| {
                 let analyzer = analyzer.clone();
                 let mode = mode_clone.clone();
                 let file_path = file_path.to_path_buf();
-                async move {
-                    analyzer.analyze_file(&file_path, &mode).await
-                }
+                async move { analyzer.analyze_file(&file_path, &mode).await }
             })
             .await?;
 
@@ -255,12 +251,17 @@ impl CodeAnalyzer {
                 .await?
         };
 
-        tracing::debug!("Analyzing {} files for focused analysis", files_to_analyze.len());
+        tracing::debug!(
+            "Analyzing {} files for focused analysis",
+            files_to_analyze.len()
+        );
 
         // Step 2: Analyze all files and collect results
         let mut all_results = Vec::new();
         for file_path in &files_to_analyze {
-            let result = self.analyze_file(file_path, &AnalysisMode::Semantic).await?;
+            let result = self
+                .analyze_file(file_path, &AnalysisMode::Semantic)
+                .await?;
             all_results.push((file_path.clone(), result));
         }
 
@@ -304,8 +305,8 @@ impl CodeAnalyzer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
     use std::fs;
+    use tempfile::TempDir;
 
     fn create_test_gitignore() -> Gitignore {
         Gitignore::empty()
@@ -327,7 +328,7 @@ mod tests {
 
         let ignore = create_test_gitignore();
         let result = analyzer.analyze(params, file_path, &ignore).await;
-        
+
         assert!(result.is_ok());
     }
 
@@ -335,7 +336,7 @@ mod tests {
     async fn test_analyze_directory() {
         let temp_dir = TempDir::new().unwrap();
         let dir_path = temp_dir.path();
-        
+
         // Create test files
         fs::write(dir_path.join("test1.rs"), "fn main() {}").unwrap();
         fs::write(dir_path.join("test2.py"), "def test(): pass").unwrap();
@@ -349,8 +350,10 @@ mod tests {
         };
 
         let ignore = create_test_gitignore();
-        let result = analyzer.analyze(params, dir_path.to_path_buf(), &ignore).await;
-        
+        let result = analyzer
+            .analyze(params, dir_path.to_path_buf(), &ignore)
+            .await;
+
         assert!(result.is_ok());
     }
 
@@ -358,7 +361,11 @@ mod tests {
     async fn test_focused_analysis() {
         let temp_dir = TempDir::new().unwrap();
         let file_path = temp_dir.path().join("test.py");
-        fs::write(&file_path, "def main():\n    helper()\n\ndef helper():\n    pass").unwrap();
+        fs::write(
+            &file_path,
+            "def main():\n    helper()\n\ndef helper():\n    pass",
+        )
+        .unwrap();
 
         let analyzer = CodeAnalyzer::new();
         let params = AnalyzeParams {
@@ -370,7 +377,7 @@ mod tests {
 
         let ignore = create_test_gitignore();
         let result = analyzer.analyze(params, file_path, &ignore).await;
-        
+
         assert!(result.is_ok());
     }
 }

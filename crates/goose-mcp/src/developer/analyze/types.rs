@@ -113,9 +113,9 @@ pub struct FocusedAnalysisData<'a> {
 /// Analysis modes
 #[derive(Debug, Clone, PartialEq)]
 pub enum AnalysisMode {
-    Structure,  // Directory overview
-    Semantic,   // File details  
-    Focused,    // Symbol tracking
+    Structure, // Directory overview
+    Semantic,  // File details
+    Focused,   // Symbol tracking
 }
 
 impl AnalysisMode {
@@ -126,7 +126,7 @@ impl AnalysisMode {
             AnalysisMode::Focused => "focused",
         }
     }
-    
+
     pub fn from_str(s: &str) -> Self {
         match s {
             "structure" => AnalysisMode::Structure,

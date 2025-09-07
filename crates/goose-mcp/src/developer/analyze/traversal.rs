@@ -57,14 +57,18 @@ impl<'a> FileTraverser<'a> {
         path: &Path,
         max_depth: u32,
     ) -> Result<Vec<PathBuf>, ErrorData> {
-        tracing::debug!("Collecting files from {:?} with max_depth {}", path, max_depth);
-        
+        tracing::debug!(
+            "Collecting files from {:?} with max_depth {}",
+            path,
+            max_depth
+        );
+
         if max_depth == 0 {
             tracing::warn!("Unlimited depth traversal requested for {:?}", path);
         }
-        
+
         let files = self.collect_files_recursive(path, 0, max_depth).await?;
-        
+
         tracing::info!("Collected {} files from {:?}", files.len(), path);
         Ok(files)
     }
@@ -154,8 +158,9 @@ impl<'a> FileTraverser<'a> {
         Fut: std::future::Future<Output = Result<AnalysisResult, ErrorData>>,
     {
         tracing::debug!("Collecting directory results from {:?}", path);
-        
-        self.collect_directory_recursive(path, 0, max_depth, &mut analyze_file).await
+
+        self.collect_directory_recursive(path, 0, max_depth, &mut analyze_file)
+            .await
     }
 
     /// Recursively collect directory results
@@ -249,9 +254,9 @@ impl<'a> FileTraverser<'a> {
                 if !lang.is_empty() {
                     match analyze_file(&entry_path).await {
                         Ok(result) => {
-                            if result.function_count > 0 
-                                || result.class_count > 0 
-                                || result.line_count > 0 
+                            if result.function_count > 0
+                                || result.class_count > 0
+                                || result.line_count > 0
                             {
                                 results.push((entry_path, EntryType::File(result)));
                             }
@@ -287,19 +292,19 @@ mod tests {
         // Create a temporary directory for testing
         let temp_dir = TempDir::new().unwrap();
         let dir_path = temp_dir.path();
-        
+
         // Create actual files and directories to test
         fs::write(dir_path.join("test.log"), "log content").unwrap();
         fs::create_dir(dir_path.join("node_modules")).unwrap();
         fs::create_dir(dir_path.join("src")).unwrap();
         fs::write(dir_path.join("src").join("main.rs"), "fn main() {}").unwrap();
-        
+
         // Create gitignore relative to temp dir
         let mut builder = ignore::gitignore::GitignoreBuilder::new(dir_path);
         builder.add_line(None, "*.log").unwrap();
         builder.add_line(None, "node_modules/").unwrap();
         let ignore = builder.build().unwrap();
-        
+
         let traverser = FileTraverser::new(&ignore);
 
         // Test with actual paths relative to the gitignore base
@@ -314,7 +319,9 @@ mod tests {
         let traverser = FileTraverser::new(&ignore);
 
         // Test non-existent path
-        assert!(traverser.validate_path(Path::new("/nonexistent/path")).is_err());
+        assert!(traverser
+            .validate_path(Path::new("/nonexistent/path"))
+            .is_err());
 
         // Test ignored path
         assert!(traverser.validate_path(Path::new("test.log")).is_err());
@@ -329,7 +336,7 @@ mod tests {
         fs::write(dir_path.join("test.rs"), "fn main() {}").unwrap();
         fs::write(dir_path.join("test.py"), "def main(): pass").unwrap();
         fs::write(dir_path.join("test.txt"), "not code").unwrap();
-        
+
         // Create subdirectory with file
         let sub_dir = dir_path.join("src");
         fs::create_dir(&sub_dir).unwrap();
@@ -338,7 +345,10 @@ mod tests {
         let ignore = Gitignore::empty();
         let traverser = FileTraverser::new(&ignore);
 
-        let files = traverser.collect_files_for_focused(dir_path, 0).await.unwrap();
+        let files = traverser
+            .collect_files_for_focused(dir_path, 0)
+            .await
+            .unwrap();
 
         // Should find .rs and .py files but not .txt
         assert_eq!(files.len(), 3);
@@ -355,7 +365,7 @@ mod tests {
         // Create nested structure
         // Root level (depth 0)
         fs::write(dir_path.join("root.rs"), "").unwrap();
-        
+
         // Level 1 (depth 1)
         let level1 = dir_path.join("level1");
         fs::create_dir(&level1).unwrap();
@@ -370,17 +380,30 @@ mod tests {
         let traverser = FileTraverser::new(&ignore);
 
         // With max_depth=1, should find root.rs and file1.rs (stops before level2)
-        let files = traverser.collect_files_for_focused(dir_path, 1).await.unwrap();
+        let files = traverser
+            .collect_files_for_focused(dir_path, 1)
+            .await
+            .unwrap();
         assert_eq!(files.len(), 2, "max_depth=1 should find 2 files");
         assert!(files.iter().any(|p| p.ends_with("root.rs")));
         assert!(files.iter().any(|p| p.ends_with("file1.rs")));
 
         // With max_depth=2, should find all three files
-        let files = traverser.collect_files_for_focused(dir_path, 2).await.unwrap();
+        let files = traverser
+            .collect_files_for_focused(dir_path, 2)
+            .await
+            .unwrap();
         assert_eq!(files.len(), 3, "max_depth=2 should find all 3 files");
-        
+
         // With max_depth=0 (unlimited), should also find all three files
-        let files = traverser.collect_files_for_focused(dir_path, 0).await.unwrap();
-        assert_eq!(files.len(), 3, "max_depth=0 (unlimited) should find all 3 files");
+        let files = traverser
+            .collect_files_for_focused(dir_path, 0)
+            .await
+            .unwrap();
+        assert_eq!(
+            files.len(),
+            3,
+            "max_depth=0 (unlimited) should find all 3 files"
+        );
     }
 }

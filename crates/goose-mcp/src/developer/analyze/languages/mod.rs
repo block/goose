@@ -1,8 +1,8 @@
-pub mod python;
-pub mod rust;
-pub mod javascript;
 pub mod go;
 pub mod java;
+pub mod javascript;
+pub mod python;
+pub mod rust;
 
 /// Get the tree-sitter query for extracting code elements for a language
 pub fn get_element_query(language: &str) -> &'static str {

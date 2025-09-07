@@ -31,7 +31,7 @@ use tokio::{
 };
 use tokio_stream::{wrappers::SplitStream, StreamExt as _};
 
-use super::analyze::{CodeAnalyzer, types::AnalyzeParams};
+use super::analyze::{types::AnalyzeParams, CodeAnalyzer};
 use super::editor_models::{create_editor_model, EditorModel};
 use super::goose_hints::load_hints::{load_hint_files, GOOSE_HINTS_FILENAME};
 use super::shell::{expand_path, get_shell_config, is_absolute_path};
