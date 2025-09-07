@@ -11,7 +11,7 @@ Imagine creating an app just by describing what you want out loud, like you’re
 
 <!--truncate-->
 
-In a recent [Wild Goose Case livestream](https://www.youtube.com/watch?v=Zey9GHyXlHY&ab_channel=BlockOpenSource), hosts [Ebony Louis](https://www.linkedin.com/in/ebonylouis/) and [Adewale Abati](https://www.linkedin.com/in/acekyd/) were joined by [Max Novich](https://www.linkedin.com/in/maksym-stepanenko-26404867) from Block's AI tools team, who demonstrated an exciting new extension - the [Speech MCP server](https://github.com/Kvadratni/speech-mcp). 
+In a recent [Wild Goose Case livestream](https://www.youtube.com/watch?v=Zey9GHyXlHYe), hosts [Ebony Louis](https://www.linkedin.com/in/ebonylouis/) and [Adewale Abati](https://www.linkedin.com/in/acekyd/) were joined by [Max Novich](https://www.linkedin.com/in/maksym-stepanenko-26404867) from Block's AI tools team, who demonstrated an exciting new extension - the [Speech MCP server](https://github.com/Kvadratni/speech-mcp). 
 
 During the livestream, Max demonstrated this by creating an entire web application using only voice commands - no keyboard or mouse required. This resulted in a vibrant, animated webpage with 3D effects, synthwave aesthetics, and interactive elements, all created through natural conversation with Goose.
 
