@@ -27,7 +27,6 @@ Designed for maximum flexibility, goose works with any LLM and supports multi-mo
 
 [![Watch the video](https://github.com/user-attachments/assets/c477019c-570d-4cf9-9553-c274b79cb279)](https://youtu.be/D-DpDunrbpo)
 
-
 # Quick Links
 - [Quickstart](https://block.github.io/goose/docs/quickstart)
 - [Installation](https://block.github.io/goose/docs/getting-started/installation)
