@@ -18,6 +18,10 @@ pub struct AnalyzeParams {
     /// Directory recursion limit. 0=unlimited (warning: fails on binary files)
     #[serde(default = "default_max_depth")]
     pub max_depth: u32,
+
+    /// Allow large outputs without warning (default: false)
+    #[serde(default)]
+    pub force: bool,
 }
 
 fn default_follow_depth() -> u32 {

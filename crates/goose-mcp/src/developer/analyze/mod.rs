@@ -107,6 +107,37 @@ impl CodeAnalyzer {
             }
         }
 
+        // Check output size and warn if too large (unless force flag is set)
+        const OUTPUT_LIMIT: usize = 1000;
+        if !params.force {
+            let line_count = output.lines().count();
+            if line_count > OUTPUT_LIMIT {
+                let warning = format!(
+                    "LARGE OUTPUT WARNING\n\n\
+                    The analysis would produce {} lines (~{} tokens).\n\
+                    This exceeds the {} line limit.\n\n\
+                    To proceed anyway, add 'force: true' to your parameters:\n\
+                    analyze path=\"{}\" force=true{}\n\n\
+                    Or narrow your scope by:\n\
+                    • Analyzing a subdirectory instead\n\
+                    • Using focus mode: focus=\"symbol_name\"\n\
+                    • Reducing depth: max_depth=1",
+                    line_count,
+                    line_count * 10, // rough token estimate
+                    OUTPUT_LIMIT,
+                    path.display(),
+                    if let Some(f) = &params.focus {
+                        format!(" focus=\"{}\"", f)
+                    } else {
+                        String::new()
+                    }
+                );
+                return Ok(CallToolResult::success(vec![rmcp::model::Content::text(
+                    warning,
+                )]));
+            }
+        }
+
         tracing::info!("Analysis complete");
         Ok(CallToolResult::success(Formatter::format_results(output)))
     }

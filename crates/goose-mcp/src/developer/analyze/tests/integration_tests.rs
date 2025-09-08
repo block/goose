@@ -17,6 +17,7 @@ fn test_analyze_python_file() {
         focus: None,
         follow_depth: 2,
         max_depth: 3,
+        force: false,
     };
 
     let ignore = create_test_gitignore();
@@ -44,6 +45,7 @@ fn test_analyze_directory() {
         focus: None,
         follow_depth: 2,
         max_depth: 3,
+        force: false,
     };
 
     let ignore = create_test_gitignore();
@@ -79,6 +81,7 @@ fn test_focused_analysis() {
         focus: Some("helper".to_string()),
         follow_depth: 1,
         max_depth: 3,
+        force: false,
     };
 
     let ignore = create_test_gitignore();
@@ -106,6 +109,7 @@ fn test_analyze_with_cache() {
         focus: None,
         follow_depth: 2,
         max_depth: 3,
+        force: false,
     };
 
     let ignore = create_test_gitignore();
@@ -136,6 +140,7 @@ fn test_analyze_unsupported_file() {
         focus: None,
         follow_depth: 2,
         max_depth: 3,
+        force: false,
     };
 
     let ignore = create_test_gitignore();
@@ -153,6 +158,7 @@ fn test_analyze_nonexistent_path() {
         focus: None,
         follow_depth: 2,
         max_depth: 3,
+        force: false,
     };
 
     let ignore = create_test_gitignore();
@@ -176,6 +182,7 @@ fn test_focused_without_symbol() {
         focus: Some("nonexistent_symbol".to_string()),
         follow_depth: 1,
         max_depth: 3,
+        force: false,
     };
 
     let ignore = create_test_gitignore();
@@ -212,6 +219,7 @@ fn test_nested_directory_analysis() {
         focus: None,
         follow_depth: 2,
         max_depth: 3, // Increase max_depth to ensure we reach nested files
+        force: false,
     };
 
     let ignore = create_test_gitignore();
