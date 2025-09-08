@@ -1,6 +1,6 @@
 ---
 title: Vercel Extension
-description: Add Vercel MCP Server as a Goose Extension for Managing Your Deployments
+description: Add Vercel MCP Server as a Goose Extension for managing your deployments
 ---
 
 import Tabs from '@theme/Tabs';
@@ -11,17 +11,17 @@ import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructi
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/1MC-6q6vE-0" />
 
-This tutorial covers how to add the [Vercel MCP Server](https://vercel.com/docs/mcp/vercel-mcp) as a Goose extension, to manage your Vercel projects and deployment status directly from Goose. [They document](https://vercel.com/docs/mcp/vercel-mcp/tools) the specific tool calls and offer example prompts to get started.
+This tutorial covers how to add the [Vercel MCP Server](https://vercel.com/docs/mcp/vercel-mcp) as a Goose extension to manage your Vercel projects and deployment status directly from Goose.
+
+:::info
+Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run installation commands, which use `npx`.
+:::
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
   [Launch the installer](goose://extension?url=https%3A%2F%2Fmcp.vercel.com&type=streamable_http&id=vercel&name=Vercel&description=Access%20deployments%2C%20manage%20projects%2C%20and%20more%20with%20Vercel%E2%80%99s%20official%20MCP%20server)
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
-    :::info
-    Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run installation commands, which use `npx`.
-    :::
-
     ```sh
     npx mcp-remote https://mcp.vercel.com
     ```
@@ -55,22 +55,14 @@ This tutorial covers how to add the [Vercel MCP Server](https://vercel.com/docs/
 
 ### Goose Prompt
 ```
-Get a list of my Vercel projects via the Vercel MCP system, and build me a table showing when I last deployed the project and other details I should know about their status.
+Get a list of my Vercel projects via the Vercel MCP server, and build me a table showing when I last deployed the project and other details I should know about their status.
 ```
 
-The first time you use the Vercel MCP syste, you will be prompted to authenticate with Vercel via OAuth.
+The first time you use the Vercel MCP server, you will be prompted to authenticate with Vercel via OAuth.
 
 ### Goose Output
 ```
-I'll help you get your Vercel projects and create a table with deployment details. Let me first check what extensions are available and then access the Vercel MCP system.
-
-> Search Available Extensions
-
-I can see that there's a Vercel extension available! Let me enable it to access your Vercel projects.
-
-> action, extension_name
-
-I  can see the Vercel extension is now available. Let me first get your teams to identify which team to use for listing projects.
+I'll help you get your Vercel projects and create a table with deployment details. Let me first get your teams to identify which team to use for listing projects.
 
 > List Teams
 
@@ -135,5 +127,4 @@ Recommendations
 - Domain setup: Consider adding a custom domain to your other projects if needed
 - Node versions: You have mixed Node versions (20.x and 22.x) - consider standardizing
 - All projects are connected to GitHub repositories and have automatic deployments configured.
-
 ```
