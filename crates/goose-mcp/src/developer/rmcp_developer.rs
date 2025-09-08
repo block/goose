@@ -175,6 +175,7 @@ impl ServerHandler for DeveloperServer {
         // Get base instructions and working directory
         let cwd = std::env::current_dir().expect("should have a current working dir");
         let os = std::env::consts::OS;
+        let in_container = Self::is_definitely_container();
 
         let base_instructions = match os {
             "windows" => formatdoc! {r#"
@@ -191,10 +192,11 @@ impl ServerHandler for DeveloperServer {
 
                 operating system: {os}
                 current directory: {cwd}
-
+                {container_info}
                 "#,
                 os=os,
                 cwd=cwd.to_string_lossy(),
+                container_info=if in_container { "container: true" } else { "" },
             },
             _ => formatdoc! {r#"
                 The developer extension gives you the capabilities to edit code files and run shell commands,
@@ -208,10 +210,11 @@ impl ServerHandler for DeveloperServer {
 
             operating system: {os}
             current directory: {cwd}
-
+            {container_info}
                 "#,
                 os=os,
                 cwd=cwd.to_string_lossy(),
+                container_info=if in_container { "container: true" } else { "" },
             },
         };
 
@@ -1144,6 +1147,36 @@ impl DeveloperServer {
     // Helper method to check if a path should be ignored
     fn is_ignored(&self, path: &Path) -> bool {
         self.ignore_patterns.matched(path, false).is_ignore()
+    }
+
+    // Only returns true when 100% certain (checks /proc/1/cgroup for container markers)
+    fn is_definitely_container() -> bool {
+        let Ok(content) = std::fs::read_to_string("/proc/1/cgroup") else {
+            // If the file doesn't exist, we're definitely not in a Linux container
+            return false;
+        };
+
+        // Check for definitive container markers in cgroup paths
+        for line in content.lines() {
+            if line.contains("/docker/")
+                || line.contains("/docker-")
+                || line.contains("/kubepods/")
+                || line.contains("/libpod-")
+                || line.contains("/lxc/")
+                || line.contains("/containerd/")
+            {
+                return true;
+            }
+        }
+
+        // Check for cgroups v2 unified hierarchy in containers
+        // In Docker with cgroups v2, we typically see just "0::/"
+        // This is a strong signal when it's the only line
+        if content.trim() == "0::/" {
+            return true;
+        }
+
+        false
     }
 
     // Helper function to handle Mac screenshot filenames that contain U+202F (narrow no-break space)
