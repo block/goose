@@ -4,6 +4,8 @@ pub const ELEMENT_QUERY: &str = r#"
     (class_definition name: (identifier) @class)
     (import_statement) @import
     (import_from_statement) @import
+    (aliased_import) @import
+    (assignment left: (identifier) @class)
 "#;
 
 /// Tree-sitter query for extracting Python function calls
@@ -16,4 +18,8 @@ pub const CALL_QUERY: &str = r#"
     (call
       function: (attribute
         attribute: (identifier) @method.call))
+
+    ; Decorator applications
+    (decorator (identifier) @function.call)
+    (decorator (attribute attribute: (identifier) @method.call))
 "#;
