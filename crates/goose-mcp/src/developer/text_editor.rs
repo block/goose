@@ -356,7 +356,6 @@ pub async fn apply_diff(
             failed_hunks.join("\n")
         );
 
-        // Use tracing for warning instead of eprintln
         tracing::warn!("{}", error_msg);
     }
 
@@ -676,7 +675,7 @@ pub async fn text_editor_replace(
                 ]);
             }
             Err(e) => {
-                eprintln!(
+                tracing::debug!(
                     "Editor API call failed: {}, falling back to string replacement",
                     e
                 );
