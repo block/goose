@@ -396,15 +396,15 @@ const config: Config = {
             },
             {
               label: "YouTube",
-              href: "https://www.youtube.com/@blockopensource",
+              href: "https://www.youtube.com/@goose-oss",
             },
             {
               label: "LinkedIn",
-              href: "https://www.linkedin.com/company/block-opensource",
+              href: "https://www.linkedin.com/company/goose-oss",
             },
             {
               label: "Twitter / X",
-              href: "https://x.com/blockopensource",
+              href: "https://x.com/goose_oss",
             },
             {
               label: "BlueSky",
