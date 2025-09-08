@@ -585,8 +585,10 @@ impl DeveloperServer {
             )
         })?;
 
-        let window_titles: Vec<String> =
-            windows.into_iter().map(|w| w.title().to_string()).collect();
+        let window_titles: Vec<String> = windows
+            .into_iter()
+            .map(|w| w.title().unwrap_or_default().to_string())
+            .collect();
 
         let content_text = format!("Available windows:\n{}", window_titles.join("\n"));
 
@@ -626,7 +628,7 @@ impl DeveloperServer {
 
             let window = windows
                 .into_iter()
-                .find(|w| w.title() == window_title)
+                .find(|w| w.title().unwrap_or_default().to_string() == *window_title)
                 .ok_or_else(|| {
                     ErrorData::new(
                         ErrorCode::INTERNAL_ERROR,
