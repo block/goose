@@ -14,8 +14,9 @@ use rmcp::model::{
 use utoipa::{OpenApi, ToSchema};
 
 use goose::conversation::message::{
-    ContextLengthExceeded, FrontendToolRequest, Message, MessageContent, MessageMetadata, RedactedThinkingContent,
-    SummarizationRequested, ThinkingContent, ToolConfirmationRequest, ToolRequest, ToolResponse,
+    ContextLengthExceeded, FrontendToolRequest, Message, MessageContent, MessageMetadata,
+    RedactedThinkingContent, SummarizationRequested, ThinkingContent, ToolConfirmationRequest,
+    ToolRequest, ToolResponse,
 };
 use utoipa::openapi::schema::{
     AdditionalProperties, AnyOfBuilder, ArrayBuilder, ObjectBuilder, OneOfBuilder, Schema,
