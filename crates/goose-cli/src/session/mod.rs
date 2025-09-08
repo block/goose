@@ -1281,6 +1281,12 @@ impl Session {
                             if e.downcast_ref::<goose::providers::errors::ProviderError>()
                                 .map(|provider_error| matches!(provider_error, goose::providers::errors::ProviderError::ContextLengthExceeded(_)))
                                 .unwrap_or(false) {
+
+                                output::render_text(
+                                    "Context limit reached. Performing auto-compaction...",
+                                    Some(Color::Yellow),
+                                    true
+                                );
                                 
                                 // Try auto-compaction first
                                 match goose::context_mgmt::auto_compact::perform_compaction(&self.agent, self.messages.messages()).await {
@@ -1303,7 +1309,7 @@ impl Session {
                                         }
 
                                         output::render_text(
-                                            "Context limit reached. Conversation has been automatically compacted to continue.",
+                                            "Compaction complete. Conversation has been automatically compacted to continue.",
                                             Some(Color::Yellow),
                                             true
                                         );
