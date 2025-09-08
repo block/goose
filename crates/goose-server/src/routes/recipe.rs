@@ -8,12 +8,10 @@ use goose::conversation::{message::Message, Conversation};
 use goose::recipe::Recipe;
 use goose::recipe_deeplink;
 
-use http::HeaderMap;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::routes::recipe_utils::get_all_recipes_manifests;
-use crate::routes::utils::verify_secret_key;
 use crate::state::AppState;
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -230,10 +228,7 @@ async fn scan_recipe(
 )]
 async fn list_recipes(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
 ) -> Result<Json<ListRecipeResponse>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
     let recipe_manifest_with_paths = get_all_recipes_manifests().unwrap();
     let mut recipe_file_hash_map = HashMap::new();
     let recipe_manifest_responses = recipe_manifest_with_paths
@@ -272,12 +267,8 @@ async fn list_recipes(
 )]
 async fn delete_recipe(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Json(request): Json<DeleteRecipeRequest>,
 ) -> StatusCode {
-    if verify_secret_key(&headers, &state).is_err() {
-        return StatusCode::UNAUTHORIZED;
-    }
     let recipe_file_hash_map = state.recipe_file_hash_map.lock().await;
     let file_path = match recipe_file_hash_map.get(&request.id) {
         Some(path) => path,

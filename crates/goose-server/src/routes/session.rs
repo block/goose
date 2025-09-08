@@ -309,13 +309,7 @@ async fn update_session_metadata(
     tag = "Session Management"
 )]
 // Delete a session
-async fn delete_session(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-    Path(session_id): Path<String>,
-) -> Result<StatusCode, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
+async fn delete_session(Path(session_id): Path<String>) -> Result<StatusCode, StatusCode> {
     // Get the session path
     let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
         Ok(path) => path,

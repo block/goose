@@ -1,7 +1,7 @@
 use crate::routes::utils::check_provider_configured;
 use crate::state::AppState;
 use axum::{
-    extract::{Path, State},
+    extract::Path,
     routing::{delete, get, post},
     Json, Router,
 };
@@ -363,12 +363,8 @@ pub async fn providers() -> Result<Json<Vec<ProviderDetails>>, StatusCode> {
     )
 )]
 pub async fn get_provider_models(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Path(name): Path<String>,
 ) -> Result<Json<Vec<String>>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
     let all = get_providers();
     let Some(metadata) = all.into_iter().find(|m| m.name == name) else {
         return Err(StatusCode::BAD_REQUEST);
@@ -777,21 +773,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_read_model_limits() {
-        let test_state = AppState::new(Arc::new(goose::agents::Agent::default())).await;
-        let sched_storage_path = choose_app_strategy(APP_STRATEGY.clone())
-            .unwrap()
-            .data_dir()
-            .join("schedules.json");
-        let sched = goose::scheduler_factory::SchedulerFactory::create_legacy(sched_storage_path)
-            .await
-            .unwrap();
-        test_state.set_scheduler(sched).await;
-        test_state
-    }
-
-    #[tokio::test]
-    async fn test_read_model_limits() {
-        let test_state = create_test_state().await;
         let mut headers = HeaderMap::new();
         headers.insert("X-Secret-Key", "test".parse().unwrap());
 
@@ -815,16 +796,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_provider_models_unknown_provider() {
-        let test_state = create_test_state().await;
         let mut headers = HeaderMap::new();
         headers.insert("X-Secret-Key", "test".parse().unwrap());
 
-        let result = get_provider_models(
-            State(test_state),
-            headers,
-            Path("unknown_provider".to_string()),
-        )
-        .await;
+        let result = get_provider_models(Path("unknown_provider".to_string())).await;
 
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), StatusCode::BAD_REQUEST);
@@ -834,12 +809,10 @@ mod tests {
     async fn test_get_provider_models_openai_configured() {
         std::env::set_var("OPENAI_API_KEY", "test-key");
 
-        let test_state = create_test_state().await;
         let mut headers = HeaderMap::new();
         headers.insert("X-Secret-Key", "test".parse().unwrap());
 
-        let result =
-            get_provider_models(State(test_state), headers, Path("openai".to_string())).await;
+        let result = get_provider_models(Path("openai".to_string())).await;
 
         // The response should be BAD_REQUEST since the API key is invalid (authentication error)
         assert!(

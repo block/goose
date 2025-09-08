@@ -4,11 +4,13 @@
 /// The OpenAI API key must be configured in the backend for this to work.
 use crate::state::AppState;
 use axum::{
+    extract::State,
     http::StatusCode,
     routing::{get, post},
     Json, Router,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use http::HeaderMap;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -207,12 +209,10 @@ async fn send_openai_request(
 /// - 502: Bad Gateway (OpenAI API error)
 /// - 503: Service Unavailable (network error)
 async fn transcribe_handler(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    _state: State<Arc<AppState>>,
+    _headers: HeaderMap,
     Json(request): Json<TranscribeRequest>,
 ) -> Result<Json<TranscribeResponse>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
     let (audio_bytes, file_extension) = validate_audio_input(&request.audio, &request.mime_type)?;
     let (api_key, openai_host) = get_openai_config()?;
 
@@ -399,7 +399,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_transcribe_endpoint_requires_auth() {
-        let state = AppState::new(Arc::new(goose::agents::Agent::new())).await;
+        let state = AppState::new(Arc::new(goose::agents::Agent::new()));
         let app = routes(state);
 
         // Test without auth header
@@ -422,7 +422,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_transcribe_endpoint_validates_size() {
-        let state = AppState::new(Arc::new(goose::agents::Agent::new())).await;
+        let state = AppState::new(Arc::new(goose::agents::Agent::new()));
         let app = routes(state);
 
         // Create a large base64 string (simulating > 25MB audio)
@@ -448,7 +448,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_transcribe_endpoint_validates_mime_type() {
-        let state = AppState::new(Arc::new(goose::agents::Agent::new())).await;
+        let state = AppState::new(Arc::new(goose::agents::Agent::new()));
         let app = routes(state);
 
         let request = Request::builder()
@@ -474,7 +474,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_transcribe_endpoint_handles_invalid_base64() {
-        let state = AppState::new(Arc::new(goose::agents::Agent::new())).await;
+        let state = AppState::new(Arc::new(goose::agents::Agent::new()));
         let app = routes(state);
 
         let request = Request::builder()
