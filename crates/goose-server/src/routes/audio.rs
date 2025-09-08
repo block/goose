@@ -4,13 +4,11 @@
 /// The OpenAI API key must be configured in the backend for this to work.
 use crate::state::AppState;
 use axum::{
-    extract::State,
     http::StatusCode,
     routing::{get, post},
     Json, Router,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use http::HeaderMap;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
