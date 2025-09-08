@@ -8,7 +8,7 @@ import log from './utils/logger';
 import { App } from 'electron';
 import { Buffer } from 'node:buffer';
 
-import {status} from "./api";
+import { status } from './api';
 import { client } from './api/client.gen';
 
 // Find an available port to start goosed on
@@ -28,7 +28,7 @@ export const findAvailablePort = (): Promise<number> => {
 
 // Goose process manager. Take in the app, port, and directory to start goosed in.
 // Check if goosed server is ready by polling the status endpoint
-const checkServerStatus = async (port: number, secret: string): Promise<boolean> => {
+const checkServerStatus = async (port: number): Promise<boolean> => {
   const isTemporalEnabled = process.env.GOOSE_SCHEDULER_TYPE === 'temporal';
   const maxAttempts = isTemporalEnabled ? 200 : 80;
   const interval = 100;
@@ -42,7 +42,7 @@ const checkServerStatus = async (port: number, secret: string): Promise<boolean>
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      await status({throwOnError: true});
+      await status({ throwOnError: true });
     } catch {
       if (attempt === maxAttempts) {
         log.error(`Server failed to respond after ${maxAttempts} attempts`);
@@ -59,7 +59,7 @@ const connectToExternalBackend = async (
 ): Promise<[number, string, ChildProcess]> => {
   log.info(`Using external goosed backend on port ${port}`);
 
-  const isReady = await checkServerStatus(port, 'test');
+  const isReady = await checkServerStatus(port);
   if (!isReady) {
     throw new Error(`External goosed server not accessible on port ${port}`);
   }
@@ -261,7 +261,7 @@ export const startGoosed = async (
   });
 
   // Wait for the server to be ready
-  const isReady = await checkServerStatus(port, serverSecret);
+  const isReady = await checkServerStatus(port);
   log.info(`Goosed isReady ${isReady}`);
 
   const try_kill_goose = () => {
