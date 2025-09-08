@@ -201,9 +201,11 @@ Just describe what you want to accomplish in natural language, and Goose will he
 
 ## Example Usage
 
+In this example, Goose looks at the metadata for a Redshift table named `customers` stored in OpenMetadata, particularly its lineage. If the lineage does not show that a Databricks table named `customerinfo` is used to build `customers`, Goose will add it.
+
 #### Goose Prompt
 ```
-which tables are used to create my customers table in redshift?
+which tables are used to create my customers table in redshift? if the databricks table customerinfo is not already, add it to the customers table lineage.
 ```
 
 #### Goose Output
