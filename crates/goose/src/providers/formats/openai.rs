@@ -36,6 +36,10 @@ struct Delta {
     content: Option<String>,
     role: Option<String>,
     tool_calls: Option<Vec<DeltaToolCall>>,
+    // Some providers put a 'name' (tool name) here instead of in tool_calls
+    name: Option<String>,
+    // OpenAI/variants may include a 'refusal' field with refusal details
+    refusal: Option<Value>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -413,7 +417,20 @@ fn ensure_valid_json_schema(schema: &mut Value) {
 }
 
 fn strip_data_prefix(line: &str) -> Option<&str> {
-    line.strip_prefix("data: ").map(|s| s.trim())
+    let s = line.trim();
+    // SSE style: "data: {json}"
+    if let Some(rest) = s.strip_prefix("data: ") {
+        return Some(rest.trim());
+    }
+    // Raw NDJSON/JSON per-line: "{...}" or "[...]"
+    if s.starts_with('{') || s.starts_with('[') {
+        return Some(s);
+    }
+    // Some providers send the done sentinel without the data: prefix
+    if s == "[DONE]" {
+        return Some(s);
+    }
+    None
 }
 
 pub fn response_to_streaming_message<S>(
@@ -426,19 +443,63 @@ where
         use futures::StreamExt;
 
         'outer: while let Some(response) = stream.next().await {
-            if response.as_ref().is_ok_and(|s| s == "data: [DONE]") {
+            // Accept both SSE style "data: [DONE]" and plain "[DONE]" sentinel
+            if response.as_ref().is_ok_and(|s| s.trim() == "data: [DONE]" || s.trim() == "[DONE]") {
                 break 'outer;
             }
             let response_str = response?;
+            tracing::debug!(raw_stream_line = %response_str, "LLM_STREAM_RAW_LINE");
             let line = strip_data_prefix(&response_str);
 
             if line.is_none() || line.is_some_and(|l| l.is_empty()) {
                 continue
             }
 
-            let chunk: StreamingChunk = serde_json::from_str(line
-                .ok_or_else(|| anyhow!("unexpected stream format"))?)
-                .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
+            let line_str = line
+                .ok_or_else(|| anyhow!("unexpected stream format"))?;
+
+            // First parse into a generic JSON value so we can detect provider-specific
+            // error objects (some OpenAI-compatible endpoints emit {"object":"error",...}).
+            let v: Value = serde_json::from_str(line_str)
+                .map_err(|e| anyhow!("Failed to parse streaming JSON value: {}: {:?}", e, &line_str))?;
+
+            // Detect top-level error objects and yield a structured error message so the UI
+            // can render provider errors consistently during streaming. Previously we returned
+            // Err(...) which terminated the stream without providing a message object to the
+            // frontend; that made debugging custom providers difficult because the UI had no
+            // provider response to display.
+            if v.get("object").and_then(|o| o.as_str()).map(|s| s == "error").unwrap_or(false)
+                || v.get("error").is_some()
+            {
+                // Build a helpful text representation including status-like fields when available
+                let mut details = String::new();
+                // Attempt to include an explicit "message" field if present
+                if let Some(m) = v.get("message") {
+                    details.push_str(&format!("message: {}\n", m));
+                }
+                // Include any nested error object
+                if let Some(err_obj) = v.get("error") {
+                    details.push_str(&format!("error: {}\n", err_obj));
+                }
+                // Include the full JSON payload as a last resort
+                details.push_str(&format!("raw: {}", v));
+
+                // Construct a Message that contains the error details so the UI can display it.
+                // Use assistant role so it is shown where other assistant output appears, but
+                // include the error text so renderers can style it as an error.
+                let msg_text = format!("LLM streaming error encountered. See details below:\n{}", details);
+
+                let message = Message::assistant().with_content(MessageContent::text(msg_text));
+
+                // Yield the error message along with any usage info collected so far.
+                yield (Some(message), None);
+
+                // After yielding the error message, stop processing the stream.
+                break 'outer;
+            }
+
+            let chunk: StreamingChunk = serde_json::from_value(v.clone())
+                .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line_str))?;
 
             let usage = chunk.usage.as_ref().and_then(|u| {
                 chunk.model.as_ref().map(|model| {

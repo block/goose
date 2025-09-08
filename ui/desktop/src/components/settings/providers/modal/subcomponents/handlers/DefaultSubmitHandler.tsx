@@ -1,3 +1,5 @@
+import { SECRET_PRESENT_SENTINEL } from '../../../../../../utils/secretConstants';
+
 /**
  * Standalone function to submit provider configuration
  * Useful for components that don't want to use the hook
@@ -73,6 +75,12 @@ export const DefaultSubmitHandler = async (
 
       // Explicitly define is_secret as a boolean (true/false)
       const isSecret = parameter.secret === true;
+
+      // If this is a secret value and the sentinel indicates the secret is present
+      // but unchanged, skip writing to avoid overwriting the keyring with the sentinel.
+      if (isSecret && value === SECRET_PRESENT_SENTINEL) {
+        return Promise.resolve();
+      }
 
       // Pass the is_secret flag from the parameter definition
       return upsertFn(configKey, value, isSecret);
