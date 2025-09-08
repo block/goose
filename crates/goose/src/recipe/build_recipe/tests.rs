@@ -482,7 +482,7 @@ parameters:
 
             let (temp_dir, recipe_file) = setup_yaml_recipe_file(instructions_and_parameters);
 
-            let test_content = "    Hello from file!\nThis is line 2\n    Indented line 3";
+            let test_content = "Hello from file!\nThis is line 2\n    Indented line 3";
             let test_file_path = setup_test_file(&temp_dir, "test_file.txt", test_content);
 
             let params = vec![(
