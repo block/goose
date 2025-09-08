@@ -277,6 +277,7 @@ impl ProviderTester {
         let image_content = RawImageContent {
             data: base64_image,
             mime_type: "image/png".to_string(),
+            meta: None,
         }
         .no_annotation();
 

@@ -68,11 +68,17 @@ export default function CustomProviderForm({ onSubmit, onCancel }: CustomProvide
   return (
     <form onSubmit={handleSubmit} className="mt-4 space-y-4">
       <div>
-        <label className="flex items-center text-sm font-medium text-white mb-1">
+        <label
+          htmlFor="provider-select"
+          className="flex items-center text-sm font-medium text-textStandard mb-2"
+        >
           Provider Type
           <span className="text-red-500 ml-1">*</span>
         </label>
         <Select
+          id="provider-select"
+          aria-invalid={!!validationErrors.providerType}
+          aria-describedby={validationErrors.providerType ? 'provider-select-error' : undefined}
           options={[
             { value: 'openai_compatible', label: 'OpenAI Compatible' },
             { value: 'anthropic_compatible', label: 'Anthropic Compatible' },
@@ -93,62 +99,91 @@ export default function CustomProviderForm({ onSubmit, onCancel }: CustomProvide
           }}
           isSearchable={false}
         />
+        {validationErrors.providerType && (
+          <p id="provider-select-error" className="text-red-500 text-sm mt-1">
+            {validationErrors.providerType}
+          </p>
+        )}
       </div>
 
       <div>
-        <label className="flex items-center text-sm font-medium text-white mb-1">
+        <label
+          htmlFor="display-name"
+          className="flex items-center text-sm font-medium text-textStandard mb-2"
+        >
           Display Name
           <span className="text-red-500 ml-1">*</span>
         </label>
         <Input
+          id="display-name"
           value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
           placeholder="Your Provider Name"
+          aria-invalid={!!validationErrors.displayName}
+          aria-describedby={validationErrors.displayName ? 'display-name-error' : undefined}
           className={validationErrors.displayName ? 'border-red-500' : ''}
         />
         {validationErrors.displayName && (
-          <p className="text-red-500 text-sm mt-1">{validationErrors.displayName}</p>
+          <p id="display-name-error" className="text-red-500 text-sm mt-1">
+            {validationErrors.displayName}
+          </p>
         )}
       </div>
 
       <div>
-        <label className="flex items-center text-sm font-medium text-white mb-1">
+        <label
+          htmlFor="api-url"
+          className="flex items-center text-sm font-medium text-textStandard mb-2"
+        >
           API URL
           <span className="text-red-500 ml-1">*</span>
         </label>
         <Input
+          id="api-url"
           value={apiUrl}
           onChange={(e) => setApiUrl(e.target.value)}
           placeholder="https://api.example.com/v1/messages"
+          aria-invalid={!!validationErrors.apiUrl}
+          aria-describedby={validationErrors.apiUrl ? 'api-url-error' : undefined}
           className={validationErrors.apiUrl ? 'border-red-500' : ''}
         />
         {validationErrors.apiUrl && (
-          <p className="text-red-500 text-sm mt-1">{validationErrors.apiUrl}</p>
+          <p id="api-url-error" className="text-red-500 text-sm mt-1">
+            {validationErrors.apiUrl}
+          </p>
         )}
       </div>
 
       <div>
-        <label className="flex items-center text-sm font-medium text-white mb-1">
+        <label
+          htmlFor="api-key"
+          className="flex items-center text-sm font-medium text-textStandard mb-2"
+        >
           API Key
           {!isLocalModel && <span className="text-red-500 ml-1">*</span>}
         </label>
         <Input
+          id="api-key"
           type="password"
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
           placeholder="Your API key"
+          aria-invalid={!!validationErrors.apiKey}
+          aria-describedby={validationErrors.apiKey ? 'api-key-error' : undefined}
           className={validationErrors.apiKey ? 'border-red-500' : ''}
           disabled={isLocalModel}
         />
         {validationErrors.apiKey && (
-          <p className="text-red-500 text-sm mt-1">{validationErrors.apiKey}</p>
+          <p id="api-key-error" className="text-red-500 text-sm mt-1">
+            {validationErrors.apiKey}
+          </p>
         )}
 
         <div className="flex items-center space-x-2 mt-2">
           <Checkbox id="local-model" checked={isLocalModel} onCheckedChange={handleLocalModels} />
           <label
             htmlFor="local-model"
-            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-gray-400"
+            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-textSubtle"
           >
             This is a local model (no auth required)
           </label>
@@ -156,18 +191,26 @@ export default function CustomProviderForm({ onSubmit, onCancel }: CustomProvide
       </div>
 
       <div>
-        <label className="flex items-center text-sm font-medium text-white mb-1">
+        <label
+          htmlFor="available-models"
+          className="flex items-center text-sm font-medium text-textStandard mb-2"
+        >
           Available Models (comma-separated)
           <span className="text-red-500 ml-1">*</span>
         </label>
         <Input
+          id="available-models"
           value={models}
           onChange={(e) => setModels(e.target.value)}
           placeholder="model-a, model-b, model-c"
+          aria-invalid={!!validationErrors.models}
+          aria-describedby={validationErrors.models ? 'available-models-error' : undefined}
           className={validationErrors.models ? 'border-red-500' : ''}
         />
         {validationErrors.models && (
-          <p className="text-red-500 text-sm mt-1">{validationErrors.models}</p>
+          <p id="available-models-error" className="text-red-500 text-sm mt-1">
+            {validationErrors.models}
+          </p>
         )}
       </div>
 
@@ -179,7 +222,7 @@ export default function CustomProviderForm({ onSubmit, onCancel }: CustomProvide
         />
         <label
           htmlFor="supports-streaming"
-          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-gray-400"
+          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-textSubtle"
         >
           Provider supports streaming responses
         </label>

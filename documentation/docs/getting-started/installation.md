@@ -4,7 +4,7 @@ sidebar_position: 1
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import { RateLimits } from '@site/src/components/RateLimits';
-import { DesktopProviderSetup } from '@site/src/components/DesktopProviderSetup';
+import { OnboardingProviderSetup } from '@site/src/components/OnboardingProviderSetup';
 import { ModelSelectionTip } from '@site/src/components/ModelSelectionTip';
 import MacDesktopInstallButtons from '@site/src/components/MacDesktopInstallButtons';
 import WindowsDesktopInstallButtons from '@site/src/components/WindowsDesktopInstallButtons';
@@ -147,25 +147,47 @@ import { PanelLeft } from 'lucide-react';
         </div>
       </TabItem>
       <TabItem value="cli" label="Goose CLI">
-        Run the following command in **Git Bash**, **MSYS2**, or **PowerShell** to install the Goose CLI natively on Windows:
+        To install Goose natively on Windows, you need one of the following environments:
+        - **Git Bash** (recommended): Comes with [Git for Windows](https://git-scm.com/download/win)
+        - **MSYS2**: Available from [msys2.org](https://www.msys2.org/)
+        - **PowerShell**: Available on Windows 10/11 by default
+
+        Run the installation command in your chosen environment:
 
         ```bash
         curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
         ```
-        This script will fetch the latest version of Goose and set it up on your system.
 
-        If you'd like to install without interactive configuration, disable `CONFIGURE`:
+        To install without interactive configuration, disable `CONFIGURE`:
 
         ```bash
         curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
         ```
 
-        :::note Prerequisites
-        - **Git Bash** (recommended): Comes with [Git for Windows](https://git-scm.com/download/win)
-        - **MSYS2**: Available from [msys2.org](https://www.msys2.org/)
-        - **PowerShell**: Available on Windows 10/11 by default
-        
-        The script requires `curl` and `unzip` to be available in your environment.
+        :::info Windows PATH Setup
+        If you see a warning that Goose is not in your PATH, you need to add Goose to your PATH:
+
+        <details>
+          <summary>For Git Bash/MSYS2</summary>
+          ```bash
+          echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+          source ~/.bashrc
+          ```
+        </details>
+
+        <details>
+          <summary>For PowerShell</summary>
+          ```powershell
+          # Add to your PowerShell profile
+          $profilePath = $PROFILE
+          if (!(Test-Path $profilePath)) { New-Item -Path $profilePath -ItemType File -Force }
+          Add-Content -Path $profilePath -Value '$env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"'
+          # Reload profile or restart PowerShell
+          . $PROFILE
+          ```
+        </details>
+
+        After updating your PATH, you can run `goose` commands from any directory.
         :::
 
         <details>
@@ -203,6 +225,14 @@ import { PanelLeft } from 'lucide-react';
           curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
           ```  
 
+          If needed, add Goose to your path:
+
+          ```
+          echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+          echo 'export OPENAI_API_KEY=your_api_key' >> ~/.bashrc
+          source ~/.bashrc
+          ```
+
         </details>
       </TabItem>
     </Tabs>
@@ -210,73 +240,56 @@ import { PanelLeft } from 'lucide-react';
 </Tabs>
 
 ## Set LLM Provider
-Goose works with [supported LLM providers][providers]. On first use, you'll be prompted to configure your preferred provider.
+Goose works with [supported LLM providers][providers] that give Goose the AI intelligence it needs to understand your requests. On first use, you'll be prompted to configure your preferred provider.
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-    <DesktopProviderSetup />
+    On the welcome screen, choose how to configure a provider:
+    <OnboardingProviderSetup />
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
-    The CLI automatically enters configuration mode on first run. You'll be prompted to select from [supported LLM providers][providers] and enter your API key.
+    The CLI automatically enters configuration mode where you can choose how to configure a provider:
 
-    :::tip Windows Users
-    When using the native Windows CLI, choose to not store to keyring when prompted during initial configuration.
-    :::
+    <OnboardingProviderSetup />
 
-    Example:
+    Example configuration flow:
 
     ```
     ┌   goose-configure
     │
-    ◇ What would you like to configure?
-    │ Configure Providers
+    ◇ How would you like to set up your provider?
+    │ Tetrate Agent Router Service Login
     │
-    ◇ Which model provider should we use?
-    │ OpenAI
-    │
-    ◇ Provider openai requires OPENAI_API_KEY, please enter a value
-    │▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
-    │
-    ◇ Enter a model from that provider:
-    │ gpt-4o
-    │
-    ◇  Welcome aboard! You're all set to start using this agent—let's achieve great things together!
-    │
-    └  Configuration saved successfully
+    Opening browser for Tetrate Agent Router Service authentication...
+    [Goose opens the browser and prints details]
+
+    Authentication complete!
+
+    Configuring Tetrate Agent Router Service...
+    ✓ Tetrate Agent Router Service configuration complete
+    ✓ Models configured successfully
+
+    Testing configuration...
+    ✓ Configuration test passed!
+    ✓ Developer extension enabled!
+    └ Tetrate Agent Router Service setup complete! You can now use Goose.
   ```
 
   :::info Windows Users
-  On initial run, you may encounter errors about keyrings when setting your API Keys. Set the needed environment variables manually, e.g.:
+  If you choose to manually configure a provider, when prompted during configuration, choose to not store to keyring. If you encounter keyring errors when setting API keys, you can set environment variables manually instead:
 
-  **For Native Windows CLI (Git Bash/MSYS2):**
   ```bash
   export OPENAI_API_KEY={your_api_key}
   ```
 
-  **For WSL:**
-  ```bash
-  export OPENAI_API_KEY={your_api_key}
-  ```
-
-  Run `goose configure` again and proceed through the prompts. When you reach the step for entering the API key, Goose will detect that the key is already set as an environment variable and display a message like:
+  Then run `goose configure` again. Goose will detect the environment variable and display:
 
   ```
   ● OPENAI_API_KEY is set via environment variable
   ```
 
-  **To make the changes persist across sessions:**
-
-  **For Native Windows CLI (Git Bash):**
-  Add the goose path and export commands to your `~/.bashrc` or `~/.bash_profile` file:
+  To make API keys persist across sessions, add them to your shell profile:
   ```bash
-  echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
-  echo 'export OPENAI_API_KEY=your_api_key' >> ~/.bashrc
-  source ~/.bashrc
-  ```
-
-  **For WSL:**
-  ```bash
-  echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
   echo 'export OPENAI_API_KEY=your_api_key' >> ~/.bashrc
   source ~/.bashrc
   ```
@@ -289,7 +302,7 @@ Goose works with [supported LLM providers][providers]. On first use, you'll be p
 :::
 
 ## Update Provider
-You can change your LLM provider or update your API key at any time.
+You can change your LLM provider and/or model or update your API key at any time.
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>

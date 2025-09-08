@@ -1559,12 +1559,12 @@
               "$ref": "#/components/schemas/Role"
             }
           },
-          "priority": {
-            "type": "number"
-          },
-          "timestamp": {
+          "lastModified": {
             "type": "string",
             "format": "date-time"
+          },
+          "priority": {
+            "type": "number"
           }
         }
       },
@@ -1681,6 +1681,13 @@
             "allOf": [
               {
                 "$ref": "#/components/schemas/Annotated"
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RawResource"
               }
             ]
           }
@@ -1893,6 +1900,10 @@
           "resource"
         ],
         "properties": {
+          "_meta": {
+            "type": "object",
+            "additionalProperties": true
+          },
           "annotations": {
             "anyOf": [
               {
@@ -2390,6 +2401,10 @@
           "mimeType"
         ],
         "properties": {
+          "_meta": {
+            "type": "object",
+            "additionalProperties": true
+          },
           "annotations": {
             "anyOf": [
               {
@@ -2877,6 +2892,10 @@
           "resource"
         ],
         "properties": {
+          "_meta": {
+            "type": "object",
+            "additionalProperties": true
+          },
           "resource": {
             "$ref": "#/components/schemas/ResourceContents"
           }
@@ -2889,10 +2908,39 @@
           "mimeType"
         ],
         "properties": {
+          "_meta": {
+            "type": "object",
+            "additionalProperties": true
+          },
           "data": {
             "type": "string"
           },
           "mimeType": {
+            "type": "string"
+          }
+        }
+      },
+      "RawResource": {
+        "type": "object",
+        "required": [
+          "uri",
+          "name"
+        ],
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "mimeType": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "uri": {
             "type": "string"
           }
         }
@@ -2903,6 +2951,10 @@
           "text"
         ],
         "properties": {
+          "_meta": {
+            "type": "object",
+            "additionalProperties": true
+          },
           "text": {
             "type": "string"
           }
@@ -3102,6 +3154,10 @@
               "text"
             ],
             "properties": {
+              "_meta": {
+                "type": "object",
+                "additionalProperties": true
+              },
               "mimeType": {
                 "type": "string"
               },
@@ -3120,6 +3176,10 @@
               "blob"
             ],
             "properties": {
+              "_meta": {
+                "type": "object",
+                "additionalProperties": true
+              },
               "blob": {
                 "type": "string"
               },
@@ -3643,6 +3703,10 @@
           "text"
         ],
         "properties": {
+          "_meta": {
+            "type": "object",
+            "additionalProperties": true
+          },
           "annotations": {
             "anyOf": [
               {

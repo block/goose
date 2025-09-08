@@ -13,8 +13,8 @@ export type Annotated = RawTextContent | RawImageContent | RawEmbeddedResource;
 
 export type Annotations = {
     audience?: Array<Role>;
+    lastModified?: string;
     priority?: number;
-    timestamp?: string;
 };
 
 export type Author = {
@@ -65,7 +65,7 @@ export type ConfigResponse = {
     };
 };
 
-export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | Annotated;
+export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | Annotated | RawResource;
 
 export type ContextLengthExceeded = {
     msg: string;
@@ -141,6 +141,9 @@ export type DeleteRecipeRequest = {
 };
 
 export type EmbeddedResource = {
+    _meta?: {
+        [key: string]: unknown;
+    };
     annotations?: Annotations | {
         [key: string]: unknown;
     };
@@ -322,6 +325,9 @@ export type GetToolsQuery = {
 };
 
 export type ImageContent = {
+    _meta?: {
+        [key: string]: unknown;
+    };
     annotations?: Annotations | {
         [key: string]: unknown;
     };
@@ -472,15 +478,32 @@ export type ProvidersResponse = {
 };
 
 export type RawEmbeddedResource = {
+    _meta?: {
+        [key: string]: unknown;
+    };
     resource: ResourceContents;
 };
 
 export type RawImageContent = {
+    _meta?: {
+        [key: string]: unknown;
+    };
     data: string;
     mimeType: string;
 };
 
+export type RawResource = {
+    description?: string;
+    mimeType?: string;
+    name: string;
+    size?: number;
+    uri: string;
+};
+
 export type RawTextContent = {
+    _meta?: {
+        [key: string]: unknown;
+    };
     text: string;
 };
 
@@ -580,10 +603,16 @@ export type RedactedThinkingContent = {
 };
 
 export type ResourceContents = {
+    _meta?: {
+        [key: string]: unknown;
+    };
     mimeType?: string;
     text: string;
     uri: string;
 } | {
+    _meta?: {
+        [key: string]: unknown;
+    };
     blob: string;
     mimeType?: string;
     uri: string;
@@ -790,6 +819,9 @@ export type SummarizationRequested = {
 };
 
 export type TextContent = {
+    _meta?: {
+        [key: string]: unknown;
+    };
     annotations?: Annotations | {
         [key: string]: unknown;
     };

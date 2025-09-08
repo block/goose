@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { all_goose_modes, ModeSelectionItem } from './ModeSelectionItem';
 import { useConfig } from '../../ConfigContext';
-import { Input } from '../../ui/input';
+import { ConversationLimitsDropdown } from './ConversationLimitsDropdown';
 
 export const ModeSection = () => {
   const [currentMode, setCurrentMode] = useState('auto');
@@ -56,6 +56,7 @@ export const ModeSection = () => {
 
   return (
     <div className="space-y-1">
+      {/* Mode Selection */}
       {all_goose_modes.map((mode) => (
         <ModeSelectionItem
           key={mode.key}
@@ -67,24 +68,11 @@ export const ModeSection = () => {
         />
       ))}
 
-      <div className="pt-6">
-        <h3 className="text-textStandard mb-4 pl-2">Conversation Limits</h3>
-        <div className="flex items-center justify-between py-2 px-4">
-          <div>
-            <h4 className="text-textStandard">Max Turns</h4>
-            <p className="text-xs text-textSubtle mt-[2px]">
-              Maximum agent turns before Goose asks for user input
-            </p>
-          </div>
-          <Input
-            type="number"
-            min="1"
-            value={maxTurns}
-            onChange={(e) => handleMaxTurnsChange(Number(e.target.value))}
-            className="w-20"
-          />
-        </div>
-      </div>
+      {/* Conversation Limits Dropdown */}
+      <ConversationLimitsDropdown
+        maxTurns={maxTurns}
+        onMaxTurnsChange={handleMaxTurnsChange}
+      />
     </div>
   );
 };
