@@ -9,7 +9,7 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
-<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/1MC-6q6vE-0" />
+<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/-Y-werFKtTw" />
 
 This tutorial covers how to add the [Vercel MCP Server](https://vercel.com/docs/mcp/vercel-mcp) as a Goose extension to manage your Vercel projects and deployment status directly from Goose.
 
