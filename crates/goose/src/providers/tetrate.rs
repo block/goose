@@ -46,6 +46,7 @@ pub struct TetrateProvider {
     #[serde(skip)]
     api_client: ApiClient,
     model: ModelConfig,
+    supports_streaming: bool,
 }
 
 impl_provider_default!(TetrateProvider);
@@ -64,7 +65,11 @@ impl TetrateProvider {
             .with_header("HTTP-Referer", "https://block.github.io/goose")?
             .with_header("X-Title", "Goose")?;
 
-        Ok(Self { api_client, model })
+        Ok(Self {
+            api_client,
+            model,
+            supports_streaming: true,
+        })
     }
 
     async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
@@ -199,7 +204,7 @@ impl Provider for TetrateProvider {
             tools,
             &super::utils::ImageFormat::OpenAi,
         )?;
-        
+
         // Enable streaming
         payload["stream"] = json!(true);
         payload["stream_options"] = json!({
@@ -210,7 +215,7 @@ impl Provider for TetrateProvider {
             .api_client
             .response_post("v1/chat/completions", &payload)
             .await?;
-        
+
         let response = handle_status_openai_compat(response).await?;
         let stream = response.bytes_stream().map_err(io::Error::other);
         let model_config = self.model.clone();
@@ -301,5 +306,9 @@ impl Provider for TetrateProvider {
 
         models.sort();
         Ok(Some(models))
+    }
+
+    fn supports_streaming(&self) -> bool {
+        self.supports_streaming
     }
 }
