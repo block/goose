@@ -6,7 +6,6 @@ use std::time::SystemTime;
 
 use crate::developer::analyze::types::AnalysisResult;
 
-/// Cache for analysis results
 #[derive(Clone)]
 pub struct AnalysisCache {
     cache: Arc<Mutex<LruCache<CacheKey, Arc<AnalysisResult>>>>,
@@ -21,7 +20,6 @@ struct CacheKey {
 }
 
 impl AnalysisCache {
-    /// Create a new analysis cache with the specified maximum size
     pub fn new(max_size: usize) -> Self {
         tracing::info!("Initializing analysis cache with size {}", max_size);
 
@@ -36,7 +34,6 @@ impl AnalysisCache {
         }
     }
 
-    /// Get a cached result if it exists and is still valid
     pub fn get(&self, path: &PathBuf, modified: SystemTime) -> Option<AnalysisResult> {
         let mut cache = self.cache.lock().unwrap();
         let key = CacheKey {
@@ -53,7 +50,6 @@ impl AnalysisCache {
         }
     }
 
-    /// Store a result in the cache
     pub fn put(&self, path: PathBuf, modified: SystemTime, result: AnalysisResult) {
         let mut cache = self.cache.lock().unwrap();
         let key = CacheKey {
@@ -65,20 +61,17 @@ impl AnalysisCache {
         cache.put(key, Arc::new(result));
     }
 
-    /// Clear all cached entries
     pub fn clear(&self) {
         let mut cache = self.cache.lock().unwrap();
         cache.clear();
         tracing::debug!("Cache cleared");
     }
 
-    /// Get the current size of the cache
     pub fn len(&self) -> usize {
         let cache = self.cache.lock().unwrap();
         cache.len()
     }
 
-    /// Check if the cache is empty
     pub fn is_empty(&self) -> bool {
         let cache = self.cache.lock().unwrap();
         cache.is_empty()

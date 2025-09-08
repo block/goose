@@ -8,7 +8,7 @@ pub struct AnalyzeParams {
     /// Absolute path. Step 1: Directory for overview. Step 2: File for details. Step 3: Directory with focus param for call graphs
     pub path: String,
 
-    /// Symbol name for call graph analysis (Step 3). Requires directory path. Shows who calls it and what it calls
+    /// Symbol name for call graph analysis (Step 3). Requires directory path with broad enough scope to capture all relevant symbol references
     pub focus: Option<String>,
 
     /// Call graph depth. 0=where defined, 1=direct callers/callees, 2+=transitive chains

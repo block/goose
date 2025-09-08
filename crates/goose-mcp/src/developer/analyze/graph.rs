@@ -3,14 +3,10 @@ use std::path::PathBuf;
 
 use crate::developer::analyze::types::{AnalysisResult, CallChain};
 
-// Minimal graph structure for focus mode only
 #[derive(Debug, Clone, Default)]
 pub struct CallGraph {
-    // Map from symbol name to its callers: Vec<(file, line, caller_function)>
     callers: HashMap<String, Vec<(PathBuf, usize, String)>>,
-    // Map from symbol name to what it calls: Vec<(file, line, callee_function)>
     callees: HashMap<String, Vec<(PathBuf, usize, String)>>,
-    // Map from symbol to its definition locations
     pub definitions: HashMap<String, Vec<(PathBuf, usize)>>,
 }
 

@@ -56,15 +56,12 @@ impl CodeAnalyzer {
 
         let traverser = FileTraverser::new(ignore_patterns);
 
-        // Validate path
         traverser.validate_path(&path)?;
 
-        // Determine the actual mode to use
         let mode = self.determine_mode(&params, &path);
 
         tracing::debug!("Using analysis mode: {:?}", mode);
 
-        // Process based on path type and mode
         let mut output = match mode {
             AnalysisMode::Focused => self.analyze_focused(&path, &params, &traverser)?,
             AnalysisMode::Semantic => {
