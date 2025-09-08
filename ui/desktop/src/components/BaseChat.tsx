@@ -276,18 +276,11 @@ function BaseChatContent({
   }, []);
 
   // Auto-scroll when messages are loaded (for session resuming)
-  useEffect(() => {
-    if (messages.length > 0 && !loadingChat) {
-      const scrollTimeout = setTimeout(() => {
-        if (scrollRef.current?.scrollToBottom) {
-          scrollRef.current.scrollToBottom();
-        }
-      }, 500); // delay to ensure content is fully loaded
-
-      return () => clearTimeout(scrollTimeout);
+  const handleRenderingComplete = React.useCallback(() => {
+    if (scrollRef.current?.scrollToBottom) {
+      scrollRef.current.scrollToBottom();
     }
-    return;
-  }, [messages.length, loadingChat]);
+  }, []);
 
   // Handle submit
   const handleSubmit = (e: React.FormEvent) => {
@@ -419,6 +412,7 @@ function BaseChatContent({
                       isUserMessage={isUserMessage}
                       isStreamingMessage={chatState !== ChatState.Idle}
                       onMessageUpdate={onMessageUpdate}
+                      onRenderingComplete={handleRenderingComplete}
                     />
                   ) : (
                     // Render messages with SearchView wrapper when search is enabled
@@ -435,6 +429,7 @@ function BaseChatContent({
                         isUserMessage={isUserMessage}
                         isStreamingMessage={chatState !== ChatState.Idle}
                         onMessageUpdate={onMessageUpdate}
+                        onRenderingComplete={handleRenderingComplete}
                       />
                     </SearchView>
                   )}
