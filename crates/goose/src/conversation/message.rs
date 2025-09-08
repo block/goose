@@ -168,7 +168,13 @@ impl fmt::Display for MessageContent {
 
 impl MessageContent {
     pub fn text<S: Into<String>>(text: S) -> Self {
-        MessageContent::Text(RawTextContent { text: text.into() }.no_annotation())
+        MessageContent::Text(
+            RawTextContent {
+                text: text.into(),
+                meta: None,
+            }
+            .no_annotation(),
+        )
     }
 
     pub fn image<S: Into<String>, T: Into<String>>(data: S, mime_type: T) -> Self {
@@ -176,6 +182,7 @@ impl MessageContent {
             RawImageContent {
                 data: data.into(),
                 mime_type: mime_type.into(),
+                meta: None,
             }
             .no_annotation(),
         )
@@ -317,6 +324,7 @@ impl From<Content> for MessageContent {
             RawContent::Image(image) => {
                 MessageContent::Image(image.optional_annotate(content.annotations))
             }
+            RawContent::ResourceLink(_link) => MessageContent::text("[Resource link]"),
             RawContent::Resource(resource) => {
                 let text = match &resource.resource {
                     ResourceContents::TextResourceContents { text, .. } => text.clone(),
@@ -347,6 +355,7 @@ impl From<PromptMessage> for Message {
             PromptMessageContent::Image { image } => {
                 MessageContent::image(image.data.clone(), image.mime_type.clone())
             }
+            PromptMessageContent::ResourceLink { .. } => MessageContent::text("[Resource link]"),
             PromptMessageContent::Resource { resource } => {
                 // For resources, convert to text content with the resource text
                 match &resource.resource {
@@ -445,6 +454,7 @@ impl Message {
         self.with_content(MessageContent::Text(
             RawTextContent {
                 text: sanitized_text,
+                meta: None,
             }
             .no_annotation(),
         ))
@@ -756,6 +766,7 @@ mod tests {
             image: RawImageContent {
                 data: "base64data".to_string(),
                 mime_type: "image/jpeg".to_string(),
+                meta: None,
             }
             .no_annotation(),
         };
@@ -781,10 +792,15 @@ mod tests {
             uri: "file:///test.txt".to_string(),
             mime_type: Some("text/plain".to_string()),
             text: "Resource content".to_string(),
+            meta: None,
         };
 
         let prompt_content = PromptMessageContent::Resource {
-            resource: RawEmbeddedResource { resource }.no_annotation(),
+            resource: RawEmbeddedResource {
+                resource,
+                meta: None,
+            }
+            .no_annotation(),
         };
 
         let prompt_message = PromptMessage {
@@ -807,10 +823,15 @@ mod tests {
             uri: "file:///test.bin".to_string(),
             mime_type: Some("application/octet-stream".to_string()),
             blob: "binary_data".to_string(),
+            meta: None,
         };
 
         let prompt_content = PromptMessageContent::Resource {
-            resource: RawEmbeddedResource { resource }.no_annotation(),
+            resource: RawEmbeddedResource {
+                resource,
+                meta: None,
+            }
+            .no_annotation(),
         };
 
         let prompt_message = PromptMessage {

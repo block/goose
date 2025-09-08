@@ -234,14 +234,16 @@ You can turn your current Goose session into a reusable recipe that includes the
          3. Find your recipe in the Recipe Library
          4. Click `Use` next to the recipe you want to open
 
-  2. If the recipe contains parameters, enter your values in the `Recipe Parameters` dialog and click `Start Recipe`.
+  2. The first time you run a recipe, a warning dialog displays the recipe's title, description, and instructions for you to review. If you trust the recipe content, click `Trust and Execute` to continue. You won't be prompted again for the same recipe unless it changes.
+
+  3. If the recipe contains parameters, enter your values in the `Recipe Parameters` dialog and click `Start Recipe`.
   
      Parameters are dynamic values used in the recipe:
 
      - **Required parameters** are marked with red asterisks (*)
      - **Optional parameters** show default values that can be changed
 
-  3. To run the recipe, click an activity bubble or send the prompt.
+  4. To run the recipe, click an activity bubble or send the prompt.
 
   :::info Parameter Creation In Goose CLI Only
   You can enter parameter values to use in a recipe, but you cannot add parameters to a recipe in Goose Desktop. Parameters can only be defined in recipes created via the CLI.

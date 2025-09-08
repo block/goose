@@ -1406,6 +1406,7 @@ mod tests {
                     vec![MessageContent::Text(
                         RawTextContent {
                             text: "Mocked scheduled response".to_string(),
+                            meta: None,
                         }
                         .no_annotation(),
                     )],

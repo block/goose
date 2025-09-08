@@ -203,6 +203,7 @@ mod tests {
                     vec![MessageContent::Text(TextContent {
                         raw: RawTextContent {
                             text: self.response.clone(),
+                            meta: None,
                         },
                         annotations: None,
                     })],

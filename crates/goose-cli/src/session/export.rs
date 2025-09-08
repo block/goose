@@ -256,6 +256,7 @@ pub fn tool_response_to_markdown(resp: &ToolResponse, export_all_content: bool) 
                                 uri,
                                 mime_type,
                                 text,
+                                meta: _,
                             } => {
                                 // Extract file extension from the URI for syntax highlighting
                                 let file_extension = uri.split('.').next_back().unwrap_or("");
@@ -287,6 +288,7 @@ pub fn tool_response_to_markdown(resp: &ToolResponse, export_all_content: bool) 
                                 uri,
                                 mime_type,
                                 blob,
+                                ..
                             } => {
                                 md.push_str(&format!(
                                     "**Binary File:** `{}` (type: {}, {} bytes)\n\n",
@@ -296,6 +298,10 @@ pub fn tool_response_to_markdown(resp: &ToolResponse, export_all_content: bool) 
                                 ));
                             }
                         }
+                    }
+                    RawContent::ResourceLink(_link) => {
+                        // Show a simple placeholder for resource links when exporting
+                        md.push_str("[resource link]\n\n");
                     }
                     RawContent::Audio(_) => {
                         md.push_str("[audio content not displayed in Markdown export]\n\n")
@@ -527,6 +533,7 @@ mod tests {
         let text_content = TextContent {
             raw: RawTextContent {
                 text: "Command executed successfully".to_string(),
+                meta: None,
             },
             annotations: None,
         };
@@ -546,6 +553,7 @@ mod tests {
         let text_content = TextContent {
             raw: RawTextContent {
                 text: json_text.to_string(),
+                meta: None,
             },
             annotations: None,
         };
@@ -650,6 +658,7 @@ if __name__ == "__main__":
         let text_content = TextContent {
             raw: RawTextContent {
                 text: python_code.to_string(),
+                meta: None,
             },
             annotations: None,
         };
@@ -689,6 +698,7 @@ if __name__ == "__main__":
         let text_content = TextContent {
             raw: RawTextContent {
                 text: git_output.to_string(),
+                meta: None,
             },
             annotations: None,
         };
@@ -736,6 +746,7 @@ warning: unused variable `x`
         let text_content = TextContent {
             raw: RawTextContent {
                 text: build_output.to_string(),
+                meta: None,
             },
             annotations: None,
         };
@@ -781,6 +792,7 @@ warning: unused variable `x`
         let text_content = TextContent {
             raw: RawTextContent {
                 text: api_response.to_string(),
+                meta: None,
             },
             annotations: None,
         };
@@ -815,6 +827,7 @@ warning: unused variable `x`
         let text_content = TextContent {
             raw: RawTextContent {
                 text: "File created successfully".to_string(),
+                meta: None,
             },
             annotations: None,
         };
@@ -870,6 +883,7 @@ def process_data(data: List[Dict]) -> List[Dict]:
         let text_content = TextContent {
             raw: RawTextContent {
                 text: python_code.to_string(),
+                meta: None,
             },
             annotations: None,
         };
@@ -905,6 +919,7 @@ Command failed with exit code 2"#;
         let text_content = TextContent {
             raw: RawTextContent {
                 text: error_output.to_string(),
+                meta: None,
             },
             annotations: None,
         };
@@ -943,6 +958,7 @@ Command failed with exit code 2"#;
         let text_content = TextContent {
             raw: RawTextContent {
                 text: script_output.to_string(),
+                meta: None,
             },
             annotations: None,
         };
@@ -988,6 +1004,7 @@ drwx------   3 user  staff    96 Dec  6 16:20 com.apple.launchd.abc
         let text_content = TextContent {
             raw: RawTextContent {
                 text: multi_output.to_string(),
+                meta: None,
             },
             annotations: None,
         };
@@ -1029,6 +1046,7 @@ src/middleware.rs:12:async fn auth_middleware(req: Request, next: Next) -> Resul
         let text_content = TextContent {
             raw: RawTextContent {
                 text: grep_output.to_string(),
+                meta: None,
             },
             annotations: None,
         };
@@ -1067,6 +1085,7 @@ src/middleware.rs:12:async fn auth_middleware(req: Request, next: Next) -> Resul
         let text_content = TextContent {
             raw: RawTextContent {
                 text: json_output.to_string(),
+                meta: None,
             },
             annotations: None,
         };
@@ -1106,6 +1125,7 @@ found 0 vulnerabilities"#;
         let text_content = TextContent {
             raw: RawTextContent {
                 text: npm_output.to_string(),
+                meta: None,
             },
             annotations: None,
         };
