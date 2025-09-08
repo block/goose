@@ -22,6 +22,23 @@ use self::parser::{ElementExtractor, ParserManager};
 use self::traversal::FileTraverser;
 use self::types::{AnalysisMode, AnalysisResult, AnalyzeParams, FocusedAnalysisData};
 
+/// Helper to safely lock a mutex with poison recovery
+/// The recovery function is called on the mutex contents if the lock was poisoned
+pub(crate) fn lock_or_recover<T, F>(
+    mutex: &std::sync::Mutex<T>,
+    recovery: F,
+) -> std::sync::MutexGuard<T>
+where
+    F: FnOnce(&mut T),
+{
+    mutex.lock().unwrap_or_else(|poisoned| {
+        let mut guard = poisoned.into_inner();
+        recovery(&mut guard);
+        tracing::warn!("Recovered from poisoned lock");
+        guard
+    })
+}
+
 /// Code analyzer with caching and tree-sitter parsing
 #[derive(Clone)]
 pub struct CodeAnalyzer {

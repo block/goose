@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tree_sitter::{Parser, Tree};
 
+use super::lock_or_recover;
 use crate::developer::analyze::types::{
     AnalysisResult, CallInfo, ClassInfo, ElementQueryResult, FunctionInfo, ReferenceInfo,
     ReferenceType,
@@ -24,7 +25,7 @@ impl ParserManager {
 
     /// Get or create a parser for the specified language
     pub fn get_or_create_parser(&self, language: &str) -> Result<Arc<Mutex<Parser>>, ErrorData> {
-        let mut cache = self.parsers.lock().unwrap();
+        let mut cache = lock_or_recover(&self.parsers, |c| c.clear());
 
         if let Some(parser) = cache.get(language) {
             tracing::trace!("Reusing cached parser for {}", language);
@@ -66,7 +67,8 @@ impl ParserManager {
     /// Parse source code and return the syntax tree
     pub fn parse(&self, content: &str, language: &str) -> Result<Tree, ErrorData> {
         let parser_arc = self.get_or_create_parser(language)?;
-        let mut parser = parser_arc.lock().unwrap();
+        // Parser doesn't have a clear() method, so we just continue with it
+        let mut parser = lock_or_recover(&parser_arc, |_| {});
 
         parser.parse(content, None).ok_or_else(|| {
             tracing::error!("Failed to parse content as {}", language);

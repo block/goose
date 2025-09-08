@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 
+use super::lock_or_recover;
 use crate::developer::analyze::types::AnalysisResult;
 
 #[derive(Clone)]
@@ -35,7 +36,7 @@ impl AnalysisCache {
     }
 
     pub fn get(&self, path: &PathBuf, modified: SystemTime) -> Option<AnalysisResult> {
-        let mut cache = self.cache.lock().unwrap();
+        let mut cache = lock_or_recover(&self.cache, |c| c.clear());
         let key = CacheKey {
             path: path.clone(),
             modified,
@@ -51,7 +52,7 @@ impl AnalysisCache {
     }
 
     pub fn put(&self, path: PathBuf, modified: SystemTime, result: AnalysisResult) {
-        let mut cache = self.cache.lock().unwrap();
+        let mut cache = lock_or_recover(&self.cache, |c| c.clear());
         let key = CacheKey {
             path: path.clone(),
             modified,
@@ -62,18 +63,18 @@ impl AnalysisCache {
     }
 
     pub fn clear(&self) {
-        let mut cache = self.cache.lock().unwrap();
+        let mut cache = lock_or_recover(&self.cache, |c| c.clear());
         cache.clear();
         tracing::debug!("Cache cleared");
     }
 
     pub fn len(&self) -> usize {
-        let cache = self.cache.lock().unwrap();
+        let cache = lock_or_recover(&self.cache, |c| c.clear());
         cache.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        let cache = self.cache.lock().unwrap();
+        let cache = lock_or_recover(&self.cache, |c| c.clear());
         cache.is_empty()
     }
 }
