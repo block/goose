@@ -72,7 +72,7 @@ impl ParserManager {
             tracing::error!("Failed to parse content as {}", language);
             ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
-                "Failed to parse file".to_string(),
+                format!("Failed to parse file as {}", language),
                 None,
             )
         })

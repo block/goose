@@ -47,8 +47,7 @@ fn test_analyze_directory() {
     };
 
     let ignore = create_test_gitignore();
-    let result = analyzer
-        .analyze(params, dir_path.to_path_buf(), &ignore);
+    let result = analyzer.analyze(params, dir_path.to_path_buf(), &ignore);
 
     assert!(result.is_ok());
     let result = result.unwrap();
@@ -112,9 +111,7 @@ fn test_analyze_with_cache() {
     let ignore = create_test_gitignore();
 
     // First analysis - should cache
-    let result1 = analyzer
-        .analyze(params.clone(), file_path.clone(), &ignore)
-        ;
+    let result1 = analyzer.analyze(params.clone(), file_path.clone(), &ignore);
     assert!(result1.is_ok());
 
     // Second analysis - should use cache
@@ -159,9 +156,7 @@ fn test_analyze_nonexistent_path() {
     };
 
     let ignore = create_test_gitignore();
-    let result = analyzer
-        .analyze(params, "/nonexistent/path".into(), &ignore)
-        ;
+    let result = analyzer.analyze(params, "/nonexistent/path".into(), &ignore);
 
     // Should return an error
     assert!(result.is_err());
@@ -220,9 +215,7 @@ fn test_nested_directory_analysis() {
     };
 
     let ignore = create_test_gitignore();
-    let result = analyzer
-        .analyze(params, dir_path.to_path_buf(), &ignore)
-        ;
+    let result = analyzer.analyze(params, dir_path.to_path_buf(), &ignore);
 
     assert!(result.is_ok());
     let result = result.unwrap();

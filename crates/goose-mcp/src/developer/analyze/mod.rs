@@ -118,7 +118,7 @@ impl CodeAnalyzer {
             tracing::error!("Failed to get file metadata for {:?}: {}", path, e);
             ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
-                format!("Failed to get file metadata: {}", e),
+                format!("Failed to get metadata for '{}': {}", path.display(), e),
                 None,
             )
         })?;
@@ -126,7 +126,11 @@ impl CodeAnalyzer {
         let modified = metadata.modified().map_err(|e| {
             ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
-                format!("Failed to get modification time: {}", e),
+                format!(
+                    "Failed to get modification time for '{}': {}",
+                    path.display(),
+                    e
+                ),
                 None,
             )
         })?;
@@ -142,7 +146,7 @@ impl CodeAnalyzer {
             tracing::error!("Failed to read file {:?}: {}", path, e);
             ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
-                format!("Failed to read file: {}", e),
+                format!("Failed to read file '{}': {}", path.display(), e),
                 None,
             )
         })?;

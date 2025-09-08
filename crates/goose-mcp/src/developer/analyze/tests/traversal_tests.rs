@@ -61,9 +61,7 @@ fn test_collect_files() {
     let ignore = Gitignore::empty();
     let traverser = FileTraverser::new(&ignore);
 
-    let files = traverser
-        .collect_files_for_focused(dir_path, 0)
-        .unwrap();
+    let files = traverser.collect_files_for_focused(dir_path, 0).unwrap();
 
     // Should find .rs and .py files but not .txt
     assert_eq!(files.len(), 3);
@@ -99,14 +97,10 @@ fn test_max_depth() {
     // The important thing is that deeper files are excluded with lower max_depth
 
     // With a small max_depth, we should find fewer files
-    let files_limited = traverser
-        .collect_files_for_focused(dir_path, 2)
-        .unwrap();
+    let files_limited = traverser.collect_files_for_focused(dir_path, 2).unwrap();
 
     // With unlimited depth, we should find all files
-    let files_unlimited = traverser
-        .collect_files_for_focused(dir_path, 0)
-        .unwrap();
+    let files_unlimited = traverser.collect_files_for_focused(dir_path, 0).unwrap();
 
     // The unlimited search should find more files than the limited one
     assert!(
@@ -148,9 +142,7 @@ fn test_symlink_handling() {
     let traverser = FileTraverser::new(&ignore);
 
     // Collect files - symlinks should be handled appropriately
-    let files = traverser
-        .collect_files_for_focused(dir_path, 0)
-        .unwrap();
+    let files = traverser.collect_files_for_focused(dir_path, 0).unwrap();
 
     // Should find the actual files
     assert!(files.iter().any(|p| p.ends_with("target.rs")));
@@ -165,9 +157,7 @@ fn test_empty_directory() {
     let ignore = Gitignore::empty();
     let traverser = FileTraverser::new(&ignore);
 
-    let files = traverser
-        .collect_files_for_focused(dir_path, 0)
-        .unwrap();
+    let files = traverser.collect_files_for_focused(dir_path, 0).unwrap();
 
     assert_eq!(files.len(), 0);
 }
@@ -190,9 +180,7 @@ fn test_gitignore_patterns() {
 
     let traverser = FileTraverser::new(&ignore);
 
-    let files = traverser
-        .collect_files_for_focused(dir_path, 0)
-        .unwrap();
+    let files = traverser.collect_files_for_focused(dir_path, 0).unwrap();
 
     // Should find .rs and .py files, but not .log files
     assert_eq!(files.len(), 2, "Should find 2 non-log files");
