@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
+use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
 use super::retry::{ProviderRetry, RetryConfig};
 use crate::conversation::message::Message;
@@ -11,14 +11,19 @@ use anyhow::Result;
 use async_trait::async_trait;
 use aws_sdk_bedrockruntime::config::ProvideCredentials;
 use aws_sdk_bedrockruntime::operation::converse::ConverseError;
+use aws_sdk_bedrockruntime::operation::converse_stream::ConverseStreamError;
 use aws_sdk_bedrockruntime::{types as bedrock, Client};
 use rmcp::model::Tool;
 use serde_json::Value;
 
 // Import the migrated helper functions from providers/formats/bedrock.rs
 use super::formats::bedrock::{
-    from_bedrock_message, from_bedrock_usage, to_bedrock_message, to_bedrock_tool_config,
+    from_bedrock_message, from_bedrock_usage, sanitize_messages_for_bedrock, to_bedrock_message,
+    to_bedrock_tool_config,
 };
+use async_stream::try_stream;
+use mcp_core::ToolCall;
+use rmcp::model::{ErrorCode, ErrorData};
 
 pub const BEDROCK_DOC_LINK: &str =
     "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html";
@@ -118,17 +123,23 @@ impl BedrockProvider {
     ) -> Result<(bedrock::Message, Option<bedrock::TokenUsage>), ProviderError> {
         let model_name = &self.model.model_name;
 
+        // Sanitize message history to avoid orphaned tool requests
+        let sanitized = sanitize_messages_for_bedrock(messages);
+
         let mut request = self
             .client
             .converse()
             .system(bedrock::SystemContentBlock::Text(system.to_string()))
             .model_id(model_name.to_string())
-            .set_messages(Some(
-                messages
-                    .iter()
-                    .map(to_bedrock_message)
-                    .collect::<Result<_>>()?,
-            ));
+            .set_messages(Some({
+                let mut out: Vec<bedrock::Message> = Vec::new();
+                for m in sanitized.iter() {
+                    if let Some(bm) = to_bedrock_message(m)? {
+                        out.push(bm);
+                    }
+                }
+                out
+            }));
 
         if !tools.is_empty() {
             request = request.tool_config(to_bedrock_tool_config(tools)?);
@@ -236,5 +247,200 @@ impl Provider for BedrockProvider {
 
         let provider_usage = ProviderUsage::new(model_name.to_string(), usage);
         Ok((message, provider_usage))
+    }
+
+    fn supports_streaming(&self) -> bool {
+        true
+    }
+
+    #[tracing::instrument(
+        skip(self, system, messages, tools),
+        fields(input, output, input_tokens, output_tokens, total_tokens)
+    )]
+    async fn stream(
+        &self,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<MessageStream, ProviderError> {
+        let model_name = &self.model.model_name;
+
+        // Build request similar to converse(), but using the streaming API
+        // Sanitize message history to avoid orphaned tool requests
+        let sanitized = sanitize_messages_for_bedrock(messages);
+
+        let mut request = self
+            .client
+            .converse_stream()
+            .system(bedrock::SystemContentBlock::Text(system.to_string()))
+            .model_id(model_name.to_string())
+            .set_messages(Some({
+                let mut out: Vec<bedrock::Message> = Vec::new();
+                for m in sanitized.iter() {
+                    if let Some(bm) = to_bedrock_message(m)? {
+                        out.push(bm);
+                    }
+                }
+                out
+            }));
+
+        if !tools.is_empty() {
+            request = request.tool_config(to_bedrock_tool_config(tools)?);
+        }
+
+        let response = request
+            .send()
+            .await
+            .map_err(|err| match err.into_service_error() {
+                ConverseStreamError::ThrottlingException(throttle_err) => {
+                    ProviderError::RateLimitExceeded(format!(
+                        "Bedrock throttling error: {:?}",
+                        throttle_err
+                    ))
+                }
+                ConverseStreamError::AccessDeniedException(err) => ProviderError::Authentication(
+                    format!("Failed to call Bedrock ConverseStream: {:?}", err),
+                ),
+                ConverseStreamError::ValidationException(err)
+                    if err
+                        .message()
+                        .unwrap_or_default()
+                        .contains("Input is too long for requested model.") =>
+                {
+                    ProviderError::ContextLengthExceeded(format!(
+                        "Failed to call Bedrock ConverseStream: {:?}",
+                        err
+                    ))
+                }
+                ConverseStreamError::ModelErrorException(err) => ProviderError::ExecutionError(
+                    format!("Failed to call Bedrock ConverseStream: {:?}", err),
+                ),
+                err => ProviderError::ServerError(format!(
+                    "Failed to call Bedrock ConverseStream: {:?}",
+                    err
+                )),
+            })?;
+
+        // We'll consume the EventReceiver in an async stream and map events to our MessageStream
+        let mut receiver = response.stream;
+
+        // We need to track in-progress tool use blocks by content_block_index
+        use std::collections::HashMap;
+        #[derive(Default)]
+        struct ToolUseAgg {
+            id: String,
+            name: String,
+            input: String,
+        }
+        let debug_payload = serde_json::json!({
+            "system": system,
+            "messages": messages,
+            "tools": tools
+        });
+        let model_config = self.model.clone();
+        let model_name_for_usage = model_name.to_string();
+
+        Ok(Box::pin(try_stream! {
+            let mut tool_blocks: HashMap<i32, ToolUseAgg> = HashMap::new();
+            let empty_usage: super::base::Usage = Default::default();
+            let stream_id = format!("bedrock-{}", uuid::Uuid::new_v4());
+
+            loop {
+                let next = receiver.recv().await;
+                match next {
+                    Ok(Some(event)) => {
+                        use aws_sdk_bedrockruntime::types::ConverseStreamOutput as Ev;
+                        match event {
+                            Ev::ContentBlockDelta(delta_event) => {
+                                let idx = delta_event.content_block_index();
+                                if let Some(delta) = delta_event.delta() {
+                                    use aws_sdk_bedrockruntime::types::ContentBlockDelta as CBD;
+                                    match delta {
+                                        CBD::Text(text_chunk) => {
+                                            // Stream partial text as a message chunk
+                                            let msg = Message::assistant()
+                                                .with_text(text_chunk.clone())
+                                                .with_id(stream_id.clone());
+                                            emit_debug_trace(&model_config, &debug_payload, &msg, &empty_usage);
+                                            yield (Some(msg), None);
+                                        }
+                                        CBD::ToolUse(tool_delta) => {
+                                            // Accumulate tool input JSON string for this block
+                                            let entry = tool_blocks.entry(idx).or_default();
+                                            entry.input.push_str(tool_delta.input());
+                                        }
+                                        CBD::ReasoningContent(_reasoning) => {
+                                            // We don't stream thinking content to the client; ignore
+                                        }
+                                        _ => {}
+                                    }
+                                }
+                            }
+                            Ev::ContentBlockStart(start_event) => {
+                                if let Some(start) = start_event.start() {
+                                    use aws_sdk_bedrockruntime::types::ContentBlockStart as CBS;
+                                    if let CBS::ToolUse(start_block) = start {
+                                        let idx = start_event.content_block_index();
+                                        tool_blocks.insert(idx, ToolUseAgg {
+                                            id: start_block.tool_use_id().to_string(),
+                                            name: start_block.name().to_string(),
+                                            input: String::new(),
+                                        });
+                                    }
+                                }
+                            }
+                            Ev::ContentBlockStop(stop_event) => {
+                                // Finalize tool call for this content block index if present
+                                let idx = stop_event.content_block_index();
+                                if let Some(agg) = tool_blocks.remove(&idx) {
+                                    // Try to parse JSON arguments
+                                    let parsed: Result<serde_json::Value, _> = serde_json::from_str(&agg.input);
+                                    let content = match parsed {
+                                        Ok(args) => {
+                                            let tool_call = ToolCall::new(agg.name.clone(), args);
+                                            Message::assistant()
+                                                .with_tool_request(agg.id.clone(), Ok(tool_call))
+                                                .with_id(stream_id.clone())
+                                        }
+                                        Err(e) => {
+                                            let err = ErrorData {
+                                                code: ErrorCode::INTERNAL_ERROR,
+                                                message: std::borrow::Cow::from(format!("Invalid tool input JSON: {}", e)),
+                                                data: None,
+                                            };
+                                            Message::assistant()
+                                                .with_tool_request(agg.id.clone(), Err(err))
+                                                .with_id(stream_id.clone())
+                                        }
+                                    };
+                                    emit_debug_trace(&model_config, &debug_payload, &content, &empty_usage);
+                                    yield (Some(content), None);
+                                }
+                            }
+                            Ev::MessageStart(_ms) => {
+                                // No-op for now
+                            }
+                            Ev::MessageStop(_ms) => {
+                                // No-op; usage comes via Metadata events below
+                            }
+                            Ev::Metadata(meta) => {
+                                if let Some(usage) = meta.usage() {
+                                    let usage = from_bedrock_usage(usage);
+                                    let provider_usage = ProviderUsage::new(model_name_for_usage.clone(), usage);
+                                    emit_debug_trace(&model_config, &debug_payload, &serde_json::json!({"metadata": "usage"}), &provider_usage.usage);
+                                    yield (None, Some(provider_usage));
+                                }
+                            }
+                            _ => { /* ignore other variants */ }
+                        }
+                    }
+                    Ok(None) => break, // end of stream
+                    Err(e) => {
+                        // Transport or modeled event-stream error
+                        Err(ProviderError::RequestFailed(format!("Bedrock ConverseStream error: {:?}", e)))?;
+                    }
+                }
+            }
+        }))
     }
 }
