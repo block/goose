@@ -11,13 +11,13 @@ import { PanelLeft } from 'lucide-react';
 
 When working with [Large Language Models (LLMs)](/docs/getting-started/providers), there are limits to how much conversation history they can process at once. Goose provides smart context management features to help handle context and conversation limits so you can maintain productive sessions. Here are some key concepts:
 
-- **Context Length**: The amount of conversation history the LLM can consider
+- **Context Length**: The amount of conversation history the LLM can consider, also referred to as the context window
 - **Context Limit**: The maximum number of tokens the model can process
 - **Context Management**: How Goose handles conversations approaching these limits
 - **Turn**: One complete prompt-response interaction between Goose and the LLM
 
 ## How Goose Manages Context
-Goose uses a two-tierd approach to context management:
+Goose uses a two-tiered approach to context management:
 
 1. **Auto-Compaction**: Proactively summarizes conversation when approaching token limits
 2. **Context Strategies**: Backup strategy used if the context limit is still exceeded after auto-compaction
@@ -37,10 +37,9 @@ export GOOSE_AUTO_COMPACT_THRESHOLD=0.6
 ```
 
 When you reach the auto-compaction threshold:
-  1. Goose will automatically start summarizing the conversation to make room.
-  2. You'll see a message that says **"Auto-compacted context: X → Y tokens (Z% reduction)"**
-  3. Once complete, previous messages in your conversation remain visible, but only the summary is included in the active context for Goose.
-  4. Continue the session with the summarized context in place.
+  1. Goose will automatically start compacting the conversation to make room.
+  2. Once complete, you'll see a confirmation message that the conversation was compacted and summarized.
+  3. Continue the session. Your previous conversation remains visible, but only the compacted conversion is included in the active context for Goose.
 
 ### Manual Compaction
 You can also trigger compaction manually before reaching context or token limits:
@@ -49,12 +48,12 @@ You can also trigger compaction manually before reaching context or token limits
   <TabItem value="ui" label="Goose Desktop" default>
 
   1. Point to the token usage indicator dot next to the model name at the bottom of the app
-  2. Click <ScrollText className="inline" size={16} /> `Summarize now` in the context window that appears
-  2. Confirm the summarization in the modal
-  3. View or edit the generated summary if needed
+  2. Click <ScrollText className="inline" size={16} /> `Compact now` in the context window that appears
+  3. Once complete, you'll see a confirmation message that the conversation was compacted and summarized.
+  4. Continue the session. Your previous conversation remains visible, but only the compacted conversion is included in the active context for Goose.
 
-  :::note 
-  Before the scroll icon appears, you must send at least one message in the chat. Simply starting a new session won't trigger it.
+  :::info 
+  You must send at least one message in the chat before the `Compact now` button is enabled. 
   :::
 
 </TabItem>
@@ -89,7 +88,7 @@ When auto-compaction is disabled, or if a conversation still exceeds the context
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
 
-Goose Desktop exclusively uses summarization to manage context, preserving key information while reducing size.
+Goose Desktop exclusively uses summarization by compacting the conversation to manage context, preserving key information while reducing size.
 
   </TabItem>
   <TabItem value="cli" label="Goose CLI">

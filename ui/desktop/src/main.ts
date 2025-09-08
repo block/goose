@@ -14,6 +14,7 @@ import {
   shell,
   Tray,
 } from 'electron';
+import { pathToFileURL, format as formatUrl, URLSearchParams } from 'node:url';
 import { Buffer } from 'node:buffer';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
@@ -515,7 +516,7 @@ const windowPowerSaveBlockers = new Map<number, number>(); // windowId -> blocke
 
 const createChat = async (
   app: App,
-  query?: string,
+  _query?: string,
   dir?: string,
   _version?: string,
   resumeSessionId?: string,
@@ -679,43 +680,46 @@ const createChat = async (
     shell.openExternal(url);
   });
 
-  // Load the index.html of the app.
-  let queryParams = '';
-  if (query) {
-    queryParams = `?initialQuery=${encodeURIComponent(query)}`;
-  }
-
-  // Add resumeSessionId to query params if provided
-  if (resumeSessionId) {
-    queryParams = queryParams
-      ? `${queryParams}&resumeSessionId=${encodeURIComponent(resumeSessionId)}`
-      : `?resumeSessionId=${encodeURIComponent(resumeSessionId)}`;
-  }
-
-  // Add view type to query params if provided
-  if (viewType) {
-    queryParams = queryParams
-      ? `${queryParams}&view=${encodeURIComponent(viewType)}`
-      : `?view=${encodeURIComponent(viewType)}`;
-  }
-
-  // For recipe deeplinks, navigate directly to pair view
-  if (recipe || recipeDeeplink) {
-    queryParams = queryParams ? `${queryParams}&view=pair` : `?view=pair`;
-  }
-
-  // Increment window counter to track number of windows
   const windowId = ++windowCounter;
+  const url = MAIN_WINDOW_VITE_DEV_SERVER_URL
+    ? new URL(MAIN_WINDOW_VITE_DEV_SERVER_URL)
+    : pathToFileURL(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
 
-  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(`${MAIN_WINDOW_VITE_DEV_SERVER_URL}${queryParams}`);
-  } else {
-    // In production, we need to use a proper file protocol URL with correct base path
-    const indexPath = path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`);
-    mainWindow.loadFile(indexPath, {
-      search: queryParams ? queryParams.slice(1) : undefined,
-    });
+  let appPath = '/';
+  const routeMap: Record<string, string> = {
+    chat: '/',
+    pair: '/pair',
+    settings: '/settings',
+    sessions: '/sessions',
+    schedules: '/schedules',
+    recipes: '/recipes',
+    permission: '/permission',
+    ConfigureProviders: '/configure-providers',
+    sharedSession: '/shared-session',
+    recipeEditor: '/recipe-editor',
+    welcome: '/welcome',
+  };
+
+  if (viewType) {
+    appPath = routeMap[viewType] || '/';
   }
+  if (appPath === '/' && (recipe !== undefined || recipeDeeplink !== undefined)) {
+    appPath = '/pair';
+  }
+
+  let searchParams = new URLSearchParams();
+  if (resumeSessionId) {
+    searchParams.set('resumeSessionId', resumeSessionId);
+    if (appPath === '/') {
+      appPath = '/pair';
+    }
+  }
+
+  // Goose's react app uses HashRouter, so the path + search params follow a #/
+  url.hash = `${appPath}?${searchParams.toString()}`;
+  let formattedUrl = formatUrl(url);
+  console.log('Opening URL: ', formattedUrl);
+  mainWindow.loadURL(formattedUrl);
 
   // Set up local keyboard shortcuts that only work when the window is focused
   mainWindow.webContents.on('before-input-event', (event, input) => {

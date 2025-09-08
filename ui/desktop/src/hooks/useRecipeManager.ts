@@ -29,7 +29,7 @@ export const useRecipeManager = (chat: ChatType, recipeConfig?: Recipe | null) =
   const finalRecipeConfig = chat.recipeConfig;
 
   useEffect(() => {
-    if (!chatContext?.setRecipeConfig) return;
+    if (!chatContext) return;
 
     // If we have a recipe from navigation state, persist it
     if (recipeConfig && !chatContext.chat.recipeConfig) {
