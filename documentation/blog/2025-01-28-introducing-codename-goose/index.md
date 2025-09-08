@@ -54,7 +54,7 @@ Excited for upcoming features and events? Be sure to connect with us!
 
 - [GitHub](https://github.com/block/goose)
 - [Discord](https://discord.gg/block-opensource)
-- [YouTube](https://www.youtube.com/goose-oss)
+- [YouTube](https://www.youtube.com/@goose-oss)
 - [LinkedIn](https://www.linkedin.com/company/goose-oss)
 - [X](https://x.com/goose_oss)
 - [BlueSky](https://bsky.app/profile/opensource.block.xyz)
