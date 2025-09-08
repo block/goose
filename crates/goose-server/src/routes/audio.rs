@@ -209,8 +209,6 @@ async fn send_openai_request(
 /// - 502: Bad Gateway (OpenAI API error)
 /// - 503: Service Unavailable (network error)
 async fn transcribe_handler(
-    _state: State<Arc<AppState>>,
-    _headers: HeaderMap,
     Json(request): Json<TranscribeRequest>,
 ) -> Result<Json<TranscribeResponse>, StatusCode> {
     let (audio_bytes, file_extension) = validate_audio_input(&request.audio, &request.mime_type)?;

@@ -9,7 +9,6 @@ import { App } from 'electron';
 import { Buffer } from 'node:buffer';
 
 import { status } from './api';
-import { client } from './api/client.gen';
 
 // Find an available port to start goosed on
 export const findAvailablePort = (): Promise<number> => {
@@ -38,7 +37,6 @@ const checkServerStatus = async (port: number): Promise<boolean> => {
 
   const statusUrl = `http://127.0.0.1:${port}/status`;
   log.info(`Checking server status at ${statusUrl}`);
-  log.info(`Client: ${JSON.stringify(client.getConfig(), undefined, 2)}`);
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
