@@ -1287,7 +1287,7 @@ impl Session {
                                     Some(Color::Yellow),
                                     true
                                 );
-                                
+
                                 // Try auto-compaction first
                                 match goose::context_mgmt::auto_compact::perform_compaction(&self.agent, self.messages.messages()).await {
                                     Ok(compact_result) => {
