@@ -18,9 +18,9 @@ pub const CALL_QUERY: &str = r#"
         field: (field_identifier) @method.call))
     
     ; Associated function calls (e.g., Type::method())
+    ; Now captures the full Type::method instead of just method
     (call_expression
-      function: (scoped_identifier
-        name: (identifier) @scoped.call))
+      function: (scoped_identifier) @scoped.call)
     
     ; Macro calls (often contain function-like behavior)
     (macro_invocation

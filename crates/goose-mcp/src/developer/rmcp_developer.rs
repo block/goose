@@ -188,6 +188,10 @@ impl ServerHandler for DeveloperServer {
 
                 Use the shell tool as needed to locate files or interact with the project.
 
+                Use the `analyze` tool aggressively to explore directory structures and understand codebases.
+                Leverage `analyze` through `return_last_only=true` subagents for deep codebase understanding with lean context
+                - delegate analysis, retain summaries
+
                 Your windows/screen tools can be used for visual debugging. You should not use these tools unless
                 prompted to, but you can mention they are available if they are relevant.
 
@@ -211,6 +215,8 @@ impl ServerHandler for DeveloperServer {
 
             Your windows/screen tools can be used for visual debugging. You should not use these tools unless
             prompted to, but you can mention they are available if they are relevant.
+
+            Always prefer ripgrep (rg -C 3) to grep.
 
             operating system: {os}
             current directory: {cwd}
@@ -237,7 +243,7 @@ impl ServerHandler for DeveloperServer {
             formatdoc! {r#"
 
                 Additional Text Editor Tool Instructions:
-                
+
                 Perform text editing operations on files.
                 The `command` parameter specifies the operation to perform. Allowed options are:
                 - `view`: View the content of a file.
@@ -248,19 +254,19 @@ impl ServerHandler for DeveloperServer {
 
                 To use the write command, you must specify `file_text` which will become the new content of the file. Be careful with
                 existing files! This is a full overwrite, so you must include everything - not just sections you are modifying.
-                
-                To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning, -1 for end) 
+
+                To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning, -1 for end)
                 and `new_str` (the text to insert).
 
-                To use the edit_file command, you must specify both `old_str` and `new_str` 
+                To use the edit_file command, you must specify both `old_str` and `new_str`
                 {}
-                
+
             "#, editor.get_str_replace_description()}
         } else {
             formatdoc! {r#"
 
                 Additional Text Editor Tool Instructions:
-                
+
                 Perform text editing operations on files.
 
                 The `command` parameter specifies the operation to perform. Allowed options are:
@@ -277,9 +283,9 @@ impl ServerHandler for DeveloperServer {
                 unique section of the original file, including any whitespace. Make sure to include enough context that the match is not
                 ambiguous. The entire original string will be replaced with `new_str`.
 
-                To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning, -1 for end) 
+                To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning, -1 for end)
                 and `new_str` (the text to insert).
-                
+
             "#}
         };
 

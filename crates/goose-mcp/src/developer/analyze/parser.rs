@@ -163,45 +163,14 @@ impl ElementExtractor {
 
     /// Get language-specific query for elements
     fn get_element_query(language: &str) -> &'static str {
+        use crate::developer::analyze::languages;
+
         match language {
-            "python" => {
-                r#"
-                (function_definition name: (identifier) @func)
-                (class_definition name: (identifier) @class)
-                (import_statement) @import
-                (import_from_statement) @import
-            "#
-            }
-            "rust" => {
-                r#"
-                (function_item name: (identifier) @func)
-                (impl_item type: (type_identifier) @class)
-                (struct_item name: (type_identifier) @struct)
-                (use_declaration) @import
-            "#
-            }
-            "javascript" | "typescript" => {
-                r#"
-                (function_declaration name: (identifier) @func)
-                (class_declaration name: (identifier) @class)
-                (import_statement) @import
-            "#
-            }
-            "go" => {
-                r#"
-                (function_declaration name: (identifier) @func)
-                (method_declaration name: (field_identifier) @func)
-                (type_declaration (type_spec name: (type_identifier) @struct))
-                (import_declaration) @import
-            "#
-            }
-            "java" => {
-                r#"
-                (method_declaration name: (identifier) @func)
-                (class_declaration name: (identifier) @class)
-                (import_declaration) @import
-            "#
-            }
+            "python" => languages::python::ELEMENT_QUERY,
+            "rust" => languages::rust::ELEMENT_QUERY,
+            "javascript" | "typescript" => languages::javascript::ELEMENT_QUERY,
+            "go" => languages::go::ELEMENT_QUERY,
+            "java" => languages::java::ELEMENT_QUERY,
             _ => "",
         }
     }
@@ -272,79 +241,14 @@ impl ElementExtractor {
 
     /// Get language-specific query for finding function calls
     fn get_call_query(language: &str) -> &'static str {
+        use crate::developer::analyze::languages;
+
         match language {
-            "python" => {
-                r#"
-                ; Function calls
-                (call
-                  function: (identifier) @function.call)
-                
-                ; Method calls
-                (call
-                  function: (attribute
-                    attribute: (identifier) @method.call))
-            "#
-            }
-            "rust" => {
-                r#"
-                ; Function calls
-                (call_expression
-                  function: (identifier) @function.call)
-                
-                ; Method calls
-                (call_expression
-                  function: (field_expression
-                    field: (field_identifier) @method.call))
-                
-                ; Associated function calls (e.g., Type::method())
-                (call_expression
-                  function: (scoped_identifier
-                    name: (identifier) @scoped.call))
-                
-                ; Macro calls (often contain function-like behavior)
-                (macro_invocation
-                  macro: (identifier) @macro.call)
-            "#
-            }
-            "javascript" | "typescript" => {
-                r#"
-                ; Function calls
-                (call_expression
-                  function: (identifier) @function.call)
-                
-                ; Method calls
-                (call_expression
-                  function: (member_expression
-                    property: (property_identifier) @method.call))
-                
-                ; Constructor calls
-                (new_expression
-                  constructor: (identifier) @constructor.call)
-            "#
-            }
-            "go" => {
-                r#"
-                ; Function calls
-                (call_expression
-                  function: (identifier) @function.call)
-                
-                ; Method calls
-                (call_expression
-                  function: (selector_expression
-                    field: (field_identifier) @method.call))
-            "#
-            }
-            "java" => {
-                r#"
-                ; Method invocations
-                (method_invocation
-                  name: (identifier) @method.call)
-                
-                ; Constructor calls
-                (object_creation_expression
-                  type: (type_identifier) @constructor.call)
-            "#
-            }
+            "python" => languages::python::CALL_QUERY,
+            "rust" => languages::rust::CALL_QUERY,
+            "javascript" | "typescript" => languages::javascript::CALL_QUERY,
+            "go" => languages::go::CALL_QUERY,
+            "java" => languages::java::CALL_QUERY,
             _ => "",
         }
     }
