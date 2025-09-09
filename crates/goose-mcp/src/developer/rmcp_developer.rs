@@ -254,7 +254,7 @@ impl ServerHandler for DeveloperServer {
                 To use the str_replace command, ALWAYS use the `diff` parameter with a unified diff for one or more files.
                 Not using the `diff` parameter with str_replace is an error. With `diff`, `path` should be directory
 
-                Always batch file edits together by using a multifile unified `diff` with in a single str_replace tool call.
+                Always batch file edits together by using a multi-file unified `diff` within a single str_replace tool call.
                 Not batching file edits using `diff` is an error and wastes context, time, and inference.
 
                 {}
@@ -280,7 +280,7 @@ impl ServerHandler for DeveloperServer {
                 To use the str_replace command, ALWAYS use the `diff` parameter with a unified diff for one or more files.
                 Not using the `diff` parameter with str_replace is an error. With `diff`, `path` should be directory
 
-                Always batch file edits together by using a multifile unified `diff` with in a single str_replace tool call.
+                Always batch file edits together by using a multi-file unified `diff` within a single str_replace tool call.
                 Not batching file edits using `diff` is an error and wastes context, time, and inference.
 
                 To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning, -1 for end)
