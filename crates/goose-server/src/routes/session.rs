@@ -327,6 +327,77 @@ async fn update_session_metadata(
     Ok(StatusCode::OK)
 }
 
+/// Clean up branching metadata references to a deleted session from all other sessions
+async fn cleanup_branching_references(
+    deleted_session_id: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    // Get all valid sessions
+    let sessions = get_valid_sorted_sessions(SortOrder::Descending)?;
+
+    for session_info in sessions {
+        // Skip if this is the deleted session (shouldn't happen since it's already deleted, but safety check)
+        if session_info.id == deleted_session_id {
+            continue;
+        }
+
+        let session_path = session::get_path(session::Identifier::Name(session_info.id.clone()))?;
+
+        // Read the session messages
+        let messages_result = session::read_messages(&session_path);
+        let messages = match messages_result {
+            Ok(messages) => messages,
+            Err(_) => {
+                // If we can't read the session, skip it
+                continue;
+            }
+        };
+
+        let mut messages_vec = messages.messages().clone();
+        let mut session_modified = false;
+
+        // Check each message for branching metadata that references the deleted session
+        for message in &mut messages_vec {
+            if let Some(ref mut metadata) = message.branching_metadata {
+                // Remove references from branches_created
+                let original_count = metadata.branches_created.len();
+                metadata
+                    .branches_created
+                    .retain(|branch_ref| branch_ref.session_id != deleted_session_id);
+                if metadata.branches_created.len() != original_count {
+                    session_modified = true;
+                }
+
+                // Remove reference from branched_from if it matches the deleted session
+                if let Some(ref branch_source) = metadata.branched_from {
+                    if branch_source.session_id == deleted_session_id {
+                        metadata.branched_from = None;
+                        session_modified = true;
+                    }
+                }
+
+                // If metadata is now empty, remove it entirely
+                if metadata.branches_created.is_empty() && metadata.branched_from.is_none() {
+                    message.branching_metadata = None;
+                    session_modified = true;
+                }
+            }
+        }
+
+        // If we modified the session, save it back
+        if session_modified {
+            let updated_messages_container = Conversation::new_unvalidated(messages_vec);
+            session::persist_messages(&session_path, &updated_messages_container, None, None)
+                .await?;
+            info!(
+                "Cleaned up branching references to session {} from session {}",
+                deleted_session_id, session_info.id
+            );
+        }
+    }
+
+    Ok(())
+}
+
 #[utoipa::path(
     delete,
     path = "/sessions/{session_id}/delete",
@@ -365,6 +436,16 @@ async fn delete_session(
 
     // Delete the session file
     std::fs::remove_file(&session_path).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Clean up branching metadata references to the deleted session
+    if let Err(e) = cleanup_branching_references(&session_id).await {
+        error!(
+            "Failed to cleanup branching references for session {}: {:?}",
+            session_id, e
+        );
+        // Don't fail the deletion if cleanup fails - the session is already deleted
+        // This is a best-effort cleanup operation
+    }
 
     Ok(StatusCode::OK)
 }
@@ -515,6 +596,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use uuid::Uuid;
 
     #[tokio::test]
     async fn test_update_session_metadata_request_deserialization() {
@@ -684,5 +766,165 @@ mod tests {
             deserialized_source.description,
             Some("Test branch".to_string())
         );
+    }
+
+    #[tokio::test]
+    async fn test_cleanup_branching_references_function() {
+        use goose::conversation::message::Message;
+        use tokio::time::{sleep, Duration};
+        use uuid::Uuid;
+
+        // Add small delay to prevent file locking conflicts
+        sleep(Duration::from_millis(10)).await;
+
+        let deleted_session_id = format!("deleted-session-{}", Uuid::new_v4());
+        let keep_session_id = format!("session-to-keep-{}", Uuid::new_v4());
+        let test_session_id = Uuid::new_v4().to_string();
+
+        // Create a test session with branching metadata that references the deleted session
+        let mut messages = vec![
+            Message::user().with_text("Hello"),
+            Message::assistant().with_text("Hi there!"),
+        ];
+
+        messages[0].branching_metadata = Some(BranchingMetadata {
+            branches_created: vec![
+                BranchReference {
+                    session_id: deleted_session_id.to_string(),
+                    description: Some("Branch to be cleaned up".to_string()),
+                },
+                BranchReference {
+                    session_id: keep_session_id.to_string(),
+                    description: Some("Branch to keep".to_string()),
+                },
+            ],
+            branched_from: None,
+        });
+
+        messages[1].branching_metadata = Some(BranchingMetadata {
+            branches_created: Vec::new(),
+            branched_from: Some(BranchSource {
+                session_id: deleted_session_id.to_string(),
+                message_index: 0,
+                description: Some("Branched from deleted session".to_string()),
+            }),
+        });
+
+        // Create the test session using the proper session creation method
+        let conversation = Conversation::new_unvalidated(messages);
+        let session_path = session::get_path(session::Identifier::Name(test_session_id)).unwrap();
+        session::persist_messages(&session_path, &conversation, None, None)
+            .await
+            .unwrap();
+
+        // Call the actual cleanup function
+        cleanup_branching_references(&deleted_session_id)
+            .await
+            .unwrap();
+
+        // Read back the session and verify cleanup worked
+        let updated_messages = session::read_messages(&session_path).unwrap();
+        let messages_vec = updated_messages.messages();
+
+        // Check first message - should have one branch reference remaining
+        if let Some(ref metadata) = messages_vec[0].branching_metadata {
+            assert_eq!(metadata.branches_created.len(), 1);
+            assert_eq!(metadata.branches_created[0].session_id, keep_session_id);
+            assert_eq!(
+                metadata.branches_created[0].description,
+                Some("Branch to keep".to_string())
+            );
+            assert!(metadata.branched_from.is_none());
+        } else {
+            panic!("Expected branching metadata on first message");
+        }
+
+        // Check second message - should have no metadata since branched_from was removed and branches_created was empty
+        assert!(
+            messages_vec[1].branching_metadata.is_none(),
+            "Second message should have no metadata after cleanup"
+        );
+
+        // Clean up the test session
+        let _ = std::fs::remove_file(&session_path);
+    }
+
+    #[tokio::test]
+    async fn test_cleanup_branching_references_with_empty_meta_data() {
+        use goose::conversation::message::Message;
+        use tokio::time::{sleep, Duration};
+        use uuid::Uuid;
+
+        // Add small delay to prevent file locking conflicts
+        sleep(Duration::from_millis(20)).await;
+
+        let deleted_session_id = format!("deleted-session-empty-{}", Uuid::new_v4());
+        let test_session_id = Uuid::new_v4().to_string();
+
+        // Test message with empty branching metadata
+        let mut message_with_empty_metadata = Message::user().with_text("Test");
+        message_with_empty_metadata.branching_metadata = Some(BranchingMetadata {
+            branches_created: Vec::new(),
+            branched_from: None,
+        });
+
+        // Create a test with empty branching metadata
+        let messages = vec![message_with_empty_metadata];
+
+        // Create the test session using the proper session creation method
+        let conversation = Conversation::new_unvalidated(messages);
+        let session_path = session::get_path(session::Identifier::Name(test_session_id)).unwrap();
+        session::persist_messages(&session_path, &conversation, None, None)
+            .await
+            .unwrap();
+
+        // Call the function under test
+        cleanup_branching_references(&deleted_session_id)
+            .await
+            .unwrap();
+
+        // Read back the session and verify cleanup worked
+        let updated_messages = session::read_messages(&session_path).unwrap();
+        let messages_vec = updated_messages.messages();
+
+        assert!(messages_vec[0].branching_metadata.is_none());
+
+        // Clean up the test session
+        let _ = std::fs::remove_file(&session_path);
+    }
+
+    #[tokio::test]
+    async fn test_cleanup_branching_references_with_no_meta_data() {
+        use goose::conversation::message::Message;
+
+        let deleted_session_id = "deleted-session-no-meta";
+        let test_session_id = Uuid::new_v4().to_string();
+
+        // Create a test with empty branching metadata
+        let messages = vec![
+            // Message with no meta-data
+            Message::user().with_text("Hello"),
+        ];
+
+        // Create the test session using the proper session creation method
+        let conversation = Conversation::new_unvalidated(messages);
+        let session_path = session::get_path(session::Identifier::Name(test_session_id)).unwrap();
+        session::persist_messages(&session_path, &conversation, None, None)
+            .await
+            .unwrap();
+
+        // Call the function under test
+        cleanup_branching_references(&deleted_session_id)
+            .await
+            .unwrap();
+
+        // Read back the session and verify cleanup worked
+        let updated_messages = session::read_messages(&session_path).unwrap();
+        let messages_vec = updated_messages.messages();
+
+        assert!(messages_vec[0].branching_metadata.is_none());
+
+        // Clean up the test session
+        let _ = std::fs::remove_file(&session_path);
     }
 }
