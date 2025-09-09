@@ -40,6 +40,7 @@ impl ParserManager {
             "javascript" | "typescript" => tree_sitter_javascript::LANGUAGE,
             "go" => tree_sitter_go::LANGUAGE,
             "java" => tree_sitter_java::LANGUAGE,
+            "kotlin" => tree_sitter_kotlin_ng::LANGUAGE,
             _ => {
                 tracing::warn!("Unsupported language: {}", language);
                 return Err(ErrorData::new(
@@ -173,6 +174,7 @@ impl ElementExtractor {
             "javascript" | "typescript" => languages::javascript::ELEMENT_QUERY,
             "go" => languages::go::ELEMENT_QUERY,
             "java" => languages::java::ELEMENT_QUERY,
+            "kotlin" => languages::kotlin::ELEMENT_QUERY,
             _ => "",
         }
     }
@@ -251,6 +253,7 @@ impl ElementExtractor {
             "javascript" | "typescript" => languages::javascript::CALL_QUERY,
             "go" => languages::go::CALL_QUERY,
             "java" => languages::java::CALL_QUERY,
+            "kotlin" => languages::kotlin::CALL_QUERY,
             _ => "",
         }
     }
@@ -348,6 +351,7 @@ impl ElementExtractor {
                 }
                 "go" => kind == "function_declaration" || kind == "method_declaration",
                 "java" => kind == "method_declaration" || kind == "constructor_declaration",
+                "kotlin" => kind == "function_declaration" || kind == "class_body",
                 _ => false,
             };
 

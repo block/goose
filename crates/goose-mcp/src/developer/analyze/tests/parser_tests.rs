@@ -168,4 +168,61 @@ fn test_multiple_languages() {
     assert!(manager.get_or_create_parser("javascript").is_ok());
     assert!(manager.get_or_create_parser("go").is_ok());
     assert!(manager.get_or_create_parser("java").is_ok());
+    assert!(manager.get_or_create_parser("kotlin").is_ok());
+}
+
+#[test]
+fn test_parse_kotlin() {
+    let manager = ParserManager::new();
+    let content = r#"
+package com.example
+
+import kotlin.math.*
+
+class Example(val name: String) {
+    fun greet() {
+        println("Hello, $name")
+    }
+}
+
+fun main() {
+    val example = Example("World")
+    example.greet()
+}
+"#;
+
+    let tree = manager.parse(content, "kotlin").unwrap();
+    assert!(tree.root_node().child_count() > 0);
+}
+
+#[test]
+fn test_extract_kotlin_elements() {
+    let manager = ParserManager::new();
+    let content = r#"
+package com.example
+
+import kotlin.math.*
+
+class MyClass {
+    fun method() {
+        println("method")
+    }
+}
+
+fun main() {
+    println("hello")
+}
+
+fun helper() {
+    main()
+}
+"#;
+
+    let tree = manager.parse(content, "kotlin").unwrap();
+    let result = ElementExtractor::extract_elements(&tree, content, "kotlin").unwrap();
+
+    assert_eq!(result.function_count, 3); // main, helper, method
+    assert_eq!(result.class_count, 1); // MyClass
+    assert!(result.import_count > 0); // import statements
+    assert!(result.main_line.is_some());
 }
