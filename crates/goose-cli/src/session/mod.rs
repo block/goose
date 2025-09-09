@@ -1270,13 +1270,6 @@ impl Session {
                         }
 
                         Some(Err(e)) => {
-                            eprintln!("Error: {}", e);
-                            cancel_token_clone.cancel();
-                            drop(stream);
-                            if let Err(e) = self.handle_interrupted_messages(false).await {
-                                eprintln!("Error handling interruption: {}", e);
-                            }
-
                             // Check if it's a ProviderError::ContextLengthExceeded
                             if e.downcast_ref::<goose::providers::errors::ProviderError>()
                                 .map(|provider_error| matches!(provider_error, goose::providers::errors::ProviderError::ContextLengthExceeded(_)))
@@ -1288,7 +1281,7 @@ impl Session {
                                     true
                                 );
 
-                                // Try auto-compaction first
+                                // Try auto-compaction first - keep the stream alive!
                                 match goose::context_mgmt::auto_compact::perform_compaction(&self.agent, self.messages.messages()).await {
                                     Ok(compact_result) => {
                                         self.messages = compact_result.messages;
@@ -1314,7 +1307,7 @@ impl Session {
                                             true
                                         );
 
-                                        // Restart the stream after successful compaction
+                                        // Restart the stream after successful compaction - keep the stream alive!
                                         stream = self
                                             .agent
                                             .reply(
@@ -1326,6 +1319,14 @@ impl Session {
                                         continue;
                                     }
                                     Err(_) => {
+                                        // Auto-compaction failed, fall through to error handling
+                                        eprintln!("Error: {}", e);
+                                        cancel_token_clone.cancel();
+                                        drop(stream);
+                                        if let Err(e) = self.handle_interrupted_messages(false).await {
+                                            eprintln!("Error handling interruption: {}", e);
+                                        }
+
                                         output::render_error(
                                             "Context length exceeded error.\n\
                                             The conversation is too long for the model's context window.\n\
@@ -1333,17 +1334,26 @@ impl Session {
                                             or /clear to start fresh.\n\
                                             We've removed the conversation up to the most recent user message.",
                                         );
+                                        break;
                                     }
                                 }
                             } else {
+                                // Not a ContextLengthExceeded error, handle normally
+                                eprintln!("Error: {}", e);
+                                cancel_token_clone.cancel();
+                                drop(stream);
+                                if let Err(e) = self.handle_interrupted_messages(false).await {
+                                    eprintln!("Error handling interruption: {}", e);
+                                }
+
                                 output::render_error(
                                     "The error above was an exception we were not able to handle.\n\
                                     These errors are often related to connection or authentication\n\
                                     We've removed the conversation up to the most recent user message\n\
                                     - depending on the error you may be able to continue",
                                 );
+                                break;
                             }
-                            break;
                         }
                         None => break,
                     }
