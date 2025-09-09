@@ -5,13 +5,13 @@ use indoc::{formatdoc, indoc};
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolResult, Content, ErrorCode, ErrorData, GetPromptRequestParam, GetPromptResult,
+        CallToolResult, CancelledNotificationParam, Content, ErrorCode, ErrorData, GetPromptRequestParam, GetPromptResult,
         Implementation, ListPromptsResult, LoggingLevel, LoggingMessageNotificationParam,
         PaginatedRequestParam, Prompt, PromptArgument, PromptMessage, PromptMessageRole, Role,
         ServerCapabilities, ServerInfo,
     },
     schemars::JsonSchema,
-    service::RequestContext,
+    service::{NotificationContext, RequestContext},
     tool, tool_handler, tool_router, RoleServer, ServerHandler,
 };
 use serde::{Deserialize, Serialize};
@@ -28,8 +28,10 @@ use xcap::{Monitor, Window};
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
     process::Command,
+    sync::RwLock,
 };
 use tokio_stream::{wrappers::SplitStream, StreamExt as _};
+use tokio_util::sync::CancellationToken;
 
 use super::analyze::{types::AnalyzeParams, CodeAnalyzer};
 use super::editor_models::{create_editor_model, EditorModel};
@@ -173,6 +175,7 @@ pub struct DeveloperServer {
     editor_model: Option<EditorModel>,
     prompts: HashMap<String, Prompt>,
     code_analyzer: CodeAnalyzer,
+    running_processes: Arc<RwLock<HashMap<String, CancellationToken>>>,
 }
 
 #[tool_handler(router = self.tool_router)]
@@ -503,6 +506,30 @@ impl ServerHandler for DeveloperServer {
             ))),
         }
     }
+
+    /// Called when the client cancels a specific request.
+    /// This method cancels the running process associated with the given request_id.
+    async fn on_cancelled(
+        &self,
+        params: CancelledNotificationParam,
+        _context: NotificationContext<RoleServer>,
+    ) {
+        let request_id = params.request_id.to_string();
+        tracing::info!("on_cancelled called for request_id: {}", request_id);
+        
+        let processes = self.running_processes.read().await;
+        tracing::info!("Current running processes: {:?}", processes.keys().collect::<Vec<_>>());
+        
+        if let Some(token) = processes.get(&request_id) {
+            tracing::info!("Found process for request {}, cancelling token", request_id);
+            token.cancel();
+            tracing::info!("Cancellation token triggered for request {}", request_id);
+        } else {
+            tracing::warn!("No process found for request ID: {}", request_id);
+        }
+        // Note: The actual process cleanup happens in the execute_shell_command method
+        // when the cancellation token is triggered
+    }
 }
 
 impl Default for DeveloperServer {
@@ -528,6 +555,7 @@ impl DeveloperServer {
             editor_model,
             prompts: load_prompt_files(),
             code_analyzer: CodeAnalyzer::new(),
+            running_processes: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -811,7 +839,7 @@ impl DeveloperServer {
     /// this tool does not run indefinitely.
     #[tool(
         name = "shell",
-        description = "Execute a command in the shell. Returns output and error concatenated. Avoid commands with large output, use background commands for long-running processes."
+        description = "Execute a command in the shell.This will return the output and error concatenated into a single string, as you would see from running on the command line. There will also be an indication of if the command succeeded or failed. Avoid commands that produce a large amount of output, and consider piping those outputs to files. If you need to run a long lived command, background it - e.g. `uvicorn main:app &` so that this tool does not run indefinitely."
     )]
     pub async fn shell(
         &self,
@@ -821,12 +849,29 @@ impl DeveloperServer {
         let params = params.0;
         let command = &params.command;
         let peer = context.peer;
+        let request_id = context.id;
 
         // Validate the shell command
         self.validate_shell_command(command)?;
 
+        let cancellation_token = CancellationToken::new();
+        // Track the process using the request ID
+        {
+            let mut processes = self.running_processes.write().await;
+            let request_id_str = request_id.to_string();
+            processes.insert(request_id_str.clone(), cancellation_token.clone());
+        }
+
         // Execute the command and capture output
-        let output_str = self.execute_shell_command(command, &peer).await?;
+        let output_result = self.execute_shell_command(command, &peer, cancellation_token.clone()).await;
+        
+        // Clean up the process from tracking
+        {
+            let mut processes = self.running_processes.write().await;
+            processes.remove(&request_id.to_string());
+        }
+
+        let output_str = output_result?;
 
         // Validate output size
         self.validate_shell_output_size(command, &output_str)?;
@@ -893,6 +938,7 @@ impl DeveloperServer {
         &self,
         command: &str,
         peer: &rmcp::service::Peer<RoleServer>,
+        cancellation_token: CancellationToken,
     ) -> Result<String, ErrorData> {
         // Get platform-specific shell configuration
         let shell_config = get_shell_config();
@@ -909,22 +955,39 @@ impl DeveloperServer {
             .spawn()
             .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
 
-        // Stream the output
-        let output_str = self
-            .stream_shell_output(
-                child.stdout.take().unwrap(),
-                child.stderr.take().unwrap(),
-                peer.clone(),
-            )
-            .await?;
+        // Stream the output and wait for completion with cancellation support
+        let output_task = self.stream_shell_output(
+            child.stdout.take().unwrap(),
+            child.stderr.take().unwrap(),
+            peer.clone(),
+        );
 
-        // Wait for the command to complete
-        child
-            .wait()
-            .await
-            .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
+        tokio::select! {
+            output_result = output_task => {
+                // Wait for the process to complete
+                child.wait().await.map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
+                output_result
+            }
+            _ = cancellation_token.cancelled() => {
+                tracing::info!("Cancellation token triggered! Attempting to kill process and all child processes");
 
-        Ok(output_str)
+                // Kill the process and its children using platform-specific approach
+                match kill_process_group(&mut child, pid).await {
+                    Ok(_) => {
+                        tracing::error!("Successfully killed shell process and child processes");
+                    }
+                    Err(e) => {
+                        tracing::error!("aning:Failed to kill shell process and child processes: {}", e);
+                    }
+                }
+
+                Err(ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    "Shell command was cancelled".to_string(),
+                    None,
+                ))
+            }
+        }
     }
 
     /// Stream shell output in real-time and return the combined output.
@@ -1336,11 +1399,16 @@ impl DeveloperServer {
 mod tests {
     use super::*;
     use rmcp::handler::server::wrapper::Parameters;
-    use rmcp::model::NumberOrString;
-    use rmcp::service::serve_directly;
+    use rmcp::model::{CancelledNotificationParam, NumberOrString};
+    use rmcp::service::{serve_directly, NotificationContext};
+    use rmcp::ServerHandler;
     use serial_test::serial;
-    use std::fs;
+    use std::{
+        fs,
+        time::{Duration, Instant},
+    };
     use tempfile::TempDir;
+    use tokio::time::timeout;
 
     fn create_test_server() -> DeveloperServer {
         DeveloperServer::new()
@@ -3310,7 +3378,7 @@ Additional instructions here.
         std::env::remove_var("CONTEXT_FILE_NAMES");
     }
 
-    #[tokio::test]
+    #[test]
     #[serial]
     async fn test_resolve_path_absolute() {
         let temp_dir = tempfile::tempdir().unwrap();
@@ -3386,8 +3454,12 @@ Additional instructions here.
             diff: None,
         });
 
-        let result = server.text_editor(write_params).await;
-        assert!(result.is_ok());
+            // Verify no processes are left tracked after completion
+            let processes = server.running_processes.read().await;
+            assert!(
+                !processes.contains_key("789"),
+                "Process should be cleaned up after completion"
+            );
 
         let absolute_path = temp_dir.path().join(relative_path);
         let content = fs::read_to_string(&absolute_path).unwrap();

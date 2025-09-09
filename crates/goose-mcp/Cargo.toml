@@ -75,6 +75,7 @@ rayon = "1.10"
 # for fuzzy patch matching. Current crate has limited maintenance (single maintainer,
 # ~1000 downloads). Pinned to exact version to prevent supply chain attacks.
 mpatch = "=0.2.0"
+tokio-util = "0.7.16"
 
 
 [dev-dependencies]
