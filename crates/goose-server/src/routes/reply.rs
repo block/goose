@@ -26,6 +26,7 @@ use serde_json::json;
 use serde_json::Value;
 use std::{
     convert::Infallible,
+    path::PathBuf,
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
@@ -88,6 +89,7 @@ fn track_tool_telemetry(content: &MessageContent, all_messages: &[Message]) {
 struct ChatRequest {
     messages: Vec<Message>,
     session_id: Option<String>,
+    working_dir: Option<String>, // Optional, for backward compatibility
     recipe_name: Option<String>,
     recipe_version: Option<String>,
 }
@@ -201,18 +203,41 @@ async fn reply_handler(
 
     let messages = Conversation::new_unvalidated(request.messages);
 
-    let session_id = request.session_id.ok_or_else(|| {
-        tracing::error!("session_id is required but was not provided");
-        StatusCode::BAD_REQUEST
-    })?;
+    // Restore backward compatibility: auto-generate session_id if not provided
+    let session_id = request
+        .session_id
+        .unwrap_or_else(session::generate_session_id);
+
+    // Get working directory - use provided value, or default to current directory
+    let working_dir = request
+        .working_dir
+        .map(PathBuf::from)
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
 
     let task_cancel = cancel_token.clone();
     let task_tx = tx.clone();
 
     drop(tokio::spawn(async move {
-        let agent = state.get_agent().await;
+        let agent = match state
+            .get_agent(session::Identifier::Name(session_id.clone()))
+            .await
+        {
+            Ok(agent) => agent,
+            Err(e) => {
+                tracing::error!("Failed to get agent for session {}: {}", session_id, e);
+                let _ = stream_event(
+                    MessageEvent::Error {
+                        error: format!("Failed to get agent: {}", e),
+                    },
+                    &task_tx,
+                    &task_cancel,
+                )
+                .await;
+                return;
+            }
+        };
 
-        // Load session metadata to get the working directory and other config
+        // Load or create session metadata
         let session_path = match session::get_path(session::Identifier::Name(session_id.clone())) {
             Ok(path) => path,
             Err(e) => {
@@ -229,19 +254,45 @@ async fn reply_handler(
             }
         };
 
+        // Try to read existing metadata, or create new if it doesn't exist
         let session_metadata = match session::read_metadata(&session_path) {
             Ok(metadata) => metadata,
-            Err(e) => {
-                tracing::error!("Failed to read session metadata for {}: {}", session_id, e);
-                let _ = stream_event(
-                    MessageEvent::Error {
-                        error: format!("Failed to read session metadata: {}", e),
-                    },
-                    &task_tx,
-                    &cancel_token,
-                )
-                .await;
-                return;
+            Err(_) => {
+                // New session - create metadata
+                let new_metadata = session::SessionMetadata {
+                    working_dir: working_dir.clone(),
+                    description: format!("Session {}", session_id),
+                    schedule_id: None,
+                    message_count: 0,
+                    total_tokens: Some(0),
+                    input_tokens: Some(0),
+                    output_tokens: Some(0),
+                    accumulated_total_tokens: Some(0),
+                    accumulated_input_tokens: Some(0),
+                    accumulated_output_tokens: Some(0),
+                    extension_data: Default::default(),
+                    recipe: None,
+                };
+
+                // Save the new metadata
+                if let Err(e) = session::storage::save_messages_with_metadata(
+                    &session_path,
+                    &new_metadata,
+                    &Conversation::empty(),
+                ) {
+                    tracing::error!("Failed to create session metadata: {}", e);
+                    let _ = stream_event(
+                        MessageEvent::Error {
+                            error: format!("Failed to create session: {}", e),
+                        },
+                        &task_tx,
+                        &cancel_token,
+                    )
+                    .await;
+                    return;
+                }
+
+                new_metadata
             }
         };
 
@@ -471,7 +522,11 @@ pub async fn confirm_permission(
 ) -> Result<Json<Value>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    let agent = state.get_agent().await;
+    let session_id = session::Identifier::Name(request.session_id.clone());
+    let agent = state.get_agent(session_id).await.map_err(|e| {
+        tracing::error!("Failed to get agent for session: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
     let permission = match request.action.as_str() {
         "always_allow" => Permission::AlwaysAllow,
         "allow_once" => Permission::AllowOnce,
@@ -523,7 +578,11 @@ async fn submit_tool_result(
         }
     };
 
-    let agent = state.get_agent().await;
+    let session_id = session::Identifier::Name(payload.session_id.clone());
+    let agent = state.get_agent(session_id).await.map_err(|e| {
+        tracing::error!("Failed to get agent for session: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
     agent.handle_tool_result(payload.id, payload.result).await;
     Ok(Json(json!({"status": "ok"})))
 }
@@ -599,7 +658,7 @@ mod tests {
             });
             let agent = Agent::new();
             let _ = agent.update_provider(mock_provider).await;
-            let state = AppState::new(Arc::new(agent), "test-secret".to_string());
+            let state = AppState::new("test-secret".to_string()).await;
 
             let app = routes(state);
 
@@ -612,6 +671,7 @@ mod tests {
                     serde_json::to_string(&ChatRequest {
                         messages: vec![Message::user().with_text("test message")],
                         session_id: Some("test-session".to_string()),
+                        working_dir: None,
                         recipe_name: None,
                         recipe_version: None,
                     })

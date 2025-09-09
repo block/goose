@@ -1,5 +1,7 @@
+use goose::agents::manager::{AgentManager, AgentManagerConfig};
 use goose::agents::Agent;
 use goose::scheduler_trait::SchedulerTrait;
+use goose::session;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicUsize;
@@ -11,7 +13,7 @@ type AgentRef = Arc<Agent>;
 
 #[derive(Clone)]
 pub struct AppState {
-    agent: Arc<RwLock<AgentRef>>,
+    agent_manager: Arc<AgentManager>,
     pub secret_key: String,
     pub scheduler: Arc<RwLock<Option<Arc<dyn SchedulerTrait>>>>,
     pub recipe_file_hash_map: Arc<Mutex<HashMap<String, PathBuf>>>,
@@ -19,9 +21,10 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(agent: AgentRef, secret_key: String) -> Arc<AppState> {
+    pub async fn new(secret_key: String) -> Arc<AppState> {
+        let agent_manager = Arc::new(AgentManager::new(AgentManagerConfig::default()).await);
         Arc::new(Self {
-            agent: Arc::new(RwLock::new(agent)),
+            agent_manager,
             secret_key,
             scheduler: Arc::new(RwLock::new(None)),
             recipe_file_hash_map: Arc::new(Mutex::new(HashMap::new())),
@@ -29,8 +32,14 @@ impl AppState {
         })
     }
 
-    pub async fn get_agent(&self) -> AgentRef {
-        self.agent.read().await.clone()
+    pub async fn get_agent(
+        &self,
+        session_id: session::Identifier,
+    ) -> Result<AgentRef, anyhow::Error> {
+        self.agent_manager
+            .get_agent(session_id)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to get agent: {}", e))
     }
 
     pub async fn set_scheduler(&self, sched: Arc<dyn SchedulerTrait>) {
@@ -51,8 +60,14 @@ impl AppState {
         *map = hash_map;
     }
 
-    pub async fn reset(&self) {
-        let mut agent = self.agent.write().await;
-        *agent = Arc::new(Agent::new());
+    pub async fn cleanup_idle_agents(&self) -> Result<usize, anyhow::Error> {
+        self.agent_manager
+            .cleanup()
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to cleanup agents: {}", e))
+    }
+
+    pub async fn get_agent_metrics(&self) -> goose::agents::manager::AgentMetrics {
+        self.agent_manager.get_metrics().await
     }
 }

@@ -1,10 +1,7 @@
-use std::sync::Arc;
-
 use crate::configuration;
 use crate::state;
 use anyhow::Result;
 use etcetera::{choose_app_strategy, AppStrategy};
-use goose::agents::Agent;
 use goose::config::APP_STRATEGY;
 use goose::scheduler_factory::SchedulerFactory;
 use tower_http::cors::{Any, CorsLayer};
@@ -30,10 +27,7 @@ pub async fn run() -> Result<()> {
     let secret_key =
         std::env::var("GOOSE_SERVER__SECRET_KEY").unwrap_or_else(|_| "test".to_string());
 
-    let new_agent = Agent::new();
-    let agent_ref = Arc::new(new_agent);
-
-    let app_state = state::AppState::new(agent_ref.clone(), secret_key.clone());
+    let app_state = state::AppState::new(secret_key.clone()).await;
 
     let schedule_file_path = choose_app_strategy(APP_STRATEGY.clone())?
         .data_dir()
@@ -42,8 +36,8 @@ pub async fn run() -> Result<()> {
     let scheduler_instance = SchedulerFactory::create(schedule_file_path).await?;
     app_state.set_scheduler(scheduler_instance.clone()).await;
 
-    // NEW: Provide scheduler access to the agent
-    agent_ref.set_scheduler(scheduler_instance).await;
+    // TODO: Once we have per-session agents, each agent will need scheduler access
+    // For now, we'll handle this when agents are created in AgentManager
 
     let cors = CorsLayer::new()
         .allow_origin(Any)

@@ -410,10 +410,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_transcribe_endpoint_requires_auth() {
-        let state = AppState::new(
-            Arc::new(goose::agents::Agent::new()),
-            "test-secret".to_string(),
-        );
+        let state = AppState::new("test-secret".to_string()).await;
         let app = routes(state);
 
         // Test without auth header
@@ -436,10 +433,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_transcribe_endpoint_validates_size() {
-        let state = AppState::new(
-            Arc::new(goose::agents::Agent::new()),
-            "test-secret".to_string(),
-        );
+        let state = AppState::new("test-secret".to_string()).await;
         let app = routes(state);
 
         // Create a large base64 string (simulating > 25MB audio)
@@ -465,10 +459,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_transcribe_endpoint_validates_mime_type() {
-        let state = AppState::new(
-            Arc::new(goose::agents::Agent::new()),
-            "test-secret".to_string(),
-        );
+        let state = AppState::new("test-secret".to_string()).await;
         let app = routes(state);
 
         let request = Request::builder()
@@ -494,10 +485,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_transcribe_endpoint_handles_invalid_base64() {
-        let state = AppState::new(
-            Arc::new(goose::agents::Agent::new()),
-            "test-secret".to_string(),
-        );
+        let state = AppState::new("test-secret".to_string()).await;
         let app = routes(state);
 
         let request = Request::builder()
