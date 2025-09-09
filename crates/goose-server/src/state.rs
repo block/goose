@@ -12,17 +12,15 @@ type AgentRef = Arc<Agent>;
 #[derive(Clone)]
 pub struct AppState {
     agent: Arc<RwLock<AgentRef>>,
-    pub secret_key: String,
     pub scheduler: Arc<RwLock<Option<Arc<dyn SchedulerTrait>>>>,
     pub recipe_file_hash_map: Arc<Mutex<HashMap<String, PathBuf>>>,
     pub session_counter: Arc<AtomicUsize>,
 }
 
 impl AppState {
-    pub fn new(agent: AgentRef, secret_key: String) -> Arc<AppState> {
+    pub fn new(agent: AgentRef) -> Arc<AppState> {
         Arc::new(Self {
             agent: Arc::new(RwLock::new(agent)),
-            secret_key,
             scheduler: Arc::new(RwLock::new(None)),
             recipe_file_hash_map: Arc::new(Mutex::new(HashMap::new())),
             session_counter: Arc::new(AtomicUsize::new(0)),

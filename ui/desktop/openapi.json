@@ -1504,6 +1504,26 @@
           }
         ]
       }
+    },
+    "/status": {
+      "get": {
+        "tags": [
+          "super::routes::health"
+        ],
+        "operationId": "status",
+        "responses": {
+          "200": {
+            "description": "ok",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {

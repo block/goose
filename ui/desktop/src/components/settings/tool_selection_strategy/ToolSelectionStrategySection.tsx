@@ -53,6 +53,9 @@ export const ToolSelectionStrategySection = () => {
             'Content-Type': 'application/json',
             'X-Secret-Key': await window.electron.getSecretKey(),
           },
+          body: JSON.stringify({
+            session_id: '', // TODO(jack) add the session id, or remove from this request payload
+          }),
         });
 
         if (!response.ok) {

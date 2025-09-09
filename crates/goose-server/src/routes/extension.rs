@@ -3,11 +3,10 @@ use std::path::Path;
 use std::sync::Arc;
 use std::sync::OnceLock;
 
-use super::utils::verify_secret_key;
 use crate::state::AppState;
 use axum::{extract::State, routing::post, Json, Router};
 use goose::agents::{extension::Envs, ExtensionConfig};
-use http::{HeaderMap, StatusCode};
+use http::StatusCode;
 use rmcp::model::Tool;
 use serde::{Deserialize, Serialize};
 use tracing;
@@ -100,11 +99,8 @@ struct ExtensionResponse {
 /// Handler for adding a new extension configuration.
 async fn add_extension(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     raw: axum::extract::Json<serde_json::Value>,
 ) -> Result<Json<ExtensionResponse>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
     // Log the raw request for debugging
     tracing::info!(
         "Received extension request: {}",
@@ -296,11 +292,8 @@ async fn add_extension(
 /// Handler for removing an extension by name
 async fn remove_extension(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Json(name): Json<String>,
 ) -> Result<Json<ExtensionResponse>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
     let agent = state.get_agent().await;
     match agent.remove_extension(&name).await {
         Ok(_) => Ok(Json(ExtensionResponse {
