@@ -782,6 +782,11 @@ export type Settings = {
     temperature?: number | null;
 };
 
+export type SetupResponse = {
+    message: string;
+    success: boolean;
+};
+
 export type StartAgentRequest = {
     recipe?: Recipe | null;
     working_dir: string;
@@ -1614,6 +1619,32 @@ export type ManageContextResponses = {
 };
 
 export type ManageContextResponse = ManageContextResponses[keyof ManageContextResponses];
+
+export type StartOpenrouterSetupData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/handle_openrouter';
+};
+
+export type StartOpenrouterSetupResponses = {
+    200: SetupResponse;
+};
+
+export type StartOpenrouterSetupResponse = StartOpenrouterSetupResponses[keyof StartOpenrouterSetupResponses];
+
+export type StartTetrateSetupData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/handle_tetrate';
+};
+
+export type StartTetrateSetupResponses = {
+    200: SetupResponse;
+};
+
+export type StartTetrateSetupResponse = StartTetrateSetupResponses[keyof StartTetrateSetupResponses];
 
 export type CreateRecipeData = {
     body: CreateRecipeRequest;

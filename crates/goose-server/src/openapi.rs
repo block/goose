@@ -400,6 +400,8 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::recipe::scan_recipe,
         super::routes::recipe::list_recipes,
         super::routes::recipe::delete_recipe,
+        super::routes::setup::start_openrouter_setup,
+        super::routes::setup::start_tetrate_setup,
     ),
     components(schemas(
         super::routes::config_management::UpsertConfigQuery,
@@ -496,6 +498,7 @@ impl<'__s> ToSchema<'__s> for AnnotatedSchema {
         super::routes::agent::ResumeAgentRequest,
         super::routes::agent::StartAgentResponse,
         super::routes::agent::ErrorResponse,
+        super::routes::setup::SetupResponse,
     ))
 )]
 pub struct ApiDoc;
