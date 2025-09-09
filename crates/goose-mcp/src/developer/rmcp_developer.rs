@@ -1857,8 +1857,7 @@ mod tests {
         let instructions = server_info.instructions.unwrap_or_default();
 
         // Should use traditional description with str_replace command
-        assert!(instructions.contains("Replace text in a file"));
-        assert!(instructions.contains("the old_str must exactly match only one instance"));
+        assert!(instructions.contains("Replace text in one or more files"));
         assert!(instructions.contains("str_replace"));
 
         // Should not contain editor API description or edit_file command
