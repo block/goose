@@ -61,6 +61,7 @@ pub struct TextEditorParams {
 
     /// Unified diff to apply. Supports editing multiple files simultaneously. Cannot create or delete files
     /// Example: "--- a/file\n+++ b/file\n@@ -1,3 +1,3 @@\n context\n-old\n+new\n context"
+    /// Preferred edit method.
     pub diff: Option<String>,
 
     /// Optional array of two integers specifying the start and end line numbers to view.
@@ -71,10 +72,10 @@ pub struct TextEditorParams {
     /// The content to write to the file. Required for `write` command.
     pub file_text: Option<String>,
 
-    /// The old string to replace. Required for `str_replace` command.
+    /// The old string to replace.
     pub old_str: Option<String>,
 
-    /// The new string to replace with. Required for `str_replace` and `insert` commands.
+    /// The new string to replace with. Required for `insert` command.
     pub new_str: Option<String>,
 
     /// The line number after which to insert text (0 for beginning). Required for `insert` command.
@@ -235,50 +236,57 @@ impl ServerHandler for DeveloperServer {
             formatdoc! {r#"
 
                 Additional Text Editor Tool Instructions:
-                
+
                 Perform text editing operations on files.
                 The `command` parameter specifies the operation to perform. Allowed options are:
                 - `view`: View the content of a file.
                 - `write`: Create or overwrite a file with the given content
-                - `str_replace`: Edit the file with the new content.
+                - `str_replace`: Replace text in one or more files.
                 - `insert`: Insert text at a specific line location in the file.
                 - `undo_edit`: Undo the last edit made to a file.
 
                 To use the write command, you must specify `file_text` which will become the new content of the file. Be careful with
                 existing files! This is a full overwrite, so you must include everything - not just sections you are modifying.
-                
-                To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning, -1 for end) 
+
+                To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning, -1 for end)
                 and `new_str` (the text to insert).
 
-                To use the str_replace command, prefer the `diff` parameter for reliability, or use both `old_str` and `new_str`.
+                To use the str_replace command, ALWAYS use the `diff` parameter with a unified diff for one or more files.
+                Not using the `diff` parameter with str_replace is an error. With `diff`, `path` should be directory
+
+                Always batch file edits together by using a multifile unified `diff` with in a single str_replace tool call.
+                Not batching file edits using `diff` is an error and wastes context, time, and inference.
 
                 {}
-                
+
             "#, editor.get_str_replace_description()}
         } else {
             formatdoc! {r#"
 
                 Additional Text Editor Tool Instructions:
-                
+
                 Perform text editing operations on files.
 
                 The `command` parameter specifies the operation to perform. Allowed options are:
                 - `view`: View the content of a file.
                 - `write`: Create or overwrite a file with the given content
-                - `str_replace`: Replace text in a file.
+                - `str_replace`: Replace text in one or more files.
                 - `insert`: Insert text at a specific line location in the file.
                 - `undo_edit`: Undo the last edit made to a file.
 
                 To use the write command, you must specify `file_text` which will become the new content of the file. Be careful with
                 existing files! This is a full overwrite, so you must include everything - not just sections you are modifying.
 
-                To use the str_replace command, prefer `diff` parameter (unified diff format) or use both `old_str` and `new_str`.
-                When using old_str/new_str, the old_str must exactly match only one instance of the string in the file including whitespace.
-                Make sure to include enough context that the match is not ambiguous.
+                To use the str_replace command, ALWAYS use the `diff` parameter with a unified diff for one or more files.
+                Not using the `diff` parameter with str_replace is an error. With `diff`, `path` should be directory
 
-                To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning, -1 for end) 
+                Always batch file edits together by using a multifile unified `diff` with in a single str_replace tool call.
+                Not batching file edits using `diff` is an error and wastes context, time, and inference.
+
+                To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning, -1 for end)
                 and `new_str` (the text to insert).
-                
+
+
             "#}
         };
 
