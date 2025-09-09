@@ -28,7 +28,7 @@ prompt: |
    - If "suggest": Provide specific update commands for each outdated dependency
    - If "interactive": Ask the user before suggesting updates for each package
    
-   Common update commands by Project Type:
+  Common update commands by Project Type:
    - For Node.js projects:
      * Update all: `npm update` or `yarn upgrade`
      * Update specific: `npm update [package-name]` or `yarn upgrade [package-name]`
