@@ -1,17 +1,14 @@
-use axum::{routing::get, Json, Router};
-use serde::Serialize;
+use axum::{routing::get, Router};
 
-#[derive(Serialize)]
-struct StatusResponse {
-    status: &'static str,
+#[utoipa::path(get, path = "/status",
+    responses(
+        (status = 200, description = "ok", body = String),
+    )
+)]
+async fn status() -> String {
+    "ok".to_string()
 }
 
-/// Simple status endpoint that returns 200 OK when the server is running
-async fn status() -> Json<StatusResponse> {
-    Json(StatusResponse { status: "ok" })
-}
-
-/// Configure health check routes
 pub fn routes() -> Router {
     Router::new().route("/status", get(status))
 }

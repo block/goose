@@ -2129,6 +2129,22 @@ export type GetSessionHistoryResponses = {
 
 export type GetSessionHistoryResponse = GetSessionHistoryResponses[keyof GetSessionHistoryResponses];
 
+export type StatusData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/status';
+};
+
+export type StatusResponses = {
+    /**
+     * ok
+     */
+    200: string;
+};
+
+export type StatusResponse = StatusResponses[keyof StatusResponses];
+
 export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});
 };
