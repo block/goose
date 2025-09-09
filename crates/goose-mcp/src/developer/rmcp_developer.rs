@@ -5,13 +5,13 @@ use indoc::{formatdoc, indoc};
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolResult, Content, ErrorCode, ErrorData, GetPromptRequestParam, GetPromptResult,
+        CallToolResult, CancelledNotificationParam, Content, ErrorCode, ErrorData, GetPromptRequestParam, GetPromptResult,
         Implementation, ListPromptsResult, LoggingLevel, LoggingMessageNotificationParam,
         PaginatedRequestParam, Prompt, PromptArgument, PromptMessage, PromptMessageRole, Role,
         ServerCapabilities, ServerInfo,
     },
     schemars::JsonSchema,
-    service::RequestContext,
+    service::{NotificationContext, RequestContext},
     tool, tool_handler, tool_router, RoleServer, ServerHandler,
 };
 use serde::{Deserialize, Serialize};
@@ -28,8 +28,10 @@ use xcap::{Monitor, Window};
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
     process::Command,
+    sync::RwLock,
 };
 use tokio_stream::{wrappers::SplitStream, StreamExt as _};
+use tokio_util::sync::CancellationToken;
 
 use super::editor_models::{create_editor_model, EditorModel};
 use super::goose_hints::load_hints::{load_hint_files, GOOSE_HINTS_FILENAME};
@@ -171,6 +173,8 @@ pub struct DeveloperServer {
     ignore_patterns: Gitignore,
     editor_model: Option<EditorModel>,
     prompts: HashMap<String, Prompt>,
+    /// Track running processes by request ID to kill them on cancellation
+    running_processes: Arc<RwLock<HashMap<String, CancellationToken>>>,
 }
 
 #[tool_handler(router = self.tool_router)]
@@ -492,6 +496,30 @@ impl ServerHandler for DeveloperServer {
             ))),
         }
     }
+
+    /// Called when the client cancels a specific request.
+    /// This method cancels the running process associated with the given request_id.
+    async fn on_cancelled(
+        &self,
+        params: CancelledNotificationParam,
+        _context: NotificationContext<RoleServer>,
+    ) {
+        let request_id = params.request_id.to_string();
+        tracing::info!("on_cancelled called for request_id: {}", request_id);
+        
+        let processes = self.running_processes.read().await;
+        tracing::info!("Current running processes: {:?}", processes.keys().collect::<Vec<_>>());
+        
+        if let Some(token) = processes.get(&request_id) {
+            tracing::info!("Found process for request {}, cancelling token", request_id);
+            token.cancel();
+            tracing::info!("Cancellation token triggered for request {}", request_id);
+        } else {
+            tracing::warn!("No process found for request ID: {}", request_id);
+        }
+        // Note: The actual process cleanup happens in the execute_shell_command method
+        // when the cancellation token is triggered
+    }
 }
 
 impl Default for DeveloperServer {
@@ -516,6 +544,7 @@ impl DeveloperServer {
             ignore_patterns,
             editor_model,
             prompts: load_prompt_files(),
+            running_processes: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -809,12 +838,32 @@ impl DeveloperServer {
         let params = params.0;
         let command = &params.command;
         let peer = context.peer;
+        let request_id = context.id;
 
         // Validate the shell command
         self.validate_shell_command(command)?;
 
+        // Create cancellation token for this process
+        let cancellation_token = CancellationToken::new();
+        tracing::info!("Shell command started for request_id: {}", request_id);
+        
+        // Track the process using the request ID
+        {
+            let mut processes = self.running_processes.write().await;
+            processes.insert(request_id.to_string(), cancellation_token.clone());
+            tracing::info!("Added process to tracking map for request_id: {}", request_id);
+        }
+
         // Execute the command and capture output
-        let output_str = self.execute_shell_command(command, &peer).await?;
+        let output_result = self.execute_shell_command(command, &peer, cancellation_token.clone()).await;
+        
+        // Clean up the process from tracking
+        {
+            let mut processes = self.running_processes.write().await;
+            processes.remove(&request_id.to_string());
+        }
+
+        let output_str = output_result?;
 
         // Validate output size
         self.validate_shell_output_size(command, &output_str)?;
@@ -881,6 +930,7 @@ impl DeveloperServer {
         &self,
         command: &str,
         peer: &rmcp::service::Peer<RoleServer>,
+        cancellation_token: CancellationToken,
     ) -> Result<String, ErrorData> {
         // Get platform-specific shell configuration
         let shell_config = get_shell_config();
@@ -897,22 +947,29 @@ impl DeveloperServer {
             .spawn()
             .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
 
-        // Stream the output
-        let output_str = self
-            .stream_shell_output(
-                child.stdout.take().unwrap(),
-                child.stderr.take().unwrap(),
-                peer.clone(),
-            )
-            .await?;
+        // Stream the output and wait for completion with cancellation support
+        let output_task = self.stream_shell_output(
+            child.stdout.take().unwrap(),
+            child.stderr.take().unwrap(),
+            peer.clone(),
+        );
 
-        // Wait for the command to complete
-        child
-            .wait()
-            .await
-            .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
-
-        Ok(output_str)
+        tokio::select! {
+            output_result = output_task => {
+                // Wait for the process to complete
+                child.wait().await.map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
+                output_result
+            }
+            _ = cancellation_token.cancelled() => {
+                // Kill the process if cancellation is requested
+                let _ = child.kill().await;
+                Err(ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    "Shell command was cancelled".to_string(),
+                    None,
+                ))
+            }
+        }
     }
 
     /// Stream shell output in real-time and return the combined output.
