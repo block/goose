@@ -3,8 +3,10 @@ import { useForm } from '@tanstack/react-form';
 import { z } from 'zod';
 import { Download } from 'lucide-react';
 import { Button } from '../ui/button';
+import { Input } from '../ui/input';
 import { Recipe, decodeRecipe } from '../../recipe';
 import { saveRecipe } from '../../recipe/recipeStorage';
+import * as yaml from 'yaml';
 import { toastSuccess, toastError } from '../../toasts';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
 import { RecipeNameField, recipeNameSchema } from './shared/RecipeNameField';
@@ -17,17 +19,28 @@ interface ImportRecipeFormProps {
 }
 
 // Define Zod schema for the import form
-const importRecipeSchema = z.object({
-  deeplink: z
-    .string()
-    .min(1, 'Deeplink is required')
-    .refine(
-      (value) => value.trim().startsWith('goose://recipe?config='),
-      'Invalid deeplink format. Expected: goose://recipe?config=...'
-    ),
-  recipeName: recipeNameSchema,
-  global: z.boolean(),
-});
+const importRecipeSchema = z
+  .object({
+    deeplink: z
+      .string()
+      .refine(
+        (value) => !value || value.trim().startsWith('goose://recipe?config='),
+        'Invalid deeplink format. Expected: goose://recipe?config=...'
+      ),
+    yamlFile: z
+      .instanceof(File)
+      .nullable()
+      .refine((file) => {
+        if (!file) return true;
+        return file.size <= 1024 * 1024;
+      }, 'File is too large, max size is 1MB'),
+    recipeName: recipeNameSchema,
+    global: z.boolean(),
+  })
+  .refine((data) => (data.deeplink && data.deeplink.trim()) || data.yamlFile, {
+    message: 'Either of deeplink or YAML file are required',
+    path: ['deeplink'],
+  });
 
 export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportRecipeFormProps) {
   const [importing, setImporting] = useState(false);
@@ -66,9 +79,23 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
     }
   };
 
+  const parseYamlFile = async (fileContent: string): Promise<Recipe> => {
+    const parsed = yaml.parse(fileContent);
+
+    if (!parsed) {
+      throw new Error('YAML file is empty or contains invalid content');
+    }
+
+    // Handle both CLI format (flat structure) and Desktop format (nested under 'recipe' key)
+    const recipe = parsed.recipe || parsed;
+
+    return recipe as Recipe;
+  };
+
   const importRecipeForm = useForm({
     defaultValues: {
       deeplink: '',
+      yamlFile: null as File | null,
       recipeName: '',
       global: true,
     },
@@ -78,10 +105,18 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
     onSubmit: async ({ value }) => {
       setImporting(true);
       try {
-        const recipe = await parseDeeplink(value.deeplink.trim());
+        let recipe: Recipe;
 
-        if (!recipe) {
-          throw new Error('Invalid deeplink or recipe format');
+        // Parse recipe from either deeplink or YAML file
+        if (value.deeplink && value.deeplink.trim()) {
+          const parsedRecipe = await parseDeeplink(value.deeplink.trim());
+          if (!parsedRecipe) {
+            throw new Error('Invalid deeplink or recipe format');
+          }
+          recipe = parsedRecipe;
+        } else {
+          const fileContent = await value.yamlFile!.text();
+          recipe = await parseYamlFile(fileContent);
         }
 
         await saveRecipe(recipe, {
@@ -92,6 +127,7 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
         // Reset dialog state
         importRecipeForm.reset({
           deeplink: '',
+          yamlFile: null,
           recipeName: '',
           global: true,
         });
@@ -121,6 +157,7 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
     // Reset form to default values
     importRecipeForm.reset({
       deeplink: '',
+      yamlFile: null,
       recipeName: '',
       global: true,
     });
@@ -165,6 +202,37 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
     }
   };
 
+  const handleYamlFileChange = async (file: File | undefined) => {
+    importRecipeForm.setFieldValue('yamlFile', file || null);
+
+    if (file) {
+      try {
+        const fileContent = await file.text();
+        const recipe = await parseYamlFile(fileContent);
+        if (recipe.title) {
+          const suggestedName = generateRecipeNameFromTitle(recipe.title);
+
+          // Use the recipe name field's handleChange method if available
+          if (recipeNameFieldRef) {
+            recipeNameFieldRef.handleChange(suggestedName);
+          } else {
+            importRecipeForm.setFieldValue('recipeName', suggestedName);
+          }
+        }
+      } catch (error) {
+        // Silently handle parsing errors during auto-suggest
+        console.log('Could not parse YAML file for auto-suggest:', error);
+      }
+    } else {
+      // Clear the recipe name when file is removed
+      if (recipeNameFieldRef) {
+        recipeNameFieldRef.handleChange('');
+      } else {
+        importRecipeForm.setFieldValue('recipeName', '');
+      }
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -180,40 +248,112 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
           }}
         >
           <div className="space-y-4">
-            <importRecipeForm.Field name="deeplink">
-              {(field) => (
-                <div>
-                  <label
-                    htmlFor="import-deeplink"
-                    className="block text-sm font-medium text-text-standard mb-2"
-                  >
-                    Recipe Deeplink <span className="text-red-500">*</span>
-                  </label>
-                  <textarea
-                    id="import-deeplink"
-                    value={field.state.value}
-                    onChange={(e) => handleDeeplinkChange(e.target.value, field)}
-                    onBlur={field.handleBlur}
-                    className={`w-full p-3 border rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none ${
-                      field.state.meta.errors.length > 0 ? 'border-red-500' : 'border-border-subtle'
-                    }`}
-                    placeholder="Paste your goose://recipe?config=... deeplink here"
-                    rows={3}
-                    autoFocus
-                  />
-                  <p className="text-xs text-text-muted mt-1">
-                    Paste a recipe deeplink starting with "goose://recipe?config="
-                  </p>
-                  {field.state.meta.errors.length > 0 && (
-                    <p className="text-red-500 text-sm mt-1">
-                      {typeof field.state.meta.errors[0] === 'string'
-                        ? field.state.meta.errors[0]
-                        : field.state.meta.errors[0]?.message || String(field.state.meta.errors[0])}
-                    </p>
-                  )}
-                </div>
+            <importRecipeForm.Subscribe selector={(state) => state.values}>
+              {(values) => (
+                <>
+                  <importRecipeForm.Field name="deeplink">
+                    {(field) => {
+                      const isDisabled = values.yamlFile !== null;
+
+                      return (
+                        <div className={isDisabled ? 'opacity-50' : ''}>
+                          <label
+                            htmlFor="import-deeplink"
+                            className="block text-sm font-medium text-text-standard mb-2"
+                          >
+                            Recipe Deeplink
+                          </label>
+                          <textarea
+                            id="import-deeplink"
+                            value={field.state.value}
+                            onChange={(e) => handleDeeplinkChange(e.target.value, field)}
+                            onBlur={field.handleBlur}
+                            disabled={isDisabled}
+                            className={`w-full p-3 border rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none ${
+                              field.state.meta.errors.length > 0
+                                ? 'border-red-500'
+                                : 'border-border-subtle'
+                            } ${isDisabled ? 'cursor-not-allowed bg-gray-40 text-gray-300' : ''}`}
+                            placeholder="Paste your goose://recipe?config=... deeplink here"
+                            rows={3}
+                            autoFocus={!isDisabled}
+                          />
+                          <p
+                            className={`text-xs mt-1 ${isDisabled ? 'text-gray-300' : 'text-text-muted'}`}
+                          >
+                            Paste a recipe deeplink starting with "goose://recipe?config="
+                          </p>
+                          {field.state.meta.errors.length > 0 && (
+                            <p className="text-red-500 text-sm mt-1">
+                              {typeof field.state.meta.errors[0] === 'string'
+                                ? field.state.meta.errors[0]
+                                : field.state.meta.errors[0]?.message ||
+                                  String(field.state.meta.errors[0])}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    }}
+                  </importRecipeForm.Field>
+
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-border-subtle" />
+                    </div>
+                    <div className="relative flex justify-center text-sm">
+                      <span className="px-3 bg-background-default text-text-muted font-medium">
+                        OR
+                      </span>
+                    </div>
+                  </div>
+
+                  <importRecipeForm.Field name="yamlFile">
+                    {(field) => {
+                      const hasDeeplink = values.deeplink?.trim();
+                      const isDisabled = !!hasDeeplink;
+
+                      return (
+                        <div className={isDisabled ? 'opacity-50' : ''}>
+                          <label
+                            htmlFor="import-yaml-file"
+                            className="block text-sm font-medium text-text-standard mb-3"
+                          >
+                            Recipe YAML File
+                          </label>
+                          <div className="relative">
+                            <Input
+                              id="import-yaml-file"
+                              type="file"
+                              accept=".yaml,.yml"
+                              disabled={isDisabled}
+                              onChange={(e) => {
+                                handleYamlFileChange(e.target.files?.[0]);
+                              }}
+                              onBlur={field.handleBlur}
+                              className={`${field.state.meta.errors.length > 0 ? 'border-red-500' : ''} ${
+                                isDisabled ? 'cursor-not-allowed' : ''
+                              }`}
+                            />
+                          </div>
+                          {field.state.meta.errors.length > 0 && (
+                            <p className="text-red-500 text-sm mt-1">
+                              {typeof field.state.meta.errors[0] === 'string'
+                                ? field.state.meta.errors[0]
+                                : field.state.meta.errors[0]?.message ||
+                                  String(field.state.meta.errors[0])}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    }}
+                  </importRecipeForm.Field>
+                </>
               )}
-            </importRecipeForm.Field>
+            </importRecipeForm.Subscribe>
+
+            <p className="text-xs text-text-muted">
+              Ensure you review contents of YAML files before adding them to your goose interface.
+            </p>
 
             <importRecipeForm.Field name="recipeName">
               {(field) => {
