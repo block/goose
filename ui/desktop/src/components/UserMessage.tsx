@@ -6,16 +6,26 @@ import { extractImagePaths, removeImagePathsFromText } from '../utils/imageUtils
 import MarkdownContent from './MarkdownContent';
 import { Message, getTextContent } from '../types/message';
 import MessageCopyLink from './MessageCopyLink';
+import MessageBranchLink from './MessageBranchLink';
 import { formatMessageTimestamp } from '../utils/timeUtils';
 import Edit from './icons/Edit';
 import { Button } from './ui/button';
+import BranchingIndicator from './BranchingIndicator';
+import { GitBranch } from 'lucide-react';
 
 interface UserMessageProps {
   message: Message;
   onMessageUpdate?: (messageId: string, newContent: string) => void;
+  onBranchFromMessage?: (messageId: string) => void;
+  onSessionClick?: (sessionId: string) => void;
 }
 
-export default function UserMessage({ message, onMessageUpdate }: UserMessageProps) {
+export default function UserMessage({
+  message,
+  onMessageUpdate,
+  onBranchFromMessage,
+  onSessionClick,
+}: UserMessageProps) {
   const contentRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -150,6 +160,13 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
     }
   }, [editContent, isEditing]);
 
+  // Check if this message has branching metadata
+  const hasBranchingMetadata =
+    message.branchingMetadata &&
+    (message.branchingMetadata.branchedFrom ||
+      (message.branchingMetadata.branchesCreated &&
+        message.branchingMetadata.branchesCreated.length > 0));
+
   return (
     <div className="w-full mt-[16px] opacity-0 animate-[appear_150ms_ease-in_forwards]">
       <div className="flex flex-col group">
@@ -219,9 +236,27 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
                 )}
 
                 <div className="relative h-[22px] flex justify-end text-right">
-                  <div className="absolute w-40 font-mono right-0 text-xs text-text-muted pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
+                  {/* Timestamp - normal (non-hover) state */}
+                  <div className="absolute w-40 font-mono right-0 text-xs text-text-muted pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0 flex items-center gap-1 justify-end">
                     {timestamp}
+                    {/* Subtle branch icons when not hovering */}
+                    {hasBranchingMetadata && (
+                      <>
+                        {message.branchingMetadata?.branchedFrom && (
+                          <GitBranch 
+                            className="h-3 w-3 opacity-60 rotate-180"
+                          />
+                        )}
+                        {message.branchingMetadata?.branchesCreated && 
+                         message.branchingMetadata.branchesCreated.length > 0 && (
+                          <GitBranch 
+                            className="h-3 w-3 opacity-60"
+                          />
+                        )}
+                      </>
+                    )}
                   </div>
+                  {/* Hover state controls */}
                   <div className="absolute right-0 pt-1 flex items-center gap-2">
                     <button
                       onClick={handleEditClick}
@@ -240,6 +275,20 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
                       <span>Edit</span>
                     </button>
                     <MessageCopyLink text={displayText} contentRef={contentRef} />
+                    {/* Branch button */}
+                    {onBranchFromMessage && message.id && (
+                      <MessageBranchLink
+                        onBranchFromMessage={onBranchFromMessage}
+                        messageId={message.id}
+                      />
+                    )}
+                    {/* Branching indicator in hover state */}
+                    {hasBranchingMetadata && (
+                      <BranchingIndicator
+                        branchingMetadata={message.branchingMetadata!}
+                        onSessionClick={onSessionClick}
+                      />
+                    )}
                   </div>
                 </div>
               </div>
