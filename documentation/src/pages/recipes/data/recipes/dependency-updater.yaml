@@ -52,7 +52,7 @@ prompt: |
    - For Gradle (Java) projects:
      * Check and apply updates: `gradle useLatestVersions` (requires plugin)
      * Manual update: Edit build.gradle with new versions then `gradle build`
-  - If the specific update command is not immediately apparent, try to deduce it based on common practices for the project type, check the project's documentation, or suggest general approaches like manually editing dependency files and running the build/install command.
+   - If the specific update command is not immediately apparent, try to deduce it based on common practices for the project type, check the project's documentation, or suggest general approaches like manually editing dependency files and running the build/install command.
 
 activities:
   - Identify Project Type
