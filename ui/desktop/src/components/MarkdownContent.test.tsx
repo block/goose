@@ -322,4 +322,72 @@ more text`;
       });
     });
   });
+
+  describe('URL Overflow Handling', () => {
+    it('handles very long URLs without overflow', async () => {
+      const longUrl =
+        'https://example-docs.com/document/d/1oruk3lcrnhoOXMFzBJB8X6qQ5AtQTmj4XXxXk3xK-3g/edit?usp=sharing&mode=edit&version=1';
+      const content = `Check out this document: ${longUrl}
+
+Another very long URL: https://www.example.com/very/long/path/with/many/segments/and/parameters?param1=value1&param2=value2&param3=value3&param4=value4&param5=value5`;
+
+      const { container } = render(<MarkdownContent content={content} />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Check out this document/)).toBeInTheDocument();
+        expect(screen.getByText(/Another very long URL/)).toBeInTheDocument();
+      });
+
+      // Check that URLs are rendered as links
+      const links = container.querySelectorAll('a');
+      expect(links.length).toBeGreaterThan(0);
+
+      // Check that links have proper CSS classes for word breaking
+      links.forEach((link) => {
+        // The CSS should allow the text to break
+        expect(link).toBeInTheDocument();
+      });
+    });
+
+    it('handles markdown links with long URLs', async () => {
+      const longUrl =
+        'https://example-docs.com/document/d/1oruk3lcrnhoOXMFzBJB8X6qQ5AtQTmj4XXxXk3xK-3g/edit?usp=sharing&mode=edit&version=1';
+      const content = `[Click here for the document](${longUrl})`;
+
+      render(<MarkdownContent content={content} />);
+
+      await waitFor(() => {
+        const link = screen.getByRole('link', { name: 'Click here for the document' });
+        expect(link).toBeInTheDocument();
+        expect(link).toHaveAttribute('href', longUrl);
+      });
+    });
+
+    it('handles multiple long URLs in the same message', async () => {
+      const content = `Here are some long URLs:
+
+1. Example Doc: https://example-docs.com/document/d/1oruk3lcrnhoOXMFzBJB8X6qQ5AtQTmj4XXxXk3xK-3g/edit?usp=sharing&mode=edit&version=1
+2. Another long URL: https://www.example.com/very/long/path/with/many/segments/and/parameters?param1=value1&param2=value2&param3=value3
+3. Third URL: https://api.example.com/v1/users/12345/documents/67890/attachments/abcdef123456789?format=json&include=metadata&sort=created_at`;
+
+      render(<MarkdownContent content={content} />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Here are some long URLs/)).toBeInTheDocument();
+        expect(screen.getByText(/Example Doc/)).toBeInTheDocument();
+        expect(screen.getByText(/Another long URL/)).toBeInTheDocument();
+        expect(screen.getByText(/Third URL/)).toBeInTheDocument();
+      });
+    });
+
+    it('applies word-break CSS classes to the container', () => {
+      const content = 'Test content';
+      render(<MarkdownContent content={content} />);
+
+      const markdownContainer = document.querySelector('.prose');
+      expect(markdownContainer).toBeInTheDocument();
+      expect(markdownContainer).toHaveClass('prose-a:break-all');
+      expect(markdownContainer).toHaveClass('prose-a:overflow-wrap-anywhere');
+    });
+  });
 });

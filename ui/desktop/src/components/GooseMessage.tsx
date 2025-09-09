@@ -305,7 +305,8 @@ export default function GooseMessage({
       </div>
 
       {/* TODO(alexhancock): Re-enable link previews once styled well again */}
-      {urls.length > 0 && (
+      {/* eslint-disable-next-line no-constant-binary-expression */}
+      {false && urls.length > 0 && (
         <div className="mt-4">
           {urls.map((url, index) => (
             <LinkPreview key={index} url={url} />
