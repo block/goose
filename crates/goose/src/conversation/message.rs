@@ -420,27 +420,35 @@ impl MessageMetadata {
     }
 
     /// Return a copy with agent_visible set to false
-    pub fn with_agent_invisible(mut self) -> Self {
-        self.agent_visible = false;
-        self
+    pub fn with_agent_invisible(self) -> Self {
+        Self {
+            agent_visible: false,
+            ..self
+        }
     }
 
     /// Return a copy with user_visible set to false
-    pub fn with_user_invisible(mut self) -> Self {
-        self.user_visible = false;
-        self
+    pub fn with_user_invisible(self) -> Self {
+        Self {
+            user_visible: false,
+            ..self
+        }
     }
 
     /// Return a copy with agent_visible set to true
-    pub fn with_agent_visible(mut self) -> Self {
-        self.agent_visible = true;
-        self
+    pub fn with_agent_visible(self) -> Self {
+        Self {
+            agent_visible: true,
+            ..self
+        }
     }
 
     /// Return a copy with user_visible set to true
-    pub fn with_user_visible(mut self) -> Self {
-        self.user_visible = true;
-        self
+    pub fn with_user_visible(self) -> Self {
+        Self {
+            user_visible: true,
+            ..self
+        }
     }
 }
 
