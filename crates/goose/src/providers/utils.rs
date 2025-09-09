@@ -86,12 +86,32 @@ pub fn map_http_error_to_provider_error(
                 if check_context_length_exceeded(&payload_str) {
                     ProviderError::ContextLengthExceeded(payload_str)
                 } else {
+                    // Try multiple ways to extract a useful message
+                    // 1. OpenAI style: {"error": {"message": "..."}}
                     if let Some(error) = payload.get("error") {
-                        error_msg = error
-                            .get("message")
-                            .and_then(|m| m.as_str())
-                            .unwrap_or("Unknown error")
-                            .to_string();
+                        if let Some(m) = error.get("message").and_then(|m| m.as_str()) {
+                            error_msg = m.to_string();
+                        } else if let Some(m) = error.as_str() {
+                            error_msg = m.to_string();
+                        }
+                    }
+                    // 2. Top-level "message" field
+                    if error_msg == "Unknown error" {
+                        if let Some(m) = payload.get("message").and_then(|m| m.as_str()) {
+                            error_msg = m.to_string();
+                        }
+                    }
+                    // 3. Other common fields
+                    if error_msg == "Unknown error" {
+                        if let Some(m) = payload.get("error_message").and_then(|m| m.as_str()) {
+                            error_msg = m.to_string();
+                        } else if let Some(m) = payload.get("detail").and_then(|m| m.as_str()) {
+                            error_msg = m.to_string();
+                        }
+                    }
+                    // 4. If still unknown, include the whole payload for debugging
+                    if error_msg == "Unknown error" {
+                        error_msg = payload_str;
                     }
                     ProviderError::RequestFailed(format!(
                         "Request failed with status: {}. Message: {}",
@@ -166,6 +186,15 @@ pub async fn handle_status_openai_compat(response: Response) -> Result<Response,
     }
 
     let payload = serde_json::from_str::<Value>(&body_str).ok();
+    // attempt to parse top-level message fields for non-OpenAI error shapes
+    if let Ok(payload_json) = serde_json::from_str::<Value>(&body_str) {
+        if let Some(m) = payload_json.get("message").and_then(|m| m.as_str()) {
+            // Surface top-level "message" errors (some providers use this shape)
+            return Err(ProviderError::RequestFailed(format!("{} (status {})", m, status.as_u16())));
+        }
+    }
+
+
     Err(map_http_error_to_provider_error(status, payload))
 }
 

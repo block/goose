@@ -184,9 +184,39 @@ impl fmt::Debug for AuthMethod {
 }
 
 impl ApiResponse {
-    pub async fn from_response(response: Response) -> Result<Self> {
+    /// Parse a `reqwest::Response` into an ApiResponse. Optionally accepts the
+    /// original request payload (as JSON string) and a provider hint so we can
+    /// log all three (request payload, URL and response body) when an error
+    /// occurs. This helps debugging when the desktop auto-starts the server
+    /// and you cannot enable debug logging easily.
+    pub async fn from_response(
+        response: Response,
+        request_payload: Option<&str>,
+        provider_hint: Option<&str>,
+    ) -> Result<Self> {
         let status = response.status();
-        let payload = response.json().await.ok();
+
+        // Capture URL and raw body text for debugging when there is an error
+        let url = response.url().clone();
+        let response = response;
+        let text_body = response.text().await.ok();
+
+        if !status.is_success() {
+            tracing::error!(
+                %url,
+                status = %status,
+                provider = %provider_hint.unwrap_or("<unknown>"),
+                request = %request_payload.unwrap_or("<unknown>"),
+                response = %text_body.as_deref().unwrap_or("<empty>"),
+                "LLM_RESPONSE_ERROR"
+            );
+        }
+
+        // If the body is valid JSON, parse it into payload; otherwise use None
+        let payload = text_body
+            .as_deref()
+            .and_then(|t| serde_json::from_str::<Value>(t).ok());
+
         Ok(Self { status, payload })
     }
 }
@@ -305,9 +335,20 @@ impl ApiClient {
             base_url.set_path(&format!("{}/", base_path));
         }
 
-        base_url
+        // Join the requested path onto the base URL.
+        let mut joined = base_url
             .join(path)
-            .map_err(|e| anyhow::anyhow!("Failed to construct URL: {}", e))
+            .map_err(|e| anyhow::anyhow!("Failed to construct URL: {}", e))?;
+
+        // If the caller's path does not explicitly end with a slash, ensure we
+        // do not introduce a trailing slash on the final URL. Some remote APIs
+        // treat a trailing slash as a different endpoint and return 404.
+        if !path.ends_with('/') {
+            let url_str = joined.as_str().trim_end_matches('/').to_string();
+            joined = Url::parse(&url_str).map_err(|e| anyhow::anyhow!("Failed to normalize URL: {}", e))?;
+        }
+
+        Ok(joined)
     }
 
     async fn get_oauth_token(&self, config: &OAuthConfig) -> Result<String> {
@@ -336,24 +377,40 @@ impl<'a> ApiRequestBuilder<'a> {
     }
 
     pub async fn api_post(self, payload: &Value) -> Result<ApiResponse> {
+        let payload_str = serde_json::to_string(payload).unwrap_or_else(|_| "{}".to_string());
+        let provider_hint = self.client.host.as_str();
         let response = self.response_post(payload).await?;
-        ApiResponse::from_response(response).await
+        ApiResponse::from_response(response, Some(&payload_str), Some(provider_hint)).await
     }
 
     pub async fn response_post(self, payload: &Value) -> Result<Response> {
-        // Log the JSON payload being sent to the LLM
-        tracing::debug!(
-            "LLM_REQUEST: {}",
-            serde_json::to_string(payload).unwrap_or_else(|_| "{}".to_string())
-        );
+        // Log the JSON payload being sent to the LLM and the final URL being called
+        let payload_str = serde_json::to_string(payload).unwrap_or_else(|_| "{}".to_string());
+        tracing::debug!(payload = %payload_str, path = %self.path, "LLM_REQUEST");
 
-        let request = self.send_request(|url, client| client.post(url)).await?;
-        Ok(request.json(payload).send().await?)
+        let request_builder = self.send_request(|url, client| client.post(url)).await?;
+        // For additional visibility, attempt to extract the final URL from the builder
+        // Note: reqwest RequestBuilder does not expose final URL before send, so we build the
+        // request to get the URL for logging. This consumes the builder into a Request.
+        match request_builder.try_clone() {
+            Some(rb) => {
+                if let Ok(req) = rb.json(payload).build() {
+                    tracing::debug!(url = %req.url(), "LLM_OUTGOING_URL");
+                }
+            }
+            None => {
+                tracing::debug!(path = %self.path, "LLM_OUTGOING_PATH_NO_CLONE");
+            }
+        }
+
+        Ok(request_builder.json(payload).send().await?)
     }
 
     pub async fn api_get(self) -> Result<ApiResponse> {
+        // GET doesn't always have a payload, but keep consistency
+        let provider_hint = self.client.host.as_str();
         let response = self.response_get().await?;
-        ApiResponse::from_response(response).await
+        ApiResponse::from_response(response, None, Some(provider_hint)).await
     }
 
     pub async fn response_get(self) -> Result<Response> {

@@ -278,10 +278,12 @@ impl Provider for OpenAiProvider {
         let mut payload =
             create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi)?;
         payload["stream"] = serde_json::Value::Bool(true);
+
+        /* TODO Carine Bruyndoncx Disable for hyperbolic test */
         payload["stream_options"] = json!({
             "include_usage": true,
         });
-
+		
         let response = self
             .api_client
             .response_post(&self.base_path, &payload)

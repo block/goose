@@ -265,14 +265,17 @@ async fn reply_handler(
             Ok(stream) => stream,
             Err(e) => {
                 tracing::error!("Failed to start reply stream: {:?}", e);
-                stream_event(
-                    MessageEvent::Error {
-                        error: e.to_string(),
-                    },
+                let err_text = e.to_string();
+                // send Error event (for telemetry / UI error handling)
+                let _ = stream_event(
+                    MessageEvent::Error { error: err_text.clone() },
                     &task_tx,
                     &cancel_token,
                 )
                 .await;
+                // also send a visible assistant message so the UI shows it inline
+                let assistant_msg = Message::assistant().with_text(format!("Provider error: {}", err_text));
+                let _ = stream_event(MessageEvent::Message { message: assistant_msg }, &task_tx, &cancel_token).await;
                 return;
             }
         };
@@ -312,8 +315,32 @@ async fn reply_handler(
                                 track_tool_telemetry(content, all_messages.messages());
                             }
 
+                            // Push and send the message event
                             all_messages.push(message.clone());
-                            stream_event(MessageEvent::Message { message }, &tx, &cancel_token).await;
+                            stream_event(MessageEvent::Message { message: message.clone() }, &tx, &cancel_token).await;
+
+                            // If this message appears to be a provider streaming error produced by
+                            // the OpenAI-format streaming handler, surface an Error event as
+                            // well so the frontend's error handling path runs and the UI
+                            // visibly shows the failure. We detect this by looking for the
+                            // distinctive prefix we emit when streaming errors are encountered.
+                            if let Some(first_text) = message
+                                .content
+                                .iter()
+                                .find_map(|c| match c {
+                                    goose::conversation::message::MessageContent::Text(t) => Some(t.text.clone()),
+                                    _ => None,
+                                })
+                                .filter(|s| s.starts_with("LLM streaming error encountered"))
+                            {
+                                // Send a short error string (avoid flooding the SSE with huge payloads)
+                                let short = if first_text.len() > 1024 {
+                                    format!("{}...", &first_text[..1024])
+                                } else {
+                                    first_text
+                                };
+                                let _ = stream_event(MessageEvent::Error { error: short }, &tx, &cancel_token).await;
+                            }
                         }
                         Ok(Some(Ok(AgentEvent::HistoryReplaced(new_messages)))) => {
                             // Replace the message history with the compacted messages
