@@ -28,8 +28,31 @@ prompt: |
    - If "suggest": Provide specific update commands for each outdated dependency
    - If "interactive": Ask the user before suggesting updates for each package
    
-  Common update commands: `npm update [package-name]`, `pip install --upgrade [package-name]`, `cargo update`, etc.
-
+   Common update commands by Project Type:
+   - For Node.js projects:
+     * Update all: `npm update` or `yarn upgrade`
+     * Update specific: `npm update [package-name]` or `yarn upgrade [package-name]`
+     * Update to latest: `npm install [package-name]@latest` or `yarn add [package-name]@latest`
+   - For Python projects:
+     * Update specific: `pip install --upgrade [package-name]`
+     * Update all in requirements.txt: `pip install --upgrade -r requirements.txt`
+     * With poetry: `poetry update [package-name]` or `poetry update` (all)
+     * With uv: `uv add [package-name]@latest` or `uv sync --upgrade`
+   - For Rust projects:
+     * Update all: `cargo update`
+     * Update specific: `cargo update [package-name]`
+     * Update to latest compatible: `cargo update --package [package-name]`
+   - For Go projects:
+     * Update all: `go get -u ./...`
+     * Update specific: `go get -u [module-name]`
+     * Tidy dependencies: `go mod tidy`
+   - For Maven (Java) projects:
+     * Update specific: `mvn versions:use-latest-versions -Dincludes=[group-id]:[artifact-id]`
+     * Update all: `mvn versions:use-latest-versions`
+   - For Gradle (Java) projects:
+     * Check and apply updates: `gradle useLatestVersions` (requires plugin)
+     * Manual update: Edit build.gradle with new versions then `gradle build`
+  - If the specific update command is not immediately apparent, try to deduce it based on common practices for the project type, check the project's documentation, or suggest general approaches like manually editing dependency files and running the build/install command.
 
 activities:
   - Identify Project Type
