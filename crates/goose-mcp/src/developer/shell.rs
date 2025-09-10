@@ -1,7 +1,7 @@
 use std::{env, process::Stdio};
 
 #[cfg(unix)]
-#[allow(unused_imports)] // False positive: trait is used for process_group method  
+#[allow(unused_imports)] // False positive: trait is used for process_group method
 use std::os::unix::process::CommandExt;
 
 #[derive(Debug, Clone)]
@@ -114,7 +114,10 @@ pub fn normalize_line_endings(text: &str) -> String {
 ///
 /// On Unix systems, creates a new process group so child processes can be killed together.
 /// On Windows, the default behavior already supports process tree termination.
-pub fn configure_shell_command(shell_config: &ShellConfig, command: &str) -> tokio::process::Command {
+pub fn configure_shell_command(
+    shell_config: &ShellConfig,
+    command: &str,
+) -> tokio::process::Command {
     let mut command_builder = tokio::process::Command::new(&shell_config.executable);
     command_builder
         .stdout(Stdio::piped())
@@ -129,7 +132,6 @@ pub fn configure_shell_command(shell_config: &ShellConfig, command: &str) -> tok
     #[cfg(unix)]
     {
         command_builder.process_group(0);
-        tracing::info!("Configured process to run in new process group for proper child process management");
     }
 
     command_builder
@@ -146,64 +148,31 @@ pub async fn kill_process_group(
     #[cfg(unix)]
     {
         if let Some(pid) = pid {
-            let sigterm_result = unsafe {
-                // Kill the process group (negative PID) - this kills the shell and all child processes
-                libc::kill(-(pid as i32), libc::SIGTERM)
-            };
-            
+            // Try SIGTERM first
+            let _sigterm_result = unsafe { libc::kill(-(pid as i32), libc::SIGTERM) };
+
             // Wait a brief moment for graceful shutdown
             tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
-            
-            // Force kill the process group with SIGKILL if processes are still running
-            let sigkill_result = unsafe {
-                libc::kill(-(pid as i32), libc::SIGKILL)
-            };
+
+            // Force kill with SIGKILL
+            let _sigkill_result = unsafe { libc::kill(-(pid as i32), libc::SIGKILL) };
         }
-        
-        // Also use tokio's kill as a fallback
-        match child.kill().await {
-            Ok(_) => {
-                tracing::info!("Successfully killed process using tokio child.kill()");
-            }
-            Err(e) => {
-                tracing::warn!("Failed to kill process using tokio child.kill(): {}", e);
-            }
-        }
+
+        // Last fallback, return the result of tokio's kill
+        child.kill().await.map_err(|e| e.into())
     }
-    
+
     #[cfg(windows)]
     {
         if let Some(pid) = pid {
             // Use taskkill to kill the process tree on Windows
-            let kill_result = tokio::process::Command::new("taskkill")
+            let _kill_result = tokio::process::Command::new("taskkill")
                 .args(&["/F", "/T", "/PID", &pid.to_string()])
                 .output()
                 .await;
-            
-            match kill_result {
-                Ok(output) if output.status.success() => {
-                    tracing::info!("Successfully killed Windows process tree for PID {}", pid);
-                }
-                Ok(output) => {
-                    let stderr = String::from_utf8_lossy(&output.stderr);
-                    tracing::warn!("taskkill failed for PID {}: {}", pid, stderr);
-                }
-                Err(e) => {
-                    tracing::error!("Failed to execute taskkill for PID {}: {}", pid, e);
-                }
-            }
         }
-        
-        // Also use tokio's kill as a fallback
-        match child.kill().await {
-            Ok(_) => {
-                tracing::info!("Successfully killed process using tokio child.kill()");
-            }
-            Err(e) => {
-                tracing::warn!("Failed to kill process using tokio child.kill(): {}", e);
-            }
-        }
+
+        // Return the result of tokio's kill
+        child.kill().await.map_err(|e| e.into())
     }
-    
-    Ok(())
 }
