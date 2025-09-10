@@ -1,13 +1,13 @@
 ---
-title: "How to Make Any MCP Server MCP-UI Compatible"
-description: "How I made Cloudinary and Filesystem MCP servers MCP-UI compatible with just a few lines of code."
+title: "How to Make An MCP Server MCP-UI Compatible"
+description: "How I made existing MCP servers MCP-UI compatible with just a few lines of code"
 authors: 
     - ebony
 ---
 
 ![blog banner](mcp-ui.png)
 
-[MCP-UI](https://mcpui.dev/guide/introduction) isn’t fully rolled out yet, but to me that’s what makes it so fun to play with. We’re at this point where the spec is still taking shape, clients are only partially supporting it, and yet… you can already do a lot.
+[MCP-UI](https://mcpui.dev/guide/introduction) is in its infancy, and there's something addictive about being this early to the party. We're at this fascinating point where both the spec and client implementations are actively developing, and I find it thrilling to build alongside that evolution.
 
 I wanted to see how far I could push it. So I grabbed two open source MCP servers, [Cloudinary](https://github.com/felores/cloudinary-mcp-server) and [Filesystem](https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem), and gave them a UI. Instead of boring text, I now get rich, interactive interfaces right inside goose.
 
@@ -15,7 +15,7 @@ I wanted to see how far I could push it. So I grabbed two open source MCP server
 
 ## Why I Wanted This
 
-Raw JSON and text is fine, it gets the job done but lets be real I rather interact with something pretty. Give me a cool UI over back and forth prompts.
+Raw JSON and text is fine, it gets the job done but let's be real I'd rather interact with something pretty. Give me a cool UI over back and forth prompts.
 
 Take Cloudinary for example. By default, uploads return a block of text, basically a JSON dump of URLs, metadata, and public IDs. Useful, sure, but not exactly easy to glance at.
 
@@ -79,9 +79,11 @@ In your tool handler, I recommend returning both the original response and the `
 
 That’s it. Regardless the server the main steps remain the same.
 
-> ⚠️ **Heads up**: Right now the MCP-UI SDK is only available in **TypeScript** and **Ruby**.
-> If your server is in one of those languages, you can start today.
-> If not, you’ll either need to wait for more SDKs to drop or build your own bindings.
+:::tip warning
+  Right now the MCP-UI SDK is only available in **TypeScript** and **Ruby**.
+  If your server is in one of those languages, you can start today.
+  If not, you’ll either need to wait for more SDKs to drop or build your own bindings.
+:::
 
 ## Step 3: My Cloudinary UI
 
@@ -180,10 +182,10 @@ private createUploadResultUI(result: UploadApiResponse): string {
 
 </details>
 
-💡 **Callout: Resize your UI**  
+:::tip Resize your UI
 Notice the `ResizeObserver` at the bottom of the HTML.  
 That little snippet is what keeps the iframe height in sync with your content so if your UI grows or shrinks, the window resizes automatically. Without it, your UI might look cut off and difficult to view.
-
+:::
 ## Step 4: Look How Small the Diff Is
 
 This is the part that blew my mind, making a tool UI-compatible is just a tiny code change.
@@ -225,11 +227,11 @@ That’s it. One extra resource, and suddenly Goose renders a full UI.
 
 To prove this wasn’t a one-off, I also made the Filesystem MCP server UI-compatible.
 
-> **Before:** Text output (what Goose shows by default)
+**Before:** Text output (what Goose shows by default)
 
 ![before MCP-UI](filesystemBefore.png)
 
-> **After:** UI output (interactive explorer with MCP-UI)
+**After:** UI output (interactive explorer with MCP-UI)
 
 ![With MCP-UI](filesystemAfter.png)
 
@@ -250,11 +252,11 @@ return {
 
 ## Ahead of the Curve
 
-I’ve now made two open source MCP servers UI-compatible, before MCP-UI is even fully rolled out. That’s crazy to me.
+I’ve now made two MCP servers UI-compatible, before MCP-UI is even fully rolled out. That’s crazy to me.
 
-And if you zoom out, you’ll see other people pushing here too. Goose and Postman already support rendering and partial UI actions, today when I click a button in goose I get a toast or a message. Nothing fancy yet.
+And if you zoom out, you’ll see other companies pushing here too. Goose and Postman already support rendering and partial UI actions.
 
-But the fact that rendering works means we can start perfecting these UI experiences.
+And the fact that rendering works means we can start perfecting these UI experiences.
 
 That’s what excites me, we’re not waiting around. We’re experimenting in the open, and shaping what the future will feel like.
 
@@ -270,14 +272,14 @@ Download [Goose](/docs/quickstart#install-goose), give an MCP server a UI faceli
 
 
 <head>
-  <meta property="og:title" content="How to Make Any MCP Server MCP-UI Compatible" />
+  <meta property="og:title" content="How to Make An MCP Server MCP-UI Compatible" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/09/08/turn-any-mcp-server-mcp-ui-compatible" />
-  <meta property="og:description" content="How I made Cloudinary and Filesystem MCP servers MCP-UI compatible with just a few lines of code." />
+  <meta property="og:description" content="How I made existing MCP servers MCP-UI compatible with just a few lines of code." />
   <meta property="og:image" content="https://block.github.io/goose/assets/images/mcp-ui-0a7ec9ab9d9b8b0f84e1372e956cfbde.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
-  <meta name="twitter:title" content="How to Make Any MCP Server MCP-UI Compatible" />
-  <meta name="twitter:description" content="How I made Cloudinary and Filesystem MCP servers MCP-UI compatible with just a few lines of code." />
+  <meta name="twitter:title" content="How to Make An MCP Server MCP-UI Compatible" />
+  <meta name="twitter:description" content="How I made existing MCP servers MCP-UI compatible with just a few lines of code." />
   <meta name="twitter:image" content="https://block.github.io/goose/assets/images/mcp-ui-0a7ec9ab9d9b8b0f84e1372e956cfbde.png" />
 </head>
