@@ -51,30 +51,18 @@ import {
 import { UPDATES_ENABLED } from './updates';
 import { Recipe } from './recipe';
 import './utils/recipeHash';
+import { decodeRecipe } from './api/sdk.gen';
 
-// API URL constructor for main process before window is ready
-function getApiUrlMain(endpoint: string, dynamicPort: number): string {
-  const host = process.env.GOOSE_API_HOST || 'http://127.0.0.1';
-  const port = dynamicPort || process.env.GOOSE_PORT;
-  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  return `${host}:${port}${cleanEndpoint}`;
-}
-
-// When opening the app with a deeplink, the window is still initializing so we have to duplicate some window dependant logic here.
-async function decodeRecipeMain(deeplink: string, port: number): Promise<Recipe | null> {
+async function decodeRecipeMain(deeplink: string): Promise<Recipe | null> {
   try {
-    const response = await fetch(getApiUrlMain('/recipes/decode', port), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ deeplink }),
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      return data.recipe;
-    }
-  } catch {
-    console.error('Failed to decode recipe');
+    return (
+      await decodeRecipe({
+        throwOnError: true,
+        body: { deeplink },
+      })
+    ).data.recipe;
+  } catch (e) {
+    console.error('Failed to decode recipe:', e);
   }
   return null;
 }
@@ -758,7 +746,7 @@ const createChat = async (
     console.log('[Main] Starting background recipe decoding for:', recipeDeeplink);
 
     // Decode recipe asynchronously after window is created
-    decodeRecipeMain(recipeDeeplink, port)
+    decodeRecipeMain(recipeDeeplink)
       .then((decodedRecipe) => {
         if (decodedRecipe) {
           console.log('[Main] Recipe decoded successfully, updating window config');
