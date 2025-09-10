@@ -11,6 +11,7 @@ import { toastSuccess, toastError } from '../../toasts';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
 import { RecipeNameField, recipeNameSchema } from './shared/RecipeNameField';
 import { generateRecipeNameFromTitle } from './shared/recipeNameUtils';
+import { validateRecipe, getValidationErrorMessages } from '../../recipe/validation';
 
 interface ImportRecipeFormProps {
   isOpen: boolean;
@@ -117,6 +118,12 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
         } else {
           const fileContent = await value.yamlFile!.text();
           recipe = await parseYamlFile(fileContent);
+        }
+
+        const validationResult = validateRecipe(recipe);
+        if (!validationResult.success) {
+          const errorMessages = getValidationErrorMessages(validationResult.errors);
+          throw new Error(`Recipe validation failed: ${errorMessages.join(', ')}`);
         }
 
         await saveRecipe(recipe, {
