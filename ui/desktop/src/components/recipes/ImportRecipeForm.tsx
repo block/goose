@@ -11,7 +11,11 @@ import { toastSuccess, toastError } from '../../toasts';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
 import { RecipeNameField, recipeNameSchema } from './shared/RecipeNameField';
 import { generateRecipeNameFromTitle } from './shared/recipeNameUtils';
-import { validateRecipe, getValidationErrorMessages } from '../../recipe/validation';
+import {
+  validateRecipe,
+  getValidationErrorMessages,
+  getRecipeJsonSchema,
+} from '../../recipe/validation';
 
 interface ImportRecipeFormProps {
   isOpen: boolean;
@@ -45,6 +49,7 @@ const importRecipeSchema = z
 
 export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportRecipeFormProps) {
   const [importing, setImporting] = useState(false);
+  const [showSchemaModal, setShowSchemaModal] = useState(false);
 
   // Handle Esc key for modal
   useEscapeKey(isOpen, onClose);
@@ -243,200 +248,247 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50">
-      <div className="bg-background-default border border-border-subtle rounded-lg p-6 w-[500px] max-w-[90vw]">
-        <h3 className="text-lg font-medium text-text-standard mb-4">Import Recipe</h3>
+    <>
+      <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50">
+        <div className="bg-background-default border border-border-subtle rounded-lg p-6 w-[500px] max-w-[90vw]">
+          <h3 className="text-lg font-medium text-text-standard mb-4">Import Recipe</h3>
 
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            importRecipeForm.handleSubmit();
-          }}
-        >
-          <div className="space-y-4">
-            <importRecipeForm.Subscribe selector={(state) => state.values}>
-              {(values) => (
-                <>
-                  <importRecipeForm.Field name="deeplink">
-                    {(field) => {
-                      const isDisabled = values.yamlFile !== null;
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              importRecipeForm.handleSubmit();
+            }}
+          >
+            <div className="space-y-4">
+              <importRecipeForm.Subscribe selector={(state) => state.values}>
+                {(values) => (
+                  <>
+                    <importRecipeForm.Field name="deeplink">
+                      {(field) => {
+                        const isDisabled = values.yamlFile !== null;
 
-                      return (
-                        <div className={isDisabled ? 'opacity-50' : ''}>
-                          <label
-                            htmlFor="import-deeplink"
-                            className="block text-sm font-medium text-text-standard mb-2"
-                          >
-                            Recipe Deeplink
-                          </label>
-                          <textarea
-                            id="import-deeplink"
-                            value={field.state.value}
-                            onChange={(e) => handleDeeplinkChange(e.target.value, field)}
-                            onBlur={field.handleBlur}
-                            disabled={isDisabled}
-                            className={`w-full p-3 border rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none ${
-                              field.state.meta.errors.length > 0
-                                ? 'border-red-500'
-                                : 'border-border-subtle'
-                            } ${isDisabled ? 'cursor-not-allowed bg-gray-40 text-gray-300' : ''}`}
-                            placeholder="Paste your goose://recipe?config=... deeplink here"
-                            rows={3}
-                            autoFocus={!isDisabled}
-                          />
-                          <p
-                            className={`text-xs mt-1 ${isDisabled ? 'text-gray-300' : 'text-text-muted'}`}
-                          >
-                            Paste a recipe deeplink starting with "goose://recipe?config="
-                          </p>
-                          {field.state.meta.errors.length > 0 && (
-                            <p className="text-red-500 text-sm mt-1">
-                              {typeof field.state.meta.errors[0] === 'string'
-                                ? field.state.meta.errors[0]
-                                : field.state.meta.errors[0]?.message ||
-                                  String(field.state.meta.errors[0])}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    }}
-                  </importRecipeForm.Field>
-
-                  <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-border-subtle" />
-                    </div>
-                    <div className="relative flex justify-center text-sm">
-                      <span className="px-3 bg-background-default text-text-muted font-medium">
-                        OR
-                      </span>
-                    </div>
-                  </div>
-
-                  <importRecipeForm.Field name="yamlFile">
-                    {(field) => {
-                      const hasDeeplink = values.deeplink?.trim();
-                      const isDisabled = !!hasDeeplink;
-
-                      return (
-                        <div className={isDisabled ? 'opacity-50' : ''}>
-                          <label
-                            htmlFor="import-yaml-file"
-                            className="block text-sm font-medium text-text-standard mb-3"
-                          >
-                            Recipe YAML File
-                          </label>
-                          <div className="relative">
-                            <Input
-                              id="import-yaml-file"
-                              type="file"
-                              accept=".yaml,.yml"
-                              disabled={isDisabled}
-                              onChange={(e) => {
-                                handleYamlFileChange(e.target.files?.[0]);
-                              }}
+                        return (
+                          <div className={isDisabled ? 'opacity-50' : ''}>
+                            <label
+                              htmlFor="import-deeplink"
+                              className="block text-sm font-medium text-text-standard mb-2"
+                            >
+                              Recipe Deeplink
+                            </label>
+                            <textarea
+                              id="import-deeplink"
+                              value={field.state.value}
+                              onChange={(e) => handleDeeplinkChange(e.target.value, field)}
                               onBlur={field.handleBlur}
-                              className={`${field.state.meta.errors.length > 0 ? 'border-red-500' : ''} ${
-                                isDisabled ? 'cursor-not-allowed' : ''
-                              }`}
+                              disabled={isDisabled}
+                              className={`w-full p-3 border rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none ${
+                                field.state.meta.errors.length > 0
+                                  ? 'border-red-500'
+                                  : 'border-border-subtle'
+                              } ${isDisabled ? 'cursor-not-allowed bg-gray-40 text-gray-300' : ''}`}
+                              placeholder="Paste your goose://recipe?config=... deeplink here"
+                              rows={3}
+                              autoFocus={!isDisabled}
                             />
-                          </div>
-                          {field.state.meta.errors.length > 0 && (
-                            <p className="text-red-500 text-sm mt-1">
-                              {typeof field.state.meta.errors[0] === 'string'
-                                ? field.state.meta.errors[0]
-                                : field.state.meta.errors[0]?.message ||
-                                  String(field.state.meta.errors[0])}
+                            <p
+                              className={`text-xs mt-1 ${isDisabled ? 'text-gray-300' : 'text-text-muted'}`}
+                            >
+                              Paste a recipe deeplink starting with "goose://recipe?config="
                             </p>
-                          )}
-                        </div>
-                      );
-                    }}
-                  </importRecipeForm.Field>
-                </>
-              )}
-            </importRecipeForm.Subscribe>
+                            {field.state.meta.errors.length > 0 && (
+                              <p className="text-red-500 text-sm mt-1">
+                                {typeof field.state.meta.errors[0] === 'string'
+                                  ? field.state.meta.errors[0]
+                                  : field.state.meta.errors[0]?.message ||
+                                    String(field.state.meta.errors[0])}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      }}
+                    </importRecipeForm.Field>
 
-            <p className="text-xs text-text-muted">
-              Ensure you review contents of YAML files before adding them to your goose interface.
-            </p>
+                    <div className="relative">
+                      <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t border-border-subtle" />
+                      </div>
+                      <div className="relative flex justify-center text-sm">
+                        <span className="px-3 bg-background-default text-text-muted font-medium">
+                          OR
+                        </span>
+                      </div>
+                    </div>
 
-            <importRecipeForm.Field name="recipeName">
-              {(field) => {
-                // Store reference to the field for programmatic updates
-                recipeNameFieldRef = field;
+                    <importRecipeForm.Field name="yamlFile">
+                      {(field) => {
+                        const hasDeeplink = values.deeplink?.trim();
+                        const isDisabled = !!hasDeeplink;
 
-                return (
-                  <RecipeNameField
-                    id="import-recipe-name"
-                    value={field.state.value}
-                    onChange={field.handleChange}
-                    onBlur={field.handleBlur}
-                    errors={field.state.meta.errors.map((error) =>
-                      typeof error === 'string' ? error : error?.message || String(error)
-                    )}
-                  />
-                );
-              }}
-            </importRecipeForm.Field>
+                        return (
+                          <div className={isDisabled ? 'opacity-50' : ''}>
+                            <label
+                              htmlFor="import-yaml-file"
+                              className="block text-sm font-medium text-text-standard mb-3"
+                            >
+                              Recipe YAML File
+                            </label>
+                            <div className="relative">
+                              <Input
+                                id="import-yaml-file"
+                                type="file"
+                                accept=".yaml,.yml"
+                                disabled={isDisabled}
+                                onChange={(e) => {
+                                  handleYamlFileChange(e.target.files?.[0]);
+                                }}
+                                onBlur={field.handleBlur}
+                                className={`${field.state.meta.errors.length > 0 ? 'border-red-500' : ''} ${
+                                  isDisabled ? 'cursor-not-allowed' : ''
+                                }`}
+                              />
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <p
+                                className={`text-xs mt-1 ${isDisabled ? 'text-gray-300' : 'text-text-muted'}`}
+                              >
+                                Upload a YAML file containing the recipe structure
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => setShowSchemaModal(true)}
+                                className="text-xs text-blue-500 hover:text-blue-700 underline"
+                                disabled={isDisabled}
+                              >
+                                Example schema
+                              </button>
+                            </div>
+                            {field.state.meta.errors.length > 0 && (
+                              <p className="text-red-500 text-sm mt-1">
+                                {typeof field.state.meta.errors[0] === 'string'
+                                  ? field.state.meta.errors[0]
+                                  : field.state.meta.errors[0]?.message ||
+                                    String(field.state.meta.errors[0])}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      }}
+                    </importRecipeForm.Field>
+                  </>
+                )}
+              </importRecipeForm.Subscribe>
 
-            <importRecipeForm.Field name="global">
-              {(field) => (
-                <div>
-                  <label className="block text-sm font-medium text-text-standard mb-2">
-                    Save Location
-                  </label>
-                  <div className="space-y-2">
-                    <label className="flex items-center">
-                      <input
-                        type="radio"
-                        name="import-save-location"
-                        checked={field.state.value === true}
-                        onChange={() => field.handleChange(true)}
-                        className="mr-2"
-                      />
-                      <span className="text-sm text-text-standard">
-                        Global - Available across all Goose sessions
-                      </span>
+              <p className="text-xs text-text-muted">
+                Ensure you review contents of YAML files before adding them to your goose interface.
+              </p>
+
+              <importRecipeForm.Field name="recipeName">
+                {(field) => {
+                  // Store reference to the field for programmatic updates
+                  recipeNameFieldRef = field;
+
+                  return (
+                    <RecipeNameField
+                      id="import-recipe-name"
+                      value={field.state.value}
+                      onChange={field.handleChange}
+                      onBlur={field.handleBlur}
+                      errors={field.state.meta.errors.map((error) =>
+                        typeof error === 'string' ? error : error?.message || String(error)
+                      )}
+                    />
+                  );
+                }}
+              </importRecipeForm.Field>
+
+              <importRecipeForm.Field name="global">
+                {(field) => (
+                  <div>
+                    <label className="block text-sm font-medium text-text-standard mb-2">
+                      Save Location
                     </label>
-                    <label className="flex items-center">
-                      <input
-                        type="radio"
-                        name="import-save-location"
-                        checked={field.state.value === false}
-                        onChange={() => field.handleChange(false)}
-                        className="mr-2"
-                      />
-                      <span className="text-sm text-text-standard">
-                        Directory - Available in the working directory
-                      </span>
-                    </label>
+                    <div className="space-y-2">
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="import-save-location"
+                          checked={field.state.value === true}
+                          onChange={() => field.handleChange(true)}
+                          className="mr-2"
+                        />
+                        <span className="text-sm text-text-standard">
+                          Global - Available across all Goose sessions
+                        </span>
+                      </label>
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="import-save-location"
+                          checked={field.state.value === false}
+                          onChange={() => field.handleChange(false)}
+                          className="mr-2"
+                        />
+                        <span className="text-sm text-text-standard">
+                          Directory - Available in the working directory
+                        </span>
+                      </label>
+                    </div>
                   </div>
-                </div>
-              )}
-            </importRecipeForm.Field>
-          </div>
+                )}
+              </importRecipeForm.Field>
+            </div>
 
-          <div className="flex justify-end space-x-3 mt-6">
-            <Button type="button" onClick={handleClose} variant="ghost" disabled={importing}>
-              Cancel
-            </Button>
-            <importRecipeForm.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>
-              {([canSubmit, isSubmitting]) => (
-                <Button
-                  type="submit"
-                  disabled={!canSubmit || importing || isSubmitting}
-                  variant="default"
-                >
-                  {importing || isSubmitting ? 'Importing...' : 'Import Recipe'}
-                </Button>
-              )}
-            </importRecipeForm.Subscribe>
-          </div>
-        </form>
+            <div className="flex justify-end space-x-3 mt-6">
+              <Button type="button" onClick={handleClose} variant="ghost" disabled={importing}>
+                Cancel
+              </Button>
+              <importRecipeForm.Subscribe
+                selector={(state) => [state.canSubmit, state.isSubmitting]}
+              >
+                {([canSubmit, isSubmitting]) => (
+                  <Button
+                    type="submit"
+                    disabled={!canSubmit || importing || isSubmitting}
+                    variant="default"
+                  >
+                    {importing || isSubmitting ? 'Importing...' : 'Import Recipe'}
+                  </Button>
+                )}
+              </importRecipeForm.Subscribe>
+            </div>
+          </form>
+        </div>
       </div>
-    </div>
+
+      {/* Schema Modal */}
+      {showSchemaModal && (
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/50">
+          <div className="bg-background-default border border-border-subtle rounded-lg p-6 w-[800px] max-w-[90vw] max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-medium text-text-standard">Recipe Schema</h3>
+              <button
+                type="button"
+                onClick={() => setShowSchemaModal(false)}
+                className="text-text-muted hover:text-text-standard"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto">
+              <p className="font-medium mb-3 text-text-standard">Expected Recipe Structure:</p>
+              <pre className="text-xs bg-gray-100 p-4 rounded overflow-auto whitespace-pre font-mono">
+                {JSON.stringify(getRecipeJsonSchema(), null, 2)}
+              </pre>
+              <p className="mt-4 text-blue-700 text-sm">
+                Your YAML file should follow this structure. Required fields are: title,
+                description, and either instructions or prompt.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

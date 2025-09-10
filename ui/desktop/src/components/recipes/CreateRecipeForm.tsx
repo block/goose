@@ -9,11 +9,7 @@ import { toastSuccess, toastError } from '../../toasts';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
 import { RecipeNameField, recipeNameSchema } from './shared/RecipeNameField';
 import { generateRecipeNameFromTitle } from './shared/recipeNameUtils';
-import {
-  validateJsonSchema,
-  getValidationErrorMessages,
-  getRecipeJsonSchema,
-} from '../../recipe/validation';
+import { validateJsonSchema, getValidationErrorMessages } from '../../recipe/validation';
 
 interface CreateRecipeFormProps {
   isOpen: boolean;
@@ -35,7 +31,6 @@ const createRecipeSchema = z.object({
 
 export default function CreateRecipeForm({ isOpen, onClose, onSuccess }: CreateRecipeFormProps) {
   const [creating, setCreating] = useState(false);
-  const [showSchemaHelp, setShowSchemaHelp] = useState(false);
 
   // Handle Esc key for modal
   useEscapeKey(isOpen, onClose);
@@ -375,30 +370,9 @@ Parameters you can use:
 }`}
                     rows={6}
                   />
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-text-muted mt-1">
-                      Define the expected structure of the AI's response using JSON Schema format
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => setShowSchemaHelp(!showSchemaHelp)}
-                      className="text-xs text-blue-500 hover:text-blue-700 underline"
-                    >
-                      {showSchemaHelp ? 'Hide' : 'Show'} Schema Info
-                    </button>
-                  </div>
-                  {showSchemaHelp && (
-                    <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs">
-                      <p className="font-medium mb-2">Recipe Schema Structure:</p>
-                      <pre className="text-xs bg-gray-100 p-2 rounded overflow-x-auto">
-                        {JSON.stringify(getRecipeJsonSchema(), null, 2)}
-                      </pre>
-                      <p className="mt-2 text-blue-700">
-                        This shows the overall recipe structure. For the response field, define your
-                        expected JSON output format.
-                      </p>
-                    </div>
-                  )}
+                  <p className="text-xs text-text-muted mt-1">
+                    Define the expected structure of the AI's response using JSON Schema format
+                  </p>
                   {field.state.meta.errors.length > 0 && (
                     <p className="text-red-500 text-sm mt-1">
                       {typeof field.state.meta.errors[0] === 'string'
