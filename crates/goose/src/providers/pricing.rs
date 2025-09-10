@@ -410,11 +410,11 @@ mod tests {
             return;
         }
 
-        // Test lookup for the specific model
-        let pricing = get_model_pricing("anthropic", "claude-sonnet-4-20250514").await;
+        // Test lookup for the specific model (use the name that actually exists in cache)
+        let pricing = get_model_pricing("anthropic", "claude-sonnet-4").await;
 
         println!(
-            "Pricing lookup result for anthropic/claude-sonnet-4-20250514: {:?}",
+            "Pricing lookup result for anthropic/claude-sonnet-4: {:?}",
             pricing
         );
 
@@ -435,7 +435,7 @@ mod tests {
                     println!("  {}", model_name);
                 }
             }
-            panic!("Expected to find pricing for anthropic/claude-sonnet-4-20250514");
+            panic!("Expected to find pricing for anthropic/claude-sonnet-4");
         }
     }
 }
