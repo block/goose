@@ -374,7 +374,10 @@ mod tests {
     fn test_parse_model_id() {
         assert_eq!(
             parse_model_id("anthropic/claude-sonnet-4-20250514"),
-            Some(("anthropic".to_string(), "claude-sonnet-4-20250514".to_string()))
+            Some((
+                "anthropic".to_string(),
+                "claude-sonnet-4-20250514".to_string()
+            ))
         );
         assert_eq!(
             parse_model_id("openai/gpt-4"),
@@ -384,8 +387,11 @@ mod tests {
 
         // Test the specific model causing issues
         assert_eq!(
-            parse_model_id("anthropic/claude-sonnet-4"),
-            Some(("anthropic".to_string(), "claude-sonnet-4".to_string()))
+            parse_model_id("anthropic/claude-sonnet-4-20250514"),
+            Some((
+                "anthropic".to_string(),
+                "claude-sonnet-4-20250514".to_string()
+            ))
         );
     }
 
@@ -405,10 +411,10 @@ mod tests {
         }
 
         // Test lookup for the specific model
-        let pricing = get_model_pricing("anthropic", "claude-sonnet-4").await;
+        let pricing = get_model_pricing("anthropic", "claude-sonnet-4-20250514").await;
 
         println!(
-            "Pricing lookup result for anthropic/claude-sonnet-4: {:?}",
+            "Pricing lookup result for anthropic/claude-sonnet-4-20250514: {:?}",
             pricing
         );
 
@@ -429,7 +435,7 @@ mod tests {
                     println!("  {}", model_name);
                 }
             }
-            panic!("Expected to find pricing for anthropic/claude-sonnet-4");
+            panic!("Expected to find pricing for anthropic/claude-sonnet-4-20250514");
         }
     }
 }
