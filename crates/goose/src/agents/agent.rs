@@ -1489,6 +1489,14 @@ impl Agent {
         tracing::debug!("Retrieved {} tools for recipe creation", tools.len());
 
         messages.push(Message::user().with_text(recipe_prompt));
+
+        let (messages, issues) = fix_conversation(messages);
+        if !issues.is_empty() {
+            issues
+                .iter()
+                .for_each(|issue| tracing::warn!(recipe.conversation.issue = issue));
+        }
+
         tracing::debug!(
             "Added recipe prompt to messages, total messages: {}",
             messages.len()
