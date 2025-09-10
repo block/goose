@@ -111,6 +111,10 @@ const config: Config = {
             to: '/extensions'
           },
           {
+            from: '/v1/extensions/detail/nondeveloper',
+            to: '/docs/mcp/computer-controller-mcp'
+          },
+          {
             from: '/docs/guides/managing-goose-sessions',
             to: '/docs/guides/sessions/session-management'
           },

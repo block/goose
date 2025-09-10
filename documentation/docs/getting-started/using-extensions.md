@@ -27,6 +27,7 @@ Here are the built-in extensions:
 - [Computer Controller](/docs/mcp/computer-controller-mcp): Provides general computer control tools for webscraping, file caching, and automations.
 - [Memory](/docs/mcp/memory-mcp): Teaches Goose to remember your preferences as you use it.
 - [Tutorial](/docs/mcp/tutorial-mcp): Provides interactive tutorials for learning about Goose.
+- [Auto Visualiser](/docs/mcp/autovisualiser-mcp): Automatically generates graphical data visualizations in conversations.
 
 
 #### Toggling Built-in Extensions
