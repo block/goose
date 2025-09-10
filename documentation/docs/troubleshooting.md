@@ -377,4 +377,4 @@ If you have questions, run into issues, or just need to brainstorm ideas join th
 [discord]: https://discord.gg/block-opensource
 [goosehints]: /docs/guides/using-goosehints
 [configure-llm-provider]: /docs/getting-started/providers
-[extensions-directory]: https://block.github.io/goose/extensions/
+[extensions-directory]: /extensions
