@@ -512,6 +512,7 @@ impl ServerHandler for DeveloperServer {
 
     /// Called when the client cancels a specific request.
     /// This method cancels the running process associated with the given request_id.
+    #[allow(clippy::manual_async_fn)]
     fn on_cancelled(
         &self,
         notification: CancelledNotificationParam,
@@ -3461,12 +3462,12 @@ Additional instructions here.
             diff: None,
         });
 
-            // Verify no processes are left tracked after completion
-            let processes = server.running_processes.read().await;
-            assert!(
-                !processes.contains_key("789"),
-                "Process should be cleaned up after completion"
-            );
+        // Verify no processes are left tracked after completion
+        let processes = server.running_processes.read().await;
+        assert!(
+            !processes.contains_key("789"),
+            "Process should be cleaned up after completion"
+        );
 
         let absolute_path = temp_dir.path().join(relative_path);
         let content = fs::read_to_string(&absolute_path).unwrap();
