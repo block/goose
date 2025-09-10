@@ -501,6 +501,7 @@ impl ServerHandler for DeveloperServer {
 
     /// Called when the client cancels a specific request.
     /// This method cancels the running process associated with the given request_id.
+    #[allow(clippy::manual_async_fn)]
     fn on_cancelled(
         &self,
         notification: CancelledNotificationParam,
