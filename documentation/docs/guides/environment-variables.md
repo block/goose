@@ -17,7 +17,7 @@ These are the minimum required variables to get started with Goose.
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
 | `GOOSE_PROVIDER` | Specifies the LLM provider to use | [See available providers](/docs/getting-started/providers#available-providers) | None (must be [configured](/docs/getting-started/providers#configure-provider)) |
-| `GOOSE_MODEL` | Specifies which model to use from the provider | Model name (e.g., "gpt-4", "claude-3.5-sonnet") | None (must be configured) |
+| `GOOSE_MODEL` | Specifies which model to use from the provider | Model name (e.g., "gpt-4", "claude-sonnet-4-20250514") | None (must be configured) |
 | `GOOSE_TEMPERATURE` | Sets the [temperature](https://medium.com/@kelseyywang/a-comprehensive-guide-to-llm-temperature-%EF%B8%8F-363a40bbc91f) for model responses | Float between 0.0 and 1.0 | Model-specific default |
 
 **Examples**
@@ -25,7 +25,7 @@ These are the minimum required variables to get started with Goose.
 ```bash
 # Basic model configuration
 export GOOSE_PROVIDER="anthropic"
-export GOOSE_MODEL="claude-3.5-sonnet"
+export GOOSE_MODEL="claude-sonnet-4-20250514"
 export GOOSE_TEMPERATURE=0.7
 ```
 
@@ -54,7 +54,7 @@ These variables configure a [lead/worker model pattern](/docs/tutorials/lead-wor
 
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
-| `GOOSE_LEAD_MODEL` | **Required to enable lead mode.** Name of the lead model | Model name (e.g., "gpt-4o", "claude-3.5-sonnet") | None |
+| `GOOSE_LEAD_MODEL` | **Required to enable lead mode.** Name of the lead model | Model name (e.g., "gpt-4o", "claude-sonnet-4-20250514") | None |
 | `GOOSE_LEAD_PROVIDER` | Provider for the lead model | [See available providers](/docs/getting-started/providers#available-providers) | Falls back to `GOOSE_PROVIDER` |
 | `GOOSE_LEAD_TURNS` | Number of initial turns using the lead model before switching to the worker model | Integer | 3 |
 | `GOOSE_LEAD_FAILURE_THRESHOLD` | Consecutive failures before fallback to the lead model | Integer | 2 |
@@ -89,7 +89,7 @@ These variables control Goose's [planning functionality](/docs/guides/creating-p
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
 | `GOOSE_PLANNER_PROVIDER` | Specifies which provider to use for planning mode | [See available providers](/docs/getting-started/providers#available-providers) | Falls back to GOOSE_PROVIDER |
-| `GOOSE_PLANNER_MODEL` | Specifies which model to use for planning mode | Model name (e.g., "gpt-4", "claude-3.5-sonnet")| Falls back to GOOSE_MODEL |
+| `GOOSE_PLANNER_MODEL` | Specifies which model to use for planning mode | Model name (e.g., "gpt-4", "claude-sonnet-4-20250514")| Falls back to GOOSE_MODEL |
 
 **Examples**
 
@@ -258,7 +258,7 @@ These variables configure [AI-powered code editing](/docs/guides/enhanced-code-e
 |----------|---------|---------|---------|
 | `GOOSE_EDITOR_API_KEY` | API key for the code editing model | API key string | None |
 | `GOOSE_EDITOR_HOST` | API endpoint for the code editing model | URL (e.g., "https://api.openai.com/v1") | None |
-| `GOOSE_EDITOR_MODEL` | Model to use for code editing | Model name (e.g., "gpt-4o", "claude-3-5-sonnet") | None |
+| `GOOSE_EDITOR_MODEL` | Model to use for code editing | Model name (e.g., "gpt-4o", "claude-sonnet-4") | None |
 
 **Examples**
 
@@ -273,7 +273,7 @@ export GOOSE_EDITOR_MODEL="gpt-4o"
 # Anthropic configuration (via OpenAI-compatible proxy)
 export GOOSE_EDITOR_API_KEY="sk-ant-..."
 export GOOSE_EDITOR_HOST="https://api.anthropic.com/v1"
-export GOOSE_EDITOR_MODEL="claude-3-5-sonnet-20241022"
+export GOOSE_EDITOR_MODEL="claude-sonnet-4-20250514"
 
 # Local model configuration
 export GOOSE_EDITOR_API_KEY="your-key"

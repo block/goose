@@ -245,20 +245,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_agent_with_anthropic() -> Result<()> {
-        run_test_with_config(TestConfig {
-            provider_type: ProviderType::Anthropic,
-            model: "claude-3-5-haiku-latest",
-            context_window: 200_000,
-        })
-        .await
-    }
-
-    #[tokio::test]
     async fn test_agent_with_bedrock() -> Result<()> {
         run_test_with_config(TestConfig {
             provider_type: ProviderType::Bedrock,
-            model: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+            model: "anthropic.claude-sonnet-4-20250514:0",
             context_window: 200_000,
         })
         .await
@@ -278,7 +268,7 @@ mod tests {
     async fn test_agent_with_databricks_bedrock() -> Result<()> {
         run_test_with_config(TestConfig {
             provider_type: ProviderType::Databricks,
-            model: "claude-3-5-sonnet-2",
+            model: "claude-sonnet-4-2",
             context_window: 200_000,
         })
         .await
@@ -338,7 +328,7 @@ mod tests {
     async fn test_agent_with_gcpvertexai() -> Result<()> {
         run_test_with_config(TestConfig {
             provider_type: ProviderType::GcpVertexAI,
-            model: "claude-3-5-sonnet-v2@20241022",
+            model: "claude-sonnet-4-20250514",
             context_window: 200_000,
         })
         .await

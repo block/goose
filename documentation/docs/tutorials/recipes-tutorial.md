@@ -89,7 +89,7 @@ You can also specify which AI provider and model to use for a specific recipe:
 ```yaml
 settings:
   goose_provider: "anthropic"
-  goose_model: "claude-3-5-sonnet-latest"
+  goose_model: "claude-sonnet-4-20250514"
   temperature: 0.8
 ```
 

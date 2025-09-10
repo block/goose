@@ -16,8 +16,8 @@ use crate::impl_provider_default;
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
 
-pub const CLAUDE_CODE_DEFAULT_MODEL: &str = "claude-3-5-sonnet-latest";
-pub const CLAUDE_CODE_KNOWN_MODELS: &[&str] = &["sonnet", "opus", "claude-3-5-sonnet-latest"];
+pub const CLAUDE_CODE_DEFAULT_MODEL: &str = "claude-sonnet-4-20250514";
+pub const CLAUDE_CODE_KNOWN_MODELS: &[&str] = &["sonnet", "opus", "claude-sonnet-4-20250514"];
 
 pub const CLAUDE_CODE_DOC_URL: &str = "https://claude.ai/cli";
 
@@ -525,7 +525,7 @@ mod tests {
         let provider = ClaudeCodeProvider::default();
         let config = provider.get_model_config();
 
-        assert_eq!(config.model_name, "claude-3-5-sonnet-latest");
+        assert_eq!(config.model_name, "claude-sonnet-4-20250514");
         // Context limit should be set by the ModelConfig
         assert!(config.context_limit() > 0);
     }

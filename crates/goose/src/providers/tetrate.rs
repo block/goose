@@ -29,8 +29,7 @@ use rmcp::model::Tool;
 pub const TETRATE_KNOWN_MODELS: &[&str] = &[
     "claude-opus-4-1",
     "claude-3-7-sonnet-latest",
-    "claude-3-5-sonnet-latest",
-    "claude-3-5-haiku-latest",
+    "claude-sonnet-4-20250514",
     "gemini-2.5-pro",
     "gemini-2.0-flash",
     "gemini-2.0-flash-lite",

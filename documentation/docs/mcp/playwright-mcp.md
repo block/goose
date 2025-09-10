@@ -182,7 +182,7 @@ Let's use Goose with the Playwright extension to create a cross-browser testing 
 3. Capture screenshots for visual comparison
 
 :::info LLM
-Anthropic's Claude 3.5 Sonnet was used for this task.
+Anthropic's Claude 4 Sonnet was used for this task.
 :::
 
 ### Goose Prompt

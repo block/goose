@@ -29,7 +29,7 @@ export GOOSE_EDITOR_MODEL="gpt-4o"
 ```bash
 export GOOSE_EDITOR_API_KEY="sk-ant-..."
 export GOOSE_EDITOR_HOST="https://api.anthropic.com/v1"
-export GOOSE_EDITOR_MODEL="claude-3-5-sonnet-20241022"
+export GOOSE_EDITOR_MODEL="claude-sonnet-4-20250514"
 ```
 
 **Morph:**

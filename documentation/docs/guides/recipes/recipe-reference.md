@@ -213,7 +213,7 @@ The `settings` field allows you to configure the AI model and provider settings 
 ```yaml
 settings:
   goose_provider: "anthropic"
-  goose_model: "claude-3-5-sonnet-latest"
+  goose_model: "claude-sonnet-4-20250514"
   temperature: 0.7
 ```
 
@@ -459,7 +459,7 @@ extensions:
 
 settings:
   goose_provider: "anthropic"
-  goose_model: "claude-3-5-sonnet-latest"
+  goose_model: "claude-sonnet-4-20250514"
   temperature: 0.7
 
 retry:

@@ -18,7 +18,7 @@ async fn test_pricing_cache_performance() {
 
     // Test fetching pricing for common models (using actual model names from OpenRouter)
     let models = vec![
-        ("anthropic", "claude-3.5-sonnet"),
+        ("anthropic", "claude-sonnet-4-20250514"),
         ("openai", "gpt-4o"),
         ("openai", "gpt-4o-mini"),
         ("google", "gemini-flash-1.5"),
@@ -153,7 +153,7 @@ async fn run_pricing_refresh_test() -> Result<(), String> {
         .map_err(|e| format!("Failed to initialize pricing cache: {}", e))?;
 
     // Get initial pricing (using a model that actually exists)
-    let initial_pricing = get_model_pricing("anthropic", "claude-3.5-sonnet").await;
+    let initial_pricing = get_model_pricing("anthropic", "claude-sonnet-4-20250514").await;
     if initial_pricing.is_none() {
         return Err("Expected initial pricing but got None".to_string());
     }
@@ -167,7 +167,7 @@ async fn run_pricing_refresh_test() -> Result<(), String> {
     println!("Pricing refresh took: {:?}", refresh_duration);
 
     // Get pricing after refresh
-    let refreshed_pricing = get_model_pricing("anthropic", "claude-3.5-sonnet").await;
+    let refreshed_pricing = get_model_pricing("anthropic", "claude-sonnet-4-20250514").await;
     if refreshed_pricing.is_none() {
         return Err("Expected pricing after refresh but got None".to_string());
     }

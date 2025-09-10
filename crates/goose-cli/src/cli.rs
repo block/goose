@@ -610,7 +610,7 @@ enum Command {
         #[arg(
             long = "model",
             value_name = "MODEL",
-            help = "Specify the model to use (e.g., 'gpt-4o', 'claude-3.5-sonnet')",
+            help = "Specify the model to use (e.g., 'gpt-4o', 'claude-sonnet-4-20250514')",
             long_help = "Override the GOOSE_MODEL environment variable for this run. The model must be supported by the specified provider."
         )]
         model: Option<String>,

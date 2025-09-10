@@ -373,7 +373,7 @@ mod tests {
                 "type": "text",
                 "text": "Hello! How can I assist you today?"
             }],
-            "model": "claude-3-5-sonnet",
+            "model": "claude-4-sonnet",
             "stop_reason": "end_turn",
             "stop_sequence": null,
             "usage": {
@@ -410,7 +410,7 @@ mod tests {
                 "name": "calculator",
                 "input": {"expression": "2 + 2"}
             }],
-            "model": "claude-3-5-sonnet",
+            "model": "claude-4-sonnet",
             "stop_reason": "end_turn",
             "stop_sequence": null,
             "usage": {
@@ -513,13 +513,13 @@ mod tests {
 
     #[test]
     fn test_parse_streaming_response() -> Result<()> {
-        let sse_data = r#"data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-3-5-sonnet","choices":[{"delta":{"type":"text","content":"I","content_list":[{"type":"text","text":"I"}],"text":"I"}}],"usage":{}}
+        let sse_data = r#"data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-sonnet-4-20250514","choices":[{"delta":{"type":"text","content":"I","content_list":[{"type":"text","text":"I"}],"text":"I"}}],"usage":{}}
 
-data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-3-5-sonnet","choices":[{"delta":{"type":"text","content":"'ll help you check Nvidia's current","content_list":[{"type":"text","text":"'ll help you check Nvidia's current"}],"text":"'ll help you check Nvidia's current"}}],"usage":{}}
+data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-sonnet-4-20250514","choices":[{"delta":{"type":"text","content":"'ll help you check Nvidia's current","content_list":[{"type":"text","text":"'ll help you check Nvidia's current"}],"text":"'ll help you check Nvidia's current"}}],"usage":{}}
 
-data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-3-5-sonnet","choices":[{"delta":{"type":"tool_use","tool_use_id":"tooluse_FB_nOElDTAOKa-YnVWI5Uw","name":"get_stock_price","content_list":[{"tool_use_id":"tooluse_FB_nOElDTAOKa-YnVWI5Uw","name":"get_stock_price"}],"text":""}}],"usage":{}}
+data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-sonnet-4-20250514","choices":[{"delta":{"type":"tool_use","tool_use_id":"tooluse_FB_nOElDTAOKa-YnVWI5Uw","name":"get_stock_price","content_list":[{"tool_use_id":"tooluse_FB_nOElDTAOKa-YnVWI5Uw","name":"get_stock_price"}],"text":""}}],"usage":{}}
 
-data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-3-5-sonnet","choices":[{"delta":{"type":"tool_use","input":"{\"symbol\":\"NVDA\"}","content_list":[{"input":"{\"symbol\":\"NVDA\"}"}],"text":""}}],"usage":{"prompt_tokens":397,"completion_tokens":65,"total_tokens":462}}
+data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-sonnet-4-20250514","choices":[{"delta":{"type":"tool_use","input":"{\"symbol\":\"NVDA\"}","content_list":[{"input":"{\"symbol\":\"NVDA\"}"}],"text":""}}],"usage":{"prompt_tokens":397,"completion_tokens":65,"total_tokens":462}}
 "#;
 
         let message = parse_streaming_response(sse_data)?;
@@ -550,7 +550,7 @@ data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-3-5-sonnet","
         use crate::conversation::message::Message;
         use crate::model::ModelConfig;
 
-        let model_config = ModelConfig::new_or_fail("claude-3-5-sonnet");
+        let model_config = ModelConfig::new_or_fail("claude-4-sonnet");
 
         let system = "You are a helpful assistant that can use tools to get information.";
         let messages = vec![Message::user().with_text("What is the stock price of Nvidia?")];
@@ -573,7 +573,7 @@ data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-3-5-sonnet","
         let request = create_request(&model_config, system, &messages, &tools)?;
 
         // Check basic structure
-        assert_eq!(request["model"], "claude-3-5-sonnet");
+        assert_eq!(request["model"], "claude-4-sonnet");
 
         let messages_array = request["messages"].as_array().unwrap();
         assert_eq!(messages_array.len(), 2); // system + user message
@@ -618,7 +618,7 @@ data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-3-5-sonnet","
                     "input": {"expression": "2 + 2"}
                 }
             ],
-            "model": "claude-3-5-sonnet",
+            "model": "claude-4-sonnet",
             "usage": {
                 "input_tokens": 10,
                 "output_tokens": 15
@@ -659,7 +659,7 @@ data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-3-5-sonnet","
         use crate::conversation::message::Message;
         use crate::model::ModelConfig;
 
-        let model_config = ModelConfig::new_or_fail("claude-3-5-sonnet");
+        let model_config = ModelConfig::new_or_fail("claude-4-sonnet");
         let system = "Reply with only a description in four words or less";
         let messages = vec![Message::user().with_text("Test message")];
         let tools = vec![Tool::new(

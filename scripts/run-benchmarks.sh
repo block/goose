@@ -8,7 +8,7 @@ function show_usage() {
   echo "Usage: $0 [options]"
   echo ""
   echo "Options:"
-  echo "  -p, --provider-models    Comma-separated list of provider:model pairs (e.g., 'openai:gpt-4o,anthropic:claude-3-5-sonnet')"
+  echo "  -p, --provider-models    Comma-separated list of provider:model pairs (e.g., 'openai:gpt-4o,anthropic:claude-sonnet-4')"
   echo "  -s, --suites             Comma-separated list of benchmark suites to run (e.g., 'core,small_models')"
   echo "  -o, --output-dir         Directory to store benchmark results (default: './benchmark-results')"
   echo "  -d, --debug              Use debug build instead of release build"
@@ -17,7 +17,7 @@ function show_usage() {
   echo "  -h, --help               Show this help message"
   echo ""
   echo "Example:"
-  echo "  $0 --provider-models 'openai:gpt-4o,anthropic:claude-3-5-sonnet' --suites 'core,small_models'"
+  echo "  $0 --provider-models 'openai:gpt-4o,anthropic:claude-sonnet-4' --suites 'core,small_models'"
 }
 
 # Parse command line arguments

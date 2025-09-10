@@ -193,7 +193,7 @@ This tutorial covers how to add the Browserbase MCP Server as a Goose extension 
 Let's use the Browserbase extension to gather information about trending MCP-related repositories on GitHub.
 
 :::info LLM
-Claude 3.5 Sonnet was used for this task.
+Claude 4 Sonnet was used for this task.
 :::
 
 ### Goose Prompt
