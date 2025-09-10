@@ -360,7 +360,7 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
                                 className="text-xs text-blue-500 hover:text-blue-700 underline"
                                 disabled={isDisabled}
                               >
-                                example schema
+                                example
                               </button>
                             </div>
                             {field.state.meta.errors.length > 0 && (
