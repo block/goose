@@ -33,6 +33,34 @@ mod tests {
         (temp_dir, recipe_file)
     }
 
+    fn setup_test_file(temp_dir: &TempDir, filename: &str, content: &str) -> std::path::PathBuf {
+        let file_path = temp_dir.path().join(filename);
+        std::fs::write(&file_path, content).unwrap();
+        file_path
+    }
+
+    fn setup_yaml_recipe_file(instructions_and_parameters: &str) -> (TempDir, RecipeFile) {
+        let recipe_content = format!(
+            r#"version: "1.0.0"
+title: "Test Recipe"
+description: "A test recipe"
+{}"#,
+            instructions_and_parameters
+        );
+        let temp_dir = tempfile::tempdir().unwrap();
+        let recipe_path = temp_dir.path().join("test_recipe.yaml");
+
+        std::fs::write(&recipe_path, recipe_content).unwrap();
+
+        let recipe_file = RecipeFile {
+            content: std::fs::read_to_string(&recipe_path).unwrap(),
+            parent_dir: temp_dir.path().to_path_buf(),
+            file_path: recipe_path,
+        };
+
+        (temp_dir, recipe_file)
+    }
+
     fn setup_yaml_recipe_files(
         parent_content: &str,
         child_content: &str,
@@ -437,6 +465,88 @@ instructions: Child instructions
                 sub_recipes[0].path,
                 expected_absolute_path.to_str().unwrap()
             );
+        }
+    }
+
+    mod file_parameter_tests {
+        use super::*;
+
+        #[test]
+        fn test_build_recipe_file_parameter_valid_paths() {
+            let instructions_and_parameters = r#"instructions: "Test file content: {{ FILE_PARAM }}"
+parameters:
+  - key: FILE_PARAM
+    input_type: file
+    requirement: required
+    description: A file parameter"#;
+
+            let (temp_dir, recipe_file) = setup_yaml_recipe_file(instructions_and_parameters);
+
+            let test_content = "Hello from file!\nThis is line 2\n    Indented line 3";
+            let test_file_path = setup_test_file(&temp_dir, "test_file.txt", test_content);
+
+            let params = vec![(
+                "FILE_PARAM".to_string(),
+                test_file_path.to_string_lossy().to_string(),
+            )];
+            let result = build_recipe_from_template(recipe_file, params, NO_USER_PROMPT);
+
+            assert!(result.is_ok());
+            let recipe = result.unwrap();
+
+            let instructions = recipe.instructions.as_ref().unwrap();
+            assert!(instructions.contains("Hello from file!"));
+            assert!(instructions.contains("Test file content:"));
+        }
+
+        #[test]
+        fn test_build_recipe_file_parameter_nonexistent_file() {
+            let instructions_and_parameters = r#"instructions: "Test file content: {{ FILE_PARAM }}"
+parameters:
+  - key: FILE_PARAM
+    input_type: file
+    requirement: required
+    description: A file parameter"#;
+
+            let (_temp_dir, recipe_file) = setup_yaml_recipe_file(instructions_and_parameters);
+
+            let params = vec![(
+                "FILE_PARAM".to_string(),
+                "/nonexistent/path/file.txt".to_string(),
+            )];
+            let result = build_recipe_from_template(recipe_file, params, NO_USER_PROMPT);
+
+            assert!(result.is_err());
+            if let Err(RecipeError::TemplateRendering { source }) = result {
+                assert!(source.to_string().contains("Failed to read parameter file"));
+            } else {
+                panic!("Expected TemplateRendering error");
+            }
+        }
+
+        #[test]
+        fn test_build_recipe_file_parameter_with_default_rejected() {
+            let instructions_and_parameters = r#"instructions: "Test file content: {{ FILE_PARAM }}"
+parameters:
+  - key: FILE_PARAM
+    input_type: file
+    requirement: required
+    description: A file parameter
+    default: "/etc/passwd""#;
+
+            let (_temp_dir, recipe_file) = setup_yaml_recipe_file(instructions_and_parameters);
+
+            let params = vec![];
+            let result = build_recipe_from_template(recipe_file, params, NO_USER_PROMPT);
+
+            assert!(result.is_err());
+            if let Err(RecipeError::TemplateRendering { source }) = result {
+                assert!(source
+                    .to_string()
+                    .contains("File parameters cannot have default values"));
+            } else {
+                panic!("Expected TemplateRendering error for file parameter with default");
+            }
         }
     }
 }
