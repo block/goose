@@ -268,7 +268,7 @@ mod tests {
     async fn test_agent_with_databricks_bedrock() -> Result<()> {
         run_test_with_config(TestConfig {
             provider_type: ProviderType::Databricks,
-            model: "claude-sonnet-4-2",
+            model: "claude-sonnet-4",
             context_window: 200_000,
         })
         .await
