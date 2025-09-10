@@ -125,8 +125,18 @@ The `required` and `optional` parameters work best for recipes opened in Goose D
 :::important
 - Optional parameters MUST have a default value specified
 - Required parameters cannot have default values
+- File parameters cannot have default values regardless of requirement type
 - Parameter keys must match any template variables used in instructions or prompt
 :::
+
+#### File Parameter Type
+
+When using `input_type: file`, the parameter value should be a file path. At recipe execution time, Goose will:
+
+1. **Read the file contents** from the provided path
+2. **Replace the parameter** with the actual file contents in the recipe template
+
+**Security Consideration**: File parameters **cannot have default values** to prevent unintended importing of sensitive files
 
 ## Extensions
 
