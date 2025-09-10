@@ -20,14 +20,12 @@ use std::{
     future::Future,
     io::Cursor,
     path::{Path, PathBuf},
-    process::Stdio,
     sync::{Arc, Mutex},
 };
 use xcap::{Monitor, Window};
 
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
-    process::Command,
     sync::RwLock,
 };
 use tokio_stream::{wrappers::SplitStream, StreamExt as _};
@@ -36,7 +34,7 @@ use tokio_util::sync::CancellationToken;
 use super::analyze::{types::AnalyzeParams, CodeAnalyzer};
 use super::editor_models::{create_editor_model, EditorModel};
 use super::goose_hints::load_hints::{load_hint_files, GOOSE_HINTS_FILENAME};
-use super::shell::{expand_path, get_shell_config, is_absolute_path};
+use super::shell::{configure_shell_command, expand_path, get_shell_config, is_absolute_path, kill_process_group};
 use super::text_editor::{
     text_editor_insert, text_editor_replace, text_editor_undo, text_editor_view, text_editor_write,
 };
@@ -509,26 +507,22 @@ impl ServerHandler for DeveloperServer {
 
     /// Called when the client cancels a specific request.
     /// This method cancels the running process associated with the given request_id.
-    async fn on_cancelled(
+    fn on_cancelled(
         &self,
-        params: CancelledNotificationParam,
+        notification: CancelledNotificationParam,
         _context: NotificationContext<RoleServer>,
-    ) {
-        let request_id = params.request_id.to_string();
-        tracing::info!("on_cancelled called for request_id: {}", request_id);
-        
-        let processes = self.running_processes.read().await;
-        tracing::info!("Current running processes: {:?}", processes.keys().collect::<Vec<_>>());
-        
-        if let Some(token) = processes.get(&request_id) {
-            tracing::info!("Found process for request {}, cancelling token", request_id);
-            token.cancel();
-            tracing::info!("Cancellation token triggered for request {}", request_id);
-        } else {
-            tracing::warn!("No process found for request ID: {}", request_id);
+    ) -> impl Future<Output = ()> + Send + '_ {
+        async move {
+            let request_id = notification.request_id.to_string();
+            let processes = self.running_processes.read().await;
+            
+            if let Some(token) = processes.get(&request_id) {
+                token.cancel();
+                tracing::debug!("Found process for request {}, cancelling token", request_id);
+            } else {
+                tracing::warn!("No process found for request ID: {}", request_id);
+            }
         }
-        // Note: The actual process cleanup happens in the execute_shell_command method
-        // when the cancellation token is triggered
     }
 }
 
@@ -868,7 +862,11 @@ impl DeveloperServer {
         // Clean up the process from tracking
         {
             let mut processes = self.running_processes.write().await;
-            processes.remove(&request_id.to_string());
+            let request_id_str = request_id.to_string();
+            let was_present = processes.remove(&request_id_str).is_some();
+            if !was_present {
+                tracing::warn!("Process for request_id {} was not in tracking map when trying to remove", request_id);
+            }
         }
 
         let output_str = output_result?;
@@ -940,20 +938,20 @@ impl DeveloperServer {
         peer: &rmcp::service::Peer<RoleServer>,
         cancellation_token: CancellationToken,
     ) -> Result<String, ErrorData> {
+        tracing::info!("Starting shell command execution: '{}'", command);
         // Get platform-specific shell configuration
         let shell_config = get_shell_config();
 
-        // Execute the command using platform-specific shell
-        let mut child = Command::new(&shell_config.executable)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .stdin(Stdio::null())
-            .kill_on_drop(true)
-            .env("GOOSE_TERMINAL", "1")
-            .args(&shell_config.args)
-            .arg(command)
+        let mut child = configure_shell_command(&shell_config, command)
             .spawn()
             .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
+
+        let pid = child.id();
+        if let Some(pid) = pid {
+            tracing::debug!("Shell process spawned with PID: {}", pid);
+        } else {
+            tracing::warn!("Shell process spawned but PID not available");
+        }
 
         // Stream the output and wait for completion with cancellation support
         let output_task = self.stream_shell_output(
@@ -965,25 +963,15 @@ impl DeveloperServer {
         tokio::select! {
             output_result = output_task => {
                 // Wait for the process to complete
-                child.wait().await.map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
+                let exit_status = child.wait().await.map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
                 output_result
             }
             _ = cancellation_token.cancelled() => {
-                tracing::info!("Cancellation token triggered! Attempting to kill process and all child processes");
-
-                // Kill the process and its children using platform-specific approach
-                match kill_process_group(&mut child, pid).await {
-                    Ok(_) => {
-                        tracing::error!("Successfully killed shell process and child processes");
-                    }
-                    Err(e) => {
-                        tracing::error!("aning:Failed to kill shell process and child processes: {}", e);
-                    }
-                }
-
+                // Kill the process if cancellation is requested
+                let _ = child.kill().await;
                 Err(ErrorData::new(
                     ErrorCode::INTERNAL_ERROR,
-                    "Shell command was cancelled".to_string(),
+                    "Shell command was cancelled by user".to_string(),
                     None,
                 ))
             }

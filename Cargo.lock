@@ -2824,6 +2824,7 @@ dependencies = [
  "indoc",
  "keyring",
  "lazy_static",
+ "libc",
  "lopdf",
  "lru",
  "mcp-core",
