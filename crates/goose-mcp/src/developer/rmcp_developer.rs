@@ -5,10 +5,10 @@ use indoc::{formatdoc, indoc};
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolResult, CancelledNotificationParam, Content, ErrorCode, ErrorData, GetPromptRequestParam, GetPromptResult,
-        Implementation, ListPromptsResult, LoggingLevel, LoggingMessageNotificationParam,
-        PaginatedRequestParam, Prompt, PromptArgument, PromptMessage, PromptMessageRole, Role,
-        ServerCapabilities, ServerInfo,
+        CallToolResult, CancelledNotificationParam, Content, ErrorCode, ErrorData,
+        GetPromptRequestParam, GetPromptResult, Implementation, ListPromptsResult, LoggingLevel,
+        LoggingMessageNotificationParam, PaginatedRequestParam, Prompt, PromptArgument,
+        PromptMessage, PromptMessageRole, Role, ServerCapabilities, ServerInfo,
     },
     schemars::JsonSchema,
     service::{NotificationContext, RequestContext},
@@ -34,7 +34,9 @@ use tokio_util::sync::CancellationToken;
 use super::analyze::{types::AnalyzeParams, CodeAnalyzer};
 use super::editor_models::{create_editor_model, EditorModel};
 use super::goose_hints::load_hints::{load_hint_files, GOOSE_HINTS_FILENAME};
-use super::shell::{configure_shell_command, expand_path, get_shell_config, is_absolute_path, kill_process_group};
+use super::shell::{
+    configure_shell_command, expand_path, get_shell_config, is_absolute_path, kill_process_group,
+};
 use super::text_editor::{
     text_editor_insert, text_editor_replace, text_editor_undo, text_editor_view, text_editor_write,
 };
@@ -173,6 +175,9 @@ pub struct DeveloperServer {
     editor_model: Option<EditorModel>,
     prompts: HashMap<String, Prompt>,
     code_analyzer: CodeAnalyzer,
+    #[cfg(test)]
+    pub running_processes: Arc<RwLock<HashMap<String, CancellationToken>>>,
+    #[cfg(not(test))]
     running_processes: Arc<RwLock<HashMap<String, CancellationToken>>>,
 }
 
@@ -515,7 +520,7 @@ impl ServerHandler for DeveloperServer {
         async move {
             let request_id = notification.request_id.to_string();
             let processes = self.running_processes.read().await;
-            
+
             if let Some(token) = processes.get(&request_id) {
                 token.cancel();
                 tracing::debug!("Found process for request {}, cancelling token", request_id);
@@ -857,15 +862,20 @@ impl DeveloperServer {
         }
 
         // Execute the command and capture output
-        let output_result = self.execute_shell_command(command, &peer, cancellation_token.clone()).await;
-        
+        let output_result = self
+            .execute_shell_command(command, &peer, cancellation_token.clone())
+            .await;
+
         // Clean up the process from tracking
         {
             let mut processes = self.running_processes.write().await;
             let request_id_str = request_id.to_string();
             let was_present = processes.remove(&request_id_str).is_some();
             if !was_present {
-                tracing::warn!("Process for request_id {} was not in tracking map when trying to remove", request_id);
+                tracing::warn!(
+                    "Process for request_id {} was not in tracking map when trying to remove",
+                    request_id
+                );
             }
         }
 
@@ -938,7 +948,6 @@ impl DeveloperServer {
         peer: &rmcp::service::Peer<RoleServer>,
         cancellation_token: CancellationToken,
     ) -> Result<String, ErrorData> {
-        tracing::info!("Starting shell command execution: '{}'", command);
         // Get platform-specific shell configuration
         let shell_config = get_shell_config();
 
@@ -963,12 +972,22 @@ impl DeveloperServer {
         tokio::select! {
             output_result = output_task => {
                 // Wait for the process to complete
-                let exit_status = child.wait().await.map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
+                let _exit_status = child.wait().await.map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
                 output_result
             }
             _ = cancellation_token.cancelled() => {
-                // Kill the process if cancellation is requested
-                let _ = child.kill().await;
+                tracing::info!("Cancellation token triggered! Attempting to kill process and all child processes");
+
+                // Kill the process and its children using platform-specific approach
+                match kill_process_group(&mut child, pid).await {
+                    Ok(_) => {
+                        tracing::debug!("Successfully killed shell process and child processes");
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to kill shell process and child processes: {}", e);
+                    }
+                }
+
                 Err(ErrorData::new(
                     ErrorCode::INTERNAL_ERROR,
                     "Shell command was cancelled by user".to_string(),
@@ -3452,5 +3471,238 @@ Additional instructions here.
         let absolute_path = temp_dir.path().join(relative_path);
         let content = fs::read_to_string(&absolute_path).unwrap();
         assert_eq!(content.trim(), "Relative path test");
+    }
+
+    #[test]
+    #[serial]
+    #[cfg(unix)] // Unix-specific test using sleep command
+    fn test_shell_command_cancellation() {
+        run_shell_test(|| async {
+            let server = create_test_server();
+            let running_service = serve_directly(server.clone(), create_test_transport(), None);
+            let peer = running_service.peer().clone();
+
+            let request_id = NumberOrString::Number(123);
+
+            let context = RequestContext {
+                ct: Default::default(),
+                id: request_id.clone(),
+                meta: Default::default(),
+                extensions: Default::default(),
+                peer: peer.clone(),
+            };
+
+            // Start a long-running shell command in the background
+            let server_clone = server.clone();
+            let shell_task = tokio::spawn(async move {
+                server_clone
+                    .shell(
+                        Parameters(ShellParams {
+                            command: "sleep 30".to_string(),
+                        }),
+                        context,
+                    )
+                    .await
+            });
+
+            // Give the command a moment to start
+            tokio::time::sleep(Duration::from_millis(200)).await;
+
+            // Verify the process is tracked
+            {
+                let processes = server.running_processes.read().await;
+                assert!(processes.contains_key("123"), "Process should be tracked");
+            }
+
+            let start_time = Instant::now();
+
+            // Cancel the command
+            let cancel_params = CancelledNotificationParam {
+                request_id: request_id,
+                reason: Some("test cancellation".to_string()),
+            };
+
+            let notification_context = NotificationContext {
+                peer: peer.clone(),
+                meta: Default::default(),
+                extensions: Default::default(),
+            };
+
+            server
+                .on_cancelled(cancel_params, notification_context)
+                .await;
+
+            // Wait for the shell task to complete
+            let result = timeout(Duration::from_secs(5), shell_task).await;
+            let elapsed = start_time.elapsed();
+
+            // Verify the task completed due to cancellation (not timeout)
+            assert!(result.is_ok(), "Shell task should complete within timeout");
+            let task_result = result.unwrap();
+            assert!(task_result.is_ok(), "Shell task should not panic");
+
+            // Verify the command was cancelled quickly (much less than 30 seconds)
+            assert!(
+                elapsed < Duration::from_secs(5),
+                "Command should be cancelled quickly, took {:?}",
+                elapsed
+            );
+
+            // Verify the process is no longer tracked
+            {
+                let processes = server.running_processes.read().await;
+                assert!(
+                    !processes.contains_key("123"),
+                    "Process should be removed from tracking"
+                );
+            }
+
+            cleanup_test_service(running_service, peer);
+        });
+    }
+
+    #[test]
+    #[serial]
+    #[cfg(unix)] // Unix-specific test using shell commands
+    fn test_child_process_cancellation() {
+        run_shell_test(|| async {
+            let server = create_test_server();
+            let running_service = serve_directly(server.clone(), create_test_transport(), None);
+            let peer = running_service.peer().clone();
+
+            let request_id = NumberOrString::Number(456);
+
+            let context = RequestContext {
+                ct: Default::default(),
+                id: request_id.clone(),
+                meta: Default::default(),
+                extensions: Default::default(),
+                peer: peer.clone(),
+            };
+
+            // Start a command that spawns child processes
+            let server_clone = server.clone();
+            let shell_task = tokio::spawn(async move {
+                server_clone
+                    .shell(
+                        Parameters(ShellParams {
+                            command: "bash -c 'sleep 60 & wait'".to_string(),
+                        }),
+                        context,
+                    )
+                    .await
+            });
+
+            // Give the command time to start and spawn child processes
+            tokio::time::sleep(Duration::from_millis(300)).await;
+
+            let start_time = Instant::now();
+
+            // Cancel the command
+            let cancel_params = CancelledNotificationParam {
+                request_id: request_id,
+                reason: Some("test cancellation".to_string()),
+            };
+
+            let notification_context = NotificationContext {
+                peer: peer.clone(),
+                meta: Default::default(),
+                extensions: Default::default(),
+            };
+
+            server
+                .on_cancelled(cancel_params, notification_context)
+                .await;
+
+            // Wait for completion
+            let result = timeout(Duration::from_secs(5), shell_task).await;
+            let elapsed = start_time.elapsed();
+
+            assert!(result.is_ok(), "Shell task should complete within timeout");
+            assert!(
+                elapsed < Duration::from_secs(5),
+                "Command with child processes should be cancelled quickly, took {:?}",
+                elapsed
+            );
+
+            cleanup_test_service(running_service, peer);
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn test_cancel_nonexistent_process() {
+        run_shell_test(|| async {
+            let server = create_test_server();
+            let running_service = serve_directly(server.clone(), create_test_transport(), None);
+            let peer = running_service.peer().clone();
+
+            // Try to cancel a process that doesn't exist
+            let cancel_params = CancelledNotificationParam {
+                request_id: NumberOrString::Number(999),
+                reason: Some("test cancellation".to_string()),
+            };
+
+            let notification_context = NotificationContext {
+                peer: peer.clone(),
+                meta: Default::default(),
+                extensions: Default::default(),
+            };
+
+            // This should not panic or cause issues
+            server
+                .on_cancelled(cancel_params, notification_context)
+                .await;
+
+            // Verify no processes are tracked
+            let processes = server.running_processes.read().await;
+            assert!(processes.is_empty(), "No processes should be tracked");
+
+            cleanup_test_service(running_service, peer);
+        });
+    }
+
+    #[test]
+    #[serial]
+    #[cfg(unix)]
+    fn test_successful_shell_command_completion() {
+        run_shell_test(|| async {
+            let server = create_test_server();
+            let running_service = serve_directly(server.clone(), create_test_transport(), None);
+            let peer = running_service.peer().clone();
+
+            let context = RequestContext {
+                ct: Default::default(),
+                id: NumberOrString::Number(789),
+                meta: Default::default(),
+                extensions: Default::default(),
+                peer: peer.clone(),
+            };
+
+            // Run a quick command that should complete successfully
+            let result = server
+                .shell(
+                    Parameters(ShellParams {
+                        command: "echo 'Hello, World!'".to_string(),
+                    }),
+                    context,
+                )
+                .await;
+
+            assert!(
+                result.is_ok(),
+                "Simple shell command should succeed: {:?}",
+                result
+            );
+
+            // Verify no processes are left tracked after completion
+            let processes = server.running_processes.read().await;
+            assert!(
+                !processes.contains_key("789"),
+                "Process should be cleaned up after completion"
+            );
+
+            cleanup_test_service(running_service, peer);
+        });
     }
 }
