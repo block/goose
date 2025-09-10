@@ -24,7 +24,7 @@ pub struct PermissionConfig {
 }
 
 /// PermissionManager manages permission configurations for various tools.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PermissionManager {
     config_path: PathBuf, // Path to the permission configuration file
     permission_map: HashMap<String, PermissionConfig>, // Mapping of permission names to configurations

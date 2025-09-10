@@ -60,6 +60,10 @@ hyper = "1"
 serde_with = "3"
 which = "6.0"
 glob = "0.3"
+# TODO: Fork mpatch or replace with a custom implementation using `similar` crate
+# for fuzzy patch matching. Current crate has limited maintenance (single maintainer,
+# ~1000 downloads). Pinned to exact version to prevent supply chain attacks.
+mpatch = "=0.2.0"
 
 
 [dev-dependencies]

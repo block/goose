@@ -43,13 +43,25 @@ pub fn create_dynamic_task_tool() -> Tool {
                             // Optional - auto-generated if not provided
                             "title": {"type": "string"},
                             "description": {"type": "string"},
-                            "extensions": {"type": "array"},
+                            "extensions": {
+                                "type": "array",
+                                "items": {"type": "object"}
+                            },
                             "settings": {"type": "object"},
-                            "parameters": {"type": "array"},
+                            "parameters": {
+                                "type": "array",
+                                "items": {"type": "object"}
+                            },
                             "response": {"type": "object"},
                             "retry": {"type": "object"},
-                            "context": {"type": "array"},
-                            "activities": {"type": "array"},
+                            "context": {
+                                "type": "array",
+                                "items": {"type": "string"}
+                            },
+                            "activities": {
+                                "type": "array",
+                                "items": {"type": "string"}
+                            },
                             "return_last_only": {
                                 "type": "boolean",
                                 "description": "If true, return only the last message from the subagent (default: false, returns full conversation)"

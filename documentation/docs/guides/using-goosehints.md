@@ -33,7 +33,7 @@ To make use of the hints file, you need to have the `Developer` extension [enabl
 ## Creating Your Hints File
 
 Goose supports two types of hint files:
-- **Global hints file** - These hints will apply to all your sessions with Goose, regardless of directory.
+- **Global hints file** - These hints will apply to all your sessions with Goose, regardless of directory. Global hints are stored in `~/.config/goose/.goosehints`.
 - **Local hints files** -  These hints will only apply when working in a specific directory or directory hierarchy.
 
 You can use both global and local hints at the same time. When both exist, Goose will consider both your global preferences and project-specific requirements. If the instructions in your local hints file conflict with your global preferences, Goose will prioritize the local hints.
@@ -84,7 +84,9 @@ Goosehints are loaded at the start of your session and become part of the system
 ```
 Always use TypeScript for new Next.js projects.
 
-@coding-standards.md
+@coding-standards.md  # Contains our coding standards
+docs/contributing.md  # Contains our pull request process
+
 Follow the [Google Style Guide](https://google.github.io/styleguide/pyguide.html) for Python code.
 
 Run unit tests before committing any changes.
@@ -103,6 +105,10 @@ Make sure to confirm all changes with me before applying.
 
 Run tests with `npm run test` ideally after each change.
 ```
+
+These examples show two ways to reference other files:
+- **`@` syntax**: Automatically includes the file content in Goose's immediate context
+- **Plain reference**: Points Goose to files to review when needed (use for optional or very large files)
 
 ### Nested `.goosehints` Files
 
@@ -135,8 +141,8 @@ When working in `frontend/components/` in this example project, Goose loads hint
         ```
         This is a React + TypeScript project using Vite.
 
-        @README.md
-        @docs/development-setup.md
+        @README.md                    # Project overview and setup instructions
+        @docs/development-setup.md    # Development environment configuration
 
         Always run tests before committing: `npm test`
         Use conventional commits for all changes.
@@ -147,8 +153,8 @@ When working in `frontend/components/` in this example project, Goose loads hint
         ```
         This frontend uses React 18 with TypeScript and Tailwind CSS.
 
-        @package.json
-        @docs/frontend-architecture.md
+        @package.json                      # Dependencies and scripts
+        @docs/frontend-architecture.md     # Frontend structure and patterns
 
         ## Development Standards
         - Use functional components with hooks (no class components)
@@ -174,7 +180,7 @@ When working in `frontend/components/` in this example project, Goose loads hint
         ```
         Components in this directory use our design system.
 
-        @docs/component-api.md
+        @docs/component-api.md    # Component interface standards and examples
 
         All components must:
         - Export a default component

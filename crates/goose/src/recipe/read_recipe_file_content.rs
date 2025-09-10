@@ -58,3 +58,43 @@ fn convert_path_with_tilde_expansion(path: &Path) -> PathBuf {
     }
     PathBuf::from(path)
 }
+
+pub fn read_parameter_file_content<P: AsRef<Path>>(file_path: P) -> Result<String> {
+    let raw_path = file_path.as_ref();
+    let path = convert_path_with_tilde_expansion(raw_path);
+
+    let content = fs::read_to_string(&path)
+        .map_err(|e| anyhow!("Failed to read parameter file {}: {}", path.display(), e))?;
+
+    Ok(content)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_read_parameter_file_content_success() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("test_file.txt");
+        let content = "Hello World\nSecond line\n    Third line";
+        std::fs::write(&file_path, content).unwrap();
+
+        let result = read_parameter_file_content(&file_path);
+        assert!(result.is_ok());
+
+        let expected = "Hello World\nSecond line\n    Third line";
+        assert_eq!(result.unwrap(), expected);
+    }
+
+    #[test]
+    fn test_read_parameter_file_content_nonexistent_file() {
+        let result = read_parameter_file_content("/nonexistent/path/file.txt");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Failed to read parameter file"));
+    }
+}

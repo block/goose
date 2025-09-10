@@ -1,12 +1,13 @@
 use crate::state::AppState;
-use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
+use axum::{http::StatusCode, routing::post, Json, Router};
 use goose::config::signup_openrouter::OpenRouterAuth;
 use goose::config::signup_tetrate::{configure_tetrate, TetrateAuth};
 use goose::config::{configure_openrouter, Config};
 use serde::Serialize;
 use std::sync::Arc;
+use utoipa::ToSchema;
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct SetupResponse {
     pub success: bool,
     pub message: String,
@@ -19,9 +20,14 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .with_state(state)
 }
 
-async fn start_openrouter_setup(
-    State(_state): State<Arc<AppState>>,
-) -> Result<Json<SetupResponse>, StatusCode> {
+#[utoipa::path(
+    post,
+    path = "/handle_openrouter",
+    responses(
+        (status = 200, body=SetupResponse)
+    ),
+)]
+async fn start_openrouter_setup() -> Result<Json<SetupResponse>, StatusCode> {
     tracing::info!("Starting OpenRouter setup flow");
 
     let mut auth_flow = OpenRouterAuth::new().map_err(|e| {
@@ -61,9 +67,14 @@ async fn start_openrouter_setup(
     }
 }
 
-async fn start_tetrate_setup(
-    State(_state): State<Arc<AppState>>,
-) -> Result<Json<SetupResponse>, StatusCode> {
+#[utoipa::path(
+    post,
+    path = "/handle_tetrate",
+    responses(
+        (status = 200, body=SetupResponse)
+    ),
+)]
+async fn start_tetrate_setup() -> Result<Json<SetupResponse>, StatusCode> {
     tracing::info!("Starting Tetrate Agent Router Service setup flow");
 
     let mut auth_flow = TetrateAuth::new().map_err(|e| {

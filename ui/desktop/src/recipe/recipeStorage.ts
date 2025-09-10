@@ -34,7 +34,13 @@ function parseLastModified(val: string | Date): Date {
  * Get the storage directory path for recipes
  */
 export function getStorageDirectory(isGlobal: boolean): string {
-  return isGlobal ? '~/.config/goose/recipes' : '.goose/recipes';
+  if (isGlobal) {
+    return '~/.config/goose/recipes';
+  } else {
+    // For directory recipes, build absolute path using working directory
+    const workingDir = window.appConfig.get('GOOSE_WORKING_DIR') as string;
+    return `${workingDir}/.goose/recipes`;
+  }
 }
 
 /**
