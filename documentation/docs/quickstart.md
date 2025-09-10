@@ -237,6 +237,6 @@ Congrats, you've successfully used Goose to develop a web app! 🎉
 
 Here are some ideas for next steps:
 * Continue your session with Goose and improve your game (styling, functionality, etc).
-* Browse other available [extensions](/goose/extensions) and install more to enhance Goose's functionality even further.
+* Browse other available [extensions](https://block.github.io/goose/extensions/) and install more to enhance Goose's functionality even further.
 * Provide Goose with a [set of hints](/docs/guides/using-goosehints) to use within your sessions.
 
