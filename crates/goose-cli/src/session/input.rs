@@ -289,7 +289,6 @@ fn get_input_prompt_string() -> String {
     }
 }
 
-
 fn print_help() {
     println!(
         "Available commands:
