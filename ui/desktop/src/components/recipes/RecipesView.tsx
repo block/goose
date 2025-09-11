@@ -135,7 +135,6 @@ export default function RecipesView() {
     }
   };
 
-  // Memoize filtered parameters for the preview modal
   const filteredPreviewParameters = useMemo(() => {
     if (!selectedRecipe?.recipe.parameters) {
       return [];
