@@ -186,6 +186,69 @@ private createUploadResultUI(result: UploadApiResponse): string {
 Notice the `ResizeObserver` at the bottom of the HTML.  
 That little snippet is what keeps the iframe height in sync with your content so if your UI grows or shrinks, the window resizes automatically. Without it, your UI might look cut off and difficult to view.
 :::
+
+### What Makes MCP-UI Interactive?  
+
+A clean UI is nice, but it gets way more interesting when those buttons actually do something. That’s where **UI Actions** come in, they turn static layouts into interactive tools that can talk back to your agent.
+
+{/* Video Player */}
+<div style={{ width: '100%', maxWidth: '800px', margin: '0 auto' }}>
+  <video 
+    controls 
+    width="100%" 
+    height="400px"
+    playsInline
+  >
+    <source src={require('@site/static/videos/cloudinaryaction.mp4').default} type="video/mp4" />
+    Your browser does not support the video tag.
+  </video>
+</div>
+
+In my Cloudinary server, I added two UI action types: 
+
+- **Prompt Action** → Fires off a prompt to goose asking it to caption the image like a meme.  
+
+<details>
+<summary>Click to see the code</summary>
+```ts
+  function makeMeme() {
+    window.parent.postMessage({
+      type: "prompt",
+      payload: {
+        prompt: "Create a funny meme caption for this image. Make it humorous and engaging."
+      }
+    }, "*");
+  }
+```
+</details>
+
+- **Link Action** → Opens Twitter with the uploaded image pre-linked so you can share it in one click. 
+
+<details>
+<summary>Click to see the code</summary>
+```ts
+        function shareOnTwitter() {
+            const tweetText = encodeURIComponent(
+            "I didn’t write this tweet… goose did. (${result.resource_type} included). & here’s how you can do it too 🧵 #MCPUI");
+            const imageUrl = encodeURIComponent("${result.secure_url}");
+            const twitterUrl = "https://twitter.com/intent/tweet?text=" + tweetText + "&url=" + imageUrl;
+
+            window.parent.postMessage({
+            type: "link",
+            payload: { url: twitterUrl }
+            }, "*");
+        }
+```
+</details>
+
+> Want to see it live? [Here’s the tweet goose posted for me](https://x.com/EbonyJLouis/status/1966203455955157337).
+
+:::tip More UI Actions
+Prompt and Link are just two examples. MCP-UI also supports **Tool**, **Intent**, and **Notify** actions.
+:::
+
+
+
 ## Step 4: Look How Small the Diff Is
 
 This is the part that blew my mind, making a tool UI-compatible is just a tiny code change.
@@ -221,13 +284,13 @@ return {
 };
 ```
 
-That’s it. One extra resource, and suddenly Goose renders a full UI.
+That’s it. One extra resource, and suddenly goose renders a full UI.
 
 ## Filesystem: Same Pattern
 
 To prove this wasn’t a one-off, I also made the Filesystem MCP server UI-compatible.
 
-**Before:** Text output (what Goose shows by default)
+**Before:** Text output (what goose shows by default)
 
 ![before MCP-UI](filesystemBefore.png)
 
@@ -252,11 +315,9 @@ return {
 
 ## Ahead of the Curve
 
-I’ve now made two MCP servers UI-compatible, before MCP-UI is even fully rolled out. That’s crazy to me.
+I’ve now made two MCP servers UI-compatible, before MCP-UI is even fully rolled out. That's crazy to me.
 
-And if you zoom out, you’ll see other companies pushing here too. Goose and Postman already support rendering and partial UI actions.
-
-And the fact that rendering works means we can start perfecting these UI experiences.
+And if you zoom out, you’ll see other companies pushing here too. goose and Postman already support rendering and a couple of UI actions. In goose right now, a button can fire off a new prompt or open an external link. It’s not the full vision yet, but it’s already enough to start building experiences that feel more like mini-apps than static responses.
 
 That’s what excites me, we’re not waiting around. We’re experimenting in the open, and shaping what the future will feel like.
 
@@ -266,7 +327,7 @@ That’s what excites me, we’re not waiting around. We’re experimenting in t
 
 Wanna see it in action? 
 
-Download [Goose](/docs/quickstart#install-goose), give an MCP server a UI facelift of your own, and see the magic for yourself. Boring text prompts will never hit the same again.
+Download [goose](/docs/quickstart#install-goose), give an MCP server a UI facelift of your own, and see the magic for yourself. Boring text prompts will never hit the same again.
 
 *Got questions?* Explore our [docs](/docs/category/guides), browse the [blog](/blog), or join the conversation in our [Discord](https://discord.gg/block-opensource) and [GitHub Discussions](https://github.com/block/goose/discussions). We’d love to have you.
 
