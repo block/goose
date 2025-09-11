@@ -370,30 +370,22 @@ function BaseChatContent({
             {/* Custom content before messages */}
             {renderBeforeMessages && renderBeforeMessages()}
 
-            {/* Messages or RecipeActivities or Popular Topics */}
+            {/* Recipe Activities - always show when recipe is active and accepted */}
+            {recipeConfig && recipeAccepted && !suppressEmptyState && (
+              <div className={hasStartedUsingRecipe ? 'mb-6' : ''}>
+                <RecipeActivities
+                  append={(text: string) => appendWithTracking(text)}
+                  activities={
+                    Array.isArray(recipeConfig.activities) ? recipeConfig.activities : null
+                  }
+                  title={recipeConfig.title}
+                />
+              </div>
+            )}
+
+            {/* Messages or Popular Topics */}
             {
-              // Check if we should show splash instead of messages
-              // Show splash if we have a recipe and user hasn't started using it yet, and recipe has been accepted
-              loadingChat ? null : recipeConfig &&
-                recipeAccepted &&
-                !hasStartedUsingRecipe &&
-                !suppressEmptyState ? (
-                <>
-                  {/* Show RecipeActivities when we have a recipe config and user hasn't started using it */}
-                  {recipeConfig ? (
-                    <RecipeActivities
-                      append={(text: string) => appendWithTracking(text)}
-                      activities={
-                        Array.isArray(recipeConfig.activities) ? recipeConfig.activities : null
-                      }
-                      title={recipeConfig.title}
-                    />
-                  ) : showPopularTopics ? (
-                    /* Show PopularChatTopics when no real messages, no recipe, and showPopularTopics is true (Pair view) */
-                    <PopularChatTopics append={(text: string) => appendWithTracking(text)} />
-                  ) : null}
-                </>
-              ) : filteredMessages.length > 0 ||
+              loadingChat ? null : filteredMessages.length > 0 ||
                 (recipeConfig && recipeAccepted && hasStartedUsingRecipe) ? (
                 <>
                   {disableSearch ? (
@@ -473,7 +465,7 @@ function BaseChatContent({
 
                   <div className="block h-8" />
                 </>
-              ) : showPopularTopics ? (
+              ) : !recipeConfig && showPopularTopics ? (
                 /* Show PopularChatTopics when no messages, no recipe, and showPopularTopics is true (Pair view) */
                 <PopularChatTopics append={(text: string) => append(text)} />
               ) : null /* Show nothing when messages.length === 0 && suppressEmptyState === true */
