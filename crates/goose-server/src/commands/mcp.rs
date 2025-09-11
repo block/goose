@@ -1,11 +1,8 @@
 use anyhow::{anyhow, Result};
 use goose_mcp::{
-    AutoVisualiserRouter, ComputerControllerRouter, DeveloperServer, MemoryRouter, TutorialRouter,
+    AutoVisualiserServer, ComputerControllerServer, DeveloperServer, MemoryServer, TutorialServer,
 };
-use mcp_server::router::RouterService;
-use mcp_server::{BoundedService, ByteTransport, Server};
 use rmcp::{transport::stdio, ServiceExt};
-use tokio::io::{stdin, stdout};
 
 pub async fn run(name: &str) -> Result<()> {
     crate::logging::setup_logging(Some(&format!("mcp-{name}")))?;
@@ -29,17 +26,51 @@ pub async fn run(name: &str) -> Result<()> {
         service.waiting().await?;
         return Ok(());
     }
-    let router: Option<Box<dyn BoundedService>> = match name {
-        "computercontroller" => Some(Box::new(RouterService(ComputerControllerRouter::new()))),
-        "autovisualiser" => Some(Box::new(RouterService(AutoVisualiserRouter::new()))),
-        "memory" => Some(Box::new(RouterService(MemoryRouter::new()))),
-        "tutorial" => Some(Box::new(RouterService(TutorialRouter::new()))),
-        _ => None,
-    };
 
-    let server = Server::new(router.unwrap_or_else(|| panic!("Unknown server requested {}", name)));
-    let transport = ByteTransport::new(stdin(), stdout());
+    if name == "tutorial" {
+        let service = TutorialServer::new()
+            .serve(stdio())
+            .await
+            .inspect_err(|e| {
+                tracing::error!("serving error: {:?}", e);
+            })?;
 
-    tracing::info!("Server initialized and ready to handle requests");
-    Ok(server.run(transport).await?)
+        service.waiting().await?;
+        return Ok(());
+    }
+
+    if name == "memory" {
+        let service = MemoryServer::new().serve(stdio()).await.inspect_err(|e| {
+            tracing::error!("serving error: {:?}", e);
+        })?;
+
+        service.waiting().await?;
+        return Ok(());
+    }
+
+    if name == "computercontroller" {
+        let service = ComputerControllerServer::new()
+            .serve(stdio())
+            .await
+            .inspect_err(|e| {
+                tracing::error!("serving error: {:?}", e);
+            })?;
+
+        service.waiting().await?;
+        return Ok(());
+    }
+
+    if name == "autovisualiser" {
+        let service = AutoVisualiserServer::new()
+            .serve(stdio())
+            .await
+            .inspect_err(|e| {
+                tracing::error!("serving error: {:?}", e);
+            })?;
+
+        service.waiting().await?;
+        return Ok(());
+    }
+
+    panic!("Unknown server requested {}", name);
 }

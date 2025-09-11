@@ -99,7 +99,6 @@ ahash = "0.8"
 tokio-util = "0.7.15"
 unicode-normalization = "0.1"
 
-arrow = "52.2"
 oauth2 = "5.0.0"
 
 [target.'cfg(target_os = "windows")'.dependencies]
