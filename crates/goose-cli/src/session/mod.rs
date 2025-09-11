@@ -524,9 +524,18 @@ impl Session {
                             }
 
                             output::show_thinking();
+                            let start_time = Instant::now();
                             self.process_agent_response(true, CancellationToken::default())
                                 .await?;
                             output::hide_thinking();
+
+                            // Display elapsed time
+                            let elapsed = start_time.elapsed();
+                            let elapsed_str = format_elapsed_time(elapsed);
+                            println!(
+                                "\n{}",
+                                console::style(format!("⏱️  Elapsed time: {}", elapsed_str)).dim()
+                            );
                         }
                         RunMode::Plan => {
                             let mut plan_messages = self.messages.clone();
@@ -1737,4 +1746,17 @@ fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
     let reasoner = create(&provider, model_config)?;
 
     Ok(reasoner)
+}
+
+/// Format elapsed time duration
+/// Shows seconds if less than 60, otherwise shows minutes:seconds
+fn format_elapsed_time(duration: std::time::Duration) -> String {
+    let total_secs = duration.as_secs();
+    if total_secs < 60 {
+        format!("{:.2}s", duration.as_secs_f64())
+    } else {
+        let minutes = total_secs / 60;
+        let seconds = total_secs % 60;
+        format!("{}m {:02}s", minutes, seconds)
+    }
 }
