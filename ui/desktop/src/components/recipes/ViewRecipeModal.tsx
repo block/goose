@@ -14,6 +14,7 @@ import ParameterInput from '../parameter/ParameterInput';
 import { saveRecipe, generateRecipeFilename } from '../../recipe/recipeStorage';
 import { toastSuccess, toastError } from '../../toasts';
 import { Button } from '../ui/button';
+import { filterValidUsedParameters } from '../../utils/providerUtils';
 
 interface ViewRecipeModalProps {
   isOpen: boolean;
@@ -124,6 +125,8 @@ export default function ViewRecipeModal({ isOpen, onClose, config }: ViewRecipeM
     }
   }, [instructions, prompt, parameters]);
 
+  // Filter parameters to only show valid ones that are actually used
+  const filteredParameters = filterValidUsedParameters(parameters, { instructions, prompt });
   const getCurrentConfig = useCallback((): Recipe => {
     // Transform the internal parameters state into the desired output format.
     const formattedParameters = parameters.map((param) => {
@@ -459,7 +462,7 @@ export default function ViewRecipeModal({ isOpen, onClose, config }: ViewRecipeM
               )}
             </div>
 
-            {parameters.map((parameter: Parameter) => (
+            {filteredParameters.map((parameter: Parameter) => (
               <ParameterInput
                 key={parameter.key}
                 parameter={parameter}

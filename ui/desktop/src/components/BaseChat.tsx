@@ -205,6 +205,7 @@ function BaseChatContent({
   // Use shared recipe manager
   const {
     recipeConfig,
+    filteredParameters,
     initialPrompt,
     isGeneratingRecipe,
     isParameterModalOpen,
@@ -546,9 +547,9 @@ function BaseChatContent({
       />
 
       {/* Recipe Parameter Modal */}
-      {isParameterModalOpen && recipeConfig?.parameters && (
+      {isParameterModalOpen && filteredParameters.length > 0 && (
         <ParameterInputModal
-          parameters={recipeConfig.parameters}
+          parameters={filteredParameters}
           onSubmit={handleParameterSubmit}
           onClose={() => setIsParameterModalOpen(false)}
         />
