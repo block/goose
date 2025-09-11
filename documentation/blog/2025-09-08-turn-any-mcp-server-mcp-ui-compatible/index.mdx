@@ -25,7 +25,7 @@ What I really wanted was:
 - One‑click buttons to copy or view links
 - Transformation examples
 
-With MCP-UI, it’s not just responses anymore. These tools feel like little apps you can actually click around in, right inside the chat window.
+With MCP-UI, it’s not just text responses anymore. Now responses can be little apps you can actually click around in within your agent's chat interface.
 
 {/* Video Player */}
 <div style={{ width: '100%', maxWidth: '800px', margin: '0 auto' }}>
@@ -189,7 +189,7 @@ That little snippet is what keeps the iframe height in sync with your content so
 
 ### What Makes MCP-UI Interactive?  
 
-A clean UI is nice, but it gets way more interesting when those buttons actually do something. That’s where **UI Actions** come in, they turn static layouts into interactive tools that can talk back to your agent.
+A clean UI is nice, but it gets way more interesting when those buttons actually do something. That’s where **UI Actions** come in; they turn static layouts into interactive tools that can talk back to your agent.
 
 {/* Video Player */}
 <div style={{ width: '100%', maxWidth: '800px', margin: '0 auto' }}>
@@ -204,7 +204,7 @@ A clean UI is nice, but it gets way more interesting when those buttons actually
   </video>
 </div>
 
-In my Cloudinary server, I added two UI action types: 
+In my Cloudinary server, I added **two** UI actions right after the `ResizeObserver` in the `<script>` block of `createUploadResultUI`:
 
 - **Prompt Action** → Fires off a prompt to goose asking it to caption the image like a meme.  
 
