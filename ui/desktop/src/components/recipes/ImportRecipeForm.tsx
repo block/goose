@@ -156,6 +156,8 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
           recipe = await parseYamlFile(fileContent);
         }
 
+        recipe.title = value.recipeTitle.trim();
+
         const titleValidationError = await validateTitleUniqueness(
           value.recipeTitle.trim(),
           value.global
