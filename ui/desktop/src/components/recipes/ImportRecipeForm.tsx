@@ -39,7 +39,15 @@ const importRecipeSchema = z
         if (!file) return true;
         return file.size <= 1024 * 1024;
       }, 'File is too large, max size is 1MB'),
-    recipeTitle: z.string().min(1, 'Recipe title is required'),
+    recipeTitle: z
+      .string()
+      .min(1, 'Recipe title is required')
+      .max(100, 'Recipe title must be 100 characters or less')
+      .refine((title) => title.trim().length > 0, 'Recipe title cannot be empty')
+      .refine(
+        (title) => /^[^<>:"/\\|?*]+$/.test(title.trim()),
+        'Recipe title contains invalid characters (< > : " / \\ | ? *)'
+      ),
     global: z.boolean(),
   })
   .refine((data) => (data.deeplink && data.deeplink.trim()) || data.yamlFile, {
