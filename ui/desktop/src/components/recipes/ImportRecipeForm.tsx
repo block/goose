@@ -10,6 +10,7 @@ import * as yaml from 'yaml';
 import { toastSuccess, toastError } from '../../toasts';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
 import { RecipeTitleField } from './shared/RecipeTitleField';
+import { listSavedRecipes } from '../../recipe/recipeStorage';
 import {
   validateRecipe,
   getValidationErrorMessages,
@@ -97,6 +98,29 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
     return recipe as Recipe;
   };
 
+  const validateTitleUniqueness = async (
+    title: string,
+    isGlobal: boolean
+  ): Promise<string | undefined> => {
+    if (!title.trim()) return undefined;
+
+    try {
+      const existingRecipes = await listSavedRecipes();
+      const titleExists = existingRecipes.some(
+        (recipe) =>
+          recipe.recipe.title?.toLowerCase() === title.toLowerCase() && recipe.isGlobal === isGlobal
+      );
+
+      if (titleExists) {
+        return `A recipe with the title "${title}" already exists in ${isGlobal ? 'global' : 'directory'} recipes`;
+      }
+    } catch (error) {
+      console.warn('Failed to validate title uniqueness:', error);
+    }
+
+    return undefined;
+  };
+
   const importRecipeForm = useForm({
     defaultValues: {
       deeplink: '',
@@ -122,6 +146,14 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
         } else {
           const fileContent = await value.yamlFile!.text();
           recipe = await parseYamlFile(fileContent);
+        }
+
+        const titleValidationError = await validateTitleUniqueness(
+          value.recipeTitle.trim(),
+          value.global
+        );
+        if (titleValidationError) {
+          throw new Error(titleValidationError);
         }
 
         const validationResult = validateRecipe(recipe);
