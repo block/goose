@@ -14,13 +14,7 @@ This tutorial covers how to add [Rube](https://rube.app) as a Goose extension to
 :::tip TLDR
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-    <GooseDesktopInstaller
-      extensionId="rube"
-      extensionName="Rube"
-      description="Seamlessly connect across 500+ applications including Slack, Gmail, Notion, Google Workspace, Microsoft Office, GitHub, and many more"
-      type="http"
-      url="https://rube.app/mcp"
-    />
+    [Launch the installer](goose://extension?type=streamable_http&url=https%3A%2F%2Frube.app%2Fmcp&id=rube&name=Rube&description=Seamlessly%20connect%20across%20500%2B%20applications%20including%20Slack%2C%20Gmail%2C%20Notion%2C%20Google%20Workspace%2C%20Microsoft%20Office%2C%20GitHub%2C%20and%20many%20more)
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
     Use `goose configure` to add a `Remote Extension (Streaming HTTP)` extension type with:
@@ -29,37 +23,28 @@ This tutorial covers how to add [Rube](https://rube.app) as a Goose extension to
     ```
     https://rube.app/mcp
     ```
-    **Authentication**: OAuth browser authentication (no manual tokens required)
   </TabItem>
 </Tabs>
+
+:::info OAUTH FLOW
+An OAuth window will open in your browser. Follow the prompts to authorize access to your Rube account.
 :::
 
 ## What is Rube?
 
-Rube is a platform powered by Composio that provides unified access to 500+ apps and services through a single integration. It enables seamless connectivity across different applications without additional setup, making it perfect for both individual users and teams. Rube provides a consistent interface for:
-
-- **Communication**: Slack, Discord, Microsoft Teams, WhatsApp, Telegram
-- **Productivity**: Gmail, Outlook, Google Workspace, Microsoft 365, Notion, Airtable
-- **Development**: GitHub, GitLab, Jira, Linear, Figma
-- **CRM & Sales**: Salesforce, HubSpot, Pipedrive
-- **Finance**: Stripe, QuickBooks, PayPal
-- **And 500+ more apps**
+Rube is a platform powered by Composio that provides unified access to 500+ apps and services through a single integration. It enables seamless connectivity across different applications without additional setup, making it perfect for both individual users and teams.
 
 ## Configuration
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
-    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-    2. Click `Extensions`
-    3. Click `Add custom extension`
-    4. On the `Add custom extension` modal, enter the following:
-       - **Extension Name**: Rube
-       - **Type**: Streamable HTTP
-       - **Endpoint**: `https://rube.app/mcp`
-       - **Timeout**: 300 (or adjust as needed)
-    5. Click `Add Extension` to save the extension
-    6. Navigate to the chat and start using Rube - OAuth authentication will happen automatically when needed
-
+    <GooseDesktopInstaller
+      extensionId="rube"
+      extensionName="Rube"
+      description="Seamlessly connect across 500+ applications including Slack, Gmail, Notion, Google Workspace, Microsoft Office, GitHub, and many more"
+      type="http"
+      url="https://rube.app/mcp"
+    />
   </TabItem>
   <TabItem value="cli" label="Goose CLI">
     <CLIExtensionInstructions
