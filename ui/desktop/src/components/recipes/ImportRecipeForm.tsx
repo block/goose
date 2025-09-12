@@ -120,7 +120,7 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
       );
 
       if (titleExists) {
-        return `A recipe with the title "${title}" already exists in ${isGlobal ? 'global' : 'directory'} recipes`;
+        return `A recipe with the same title already exists`;
       }
     } catch (error) {
       console.warn('Failed to validate title uniqueness:', error);
@@ -515,7 +515,7 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
             </div>
             <div className="flex-1 overflow-auto">
               <p className="font-medium mb-3 text-text-standard">Expected Recipe Structure:</p>
-              <pre className="text-xs bg-gray-100 p-4 rounded overflow-auto whitespace-pre font-mono">
+              <pre className="text-xs bg-gray-800 p-4 rounded overflow-auto whitespace-pre font-mono">
                 {JSON.stringify(getRecipeJsonSchema(), null, 2)}
               </pre>
               <p className="mt-4 text-blue-700 text-sm">
