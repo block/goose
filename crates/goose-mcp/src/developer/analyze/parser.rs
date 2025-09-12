@@ -187,7 +187,6 @@ impl ElementExtractor {
         source: &str,
         query_str: &str,
     ) -> Result<ElementQueryResult, ErrorData> {
-        use streaming_iterator::StreamingIterator;
         use tree_sitter::{Query, QueryCursor};
 
         let mut functions = Vec::new();
@@ -206,7 +205,7 @@ impl ElementExtractor {
         let mut cursor = QueryCursor::new();
         let mut matches = cursor.matches(&query, tree.root_node(), source.as_bytes());
 
-        while let Some(match_) = matches.next() {
+        for match_ in matches.by_ref() {
             for capture in match_.captures {
                 let node = capture.node;
                 let text = &source[node.byte_range()];
@@ -267,7 +266,6 @@ impl ElementExtractor {
         source: &str,
         language: &str,
     ) -> Result<Vec<CallInfo>, ErrorData> {
-        use streaming_iterator::StreamingIterator;
         use tree_sitter::{Query, QueryCursor};
 
         let mut calls = Vec::new();
@@ -290,7 +288,7 @@ impl ElementExtractor {
         let mut cursor = QueryCursor::new();
         let mut matches = cursor.matches(&query, tree.root_node(), source.as_bytes());
 
-        while let Some(match_) = matches.next() {
+        for match_ in matches.by_ref() {
             for capture in match_.captures {
                 let node = capture.node;
                 let text = &source[node.byte_range()];

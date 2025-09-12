@@ -1026,7 +1026,7 @@ impl DeveloperServer {
     /// analyze(path="src/", focus="main") -> track main() across files in src/ down to max_depth subdirs
     #[tool(
         name = "analyze",
-        description = "Analyze code structure in three modes: 1) Directory overview (file tree with LOC/function/class counts) down to max_depth subdirs, 2) File details (functions, classes, imports), 3) Symbol focus (call graphs across directory down to max_depth subdirs). Typical flow: analyze directory → inspect specific files → focus on symbols of interest. Functions called >3 times show •N."
+        description = "Analyze code structure in 3 modes: 1) Directory overview - file tree with LOC/function/class counts to max_depth. 2) File details - functions, classes, imports. 3) Symbol focus - call graphs across directory to max_depth (requires directory path, case-sensitive). Typical flow: directory → files → symbols. Functions called >3x show •N."
     )]
     pub async fn analyze(
         &self,

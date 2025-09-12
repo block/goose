@@ -27,7 +27,7 @@ use self::types::{AnalysisMode, AnalysisResult, AnalyzeParams, FocusedAnalysisDa
 pub(crate) fn lock_or_recover<T, F>(
     mutex: &std::sync::Mutex<T>,
     recovery: F,
-) -> std::sync::MutexGuard<T>
+) -> std::sync::MutexGuard<'_, T>
 where
     F: FnOnce(&mut T),
 {
