@@ -32,7 +32,7 @@ const importRecipeSchema = z
         (value) => !value || value.trim().startsWith('goose://recipe?config='),
         'Invalid deeplink format. Expected: goose://recipe?config=...'
       ),
-    yamlFile: z
+    recipeUploadFile: z
       .instanceof(File)
       .nullable()
       .refine((file) => {
@@ -50,8 +50,8 @@ const importRecipeSchema = z
       ),
     global: z.boolean(),
   })
-  .refine((data) => (data.deeplink && data.deeplink.trim()) || data.yamlFile, {
-    message: 'Either of deeplink or YAML file are required',
+  .refine((data) => (data.deeplink && data.deeplink.trim()) || data.recipeUploadFile, {
+    message: 'Either of deeplink or recipe file are required',
     path: ['deeplink'],
   });
 
@@ -93,11 +93,24 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
     }
   };
 
-  const parseYamlFile = async (fileContent: string): Promise<Recipe> => {
-    const parsed = yaml.parse(fileContent);
+  const parseRecipeUploadFile = async (fileContent: string, fileName: string): Promise<Recipe> => {
+    const isJsonFile = fileName.toLowerCase().endsWith('.json');
+    let parsed;
+
+    try {
+      if (isJsonFile) {
+        parsed = JSON.parse(fileContent);
+      } else {
+        parsed = yaml.parse(fileContent);
+      }
+    } catch (error) {
+      throw new Error(
+        `Failed to parse ${isJsonFile ? 'JSON' : 'YAML'} file: ${error instanceof Error ? error.message : 'Invalid format'}`
+      );
+    }
 
     if (!parsed) {
-      throw new Error('YAML file is empty or contains invalid content');
+      throw new Error(`${isJsonFile ? 'JSON' : 'YAML'} file is empty or contains invalid content`);
     }
 
     // Handle both CLI format (flat structure) and Desktop format (nested under 'recipe' key)
@@ -132,7 +145,7 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
   const importRecipeForm = useForm({
     defaultValues: {
       deeplink: '',
-      yamlFile: null as File | null,
+      recipeUploadFile: null as File | null,
       recipeTitle: '',
       global: true,
     },
@@ -144,7 +157,7 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
       try {
         let recipe: Recipe;
 
-        // Parse recipe from either deeplink or YAML file
+        // Parse recipe from either deeplink or recipe file
         if (value.deeplink && value.deeplink.trim()) {
           const parsedRecipe = await parseDeeplink(value.deeplink.trim());
           if (!parsedRecipe) {
@@ -152,8 +165,8 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
           }
           recipe = parsedRecipe;
         } else {
-          const fileContent = await value.yamlFile!.text();
-          recipe = await parseYamlFile(fileContent);
+          const fileContent = await value.recipeUploadFile!.text();
+          recipe = await parseRecipeUploadFile(fileContent, value.recipeUploadFile!.name);
         }
 
         recipe.title = value.recipeTitle.trim();
@@ -181,7 +194,7 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
         // Reset dialog state
         importRecipeForm.reset({
           deeplink: '',
-          yamlFile: null,
+          recipeUploadFile: null,
           recipeTitle: '',
           global: true,
         });
@@ -211,7 +224,7 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
     // Reset form to default values
     importRecipeForm.reset({
       deeplink: '',
-      yamlFile: null,
+      recipeUploadFile: null,
       recipeTitle: '',
       global: true,
     });
@@ -254,13 +267,13 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
     }
   };
 
-  const handleYamlFileChange = async (file: File | undefined) => {
-    importRecipeForm.setFieldValue('yamlFile', file || null);
+  const handleRecipeUploadChange = async (file: File | undefined) => {
+    importRecipeForm.setFieldValue('recipeUploadFile', file || null);
 
     if (file) {
       try {
         const fileContent = await file.text();
-        const recipe = await parseYamlFile(fileContent);
+        const recipe = await parseRecipeUploadFile(fileContent, file.name);
         if (recipe.title) {
           // Use the recipe title field's handleChange method if available
           if (recipeTitleFieldRef) {
@@ -271,7 +284,7 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
         }
       } catch (error) {
         // Silently handle parsing errors during auto-suggest
-        console.log('Could not parse YAML file for auto-suggest:', error);
+        console.log('Could not parse recipe file for auto-suggest:', error);
       }
     } else {
       // Clear the recipe title when file is removed
@@ -304,7 +317,7 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
                   <>
                     <importRecipeForm.Field name="deeplink">
                       {(field) => {
-                        const isDisabled = values.yamlFile !== null;
+                        const isDisabled = values.recipeUploadFile !== null;
 
                         return (
                           <div className={isDisabled ? 'opacity-50' : ''}>
@@ -358,7 +371,7 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
                       </div>
                     </div>
 
-                    <importRecipeForm.Field name="yamlFile">
+                    <importRecipeForm.Field name="recipeUploadFile">
                       {(field) => {
                         const hasDeeplink = values.deeplink?.trim();
                         const isDisabled = !!hasDeeplink;
@@ -366,22 +379,22 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
                         return (
                           <div className={isDisabled ? 'opacity-50' : ''}>
                             <label
-                              htmlFor="import-yaml-file"
+                              htmlFor="import-recipe-file"
                               className="block text-sm font-medium text-text-standard mb-3"
                             >
-                              Recipe YAML File
+                              Recipe File
                             </label>
                             <div className="relative">
                               <Input
-                                id="import-yaml-file"
+                                id="import-recipe-file"
                                 type="file"
-                                accept=".yaml,.yml"
+                                accept=".yaml,.yml,.json"
                                 disabled={isDisabled}
                                 onChange={(e) => {
-                                  handleYamlFileChange(e.target.files?.[0]);
+                                  handleRecipeUploadChange(e.target.files?.[0]);
                                 }}
                                 onBlur={field.handleBlur}
-                                className={`${field.state.meta.errors.length > 0 ? 'border-red-500' : ''} ${
+                                className={`file:pt-1 ${field.state.meta.errors.length > 0 ? 'border-red-500' : ''} ${
                                   isDisabled ? 'cursor-not-allowed' : ''
                                 }`}
                               />
@@ -390,7 +403,7 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
                               <p
                                 className={`text-xs mt-1 ${isDisabled ? 'text-gray-300' : 'text-text-muted'}`}
                               >
-                                Upload a YAML file containing the recipe structure
+                                Upload a YAML or JSON file containing the recipe structure
                               </p>
                               <button
                                 type="button"
@@ -418,7 +431,8 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
               </importRecipeForm.Subscribe>
 
               <p className="text-xs text-text-muted">
-                Ensure you review contents of YAML files before adding them to your goose interface.
+                Ensure you review contents of recipe files before adding them to your goose
+                interface.
               </p>
 
               <importRecipeForm.Field name="recipeTitle">
@@ -519,7 +533,7 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
                 {JSON.stringify(getRecipeJsonSchema(), null, 2)}
               </pre>
               <p className="mt-4 text-blue-700 text-sm">
-                Your YAML file should follow this structure. Required fields are: title,
+                Your YAML or JSON file should follow this structure. Required fields are: title,
                 description, and either instructions or prompt.
               </p>
             </div>
