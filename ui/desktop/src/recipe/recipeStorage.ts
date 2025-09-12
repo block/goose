@@ -82,6 +82,8 @@ export async function saveRecipe(recipe: Recipe, options: SaveRecipeOptions): Pr
       throw new Error('Invalid recipe title - cannot generate filename');
     }
   } else {
+    // This branch should now be considered deprecated and will be removed once the same functionality
+    // is incorporated in CreateRecipeForm
     sanitizedName = sanitizeRecipeName(name);
     if (!sanitizedName) {
       throw new Error('Invalid recipe name');
