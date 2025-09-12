@@ -5,6 +5,7 @@ import { validateRecipe, getValidationErrorMessages } from './validation';
 
 export interface SaveRecipeOptions {
   name: string;
+  title?: string;
   global?: boolean; // true for global (~/.config/goose/recipes/), false for project-specific (.goose/recipes/)
 }
 
@@ -70,12 +71,21 @@ async function saveRecipeToFile(recipe: SavedRecipe): Promise<boolean> {
  * Save a recipe to a file using IPC.
  */
 export async function saveRecipe(recipe: Recipe, options: SaveRecipeOptions): Promise<string> {
-  const { name, global = true } = options;
+  const { name, title, global = true } = options;
 
-  // Sanitize name
-  const sanitizedName = sanitizeRecipeName(name);
-  if (!sanitizedName) {
-    throw new Error('Invalid recipe name');
+  let sanitizedName: string;
+
+  if (title) {
+    recipe.title = title.trim();
+    sanitizedName = generateRecipeFilename(recipe);
+    if (!sanitizedName) {
+      throw new Error('Invalid recipe title - cannot generate filename');
+    }
+  } else {
+    sanitizedName = sanitizeRecipeName(name);
+    if (!sanitizedName) {
+      throw new Error('Invalid recipe name');
+    }
   }
 
   const validationResult = validateRecipe(recipe);
