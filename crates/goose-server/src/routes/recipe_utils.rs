@@ -31,7 +31,7 @@ fn short_id_from_path(path: &str) -> String {
     format!("{:016x}", h)
 }
 
-fn load_recipes_from_path(path: &PathBuf) -> Result<Vec<RecipeManifestWithPath>> {
+fn load_recipes_from_path(path: &PathBuf, is_global: bool) -> Result<Vec<RecipeManifestWithPath>> {
     let mut recipe_manifests_with_path = Vec::new();
     if path.exists() {
         for entry in fs::read_dir(path)? {
@@ -43,14 +43,18 @@ fn load_recipes_from_path(path: &PathBuf) -> Result<Vec<RecipeManifestWithPath>>
                 let Ok(recipe) = Recipe::from_content(&recipe_file.content) else {
                     continue;
                 };
-                let Ok(recipe_metadata) = RecipeManifestMetadata::from_yaml_file(&path) else {
-                    continue;
-                };
                 let Ok(last_modified) = fs::metadata(path.clone()).map(|m| {
                     chrono::DateTime::<chrono::Utc>::from(m.modified().unwrap()).to_rfc3339()
                 }) else {
                     continue;
                 };
+                let recipe_metadata =
+                    RecipeManifestMetadata::from_yaml_file(&path).unwrap_or_else(|_| {
+                        RecipeManifestMetadata {
+                            name: recipe.title.clone(),
+                            is_global,
+                        }
+                    });
 
                 let manifest_with_path = RecipeManifestWithPath {
                     id: short_id_from_path(recipe_file.file_path.to_string_lossy().as_ref()),
@@ -78,8 +82,8 @@ pub fn get_all_recipes_manifests() -> Result<Vec<RecipeManifestWithPath>> {
 
     let mut recipe_manifests_with_path = Vec::new();
 
-    recipe_manifests_with_path.extend(load_recipes_from_path(&local_recipe_path)?);
-    recipe_manifests_with_path.extend(load_recipes_from_path(&global_recipe_path)?);
+    recipe_manifests_with_path.extend(load_recipes_from_path(&local_recipe_path, false)?);
+    recipe_manifests_with_path.extend(load_recipes_from_path(&global_recipe_path, true)?);
     recipe_manifests_with_path.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
 
     Ok(recipe_manifests_with_path)
