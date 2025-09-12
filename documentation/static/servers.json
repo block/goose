@@ -543,7 +543,7 @@
     "environmentVariables": []
   },
   {
-    "id": "rube",
+    "id": "rube-mcp",
     "name": "Rube",
     "description": "Connect with 500+ apps like Slack, Gmail, Notion and more through unified integrations",
     "type": "streamable-http",
