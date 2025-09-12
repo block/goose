@@ -189,15 +189,15 @@ impl CodeAnalyzer {
             return Ok(cached);
         }
 
-        // Read file content
-        let content = std::fs::read_to_string(path).map_err(|e| {
-            tracing::error!("Failed to read file {:?}: {}", path, e);
-            ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!("Failed to read file '{}': {}", path.display(), e),
-                None,
-            )
-        })?;
+        // Read file content - handle binary files gracefully
+        let content = match std::fs::read_to_string(path) {
+            Ok(content) => content,
+            Err(e) => {
+                // Binary or non-UTF-8 file, skip parsing
+                tracing::trace!("Skipping binary/non-UTF-8 file {:?}: {}", path, e);
+                return Ok(AnalysisResult::empty(0));
+            }
+        };
 
         // Count lines
         let line_count = content.lines().count();
