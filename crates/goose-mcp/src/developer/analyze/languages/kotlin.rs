@@ -1,18 +1,27 @@
 /// Tree-sitter query for extracting Kotlin code elements
 pub const ELEMENT_QUERY: &str = r#"
-    (function_declaration (identifier) @func)
-    (class_declaration (identifier) @class)
-    (object_declaration (identifier) @class)
-    (import) @import
+    ; Functions
+    (function_declaration (simple_identifier) @func)
+    
+    ; Classes
+    (class_declaration (type_identifier) @class)
+    
+    ; Objects (singleton classes)
+    (object_declaration (type_identifier) @class)
+    
+    ; Imports
+    (import_header) @import
 "#;
 
 /// Tree-sitter query for extracting Kotlin function calls
 pub const CALL_QUERY: &str = r#"
-    ; Function calls (simple identifier)
+    ; Simple function calls
     (call_expression
-      (identifier) @function.call)
+      (simple_identifier) @function.call)
     
-    ; Method calls (navigation expression like obj.method)
+    ; Method calls with navigation (obj.method())
     (call_expression
-      (navigation_expression) @method.call)
+      (navigation_expression
+        (navigation_suffix
+          (simple_identifier) @method.call)))
 "#;

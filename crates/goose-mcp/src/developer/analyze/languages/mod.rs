@@ -4,6 +4,7 @@ pub mod javascript;
 pub mod kotlin;
 pub mod python;
 pub mod rust;
+pub mod swift;
 
 /// Get the tree-sitter query for extracting code elements for a language
 pub fn get_element_query(language: &str) -> &'static str {
@@ -14,6 +15,7 @@ pub fn get_element_query(language: &str) -> &'static str {
         "go" => go::ELEMENT_QUERY,
         "java" => java::ELEMENT_QUERY,
         "kotlin" => kotlin::ELEMENT_QUERY,
+        "swift" => swift::ELEMENT_QUERY,
         _ => "",
     }
 }
@@ -27,6 +29,7 @@ pub fn get_call_query(language: &str) -> &'static str {
         "go" => go::CALL_QUERY,
         "java" => java::CALL_QUERY,
         "kotlin" => kotlin::CALL_QUERY,
+        "swift" => swift::CALL_QUERY,
         _ => "",
     }
 }

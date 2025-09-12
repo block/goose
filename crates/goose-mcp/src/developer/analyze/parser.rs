@@ -1,7 +1,7 @@
 use rmcp::model::{ErrorCode, ErrorData};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use tree_sitter::{Parser, Tree};
+use tree_sitter::{Language, Parser, Tree};
 
 use super::lock_or_recover;
 use crate::developer::analyze::types::{
@@ -34,13 +34,14 @@ impl ParserManager {
 
         tracing::debug!("Creating new parser for {}", language);
         let mut parser = Parser::new();
-        let language_config = match language {
-            "python" => tree_sitter_python::LANGUAGE,
-            "rust" => tree_sitter_rust::LANGUAGE,
-            "javascript" | "typescript" => tree_sitter_javascript::LANGUAGE,
-            "go" => tree_sitter_go::LANGUAGE,
-            "java" => tree_sitter_java::LANGUAGE,
-            "kotlin" => tree_sitter_kotlin_ng::LANGUAGE,
+        let language_config: Language = match language {
+            "python" => tree_sitter_python::language(),
+            "rust" => tree_sitter_rust::language(),
+            "javascript" | "typescript" => tree_sitter_javascript::language(),
+            "go" => tree_sitter_go::language(),
+            "java" => tree_sitter_java::language(),
+            "kotlin" => tree_sitter_kotlin::language(),
+            "swift" => devgen_tree_sitter_swift::language(),
             _ => {
                 tracing::warn!("Unsupported language: {}", language);
                 return Err(ErrorData::new(
@@ -51,7 +52,7 @@ impl ParserManager {
             }
         };
 
-        parser.set_language(&language_config.into()).map_err(|e| {
+        parser.set_language(&language_config).map_err(|e| {
             tracing::error!("Failed to set language for {}: {}", language, e);
             ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
@@ -175,6 +176,7 @@ impl ElementExtractor {
             "go" => languages::go::ELEMENT_QUERY,
             "java" => languages::java::ELEMENT_QUERY,
             "kotlin" => languages::kotlin::ELEMENT_QUERY,
+            "swift" => languages::swift::ELEMENT_QUERY,
             _ => "",
         }
     }
@@ -254,6 +256,7 @@ impl ElementExtractor {
             "go" => languages::go::CALL_QUERY,
             "java" => languages::java::CALL_QUERY,
             "kotlin" => languages::kotlin::CALL_QUERY,
+            "swift" => languages::swift::CALL_QUERY,
             _ => "",
         }
     }
@@ -352,6 +355,12 @@ impl ElementExtractor {
                 "go" => kind == "function_declaration" || kind == "method_declaration",
                 "java" => kind == "method_declaration" || kind == "constructor_declaration",
                 "kotlin" => kind == "function_declaration" || kind == "class_body",
+                "swift" => {
+                    kind == "function_declaration"
+                        || kind == "init_declaration"
+                        || kind == "deinit_declaration"
+                        || kind == "subscript_declaration"
+                }
                 _ => false,
             };
 
@@ -363,10 +372,19 @@ impl ElementExtractor {
                         if child.kind() == "identifier"
                             || child.kind() == "field_identifier"
                             || child.kind() == "property_identifier"
+                            || (language == "swift" && child.kind() == "simple_identifier")
                         {
                             // For Python, skip the first identifier if it's 'def'
                             if language == "python" && i == 0 {
                                 continue;
+                            }
+                            // For Swift init/deinit, use special names
+                            if language == "swift" {
+                                if kind == "init_declaration" {
+                                    return Some("init".to_string());
+                                } else if kind == "deinit_declaration" {
+                                    return Some("deinit".to_string());
+                                }
                             }
                             return Some(source[child.byte_range()].to_string());
                         }
