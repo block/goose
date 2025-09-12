@@ -356,7 +356,7 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
                                   handleRecipeUploadChange(e.target.files?.[0]);
                                 }}
                                 onBlur={field.handleBlur}
-                                className={`${field.state.meta.errors.length > 0 ? 'border-red-500' : ''} ${
+                                className={`file:pt-1 ${field.state.meta.errors.length > 0 ? 'border-red-500' : ''} ${
                                   isDisabled ? 'cursor-not-allowed' : ''
                                 }`}
                               />
