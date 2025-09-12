@@ -66,6 +66,37 @@ Rube uses OAuth browser authentication, which means:
 - When you first use a Rube tool, your browser will open to authenticate with the relevant service
 - Authentication tokens are securely stored and managed by Rube
 
+## Example Usage
+
+Once Rube is configured, you can interact with 500+ apps directly through Goose. Here are some examples:
+
+**Email Management**
+```
+Send an email to john@example.com with subject "Meeting Update" and body "The meeting has been moved to 3 PM"
+```
+
+**Slack Communication**
+```
+Post a message to the #general channel saying "Deploy completed successfully"
+```
+
+**GitHub Integration**
+```
+Create a new issue in my repository with title "Bug Report" and description "Found an issue with the login flow"
+```
+
+**Google Sheets**
+```
+Add a new row to my "Sales Data" spreadsheet with values: Date: today, Amount: 1500, Client: Acme Corp
+```
+
+**Calendar Management**
+```
+Schedule a meeting for tomorrow at 2 PM with title "Project Review" and invite sarah@company.com
+```
+
+The first time you use tools for a specific service, you'll be prompted to authenticate through OAuth in your browser. After that, all subsequent interactions with that service will work seamlessly.
+
 ## Troubleshooting
 
 - **Extension not connecting**: Ensure you have a stable internet connection and that `https://rube.app` is accessible from your network.
