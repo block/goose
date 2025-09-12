@@ -460,28 +460,46 @@ pub trait Provider: Send + Sync {
     }
 
     /// Generate a session name/description based on the conversation history
-    /// Creates a prompt asking for a concise description in 4 words or less.
+    /// Stub implementation that extracts a name from the first user message.
     async fn generate_session_name(
         &self,
         messages: &Conversation,
     ) -> Result<String, ProviderError> {
-        let context = self.get_initial_user_messages(messages);
-        let prompt = self.create_session_name_prompt(&context);
-        let message = Message::user().with_text(&prompt);
-        let result = self
-            .complete_fast(
-                "Reply with only a description in four words or less",
-                &[message],
-                &[],
-            )
-            .await?;
+        // Get the first user message
+        let first_user_message = messages
+            .iter()
+            .find(|m| m.role == rmcp::model::Role::User)
+            .map(|m| m.as_concat_text())
+            .unwrap_or_else(|| "New Session".to_string());
 
-        let description = result.0.as_concat_text();
+        // Clean up the message first - remove/replace special characters but preserve word boundaries
+        let cleaned_message = first_user_message
+            .chars()
+            .map(|c| {
+                if c.is_alphanumeric() || c.is_whitespace() || c == '-' || c == '_' {
+                    c
+                } else {
+                    ' ' // Replace special characters with spaces to preserve word boundaries
+                }
+            })
+            .collect::<String>();
 
-        Ok(safe_truncate(&description, 100))
+        // Extract first few words (up to 4 words) from the cleaned message
+        let words: Vec<&str> = cleaned_message.split_whitespace().take(4).collect();
+
+        let final_name = if words.is_empty() {
+            "New Session".to_string()
+        } else {
+            words.join(" ")
+        };
+
+        Ok(safe_truncate(&final_name, 100))
     }
 
     // Generate a prompt for a session name based on the conversation history
+    // NOTE: This method is no longer used since we stubbed out generate_session_name
+    // to extract names directly from the first user message instead of using LLM
+    #[allow(dead_code)]
     fn create_session_name_prompt(&self, context: &[String]) -> String {
         // Create a prompt for a concise description
         let mut prompt = "Based on the conversation so far, provide a concise description of this session in 4 words or less. This will be used for finding the session later in a UI with limited space - reply *ONLY* with the description".to_string();
@@ -653,5 +671,82 @@ mod tests {
         assert_eq!(info.input_token_cost, Some(0.0000025));
         assert_eq!(info.output_token_cost, Some(0.00001));
         assert_eq!(info.currency, Some("$".to_string()));
+    }
+
+    // Test helper for the stubbed session name generation
+    #[cfg(test)]
+    struct TestProvider;
+
+    #[cfg(test)]
+    #[async_trait]
+    impl Provider for TestProvider {
+        fn metadata() -> ProviderMetadata {
+            ProviderMetadata::empty()
+        }
+
+        async fn complete_with_model(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[crate::conversation::message::Message],
+            _tools: &[rmcp::model::Tool],
+        ) -> Result<(crate::conversation::message::Message, ProviderUsage), ProviderError> {
+            unreachable!("This test provider should not be used for completion")
+        }
+
+        fn get_model_config(&self) -> ModelConfig {
+            ModelConfig::new_or_fail("test-model")
+        }
+    }
+
+    #[tokio::test]
+    async fn test_stubbed_session_name_generation() {
+        use crate::conversation::message::Message;
+        use crate::conversation::Conversation;
+
+        let provider = TestProvider;
+
+        // Test 1: Normal message with multiple words
+        let messages = Conversation::new_unvalidated(vec![
+            Message::user().with_text("How do I install Rust on my computer"),
+            Message::assistant().with_text("To install Rust..."),
+        ]);
+
+        let result = provider.generate_session_name(&messages).await.unwrap();
+        assert_eq!(result, "How do I install");
+
+        // Test 2: Single word message
+        let messages = Conversation::new_unvalidated(vec![Message::user().with_text("Help")]);
+
+        let result = provider.generate_session_name(&messages).await.unwrap();
+        assert_eq!(result, "Help");
+
+        // Test 3: Empty message
+        let messages = Conversation::new_unvalidated(vec![Message::user().with_text("")]);
+
+        let result = provider.generate_session_name(&messages).await.unwrap();
+        assert_eq!(result, "New Session");
+
+        // Test 4: No user messages
+        let messages = Conversation::new_unvalidated(vec![Message::assistant().with_text("Hello")]);
+
+        let result = provider.generate_session_name(&messages).await.unwrap();
+        assert_eq!(result, "New Session");
+
+        // Test 5: Message with special characters
+        let messages = Conversation::new_unvalidated(vec![
+            Message::user().with_text("How to fix @#$% error in code")
+        ]);
+
+        let result = provider.generate_session_name(&messages).await.unwrap();
+        assert_eq!(result, "How to fix error");
+
+        // Test 6: Long message - should truncate to 4 words
+        let messages = Conversation::new_unvalidated(vec![Message::user().with_text(
+            "Please help me understand the complex process of installing and configuring software",
+        )]);
+
+        let result = provider.generate_session_name(&messages).await.unwrap();
+        assert_eq!(result, "Please help me understand");
     }
 }
