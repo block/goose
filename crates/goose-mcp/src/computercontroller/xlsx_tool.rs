@@ -97,7 +97,7 @@ impl XlsxTool {
     }
 
     pub fn get_range(&self, worksheet: &Worksheet, range: &str) -> Result<RangeData> {
-        let (start_col, start_row, end_col, end_row) = parse_range(range)?;
+        let (start_row, start_col, end_row, end_col) = parse_range(range)?;
         let mut values = Vec::new();
 
         // Iterate through rows first, then columns
@@ -206,7 +206,7 @@ impl XlsxTool {
 }
 
 fn parse_range(range: &str) -> Result<(u32, u32, u32, u32)> {
-    // Handle ranges like "A1:B10"
+    // Handle ranges like "A1:B10" and return (start_row, start_col, end_row, end_col)
     let parts: Vec<&str> = range.split(':').collect();
     if parts.len() != 2 {
         anyhow::bail!("Invalid range format. Expected format: 'A1:B10'");
@@ -215,11 +215,12 @@ fn parse_range(range: &str) -> Result<(u32, u32, u32, u32)> {
     let start = parse_cell_reference(parts[0])?;
     let end = parse_cell_reference(parts[1])?;
 
+    // parse_cell_reference returns (row, col), so start.0 is row, start.1 is col
     Ok((start.0, start.1, end.0, end.1))
 }
 
 fn parse_cell_reference(reference: &str) -> Result<(u32, u32)> {
-    // Parse Excel cell reference (e.g., "A1") and return (column, row)
+    // Parse Excel cell reference (e.g., "A1") and return (row, column) to match umya_spreadsheet's expectation
     let mut col_str = String::new();
     let mut row_str = String::new();
     let mut parsing_row = false;
@@ -241,7 +242,7 @@ fn parse_cell_reference(reference: &str) -> Result<(u32, u32)> {
     let col = column_letter_to_number(&col_str)?;
     let row = row_str.parse::<u32>().context("Invalid row number")?;
 
-    Ok((col, row))
+    Ok((row, col))
 }
 
 fn column_letter_to_number(column: &str) -> Result<u32> {
@@ -326,6 +327,79 @@ mod tests {
             "Header cell: {:#?}\nData cell: {:#?}",
             header_cell, data_cell
         );
+        Ok(())
+    }
+
+    #[test]
+    fn test_coordinate_mapping() -> Result<()> {
+        let xlsx = XlsxTool::new(get_test_file())?;
+        let worksheet = xlsx.get_worksheet_by_index(0)?;
+
+        // Verify the coordinate system mapping
+        // A1 should be row=1, col=1
+        let a1 = xlsx.get_cell_value(worksheet, 1, 1)?;
+        println!("A1 (1,1): {}", a1.value);
+        assert_eq!(a1.value, "Segment");
+
+        // A2 should be row=2, col=1
+        let a2 = xlsx.get_cell_value(worksheet, 2, 1)?;
+        println!("A2 (2,1): {}", a2.value);
+        assert_eq!(a2.value, "Country");
+
+        // B1 should be row=1, col=2
+        let b1 = xlsx.get_cell_value(worksheet, 1, 2)?;
+        println!("B1 (1,2): {}", b1.value);
+        assert_eq!(b1.value, "Government");
+
+        // B2 should be row=2, col=2
+        let b2 = xlsx.get_cell_value(worksheet, 2, 2)?;
+        println!("B2 (2,2): {}", b2.value);
+        assert_eq!(b2.value, "Canada");
+
+        // Verify that parse_cell_reference works correctly (row, col)
+        assert_eq!(parse_cell_reference("A1")?, (1, 1));
+        assert_eq!(parse_cell_reference("A2")?, (2, 1));
+        assert_eq!(parse_cell_reference("B1")?, (1, 2));
+        assert_eq!(parse_cell_reference("B2")?, (2, 2));
+        assert_eq!(parse_cell_reference("Z1")?, (1, 26));
+        assert_eq!(parse_cell_reference("AA1")?, (1, 27));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_issue_4550_row_column_transposition() -> Result<()> {
+        // This test specifically addresses issue #4550 where A2 was returning B1's value
+        let xlsx = XlsxTool::new(get_test_file())?;
+        let worksheet = xlsx.get_worksheet_by_index(0)?;
+
+        // Test that A2 (row 2, column 1) returns the correct value
+        let a2_value = xlsx.get_cell_value(worksheet, 2, 1)?;
+        assert_eq!(a2_value.value, "Country", "A2 should contain 'Country'");
+
+        // Test that B1 (row 1, column 2) returns its own value, not A2's
+        let b1_value = xlsx.get_cell_value(worksheet, 1, 2)?;
+        assert_eq!(
+            b1_value.value, "Government",
+            "B1 should contain 'Government'"
+        );
+
+        // Additional verification with ranges
+        let range = xlsx.get_range(worksheet, "A1:B2")?;
+        assert_eq!(
+            range.values[0][0].value, "Segment",
+            "A1 should be 'Segment'"
+        );
+        assert_eq!(
+            range.values[0][1].value, "Government",
+            "B1 should be 'Government'"
+        );
+        assert_eq!(
+            range.values[1][0].value, "Country",
+            "A2 should be 'Country'"
+        );
+        assert_eq!(range.values[1][1].value, "Canada", "B2 should be 'Canada'");
+
         Ok(())
     }
 }
