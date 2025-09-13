@@ -926,7 +926,7 @@ impl Session {
             .reply(
                 self.messages.clone(),
                 session_config.clone(),
-                Some(cancel_token),
+                Some(cancel_token.clone()),
             )
             .await?;
 
@@ -1285,32 +1285,67 @@ impl Session {
                         }
 
                         Some(Err(e)) => {
+                            // Check if it's a ProviderError::ContextLengthExceeded
+                            if e.downcast_ref::<goose::providers::errors::ProviderError>()
+                                .map(|provider_error| matches!(provider_error, goose::providers::errors::ProviderError::ContextLengthExceeded(_)))
+                                .unwrap_or(false) {
+
+                                output::render_text(
+                                    "Context limit reached. Performing auto-compaction...",
+                                    Some(Color::Yellow),
+                                    true
+                                );
+
+                                // Try auto-compaction first - keep the stream alive!
+                                if let Ok(compact_result) = goose::context_mgmt::auto_compact::perform_compaction(&self.agent, self.messages.messages()).await {
+                                    self.messages = compact_result.messages;
+
+                                    // Persist the compacted messages
+                                    if let Some(session_file) = &self.session_file {
+                                        let provider = self.agent.provider().await.ok();
+                                        let working_dir = std::env::current_dir().ok();
+                                        if let Err(e) = session::persist_messages_with_schedule_id(
+                                            session_file,
+                                            &self.messages,
+                                            provider,
+                                            self.scheduled_job_id.clone(),
+                                            working_dir,
+                                        ).await {
+                                            eprintln!("Failed to persist compacted messages: {}", e);
+                                        }
+                                    }
+
+                                    output::render_text(
+                                        "Compaction complete. Conversation has been automatically compacted to continue.",
+                                        Some(Color::Yellow),
+                                        true
+                                    );
+
+                                    // Restart the stream after successful compaction - keep the stream alive!
+                                    stream = self
+                                        .agent
+                                        .reply(
+                                            self.messages.clone(),
+                                            session_config.clone(),
+                                            Some(cancel_token.clone())
+                                        )
+                                        .await?;
+                                    continue;
+                                }
+                                // Auto-compaction failed, fall through to common error handling below
+                            }
                             eprintln!("Error: {}", e);
                             cancel_token_clone.cancel();
                             drop(stream);
                             if let Err(e) = self.handle_interrupted_messages(false).await {
                                 eprintln!("Error handling interruption: {}", e);
                             }
-
-                            // Check if it's a ProviderError::ContextLengthExceeded
-                            if e.downcast_ref::<goose::providers::errors::ProviderError>()
-                                .map(|provider_error| matches!(provider_error, goose::providers::errors::ProviderError::ContextLengthExceeded(_)))
-                                .unwrap_or(false) {
-                                output::render_error(
-                                    "Context length exceeded error.\n\
-                                    The conversation is too long for the model's context window.\n\
-                                    Consider using /summarize to condense the conversation history\n\
-                                    or /clear to start fresh.\n\
-                                    We've removed the conversation up to the most recent user message.",
-                                );
-                            } else {
-                                output::render_error(
-                                    "The error above was an exception we were not able to handle.\n\
-                                    These errors are often related to connection or authentication\n\
-                                    We've removed the conversation up to the most recent user message\n\
-                                    - depending on the error you may be able to continue",
-                                );
-                            }
+                            output::render_error(                                "The error above was an exception we were not able to handle.\n\
+                            These errors are often related to connection or authentication.\n\
+                            Consider using /summarize to condense the conversation history\n\
+                            or /clear to start fresh.\n\
+                            We've removed the conversation up to the most recent user message\n\
+                            - depending on the error you may be able to continue.");
                             break;
                         }
                         None => break,
