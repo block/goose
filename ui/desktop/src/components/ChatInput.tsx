@@ -300,15 +300,19 @@ export default function ChatInput({
 
   // Handle recipe prompt updates
   useEffect(() => {
-    // If recipe is accepted and we have an initial prompt, and no messages yet, and we haven't set it before
+    const requiresParams = (recipeConfig?.parameters?.length ?? 0) > 0;
     if (recipeAccepted && initialPrompt && messages.length === 0) {
-      setDisplayValue(initialPrompt);
-      setValue(initialPrompt);
-      setTimeout(() => {
-        textAreaRef.current?.focus();
-      }, 0);
+      // If recipe requires parameters, only proceed if we have them or if initialPrompt is already substituted
+      // (initialPrompt will be substituted after parameters are collected)
+      if (!requiresParams || !initialPrompt.includes('{{')) {
+        setDisplayValue(initialPrompt);
+        setValue(initialPrompt);
+        setTimeout(() => {
+          textAreaRef.current?.focus();
+        }, 0);
+      }
     }
-  }, [recipeAccepted, initialPrompt, messages.length]);
+  }, [recipeAccepted, initialPrompt, messages.length, recipeConfig?.parameters]);
 
   // Draft functionality - load draft if no initial value or recipe
   useEffect(() => {
