@@ -1,0 +1,414 @@
+[
+  {
+    "id": "StartingTemporalService",
+    "translation": "Iniciando serviço Temporal..."
+  },
+  {
+    "id": "RuntimeOS",
+    "translation": "Sistema Operacional: %s"
+  },
+  {
+    "id": "RuntimeARCH",
+    "translation": "Arquitetura: %s"
+  },
+  {
+    "id": "CurrentWorkingDirectory",
+    "translation": "Diretório de trabalho atual: %s"
+  },
+  {
+    "id": "PortEnvironmentVariable",
+    "translation": "Variável de ambiente PORT: %s"
+  },
+  {
+    "id": "RustLogEnvironmentVariable",
+    "translation": "Variável de ambiente RUST_LOG: %s"
+  },
+  {
+    "id": "TemporalLogLevelEnvironmentVariable",
+    "translation": "Variável de ambiente TEMPORAL_LOG_LEVEL: %s"
+  },
+  {
+    "id": "CreatingTemporalService",
+    "translation": "Criando serviço Temporal..."
+  },
+  {
+    "id": "FailedToCreateTemporalService",
+    "translation": "ERRO: Falha ao criar serviço Temporal: %v"
+  },
+  {
+    "id": "TemporalServiceCreatedSuccessfully",
+    "translation": "✓ Serviço Temporal criado com sucesso"
+  },
+  {
+    "id": "TemporalServerRunningOnPort",
+    "translation": "Servidor Temporal executando na porta %d"
+  },
+  {
+    "id": "TemporalUIAvailableAt",
+    "translation": "Interface Temporal disponível em http://localhost:%d"
+  },
+  {
+    "id": "TemporalServiceStartingOnPort",
+    "translation": "Serviço Temporal iniciando na porta %d"
+  },
+  {
+    "id": "HealthEndpoint",
+    "translation": "Endpoint de saúde: http://localhost:%d/health"
+  },
+  {
+    "id": "JobsEndpoint",
+    "translation": "Endpoint de trabalhos: http://localhost:%d/jobs"
+  },
+  {
+    "id": "PortsEndpoint",
+    "translation": "Endpoint de portas: http://localhost:%d/ports"
+  },
+  {
+    "id": "FoundTemporalInPATH",
+    "translation": "Temporal encontrado no PATH em: %s"
+  },
+  {
+    "id": "SuccessfullyVerifiedTemporalCLI",
+    "translation": "CLI Temporal verificado com sucesso em: %s"
+  },
+  {
+    "id": "FailedToVerifyTemporalCLI",
+    "translation": "Falha ao verificar CLI Temporal em %s: %v"
+  },
+  {
+    "id": "TemporalNotFoundInPATH",
+    "translation": "Temporal não encontrado no PATH: %v"
+  },
+  {
+    "id": "AttemptToFindInLocalDirectoryFailed",
+    "translation": "Tentativa de encontrar no diretório local falhou: %s."
+  },
+  {
+    "id": "FailedToGetExecutablePath",
+    "translation": "Falha ao obter caminho do executável: %v"
+  },
+  {
+    "id": "ExecutableDirectory",
+    "translation": "Diretório do executável: %s"
+  },
+  {
+    "id": "WillCheckTheseAdditionalPaths",
+    "translation": "Verificará estes caminhos adicionais: %v"
+  },
+  {
+    "id": "CheckingPossiblePathsForTemporalCLI",
+    "translation": "Verificando %d caminhos possíveis para CLI Temporal"
+  },
+  {
+    "id": "CheckingPath",
+    "translation": "Verificando caminho %d/%d: %s"
+  },
+  {
+    "id": "FileDoesNotExistAt",
+    "translation": "Arquivo não existe em %s: %v"
+  },
+  {
+    "id": "FileExistsAt",
+    "translation": "Arquivo existe em: %s"
+  },
+  {
+    "id": "TemporalServerAlreadyRunningOnPort",
+    "translation": "Servidor Temporal já está executando na porta %d"
+  },
+  {
+    "id": "TemporalServerNotRunningAttemptingToStart",
+    "translation": "Servidor Temporal não está executando, tentando iniciá-lo na porta %d..."
+  },
+  {
+    "id": "CouldNotFindTemporalCLI",
+    "translation": "ERRO: Não foi possível encontrar CLI Temporal: %v"
+  },
+  {
+    "id": "UsingTemporalCLIAt",
+    "translation": "Usando CLI Temporal em: %s"
+  },
+  {
+    "id": "StartingTemporalServerWithCommand",
+    "translation": "Iniciando servidor Temporal com comando: %s %v"
+  },
+  {
+    "id": "FailedToStartTemporalServer",
+    "translation": "ERRO: Falha ao iniciar servidor Temporal: %v"
+  },
+  {
+    "id": "TemporalServerStartedWithPID",
+    "translation": "Servidor Temporal iniciado com PID: %d (porta: %d, porta UI: %d)"
+  },
+  {
+    "id": "TimeoutWaitingForTemporalServerToStart",
+    "translation": "ERRO: Timeout aguardando servidor Temporal iniciar após %d tentativas"
+  },
+  {
+    "id": "CheckingIfTemporalServerIsReady",
+    "translation": "Verificando se servidor Temporal está pronto (tentativa %d)..."
+  },
+  {
+    "id": "TemporalServerIsNowReadyOnPort",
+    "translation": "Servidor Temporal agora está pronto na porta %d"
+  },
+  {
+    "id": "TemporalServerNotReadyYet",
+    "translation": "Servidor Temporal ainda não está pronto (tentativa %d)"
+  },
+  {
+    "id": "ReceivedShutdownSignal",
+    "translation": "Sinal de desligamento recebido"
+  },
+  {
+    "id": "HTTPServerFailed",
+    "translation": "Servidor HTTP falhou: %v"
+  },
+  {
+    "id": "EmbeddedRecipeContentInMetadataForJob",
+    "translation": "Conteúdo da receita incorporado em metadados para trabalho %s (tamanho: %d bytes)"
+  },
+  {
+    "id": "RecipeTooLargeForEmbeddingUsingManagedFile",
+    "translation": "Receita muito grande para incorporação, usando arquivo gerenciado para trabalho %s (tamanho: %d bytes)"
+  },
+  {
+    "id": "CreatedScheduleForJob",
+    "translation": "Agendamento criado para trabalho: %s"
+  },
+  {
+    "id": "DeletedScheduleForJob",
+    "translation": "Agendamento excluído para trabalho: %s"
+  },
+  {
+    "id": "PausedScheduleForJob",
+    "translation": "Agendamento pausado para trabalho: %s"
+  },
+  {
+    "id": "UnpausedScheduleForJob",
+    "translation": "Agendamento despausado para trabalho: %s"
+  },
+  {
+    "id": "UpdatedScheduleForJobWithNewCron",
+    "translation": "Agendamento atualizado para trabalho %s com nova expressão cron: %s"
+  },
+  {
+    "id": "ErrorListingSchedules",
+    "translation": "Erro ao listar agendamentos: %v"
+  },
+  {
+    "id": "WarningCouldNotGetDetailedInfoForSchedule",
+    "translation": "Aviso: Não foi possível obter informações detalhadas para agendamento %s: %v"
+  },
+  {
+    "id": "FailedToParseMetadataFromNoteFieldForSchedule",
+    "translation": "Falha ao analisar metadados do campo Nota para agendamento %s: %v"
+  },
+  {
+    "id": "ScheduleHasNoMetadataUsingFallbackValues",
+    "translation": "Agendamento %s não tem metadados, usando valores padrão"
+  },
+  {
+    "id": "JobScheduledRun",
+    "translation": "Trabalho %s execução agendada: %s"
+  },
+  {
+    "id": "JobManualRun",
+    "translation": "Trabalho %s execução manual: %s"
+  },
+  {
+    "id": "JobManualRunIsMoreRecent",
+    "translation": "Trabalho %s: execução manual é mais recente"
+  },
+  {
+    "id": "JobScheduledRunIsMoreRecent",
+    "translation": "Trabalho %s: execução agendada é mais recente"
+  },
+  {
+    "id": "JobOnlyManualRunAvailable",
+    "translation": "Trabalho %s: apenas execução manual disponível"
+  },
+  {
+    "id": "JobHasNoRuns",
+    "translation": "Trabalho %s não tem execuções (agendadas ou manuais)"
+  },
+  {
+    "id": "RecordingManualRunForJob",
+    "translation": "Registrando execução manual para trabalho %s em %s"
+  },
+  {
+    "id": "ManualExecutionStartedForJob",
+    "translation": "Execução manual iniciada para trabalho: %s, fluxo de trabalho: %s"
+  },
+  {
+    "id": "StartingKillProcessForJob",
+    "translation": "Iniciando processo de encerramento para trabalho %s"
+  },
+  {
+    "id": "FailedToKillManagedProcessForJob",
+    "translation": "Falha ao encerrar processo gerenciado para trabalho %s: %v"
+  },
+  {
+    "id": "SuccessfullyKilledManagedProcessForJob",
+    "translation": "Processo gerenciado encerrado com sucesso para trabalho %s"
+  },
+  {
+    "id": "ErrorTerminatingWorkflowForJob",
+    "translation": "Erro ao encerrar fluxo de trabalho %s para trabalho %s: %v"
+  },
+  {
+    "id": "TerminatedWorkflowForJob",
+    "translation": "Fluxo de trabalho %s encerrado para trabalho %s"
+  },
+  {
+    "id": "TerminatedWorkflowsForJob",
+    "translation": "%d fluxo(s) de trabalho encerrado(s) para trabalho %s"
+  },
+  {
+    "id": "KilledJob",
+    "translation": "Trabalho encerrado: %s (%s)"
+  },
+  {
+    "id": "MarkingJobAsCompleted",
+    "translation": "Marcando trabalho %s como concluído (solicitado pelo agendador Rust)"
+  },
+  {
+    "id": "NoProcessToCleanUpForJob",
+    "translation": "Nenhum processo para limpar para trabalho %s: %v"
+  },
+  {
+    "id": "StoredRecipeForJob",
+    "translation": "Receita armazenada para trabalho %s: %s -> %s (tamanho: %d bytes)"
+  },
+  {
+    "id": "ErrorFindingRecipeFilesForCleanup",
+    "translation": "Erro ao encontrar arquivos de receita para limpeza: %v"
+  },
+  {
+    "id": "WarningFailedToRemoveRecipeFile",
+    "translation": "Aviso: Falha ao remover arquivo de receita %s: %v"
+  },
+  {
+    "id": "CleanedUpRecipeFile",
+    "translation": "Arquivo de receita limpo: %s"
+  },
+  {
+    "id": "CreatedTemporaryRecipeFileForJob",
+    "translation": "Arquivo de receita temporário criado para trabalho %s: %s"
+  },
+  {
+    "id": "ExecutingBackgroundJobUsingRecipeFile",
+    "translation": "Executando trabalho em segundo plano %s usando arquivo de receita: %s"
+  },
+  {
+    "id": "StartingBackgroundCLIJobWithSession",
+    "translation": "Iniciando trabalho CLI em segundo plano %s com sessão %s"
+  },
+  {
+    "id": "BackgroundJobCancelledKillingProcess",
+    "translation": "Trabalho em segundo plano %s cancelado, encerrando processo"
+  },
+  {
+    "id": "BackgroundCLIJobFailed",
+    "translation": "Trabalho CLI em segundo plano %s falhou: %v"
+  },
+  {
+    "id": "BackgroundCLIJobCompletedSuccessfullyWithSession",
+    "translation": "Trabalho CLI em segundo plano %s concluído com sucesso com sessão %s"
+  },
+  {
+    "id": "ExecutingForegroundJobWithRecipe",
+    "translation": "Executando trabalho em primeiro plano %s com receita %s"
+  },
+  {
+    "id": "DesktopAppIsRunningUsingGUIModeForJob",
+    "translation": "Aplicativo desktop está executando, usando modo GUI para trabalho %s"
+  },
+  {
+    "id": "DesktopAppNotRunningFallingBackToCLIModeForJob",
+    "translation": "Aplicativo desktop não está executando, voltando para modo CLI para trabalho %s"
+  },
+  {
+    "id": "ForegroundGUIJobInitiatedWithSession",
+    "translation": "Trabalho GUI em primeiro plano %s iniciado com sessão %s, aguardando conclusão..."
+  },
+  {
+    "id": "GUISessionCancelled",
+    "translation": "Sessão GUI %s cancelada"
+  },
+  {
+    "id": "ForegroundGUIJobCompletedSuccessfullyWithSession",
+    "translation": "Trabalho GUI em primeiro plano %s concluído com sucesso com sessão %s"
+  },
+  {
+    "id": "ExecutingJobViaCLIFallbackUsingRecipeFile",
+    "translation": "Executando trabalho %s via fallback CLI usando arquivo de receita: %s"
+  },
+  {
+    "id": "StartingForegroundCLIJobWithSession",
+    "translation": "Iniciando trabalho CLI em primeiro plano %s com sessão %s"
+  },
+  {
+    "id": "ForegroundCLIJobCancelledKillingProcess",
+    "translation": "Trabalho CLI em primeiro plano %s cancelado, encerrando processo"
+  },
+  {
+    "id": "ForegroundCLIJobFailed",
+    "translation": "Trabalho CLI em primeiro plano %s falhou: %v"
+  },
+  {
+    "id": "ForegroundCLIJobCompletedSuccessfullyWithSession",
+    "translation": "Trabalho CLI em primeiro plano %s concluído com sucesso com sessão %s"
+  },
+  {
+    "id": "UnsupportedOS",
+    "translation": "Sistema operacional não suportado: %s"
+  },
+  {
+    "id": "FailedToCheckIfDesktopAppIsRunning",
+    "translation": "Falha ao verificar se aplicativo desktop está executando: %v"
+  },
+  {
+    "id": "DesktopAppRunning",
+    "translation": "Aplicativo desktop executando: %v"
+  },
+  {
+    "id": "GeneratedDeepLinkForJobWithSession",
+    "translation": "Link profundo gerado para trabalho %s com sessão %s (comprimento: %d)"
+  },
+  {
+    "id": "OpeningDeepLink",
+    "translation": "Abrindo link profundo: %s"
+  },
+  {
+    "id": "WaitingForSessionToComplete",
+    "translation": "Aguardando sessão %s concluir (timeout: %v)"
+  },
+  {
+    "id": "CheckingSessionStatus",
+    "translation": "Verificando status da sessão %s (tempo decorrido: %v)"
+  },
+  {
+    "id": "ErrorCheckingSessionStatus",
+    "translation": "Erro ao verificar status da sessão %s: %v"
+  },
+  {
+    "id": "SessionCompletedAfter",
+    "translation": "Sessão %s concluída após %v"
+  },
+  {
+    "id": "SessionStillRunning",
+    "translation": "Sessão %s ainda executando (tempo decorrido: %v)"
+  },
+  {
+    "id": "AddedProcessForJobToProcessManager",
+    "translation": "Processo %d adicionado para trabalho %s ao gerenciador de processos"
+  },
+  {
+    "id": "RemovedProcessForJobFromProcessManager",
+    "translation": "Processo %d removido para trabalho %s do gerenciador de processos"
+  },
+  {
+    "id": "KillingProcessForJob",
+    "translation": "Encerrando processo %d para trabalho %s"
+  }
+]
