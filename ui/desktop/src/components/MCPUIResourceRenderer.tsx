@@ -160,9 +160,21 @@ export default function MCPUIResourceRenderer({
     ): Promise<UIActionHandlerResult> => {
       const { prompt } = actionEvent.payload;
 
+      // Validate prompt before forwarding
+      if (typeof prompt !== 'string' || prompt.trim().length === 0) {
+        return {
+          status: 'error' as const,
+          error: {
+            code: UIActionErrorCode.INVALID_PARAMS,
+            message: 'Prompt must be a non-empty string',
+            details: actionEvent.payload,
+          },
+        };
+      }
+
       if (appendPromptToChat) {
         try {
-          appendPromptToChat(prompt);
+          appendPromptToChat(prompt.trim());
           window.dispatchEvent(new CustomEvent('scroll-chat-to-bottom'));
           return {
             status: 'success' as const,
