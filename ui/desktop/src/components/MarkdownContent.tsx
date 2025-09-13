@@ -15,17 +15,33 @@ interface MarkdownContentProps {
   className?: string;
 }
 
-const SimpleCodeBlock = React.forwardRef(function SimpleCodeBlock({
-  ref,
+const LightweightCodeBlock = function LightweightCodeBlock({
   children,
-  ...props
-}: CodeProps) {
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <code ref={ref} {...props} className="break-all bg-inline-code whitespace-pre-wrap font-sans">
-      {children}
-    </code>
+    // This mimics the code block from react-syntax-highlighter, but without the actual highlighting,
+    // just so we have a fallback that isn't too jarringly different while the highlighter lazy-loads
+    <div
+      style={{
+        background: 'rgb(40, 44, 52)',
+        color: 'rgb(171, 178, 191)',
+        whiteSpace: 'pre',
+        lineHeight: 1.5,
+        tabSize: 2,
+        padding: '1em',
+        margin: '0px',
+        overflow: 'auto',
+        borderRadius: '0.3em',
+      }}
+    >
+      <code className="break-all whitespace-pre-wrap" style={{ fontFamily: 'monospace' }}>
+        {children}
+      </code>
+    </div>
   );
-});
+};
 
 const MarkdownCode = memo(
   React.forwardRef(function MarkdownCode(
@@ -34,19 +50,13 @@ const MarkdownCode = memo(
   ) {
     const match = /language-(\w+)/.exec(className || '');
     return !inline && match ? (
-      <Suspense
-        fallback={
-          <SimpleCodeBlock ref={ref} {...props}>
-            {children}
-          </SimpleCodeBlock>
-        }
-      >
+      <Suspense fallback={<LightweightCodeBlock>{children}</LightweightCodeBlock>}>
         <CodeBlock language={match[1]}>{String(children).replace(/\n$/, '')}</CodeBlock>
       </Suspense>
     ) : (
-      <SimpleCodeBlock ref={ref} {...props}>
+      <code ref={ref} {...props} className="break-all bg-inline-code whitespace-pre-wrap font-mono">
         {children}
-      </SimpleCodeBlock>
+      </code>
     );
   })
 );
