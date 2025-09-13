@@ -678,6 +678,10 @@ enum Command {
         #[arg(long, help = "Open browser automatically when server starts")]
         open: bool,
     },
+
+    /// Orchestrate parallel work on GitHub issues using swarm intelligence
+    #[command(about = "Orchestrate parallel work on GitHub issues using swarm intelligence")]
+    Swarm(crate::commands::swarm::SwarmArgs),
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -724,6 +728,7 @@ pub async fn cli() -> Result<()> {
         Some(Command::Bench { .. }) => "bench",
         Some(Command::Recipe { .. }) => "recipe",
         Some(Command::Web { .. }) => "web",
+        Some(Command::Swarm(_)) => "swarm",
         None => "default_session",
     };
 
@@ -1162,6 +1167,10 @@ pub async fn cli() -> Result<()> {
         }
         Some(Command::Web { port, host, open }) => {
             crate::commands::web::handle_web(port, host, open).await?;
+            return Ok(());
+        }
+        Some(Command::Swarm(args)) => {
+            crate::commands::swarm::run(args).await?;
             return Ok(());
         }
         None => {

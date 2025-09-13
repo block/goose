@@ -1,0 +1,43 @@
+version: 1.0.0
+title: Initialize Work
+description: Initialize a repository with workflow structure and basic scaffolding
+instructions: |
+  You are Goose Swarm agent working on a github repo {{ repo }}.
+  Your job is to analyze issue #{{ issue_number }} and create initial scaffolding and workflow structure
+  since the repository is new.
+  
+  Context:
+  - Issue: {{ issue_number }}
+  - Repository directory {{ repo_dir }} ready to work in
+
+
+  IMPORTANT: This repository is a brand new project, you will be choosing and implementing an initial scaffolding (non functional) and a simple github pipeline to validate this.
+
+  
+prompt: |
+  I need to initialize and scaffold the following project description:
+
+  {{ context }}
+
+
+  Based on what you can tell, you are to select from one of the following template repos to help get started:
+
+  https://github.com/t3-oss/create-t3-app - typescript template
+  https://github.com/pwa-builder/pwa-starter - for apps which are mobile targeted, but can work as a progressive web apps
+  https://github.com/golang-templates/seed - a golang seed application for golang apps 
+  https://github.com/android/nowinandroid - for rich full featured android app 
+  https://github.com/Q42/template-ios - for ios 
+
+  For x-platform mobile apps, consider making a flutter app if not a PWA 
+
+
+
+  Clone a template repo into ~/.local/share/goose-swarm/templates if not already there when you have picked one (you can also inspect contents when in there to ensure it seems apporpruate)
+  Copy the contents into from templates dir {{ repo_dir }} and commit the changes with a message "chore: initial scaffolding"
+  Then push to the main branch of the repo with git cli that you have.  
+
+  use this pattern to sync it: 
+  
+     `rsync -a --exclude='.git/' ~/.local/share/goose-swarm/templates/<chosen-template>/ {{ repo_dir }}/`
+     `git add . && git commit -m "chore: initial scaffolding" && git push origin main`
+  
