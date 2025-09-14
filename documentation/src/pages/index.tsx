@@ -13,7 +13,7 @@ function HomepageHeader() {
     <header className={styles.header}>
       <div className={styles.wrapper}>
         <div className={styles.textColumn}>
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}>
+          <div className="hero--logo">
             <GooseLogo />
           </div>
           <p className={styles.subtitle}>{siteConfig.tagline}</p>
