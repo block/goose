@@ -29,22 +29,18 @@ pub struct SecurityResult {
 
 impl SecurityManager {
     pub fn new() -> Self {
-        // Initialize scanner based on config
-        let should_enable = Self::should_enable_security();
-
-        let scanner = if should_enable {
-            tracing::info!("Security scanner initialized and enabled");
-            Some(PromptInjectionScanner::new())
-        } else {
-            tracing::debug!("Security scanning disabled via configuration");
-            None
-        };
-
         Self {
-            scanner,
+            scanner: None, // Initialize lazily
             flagged_findings: Arc::new(Mutex::new(HashSet::new())),
         }
     }
+
+    /// Check if security is enabled - reads fresh from config each time
+    pub fn is_enabled(&self) -> bool {
+        Self::should_enable_security()
+    }
+
+
 
     /// Check if security should be enabled based on config
     fn should_enable_security() -> bool {
@@ -52,11 +48,16 @@ impl SecurityManager {
         use crate::config::Config;
         let config = Config::global();
 
-        // Try to get security.enabled from config
+        // Try to read the nested security config first
+        if let Ok(security_config) = config.get_param::<serde_json::Value>("security") {
+            if let Some(enabled) = security_config.get("enabled").and_then(|v| v.as_bool()) {
+                return enabled;
+            }
+        }
+
+        // Fall back to dot notation (security.enabled)
         let result = config
-            .get_param::<serde_json::Value>("security")
-            .ok()
-            .and_then(|security_config| security_config.get("enabled")?.as_bool())
+            .get_param::<bool>("security.enabled")
             .unwrap_or(false);
 
         tracing::debug!(
@@ -70,13 +71,23 @@ impl SecurityManager {
 
     /// New method for tool inspection framework - works directly with tool requests
     pub async fn analyze_tool_requests(
-        &self,
+        &mut self,
         tool_requests: &[ToolRequest],
         messages: &[Message],
     ) -> Result<Vec<SecurityResult>> {
-        let Some(scanner) = &self.scanner else {
-            // Security disabled, return empty results
+        // Check if security is enabled and get scanner if needed
+        if !self.is_enabled() {
             tracing::debug!("🔓 Security scanning disabled - returning empty results");
+            return Ok(vec![]);
+        }
+
+        // Initialize scanner if needed
+        if self.scanner.is_none() {
+            tracing::info!("Security scanner initialized and enabled");
+            self.scanner = Some(PromptInjectionScanner::new());
+        }
+
+        let Some(scanner) = &self.scanner else {
             return Ok(vec![]);
         };
 
@@ -189,7 +200,7 @@ impl SecurityManager {
     /// Uses the proper two-step security analysis process
     /// Scans ALL tools (approved + needs_approval) for security threats
     pub async fn filter_malicious_tool_calls(
-        &self,
+        &mut self,
         messages: &[Message],
         permission_check_result: &PermissionCheckResult,
         _system_prompt: Option<&str>,

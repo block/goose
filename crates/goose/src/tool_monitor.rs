@@ -84,7 +84,7 @@ impl ToolInspector for RepetitionInspector {
     }
 
     async fn inspect(
-        &self,
+        &mut self,
         tool_requests: &[ToolRequest],
         _messages: &[Message],
     ) -> Result<Vec<InspectionResult>> {

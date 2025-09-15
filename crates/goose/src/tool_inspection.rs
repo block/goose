@@ -36,7 +36,7 @@ pub trait ToolInspector: Send + Sync {
 
     /// Inspect tool requests and return results
     async fn inspect(
-        &self,
+        &mut self,
         tool_requests: &[ToolRequest],
         messages: &[Message],
     ) -> Result<Vec<InspectionResult>>;
@@ -70,13 +70,13 @@ impl ToolInspectionManager {
 
     /// Run all inspectors on the tool requests
     pub async fn inspect_tools(
-        &self,
+        &mut self,
         tool_requests: &[ToolRequest],
         messages: &[Message],
     ) -> Result<Vec<InspectionResult>> {
         let mut all_results = Vec::new();
 
-        for inspector in &self.inspectors {
+        for inspector in &mut self.inspectors {
             if !inspector.is_enabled() {
                 continue;
             }
@@ -290,7 +290,7 @@ mod tests {
         }
 
         async fn inspect(
-            &self,
+            &mut self,
             _tool_requests: &[ToolRequest],
             _messages: &[Message],
         ) -> Result<Vec<InspectionResult>> {

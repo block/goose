@@ -61,7 +61,7 @@ impl ToolInspector for SecurityInspector {
     }
 
     async fn inspect(
-        &self,
+        &mut self,
         tool_requests: &[ToolRequest],
         messages: &[Message],
     ) -> Result<Vec<InspectionResult>> {
@@ -86,15 +86,8 @@ impl ToolInspector for SecurityInspector {
     }
 
     fn is_enabled(&self) -> bool {
-        // Check if security is enabled in config
-        use crate::config::Config;
-        let config = Config::global();
-
-        config
-            .get_param::<serde_json::Value>("security")
-            .ok()
-            .and_then(|security_config| security_config.get("enabled")?.as_bool())
-            .unwrap_or(false)
+        // Always read fresh from config to pick up changes
+        self.security_manager.is_enabled()
     }
 }
 

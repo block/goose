@@ -2,6 +2,7 @@ import { ModeSection } from '../mode/ModeSection';
 import { ToolSelectionStrategySection } from '../tool_selection_strategy/ToolSelectionStrategySection';
 import SchedulerSection from '../scheduler/SchedulerSection';
 import DictationSection from '../dictation/DictationSection';
+import SecuritySection from '../security/SecuritySection';
 import { ResponseStylesSection } from '../response_styles/ResponseStylesSection';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 
@@ -28,10 +29,15 @@ export default function ChatSettingsSection() {
         </CardContent>
       </Card>
 
-
       <Card className="pb-2 rounded-lg">
         <CardContent className="px-2">
           <DictationSection />
+        </CardContent>
+      </Card>
+
+      <Card className="pb-2 rounded-lg">
+        <CardContent className="px-2">
+          <SecuritySection />
         </CardContent>
       </Card>
 

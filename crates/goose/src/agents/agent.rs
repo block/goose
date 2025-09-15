@@ -104,7 +104,7 @@ pub struct Agent {
     pub(super) tool_route_manager: ToolRouteManager,
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
     pub(super) retry_manager: RetryManager,
-    pub(super) tool_inspection_manager: ToolInspectionManager,
+    pub(super) tool_inspection_manager: Mutex<ToolInspectionManager>,
     pub(super) autopilot: Mutex<AutoPilot>,
 }
 
@@ -178,7 +178,7 @@ impl Agent {
             tool_route_manager: ToolRouteManager::new(),
             scheduler_service: Mutex::new(None),
             retry_manager: RetryManager::new(),
-            tool_inspection_manager: Self::create_default_tool_inspection_manager(),
+            tool_inspection_manager: Mutex::new(Self::create_default_tool_inspection_manager()),
             autopilot: Mutex::new(AutoPilot::new()),
         }
     }
@@ -264,6 +264,8 @@ impl Agent {
 
         // Update permission inspector mode to match the session mode
         self.tool_inspection_manager
+            .lock()
+            .await
             .update_permission_inspector_mode(goose_mode.clone())
             .await;
 
@@ -1159,6 +1161,8 @@ impl Agent {
                                 } else {
                                     // Run all tool inspectors (security, repetition, permission, etc.)
                                     let inspection_results = self.tool_inspection_manager
+                                        .lock()
+                                        .await
                                         .inspect_tools(
                                             &remaining_requests,
                                             messages.messages(),
@@ -1167,6 +1171,8 @@ impl Agent {
 
                                     // Process inspection results into permission decisions using the permission inspector
                                     let permission_check_result = self.tool_inspection_manager
+                                        .lock()
+                                        .await
                                         .process_inspection_results_with_permission_inspector(
                                             &remaining_requests,
                                             &inspection_results,
@@ -1713,7 +1719,7 @@ mod tests {
         let agent = Agent::new();
 
         // Verify that the tool inspection manager has all expected inspectors
-        let inspector_names = agent.tool_inspection_manager.inspector_names();
+        let inspector_names = agent.tool_inspection_manager.lock().await.inspector_names();
 
         assert!(
             inspector_names.contains(&"repetition"),
