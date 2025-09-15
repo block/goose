@@ -27,12 +27,18 @@ impl PromptInjectionScanner {
         use crate::config::Config;
         let config = Config::global();
 
-        // Get security config and extract threshold
+        // Try to read the nested security config first
         if let Ok(security_value) = config.get_param::<serde_json::Value>("security") {
             if let Some(threshold) = security_value.get("threshold").and_then(|t| t.as_f64()) {
                 return threshold as f32;
             }
         }
+
+        // Fall back to dot notation (security.threshold)
+        if let Ok(threshold) = config.get_param::<f64>("security.threshold") {
+            return threshold as f32;
+        }
+
         0.7 // Default threshold
     }
 

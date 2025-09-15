@@ -8,14 +8,16 @@ interface SecuritySettings {
 }
 
 export const SecurityToggle = () => {
+  const { config, upsert } = useConfig();
+
+  // Initialize settings with defaults
   const [settings, setSettings] = useState<SecuritySettings>({
     enabled: false,
     threshold: 0.7,
   });
-  const { config, upsert } = useConfig();
 
   useEffect(() => {
-    // Load security settings from config
+    // Load security settings from config when config changes
     if (config && 'security' in config && config.security) {
       const securityConfig = config.security as { enabled?: boolean; threshold?: number };
       setSettings({
@@ -73,22 +75,45 @@ export const SecurityToggle = () => {
                 settings.enabled ? 'text-text-default' : 'text-text-muted'
               }`}
             >
-              Detection Threshold: {settings.threshold.toFixed(2)}
+              Detection Threshold
             </label>
             <p className="text-xs text-text-muted mb-2">
-              Higher values are more strict (0.1 = lenient, 0.9 = strict)
+              Higher values are more strict (0.01 = very lenient, 1.0 = maximum strict)
             </p>
             <input
-              type="range"
-              min={0.1}
-              max={0.9}
-              step={0.1}
+              type="number"
+              min={0.01}
+              max={1.0}
+              step={0.01}
               value={settings.threshold}
-              onChange={(e) => handleThresholdChange(parseFloat(e.target.value))}
+              onChange={(e) => {
+                // Allow any input during typing, update local state immediately
+                const value = parseFloat(e.target.value);
+                if (!isNaN(value)) {
+                  setSettings((prev) => ({ ...prev, threshold: value }));
+                } else if (e.target.value === '') {
+                  // Allow empty field during editing
+                  setSettings((prev) => ({ ...prev, threshold: 0 }));
+                }
+              }}
+              onBlur={(e) => {
+                // Validate and save to config on blur
+                let value = parseFloat(e.target.value);
+                if (isNaN(value) || value < 0.01) {
+                  value = 0.01;
+                } else if (value > 1.0) {
+                  value = 1.0;
+                }
+                setSettings((prev) => ({ ...prev, threshold: value }));
+                handleThresholdChange(value);
+              }}
               disabled={!settings.enabled}
-              className={`w-full h-2 rounded-lg appearance-none cursor-pointer ${
-                settings.enabled ? 'bg-gray-200' : 'bg-gray-100 opacity-50 cursor-not-allowed'
+              className={`w-24 px-2 py-1 text-sm border rounded ${
+                settings.enabled
+                  ? 'border-gray-300 bg-white text-text-default'
+                  : 'border-gray-200 bg-gray-100 text-text-muted cursor-not-allowed'
               }`}
+              placeholder="0.70"
             />
           </div>
         </div>
