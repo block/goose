@@ -319,7 +319,6 @@ impl ServerHandler for DeveloperServer {
             **Important**: Each shell command runs in its own process. Things like directory changes or
             sourcing files do not persist between tool calls. So you may need to repeat them each time by
             stringing together commands.
-              - Pathnames: Use absolute paths and avoid cd unless explicitly requested
         "#};
 
         let windows_specific = indoc! {r#"
@@ -1166,19 +1165,12 @@ impl DeveloperServer {
         let expanded = expand_path(path_str);
         let path = Path::new(&expanded);
 
-        let suggestion = cwd.join(path);
-
-        match is_absolute_path(&expanded) {
-            true => Ok(path.to_path_buf()),
-            false => Err(ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                format!(
-                    "The path {} is not an absolute path, did you possibly mean {}?",
-                    path_str,
-                    suggestion.to_string_lossy(),
-                ),
-                None,
-            )),
+        // If the path is absolute, return it as-is
+        if is_absolute_path(&expanded) {
+            Ok(path.to_path_buf())
+        } else {
+            // For relative paths, resolve them relative to the current working directory
+            Ok(cwd.join(path))
         }
     }
 
@@ -3316,5 +3308,89 @@ Additional instructions here.
         assert!(instructions.contains("Custom hints file content"));
         assert!(!instructions.contains(".goosehints")); // Make sure it's not loading the default
         std::env::remove_var("CONTEXT_FILE_NAMES");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_resolve_path_absolute() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        let server = create_test_server();
+        let absolute_path = temp_dir.path().join("test.txt");
+        let absolute_path_str = absolute_path.to_str().unwrap();
+
+        let resolved = server.resolve_path(absolute_path_str).unwrap();
+        assert_eq!(resolved, absolute_path);
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_resolve_path_relative() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        let server = create_test_server();
+        let relative_path = "subdir/test.txt";
+
+        let resolved = server.resolve_path(relative_path).unwrap();
+        let expected = std::env::current_dir().unwrap().join("subdir/test.txt");
+        assert_eq!(resolved, expected);
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_text_editor_with_absolute_path() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        let server = create_test_server();
+        let absolute_path = temp_dir.path().join("absolute_test.txt");
+        let absolute_path_str = absolute_path.to_str().unwrap();
+
+        let write_params = Parameters(TextEditorParams {
+            path: absolute_path_str.to_string(),
+            command: "write".to_string(),
+            view_range: None,
+            file_text: Some("Absolute path test".to_string()),
+            old_str: None,
+            new_str: None,
+            insert_line: None,
+            diff: None,
+        });
+
+        let result = server.text_editor(write_params).await;
+        assert!(result.is_ok());
+
+        let content = fs::read_to_string(&absolute_path).unwrap();
+        assert_eq!(content.trim(), "Absolute path test");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_text_editor_with_relative_path() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        let server = create_test_server();
+        let relative_path = "relative_test.txt";
+
+        let write_params = Parameters(TextEditorParams {
+            path: relative_path.to_string(),
+            command: "write".to_string(),
+            view_range: None,
+            file_text: Some("Relative path test".to_string()),
+            old_str: None,
+            new_str: None,
+            insert_line: None,
+            diff: None,
+        });
+
+        let result = server.text_editor(write_params).await;
+        assert!(result.is_ok());
+
+        let absolute_path = temp_dir.path().join(relative_path);
+        let content = fs::read_to_string(&absolute_path).unwrap();
+        assert_eq!(content.trim(), "Relative path test");
     }
 }
