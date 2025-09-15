@@ -659,7 +659,34 @@
     "endorsed": false,
     "environmentVariables": []
   },
-    {
+  {
+    "id": "btcpayserver-mcp",
+    "name": "BTCPayServer",
+    "description": "BTCPayServer integration, providing tools for payment processing, store management, user administration, webhook handling and more",
+    "command": "npx -y btcpayserver-mcp",
+    "link": "https://github.com/Abhijay007/btcpayserver-mcp",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [
+      {
+        "name": "BTCPAY_BASE_URL",
+        "description": "Required environment variable",
+        "required": true
+      },
+      {
+        "name": "BTCPAY_API_KEY",
+        "description": "Required environment variable",
+        "required": true
+      },
+      {
+        "name": "BTCPAY_STORE_ID",
+        "description": "Optional environment variable",
+        "required": false
+      }
+    ]
+  },
+  {
     "id": "gotoHuman-mcp",
     "name": "gotoHuman MCP Server",
     "description": "Adds human approvals into your workflows",
